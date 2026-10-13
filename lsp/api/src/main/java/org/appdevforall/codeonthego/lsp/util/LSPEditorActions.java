@@ -29,22 +29,21 @@ import org.appdevforall.codeonthego.utils.ILogger;
  */
 public class LSPEditorActions {
 
-  public static void ensureActionsMenuRegistered(IActionsMenuProvider provider) {
-    final var registry = ActionsRegistry.getInstance();
-    final var action =
-        registry.findAction(ActionItem.Location.EDITOR_TEXT_ACTIONS, CodeActionsMenu.ID);
+	public static void ensureActionsMenuRegistered(IActionsMenuProvider provider) {
+		final var registry = ActionsRegistry.getInstance();
+		final var action = registry.findAction(ActionItem.Location.EDITOR_TEXT_ACTIONS, CodeActionsMenu.ID);
 
-    if (action == null) {
-      ILogger.ROOT.error("[LSPEditorActions] Cannot find registered editor actions menu");
-      return;
-    }
+		if (action == null) {
+			ILogger.ROOT.error("[LSPEditorActions] Cannot find registered editor actions menu");
+			return;
+		}
 
-    final var editorActions = (ActionMenu) action;
-    for (final var item : provider.getActions()) {
-      if (editorActions.findAction(item.getId()) != null) {
-        continue;
-      }
-      editorActions.addAction(item);
-    }
-  }
+		final var editorActions = (ActionMenu) action;
+		for (final var item : provider.getActions()) {
+			if (editorActions.findAction(item.getId()) != null) {
+				continue;
+			}
+			editorActions.addAction(item);
+		}
+	}
 }

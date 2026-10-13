@@ -21,13 +21,13 @@ import org.appdevforall.codeonthego.lsp.debug.IDebugClient
 
 /**
  * A language server registry which keeps track of registered language servers.
- * 
+ *
  * @author Akash Yadav
  */
 abstract class ILanguageServerRegistry {
 	/**
 	 * Register the language server.
-	 * 
+	 *
 	 * @param server The server to register.
 	 */
 	abstract fun register(server: ILanguageServer)
@@ -39,7 +39,7 @@ abstract class ILanguageServerRegistry {
 
 	/**
 	 * Connects debug client to all the registered [ILanguageServer]s.
-	 * 
+	 *
 	 * @param client The debug client to register.
 	 * @return A map of server IDs to their corresponding [DebugClientConnectionResult].
 	 */
@@ -49,7 +49,7 @@ abstract class ILanguageServerRegistry {
 	/**
 	 * Unregister the given server. If any server is registered with the given server ID, a shutdown
 	 * request will be sent to that server.
-	 * 
+	 *
 	 * @param serverId The ID of the server to unregister.
 	 */
 	abstract fun unregister(serverId: String)
@@ -61,7 +61,7 @@ abstract class ILanguageServerRegistry {
 
 	/**
 	 * Get the [ILanguageServer] registered with the given server ID.
-	 * 
+	 *
 	 * @param serverId The ID of the language server.
 	 * @return The [ILanguageServer] instance. Or `null` if no server is registered
 	 * with the provided ID.
@@ -69,7 +69,6 @@ abstract class ILanguageServerRegistry {
 	abstract fun getServer(serverId: String): ILanguageServer?
 
 	companion object {
-
 		/**
 		 * The default implementation of [ILanguageServerRegistry].
 		 */

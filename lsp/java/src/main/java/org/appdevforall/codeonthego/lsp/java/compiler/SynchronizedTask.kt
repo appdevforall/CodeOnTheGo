@@ -39,97 +39,97 @@ import java.util.concurrent.Semaphore
 
 class SynchronizedTask {
 
-  @Volatile
-  @PublishedApi
-  internal var isCompiling = false
+@Volatile
+@PublishedApi
+internal var isCompiling = false
 
-  @PublishedApi
-  internal val semaphore = Semaphore(1)
+@PublishedApi
+internal val semaphore = Semaphore(1)
 
-  @PublishedApi
-  internal var task: CompileTask? = null
-    private set
+@PublishedApi
+internal var task: CompileTask? = null
+	private set
 
-  companion object {
+companion object {
 
-    @PublishedApi
-    internal val log = LoggerFactory.getLogger(SynchronizedTask::class.java)
-  }
+	@PublishedApi
+	internal val log = LoggerFactory.getLogger(SynchronizedTask::class.java)
+}
 
-  inline fun run(crossinline taskConsumer: (CompileTask) -> Unit) {
-    try {
-      semaphore.acquire()
-    } catch (e: InterruptedException) {
-      throw CompilationCancellationException(e)
-    }
-    try {
-      taskConsumer(task!!)
-    } catch (err: Throwable) {
-      if (!isCancelled(err)) {
-        log.error("An error occurred while working with compilation task", err)
-      }
-      throw err
-    } finally {
-      semaphore.release()
-    }
-  }
+inline fun run(crossinline taskConsumer: (CompileTask) -> Unit) {
+	try {
+	semaphore.acquire()
+	} catch (e: InterruptedException) {
+	throw CompilationCancellationException(e)
+	}
+	try {
+	taskConsumer(task!!)
+	} catch (err: Throwable) {
+	if (!isCancelled(err)) {
+		log.error("An error occurred while working with compilation task", err)
+	}
+	throw err
+	} finally {
+	semaphore.release()
+	}
+}
 
-  inline fun <T : Any?> get(crossinline action: (CompileTask) -> T): T {
-    try {
-      semaphore.acquire()
-    } catch (e: InterruptedException) {
-      throw CompilationCancellationException(e)
-    }
-    return try {
-      action(task!!)
-    } catch (err: Throwable) {
-      if (!isCancelled(err)) {
-        log.error("An error occurred while working with compilation task", err)
-      }
-      throw err
-    } finally {
-      semaphore.release()
-    }
-  }
+inline fun <T : Any?> get(crossinline action: (CompileTask) -> T): T {
+	try {
+	semaphore.acquire()
+	} catch (e: InterruptedException) {
+	throw CompilationCancellationException(e)
+	}
+	return try {
+	action(task!!)
+	} catch (err: Throwable) {
+	if (!isCancelled(err)) {
+		log.error("An error occurred while working with compilation task", err)
+	}
+	throw err
+	} finally {
+	semaphore.release()
+	}
+}
 
-  fun post(action: Runnable) = post { action.run() }
+fun post(action: Runnable) = post { action.run() }
 
-  inline fun post(action: () -> Unit) {
-    try {
-      semaphore.acquire()
-    } catch (e: InterruptedException) {
-      throw CompilationCancellationException(e)
-    }
-    isCompiling = true
-    try {
-      if (task != null) {
-        task!!.close()
-      }
-      action()
-    } catch (err: Throwable) {
-      if (!isCancelled(err)) {
-        log.error("An error occurred", err)
-      }
-      throw err
-    } finally {
-      semaphore.release()
-      isCompiling = false
-    }
-  }
+inline fun post(action: () -> Unit) {
+	try {
+	semaphore.acquire()
+	} catch (e: InterruptedException) {
+	throw CompilationCancellationException(e)
+	}
+	isCompiling = true
+	try {
+	if (task != null) {
+		task!!.close()
+	}
+	action()
+	} catch (err: Throwable) {
+	if (!isCancelled(err)) {
+		log.error("An error occurred", err)
+	}
+	throw err
+	} finally {
+	semaphore.release()
+	isCompiling = false
+	}
+}
 
-  fun setTask(task: CompileTask?) {
-    this.task = task
-  }
+fun setTask(task: CompileTask?) {
+	this.task = task
+}
 
-  @get:Synchronized
-  val isBusy: Boolean
-    get() = isCompiling || semaphore.availablePermits() == 0
+@get:Synchronized
+val isBusy: Boolean
+	get() = isCompiling || semaphore.availablePermits() == 0
 
-  /**
-   * **FOR INTERNAL USE ONLY!**
-   */
-  fun logStats() {
-    log.warn("[SynchronizedTask] isCompiling={} queuedLength={}", isCompiling,
-      semaphore.queueLength)
-  }
+/**
+* **FOR INTERNAL USE ONLY!**
+*/
+fun logStats() {
+	log.warn("[SynchronizedTask] isCompiling={} queuedLength={}", isCompiling,
+	semaphore.queueLength)
+}
 }

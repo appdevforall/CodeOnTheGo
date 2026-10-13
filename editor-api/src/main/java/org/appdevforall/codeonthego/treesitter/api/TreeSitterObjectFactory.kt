@@ -42,92 +42,90 @@ import com.itsaky.androidide.treesitter.util.TSObjectFactory
  * @author Akash Yadav
  */
 class TreeSitterObjectFactory : TSObjectFactory {
+	override fun createInputEdit(
+		startByte: Int,
+		oldEndByte: Int,
+		newEndByte: Int,
+		startPoint: TSPoint,
+		oldEndPoint: TSPoint,
+		newEndPoint: TSPoint,
+	): TSInputEdit =
+		TreeSitterInputEdit.obtain(
+			startByte,
+			oldEndByte,
+			newEndByte,
+			startPoint,
+			oldEndPoint,
+			newEndPoint,
+		)
 
-  override fun createInputEdit(startByte: Int, oldEndByte: Int, newEndByte: Int,
-    startPoint: TSPoint, oldEndPoint: TSPoint, newEndPoint: TSPoint): TSInputEdit {
-    return TreeSitterInputEdit.obtain(
-      startByte,
-      oldEndByte,
-      newEndByte,
-      startPoint,
-      oldEndPoint,
-      newEndPoint
-    )
-  }
+	override fun createParser(parserPointer: Long): TSParser = TreeSitterParser.obtain(parserPointer)
 
-  override fun createParser(parserPointer: Long): TSParser {
-    return TreeSitterParser.obtain(parserPointer)
-  }
+	override fun createQuery(queryPointer: Long): TSQuery = TreeSitterQuery.obtain(queryPointer)
 
-  override fun createQuery(queryPointer: Long): TSQuery {
-    return TreeSitterQuery.obtain(queryPointer)
-  }
+	override fun createQueryCursor(pointer: Long): TSQueryCursor = TreeSitterQueryCursor.obtain(pointer)
 
-  override fun createQueryCursor(pointer: Long): TSQueryCursor {
-    return TreeSitterQueryCursor.obtain(pointer)
-  }
+	override fun createPoint(
+		row: Int,
+		column: Int,
+	): TSPoint = TreeSitterPoint.obtain(row, column)
 
-  override fun createPoint(row: Int, column: Int): TSPoint {
-    return TreeSitterPoint.obtain(row, column)
-  }
+	override fun createRange(
+		startByte: Int,
+		endByte: Int,
+		startPoint: TSPoint,
+		endPoint: TSPoint?,
+	): TSRange = TreeSitterRange.obtain(startByte, endByte, startPoint, endPoint)
 
-  override fun createRange(startByte: Int, endByte: Int, startPoint: TSPoint,
-    endPoint: TSPoint?): TSRange {
-    return TreeSitterRange.obtain(startByte, endByte, startPoint, endPoint)
-  }
+	override fun createRangeArr(size: Int): Array<TSRange?> = arrayOfNulls(size)
 
-  override fun createRangeArr(size: Int): Array<TSRange?> {
-    return arrayOfNulls(size)
-  }
+	override fun createTree(pointer: Long): TSTree = TreeSitterTree.obtain(pointer)
 
-  override fun createTree(pointer: Long): TSTree {
-    return TreeSitterTree.obtain(pointer)
-  }
+	override fun createTreeCursor(pointer: Long): TSTreeCursor = TreeSitterTreeCursor.obtain(pointer)
 
-  override fun createTreeCursor(pointer: Long): TSTreeCursor {
-    return TreeSitterTreeCursor.obtain(pointer)
-  }
+	override fun createNode(
+		context0: Int,
+		context1: Int,
+		context2: Int,
+		context3: Int,
+		id: Long,
+		treePointer: Long,
+	): TSNode = TreeSitterNode.obtain(context0, context1, context2, context3, id, treePointer)
 
-  override fun createNode(context0: Int, context1: Int, context2: Int, context3: Int, id: Long,
-    treePointer: Long): TSNode {
-    return TreeSitterNode.obtain(context0, context1, context2, context3, id, treePointer)
-  }
+	override fun createQueryCapture(
+		node: TSNode?,
+		index: Int,
+	): TSQueryCapture = TreeSitterQueryCapture.obtain(node, index)
 
-  override fun createQueryCapture(node: TSNode?, index: Int): TSQueryCapture {
-    return TreeSitterQueryCapture.obtain(node, index)
-  }
+	override fun createQueryMatch(
+		id: Int,
+		patternIndex: Int,
+		captures: Array<TSQueryCapture?>?,
+	): TSQueryMatch = TreeSitterQueryMatch.obtain(id, patternIndex, captures)
 
-  override fun createQueryMatch(id: Int, patternIndex: Int,
-    captures: Array<TSQueryCapture?>?): TSQueryMatch {
-    return TreeSitterQueryMatch.obtain(id, patternIndex, captures)
-  }
+	override fun createQueryPredicateStep(
+		type: Int,
+		valueId: Int,
+	): TSQueryPredicateStep = TreeSitterQueryPredicateStep.obtain(type, valueId)
 
-  override fun createQueryPredicateStep(type: Int, valueId: Int): TSQueryPredicateStep {
-    return TreeSitterQueryPredicateStep.obtain(type, valueId)
-  }
+	override fun createQueryPredicateStepArr(size: Int): Array<TSQueryPredicateStep?> = arrayOfNulls(size)
 
-  override fun createQueryPredicateStepArr(size: Int): Array<TSQueryPredicateStep?> {
-    return arrayOfNulls(size)
-  }
+	override fun createTreeCursorNode(
+		type: String?,
+		name: String?,
+		startByte: Int,
+		endByte: Int,
+	): TSTreeCursorNode = TreeSitterTreeCursorNode.obtain(type, name, startByte, endByte)
 
-  override fun createTreeCursorNode(
-    type: String?,
-    name: String?,
-    startByte: Int,
-    endByte: Int
-  ): TSTreeCursorNode {
-    return TreeSitterTreeCursorNode.obtain(type, name, startByte, endByte)
-  }
+	override fun createLookaheadIterator(pointer: Long): TSLookaheadIterator = TreeSitterLookaheadIterator.obtain(pointer)
 
-  override fun createLookaheadIterator(pointer: Long): TSLookaheadIterator {
-    return TreeSitterLookaheadIterator.obtain(pointer)
-  }
+	override fun createLanguage(
+		name: String?,
+		pointers: LongArray?,
+	): TSLanguage = TreeSitterNativeLanguage.obtain(name, pointers)
 
-  override fun createLanguage(name: String?, pointers: LongArray?): TSLanguage {
-    return TreeSitterNativeLanguage.obtain(name, pointers)
-  }
-
-  override fun createString(pointer: Long, isSynchronized: Boolean): UTF16String {
-    return if (isSynchronized) SynchronizedUTF16String(pointer) else UTF16String(pointer)
-  }
+	override fun createString(
+		pointer: Long,
+		isSynchronized: Boolean,
+	): UTF16String = if (isSynchronized) SynchronizedUTF16String(pointer) else UTF16String(pointer)
 }

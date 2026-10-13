@@ -21,7 +21,6 @@ import android.os.Debug.MemoryInfo
 import androidx.annotation.VisibleForTesting
 import androidx.collection.IntObjectMap
 import androidx.collection.MutableIntObjectMap
-import org.appdevforall.codeonthego.tasks.cancelIfActive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -34,6 +33,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.tasks.cancelIfActive
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap

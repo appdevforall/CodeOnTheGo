@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.analytics.quickbuild
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.analytics.IAnalyticsManager
-import org.appdevforall.codeonthego.analytics.Metric
 import io.mockk.every
 import io.mockk.mockk
+import org.appdevforall.codeonthego.analytics.IAnalyticsManager
+import org.appdevforall.codeonthego.analytics.Metric
 import org.appdevforall.cotg.quickbuild.domain.ChangedFiles
 import org.appdevforall.cotg.quickbuild.domain.classify.BuildRoute
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason

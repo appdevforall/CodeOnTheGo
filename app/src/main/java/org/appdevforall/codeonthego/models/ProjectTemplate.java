@@ -23,92 +23,93 @@ import androidx.annotation.StringRes;
 
 public class ProjectTemplate {
 
-  private int id;
-  private String name;
-  private String description;
-  private boolean isSupportJava;
-  private boolean isSupportKotlin;
-  private boolean isCpp;
+	private int id;
+	private String name;
+	private String description;
+	private boolean isSupportJava;
+	private boolean isSupportKotlin;
+	private boolean isCpp;
 
-  @DrawableRes private int imageId;
+	@DrawableRes
+	private int imageId;
 
-  public ProjectTemplate() {}
+	public ProjectTemplate() {}
 
-  public ProjectTemplate(int id, String name, String description, int imageId) {
-    this.id = id;
-    this.name = name;
-    this.description = description;
-    this.imageId = imageId;
-  }
+	public ProjectTemplate(int id, String name, String description, int imageId) {
+		this.id = id;
+		this.name = name;
+		this.description = description;
+		this.imageId = imageId;
+	}
 
-  public int getId() {
-    return id;
-  }
+	public String getDescription() {
+		return description;
+	}
 
-  public ProjectTemplate setId(int id) {
-    this.id = id;
-    return this;
-  }
+	public int getId() {
+		return id;
+	}
 
-  public ProjectTemplate setName(Context ctx, @StringRes int name) {
-    return setName(ctx.getString(name));
-  }
+	public int getImageId() {
+		return imageId;
+	}
 
-  public String getName() {
-    return name;
-  }
+	public String getName() {
+		return name;
+	}
 
-  public ProjectTemplate setName(String name) {
-    this.name = name;
-    return this;
-  }
+	public boolean isCpp() {
+		return this.isCpp;
+	}
 
-  public ProjectTemplate setDescription(Context ctx, @StringRes int desc) {
-    return setDescription(ctx.getString(desc));
-  }
+	public boolean isSupportJava() {
+		return this.isSupportJava;
+	}
 
-  public String getDescription() {
-    return description;
-  }
+	public boolean isSupportKotlin() {
+		return this.isSupportKotlin;
+	}
 
-  public ProjectTemplate setDescription(String description) {
-    this.description = description;
-    return this;
-  }
+	public ProjectTemplate setDescription(Context ctx, @StringRes int desc) {
+		return setDescription(ctx.getString(desc));
+	}
 
-  public int getImageId() {
-    return imageId;
-  }
+	public ProjectTemplate setDescription(String description) {
+		this.description = description;
+		return this;
+	}
 
-  public ProjectTemplate setImageId(@DrawableRes int imageId) {
-    this.imageId = imageId;
-    return this;
-  }
+	public ProjectTemplate setId(int id) {
+		this.id = id;
+		return this;
+	}
 
-  public boolean isSupportJava() {
-    return this.isSupportJava;
-  }
+	public ProjectTemplate setImageId(@DrawableRes int imageId) {
+		this.imageId = imageId;
+		return this;
+	}
 
-  public ProjectTemplate setSupportJava(boolean isSupportJava) {
-    this.isSupportJava = isSupportJava;
-    return this;
-  }
+	public ProjectTemplate setIsCpp(boolean isCpp) {
+		this.isCpp = isCpp;
+		return this;
+	}
 
-  public boolean isSupportKotlin() {
-    return this.isSupportKotlin;
-  }
+	public ProjectTemplate setName(Context ctx, @StringRes int name) {
+		return setName(ctx.getString(name));
+	}
 
-  public ProjectTemplate setSupportKotlin(boolean isSupportKotlin) {
-    this.isSupportKotlin = isSupportKotlin;
-    return this;
-  }
+	public ProjectTemplate setName(String name) {
+		this.name = name;
+		return this;
+	}
 
-  public boolean isCpp() {
-    return this.isCpp;
-  }
+	public ProjectTemplate setSupportJava(boolean isSupportJava) {
+		this.isSupportJava = isSupportJava;
+		return this;
+	}
 
-  public ProjectTemplate setIsCpp(boolean isCpp) {
-    this.isCpp = isCpp;
-    return this;
-  }
+	public ProjectTemplate setSupportKotlin(boolean isSupportKotlin) {
+		this.isSupportKotlin = isSupportKotlin;
+		return this;
+	}
 }

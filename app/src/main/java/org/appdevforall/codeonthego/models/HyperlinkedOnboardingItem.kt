@@ -27,12 +27,12 @@ import kotlinx.parcelize.Parcelize
  */
 @Parcelize
 data class HyperlinkedOnboardingItem(
-  override val key: String,
-  override val title: CharSequence,
-  val hyperlink: String,
-  override val description: CharSequence = "",
-  override val icon: Int = 0,
-  override val iconTint: Int = 0,
-  override val isClickable: Boolean = false,
-  override val isLongClickable: Boolean = false
+	override val key: String,
+	override val title: CharSequence,
+	val hyperlink: String,
+	override val description: CharSequence = "",
+	override val icon: Int = 0,
+	override val iconTint: Int = 0,
+	override val isClickable: Boolean = false,
+	override val isLongClickable: Boolean = false,
 ) : OnboardingItem

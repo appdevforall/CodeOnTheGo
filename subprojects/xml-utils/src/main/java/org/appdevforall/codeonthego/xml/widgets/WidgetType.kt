@@ -22,27 +22,30 @@ package org.appdevforall.codeonthego.xml.widgets
  *
  * @author Akash Yadav
  */
-enum class WidgetType(internal val c: Char) {
-  /** A widget. */
-  WIDGET('W'),
+enum class WidgetType(
+	internal val c: Char,
+) {
+	/** A widget. */
+	WIDGET('W'),
 
-  /** A layout (ViewGroup). */
-  LAYOUT('L'),
+	/** A layout (ViewGroup). */
+	LAYOUT('L'),
 
-  /** A layout param. */
-  LAYOUT_PARAM('P');
+	/** A layout param. */
+	LAYOUT_PARAM('P'),
+	;
 
-  internal class Factory {
-    companion object {
-      @JvmStatic
-      fun forChar(c: Char): WidgetType? {
-        for (value in values()) {
-          if (value.c == c) {
-            return value
-          }
-        }
-        return null
-      }
-    }
-  }
+	internal class Factory {
+		companion object {
+			@JvmStatic
+			fun forChar(c: Char): WidgetType? {
+				for (value in values()) {
+					if (value.c == c) {
+						return value
+					}
+				}
+				return null
+			}
+		}
+	}
 }

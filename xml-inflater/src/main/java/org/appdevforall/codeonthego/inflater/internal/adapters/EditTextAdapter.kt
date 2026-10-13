@@ -18,12 +18,12 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.EditText
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [EditText].
@@ -33,9 +33,8 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(EditText::class)
 @IncludeInDesigner(group = WIDGETS)
 open class EditTextAdapter<T : EditText> : TextViewAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(EditText::class.java, string.widget_edittext, drawable.ic_widget_edittext)
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(EditText::class.java, string.widget_edittext, drawable.ic_widget_edittext),
+		)
 }

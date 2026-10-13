@@ -27,73 +27,73 @@ import org.appdevforall.codeonthego.utils.ServiceLoader
  */
 interface IDEBuildConfigProvider {
 
-  /**
-   * The current product flavor of the IDE.
-   */
-  val cpuAbiName: String
+/**
+* The current product flavor of the IDE.
+*/
+val cpuAbiName: String
 
-  /**
-   * Get the [CpuArch] for the build flavor.
-   */
-  val cpuArch: CpuArch
+/**
+* Get the [CpuArch] for the build flavor.
+*/
+val cpuArch: CpuArch
 
-  /**
-   * Get the primary CPU architecture of the device.
-   */
-  val deviceArch: CpuArch
+/**
+* Get the primary CPU architecture of the device.
+*/
+val deviceArch: CpuArch
 
-  /**
-   * The supported CPU architectures of the device.
-   */
-  val supportedAbis: Array<String>
+/**
+* The supported CPU architectures of the device.
+*/
+val supportedAbis: Array<String>
 
-  /**
-   * @return Whether this build is the `arm64-v8a` variant of the IDE.
-   */
-  fun isArm64v8aBuild(): Boolean = cpuArch == CpuArch.AARCH64
+/**
+* @return Whether this build is the `arm64-v8a` variant of the IDE.
+*/
+fun isArm64v8aBuild(): Boolean = cpuArch == CpuArch.AARCH64
 
-  /**
-   * @return Whether the device supports `arm64-v8a` instructions.
-   */
-  fun isArm64v8aDevice(): Boolean = deviceArch == CpuArch.AARCH64
+/**
+* @return Whether the device supports `arm64-v8a` instructions.
+*/
+fun isArm64v8aDevice(): Boolean = deviceArch == CpuArch.AARCH64
 
-  /**
-   * @return Whether this build is the 32-bit variant of the IDE.
-   */
-  fun isArmeabiv7aBuild(): Boolean = cpuArch == CpuArch.ARM
+/**
+* @return Whether this build is the 32-bit variant of the IDE.
+*/
+fun isArmeabiv7aBuild(): Boolean = cpuArch == CpuArch.ARM
 
-  /**
-   * @return Whether the device supports `armeabi-v7a` instructions.
-   */
-  fun isArmeabiv7aDevice(): Boolean = deviceArch == CpuArch.ARM
+/**
+* @return Whether the device supports `armeabi-v7a` instructions.
+*/
+fun isArmeabiv7aDevice(): Boolean = deviceArch == CpuArch.ARM
 
-  /**
-   * @return Whether this build is the `x86_64` variant of the IDE.
-   */
-  fun isX86_64Build(): Boolean = cpuArch == CpuArch.X86_64
+/**
+* @return Whether this build is the `x86_64` variant of the IDE.
+*/
+fun isX86_64Build(): Boolean = cpuArch == CpuArch.X86_64
 
-  /**
-   * @return Whether the device supports `x86_64` instructions.
-   */
-  fun isX86_64Device(): Boolean = deviceArch == CpuArch.X86_64
+/**
+* @return Whether the device supports `x86_64` instructions.
+*/
+fun isX86_64Device(): Boolean = deviceArch == CpuArch.X86_64
 
-  /**
-   * @return Whether the IDE can be run on the device's CPU arch.
-   */
-  fun supportsCpuAbi(): Boolean = Build.SUPPORTED_ABIS.contains(cpuAbiName)
+/**
+* @return Whether the IDE can be run on the device's CPU arch.
+*/
+fun supportsCpuAbi(): Boolean = Build.SUPPORTED_ABIS.contains(cpuAbiName)
 
-  companion object {
+companion object {
 
-    private val _instance by lazy {
-      ServiceLoader.load(IDEBuildConfigProvider::class.java).findFirstOrThrow()
-    }
+	private val _instance by lazy {
+	ServiceLoader.load(IDEBuildConfigProvider::class.java).findFirstOrThrow()
+	}
 
-    /**
-     * Get instance of the [IDEBuildConfigProvider] implementation.
-     */
-    @JvmStatic
-    fun getInstance(): IDEBuildConfigProvider {
-      return _instance
-    }
-  }
+	/**
+	 * Get instance of the [IDEBuildConfigProvider] implementation.
+	 */
+	@JvmStatic
+	fun getInstance(): IDEBuildConfigProvider {
+	return _instance
+	}
+}
 }

@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.plugins.manager.services
 
-import org.appdevforall.codeonthego.plugins.PluginPermission
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.plugins.PluginPermission
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

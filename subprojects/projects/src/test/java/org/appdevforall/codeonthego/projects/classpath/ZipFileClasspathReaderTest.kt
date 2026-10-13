@@ -28,33 +28,32 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.DEFAULT_VALUE_STRING)
 class ZipFileClasspathReaderTest {
+	@Test
+	fun testListClasses() {
+		val classes =
+			ZipFileClasspathReader()
+				.listClasses(
+					listOf(
+						FileProvider.testProjectRoot().resolve("app/src/main/resources/android.jar").toFile(),
+					),
+				)
 
-  @Test
-  fun testListClasses() {
-    val classes =
-      ZipFileClasspathReader()
-        .listClasses(
-          listOf(
-            FileProvider.testProjectRoot().resolve("app/src/main/resources/android.jar").toFile()
-          )
-        )
+		val context = classes.firstOrNull { it.name == "android.content.Context" }
+		assertThat(context).isNotNull()
+		assertThat(context!!.isTopLevel).isTrue()
+		assertThat(context.isAnonymous).isFalse()
+		assertThat(context.isLocal).isFalse()
+		assertThat(context.isInner).isFalse()
+		assertThat(context.simpleName).isEqualTo("Context")
+		assertThat(context.packageName).isEqualTo("android.content")
 
-    val context = classes.firstOrNull { it.name == "android.content.Context" }
-    assertThat(context).isNotNull()
-    assertThat(context!!.isTopLevel).isTrue()
-    assertThat(context.isAnonymous).isFalse()
-    assertThat(context.isLocal).isFalse()
-    assertThat(context.isInner).isFalse()
-    assertThat(context.simpleName).isEqualTo("Context")
-    assertThat(context.packageName).isEqualTo("android.content")
-
-    val clickListener = classes.firstOrNull { it.name == "android.view.View\$OnClickListener" }
-    assertThat(clickListener).isNotNull()
-    assertThat(clickListener!!.isTopLevel).isFalse()
-    assertThat(clickListener.isAnonymous).isFalse()
-    assertThat(clickListener.isLocal).isFalse()
-    assertThat(clickListener.isInner).isTrue()
-    assertThat(clickListener.simpleName).isEqualTo("OnClickListener")
-    assertThat(clickListener.packageName).isEqualTo("android.view")
-  }
+		val clickListener = classes.firstOrNull { it.name == "android.view.View\$OnClickListener" }
+		assertThat(clickListener).isNotNull()
+		assertThat(clickListener!!.isTopLevel).isFalse()
+		assertThat(clickListener.isAnonymous).isFalse()
+		assertThat(clickListener.isLocal).isFalse()
+		assertThat(clickListener.isInner).isTrue()
+		assertThat(clickListener.simpleName).isEqualTo("OnClickListener")
+		assertThat(clickListener.packageName).isEqualTo("android.view")
+	}
 }

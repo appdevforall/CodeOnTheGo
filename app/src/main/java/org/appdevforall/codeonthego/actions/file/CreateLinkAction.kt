@@ -21,6 +21,9 @@ import android.content.Context
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import com.itsaky.androidide.R
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
@@ -32,9 +35,6 @@ import org.appdevforall.codeonthego.utils.deepLinkTargetOfOpenProjectOrNull
 import org.appdevforall.codeonthego.utils.deepLinkTargetOfOpenProjectWithoutIo
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashSuccess
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap

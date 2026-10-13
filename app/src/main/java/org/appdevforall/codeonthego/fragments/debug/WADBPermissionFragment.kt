@@ -9,13 +9,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentWadbConnectionBinding
-import org.appdevforall.codeonthego.fragments.FragmentWithBinding
-import org.appdevforall.codeonthego.utils.viewLifecycleScope
-import org.appdevforall.codeonthego.viewmodel.WADBConnectionViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.fragments.FragmentWithBinding
+import org.appdevforall.codeonthego.utils.viewLifecycleScope
+import org.appdevforall.codeonthego.viewmodel.WADBConnectionViewModel
 import org.slf4j.LoggerFactory
 
 /**
@@ -74,7 +74,9 @@ class WADBPermissionFragment : FragmentWithBinding<FragmentWadbConnectionBinding
 									)
 								}
 
-								else -> null
+								else -> {
+									null
+								}
 							}
 
 						status?.also { s -> setConnectionStatus(s) }

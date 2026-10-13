@@ -5,17 +5,18 @@ package org.appdevforall.codeonthego.resources;
  */
 public interface ITooltipView {
 
-    /**
-     * A simple listener for long-press events.
-     */
-    interface OnTooltipLongPressListener {
-        void onLongPress();
-    }
+	/**
+	 * Sets the listener to be called when a long-press gesture is detected.
+	 *
+	 * @param listener
+	 *            The listener to be invoked.
+	 */
+	void setTooltipLongPressListener(OnTooltipLongPressListener listener);
 
-    /**
-     * Sets the listener to be called when a long-press gesture is detected.
-     *
-     * @param listener The listener to be invoked.
-     */
-    void setTooltipLongPressListener(OnTooltipLongPressListener listener);
+	/**
+	 * A simple listener for long-press events.
+	 */
+	interface OnTooltipLongPressListener {
+		void onLongPress();
+	}
 }

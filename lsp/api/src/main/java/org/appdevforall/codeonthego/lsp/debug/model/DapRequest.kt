@@ -8,9 +8,8 @@ import org.appdevforall.codeonthego.lsp.debug.RemoteClient
  * @author Akash Yadav
  */
 interface DapRequest {
-
-    /**
-     * The remote client to use for this request.
-     */
-    val remoteClient: RemoteClient
+	/**
+	 * The remote client to use for this request.
+	 */
+	val remoteClient: RemoteClient
 }

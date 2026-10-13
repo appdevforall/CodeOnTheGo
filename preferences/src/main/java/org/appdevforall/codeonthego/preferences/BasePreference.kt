@@ -17,13 +17,12 @@
 
 package org.appdevforall.codeonthego.preferences
 
-
-import com.itsaky.androidide.preferences.R
 import android.content.Context
 import android.graphics.PorterDuff.Mode.SRC_ATOP
 import android.graphics.PorterDuffColorFilter
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
+import com.itsaky.androidide.preferences.R
 import org.appdevforall.codeonthego.utils.resolveAttr
 
 /**
@@ -32,34 +31,32 @@ import org.appdevforall.codeonthego.utils.resolveAttr
  * @author Akash Yadav
  */
 abstract class BasePreference : IPreference() {
+	abstract fun onCreatePreference(context: Context): Preference
 
-  abstract fun onCreatePreference(context: Context): Preference
+	override fun onCreateView(context: Context): Preference {
+		val pref = onCreatePreference(context)
+		pref.key = this.key
+		pref.title = context.getString(this.title)
+		this.summary?.let { pref.summary = context.getString(it) }
 
-  override fun onCreateView(context: Context): Preference {
-    val pref = onCreatePreference(context)
-    pref.key = this.key
-    pref.title = context.getString(this.title)
-    this.summary?.let { pref.summary = context.getString(it) }
+		pref.isIconSpaceReserved = this.icon != null
+		this.icon?.let {
+			pref.icon =
+				ContextCompat.getDrawable(context, it)?.apply {
+					colorFilter =
+						PorterDuffColorFilter(context.resolveAttr(R.attr.colorOnPrimaryContainer), SRC_ATOP)
+				}
+		}
 
-    pref.isIconSpaceReserved = this.icon != null
-    this.icon?.let {
-      pref.icon =
-        ContextCompat.getDrawable(context, it)?.apply {
-          colorFilter =
-            PorterDuffColorFilter(context.resolveAttr(R.attr.colorOnPrimaryContainer), SRC_ATOP)
-        }
-    }
+		pref.setOnPreferenceClickListener { onPreferenceClick(pref) }
+		pref.setOnPreferenceChangeListener(this::onPreferenceChanged)
+		return pref
+	}
 
-    pref.setOnPreferenceClickListener { onPreferenceClick(pref) }
-    pref.setOnPreferenceChangeListener(this::onPreferenceChanged)
-    return pref
-  }
+	protected open fun onPreferenceChanged(
+		preference: Preference,
+		newValue: Any?,
+	): Boolean = false
 
-  protected open fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-    return false
-  }
-
-  protected open fun onPreferenceClick(preference: Preference): Boolean {
-    return false
-  }
+	protected open fun onPreferenceClick(preference: Preference): Boolean = false
 }

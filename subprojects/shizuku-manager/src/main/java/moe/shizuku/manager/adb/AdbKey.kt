@@ -10,8 +10,8 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.edit
 import com.itsaky.androidide.buildinfo.BuildInfo
-import org.appdevforall.codeonthego.utils.generateSelfSignedCert
 import moe.shizuku.manager.utils.unsafeLazy
+import org.appdevforall.codeonthego.utils.generateSelfSignedCert
 import java.math.BigInteger
 import java.net.Socket
 import java.nio.ByteBuffer

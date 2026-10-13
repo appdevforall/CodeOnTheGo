@@ -1,13 +1,12 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler
 
 import org.jetbrains.kotlin.K1Deprecation
-import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment.Companion.getOrCreateApplicationEnvironmentForProduction as acquireApplicationEnvironment
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment.Companion.getOrCreateApplicationEnvironmentForProduction as acquireApplicationEnvironment
 
 @OptIn(K1Deprecation::class)
 internal object KotlinApplicationEnvironmentPin {
-
 	private var pinned = false
 
 	private val pin = Disposer.newDisposable("kotlin-lsp-application-environment-pin")

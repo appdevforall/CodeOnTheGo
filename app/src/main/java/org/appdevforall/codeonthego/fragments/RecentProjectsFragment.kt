@@ -20,9 +20,15 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.activities.MainActivity
 import org.appdevforall.codeonthego.adapters.RecentProjectsAdapter
-import com.itsaky.androidide.databinding.FragmentSavedProjectsBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.EXIT_TO_MAIN
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PROJECT_NEW
@@ -43,12 +49,6 @@ import org.appdevforall.codeonthego.viewmodel.FilterState
 import org.appdevforall.codeonthego.viewmodel.MainViewModel
 import org.appdevforall.codeonthego.viewmodel.RecentProjectsViewModel
 import org.appdevforall.codeonthego.viewmodel.SortCriteria
-import io.sentry.Sentry
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.io.File
 

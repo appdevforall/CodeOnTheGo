@@ -17,10 +17,13 @@
 
 package org.appdevforall.codeonthego.templates.base.models
 
-enum class DependencyConfiguration(val configName: String) { Api("api"),
-  ApiOnly("apiOnly"),
-  Implementation("implementation"),
-  DebugImplementation("debugImplementation"),
-  Runtime("runtime"),
-  RuntimeOnly("runtimeOnly")
+enum class DependencyConfiguration(
+	val configName: String,
+) {
+	Api("api"),
+	ApiOnly("apiOnly"),
+	Implementation("implementation"),
+	DebugImplementation("debugImplementation"),
+	Runtime("runtime"),
+	RuntimeOnly("runtimeOnly"),
 }

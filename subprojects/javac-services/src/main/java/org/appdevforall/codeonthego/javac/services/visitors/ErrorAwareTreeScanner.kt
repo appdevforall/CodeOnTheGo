@@ -22,10 +22,13 @@ import openjdk.source.util.TreeScanner
 
 /** @author Akash Yadav */
 open class ErrorAwareTreeScanner<R, P> : TreeScanner<R, P>() {
-  override fun visitErroneous(node: ErroneousTree?, p: P): R {
-    if (node == null) {
-      return super.visitErroneous(node, p)
-    }
-    return scan(node.errorTrees, p)
-  }
+	override fun visitErroneous(
+		node: ErroneousTree?,
+		p: P,
+	): R {
+		if (node == null) {
+			return super.visitErroneous(node, p)
+		}
+		return scan(node.errorTrees, p)
+	}
 }

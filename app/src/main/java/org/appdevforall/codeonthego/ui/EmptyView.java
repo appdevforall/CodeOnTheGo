@@ -34,57 +34,57 @@ import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 
 public class EmptyView extends RelativeLayout {
 
-  private static final int MESSAGE_TEXTVIEW = View.generateViewId();
+	private static final int MESSAGE_TEXTVIEW = View.generateViewId();
 
-  private CharSequence message = null;
+	private CharSequence message = null;
 
-  public EmptyView(Context context) {
-    this(context, null);
-  }
+	public EmptyView(Context context) {
+		this(context, null);
+	}
 
-  public EmptyView(Context context, AttributeSet attrs) {
-    this(context, attrs, 0);
-  }
+	public EmptyView(Context context, AttributeSet attrs) {
+		this(context, attrs, 0);
+	}
 
-  public EmptyView(Context context, AttributeSet attrs, int defStyleAttr) {
-    this(context, attrs, defStyleAttr, 0);
-  }
+	public EmptyView(Context context, AttributeSet attrs, int defStyleAttr) {
+		this(context, attrs, defStyleAttr, 0);
+	}
 
-  public EmptyView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
-    super(context, attrs, defStyleAttr, defStyleRes);
+	public EmptyView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
+		super(context, attrs, defStyleAttr, defStyleRes);
 
-    init();
-  }
+		init();
+	}
 
-  private void init() {
+	@NonNull
+	public CharSequence getMessage() {
+		return TextUtils.isEmpty(message) ? getContext().getString(R.string.msg_empty_view) : message;
+	}
 
-    removeAllViews();
+	public void setMessage(CharSequence message) {
+		this.message = message;
 
-    TextView text = new TextView(getContext());
-    text.setId(MESSAGE_TEXTVIEW);
-    text.setText(getMessage());
-    text.setTextColor(ContextUtilsKt.resolveAttr(getContext(), R.attr.colorSecondaryVariant));
-    text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
-    text.setGravity(Gravity.CENTER);
+		final TextView text = findViewById(MESSAGE_TEXTVIEW);
+		if (text != null) {
+			text.setText(getMessage());
+		}
+	}
 
-    LayoutParams params = new LayoutParams(-2, -2);
-    params.addRule(CENTER_HORIZONTAL);
-    params.addRule(ALIGN_PARENT_TOP);
+	private void init() {
 
-    addView(text, params);
-  }
+		removeAllViews();
 
-  public void setMessage(CharSequence message) {
-    this.message = message;
+		TextView text = new TextView(getContext());
+		text.setId(MESSAGE_TEXTVIEW);
+		text.setText(getMessage());
+		text.setTextColor(ContextUtilsKt.resolveAttr(getContext(), R.attr.colorSecondaryVariant));
+		text.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+		text.setGravity(Gravity.CENTER);
 
-    final TextView text = findViewById(MESSAGE_TEXTVIEW);
-    if (text != null) {
-      text.setText(getMessage());
-    }
-  }
+		LayoutParams params = new LayoutParams(-2, -2);
+		params.addRule(CENTER_HORIZONTAL);
+		params.addRule(ALIGN_PARENT_TOP);
 
-  @NonNull
-  public CharSequence getMessage() {
-    return TextUtils.isEmpty(message) ? getContext().getString(R.string.msg_empty_view) : message;
-  }
+		addView(text, params);
+	}
 }

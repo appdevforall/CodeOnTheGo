@@ -22,4 +22,7 @@ package org.appdevforall.codeonthego.models
  *
  * @author Akash Yadav
  */
-data class Checkable<T>(var isChecked: Boolean, val data: T)
+data class Checkable<T>(
+	var isChecked: Boolean,
+	val data: T,
+)

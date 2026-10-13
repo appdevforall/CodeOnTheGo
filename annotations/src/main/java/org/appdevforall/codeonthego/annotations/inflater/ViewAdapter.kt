@@ -30,4 +30,7 @@ import kotlin.reflect.KClass
  */
 @Target(CLASS)
 @Retention(AnnotationRetention.SOURCE)
-annotation class ViewAdapter(val forView: KClass<out View>, val moduleNamespace: String = "android")
+annotation class ViewAdapter(
+	val forView: KClass<out View>,
+	val moduleNamespace: String = "android",
+)

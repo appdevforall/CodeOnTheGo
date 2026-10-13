@@ -3,6 +3,9 @@ package org.appdevforall.codeonthego.lsp.kotlin.actions
 import android.content.Context
 import android.view.View
 import android.widget.ListView
+import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.has
 import org.appdevforall.codeonthego.actions.markInvisible
@@ -10,6 +13,10 @@ import org.appdevforall.codeonthego.actions.newDialogBuilder
 import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
+import org.appdevforall.codeonthego.indexing.jvm.dedupeKey
 import org.appdevforall.codeonthego.lsp.api.ILanguageClient
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.index.findSymbolBySimpleName
@@ -21,16 +28,9 @@ import org.appdevforall.codeonthego.lsp.models.Command
 import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
 import org.appdevforall.codeonthego.lsp.models.DocumentChange
 import org.appdevforall.codeonthego.lsp.models.TextEdit
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashInfo
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
-import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
-import org.appdevforall.codeonthego.indexing.jvm.dedupeKey
 import java.nio.file.Path
 
 class AddImportAction : BaseKotlinCodeAction() {

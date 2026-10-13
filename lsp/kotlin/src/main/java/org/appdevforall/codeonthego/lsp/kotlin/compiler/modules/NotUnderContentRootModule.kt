@@ -19,9 +19,11 @@ internal class NotUnderContentRootModule(
 	directRegularDependencies: List<KtModule> = emptyList(),
 	override val targetPlatform: TargetPlatform = JvmPlatforms.defaultJvmPlatform,
 	override val file: PsiFile? = null,
-) : KaNotUnderContentRootModule, AbstractKtModule(
-	project, directRegularDependencies
-) {
+) : AbstractKtModule(
+		project,
+		directRegularDependencies,
+	),
+	KaNotUnderContentRootModule {
 	override val name: String
 		get() = id
 
@@ -31,10 +33,11 @@ internal class NotUnderContentRootModule(
 	override val contentRoots: Set<Path>
 		get() = file?.virtualFile?.toNioPath()?.let(::setOf) ?: emptySet()
 
-	override fun computeFiles(extended: Boolean): Sequence<VirtualFile> = sequence {
-		val vf = file?.virtualFile
-		if (vf != null) {
-			yield(vf)
+	override fun computeFiles(extended: Boolean): Sequence<VirtualFile> =
+		sequence {
+			val vf = file?.virtualFile
+			if (vf != null) {
+				yield(vf)
+			}
 		}
-	}
 }

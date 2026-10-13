@@ -22,21 +22,20 @@ package org.appdevforall.codeonthego.preferences.internal
  */
 @Suppress("MemberVisibilityCanBePrivate")
 object DevOpsPreferences {
+	const val KEY_DEVOPTS = "ide.prefs.developerOptions"
+	const val KEY_DEVOPTS_DEBUGGING = "${KEY_DEVOPTS}.debugging"
+	const val KEY_DEVOPTS_DEBUGGING_DUMPLOGS = "${KEY_DEVOPTS_DEBUGGING}.dumpLogs"
+	const val KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER = "${KEY_DEVOPTS_DEBUGGING}.enableLogsender"
 
-  const val KEY_DEVOPTS = "ide.prefs.developerOptions"
-  const val KEY_DEVOPTS_DEBUGGING = "${KEY_DEVOPTS}.debugging"
-  const val KEY_DEVOPTS_DEBUGGING_DUMPLOGS = "${KEY_DEVOPTS_DEBUGGING}.dumpLogs"
-  const val KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER = "${KEY_DEVOPTS_DEBUGGING}.enableLogsender"
+	var dumpLogs: Boolean
+		get() = prefManager.getBoolean(KEY_DEVOPTS_DEBUGGING_DUMPLOGS, false)
+		set(value) {
+			prefManager.putBoolean(KEY_DEVOPTS_DEBUGGING_DUMPLOGS, value)
+		}
 
-  var dumpLogs: Boolean
-    get() = prefManager.getBoolean(KEY_DEVOPTS_DEBUGGING_DUMPLOGS, false)
-    set(value) {
-      prefManager.putBoolean(KEY_DEVOPTS_DEBUGGING_DUMPLOGS, value)
-    }
-
-  var logsenderEnabled: Boolean
-    get() = prefManager.getBoolean(KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER, true)
-    set(value) {
-      prefManager.putBoolean(KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER, value)
-    }
+	var logsenderEnabled: Boolean
+		get() = prefManager.getBoolean(KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER, true)
+		set(value) {
+			prefManager.putBoolean(KEY_DEVOPTS_DEBUGGING_ENABLE_LOGSENDER, value)
+		}
 }

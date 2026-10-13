@@ -21,11 +21,11 @@ import openjdk.source.tree.CompilationUnitTree;
 import openjdk.source.util.JavacTask;
 
 public class ParseTask {
-  public final JavacTask task;
-  public final CompilationUnitTree root;
+	public final JavacTask task;
+	public final CompilationUnitTree root;
 
-  public ParseTask(JavacTask task, CompilationUnitTree root) {
-    this.task = task;
-    this.root = root;
-  }
+	public ParseTask(JavacTask task, CompilationUnitTree root) {
+		this.task = task;
+		this.root = root;
+	}
 }

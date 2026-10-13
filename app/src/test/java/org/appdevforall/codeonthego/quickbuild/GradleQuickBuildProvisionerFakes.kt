@@ -1,6 +1,9 @@
 package org.appdevforall.codeonthego.quickbuild
 
 import android.content.Context
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
 import org.appdevforall.codeonthego.project.AndroidModels
 import org.appdevforall.codeonthego.project.GradleModels
 import org.appdevforall.codeonthego.projects.IProjectManager
@@ -15,9 +18,6 @@ import org.appdevforall.codeonthego.tooling.api.messages.result.InitializeResult
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.appdevforall.codeonthego.tooling.api.models.BuildVariantInfo
 import org.appdevforall.codeonthego.tooling.api.models.ToolingServerMetadata
-import io.mockk.coEvery
-import io.mockk.every
-import io.mockk.mockk
 import org.appdevforall.cotg.quickbuild.service.provision.InstallOutcome
 import org.appdevforall.cotg.quickbuild.service.provision.InstalledPackages
 import org.appdevforall.cotg.quickbuild.service.provision.ProxyAppInstaller

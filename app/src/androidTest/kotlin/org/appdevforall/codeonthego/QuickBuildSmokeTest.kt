@@ -1,11 +1,15 @@
 package org.appdevforall.codeonthego
 
-
-import com.itsaky.androidide.R
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
+import com.itsaky.androidide.R
+import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.activities.SplashActivity
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
@@ -36,11 +40,6 @@ import org.appdevforall.codeonthego.screens.QuickBuildScreen.longPressOpensQuick
 import org.appdevforall.codeonthego.screens.QuickBuildScreen.restartSessionViaDropdown
 import org.appdevforall.codeonthego.screens.QuickBuildScreen.tapQuickBuildButton
 import org.appdevforall.codeonthego.utils.flashError
-import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.service.provision.InstalledPackages
 import org.appdevforall.cotg.quickbuild.service.provision.QuickBuildClobberCheck

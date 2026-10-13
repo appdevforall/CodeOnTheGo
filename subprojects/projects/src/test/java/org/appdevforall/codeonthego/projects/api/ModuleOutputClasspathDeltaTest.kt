@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego.projects.api
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.spyk
 import org.appdevforall.codeonthego.project.AndroidModels
 import org.appdevforall.codeonthego.project.GradleModels
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
-import io.mockk.every
-import io.mockk.spyk
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith

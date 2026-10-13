@@ -19,6 +19,12 @@ package org.appdevforall.codeonthego.lsp.java.actions
 
 import android.content.Context
 import android.view.View
+import com.itsaky.androidide.resources.R
+import io.github.rosemoe.sora.widget.CodeEditor
+import jdkx.lang.model.element.Modifier.STATIC
+import openjdk.source.tree.ClassTree
+import openjdk.source.tree.Tree.Kind.VARIABLE
+import openjdk.source.tree.VariableTree
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
@@ -36,16 +42,10 @@ import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
 import org.appdevforall.codeonthego.lsp.java.visitors.FindTypeDeclarationAt
 import org.appdevforall.codeonthego.models.Range
 import org.appdevforall.codeonthego.projects.IProjectManager
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashInfo
-import io.github.rosemoe.sora.widget.CodeEditor
-import jdkx.lang.model.element.Modifier.STATIC
-import openjdk.source.tree.ClassTree
-import openjdk.source.tree.Tree.Kind.VARIABLE
-import openjdk.source.tree.VariableTree
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture

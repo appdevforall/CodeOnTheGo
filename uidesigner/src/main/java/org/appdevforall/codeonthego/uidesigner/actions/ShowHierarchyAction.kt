@@ -20,39 +20,40 @@ package org.appdevforall.codeonthego.uidesigner.actions
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.uidesigner.R
+import com.itsaky.androidide.uidesigner.R.string
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.R.string
 
 /**
  * Open the drawers which contains the layout hierarchy.
  *
  * @author Akash Yadav
  */
-class ShowHierarchyAction(context: Context) : UiDesignerAction() {
+class ShowHierarchyAction(
+	context: Context,
+) : UiDesignerAction() {
+	override val id: String = "ide.uidesigner.showHierarchy"
 
-  override val id: String = "ide.uidesigner.showHierarchy"
+	init {
+		label = context.getString(string.action_show_hierarchy)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_tree)
+	}
 
-  init {
-    label = context.getString(string.action_show_hierarchy)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_tree)
-  }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!data.hasRequiredData(Context::class.java, Fragment::class.java)) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (!data.hasRequiredData(Context::class.java, Fragment::class.java)) {
-      markInvisible()
-      return
-    }
+		visible = true
+		enabled = true
+	}
 
-    visible = true
-    enabled = true
-  }
-
-  override suspend fun execAction(data: ActionData): Boolean {
-    data.requireActivity().openHierarchyView()
-    return true
-  }
+	override suspend fun execAction(data: ActionData): Boolean {
+		data.requireActivity().openHierarchyView()
+		return true
+	}
 }

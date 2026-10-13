@@ -28,69 +28,80 @@ import java.io.InputStream
  * @author Akash Yadav
  */
 class TestRecipeExecutor : RecipeExecutor {
+	// Modules whose assets are queried from the templates API
+	// order of the element matters!
+	private val modulesWithAssets by lazy {
+		arrayOf(
+			"templates-api",
+			"templates-impl",
+			"app",
+		)
+	}
 
-  // Modules whose assets are queried from the templates API
-  // order of the element matters!
-  private val modulesWithAssets by lazy {
-    arrayOf(
-      "templates-api",
-      "templates-impl",
-      "app"
-    )
-  }
+	override fun copy(
+		source: File,
+		dest: File,
+	) {
+		source.copyTo(dest)
+	}
 
-  override fun copy(source: File, dest: File) {
-    source.copyTo(dest)
-  }
+	override fun save(
+		source: String,
+		dest: File,
+	) {
+		dest.parentFile?.mkdirs()
+		dest.writeText(source)
+	}
 
-  override fun save(source: String, dest: File) {
-    dest.parentFile?.mkdirs()
-    dest.writeText(source)
-  }
+	override fun openAsset(path: String): InputStream = findAsset(path).inputStream().buffered()
 
-  override fun openAsset(path: String): InputStream {
-    return findAsset(path).inputStream().buffered()
-  }
+	override fun copyAsset(
+		path: String,
+		dest: File,
+	) {
+		openAsset(path).use {
+			it.copyTo(dest.outputStream())
+		}
+	}
 
-  override fun copyAsset(path: String, dest: File) {
-    openAsset(path).use {
-      it.copyTo(dest.outputStream())
-    }
-  }
+	override fun copyAssetsRecursively(
+		path: String,
+		destDir: File,
+	) {
+		findAsset(path, true).copyRecursively(destDir, true)
+	}
 
-  override fun copyAssetsRecursively(path: String, destDir: File) {
-    findAsset(path, true).copyRecursively(destDir, true)
-  }
+	private fun findAsset(
+		path: String,
+		isDir: Boolean = false,
+	): File {
+		for (module in modulesWithAssets) {
+			val moduleDir = File(FileProvider.projectRoot().toFile(), module)
+			if (!moduleDir.exists()) {
+				throw FileNotFoundException("Module dir '$moduleDir' does not exist")
+			}
 
-  private fun findAsset(path: String, isDir: Boolean = false) : File {
-    for (module in modulesWithAssets) {
-      val moduleDir = File(FileProvider.projectRoot().toFile(), module)
-      if (!moduleDir.exists()) {
-        throw FileNotFoundException("Module dir '$moduleDir' does not exist")
-      }
+			var assetDir = File(moduleDir, "src/main/assets")
 
-      var assetDir = File(moduleDir, "src/main/assets")
+			// Look for the asset in the static assets directory
+			var assetFile = File(assetDir, path)
+			if (assetFile.exists() && ((isDir && assetFile.isDirectory) || assetFile.isFile)) {
+				return assetFile
+			}
 
-      // Look for the asset in the static assets directory
-      var assetFile = File(assetDir, path)
-      if (assetFile.exists() && ((isDir && assetFile.isDirectory) || assetFile.isFile)) {
-        return assetFile
-      }
+			// If not found, then look for it in the generated assets directory
+			assetDir = File(moduleDir, "build/generated/assets")
+			if (assetDir.exists()) {
+				// look in all generated asset directories
+				for (dir in assetDir.listFiles()!!) {
+					assetFile = File(dir, path)
+					if (assetFile.exists() && ((isDir && assetFile.isDirectory) || assetFile.isFile)) {
+						return assetFile
+					}
+				}
+			}
+		}
 
-      // If not found, then look for it in the generated assets directory
-      assetDir = File(moduleDir, "build/generated/assets")
-      if (assetDir.exists()) {
-
-        // look in all generated asset directories
-        for (dir in assetDir.listFiles()!!) {
-          assetFile = File(dir, path)
-          if (assetFile.exists() && ((isDir && assetFile.isDirectory) || assetFile.isFile)) {
-            return assetFile
-          }
-        }
-      }
-    }
-
-    throw FileNotFoundException("Asset with path '$path' not found!")
-  }
+		throw FileNotFoundException("Asset with path '$path' not found!")
+	}
 }

@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.editor.schemes
 
 import androidx.collection.MutableIntIntMap
+import io.github.rosemoe.sora.lang.styling.TextStyle
+import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import org.appdevforall.codeonthego.editor.schemes.internal.parser.SchemeParser
 import org.appdevforall.codeonthego.syntax.colorschemes.DynamicColorScheme
 import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
-import io.github.rosemoe.sora.lang.styling.TextStyle
-import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import java.io.File
 import java.util.TreeSet
 

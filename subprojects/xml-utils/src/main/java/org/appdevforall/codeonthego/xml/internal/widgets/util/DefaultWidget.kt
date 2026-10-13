@@ -25,8 +25,8 @@ import org.appdevforall.codeonthego.xml.widgets.WidgetType
  * @author Akash Yadav
  */
 class DefaultWidget(
-  override val simpleName: String,
-  override val qualifiedName: String,
-  override val type: WidgetType,
-  override val superclasses: List<String>
+	override val simpleName: String,
+	override val qualifiedName: String,
+	override val type: WidgetType,
+	override val superclasses: List<String>,
 ) : Widget

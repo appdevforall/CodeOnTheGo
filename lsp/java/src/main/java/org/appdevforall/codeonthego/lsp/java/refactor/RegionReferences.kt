@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.VariableElement
 import openjdk.source.tree.AssignmentTree
@@ -13,6 +12,7 @@ import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 
 internal class Reference(
 	val element: Element,

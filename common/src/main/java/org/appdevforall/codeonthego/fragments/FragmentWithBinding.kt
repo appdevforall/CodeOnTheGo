@@ -30,45 +30,50 @@ import androidx.viewbinding.ViewBinding
  * @author Akash Yadav
  */
 abstract class FragmentWithBinding<T : ViewBinding> : BaseFragment {
+	@Suppress("PropertyName")
+	protected var _binding: T? = null
 
-  @Suppress("PropertyName")
-  protected var _binding: T? = null
+	protected val binding: T
+		get() =
+			checkNotNull(_binding) { "Cannot access ViewHolder. Fragment may have been destroyed." }
 
-  protected val binding: T
-    get() = checkNotNull(
-      _binding) { "Cannot access ViewHolder. Fragment may have been destroyed." }
+	private var bind: ((View) -> T)? = null
 
-  private var bind: ((View) -> T)? = null
+	private var inflate: ((LayoutInflater, ViewGroup?, Boolean) -> T)? = null
 
-  private var inflate: ((LayoutInflater, ViewGroup?, Boolean) -> T)? = null
+	constructor(
+		@LayoutRes layout: Int,
+		bind: (View) -> T,
+	) : super(layout) {
+		this.bind = bind
+	}
 
-  constructor(@LayoutRes layout: Int, bind: (View) -> T) : super(layout) {
-    this.bind = bind
-  }
+	constructor(inflate: (LayoutInflater, ViewGroup?, Boolean) -> T) {
+		this.inflate = inflate
+	}
 
-  constructor(inflate: (LayoutInflater, ViewGroup?, Boolean) -> T) {
-    this.inflate = inflate
-  }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		this.bind?.let { bind ->
+			return super
+				.onCreateView(inflater, container, savedInstanceState)!!
+				.also {
+					_binding = bind(it)
+				}
+		}
 
-  override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    this.bind?.let { bind ->
-      return super.onCreateView(inflater, container, savedInstanceState)!!
-        .also {
-          _binding = bind(it)
-        }
-    }
+		return inflate!!.invoke(inflater, container, false).let {
+			_binding = it
+			binding.root
+		}
+	}
 
-    return inflate!!.invoke(inflater, container, false).let {
-      _binding = it
-      binding.root
-    }
-  }
-
-  override fun onDestroyView() {
-    _binding = null
-    bind = null
-    super.onDestroyView()
-  }
+	override fun onDestroyView() {
+		_binding = null
+		bind = null
+		super.onDestroyView()
+	}
 }

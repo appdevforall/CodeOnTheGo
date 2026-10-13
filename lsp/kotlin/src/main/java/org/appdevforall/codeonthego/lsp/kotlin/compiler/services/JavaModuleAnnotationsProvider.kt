@@ -9,8 +9,7 @@ import org.jetbrains.kotlin.name.ClassId
 @OptIn(KaNonPublicApi::class)
 class JavaModuleAnnotationsProvider(
 	private val javaModuleResolver: CliJavaModuleResolver,
-): KotlinJavaModuleJavaAnnotationsProvider {
-	override fun getAnnotationsForModuleOwnerOfClass(classId: ClassId): List<JavaAnnotation>? {
-		return javaModuleResolver.getAnnotationsForModuleOwnerOfClass(classId)
-	}
+) : KotlinJavaModuleJavaAnnotationsProvider {
+	override fun getAnnotationsForModuleOwnerOfClass(classId: ClassId): List<JavaAnnotation>? =
+		javaModuleResolver.getAnnotationsForModuleOwnerOfClass(classId)
 }

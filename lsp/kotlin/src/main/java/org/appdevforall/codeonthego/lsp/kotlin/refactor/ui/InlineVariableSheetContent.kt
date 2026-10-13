@@ -17,13 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.InlineLabel
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.InlineMode
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.InlineVariablePlan
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.labelFor
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.substitutionTextFor
 import org.appdevforall.codeonthego.lsp.ui.LabelledSection
-import com.itsaky.androidide.resources.R
 
 /** What the sheet reports back up; it never touches the document itself. */
 sealed interface InlineVariableUiEvent {

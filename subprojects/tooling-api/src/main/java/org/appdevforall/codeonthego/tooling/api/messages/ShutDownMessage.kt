@@ -22,4 +22,6 @@ package org.appdevforall.codeonthego.tooling.api.messages
  *
  * @author Akash Yadav
  */
-data class ShutDownMessage(val cancelRunningBuilds: Boolean = true) {}
+data class ShutDownMessage(
+	val cancelRunningBuilds: Boolean = true,
+)

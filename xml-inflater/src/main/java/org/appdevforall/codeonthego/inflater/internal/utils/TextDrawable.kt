@@ -26,48 +26,45 @@ import android.graphics.drawable.Drawable
 import android.util.DisplayMetrics
 import android.util.TypedValue
 
-class TextDrawable(private val mText: CharSequence, displayMetrics: DisplayMetrics) : Drawable() {
-  private val mPaint: Paint = Paint(Paint.ANTI_ALIAS_FLAG)
-  private val mIntrinsicWidth: Int
-  private val mIntrinsicHeight: Int
-  
-  init {
-    mPaint.color = DEFAULT_COLOR
-    mPaint.textAlign = CENTER
-    val textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, DEFAULT_TEXT_SIZE.toFloat(), displayMetrics)
-    mPaint.textSize = textSize
-    mIntrinsicWidth = (mPaint.measureText(mText, 0, mText.length) + .5).toInt()
-    mIntrinsicHeight = mPaint.getFontMetricsInt(null)
-  }
-  
-  override fun draw(canvas: Canvas) {
-    val bounds = bounds
-    canvas.drawText(mText, 0, mText.length, bounds.centerX().toFloat(), bounds.centerY().toFloat(), mPaint)
-  }
-  
-  override fun setAlpha(alpha: Int) {
-    mPaint.alpha = alpha
-  }
-  
-  override fun setColorFilter(filter: ColorFilter?) {
-    mPaint.colorFilter = filter
-  }
-  
-  @Deprecated("Deprecated in Java")
-  override fun getOpacity(): Int {
-    return mPaint.alpha
-  }
-  
-  override fun getIntrinsicWidth(): Int {
-    return mIntrinsicWidth
-  }
-  
-  override fun getIntrinsicHeight(): Int {
-    return mIntrinsicHeight
-  }
-  
-  companion object {
-    private const val DEFAULT_COLOR = Color.WHITE
-    private const val DEFAULT_TEXT_SIZE = 15
-  }
+class TextDrawable(
+	private val mText: CharSequence,
+	displayMetrics: DisplayMetrics,
+) : Drawable() {
+	private val mPaint: Paint = Paint(Paint.ANTI_ALIAS_FLAG)
+	private val mIntrinsicWidth: Int
+	private val mIntrinsicHeight: Int
+
+	init {
+		mPaint.color = DEFAULT_COLOR
+		mPaint.textAlign = CENTER
+		val textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, DEFAULT_TEXT_SIZE.toFloat(), displayMetrics)
+		mPaint.textSize = textSize
+		mIntrinsicWidth = (mPaint.measureText(mText, 0, mText.length) + .5).toInt()
+		mIntrinsicHeight = mPaint.getFontMetricsInt(null)
+	}
+
+	override fun draw(canvas: Canvas) {
+		val bounds = bounds
+		canvas.drawText(mText, 0, mText.length, bounds.centerX().toFloat(), bounds.centerY().toFloat(), mPaint)
+	}
+
+	override fun setAlpha(alpha: Int) {
+		mPaint.alpha = alpha
+	}
+
+	override fun setColorFilter(filter: ColorFilter?) {
+		mPaint.colorFilter = filter
+	}
+
+	@Deprecated("Deprecated in Java")
+	override fun getOpacity(): Int = mPaint.alpha
+
+	override fun getIntrinsicWidth(): Int = mIntrinsicWidth
+
+	override fun getIntrinsicHeight(): Int = mIntrinsicHeight
+
+	companion object {
+		private const val DEFAULT_COLOR = Color.WHITE
+		private const val DEFAULT_TEXT_SIZE = 15
+	}
 }

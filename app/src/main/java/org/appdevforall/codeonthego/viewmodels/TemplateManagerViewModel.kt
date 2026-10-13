@@ -3,13 +3,7 @@ package org.appdevforall.codeonthego.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.repositories.TemplateRepository
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
-import org.appdevforall.codeonthego.templates.manager.models.displayName
-import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEffect
-import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEvent
-import org.appdevforall.codeonthego.ui.models.TemplateManagerUiState
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +11,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.repositories.TemplateRepository
+import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
+import org.appdevforall.codeonthego.templates.manager.models.displayName
+import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEffect
+import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEvent
+import org.appdevforall.codeonthego.ui.models.TemplateManagerUiState
 
 /**
  * ViewModel for the Templates tab. Same UDF shape as [PluginManagerViewModel].

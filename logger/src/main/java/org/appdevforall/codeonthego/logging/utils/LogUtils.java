@@ -17,9 +17,8 @@
 
 package org.appdevforall.codeonthego.logging.utils;
 
-import org.appdevforall.codeonthego.utils.LogTagUtils;
-
 import java.util.regex.Pattern;
+import org.appdevforall.codeonthego.utils.LogTagUtils;
 
 /**
  * @author Akash Yadav

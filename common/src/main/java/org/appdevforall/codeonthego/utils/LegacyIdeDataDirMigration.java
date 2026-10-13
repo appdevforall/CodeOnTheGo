@@ -21,29 +21,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One-time rename of the fork-era {@code .androidide} directory to {@link
- * SharedEnvironment#PROJECT_CACHE_DIR_NAME}.
+ * One-time rename of the fork-era {@code .androidide} directory to {@link SharedEnvironment#PROJECT_CACHE_DIR_NAME}.
  */
 public final class LegacyIdeDataDirMigration {
 
 	private static final Logger LOG = LoggerFactory.getLogger(LegacyIdeDataDirMigration.class);
 
-	private LegacyIdeDataDirMigration() {}
-
 	/**
-	 * Resolves which IDE data directory path is in use: prefers {@code current} after a successful
-	 * rename from {@code legacy}. If {@code current} already exists, it wins (both-existing case is
-	 * logged). If only {@code legacy} exists and {@code legacy.renameTo(current)} fails, returns
-	 * {@code legacy} so callers keep using the existing tree. If neither exists, returns {@code
+	 * Resolves which IDE data directory path is in use: prefers {@code current} after a successful rename from {@code legacy}. If {@code current} already exists, it wins (both-existing case is logged). If only {@code legacy} exists and {@code legacy.renameTo(current)} fails, returns {@code legacy} so callers keep using the existing tree. If neither exists, returns {@code
 	 * current} for the caller to create.
 	 */
 	public static File migrateLegacyIdeDataDirIfNeeded(File legacy, File current) {
 		if (current.exists() && legacy.exists()) {
 			LOG.warn(
-				"Both {} and {} exist; using {} only",
-				legacy.getAbsolutePath(),
-				current.getAbsolutePath(),
-				current.getAbsolutePath());
+					"Both {} and {} exist; using {} only",
+					legacy.getAbsolutePath(),
+					current.getAbsolutePath(),
+					current.getAbsolutePath());
 			return current;
 		}
 		if (legacy.exists()) {
@@ -55,4 +49,6 @@ public final class LegacyIdeDataDirMigration {
 		}
 		return current;
 	}
+
+	private LegacyIdeDataDirMigration() {}
 }

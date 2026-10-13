@@ -1,11 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.FALLBACK_NAME
-import org.appdevforall.codeonthego.lsp.refactor.decapitaliseFirst
-import org.appdevforall.codeonthego.lsp.refactor.nameFromType
-import org.appdevforall.codeonthego.lsp.refactor.stripAccessorPrefix
-import org.appdevforall.codeonthego.lsp.refactor.uniqueName
-import org.appdevforall.codeonthego.lsp.ui.isIdentifier
 import openjdk.source.tree.ArrayAccessTree
 import openjdk.source.tree.IdentifierTree
 import openjdk.source.tree.MemberSelectTree
@@ -15,6 +9,12 @@ import openjdk.source.tree.ParameterizedTypeTree
 import openjdk.source.tree.ParenthesizedTree
 import openjdk.source.tree.Tree
 import openjdk.source.tree.TypeCastTree
+import org.appdevforall.codeonthego.lsp.refactor.FALLBACK_NAME
+import org.appdevforall.codeonthego.lsp.refactor.decapitaliseFirst
+import org.appdevforall.codeonthego.lsp.refactor.nameFromType
+import org.appdevforall.codeonthego.lsp.refactor.stripAccessorPrefix
+import org.appdevforall.codeonthego.lsp.refactor.uniqueName
+import org.appdevforall.codeonthego.lsp.ui.isIdentifier
 
 /**
  * The restricted identifiers -- `var`, `yield`, `record`, `sealed`, `permits` -- are legal variable names

@@ -26,44 +26,44 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.buildinfo.BuildInfo
 
 private val keyCharMap by lazy {
-  KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
+KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
 }
 
 /**
  * @see UiDevice.waitForWindowUpdate
  */
 fun UiDevice.waitForWindowUpdate(timeout: Long) =
-  waitForWindowUpdate(BuildInfo.PACKAGE_NAME, timeout)
+waitForWindowUpdate(BuildInfo.PACKAGE_NAME, timeout)
 
 /**
  * @see UiDevice.hasObject
  */
 fun UiDevice.hasObjectWithText(text: String) =
-  hasObject(By.text(text))
+hasObject(By.text(text))
 
 /**
  * @see UiDevice.hasObject
  */
 fun UiDevice.hasObjectWithText(@StringRes text: Int) =
-  hasObjectWithText(stringRes(text))
+hasObjectWithText(stringRes(text))
 
 /**
  * @see UiDevice.findObject
  */
 fun UiDevice.findObjectWithText(text: String): UiObject2? =
-  findObject(By.text(text))
+findObject(By.text(text))
 
 /**
  * @see UiDevice.findObjectWithText
  */
 fun UiDevice.findObjectWithText(@StringRes text: Int): UiObject2? =
-  findObjectWithText(stringRes(text))
+findObjectWithText(stringRes(text))
 
 
 fun UiDevice.getObjectWithText(text: String): UiObject2 {
-  val obj = findObjectWithText(text)
-  assertThat(obj).isNotNull()
-  return obj!!
+val obj = findObjectWithText(text)
+assertThat(obj).isNotNull()
+return obj!!
 }
 
 fun UiDevice.getObjectWithText(@StringRes text: Int): UiObject2 = getObjectWithText(stringRes(text))
@@ -72,10 +72,10 @@ fun UiDevice.getObjectWithText(@StringRes text: Int): UiObject2 = getObjectWithT
  * Sends key events to this [UiDevice] to type the given [text].
  */
 fun UiDevice.sendKeyEvents(text: String) {
-  waitForIdle()
-  val keyEvents = keyCharMap.getEvents(text.toCharArray())
-  for (keyEvent in keyEvents) {
-    uiAutomation.injectInputEvent(keyEvent, true)
-    waitForIdle()
-  }
+waitForIdle()
+val keyEvents = keyCharMap.getEvents(text.toCharArray())
+for (keyEvent in keyEvents) {
+	uiAutomation.injectInputEvent(keyEvent, true)
+	waitForIdle()
+}
 }

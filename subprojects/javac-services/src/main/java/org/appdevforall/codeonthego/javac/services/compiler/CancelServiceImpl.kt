@@ -26,18 +26,18 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @author Akash Yadav
  */
 class CancelServiceImpl : CancelService() {
-  val cancelled = AtomicBoolean(false)
+	val cancelled = AtomicBoolean(false)
 
-  /**
-   * Sets the cancellation flag.
-   *
-   * @return `true` if compilation process was running and it was set to be cancelled, `false`
-   * otherwise.
-   */
-  fun cancel(): Boolean {
-    ILogger.ROOT.info("...requesting compilation cancellation")
-    return !cancelled.getAndSet(true)
-  }
+	/**
+	 * Sets the cancellation flag.
+	 *
+	 * @return `true` if compilation process was running and it was set to be cancelled, `false`
+	 * otherwise.
+	 */
+	fun cancel(): Boolean {
+		ILogger.ROOT.info("...requesting compilation cancellation")
+		return !cancelled.getAndSet(true)
+	}
 
-  override fun isCanceled(): Boolean = cancelled.get()
+	override fun isCanceled(): Boolean = cancelled.get()
 }

@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego.utils
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
-import org.appdevforall.codeonthego.preferences.utils.indentationString
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
+import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
+import org.appdevforall.codeonthego.preferences.utils.indentationString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -16,18 +16,18 @@ import kotlin.reflect.KProperty0
  */
 @RunWith(JUnit4::class)
 class ClassBuilderTest {
-
 	@Test
 	fun givenUseAppCompatFlagTrue_whenCreatingActivity_thenExtendsAppCompatActivity() {
 		mockkObject(EditorPreferences)
 		every { EditorPreferences.useSoftTab } returns true
 		every { EditorPreferences.tabSize } returns 4
 
-		val activitySrc = ClassBuilder.createActivity(
-			packageName = "com.example",
-			className = "MyActivity",
-			appCompatActivity = true
-		)
+		val activitySrc =
+			ClassBuilder.createActivity(
+				packageName = "com.example",
+				className = "MyActivity",
+				appCompatActivity = true,
+			)
 
 		assertThat(activitySrc).apply {
 			contains("import androidx.appcompat.app.AppCompatActivity;")
@@ -41,11 +41,12 @@ class ClassBuilderTest {
 		every { EditorPreferences.useSoftTab } returns true
 		every { EditorPreferences.tabSize } returns 4
 
-		val activitySrc = ClassBuilder.createActivity(
-			packageName = "com.example",
-			className = "MyActivity",
-			appCompatActivity = false
-		)
+		val activitySrc =
+			ClassBuilder.createActivity(
+				packageName = "com.example",
+				className = "MyActivity",
+				appCompatActivity = false,
+			)
 
 		assertThat(activitySrc).apply {
 			contains("import android.app.Activity;")

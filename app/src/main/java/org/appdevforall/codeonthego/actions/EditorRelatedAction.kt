@@ -21,29 +21,29 @@ import org.appdevforall.codeonthego.editor.ui.IDEEditor
 import org.appdevforall.codeonthego.ui.CodeEditorView
 
 /** @author Akash Yadav */
-abstract class EditorRelatedAction : EditorActivityAction(), EditorActionItem {
+abstract class EditorRelatedAction :
+	EditorActivityAction(),
+	EditorActionItem {
+	override var requiresUIThread: Boolean = true
 
-  override var requiresUIThread: Boolean = true
+	override fun prepare(data: ActionData) {
+		super<EditorActionItem>.prepare(data)
+		super<EditorActivityAction>.prepare(data)
+		val editor =
+			data.getEditor()
+				?: run {
+					visible = false
+					enabled = false
+					return
+				}
 
-  override fun prepare(data: ActionData) {
-    super<EditorActionItem>.prepare(data)
-    super<EditorActivityAction>.prepare(data)
-    val editor =
-      data.getEditor()
-        ?: run {
-          visible = false
-          enabled = false
-          return
-        }
+		val file = editor.file
 
-    val file = editor.file
+		visible = file != null
+		enabled = visible
+	}
 
-    visible = file != null
-    enabled = visible
-  }
+	fun ActionData.getEditor(): IDEEditor? = get(IDEEditor::class.java)
 
-  fun ActionData.getEditor(): IDEEditor? = get(IDEEditor::class.java)
-
-  fun ActionData.getEditorView(): CodeEditorView? = get(CodeEditorView::class.java)
-
+	fun ActionData.getEditorView(): CodeEditorView? = get(CodeEditorView::class.java)
 }

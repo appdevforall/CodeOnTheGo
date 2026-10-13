@@ -12,12 +12,12 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import org.appdevforall.codeonthego.idetooltips.TooltipManager
-import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
-import org.appdevforall.codeonthego.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.idetooltips.TooltipManager
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
+import org.appdevforall.codeonthego.viewmodel.DebuggerViewModel
 
 /**
  * @author Akash Yadav

@@ -25,6 +25,6 @@ package org.appdevforall.codeonthego.models
  * @author Akash Yadav
  */
 data class JdkDistribution(
-  val javaVersion: String,
-  val javaHome: String
+	val javaVersion: String,
+	val javaHome: String,
 )

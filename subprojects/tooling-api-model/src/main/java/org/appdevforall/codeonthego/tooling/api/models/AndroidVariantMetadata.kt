@@ -25,7 +25,7 @@ package org.appdevforall.codeonthego.tooling.api.models
  */
 
 open class AndroidVariantMetadata(
-  name: String,
-  mainArtifact: AndroidArtifactMetadata,
-  val otherArtifacts: Map<String, AndroidArtifactMetadata>
+	name: String,
+	mainArtifact: AndroidArtifactMetadata,
+	val otherArtifacts: Map<String, AndroidArtifactMetadata>,
 ) : BasicAndroidVariantMetadata(name, mainArtifact)

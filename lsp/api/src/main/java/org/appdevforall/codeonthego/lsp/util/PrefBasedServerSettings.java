@@ -23,33 +23,32 @@ import org.appdevforall.codeonthego.lsp.api.IServerSettings;
 import org.appdevforall.codeonthego.managers.PreferenceManager;
 
 /**
- * {@link IServerSettings} implementation which uses {@link
- * org.appdevforall.codeonthego.managers.PreferenceManager PreferencesManager} to read common settings.
+ * {@link IServerSettings} implementation which uses {@link org.appdevforall.codeonthego.managers.PreferenceManager PreferencesManager} to read common settings.
  *
  * @author Akash Yadav
  */
 public abstract class PrefBasedServerSettings extends DefaultServerSettings {
 
-  private PreferenceManager prefs;
+	private PreferenceManager prefs;
 
-  @Override
-  public boolean shouldMatchAllLowerCase() {
-    final var prefs = getPrefs();
-    if (prefs != null) {
-      return prefs.getBoolean(KEY_COMPLETIONS_MATCH_LOWER, true);
-    }
+	@Nullable
+	public PreferenceManager getPrefs() {
+		if (prefs == null) {
+			final var app = BaseApplication.getBaseInstance();
+			if (app != null) {
+				prefs = app.getPrefManager();
+			}
+		}
+		return prefs;
+	}
 
-    return false;
-  }
+	@Override
+	public boolean shouldMatchAllLowerCase() {
+		final var prefs = getPrefs();
+		if (prefs != null) {
+			return prefs.getBoolean(KEY_COMPLETIONS_MATCH_LOWER, true);
+		}
 
-  @Nullable
-  public PreferenceManager getPrefs() {
-    if (prefs == null) {
-      final var app = BaseApplication.getBaseInstance();
-      if (app != null) {
-        prefs = app.getPrefManager();
-      }
-    }
-    return prefs;
-  }
+		return false;
+	}
 }

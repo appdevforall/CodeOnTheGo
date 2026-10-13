@@ -1,14 +1,14 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
-import org.appdevforall.codeonthego.progress.ICancelChecker
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
+import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
+import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.junit.Test
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException

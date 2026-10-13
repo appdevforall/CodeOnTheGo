@@ -7,11 +7,10 @@ package org.appdevforall.codeonthego.plugins.manager.ui
  * the Activity implements this interface and the service casts to it.
  */
 interface PluginToolbarHost {
-
-    /**
-     * Rebuilds the editor toolbar, re-evaluating every plugin toolbar action's dynamic
-     * providers (icon/enabled/visible). Implementations must ensure the work runs on the
-     * UI thread.
-     */
-    fun refreshPluginToolbarActions()
+	/**
+	 * Rebuilds the editor toolbar, re-evaluating every plugin toolbar action's dynamic
+	 * providers (icon/enabled/visible). Implementations must ensure the work runs on the
+	 * UI thread.
+	 */
+	fun refreshPluginToolbarActions()
 }

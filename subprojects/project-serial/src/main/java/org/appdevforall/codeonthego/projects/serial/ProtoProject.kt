@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego.projects.serial
 
-import org.appdevforall.codeonthego.project.GradleModels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.project.GradleModels
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Files

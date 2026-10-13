@@ -17,10 +17,6 @@
 
 package org.appdevforall.codeonthego.javac.services.partial
 
-import org.appdevforall.codeonthego.javac.services.compiler.JavacFlowListener
-import org.appdevforall.codeonthego.javac.services.util.ReparserUtils
-import org.appdevforall.codeonthego.javac.services.visitors.FindAnonymousVisitor
-import org.appdevforall.codeonthego.javac.services.visitors.TranslateMethodPositionsVisitor
 import openjdk.source.tree.BlockTree
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.CompilationUnitTree
@@ -53,6 +49,10 @@ import openjdk.tools.javac.util.Context
 import openjdk.tools.javac.util.List
 import openjdk.tools.javac.util.Log
 import openjdk.tools.javac.util.Names
+import org.appdevforall.codeonthego.javac.services.compiler.JavacFlowListener
+import org.appdevforall.codeonthego.javac.services.util.ReparserUtils
+import org.appdevforall.codeonthego.javac.services.visitors.FindAnonymousVisitor
+import org.appdevforall.codeonthego.javac.services.visitors.TranslateMethodPositionsVisitor
 import org.slf4j.LoggerFactory
 import java.nio.CharBuffer
 import java.util.Arrays
@@ -63,297 +63,304 @@ import java.util.Arrays
  * @author Akash Yadav
  */
 class PartialReparserImpl : PartialReparser {
+	private var allowPartialReparse: Boolean = ReparserUtils.canReparse()
 
-  private var allowPartialReparse: Boolean = ReparserUtils.canReparse()
+	companion object {
+		private val log = LoggerFactory.getLogger(PartialReparserImpl::class.java)
+	}
 
-  companion object {
-    private val log = LoggerFactory.getLogger(PartialReparserImpl::class.java)
-  }
+	override fun reparseMethod(
+		ci: CompilationInfo,
+		methodPath: TreePath,
+		newBody: String,
+		fileContents: CharSequence,
+	): Boolean {
+		if (!allowPartialReparse) {
+			log.debug("Partial reparse is disabled")
+			return false
+		}
 
-  override fun reparseMethod(
-    ci: CompilationInfo,
-    methodPath: TreePath,
-    newBody: String,
-    fileContents: CharSequence
-  ): Boolean {
+		val cu = ci.cu
+		val fo = cu.sourceFile
+		val task = ci.task
+		val method = methodPath.leaf as JCMethodDecl
+		if (methodPath.leaf.kind != METHOD) {
+			log.warn("Provided TreePath does not correspond to a MethodTree")
+			return false
+		}
 
-    if (!allowPartialReparse) {
-      log.debug("Partial reparse is disabled")
-      return false
-    }
+		val methodScope = ci.trees.getScope(TreePath(methodPath, method.body))
+		val jt = JavacTrees.instance(task)
+		val origStartPos = jt.sourcePositions.getStartPosition(cu, method.body).toInt()
+		val origEndPos = jt.sourcePositions.getEndPosition(cu, method.body).toInt()
+		if (origStartPos < 0) {
+			log.warn("Javac returned start position {} < 0", origStartPos)
+			return false
+		}
 
-    val cu = ci.cu
-    val fo = cu.sourceFile
-    val task = ci.task
-    val method = methodPath.leaf as JCMethodDecl
-    if (methodPath.leaf.kind != METHOD) {
-      log.warn("Provided TreePath does not correspond to a MethodTree")
-      return false
-    }
+		if (origStartPos > origEndPos) {
+			log.warn("Java returned start position: {} > end position: {}", origStartPos, origEndPos)
+			return false
+		}
 
-    val methodScope = ci.trees.getScope(TreePath(methodPath, method.body))
-    val jt = JavacTrees.instance(task)
-    val origStartPos = jt.sourcePositions.getStartPosition(cu, method.body).toInt()
-    val origEndPos = jt.sourcePositions.getEndPosition(cu, method.body).toInt()
-    if (origStartPos < 0) {
-      log.warn("Javac returned start position {} < 0", origStartPos)
-      return false
-    }
+		val fav = FindAnonymousVisitor()
+		fav.scan(method.body, null)
+		if (fav.hasLocalClass) {
+			log.debug("Skipped reparse method. Old local classes: {}", fo)
+			return false
+		}
 
-    if (origStartPos > origEndPos) {
-      log.warn("Java returned start position: {} > end position: {}", origStartPos, origEndPos)
-      return false
-    }
+		val noInner = fav.noInner
+		val context = task.context
 
-    val fav = FindAnonymousVisitor()
-    fav.scan(method.body, null)
-    if (fav.hasLocalClass) {
-      log.debug("Skipped reparse method. Old local classes: {}", fo)
-      return false
-    }
+		try {
+			val l =
+				org.appdevforall.codeonthego.javac.services.NBLog
+					.instance(context)
+			l.startPartialReparse(fo)
+			val prevLogged = l.useSource(fo)
+			val block: JCBlock?
 
-    val noInner = fav.noInner
-    val context = task.context
+			try {
+				val dl = ci.diagnosticListener as DiagnosticListenerImpl
+				dl.startPartialReparse(origStartPos, origEndPos)
+				val docComments = HashMap<JCTree, Entry>()
+				log.debug("Reparse method...")
+				block = reparseMethodBody(context, cu, method, newBody, docComments)
+				val endPosTable = (cu as JCCompilationUnit).endPositions
+				if (block == null) {
+					log.debug("Skipped reparse method. Invalid position, newBody: {}", newBody)
+					return false
+				}
 
-    try {
-      val l = org.appdevforall.codeonthego.javac.services.NBLog.instance(context)
-      l.startPartialReparse(fo)
-      val prevLogged = l.useSource(fo)
-      val block: JCBlock?
+				val sourcePositions = jt.sourcePositions
+				val newEndPos = sourcePositions.getEndPosition(cu, block).toInt()
+				if (newEndPos != origStartPos + newBody.length) {
+					log.warn("Invalid position in reparsed method")
+					return false
+				}
 
-      try {
-        val dl = ci.diagnosticListener as DiagnosticListenerImpl
-        dl.startPartialReparse(origStartPos, origEndPos)
-        val docComments = HashMap<JCTree, Entry>()
-        log.debug("Reparse method...")
-        block = reparseMethodBody(context, cu, method, newBody, docComments)
-        val endPosTable = (cu as JCCompilationUnit).endPositions
-        if (block == null) {
-          log.debug("Skipped reparse method. Invalid position, newBody: {}", newBody)
-          return false
-        }
+				fav.reset()
+				fav.scan(block, null)
 
-        val sourcePositions = jt.sourcePositions
-        val newEndPos = sourcePositions.getEndPosition(cu, block).toInt()
-        if (newEndPos != origStartPos + newBody.length) {
-          log.warn("Invalid position in reparsed method")
-          return false
-        }
+				val newNoInner = fav.noInner
+				if (fav.hasLocalClass || noInner != newNoInner) {
+					log.debug("Skipped method reparse (new local class): {}", fo)
+					return false
+				}
 
-        fav.reset()
-        fav.scan(block, null)
+				val docCommentsTable = getLazyDocCommentsTable(cu)
+				docCommentsTable.keys.removeAll(fav.docOwners)
+				docCommentsTable.putAll(docComments)
+				val delta = newEndPos - origEndPos
+				val tpv = TranslateMethodPositionsVisitor(method, endPosTable, delta)
+				tpv.scan(cu, null)
+				doUnenter(context, cu, method)
+				method.body = block
 
-        val newNoInner = fav.noInner
-        if (fav.hasLocalClass || noInner != newNoInner) {
-          log.debug("Skipped method reparse (new local class): {}", fo)
-          return false
-        }
+				log.debug("ReAttr method...")
+				reAttrMethodBody(context, methodScope, method, block)
 
-        val docCommentsTable = getLazyDocCommentsTable(cu)
-        docCommentsTable.keys.removeAll(fav.docOwners)
-        docCommentsTable.putAll(docComments)
-        val delta = newEndPos - origEndPos
-        val tpv = TranslateMethodPositionsVisitor(method, endPosTable, delta)
-        tpv.scan(cu, null)
-        doUnenter(context, cu, method)
-        method.body = block
+				if (!dl.hasPartialReparseErrors()) {
+					val fl = JavacFlowListener.instance(context)
+					if (fl != null && fl.hasFlowCompleted(cu.sourceFile)) {
+						log.debug("Reflow method...")
+						val tp = TreePath.getPath(cu, method)
+						val t = tp.parentPath.leaf as ClassTree
+						reflowMethodBody(context, t, method)
+					}
+				}
 
-        log.debug("ReAttr method...")
-        reAttrMethodBody(context, methodScope, method, block)
+				val arr = CharArray(fileContents.length)
+				for (index in fileContents.indices) {
+					arr[index] = fileContents[index]
+				}
 
-        if (!dl.hasPartialReparseErrors()) {
-          val fl = JavacFlowListener.instance(context)
-          if (fl != null && fl.hasFlowCompleted(cu.sourceFile)) {
-            log.debug("Reflow method...")
-            val tp = TreePath.getPath(cu, method)
-            val t = tp.parentPath.leaf as ClassTree
-            reflowMethodBody(context, t, method)
-          }
-        }
+				buildLineMap(cu, arr)
+				dl.endPartialReparse(delta)
+			} finally {
+				l.endPartialReparse(cu.sourceFile)
+				l.useSource(prevLogged)
+			}
+		} catch (err: Throwable) {
+			log.error("An error occurred while reparsing method", err)
+			return false
+		}
 
-        val arr = CharArray(fileContents.length)
-        for (index in fileContents.indices) {
-          arr[index] = fileContents[index]
-        }
+		return true
+	}
 
-        buildLineMap(cu, arr)
-        dl.endPartialReparse(delta)
-      } finally {
-        l.endPartialReparse(cu.sourceFile)
-        l.useSource(prevLogged)
-      }
-    } catch (err: Throwable) {
-      log.error("An error occurred while reparsing method", err)
-      return false
-    }
+	private fun buildLineMap(
+		cu: JCCompilationUnit,
+		arr: CharArray,
+	) {
+		ReparserUtils.buildLineMap(cu.getLineMap(), arr, arr.size)
+	}
 
-    return true
-  }
+	private fun getLazyDocCommentsTable(cu: JCCompilationUnit): MutableMap<JCTree, Entry> = getLazyDocCommentsTable(cu.docComments)
 
-  private fun buildLineMap(cu: JCCompilationUnit, arr: CharArray) {
-    ReparserUtils.buildLineMap(cu.getLineMap(), arr, arr.size)
-  }
+	private fun getLazyDocCommentsTable(docs: DocCommentTable): MutableMap<JCTree, Entry> = ReparserUtils.getLazyDocCommentsTable(docs)!!
 
-  private fun getLazyDocCommentsTable(cu: JCCompilationUnit): MutableMap<JCTree, Entry> {
-    return getLazyDocCommentsTable(cu.docComments)
-  }
+	private fun doUnenter(
+		context: Context?,
+		cu: CompilationUnitTree,
+		method: JCMethodDecl,
+	) {
+		if (cu !is JCCompilationUnit) {
+			throw IllegalStateException()
+		}
 
-  private fun getLazyDocCommentsTable(docs: DocCommentTable): MutableMap<JCTree, Entry> {
-    return ReparserUtils.getLazyDocCommentsTable(docs)!!
-  }
+		ReparserUtils.unenter(context, cu, method.body)
+	}
 
-  private fun doUnenter(context: Context?, cu: CompilationUnitTree, method: JCMethodDecl) {
-    if (cu !is JCCompilationUnit) {
-      throw IllegalStateException()
-    }
+	private fun reparseMethodBody(
+		context: Context,
+		cu: CompilationUnitTree,
+		method: JCMethodDecl,
+		newBody: String,
+		docComments: MutableMap<JCTree, Entry>,
+	): JCBlock? {
+		val startPos = method.body.pos
+		val body = CharArray(startPos + newBody.length + 1)
+		Arrays.fill(body, ' ')
+		for (index in newBody.indices) {
+			body[startPos + index] = newBody[index]
+		}
+		body[startPos + newBody.length] = '\u0000'
+		val buf = CharBuffer.wrap(body, 0, body.size - 1)
+		val parser = newParser(context, buf, (cu as JCCompilationUnit).endPositions)
+		val statement = parser.parseStatement()
+		if (statement.kind == BLOCK) {
+			docComments.putAll(getLazyDocCommentsTable(getParserDocComments(parser)))
+			return statement as JCBlock
+		}
 
-    ReparserUtils.unenter(context, cu, method.body)
-  }
+		log.warn("JavacParser parsed invalid statment. Block statement was expected...")
+		return null
+	}
 
-  private fun reparseMethodBody(
-    context: Context,
-    cu: CompilationUnitTree,
-    method: JCMethodDecl,
-    newBody: String,
-    docComments: MutableMap<JCTree, Entry>,
-  ): JCBlock? {
-    val startPos = method.body.pos
-    val body = CharArray(startPos + newBody.length + 1)
-    Arrays.fill(body, ' ')
-    for (index in newBody.indices) {
-      body[startPos + index] = newBody[index]
-    }
-    body[startPos + newBody.length] = '\u0000'
-    val buf = CharBuffer.wrap(body, 0, body.size - 1)
-    val parser = newParser(context, buf, (cu as JCCompilationUnit).endPositions)
-    val statement = parser.parseStatement()
-    if (statement.kind == BLOCK) {
-      docComments.putAll(getLazyDocCommentsTable(getParserDocComments(parser)))
-      return statement as JCBlock
-    }
+	private fun getParserDocComments(parser: JavacParser): DocCommentTable = ReparserUtils.getDocComments(parser)!!
 
-    log.warn("JavacParser parsed invalid statment. Block statement was expected...")
-    return null
-  }
+	private fun newParser(
+		context: Context,
+		buf: CharBuffer?,
+		endPositions: EndPosTable?,
+	): JavacParser {
+		val factory =
+			org.appdevforall.codeonthego.javac.services.NBParserFactory
+				.instance(context)
+				as org.appdevforall.codeonthego.javac.services.NBParserFactory
+		val scannerFactory = ScannerFactory.instance(context)
+		val cancelService =
+			org.appdevforall.codeonthego.javac.services.CancelService
+				.instance(context)
+		val lexer = scannerFactory.newScanner(buf, true)
+		if (
+			endPositions
+				is org.appdevforall.codeonthego.javac.services.NBParserFactory.NBJavacParser.EndPosTableImpl
+		) {
+			endPositions.resetErrorEndPos()
+		}
 
-  private fun getParserDocComments(parser: JavacParser): DocCommentTable {
-    return ReparserUtils.getDocComments(parser)!!
-  }
+		return object :
+			org.appdevforall.codeonthego.javac.services.NBParserFactory.NBJavacParser(
+				factory,
+				lexer,
+				true,
+				false,
+				true,
+				false,
+				cancelService,
+			) {
+			override fun newEndPosTable(keepEndPositions: Boolean): AbstractEndPosTable {
+				return object : AbstractEndPosTable(this) {
+					override fun storeEnd(
+						tree: JCTree?,
+						endpos: Int,
+					) {
+						(endPositions as EndPosTableImpl).storeEnd(tree, endpos)
+					}
 
-  private fun newParser(
-    context: Context,
-    buf: CharBuffer?,
-    endPositions: EndPosTable?,
-  ): JavacParser {
-    val factory =
-      org.appdevforall.codeonthego.javac.services.NBParserFactory.instance(context)
-        as org.appdevforall.codeonthego.javac.services.NBParserFactory
-    val scannerFactory = ScannerFactory.instance(context)
-    val cancelService = org.appdevforall.codeonthego.javac.services.CancelService.instance(context)
-    val lexer = scannerFactory.newScanner(buf, true)
-    if (
-      endPositions
-        is org.appdevforall.codeonthego.javac.services.NBParserFactory.NBJavacParser.EndPosTableImpl
-    ) {
-      endPositions.resetErrorEndPos()
-    }
+					override fun <T : JCTree?> to(t: T): T {
+						storeEnd(t, token.endPos)
+						return t
+					}
 
-    return object :
-      org.appdevforall.codeonthego.javac.services.NBParserFactory.NBJavacParser(
-        factory,
-        lexer,
-        true,
-        false,
-        true,
-        false,
-        cancelService
-      ) {
-      override fun newEndPosTable(keepEndPositions: Boolean): AbstractEndPosTable {
-        return object : AbstractEndPosTable(this) {
-          override fun storeEnd(tree: JCTree?, endpos: Int) {
-            (endPositions as EndPosTableImpl).storeEnd(tree, endpos)
-          }
+					override fun <T : JCTree?> toP(t: T): T {
+						storeEnd(t, S.prevToken().endPos)
+						return t
+					}
 
-          override fun <T : JCTree?> to(t: T): T {
-            storeEnd(t, token.endPos)
-            return t
-          }
+					override fun getEndPos(tree: JCTree?): Int = endPositions!!.getEndPos(tree)
 
-          override fun <T : JCTree?> toP(t: T): T {
-            storeEnd(t, S.prevToken().endPos)
-            return t
-          }
+					override fun replaceTree(
+						oldtree: JCTree?,
+						newtree: JCTree?,
+					): Int = endPositions!!.replaceTree(oldtree, newtree)
 
-          override fun getEndPos(tree: JCTree?): Int {
-            return endPositions!!.getEndPos(tree)
-          }
+					override fun setErrorEndPos(errPos: Int) {
+						super.setErrorEndPos(errPos)
+						(endPositions as EndPosTableImpl).setErrorEndPos(errPos)
+					}
+				}
+			}
+		}
+	}
 
-          override fun replaceTree(oldtree: JCTree?, newtree: JCTree?): Int {
-            return endPositions!!.replaceTree(oldtree, newtree)
-          }
+	private fun reAttrMethodBody(
+		context: Context,
+		scope: JavacScope,
+		tree: JCMethodDecl,
+		block: JCBlock,
+	): JCBlock {
+		val attr = Attr.instance(context)
+		val names: Names = Names.instance(context)
+		val syms: Symtab = Symtab.instance(context)
+		val log: Log = Log.instance(context)
+		val make: TreeMaker = TreeMaker.instance(context)
+		val env: Env<AttrContext> = scope.env // this is a copy anyway...
+		val owner: Symbol.ClassSymbol = env.enclClass.sym
 
-          override fun setErrorEndPos(errPos: Int) {
-            super.setErrorEndPos(errPos)
-            (endPositions as EndPosTableImpl).setErrorEndPos(errPos)
-          }
-        }
-      }
-    }
-  }
+		if (tree.name === names.init && !owner.type.isErroneous && owner.type !== syms.objectType) {
+			val body = tree.body
+			if (body.stats.isEmpty() || !TreeInfo.isSelfCall(body.stats.head)) {
+				body.stats =
+					body.stats.prepend(
+						make.at(body.pos).Exec(make.Apply(List.nil(), make.Ident(names._super), List.nil())),
+					)
+			} else if (
+				(env.enclClass.sym.flags() and Flags.ENUM.toLong()) != 0L &&
+				(tree.mods.flags and Flags.GENERATEDCONSTR) == 0L &&
+				TreeInfo.isSuperCall(body.stats.head)
+			) {
+				// enum constructors are not allowed to call super
+				// directly, so make sure there aren't any super calls
+				// in enum constructorObjectCheckers, except in the compiler
+				// generated one.
+				log.error(
+					tree.body.stats.head
+						.pos(),
+					openjdk.tools.javac.util.JCDiagnostic.Error(
+						"compiler",
+						"call.to.super.not.allowed.in.enum.ctor",
+						env.enclClass.sym,
+					),
+				)
+			}
+		}
+		attr.attribStat(block, env)
+		return block
+	}
 
-  private fun reAttrMethodBody(
-    context: Context,
-    scope: JavacScope,
-    tree: JCMethodDecl,
-    block: JCBlock,
-  ): JCBlock {
-    val attr = Attr.instance(context)
-    val names: Names = Names.instance(context)
-    val syms: Symtab = Symtab.instance(context)
-    val log: Log = Log.instance(context)
-    val make: TreeMaker = TreeMaker.instance(context)
-    val env: Env<AttrContext> = scope.env // this is a copy anyway...
-    val owner: Symbol.ClassSymbol = env.enclClass.sym
-
-    if (tree.name === names.init && !owner.type.isErroneous && owner.type !== syms.objectType) {
-      val body = tree.body
-      if (body.stats.isEmpty() || !TreeInfo.isSelfCall(body.stats.head)) {
-        body.stats =
-          body.stats.prepend(
-            make.at(body.pos).Exec(make.Apply(List.nil(), make.Ident(names._super), List.nil()))
-          )
-      } else if (
-        (env.enclClass.sym.flags() and Flags.ENUM.toLong()) != 0L &&
-          (tree.mods.flags and Flags.GENERATEDCONSTR) == 0L &&
-          TreeInfo.isSuperCall(body.stats.head)
-      ) {
-        // enum constructors are not allowed to call super
-        // directly, so make sure there aren't any super calls
-        // in enum constructorObjectCheckers, except in the compiler
-        // generated one.
-        log.error(
-          tree.body.stats.head.pos(),
-          openjdk.tools.javac.util.JCDiagnostic.Error(
-            "compiler",
-            "call.to.super.not.allowed.in.enum.ctor",
-            env.enclClass.sym
-          )
-        )
-      }
-    }
-    attr.attribStat(block, env)
-    return block
-  }
-
-  private fun reflowMethodBody(
-    context: Context,
-    ownerClass: ClassTree,
-    decl: JCMethodDecl
-  ): BlockTree {
-    val flow = Flow.instance(context)
-    val maker = TreeMaker.instance(context)
-    val enter = Enter.instance(context)
-    flow.analyzeTree(enter.getEnv((ownerClass as JCClassDecl).sym), maker)
-    return decl.body
-  }
+	private fun reflowMethodBody(
+		context: Context,
+		ownerClass: ClassTree,
+		decl: JCMethodDecl,
+	): BlockTree {
+		val flow = Flow.instance(context)
+		val maker = TreeMaker.instance(context)
+		val enter = Enter.instance(context)
+		flow.analyzeTree(enter.getEnv((ownerClass as JCClassDecl).sym), maker)
+		return decl.body
+	}
 }

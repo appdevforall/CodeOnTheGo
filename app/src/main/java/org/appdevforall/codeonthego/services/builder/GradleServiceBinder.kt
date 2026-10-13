@@ -24,12 +24,13 @@ import android.os.Binder
  *
  * @author Akash Yadav
  */
-internal class GradleServiceBinder(service: GradleBuildService?) : Binder() {
+internal class GradleServiceBinder(
+	service: GradleBuildService?,
+) : Binder() {
+	var service: GradleBuildService? = service
+		private set
 
-  var service: GradleBuildService? = service
-    private set
-
-  fun release() {
-    service = null
-  }
+	fun release() {
+		service = null
+	}
 }

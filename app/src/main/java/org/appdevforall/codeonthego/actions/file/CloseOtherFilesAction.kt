@@ -28,17 +28,19 @@ import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
  *
  * @author Akash Yadav
  */
-class CloseOtherFilesAction(context: Context, override val order: Int) : FileTabAction() {
+class CloseOtherFilesAction(
+	context: Context,
+	override val order: Int,
+) : FileTabAction() {
+	override val id: String = "ide.editor.fileTab.close.others"
 
-  override val id: String = "ide.editor.fileTab.close.others"
+	init {
+		label = context.getString(R.string.action_closeOthers)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_close_others)
+	}
 
-  init {
-    label = context.getString(R.string.action_closeOthers)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_close_others)
-  }
-
-  override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
-    closeOthers()
-    return true
-  }
+	override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
+		closeOthers()
+		return true
+	}
 }

@@ -22,7 +22,10 @@ package org.appdevforall.codeonthego.lsp.models
  *
  * @author Akash Yadav
  */
-data class LSPFailure(val type: FailureType, val error: Throwable)
+data class LSPFailure(
+	val type: FailureType,
+	val error: Throwable,
+)
 
 /**
  * Type of [LSPFailure].
@@ -30,7 +33,6 @@ data class LSPFailure(val type: FailureType, val error: Throwable)
  * @author Akash Yadav
  */
 enum class FailureType {
-
-  /** Completion failure. */
-  COMPLETION
+	/** Completion failure. */
+	COMPLETION,
 }

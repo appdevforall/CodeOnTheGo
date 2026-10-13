@@ -1,9 +1,14 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.eventbus.events.editor.ChangeType
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentCloseEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentOpenEvent
+import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.lsp.kotlin.actions.AddImportAction
 import org.appdevforall.codeonthego.lsp.kotlin.actions.ImplementMembersAction
 import org.appdevforall.codeonthego.lsp.kotlin.actions.ImportCandidates
@@ -16,11 +21,6 @@ import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.buildExtractionPla
 import org.appdevforall.codeonthego.models.Range
 import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.appdevforall.codeonthego.projects.FileManager
-import kotlinx.coroutines.runBlocking
-import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
-import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

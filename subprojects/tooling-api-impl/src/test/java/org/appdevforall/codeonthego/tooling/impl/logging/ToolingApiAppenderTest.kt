@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.tooling.impl.logging
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.tooling.api.IToolingApiClient
-import org.appdevforall.codeonthego.tooling.api.messages.LogMessageParams
-import org.appdevforall.codeonthego.tooling.impl.Main
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.appdevforall.codeonthego.tooling.api.IToolingApiClient
+import org.appdevforall.codeonthego.tooling.api.messages.LogMessageParams
+import org.appdevforall.codeonthego.tooling.impl.Main
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith

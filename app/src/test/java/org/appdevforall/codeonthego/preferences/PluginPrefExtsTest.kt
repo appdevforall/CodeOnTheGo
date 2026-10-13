@@ -18,10 +18,10 @@
 package org.appdevforall.codeonthego.preferences
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.plugins.extensions.PluginSettingsEntry
-import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
 import io.mockk.every
 import io.mockk.mockk
+import org.appdevforall.codeonthego.plugins.extensions.PluginSettingsEntry
+import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
 import org.junit.Test
 
 class PluginPrefExtsTest {

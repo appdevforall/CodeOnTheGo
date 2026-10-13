@@ -24,57 +24,55 @@ package org.appdevforall.codeonthego.projects.classpath
  */
 @Suppress("DataClassPrivateConstructor")
 data class ClassInfo
-private constructor(
-  val name: String,
-  val simpleName: String,
-  val packageName: String,
-  val isTopLevel: Boolean,
-  val isAnonymous: Boolean,
-  val isLocal: Boolean,
-  val isInner: Boolean
-) {
+	private constructor(
+		val name: String,
+		val simpleName: String,
+		val packageName: String,
+		val isTopLevel: Boolean,
+		val isAnonymous: Boolean,
+		val isLocal: Boolean,
+		val isInner: Boolean,
+	) {
+		companion object {
+			@JvmStatic
+			fun create(name: String): ClassInfo? {
+				val isTopLevel = name.indexOf('$') == -1
 
-  companion object {
+				val simpleName =
+					if (!isTopLevel) {
+						name.substringAfterLast('$')
+					} else if (name.indexOf('.') != -1) {
+						name.substringAfterLast('.')
+					} else {
+						name
+					}
 
-    @JvmStatic
-    fun create(name: String): ClassInfo? {
-      val isTopLevel = name.indexOf('$') == -1
+				if (simpleName.isBlank()) {
+					return null
+				}
 
-      val simpleName =
-        if (!isTopLevel) {
-          name.substringAfterLast('$')
-        } else if (name.indexOf('.') != -1) {
-          name.substringAfterLast('.')
-        } else {
-          name
-        }
+				val packageName =
+					if (name.contains('.')) {
+						name.substringBeforeLast('.')
+					} else {
+						name
+					}
 
-      if (simpleName.isBlank()) {
-        return null
-      }
+				val isAnonymous = simpleName.isDigitsOnly()
+				val isLocal = simpleName[0].isDigit() && simpleName.contains(Regex("[A-Za-z]"))
+				val isInner = !isTopLevel && !isLocal && !isAnonymous
 
-      val packageName =
-        if (name.contains('.')) {
-          name.substringBeforeLast('.')
-        } else {
-          name
-        }
+				return ClassInfo(name, simpleName, packageName, isTopLevel, isAnonymous, isLocal, isInner)
+			}
 
-      val isAnonymous = simpleName.isDigitsOnly()
-      val isLocal = simpleName[0].isDigit() && simpleName.contains(Regex("[A-Za-z]"))
-      val isInner = !isTopLevel && !isLocal && !isAnonymous
+			private fun CharSequence.isDigitsOnly(): Boolean {
+				for (char in this) {
+					if (!char.isDigit()) {
+						return false
+					}
+				}
 
-      return ClassInfo(name, simpleName, packageName, isTopLevel, isAnonymous, isLocal, isInner)
-    }
-
-    private fun CharSequence.isDigitsOnly(): Boolean {
-      for (char in this) {
-        if (!char.isDigit()) {
-          return false
-        }
-      }
-
-      return true
-    }
-  }
-}
+				return true
+			}
+		}
+	}

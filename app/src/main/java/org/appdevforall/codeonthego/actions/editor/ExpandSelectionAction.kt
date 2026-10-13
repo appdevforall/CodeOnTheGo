@@ -19,30 +19,30 @@ package org.appdevforall.codeonthego.actions.editor
 
 import android.content.Context
 import androidx.core.content.ContextCompat
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.EditorRelatedAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 
 /**
  * Expands the current selection using the language server set in editor.
  *
  * @author Akash Yadav
  */
-class ExpandSelectionAction(context: Context, override val order: Int) : EditorRelatedAction() {
-    override val id: String = "ide.editor.code.actions.expandSelection"
-    override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
+class ExpandSelectionAction(
+	context: Context,
+	override val order: Int,
+) : EditorRelatedAction() {
+	override val id: String = "ide.editor.code.actions.expandSelection"
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
 
-    init {
-        label = context.getString(R.string.action_expand_selection)
-        icon = ContextCompat.getDrawable(context, R.drawable.ic_expand_selection)
-    }
+	init {
+		label = context.getString(R.string.action_expand_selection)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_expand_selection)
+	}
 
-    override suspend fun execAction(data: ActionData): Any {
-        return data.getEditor()?.expandSelection() ?: false
-    }
+	override suspend fun execAction(data: ActionData): Any = data.getEditor()?.expandSelection() ?: false
 
-    override fun retrieveTooltipTag(isAlternateContext: Boolean) =
-        TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
+	override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
 }

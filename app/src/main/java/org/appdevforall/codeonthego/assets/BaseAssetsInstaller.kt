@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.assets
 
 import android.content.Context
+import com.termux.shared.termux.TermuxConstants
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.FeatureFlags
-import com.termux.shared.termux.TermuxConstants
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
@@ -22,13 +22,13 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
 			"aapt",
 			"aapt2",
 			"aidl",
-            "apksigner",
-            "d8",
+			"apksigner",
+			"d8",
 			"dexdump",
 			"split-select",
 			"zipalign",
 		)) {
 			Environment.setExecutable(Environment.BUILD_TOOLS_DIR.resolve(bin))
 		}
-    }
+	}
 }

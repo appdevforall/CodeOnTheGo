@@ -3,8 +3,8 @@ package org.appdevforall.codeonthego.quickbuild
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig
 import org.appdevforall.cotg.quickbuild.service.provision.ProvisionOutcome
 import org.appdevforall.cotg.quickbuild.service.provision.ProxyAppRebuildOutcome
 import org.junit.Rule

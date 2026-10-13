@@ -1,15 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
-import org.appdevforall.codeonthego.lsp.refactor.BlockAnchor
-import org.appdevforall.codeonthego.lsp.refactor.BlockPlacement
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
-import org.appdevforall.codeonthego.lsp.refactor.anchorOf
-import org.appdevforall.codeonthego.lsp.refactor.blockPlacementFor
-import org.appdevforall.codeonthego.lsp.refactor.detectIndentUnit
-import org.appdevforall.codeonthego.lsp.refactor.excludeUnsoundOccurrences
-import org.appdevforall.codeonthego.lsp.refactor.hoistSkipsWrite
-import org.appdevforall.codeonthego.lsp.refactor.hoistsOverLoopWrite
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ExecutableElement
@@ -29,6 +19,16 @@ import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreeScanner
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
+import org.appdevforall.codeonthego.lsp.refactor.BlockAnchor
+import org.appdevforall.codeonthego.lsp.refactor.BlockPlacement
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
+import org.appdevforall.codeonthego.lsp.refactor.anchorOf
+import org.appdevforall.codeonthego.lsp.refactor.blockPlacementFor
+import org.appdevforall.codeonthego.lsp.refactor.detectIndentUnit
+import org.appdevforall.codeonthego.lsp.refactor.excludeUnsoundOccurrences
+import org.appdevforall.codeonthego.lsp.refactor.hoistSkipsWrite
+import org.appdevforall.codeonthego.lsp.refactor.hoistsOverLoopWrite
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.coroutines.cancellation.CancellationException

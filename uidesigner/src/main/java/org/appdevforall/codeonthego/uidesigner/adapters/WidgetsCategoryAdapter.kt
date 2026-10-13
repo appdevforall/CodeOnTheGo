@@ -21,54 +21,57 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import org.appdevforall.codeonthego.uidesigner.adapters.WidgetsCategoryAdapter.VH
 import com.itsaky.androidide.uidesigner.databinding.LayoutUiWidgetsCategoryBinding
+import org.appdevforall.codeonthego.uidesigner.adapters.WidgetsCategoryAdapter.VH
 import org.appdevforall.codeonthego.uidesigner.models.UiWidgetCategory
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 
 /** @author Akash Yadav */
 internal class WidgetsCategoryAdapter(
-  categories: List<UiWidgetCategory>,
-  private val viewModel: WorkspaceViewModel
+	categories: List<UiWidgetCategory>,
+	private val viewModel: WorkspaceViewModel,
 ) : RecyclerView.Adapter<VH>() {
+	private val categories =
+		categories.let {
+			val mutable = it.toMutableList()
+			mutable.removeIf { category -> category.widgets.isEmpty() }
+			mutable
+		}
 
-  private val categories =
-    categories.let {
-      val mutable = it.toMutableList()
-      mutable.removeIf { category -> category.widgets.isEmpty() }
-      mutable
-    }
+	inner class VH(
+		val binding: LayoutUiWidgetsCategoryBinding,
+	) : RecyclerView.ViewHolder(binding.root) {
+		fun updateExpandedState(isExpanded: Boolean) {
+			binding.widgets.visibility = if (isExpanded) View.VISIBLE else View.GONE
+			binding.chevron.rotation = if (isExpanded) 90f else 0f
+		}
+	}
 
-  inner class VH(val binding: LayoutUiWidgetsCategoryBinding) :
-    RecyclerView.ViewHolder(binding.root) {
-    fun updateExpandedState(isExpanded: Boolean) {
-      binding.widgets.visibility = if (isExpanded) View.VISIBLE else View.GONE
-      binding.chevron.rotation = if (isExpanded) 90f else 0f
-    }
-  }
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): VH =
+		VH(
+			LayoutUiWidgetsCategoryBinding.inflate(LayoutInflater.from(parent.context), parent, false),
+		)
 
-  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-    return VH(
-      LayoutUiWidgetsCategoryBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-    )
-  }
+	override fun getItemCount(): Int = categories.size
 
-  override fun getItemCount(): Int {
-    return categories.size
-  }
+	override fun onBindViewHolder(
+		holder: VH,
+		position: Int,
+	) {
+		val binding = holder.binding
+		val category = categories[position]
+		binding.name.setText(category.label)
 
-  override fun onBindViewHolder(holder: VH, position: Int) {
-    val binding = holder.binding
-    val category = categories[position]
-    binding.name.setText(category.label)
+		binding.widgets.adapter = WidgetsItemAdapter(category.widgets, viewModel)
 
-    binding.widgets.adapter = WidgetsItemAdapter(category.widgets, viewModel)
+		holder.updateExpandedState(category.isExpanded)
 
-    holder.updateExpandedState(category.isExpanded)
-
-    binding.root.setOnClickListener {
-      category.isExpanded = !category.isExpanded
-      holder.updateExpandedState(category.isExpanded)
-    }
-  }
+		binding.root.setOnClickListener {
+			category.isExpanded = !category.isExpanded
+			holder.updateExpandedState(category.isExpanded)
+		}
+	}
 }

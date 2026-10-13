@@ -11,8 +11,9 @@ import org.appdevforall.codeonthego.lsp.debug.model.Location
  * @author Akash Yadav
  */
 data class BreakpointHitEvent(
-    override val remoteClient: RemoteClient,
-    override val threadId: String,
-    override val location: Location,
-): EventOrResponse, LocatableEvent, HasThreadInfo
-
+	override val remoteClient: RemoteClient,
+	override val threadId: String,
+	override val location: Location,
+) : EventOrResponse,
+	LocatableEvent,
+	HasThreadInfo

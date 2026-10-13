@@ -36,36 +36,34 @@ import io.github.rosemoe.sora.editor.ts.predicate.builtin.getCaptureContent
  * @author Akash Yadav
  */
 object AnyOfPredicate : TreeSitterPredicate() {
+	override val name: String
+		get() = "any-of"
 
-  override val name: String
-    get() = "any-of"
+	override fun canHandle(steps: List<TsClientPredicateStep>): Boolean =
+		steps.size > 4 &&
+			steps.let {
+				it[0].predicateType == TSQueryPredicateStep.Type.String &&
+					it[1].predicateType == TSQueryPredicateStep.Type.Capture &&
+					it[it.lastIndex].predicateType == TSQueryPredicateStep.Type.Done &&
+					it.subList(2, it.lastIndex - 1).all { step ->
+						step.predicateType == TSQueryPredicateStep.Type.String
+					}
+			}
 
-  override fun canHandle(steps: List<TsClientPredicateStep>): Boolean {
-    return steps.size > 4 &&
-        steps.let {
-          it[0].predicateType == TSQueryPredicateStep.Type.String &&
-              it[1].predicateType == TSQueryPredicateStep.Type.Capture &&
-              it[it.lastIndex].predicateType == TSQueryPredicateStep.Type.Done &&
-              it.subList(2, it.lastIndex - 1).all { step ->
-                step.predicateType == TSQueryPredicateStep.Type.String
-              }
-        }
-  }
-
-  override fun doPredicateInternal(
-    tsQuery: TSQuery,
-    text: CharSequence,
-    match: TSQueryMatch,
-    predicateSteps: List<TsClientPredicateStep>,
-    syntheticCaptures: TsSyntheticCaptureContainer
-  ): PredicateResult {
-    val captured = getCaptureContent(tsQuery, match, predicateSteps[1].content, text)
-    val toMatch = predicateSteps.subList(2, predicateSteps.lastIndex - 1).map { it.content }
-    for (capture in captured) {
-      if (capture !in toMatch) {
-        return PredicateResult.REJECT
-      }
-    }
-    return PredicateResult.ACCEPT
-  }
+	override fun doPredicateInternal(
+		tsQuery: TSQuery,
+		text: CharSequence,
+		match: TSQueryMatch,
+		predicateSteps: List<TsClientPredicateStep>,
+		syntheticCaptures: TsSyntheticCaptureContainer,
+	): PredicateResult {
+		val captured = getCaptureContent(tsQuery, match, predicateSteps[1].content, text)
+		val toMatch = predicateSteps.subList(2, predicateSteps.lastIndex - 1).map { it.content }
+		for (capture in captured) {
+			if (capture !in toMatch) {
+				return PredicateResult.REJECT
+			}
+		}
+		return PredicateResult.ACCEPT
+	}
 }

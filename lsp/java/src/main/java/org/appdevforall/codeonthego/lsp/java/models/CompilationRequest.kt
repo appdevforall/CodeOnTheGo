@@ -17,10 +17,10 @@
 
 package org.appdevforall.codeonthego.lsp.java.models
 
-import org.appdevforall.codeonthego.lsp.java.compiler.CompilationTaskProcessor
-import org.appdevforall.codeonthego.lsp.java.compiler.DefaultCompilationTaskProcessor
 import jdkx.tools.JavaFileObject
 import openjdk.tools.javac.util.Context
+import org.appdevforall.codeonthego.lsp.java.compiler.CompilationTaskProcessor
+import org.appdevforall.codeonthego.lsp.java.compiler.DefaultCompilationTaskProcessor
 import java.util.function.Consumer
 
 /**
@@ -31,11 +31,11 @@ import java.util.function.Consumer
  * @author Akash Yadav
  */
 data class CompilationRequest
-@JvmOverloads
-constructor(
-  @JvmField val sources: Collection<JavaFileObject>,
-  @JvmField val partialRequest: PartialReparseRequest? = null,
-  @JvmField
-  val compilationTaskProcessor: CompilationTaskProcessor = DefaultCompilationTaskProcessor(),
-  @JvmField var configureContext: Consumer<Context>? = null
-)
+	@JvmOverloads
+	constructor(
+		@JvmField val sources: Collection<JavaFileObject>,
+		@JvmField val partialRequest: PartialReparseRequest? = null,
+		@JvmField
+		val compilationTaskProcessor: CompilationTaskProcessor = DefaultCompilationTaskProcessor(),
+		@JvmField var configureContext: Consumer<Context>? = null,
+	)

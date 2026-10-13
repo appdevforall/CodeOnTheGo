@@ -21,8 +21,8 @@ import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import org.appdevforall.codeonthego.adapters.onboarding.DefaultOnboardingItemAdapter
 import com.itsaky.androidide.databinding.LayoutOnboardingMultiactionBinding
+import org.appdevforall.codeonthego.adapters.onboarding.DefaultOnboardingItemAdapter
 import org.appdevforall.codeonthego.models.OnboardingItem
 import org.appdevforall.codeonthego.utils.uncheckedCast
 
@@ -30,54 +30,53 @@ import org.appdevforall.codeonthego.utils.uncheckedCast
  * @author Akash Yadav
  */
 open class OnboardingMultiActionFragment : OnboardingFragment() {
+	protected var recyclerView: RecyclerView? = null
+		private set
 
-  protected var recyclerView: RecyclerView? = null
-    private set
+	companion object {
+		const val KEY_ACTION_ITEMS = "ide.onboarding.multiActionFragment.items"
 
-  companion object {
+		@JvmStatic
+		fun newInstance(
+			title: CharSequence,
+			subtitle: CharSequence,
+			items: List<OnboardingItem>,
+		): OnboardingFragment =
+			OnboardingMultiActionFragment().apply {
+				arguments =
+					Bundle().apply {
+						putCharSequence(KEY_ONBOARDING_TITLE, title)
+						putCharSequence(KEY_ONBOARDING_SUBTITLE, subtitle)
 
-    const val KEY_ACTION_ITEMS = "ide.onboarding.multiActionFragment.items"
+						val arr = items.toTypedArray()
+						putParcelableArray(KEY_ACTION_ITEMS, arr)
+					}
+			}
+	}
 
-    @JvmStatic
-    fun newInstance(
-      title: CharSequence,
-      subtitle: CharSequence,
-      items: List<OnboardingItem>
-    ): OnboardingFragment {
-      return OnboardingMultiActionFragment().apply {
-        arguments = Bundle().apply {
-          putCharSequence(KEY_ONBOARDING_TITLE, title)
-          putCharSequence(KEY_ONBOARDING_SUBTITLE, subtitle)
+	override fun createContentView(
+		parent: ViewGroup,
+		attachToParent: Boolean,
+	) {
+		val binding = LayoutOnboardingMultiactionBinding.inflate(layoutInflater, parent, attachToParent)
+		binding.onboardingItems.adapter = createAdapter()
+		recyclerView = binding.onboardingItems
+	}
 
-          val arr = items.toTypedArray()
-          putParcelableArray(KEY_ACTION_ITEMS, arr)
-        }
-      }
-    }
-  }
+	protected inline fun <reified T : OnboardingItem> getItemsFromArgs(): Array<T> =
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			requireArguments().getParcelableArray(KEY_ACTION_ITEMS, T::class.java)!!
+		} else {
+			uncheckedCast(@Suppress("DEPRECATION") requireArguments().getParcelableArray(KEY_ACTION_ITEMS)!!)
+		}
 
-  override fun createContentView(parent: ViewGroup, attachToParent: Boolean) {
-    val binding = LayoutOnboardingMultiactionBinding.inflate(layoutInflater, parent, attachToParent)
-    binding.onboardingItems.adapter = createAdapter()
-    recyclerView = binding.onboardingItems
-  }
+	override fun onDestroyView() {
+		super.onDestroyView()
+		recyclerView = null
+	}
 
-  protected inline fun <reified T : OnboardingItem> getItemsFromArgs(): Array<T> {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      requireArguments().getParcelableArray(KEY_ACTION_ITEMS, T::class.java)!!
-    } else {
-      uncheckedCast(
-        @Suppress("DEPRECATION") requireArguments().getParcelableArray(KEY_ACTION_ITEMS)!!)
-    }
-  }
-
-  override fun onDestroyView() {
-    super.onDestroyView()
-    recyclerView = null
-  }
-
-  protected open fun createAdapter(): RecyclerView.Adapter<*> {
-    val items = getItemsFromArgs<OnboardingItem>()
-    return DefaultOnboardingItemAdapter(items.toList())
-  }
+	protected open fun createAdapter(): RecyclerView.Adapter<*> {
+		val items = getItemsFromArgs<OnboardingItem>()
+		return DefaultOnboardingItemAdapter(items.toList())
+	}
 }

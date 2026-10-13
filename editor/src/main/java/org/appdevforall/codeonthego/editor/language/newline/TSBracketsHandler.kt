@@ -17,40 +17,42 @@
 
 package org.appdevforall.codeonthego.editor.language.newline
 
-import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguage
 import io.github.rosemoe.sora.lang.smartEnter.NewlineHandleResult
 import io.github.rosemoe.sora.lang.styling.Styles
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextUtils
+import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguage
 
 /**
  * Newline handler for tree-sitter languages.
  *
  * @author Akash Yadav
  */
-abstract class TSBracketsHandler(private val language: TreeSitterLanguage) : BaseNewlineHandler() {
+abstract class TSBracketsHandler(
+	private val language: TreeSitterLanguage,
+) : BaseNewlineHandler() {
+	private val maxIndentColumns = 500
 
-  private val maxIndentColumns = 500
-
-  override fun handleNewline(
-    text: Content,
-    position: CharPosition,
-    style: Styles?,
-    tabSize: Int
-  ): NewlineHandleResult {
-    val lineText = text.getLine(position.line)
-    val count = TextUtils.countLeadingSpaceCount(lineText, tabSize)
-    val safeCount = count.coerceIn(0, maxIndentColumns)
-    val indentPlusTab = (safeCount + tabSize).coerceIn(0, maxIndentColumns)
-    var txt: String
-    val sb = StringBuilder(indentPlusTab + safeCount + 4)
-      .append("\n")
-      .append(TextUtils.createIndent(indentPlusTab, tabSize, language.useTab()))
-      .append("\n")
-      .append(
-        TextUtils.createIndent(safeCount, tabSize, language.useTab()).also { txt = it }
-      )
-    return NewlineHandleResult(sb, txt.length + 1)
-  }
+	override fun handleNewline(
+		text: Content,
+		position: CharPosition,
+		style: Styles?,
+		tabSize: Int,
+	): NewlineHandleResult {
+		val lineText = text.getLine(position.line)
+		val count = TextUtils.countLeadingSpaceCount(lineText, tabSize)
+		val safeCount = count.coerceIn(0, maxIndentColumns)
+		val indentPlusTab = (safeCount + tabSize).coerceIn(0, maxIndentColumns)
+		var txt: String
+		val sb =
+			StringBuilder(indentPlusTab + safeCount + 4)
+				.append("\n")
+				.append(TextUtils.createIndent(indentPlusTab, tabSize, language.useTab()))
+				.append("\n")
+				.append(
+					TextUtils.createIndent(safeCount, tabSize, language.useTab()).also { txt = it },
+				)
+		return NewlineHandleResult(sb, txt.length + 1)
+	}
 }

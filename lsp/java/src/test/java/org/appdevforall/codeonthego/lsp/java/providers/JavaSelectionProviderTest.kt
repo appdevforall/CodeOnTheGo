@@ -17,14 +17,14 @@
 package org.appdevforall.codeonthego.lsp.java.providers
 
 import com.google.common.truth.Truth.assertThat
+import io.github.rosemoe.sora.text.Content
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.eventbus.events.editor.ChangeType.NEW_TEXT
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
 import org.appdevforall.codeonthego.lsp.java.JavaLSPTest
 import org.appdevforall.codeonthego.lsp.models.ExpandSelectionParams
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.models.Range
-import io.github.rosemoe.sora.text.Content
-import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,76 +33,83 @@ import org.robolectric.RobolectricTestRunner
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class JavaSelectionProviderTest {
+	@Before
+	fun setup() {
+		JavaLSPTest.setup()
+	}
 
-  @Before
-  fun setup() {
-    JavaLSPTest.setup()
-  }
+	@Test
+	fun testSimpleSelectionExpansion() {
+		JavaLSPTest.apply {
+			openFile("selection/SimpleSelectionExpansionTest")
+			cursor = requireCursor()
+			deleteCursorText()
+			dispatchEvent(
+				DocumentChangeEvent(
+					file!!,
+					contents.toString(),
+					contents.toString(),
+					1,
+					NEW_TEXT,
+					0,
+					Range.NONE,
+				),
+			)
 
-  @Test
-  fun testSimpleSelectionExpansion() {
-    JavaLSPTest.apply {
-      openFile("selection/SimpleSelectionExpansionTest")
-      cursor = requireCursor()
-      deleteCursorText()
-      dispatchEvent(
-        DocumentChangeEvent(file!!, contents.toString(), contents.toString(), 1, NEW_TEXT, 0,
-          Range.NONE))
+			val range = findRange()
+			val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
 
-      val range = findRange()
-      val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
+			assertThat(expanded).isEqualTo(Range(Position(4, 27), Position(4, 41)))
+		}
+	}
 
-      assertThat(expanded).isEqualTo(Range(Position(4, 27), Position(4, 41)))
-    }
-  }
+	@Test
+	fun testMethodSelection() {
+		JavaLSPTest.apply {
+			openFile("selection/MethodBodySelectionExpansionTest")
 
-  @Test
-  fun testMethodSelection() {
-    JavaLSPTest.apply {
-      openFile("selection/MethodBodySelectionExpansionTest")
+			val start = Position(3, 43)
+			val end = Position(5, 5)
+			val range = Range(start, end)
 
-      val start = Position(3, 43)
-      val end = Position(5, 5)
-      val range = Range(start, end)
+			val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
+			assertThat(expanded).isEqualTo(Range(Position(3, 4), end))
+		}
+	}
 
-      val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
-      assertThat(expanded).isEqualTo(Range(Position(3, 4), end))
-    }
-  }
+	@Test
+	fun testTryCatchSelection() {
+		JavaLSPTest.apply {
+			openFile("selection/TrySelectionExpansionTest")
 
-  @Test
-  fun testTryCatchSelection() {
-    JavaLSPTest.apply {
-      openFile("selection/TrySelectionExpansionTest")
+			// Test expand selection if catch block is selected
+			val start = Position(7, 10)
+			val end = Position(8, 9)
+			val range = Range(start, end)
 
-      // Test expand selection if catch block is selected
-      val start = Position(7, 10)
-      val end = Position(8, 9)
-      val range = Range(start, end)
+			val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
+			assertThat(expanded).isEqualTo(Range(Position(4, 8), Position(10, 9)))
+		}
+	}
 
-      val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
-      assertThat(expanded).isEqualTo(Range(Position(4, 8), Position(10, 9)))
-    }
-  }
+	@Test
+	fun testTryFinallySelection() {
+		JavaLSPTest.apply {
+			openFile("selection/TrySelectionExpansionTest")
 
-  @Test
-  fun testTryFinallySelection() {
-    JavaLSPTest.apply {
-      openFile("selection/TrySelectionExpansionTest")
+			// Test expand selection if catch block is selected
+			val start = Position(8, 18)
+			val end = Position(10, 9)
+			val range = Range(start, end)
 
-      // Test expand selection if catch block is selected
-      val start = Position(8, 18)
-      val end = Position(10, 9)
-      val range = Range(start, end)
+			val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
+			assertThat(expanded).isEqualTo(Range(Position(4, 8), Position(10, 9)))
+		}
+	}
 
-      val expanded = runBlocking { server.expandSelection(ExpandSelectionParams(file!!, range)) }
-      assertThat(expanded).isEqualTo(Range(Position(4, 8), Position(10, 9)))
-    }
-  }
-
-  private fun findRange(): Range {
-    val pos = Content(JavaLSPTest.contents!!).indexer.getCharPosition(JavaLSPTest.cursor)
-    val position = Position(pos.line, pos.column, pos.index)
-    return Range(position, position)
-  }
+	private fun findRange(): Range {
+		val pos = Content(JavaLSPTest.contents!!).indexer.getCharPosition(JavaLSPTest.cursor)
+		val position = Position(pos.line, pos.column, pos.index)
+		return Range(position, position)
+	}
 }

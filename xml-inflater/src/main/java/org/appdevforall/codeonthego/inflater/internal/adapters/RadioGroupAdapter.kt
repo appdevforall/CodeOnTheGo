@@ -19,39 +19,40 @@ package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.RadioButton
 import android.widget.RadioGroup
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.IViewGroup
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * View adapter for [RadioGroup].
  *
  * @author Akash Yadav
  */
-@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(
-  forView = RadioGroup::class)
+@org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(forView = RadioGroup::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class RadioGroupAdapter<T : RadioGroup> : LinearLayoutAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("checkedButton") { view.check(parseId(file.resName, value, -1)) }
+	}
 
-  override fun createAttrHandlers(
-    create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit
-  ) {
-    super.createAttrHandlers(create)
-    create("checkedButton") { view.check(parseId(file.resName, value, -1)) }
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				RadioGroup::class.java,
+				string.widget_radio_group,
+				drawable.ic_widget_radio_group,
+			),
+		)
 
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(UiWidget(RadioGroup::class.java, string.widget_radio_group,
-      drawable.ic_widget_radio_group))
-  }
-
-  override fun canAcceptChild(view: IViewGroup, child: IView?, name: String
-  ): Boolean {
-    return name == RadioButton::class.java.name
-  }
+	override fun canAcceptChild(
+		view: IViewGroup,
+		child: IView?,
+		name: String,
+	): Boolean = name == RadioButton::class.java.name
 }

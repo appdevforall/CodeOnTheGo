@@ -15,19 +15,19 @@ import java.net.URISyntaxException
  * @return The normalized Git URL string, or null if the input is invalid or parsing fails.
  */
 fun parseGitRepositoryUrl(rawText: String): String? {
-    val candidate = rawText.trim()
-    if (candidate.isBlank()) return null
+	val candidate = rawText.trim()
+	if (candidate.isBlank()) return null
 
-    return try {
-        val uri = URIish(candidate)
+	return try {
+		val uri = URIish(candidate)
 
-        if (uri.host != null || uri.scheme != null) {
-            uri.toString()
-        } else {
-            null
-        }
-    } catch (e: URISyntaxException) {
-        Log.w("GitParser", "Failed to parse Git URL candidate: $candidate", e)
-        null
-    }
+		if (uri.host != null || uri.scheme != null) {
+			uri.toString()
+		} else {
+			null
+		}
+	} catch (e: URISyntaxException) {
+		Log.w("GitParser", "Failed to parse Git URL candidate: $candidate", e)
+		null
+	}
 }

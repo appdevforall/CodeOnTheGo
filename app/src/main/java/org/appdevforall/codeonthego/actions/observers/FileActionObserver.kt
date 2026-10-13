@@ -7,6 +7,10 @@ import java.io.File
  * Implement this in your Fragment or Activity to show UI feedback.
  */
 interface FileActionObserver {
-    fun onActionSuccess(message: String, createdFile: File?)
-    fun onActionFailure(errorMessage: String)
+	fun onActionSuccess(
+		message: String,
+		createdFile: File?,
+	)
+
+	fun onActionFailure(errorMessage: String)
 }

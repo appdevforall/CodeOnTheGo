@@ -29,10 +29,10 @@ import java.util.function.*
  */
 fun interface CompilationTaskProcessor {
 
-  /**
-   * Process the given [JavacTaskImpl]. The processor is responsible for parsing and analyzing the
-   * task. For each parsed [CompilationUnitTree], [processCompilationUnit] must be called.
-   */
-  @Throws(Throwable::class)
-  fun process(task: JavacTaskImpl, processCompilationUnit: Consumer<CompilationUnitTree>)
+/**
+* Process the given [JavacTaskImpl]. The processor is responsible for parsing and analyzing the
+* task. For each parsed [CompilationUnitTree], [processCompilationUnit] must be called.
+*/
+@Throws(Throwable::class)
+fun process(task: JavacTaskImpl, processCompilationUnit: Consumer<CompilationUnitTree>)
 }

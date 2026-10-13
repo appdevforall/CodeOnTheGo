@@ -27,35 +27,36 @@ import org.xmlpull.v1.XmlPullParser
  *
  * @author Akash Yadav
  */
-open class ClipDrawableParser protected constructor(parser: XmlPullParser, minDepth: Int) :
-  IDrawableParser(parser, minDepth) {
-  @Throws(Exception::class)
-  public override fun parseDrawable(context: Context): Drawable? {
-    var index = attrIndex("drawable")
-    if (index == -1) {
-      // TODO Parse inner drawables
-      return ClipDrawable(null, Gravity.LEFT, ClipDrawable.HORIZONTAL)
-    }
-    val value = value(index)
-    val drawable = parseDrawable(context, value)
-    var orientation = ClipDrawable.HORIZONTAL
-    index = attrIndex("clipOrientation")
-    if (index != -1) {
-      orientation = parseClipOrientation(value(index))
-    }
-    var gravity = Gravity.LEFT
-    index = attrIndex("gravity")
-    if (index != -1) {
-      gravity = parseGravity(value(index))
-    }
-    return ClipDrawable(drawable, gravity, orientation)
-  }
+open class ClipDrawableParser protected constructor(
+	parser: XmlPullParser,
+	minDepth: Int,
+) : IDrawableParser(parser, minDepth) {
+	@Throws(Exception::class)
+	public override fun parseDrawable(context: Context): Drawable? {
+		var index = attrIndex("drawable")
+		if (index == -1) {
+			// TODO Parse inner drawables
+			return ClipDrawable(null, Gravity.LEFT, ClipDrawable.HORIZONTAL)
+		}
+		val value = value(index)
+		val drawable = parseDrawable(context, value)
+		var orientation = ClipDrawable.HORIZONTAL
+		index = attrIndex("clipOrientation")
+		if (index != -1) {
+			orientation = parseClipOrientation(value(index))
+		}
+		var gravity = Gravity.LEFT
+		index = attrIndex("gravity")
+		if (index != -1) {
+			gravity = parseGravity(value(index))
+		}
+		return ClipDrawable(drawable, gravity, orientation)
+	}
 
-  protected open fun parseClipOrientation(value: String): Int {
-    return when (value) {
-      "vertical" -> ClipDrawable.VERTICAL
-      "horizontal" -> ClipDrawable.HORIZONTAL
-      else -> ClipDrawable.HORIZONTAL
-    }
-  }
+	protected open fun parseClipOrientation(value: String): Int =
+		when (value) {
+			"vertical" -> ClipDrawable.VERTICAL
+			"horizontal" -> ClipDrawable.HORIZONTAL
+			else -> ClipDrawable.HORIZONTAL
+		}
 }

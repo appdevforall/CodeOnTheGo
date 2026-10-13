@@ -21,37 +21,37 @@ import android.content.Context;
 import android.util.AttributeSet;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import java.util.List;
 import org.appdevforall.codeonthego.adapters.SymbolInputAdapter;
 import org.appdevforall.codeonthego.editor.ui.IDEEditor;
 import org.appdevforall.codeonthego.models.Symbol;
 import org.appdevforall.codeonthego.utils.Symbols;
-import java.util.List;
 
 public class SymbolInputView extends RecyclerView {
 
-  public SymbolInputView(Context context) {
-    this(context, null);
-  }
+	public SymbolInputView(Context context) {
+		this(context, null);
+	}
 
-  public SymbolInputView(Context context, AttributeSet attrs) {
-    this(context, attrs, 0);
-  }
+	public SymbolInputView(Context context, AttributeSet attrs) {
+		this(context, attrs, 0);
+	}
 
-  public SymbolInputView(Context context, AttributeSet attrs, int defStyle) {
-    super(context, attrs, defStyle);
-    setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
-  }
+	public SymbolInputView(Context context, AttributeSet attrs, int defStyle) {
+		super(context, attrs, defStyle);
+		setLayoutManager(new LinearLayoutManager(getContext(), LinearLayoutManager.HORIZONTAL, false));
+	}
 
-  public void refresh(IDEEditor editor, List<Symbol> symbols) {
-    if (symbols == null || symbols.isEmpty()) {
-      symbols = Symbols.INSTANCE.getPlainTextSymbols();
-    }
+	public void refresh(IDEEditor editor, List<Symbol> symbols) {
+		if (symbols == null || symbols.isEmpty()) {
+			symbols = Symbols.INSTANCE.getPlainTextSymbols();
+		}
 
-    final var adapter = getAdapter();
-    if (adapter instanceof SymbolInputAdapter) {
-      ((SymbolInputAdapter) adapter).refresh(editor, symbols);
-    } else {
-      setAdapter(new SymbolInputAdapter(editor, symbols));
-    }
-  }
+		final var adapter = getAdapter();
+		if (adapter instanceof SymbolInputAdapter) {
+			((SymbolInputAdapter) adapter).refresh(editor, symbols);
+		} else {
+			setAdapter(new SymbolInputAdapter(editor, symbols));
+		}
+	}
 }

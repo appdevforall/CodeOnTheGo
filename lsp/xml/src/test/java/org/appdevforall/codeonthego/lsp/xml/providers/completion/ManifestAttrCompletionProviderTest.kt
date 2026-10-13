@@ -31,34 +31,33 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class ManifestAttrCompletionProviderTest : CompletionHelper by CompletionHelperImpl() {
+	@Before fun setup() = XMLLSPTest.initProjectIfNeeded()
 
-  @Before fun setup() = XMLLSPTest.initProjectIfNeeded()
+	@Test // prefix: 'version'
+	fun `test manifest tag attributes`() {
+		XMLLSPTest.apply {
+			openFile("completion/ManifestAttrTest")
+			val (incomplete, items) = complete()
+			assertThat(incomplete).isFalse()
+			assertThat(items)
+				.containsAtLeast("android:versionName", "android:versionCode", "android:versionCodeMajor")
+		}
+	}
 
-  @Test // prefix: 'version'
-  fun `test manifest tag attributes`() {
-    XMLLSPTest.apply {
-      openFile("completion/ManifestAttrTest")
-      val (incomplete, items) = complete()
-      assertThat(incomplete).isFalse()
-      assertThat(items)
-        .containsAtLeast("android:versionName", "android:versionCode", "android:versionCodeMajor")
-    }
-  }
-
-  @Test // prefix: 'allow'
-  fun `test manifest application tag attributes`() {
-    XMLLSPTest.apply {
-      openFile("completion/ManifestApplicationAttrTest")
-      val (incomplete, items) = complete()
-      assertThat(incomplete).isFalse()
-      assertThat(items)
-        .containsAtLeast(
-          "android:allowClearUserData",
-          "android:allowClearUserDataOnFailedRestore",
-          "android:allowAudioPlaybackCapture",
-          "android:allowNativeHeapPointerTagging",
-          "android:allowAutoRevokePermissionsExemption"
-        )
-    }
-  }
+	@Test // prefix: 'allow'
+	fun `test manifest application tag attributes`() {
+		XMLLSPTest.apply {
+			openFile("completion/ManifestApplicationAttrTest")
+			val (incomplete, items) = complete()
+			assertThat(incomplete).isFalse()
+			assertThat(items)
+				.containsAtLeast(
+					"android:allowClearUserData",
+					"android:allowClearUserDataOnFailedRestore",
+					"android:allowAudioPlaybackCapture",
+					"android:allowNativeHeapPointerTagging",
+					"android:allowAutoRevokePermissionsExemption",
+				)
+		}
+	}
 }

@@ -17,49 +17,47 @@
 
 package org.appdevforall.codeonthego.logsender.sample;
 
-import com.itsaky.androidide.logsender.sample.R;
-
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import com.itsaky.androidide.logsender.sample.R;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class MainActivity extends AppCompatActivity {
 
-  private final AtomicInteger count = new AtomicInteger(0);
-  private final Handler handler = new Handler(Looper.getMainLooper());
-  private final Runnable logger = new Runnable() {
-    @Override
-    public void run() {
-      Log.d("LogSenderSample", "Log #" + count.getAndAdd(1));
+	private final AtomicInteger count = new AtomicInteger(0);
+	private final Handler handler = new Handler(Looper.getMainLooper());
+	private final Runnable logger = new Runnable() {
+		@Override
+		public void run() {
+			Log.d("LogSenderSample", "Log #" + count.getAndAdd(1));
 
-      if (count.get() == 20) {
-        return;
-      }
+			if (count.get() == 20) {
+				return;
+			}
 
-      handler.postDelayed(this, 1000);
-    }
-  };
+			handler.postDelayed(this, 1000);
+		}
+	};
 
-  @Override
-  public void onCreate(@Nullable Bundle savedInstanceState
-  ) {
-    super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_main);
+	@Override
+	public void onCreate(@Nullable Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
 
-    handler.postDelayed(logger, 1000);
+		handler.postDelayed(logger, 1000);
 
-    findViewById(R.id.exception).setOnClickListener(v -> {
-      throw new RuntimeException("Oops!");
-    });
+		findViewById(R.id.exception).setOnClickListener(v -> {
+			throw new RuntimeException("Oops!");
+		});
 
-    findViewById(R.id.log_overflow).setOnClickListener(v -> new Thread(() -> {
-      for (int i = 0; i < 100000; i++) {
-        Log.d("ShouldNotBreak", "Log #" + i);
-      }
-    }).start());
-  }
+		findViewById(R.id.log_overflow).setOnClickListener(v -> new Thread(() -> {
+			for (int i = 0; i < 100000; i++) {
+				Log.d("ShouldNotBreak", "Log #" + i);
+			}
+		}).start());
+	}
 }

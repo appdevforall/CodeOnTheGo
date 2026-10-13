@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego.projects
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.eventbus.events.file.FileCreationEvent
-import org.appdevforall.codeonthego.eventbus.events.file.FileDeletionEvent
 import io.mockk.every
 import io.mockk.spyk
 import io.mockk.verify
+import org.appdevforall.codeonthego.eventbus.events.file.FileCreationEvent
+import org.appdevforall.codeonthego.eventbus.events.file.FileDeletionEvent
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

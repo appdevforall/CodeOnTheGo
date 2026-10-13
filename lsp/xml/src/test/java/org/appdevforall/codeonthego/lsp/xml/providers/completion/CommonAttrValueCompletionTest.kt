@@ -31,38 +31,37 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class CommonAttrValueCompletionTest : CompletionHelper by CompletionHelperImpl() {
+	@Before fun setup() = XMLLSPTest.initProjectIfNeeded()
 
-  @Before fun setup() = XMLLSPTest.initProjectIfNeeded()
+	@Test
+	fun `test simple drawable attr value completion`() {
+		XMLLSPTest.apply {
+			openFile("../res/drawable/TestDrawableAttrValue")
+			val (incomplete, items) = complete()
+			assertThat(incomplete).isFalse()
+			assertThat(items).containsAtLeast("rectangle", "oval", "line", "ring")
+		}
+	}
 
-  @Test
-  fun `test simple drawable attr value completion`() {
-    XMLLSPTest.apply {
-      openFile("../res/drawable/TestDrawableAttrValue")
-      val (incomplete, items) = complete()
-      assertThat(incomplete).isFalse()
-      assertThat(items).containsAtLeast("rectangle", "oval", "line", "ring")
-    }
-  }
+	@Test // prefix: '' in a <set> tag
+	fun `test simple anim attributes`() {
+		XMLLSPTest.apply {
+			openFile("../res/anim/TestSimpleAttrValue")
+			val (_, items) = complete()
+			// Only integer values
+			assertThat(items.filter { it.startsWith("@integer/") || it.startsWith("@android:integer/") })
+				.hasSize(items.size)
+		}
+	}
 
-  @Test // prefix: '' in a <set> tag
-  fun `test simple anim attributes`() {
-    XMLLSPTest.apply {
-      openFile("../res/anim/TestSimpleAttrValue")
-      val (_, items) = complete()
-      // Only integer values
-      assertThat(items.filter { it.startsWith("@integer/") || it.startsWith("@android:integer/") })
-        .hasSize(items.size)
-    }
-  }
-
-  @Test // prefix: '' in a <arcMotion> tag for android:duration attr
-  fun `test simple transition attributes`() {
-    XMLLSPTest.apply {
-      openFile("../res/transition/TestSimpleAttrValue")
-      val (_, items) = complete()
-      // Only integer values
-      assertThat(items.filter { it.startsWith("@integer/") || it.startsWith("@android:integer/") })
-        .hasSize(items.size)
-    }
-  }
+	@Test // prefix: '' in a <arcMotion> tag for android:duration attr
+	fun `test simple transition attributes`() {
+		XMLLSPTest.apply {
+			openFile("../res/transition/TestSimpleAttrValue")
+			val (_, items) = complete()
+			// Only integer values
+			assertThat(items.filter { it.startsWith("@integer/") || it.startsWith("@android:integer/") })
+				.hasSize(items.size)
+		}
+	}
 }

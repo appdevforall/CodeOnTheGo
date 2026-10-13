@@ -27,14 +27,14 @@ import android.widget.ImageView.ScaleType.FIT_END
 import android.widget.ImageView.ScaleType.FIT_START
 import android.widget.ImageView.ScaleType.FIT_XY
 import android.widget.ImageView.ScaleType.MATRIX
+import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adpater [ImageView]s.
@@ -44,43 +44,40 @@ import com.itsaky.androidide.resources.R.string
 @org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(ImageView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class ImageViewAdapter<T : ImageView> : ViewAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("adjustViewBounds") { view.adjustViewBounds = parseBoolean(value) }
+		create("baseline") { view.baseline = parseDimension(context, value, 0) }
+		create("baselineAlignBottom") { view.baselineAlignBottom = parseBoolean(value) }
+		create("cropToPadding") { view.cropToPadding = parseBoolean(value) }
+		create("maxHeight") { view.maxHeight = parseDimension(context, value, 0) }
+		create("maxWidth") { view.maxWidth = parseDimension(context, value, 0) }
+		create("scaleType") { view.scaleType = parseScaleType(value) }
+		create("src") { view.setImageDrawable(parseDrawable(context, value)) }
+		create("tint") { view.imageTintList = parseColorStateList(context, value) }
+		create("tintMode") { view.imageTintMode = parsePorterDuffMode(value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("adjustViewBounds") { view.adjustViewBounds = parseBoolean(value) }
-    create("baseline") { view.baseline = parseDimension(context, value, 0) }
-    create("baselineAlignBottom") { view.baselineAlignBottom = parseBoolean(value) }
-    create("cropToPadding") { view.cropToPadding = parseBoolean(value) }
-    create("maxHeight") { view.maxHeight = parseDimension(context, value, 0) }
-    create("maxWidth") { view.maxWidth = parseDimension(context, value, 0) }
-    create("scaleType") { view.scaleType = parseScaleType(value) }
-    create("src") { view.setImageDrawable(parseDrawable(context, value)) }
-    create("tint") { view.imageTintList = parseColorStateList(context, value) }
-    create("tintMode") { view.imageTintMode = parsePorterDuffMode(value) }
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(ImageView::class.java, string.widget_image_view, drawable.ic_widget_imageview),
+		)
 
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(ImageView::class.java, string.widget_image_view, drawable.ic_widget_imageview)
-    )
-  }
+	override fun applyBasic(view: IView) {
+		super.applyBasic(view)
+		(view.view as ImageView).setImageResource(R.drawable.ic_android)
+	}
 
-  override fun applyBasic(view: IView) {
-    super.applyBasic(view)
-    (view.view as ImageView).setImageResource(R.drawable.ic_android)
-  }
-
-  private fun parseScaleType(value: String): ScaleType {
-    return when (value) {
-      "center" -> CENTER
-      "centerCrop" -> CENTER_CROP
-      "centerInside" -> CENTER_INSIDE
-      "fitEnd" -> FIT_END
-      "fitStart" -> FIT_START
-      "fitXY" -> FIT_XY
-      "matrix" -> MATRIX
-      "fitCenter" -> FIT_CENTER
-      else -> FIT_CENTER
-    }
-  }
+	private fun parseScaleType(value: String): ScaleType =
+		when (value) {
+			"center" -> CENTER
+			"centerCrop" -> CENTER_CROP
+			"centerInside" -> CENTER_INSIDE
+			"fitEnd" -> FIT_END
+			"fitStart" -> FIT_START
+			"fitXY" -> FIT_XY
+			"matrix" -> MATRIX
+			"fitCenter" -> FIT_CENTER
+			else -> FIT_CENTER
+		}
 }

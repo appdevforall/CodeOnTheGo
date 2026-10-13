@@ -1,16 +1,16 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
+import kotlinx.coroutines.Job
+import org.appdevforall.codeonthego.indexing.service.IndexKey
+import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.appdevforall.codeonthego.memprof.Memprof
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.appdevforall.codeonthego.projects.api.Workspace
 import org.appdevforall.codeonthego.projects.models.bootClassPaths
-import kotlinx.coroutines.Job
-import org.appdevforall.codeonthego.indexing.service.IndexKey
-import org.appdevforall.codeonthego.indexing.service.IndexRegistry
-import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import java.nio.file.Path
 import kotlin.io.path.extension
 

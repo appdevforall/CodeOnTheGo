@@ -1,14 +1,14 @@
 package org.appdevforall.codeonthego.git.core
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.git.core.models.ChangeType
 import org.appdevforall.codeonthego.git.core.models.FileChange
 import org.appdevforall.codeonthego.git.core.models.GitBranch
 import org.appdevforall.codeonthego.git.core.models.GitCommit
 import org.appdevforall.codeonthego.git.core.models.GitStatus
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.CheckoutCommand
 import org.eclipse.jgit.api.CreateBranchCommand
 import org.eclipse.jgit.api.Git

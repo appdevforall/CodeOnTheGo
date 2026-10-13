@@ -4,12 +4,7 @@ import android.content.Context
 import android.os.StatFs
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
-import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.utils.ContainedPathResolver
-import org.appdevforall.codeonthego.utils.ContainedPathResolver.Resolution
-import org.appdevforall.codeonthego.utils.Environment.DEFAULT_ROOT
-import org.appdevforall.codeonthego.utils.useEntriesEach
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -25,6 +20,11 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
+import org.appdevforall.codeonthego.utils.ContainedPathResolver
+import org.appdevforall.codeonthego.utils.ContainedPathResolver.Resolution
+import org.appdevforall.codeonthego.utils.Environment.DEFAULT_ROOT
+import org.appdevforall.codeonthego.utils.useEntriesEach
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException

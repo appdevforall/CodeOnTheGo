@@ -88,7 +88,8 @@
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:orientation="vertical"
-			android:visibility="gone"> <include layout="@layout/layout_project_info_divider" />
+			android:visibility="gone">
+			<include layout="@layout/layout_project_info_divider" />
 
 			<TextView
 				android:text="@string/project_info_structure_title"

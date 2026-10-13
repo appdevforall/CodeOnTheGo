@@ -22,10 +22,12 @@ import java.io.File
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultBundleInfo : BundleInfo, Serializable {
-  private val serialVersionUID = 1L
-  override var apkFromBundleTaskName: String = ""
-  override var apkFromBundleTaskOutputListingFile: File = File(".")
-  override var bundleTaskName: String = ""
-  override var bundleTaskOutputListingFile: File = File(".")
+class DefaultBundleInfo :
+	BundleInfo,
+	Serializable {
+	private val serialVersionUID = 1L
+	override var apkFromBundleTaskName: String = ""
+	override var apkFromBundleTaskOutputListingFile: File = File(".")
+	override var bundleTaskName: String = ""
+	override var bundleTaskOutputListingFile: File = File(".")
 }

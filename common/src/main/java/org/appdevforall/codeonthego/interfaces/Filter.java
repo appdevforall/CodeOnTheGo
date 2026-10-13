@@ -19,5 +19,5 @@ package org.appdevforall.codeonthego.interfaces;
 
 public interface Filter<T> {
 
-  boolean accept(T t);
+	boolean accept(T t);
 }

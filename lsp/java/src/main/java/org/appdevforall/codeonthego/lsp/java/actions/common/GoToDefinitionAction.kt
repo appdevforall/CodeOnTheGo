@@ -16,14 +16,14 @@
  */
 package org.appdevforall.codeonthego.lsp.java.actions.common
 
+import com.itsaky.androidide.resources.R
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.editor.api.ILspEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lsp.java.actions.BaseJavaCodeAction
-import com.itsaky.androidide.resources.R
-import io.github.rosemoe.sora.widget.CodeEditor
 import java.io.File
 
 /**
@@ -33,24 +33,23 @@ import java.io.File
  * @author Akash Yadav
  */
 class GoToDefinitionAction : BaseJavaCodeAction() {
+	override val titleTextRes: Int = R.string.action_goto_definition
+	override val id: String = "ide.editor.lsp.java.gotoDefinition"
+	override var label: String = ""
+	override var requiresUIThread: Boolean = true
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GOTO_DEF
 
-  override val titleTextRes: Int = R.string.action_goto_definition
-  override val id: String = "ide.editor.lsp.java.gotoDefinition"
-  override var label: String = ""
-  override var requiresUIThread: Boolean = true
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GOTO_DEF
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		if (!visible || !data.hasRequiredData(CodeEditor::class.java, File::class.java)) {
+			markInvisible()
+			return
+		}
+	}
 
-    if (!visible || !data.hasRequiredData(CodeEditor::class.java, File::class.java)) {
-      markInvisible()
-      return
-    }
-  }
-
-  override suspend fun execAction(data: ActionData): Any {
-    val editor = data[CodeEditor::class.java]!!
-    return (editor as? ILspEditor)?.findDefinition() ?: false
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		val editor = data[CodeEditor::class.java]!!
+		return (editor as? ILspEditor)?.findDefinition() ?: false
+	}
 }

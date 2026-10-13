@@ -18,4 +18,6 @@
 package org.appdevforall.codeonthego.tooling.api.messages.result
 
 /** @author Akash Yadav */
-data class GradleWrapperCheckResult(val isAvailable: Boolean)
+data class GradleWrapperCheckResult(
+	val isAvailable: Boolean,
+)

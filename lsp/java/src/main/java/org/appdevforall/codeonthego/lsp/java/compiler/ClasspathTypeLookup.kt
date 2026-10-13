@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.lsp.java.compiler
 
-import org.appdevforall.codeonthego.projects.ProjectManagerImpl
-import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.projects.api.ModuleProject
 
 /** The packages and top-level classes of one module's compile classpath, as import paths name them. */
 interface ClasspathPackages {

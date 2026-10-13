@@ -31,42 +31,46 @@ package org.appdevforall.codeonthego.utils;
  */
 public class IntPair {
 
-  /**
-   * Convert an integer to a long whose binary bits are equal to the given integer
-   */
-  private static long toUnsignedLong(int x) {
-    return ((long) x) & 0xffffffffL;
-  }
+	/**
+	 * Get first of pair
+	 *
+	 * @param packedValue
+	 *            Packed value
+	 * @return First of pair
+	 */
+	public static int getFirst(long packedValue) {
+		return (int) (packedValue >> 32L);
+	}
 
-  /**
-   * Pack two int into a long
-   *
-   * @param first  First of pair
-   * @param second Second of pair
-   * @return Packed value
-   */
-  public static long pack(int first, int second) {
-    return (toUnsignedLong(first) << 32L) | toUnsignedLong(second);
-  }
+	/**
+	 * Get second of pair
+	 *
+	 * @param packedValue
+	 *            Packed value
+	 * @return Second of pair
+	 */
+	public static int getSecond(long packedValue) {
+		return (int) (packedValue & 0xFFFFFFFFL);
+	}
 
-  /**
-   * Get second of pair
-   *
-   * @param packedValue Packed value
-   * @return Second of pair
-   */
-  public static int getSecond(long packedValue) {
-    return (int) (packedValue & 0xFFFFFFFFL);
-  }
+	/**
+	 * Pack two int into a long
+	 *
+	 * @param first
+	 *            First of pair
+	 * @param second
+	 *            Second of pair
+	 * @return Packed value
+	 */
+	public static long pack(int first, int second) {
+		return (toUnsignedLong(first) << 32L) | toUnsignedLong(second);
+	}
 
-  /**
-   * Get first of pair
-   *
-   * @param packedValue Packed value
-   * @return First of pair
-   */
-  public static int getFirst(long packedValue) {
-    return (int) (packedValue >> 32L);
-  }
+	/**
+	 * Convert an integer to a long whose binary bits are equal to the given integer
+	 */
+	private static long toUnsignedLong(int x) {
+		return ((long) x) & 0xffffffffL;
+	}
 
 }

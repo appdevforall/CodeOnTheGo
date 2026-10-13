@@ -4,8 +4,8 @@ package org.appdevforall.codeonthego.floating.model
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.view.View
-import org.appdevforall.codeonthego.floating.window.FloatingWindowHost
 import kotlinx.coroutines.flow.StateFlow
+import org.appdevforall.codeonthego.floating.window.FloatingWindowHost
 
 /**
  * The contract a tab must satisfy to be hosted in a floating overlay window.

@@ -8,7 +8,6 @@ import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class MatchLevelMemoTest {
-
 	@Test
 	fun `includes fuzzy non-prefix matches`() {
 		// "toStirng" is a transposition of "toString" — not a prefix, but a

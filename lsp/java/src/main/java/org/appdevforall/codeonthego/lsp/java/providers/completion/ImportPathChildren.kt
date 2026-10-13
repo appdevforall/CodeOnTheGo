@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.appdevforall.codeonthego.lsp.java.compiler.ClasspathPackages
 import org.appdevforall.codeonthego.lsp.java.providers.completion.ImportCompletionProvider.RequireMemberCompletionException
 import org.appdevforall.codeonthego.utils.ClassTrie
-import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 
 /**
  * The packages and top-level classes that can continue an import path: those of a module's Java

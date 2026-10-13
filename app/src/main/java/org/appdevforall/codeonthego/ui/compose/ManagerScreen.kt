@@ -48,6 +48,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.itsaky.androidide.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.appdevforall.codeonthego.activities.ExternalFileInstallDialogs
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
@@ -61,12 +67,6 @@ import org.appdevforall.codeonthego.utils.getFileName
 import org.appdevforall.codeonthego.viewmodels.ExternalFileInstallViewModel
 import org.appdevforall.codeonthego.viewmodels.PluginManagerViewModel
 import org.appdevforall.codeonthego.viewmodels.TemplateManagerViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
-import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("ManagerScreen")

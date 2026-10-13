@@ -3,12 +3,12 @@ package org.appdevforall.codeonthego.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.utils.ApkInstaller
-import org.appdevforall.codeonthego.utils.SingleSessionCallback
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.utils.ApkInstaller
+import org.appdevforall.codeonthego.utils.SingleSessionCallback
 import org.slf4j.LoggerFactory
 import java.io.File
 

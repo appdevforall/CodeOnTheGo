@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.quickbuild
 
 import android.content.Context
 import com.google.common.truth.Truth.assertThat
+import io.mockk.mockk
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.tooling.api.messages.InitializeProjectParams
@@ -10,7 +11,6 @@ import org.appdevforall.codeonthego.tooling.api.messages.result.BuildCancellatio
 import org.appdevforall.codeonthego.tooling.api.messages.result.InitializeResult
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.appdevforall.codeonthego.tooling.api.models.ToolingServerMetadata
-import io.mockk.mockk
 import org.junit.After
 import org.junit.Test
 import java.io.File

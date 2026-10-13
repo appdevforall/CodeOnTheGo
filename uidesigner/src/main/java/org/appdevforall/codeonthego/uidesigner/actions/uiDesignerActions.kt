@@ -22,14 +22,14 @@ import org.appdevforall.codeonthego.actions.ActionItem.Location.UI_DESIGNER_TOOL
 import org.appdevforall.codeonthego.actions.ActionsRegistry
 
 fun registerUiDesignerActions(context: Context) {
-  ActionsRegistry.getInstance().apply {
-    registerAction(UndoAction(context))
-    registerAction(RedoAction(context))
-    registerAction(ShowHierarchyAction(context))
-    registerAction(ShowXmlAction(context))
-  }
+ActionsRegistry.getInstance().apply {
+	registerAction(UndoAction(context))
+	registerAction(RedoAction(context))
+	registerAction(ShowHierarchyAction(context))
+	registerAction(ShowXmlAction(context))
+}
 }
 
 fun clearUiDesignerActions() {
-  ActionsRegistry.getInstance().clearActions(UI_DESIGNER_TOOLBAR)
+ActionsRegistry.getInstance().clearActions(UI_DESIGNER_TOOLBAR)
 }

@@ -24,11 +24,11 @@ package org.appdevforall.codeonthego.lsp.api;
  */
 public interface ConfigurableServiceProvider {
 
-  /**
-   * Apply the given settings to this service provider.
-   *
-   * @param settings The settings to apply. If {@code null}, {@link
-   *     org.appdevforall.codeonthego.lsp.util.DefaultServerSettings} should be used.
-   */
-  void applySettings(IServerSettings settings);
+	/**
+	 * Apply the given settings to this service provider.
+	 *
+	 * @param settings
+	 *            The settings to apply. If {@code null}, {@link org.appdevforall.codeonthego.lsp.util.DefaultServerSettings} should be used.
+	 */
+	void applySettings(IServerSettings settings);
 }

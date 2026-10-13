@@ -25,7 +25,6 @@ import org.appdevforall.codeonthego.actions.ActionItem
  * @author Akash Yadav
  */
 interface IActionsMenuProvider {
-
-  /** Get the action items. */
-  val actions: List<ActionItem>
+	/** Get the action items. */
+	val actions: List<ActionItem>
 }

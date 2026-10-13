@@ -19,14 +19,14 @@ package org.appdevforall.codeonthego.editor.ui
 
 import android.util.Log
 import android.widget.ListView
+import io.github.rosemoe.sora.lang.completion.CompletionItem
+import io.github.rosemoe.sora.widget.component.CompletionLayout
+import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import org.appdevforall.codeonthego.idetooltips.TooltipCategory
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.lsp.util.DocumentationReferenceProvider
 import org.appdevforall.codeonthego.progress.ProgressManager
 import org.appdevforall.codeonthego.utils.KeyboardUtils
-import io.github.rosemoe.sora.lang.completion.CompletionItem
-import io.github.rosemoe.sora.widget.component.CompletionLayout
-import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import org.slf4j.LoggerFactory
 import java.lang.ref.WeakReference
 import kotlin.math.min

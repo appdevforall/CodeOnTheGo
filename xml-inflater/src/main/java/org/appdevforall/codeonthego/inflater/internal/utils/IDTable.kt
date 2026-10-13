@@ -18,18 +18,22 @@
 package org.appdevforall.codeonthego.inflater.internal.utils
 
 internal object IDTable {
+	private val ids = mutableMapOf<String, MutableMap<String, Int>>()
 
-  private val ids = mutableMapOf<String, MutableMap<String, Int>>()
+	fun newRound() {
+		ids.clear()
+	}
 
-  fun newRound() {
-    ids.clear()
-  }
+	fun get(
+		file: String,
+		name: String,
+	): Int? = ids[file]?.get(name)
 
-  fun get(file: String, name: String): Int? {
-    return ids[file]?.get(name)
-  }
-
-  fun set(file: String, name: String, id: Int) {
-    ids.computeIfAbsent(file) { mutableMapOf() }[name] = id
-  }
+	fun set(
+		file: String,
+		name: String,
+		id: Int,
+	) {
+		ids.computeIfAbsent(file) { mutableMapOf() }[name] = id
+	}
 }

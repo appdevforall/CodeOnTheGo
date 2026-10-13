@@ -24,26 +24,29 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
 /**
  * @author Akash Yadav
  */
-class TreeSitterQueryPredicateStep @JvmOverloads internal constructor(
-  type: Int = 0,
-  valueId: Int = 0
-) : TSQueryPredicateStep(type, valueId), RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+class TreeSitterQueryPredicateStep
+	@JvmOverloads
+	internal constructor(
+		type: Int = 0,
+		valueId: Int = 0,
+	) : TSQueryPredicateStep(type, valueId),
+		RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+		companion object {
+			@JvmStatic
+			fun obtain(
+				type: Int,
+				valueId: Int,
+			): TreeSitterQueryPredicateStep =
+				obtainFromPool<TreeSitterQueryPredicateStep>().apply {
+					this.type = type
+					this.valueId = valueId
+				}
+		}
 
-  companion object {
-
-    @JvmStatic
-    fun obtain(type: Int, valueId: Int): TreeSitterQueryPredicateStep {
-      return obtainFromPool<TreeSitterQueryPredicateStep>().apply {
-        this.type = type
-        this.valueId = valueId
-      }
-    }
-  }
-
-  override fun recycle() {
-    this.type = 0
-    this.valueId = 0
-    this.cachedType = null
-    returnToPool()
-  }
-}
+		override fun recycle() {
+			this.type = 0
+			this.valueId = 0
+			this.cachedType = null
+			returnToPool()
+		}
+	}

@@ -20,11 +20,11 @@ package org.appdevforall.codeonthego.interfaces;
 import java.io.File;
 
 public interface ProjectWriterCallback {
-  public void beforeBegin();
+	public void beforeBegin();
 
-  public void onProcessTask(String taskName);
+	public void onFailed(String reason);
 
-  public void onSuccess(File rootDir);
+	public void onProcessTask(String taskName);
 
-  public void onFailed(String reason);
+	public void onSuccess(File rootDir);
 }

@@ -35,13 +35,13 @@ import com.itsaky.androidide.resources.R.string
 @IncludeInDesigner(group = WIDGETS)
 open class SeekBarAdapter<T : SeekBar> : AbsSeekBarAdapter<T>() {
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
+override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+	super.createAttrHandlers(create)
 
-    create("thumb") { view.thumb = parseDrawable(context, value) }
-  }
+	create("thumb") { view.thumb = parseDrawable(context, value) }
+}
 
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(UiWidget(SeekBar::class.java, string.widget_seekbar, drawable.ic_widget_seek_bar))
-  }
+override fun createUiWidgets(): List<UiWidget> {
+	return listOf(UiWidget(SeekBar::class.java, string.widget_seekbar, drawable.ic_widget_seek_bar))
+}
 }

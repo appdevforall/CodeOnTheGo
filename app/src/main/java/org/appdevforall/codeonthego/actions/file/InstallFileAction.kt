@@ -19,16 +19,16 @@ package org.appdevforall.codeonthego.actions.file
 
 import android.content.Context
 import androidx.lifecycle.lifecycleScope
+import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.launch
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.repositories.PluginRepository
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashSuccess
-import kotlinx.coroutines.launch
-import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.koin.core.context.GlobalContext
 
 class InstallFileAction(

@@ -23,15 +23,12 @@ import androidx.annotation.StringRes
  * @author Akash Yadav
  */
 data class OnboardingPermissionItem(
-  val permission: String,
-
-  @StringRes
-  val title: Int,
-
-  @StringRes
-  val description: Int,
-  var isGranted: Boolean,
-
-  var isOptional: Boolean = false,
-  var isSupportedOnDevice: Boolean = true
+	val permission: String,
+	@StringRes
+	val title: Int,
+	@StringRes
+	val description: Int,
+	var isGranted: Boolean,
+	var isOptional: Boolean = false,
+	var isSupportedOnDevice: Boolean = true,
 )

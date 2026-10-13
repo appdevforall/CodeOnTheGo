@@ -27,13 +27,13 @@ import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
  * @author Akash Yadav
  */
 abstract class AbsSpinnerAdapter<T : AbsSpinner> : AdapterViewAdapter<T>() {
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("entries") {
-      val array = parseStringArray(value)
-      val adapter = newSimpleAdapter(context, array)
-      adapter.setDropDownViewResource(layout.simple_spinner_dropdown_item)
-      view.adapter = adapter
-    }
-  }
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("entries") {
+			val array = parseStringArray(value)
+			val adapter = newSimpleAdapter(context, array)
+			adapter.setDropDownViewResource(layout.simple_spinner_dropdown_item)
+			view.adapter = adapter
+		}
+	}
 }

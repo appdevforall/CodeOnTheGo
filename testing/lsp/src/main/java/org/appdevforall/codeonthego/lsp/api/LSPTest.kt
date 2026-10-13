@@ -19,6 +19,10 @@ package org.appdevforall.codeonthego.lsp.api
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import io.github.rosemoe.sora.text.Content
+import io.mockk.every
+import io.mockk.mockkStatic
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.eventbus.events.editor.ChangeType.DELETE
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
@@ -38,10 +42,6 @@ import org.appdevforall.codeonthego.tooling.api.IToolingApiServer
 import org.appdevforall.codeonthego.tooling.api.messages.result.InitializeResult
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.FileProvider
-import io.github.rosemoe.sora.text.Content
-import io.mockk.every
-import io.mockk.mockkStatic
-import kotlinx.coroutines.runBlocking
 import org.greenrobot.eventbus.EventBus
 import org.junit.Before
 import org.junit.runner.RunWith
@@ -89,7 +89,8 @@ abstract class LSPTest {
 
 		ToolingApiTestLauncher.launchServer {
 			assertWithMessage("Tooling API initialize() returned: %s", result)
-				.that(result is InitializeResult.Success).isTrue()
+				.that(result is InitializeResult.Success)
+				.isTrue()
 			this@LSPTest.toolingServer = server
 
 			Environment.ANDROID_JAR = FileProvider.resources().resolve("android.jar").toFile()

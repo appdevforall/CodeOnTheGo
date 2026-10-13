@@ -23,12 +23,12 @@ import android.text.TextUtils
 import android.text.util.Linkify
 import android.util.TypedValue
 import android.widget.TextView
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.spToPx
 import java.util.regex.Pattern
 

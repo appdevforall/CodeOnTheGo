@@ -28,50 +28,49 @@ import org.appdevforall.codeonthego.utils.IntProperty;
 
 public class ProgressTransition extends Transition {
 
-  private static final String PROPNAME_PROGRESS = "ProgressTransition:progress";
-  private static final Property<ProgressBar, Integer> PROGRESS_PROPERTY =
-      new IntProperty<ProgressBar>(PROPNAME_PROGRESS) {
+	private static final String PROPNAME_PROGRESS = "ProgressTransition:progress";
+	private static final Property<ProgressBar, Integer> PROGRESS_PROPERTY = new IntProperty<ProgressBar>(PROPNAME_PROGRESS) {
 
-        @Override
-        public void setValue(ProgressBar progressBar, int value) {
-          progressBar.setProgress(value);
-        }
+		@Override
+		public Integer get(ProgressBar progressBar) {
+			return progressBar.getProgress();
+		}
 
-        @Override
-        public Integer get(ProgressBar progressBar) {
-          return progressBar.getProgress();
-        }
-      };
+		@Override
+		public void setValue(ProgressBar progressBar, int value) {
+			progressBar.setProgress(value);
+		}
+	};
 
-  @Override
-  public Animator createAnimator(
-      ViewGroup sceneRoot, TransitionValues startValues, TransitionValues endValues) {
-    if (startValues != null && endValues != null && endValues.view instanceof ProgressBar) {
-      ProgressBar progressBar = (ProgressBar) endValues.view;
-      int start = (Integer) startValues.values.get(PROPNAME_PROGRESS);
-      int end = (Integer) endValues.values.get(PROPNAME_PROGRESS);
-      if (start != end) {
-        progressBar.setProgress(start);
-        return ObjectAnimator.ofInt(progressBar, PROGRESS_PROPERTY, end);
-      }
-    }
-    return null;
-  }
+	@Override
+	public void captureEndValues(TransitionValues transitionValues) {
+		captureValues(transitionValues);
+	}
 
-  @Override
-  public void captureStartValues(TransitionValues transitionValues) {
-    captureValues(transitionValues);
-  }
+	@Override
+	public void captureStartValues(TransitionValues transitionValues) {
+		captureValues(transitionValues);
+	}
 
-  @Override
-  public void captureEndValues(TransitionValues transitionValues) {
-    captureValues(transitionValues);
-  }
+	@Override
+	public Animator createAnimator(
+			ViewGroup sceneRoot, TransitionValues startValues, TransitionValues endValues) {
+		if (startValues != null && endValues != null && endValues.view instanceof ProgressBar) {
+			ProgressBar progressBar = (ProgressBar) endValues.view;
+			int start = (Integer) startValues.values.get(PROPNAME_PROGRESS);
+			int end = (Integer) endValues.values.get(PROPNAME_PROGRESS);
+			if (start != end) {
+				progressBar.setProgress(start);
+				return ObjectAnimator.ofInt(progressBar, PROGRESS_PROPERTY, end);
+			}
+		}
+		return null;
+	}
 
-  private void captureValues(TransitionValues transitionValues) {
-    if (transitionValues.view instanceof ProgressBar) {
-      ProgressBar progressBar = ((ProgressBar) transitionValues.view);
-      transitionValues.values.put(PROPNAME_PROGRESS, progressBar.getProgress());
-    }
-  }
+	private void captureValues(TransitionValues transitionValues) {
+		if (transitionValues.view instanceof ProgressBar) {
+			ProgressBar progressBar = ((ProgressBar) transitionValues.view);
+			transitionValues.values.put(PROPNAME_PROGRESS, progressBar.getProgress());
+		}
+	}
 }

@@ -17,4 +17,7 @@
 package org.appdevforall.codeonthego.tooling.model
 
 /** @author Akash Yadav */
-data class ProjectIdentifier(val buildIdentifier: BuildIdentifier, val projectPath: String) {}
+data class ProjectIdentifier(
+	val buildIdentifier: BuildIdentifier,
+	val projectPath: String,
+)

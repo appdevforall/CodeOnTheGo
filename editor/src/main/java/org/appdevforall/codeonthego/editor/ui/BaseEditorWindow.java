@@ -29,8 +29,8 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import com.itsaky.androidide.resources.R;
-import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 import io.github.rosemoe.sora.widget.base.EditorPopupWindow;
+import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 
 /**
  * An {@link EditorPopupWindow} implementation which shows only a single textview.

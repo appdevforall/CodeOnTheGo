@@ -2,11 +2,11 @@ package org.appdevforall.codeonthego.utils
 
 import android.content.res.AssetManager
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.app.BaseApplication
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import org.appdevforall.codeonthego.app.BaseApplication
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule

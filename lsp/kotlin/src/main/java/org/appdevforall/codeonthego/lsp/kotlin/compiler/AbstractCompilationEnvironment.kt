@@ -1,5 +1,7 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler
 
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.index.KtSymbolIndex
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.KtModule
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.asFlatSequence
@@ -10,8 +12,6 @@ import org.appdevforall.codeonthego.lsp.kotlin.compiler.services.KtLspService
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.services.WriteAccessGuard
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.services.latestLanguageVersionSettings
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.util.SLF4JLogger
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory

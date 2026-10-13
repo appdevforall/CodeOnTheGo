@@ -21,6 +21,7 @@ import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
+import com.unnamed.b.atv.model.TreeNode
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.EditorActivityAction
@@ -30,7 +31,6 @@ import org.appdevforall.codeonthego.eventbus.events.Event
 import org.appdevforall.codeonthego.events.CollapseTreeNodeRequestEvent
 import org.appdevforall.codeonthego.events.ExpandTreeNodeRequestEvent
 import org.appdevforall.codeonthego.events.ListProjectFilesRequestEvent
-import com.unnamed.b.atv.model.TreeNode
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 
@@ -40,56 +40,52 @@ import java.io.File
  * @author Akash Yadav
  */
 abstract class BaseFileTreeAction(
-  context: Context,
-  @StringRes labelRes: Int? = null,
-  @DrawableRes iconRes: Int? = null
+	context: Context,
+	@StringRes labelRes: Int? = null,
+	@DrawableRes iconRes: Int? = null,
 ) : EditorActivityAction() {
+	override var requiresUIThread: Boolean = true
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_FILE_TREE
 
-  override var requiresUIThread: Boolean = true
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_FILE_TREE
+	init {
+		labelRes?.let { label = context.getString(it) }
+		iconRes?.let { icon = ContextCompat.getDrawable(context, it) }
+	}
 
-  init {
-    labelRes?.let { label = context.getString(it) }
-    iconRes?.let { icon = ContextCompat.getDrawable(context, it) }
-  }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!data.hasFileTreeData()) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (!data.hasFileTreeData()) {
-      markInvisible()
-      return
-    }
+		visible = true
+		enabled = true
+	}
 
-    visible = true
-    enabled = true
-  }
+	protected open fun ActionData.hasFileTreeData(): Boolean = hasRequiredData(Context::class.java, File::class.java, TreeNode::class.java)
 
-  protected open fun ActionData.hasFileTreeData(): Boolean {
-    return hasRequiredData(Context::class.java, File::class.java, TreeNode::class.java)
-  }
+	protected fun ActionData.getTreeNode(): TreeNode? = this[TreeNode::class.java]
 
-  protected fun ActionData.getTreeNode() : TreeNode? {
-    return this[TreeNode::class.java]
-  }
+	protected fun ActionData.requireTreeNode(): TreeNode = getTreeNode()!!
 
-  protected fun ActionData.requireTreeNode() : TreeNode {
-    return getTreeNode()!!
-  }
+	protected fun Event.putData(context: Context): Event {
+		put(Context::class.java, context)
+		return this
+	}
 
-  protected fun Event.putData(context: Context): Event {
-    put(Context::class.java, context)
-    return this
-  }
+	protected fun requestFileListing() {
+		EventBus.getDefault().post(ListProjectFilesRequestEvent())
+	}
 
-  protected fun requestFileListing() {
-    EventBus.getDefault().post(ListProjectFilesRequestEvent())
-  }
+	protected fun requestExpandNode(node: TreeNode) {
+		EventBus.getDefault().post(ExpandTreeNodeRequestEvent(node))
+	}
 
-  protected fun requestExpandNode(node: TreeNode) {
-    EventBus.getDefault().post(ExpandTreeNodeRequestEvent(node))
-  }
-
-  protected fun requestCollapseNode(node: TreeNode, includeSubnodes: Boolean) {
-    EventBus.getDefault().post(CollapseTreeNodeRequestEvent(node, includeSubnodes))
-  }
+	protected fun requestCollapseNode(
+		node: TreeNode,
+		includeSubnodes: Boolean,
+	) {
+		EventBus.getDefault().post(CollapseTreeNodeRequestEvent(node, includeSubnodes))
+	}
 }

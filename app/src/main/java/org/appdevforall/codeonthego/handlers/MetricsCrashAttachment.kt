@@ -19,15 +19,15 @@ package org.appdevforall.codeonthego.handlers
 
 import android.content.Context
 import android.os.SystemClock
-import org.appdevforall.codeonthego.utils.MetricsCsv
-import org.appdevforall.codeonthego.utils.MetricsCsvFile
-import org.appdevforall.codeonthego.utils.MetricsSnapshotAssembler
-import org.appdevforall.codeonthego.utils.MetricsSource
 import io.sentry.Attachment
 import io.sentry.EventProcessor
 import io.sentry.Hint
 import io.sentry.SentryEvent
 import io.sentry.SentryOptions
+import org.appdevforall.codeonthego.utils.MetricsCsv
+import org.appdevforall.codeonthego.utils.MetricsCsvFile
+import org.appdevforall.codeonthego.utils.MetricsSnapshotAssembler
+import org.appdevforall.codeonthego.utils.MetricsSource
 import org.slf4j.LoggerFactory
 import java.io.File
 

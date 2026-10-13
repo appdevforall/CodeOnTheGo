@@ -31,73 +31,78 @@ import org.appdevforall.codeonthego.models.OnboardingItem
  * @author Akash Yadav
  */
 open class DefaultOnboardingItemAdapter<T : OnboardingItem>(
-  protected val items: List<T>,
-  protected val onItemClickListener: OnItemClickListener<T>? = null,
-  protected val onItemLongClickListener: OnItemLongClickListener<T>? = null
+	protected val items: List<T>,
+	protected val onItemClickListener: OnItemClickListener<T>? = null,
+	protected val onItemLongClickListener: OnItemLongClickListener<T>? = null,
 ) : RecyclerView.Adapter<DefaultOnboardingItemAdapter.ViewHolder>() {
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): ViewHolder = ViewHolder(LayoutOnboardingItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
 
-  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-    return ViewHolder(
-      LayoutOnboardingItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
-  }
+	override fun onBindViewHolder(
+		holder: ViewHolder,
+		position: Int,
+	) {
+		doBindViewHolder(holder, position, getItem(position), holder.binding)
+	}
 
-  override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-    doBindViewHolder(holder, position, getItem(position), holder.binding)
-  }
+	protected open fun doBindViewHolder(
+		holder: ViewHolder,
+		position: Int,
+		item: T,
+		binding: LayoutOnboardingItemBinding,
+	) {
+		binding.content.title.text = item.title
 
-  protected open fun doBindViewHolder(
-    holder: ViewHolder,
-    position: Int,
-    item: T,
-    binding: LayoutOnboardingItemBinding
-  ) {
-    binding.content.title.text = item.title
+		if (item.description.isNotBlank()) {
+			binding.content.description.text = item.description
+		} else {
+			binding.content.description.visibility = View.INVISIBLE
+		}
 
-    if (item.description.isNotBlank()) {
-      binding.content.description.text = item.description
-    } else {
-      binding.content.description.visibility = View.INVISIBLE
-    }
+		if (item.icon != 0) {
+			binding.content.icon.setImageResource(item.icon)
+			if (item.iconTint != 0) {
+				binding.content.icon.supportImageTintList = ColorStateList.valueOf(item.iconTint)
+			}
+		} else {
+			binding.content.icon.visibility = View.INVISIBLE
+		}
 
-    if (item.icon != 0) {
-      binding.content.icon.setImageResource(item.icon)
-      if (item.iconTint != 0) {
-        binding.content.icon.supportImageTintList = ColorStateList.valueOf(item.iconTint)
-      }
-    } else {
-      binding.content.icon.visibility = View.INVISIBLE
-    }
+		binding.root.isClickable = item.isClickable
+		binding.root.isFocusable = item.isClickable
 
-    binding.root.isClickable = item.isClickable
-    binding.root.isFocusable = item.isClickable
+		if (item.isClickable && onItemClickListener != null) {
+			binding.root.setOnClickListener { onItemClickListener.onClick(item, position, binding) }
+		}
 
-    if (item.isClickable && onItemClickListener != null) {
-      binding.root.setOnClickListener { onItemClickListener.onClick(item, position, binding) }
-    }
+		if (item.isLongClickable && onItemLongClickListener != null) {
+			binding.root.setOnLongClickListener { onItemLongClickListener.onLongClick(item, position, binding) }
+		}
+	}
 
-    if (item.isLongClickable && onItemLongClickListener != null) {
-      binding.root.setOnLongClickListener { onItemLongClickListener.onLongClick(item, position, binding) }
-    }
-  }
+	override fun getItemCount(): Int = items.size
 
-  override fun getItemCount(): Int {
-    return items.size
-  }
+	fun getItem(index: Int): T = items[index]
 
-  fun getItem(index: Int): T {
-    return items[index]
-  }
+	class ViewHolder(
+		val binding: LayoutOnboardingItemBinding,
+	) : RecyclerView.ViewHolder(binding.root)
 
-  class ViewHolder(val binding: LayoutOnboardingItemBinding) :
-    RecyclerView.ViewHolder(binding.root)
+	fun interface OnItemClickListener<T : OnboardingItem> {
+		fun onClick(
+			item: T,
+			position: Int,
+			binding: LayoutOnboardingItemBinding,
+		)
+	}
 
-  fun interface OnItemClickListener<T : OnboardingItem> {
-
-    fun onClick(item: T, position: Int, binding: LayoutOnboardingItemBinding)
-  }
-
-  fun interface OnItemLongClickListener<T : OnboardingItem> {
-
-    fun onLongClick(item: T, position: Int, binding: LayoutOnboardingItemBinding): Boolean
-  }
+	fun interface OnItemLongClickListener<T : OnboardingItem> {
+		fun onLongClick(
+			item: T,
+			position: Int,
+			binding: LayoutOnboardingItemBinding,
+		): Boolean
+	}
 }

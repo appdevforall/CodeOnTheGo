@@ -17,10 +17,10 @@
 
 package org.appdevforall.codeonthego.lsp.java.edits
 
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.editor.api.ILspEditor
 import org.appdevforall.codeonthego.lsp.edits.DefaultEditHandler
 import org.appdevforall.codeonthego.lsp.models.Command
-import io.github.rosemoe.sora.widget.CodeEditor
 
 /**
  * Implementation of [DefaultEditHandler] which avoids reflection in
@@ -29,8 +29,10 @@ import io.github.rosemoe.sora.widget.CodeEditor
  * @author Akash Yadav
  */
 open class BaseJavaEditHandler : DefaultEditHandler() {
-
-	override fun executeCommand(editor: CodeEditor, command: Command?) {
+	override fun executeCommand(
+		editor: CodeEditor,
+		command: Command?,
+	) {
 		if (editor is ILspEditor) {
 			editor.executeCommand(command)
 			return

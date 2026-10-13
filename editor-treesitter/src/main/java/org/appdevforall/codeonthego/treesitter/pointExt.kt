@@ -21,10 +21,10 @@ package com.itsaky.androidide.treesitter
  * The 0-based start line number.
  */
 val TSRange.startLine: Int
-  get() = getStartPoint().getRow()
+get() = getStartPoint().getRow()
 
 /**
  * The 0-based end line number.
  */
 val TSRange.endLine: Int
-  get() = getEndPoint().getRow()
+get() = getEndPoint().getRow()

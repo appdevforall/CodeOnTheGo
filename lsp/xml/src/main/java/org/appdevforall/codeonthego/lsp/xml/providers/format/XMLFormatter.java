@@ -17,9 +17,9 @@
 
 package org.appdevforall.codeonthego.lsp.xml.providers.format;
 
+import java.util.List;
 import org.appdevforall.codeonthego.lsp.models.TextEdit;
 import org.appdevforall.codeonthego.models.Range;
-import java.util.List;
 import org.eclipse.lemminx.commons.BadLocationException;
 import org.eclipse.lemminx.dom.DOMDocument;
 import org.slf4j.Logger;
@@ -30,23 +30,22 @@ import org.slf4j.LoggerFactory;
  */
 public class XMLFormatter {
 
-  private static final Logger LOG = LoggerFactory.getLogger(XMLFormatter.class);
+	private static final Logger LOG = LoggerFactory.getLogger(XMLFormatter.class);
 
-  /**
-   * Returns a List containing a single TextEdit, containing the newly formatted changes of the
-   * document.
-   *
-   * @param range specified range in which formatting will be done
-   * @return List containing a TextEdit with formatting changes
-   */
-  public List<? extends TextEdit> format(DOMDocument xmlDocument, Range range) {
-    try {
-      XMLFormatterDocument formatterDocument =
-          new XMLFormatterDocument(xmlDocument.getTextDocument(), range);
-      return formatterDocument.format();
-    } catch (BadLocationException e) {
-      LOG.error("Formatting failed due to BadLocation", e);
-    }
-    return null;
-  }
+	/**
+	 * Returns a List containing a single TextEdit, containing the newly formatted changes of the document.
+	 *
+	 * @param range
+	 *            specified range in which formatting will be done
+	 * @return List containing a TextEdit with formatting changes
+	 */
+	public List<? extends TextEdit> format(DOMDocument xmlDocument, Range range) {
+		try {
+			XMLFormatterDocument formatterDocument = new XMLFormatterDocument(xmlDocument.getTextDocument(), range);
+			return formatterDocument.format();
+		} catch (BadLocationException e) {
+			LOG.error("Formatting failed due to BadLocation", e);
+		}
+		return null;
+	}
 }

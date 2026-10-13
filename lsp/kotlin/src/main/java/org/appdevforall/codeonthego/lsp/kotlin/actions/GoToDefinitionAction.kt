@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.lsp.kotlin.actions
 
+import com.itsaky.androidide.resources.R
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.editor.api.ILspEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
-import io.github.rosemoe.sora.widget.CodeEditor
 
 /**
  * Navigates from the reference at the caret to the declaration it resolves to.

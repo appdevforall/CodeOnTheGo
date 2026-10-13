@@ -44,45 +44,44 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class ProjectManagerImplUninitializedPathTest {
+	/**
+	 * Directly exercises the root-cause line of the bug on a fresh instance whose `projectPath`
+	 * lateinit has never been assigned (the process-death recreation state).
+	 */
+	@Test
+	fun readingPathWhenUninitialized_returnsBlankAndDoesNotThrow() {
+		val manager = ProjectManagerImpl()
 
-  /**
-   * Directly exercises the root-cause line of the bug on a fresh instance whose `projectPath`
-   * lateinit has never been assigned (the process-death recreation state).
-   */
-  @Test
-  fun readingPathWhenUninitialized_returnsBlankAndDoesNotThrow() {
-    val manager = ProjectManagerImpl()
+		// Pre-fix this access throws UninitializedPropertyAccessException; post-fix it returns "".
+		val path = manager.projectDirPath
 
-    // Pre-fix this access throws UninitializedPropertyAccessException; post-fix it returns "".
-    val path = manager.projectDirPath
+		assertThat(path).isEmpty()
+	}
 
-    assertThat(path).isEmpty()
-  }
+	/**
+	 * projectDir is derived from projectDirPath (File(projectDirPath)). With the uninitialized
+	 * path it must not propagate the lateinit access exception either.
+	 */
+	@Test
+	fun readingProjectDirWhenUninitialized_doesNotThrow() {
+		val manager = ProjectManagerImpl()
 
-  /**
-   * projectDir is derived from projectDirPath (File(projectDirPath)). With the uninitialized
-   * path it must not propagate the lateinit access exception either.
-   */
-  @Test
-  fun readingProjectDirWhenUninitialized_doesNotThrow() {
-    val manager = ProjectManagerImpl()
+		val dir = manager.projectDir
 
-    val dir = manager.projectDir
+		// File("") -> empty path; the contract here is simply "no UninitializedPropertyAccessException".
+		assertThat(dir.path).isEmpty()
+	}
 
-    // File("") -> empty path; the contract here is simply "no UninitializedPropertyAccessException".
-    assertThat(dir.path).isEmpty()
-  }
+	/**
+	 * Once a path is assigned (the normal MainActivity-routed launch), the getter still reflects it.
+	 * Guards against a fix that always returns "" regardless of state.
+	 */
+	@Test
+	fun readingPathAfterInitialization_reflectsAssignedValue() {
+		val manager = ProjectManagerImpl()
+		manager.projectPath = "/storage/emulated/0/CodeOnTheGoProjects/Sample"
 
-  /**
-   * Once a path is assigned (the normal MainActivity-routed launch), the getter still reflects it.
-   * Guards against a fix that always returns "" regardless of state.
-   */
-  @Test
-  fun readingPathAfterInitialization_reflectsAssignedValue() {
-    val manager = ProjectManagerImpl()
-    manager.projectPath = "/storage/emulated/0/CodeOnTheGoProjects/Sample"
-
-    assertThat(manager.projectDirPath).isEqualTo("/storage/emulated/0/CodeOnTheGoProjects/Sample")
-    assertThat(manager.projectDir.name).isEqualTo("Sample")
-  }
+		assertThat(manager.projectDirPath).isEqualTo("/storage/emulated/0/CodeOnTheGoProjects/Sample")
+		assertThat(manager.projectDir.name).isEqualTo("Sample")
+	}
 }

@@ -26,83 +26,73 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import org.appdevforall.codeonthego.logsender.LogSender;
 import org.appdevforall.codeonthego.logsender.LogSenderService;
 
 /**
- * Content providers are loaded before the application class is created. {@link LogSenderInstaller}
- * is used to install {@link LogSender} on application start.
+ * Content providers are loaded before the application class is created. {@link LogSenderInstaller} is used to install {@link LogSender} on application start.
  * <p>
- * {@link LogSenderInstaller} automatically sets up the LogSender code that runs in the main app
- * process.
+ * {@link LogSenderInstaller} automatically sets up the LogSender code that runs in the main app process.
  *
  * @author Akash Yadav
- * @see <a
- * href="https://github.com/square/leakcanary/blob/main/leakcanary-object-watcher-android/src/main/java/leakcanary/internal/MainProcessAppWatcherInstaller.kt">MainProcessAppWatcherInstaller</a>
+ * @see <a href="https://github.com/square/leakcanary/blob/main/leakcanary-object-watcher-android/src/main/java/leakcanary/internal/MainProcessAppWatcherInstaller.kt">MainProcessAppWatcherInstaller</a>
  */
 public class LogSenderInstaller extends ContentProvider {
 
-  @Override
-  public boolean onCreate() {
-    final Application application = ((Application) getContext());
-    if (PACKAGE_ANDROIDIDE.equals(application.getPackageName())) {
-      // do not send logs to self
-      return true;
-    }
+	@Override
+	public int delete(Uri uri, String selection, String[] selectionArgs) {
+		return 0;
+	}
 
-    try {
-      final Intent intent = new Intent(application, LogSenderService.class);
-      intent.setAction(LogSenderService.ACTION_START_SERVICE);
+	@Override
+	public String getType(Uri uri) {
+		return null;
+	}
 
-      if (VERSION.SDK_INT >= VERSION_CODES.O) {
-        application.startForegroundService(intent);
-      } else {
-        application.startService(intent);
-      }
-    } catch (Exception e) {
+	@Override
+	public Uri insert(Uri uri, ContentValues values) {
+		return null;
+	}
 
-      // starting a background service is not allowed on Android 12+
-      // ignore the BackgroundServiceStartNotAllowedException in such cases
-      if (VERSION.SDK_INT < VERSION_CODES.S
-          || !(e instanceof BackgroundServiceStartNotAllowedException)) {
-        throw new RuntimeException(e);
-      }
-    }
-    return true;
-  }
+	@Override
+	public boolean onCreate() {
+		final Application application = ((Application) getContext());
+		if (PACKAGE_ANDROIDIDE.equals(application.getPackageName())) {
+			// do not send logs to self
+			return true;
+		}
 
+		try {
+			final Intent intent = new Intent(application, LogSenderService.class);
+			intent.setAction(LogSenderService.ACTION_START_SERVICE);
 
-  @Override
-  public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
-      String sortOrder
-  ) {
-    return null;
-  }
+			if (VERSION.SDK_INT >= VERSION_CODES.O) {
+				application.startForegroundService(intent);
+			} else {
+				application.startService(intent);
+			}
+		} catch (Exception e) {
 
+			// starting a background service is not allowed on Android 12+
+			// ignore the BackgroundServiceStartNotAllowedException in such cases
+			if (VERSION.SDK_INT < VERSION_CODES.S
+					|| !(e instanceof BackgroundServiceStartNotAllowedException)) {
+				throw new RuntimeException(e);
+			}
+		}
+		return true;
+	}
 
-  @Override
-  public String getType(Uri uri) {
-    return null;
-  }
+	@Override
+	public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
+			String sortOrder) {
+		return null;
+	}
 
-
-  @Override
-  public Uri insert(Uri uri, ContentValues values) {
-    return null;
-  }
-
-  @Override
-  public int delete(Uri uri, String selection, String[] selectionArgs
-  ) {
-    return 0;
-  }
-
-  @Override
-  public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs
-  ) {
-    return 0;
-  }
+	@Override
+	public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+		return 0;
+	}
 }

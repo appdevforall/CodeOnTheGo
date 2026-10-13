@@ -13,9 +13,8 @@ import kotlin.io.path.walk
 
 internal abstract class AbstractSourceModule(
 	project: Project,
-	directRegularDependencies: List<KtModule>
+	directRegularDependencies: List<KtModule>,
 ) : AbstractKtModule(project, directRegularDependencies) {
-
 	override fun computeFiles(extended: Boolean): Sequence<VirtualFile> =
 		contentRoots
 			.asSequence()

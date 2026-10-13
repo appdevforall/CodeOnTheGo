@@ -19,11 +19,14 @@ package org.appdevforall.codeonthego.lsp.models
 
 import org.appdevforall.codeonthego.lsp.models.MarkupKind.PLAIN
 
-data class MarkupContent(var value: String, var kind: MarkupKind) {
-  constructor() : this("", PLAIN)
+data class MarkupContent(
+	var value: String,
+	var kind: MarkupKind,
+) {
+	constructor() : this("", PLAIN)
 }
 
 enum class MarkupKind {
-  PLAIN,
-  MARKDOWN
+	PLAIN,
+	MARKDOWN,
 }

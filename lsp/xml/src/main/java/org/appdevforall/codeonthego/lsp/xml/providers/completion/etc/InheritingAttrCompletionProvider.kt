@@ -30,26 +30,28 @@ import org.eclipse.lemminx.dom.DOMNode
  * @author Akash Yadav
  */
 class InheritingAttrCompletionProvider(
-  private val parentProvider: (String) -> List<String> = { emptyList() },
-  private val tagTransform: ITagTransformer,
-  provider: ICompletionProvider
+	private val parentProvider: (String) -> List<String> = { emptyList() },
+	private val tagTransform: ITagTransformer,
+	provider: ICompletionProvider,
 ) : AttrCompletionProvider(provider) {
+	override fun findNodeStyleables(
+		node: DOMNode,
+		styleables: ResourceGroup,
+	): Set<Styleable> {
+		val nodeStyleables = mutableSetOf<Styleable>()
+		val name = node.nodeName
+		val entryName = tagTransform.transform(name, nodeAtCursor.parentNode?.nodeName ?: "")
+		val styleable = findStyleableEntry(styleables, entryName)
+		styleable?.let { nodeStyleables.add(it) }
 
-  override fun findNodeStyleables(node: DOMNode, styleables: ResourceGroup): Set<Styleable> {
-    val nodeStyleables = mutableSetOf<Styleable>()
-    val name = node.nodeName
-    val entryName = tagTransform.transform(name, nodeAtCursor.parentNode?.nodeName ?: "")
-    val styleable = findStyleableEntry(styleables, entryName)
-    styleable?.let { nodeStyleables.add(it) }
-
-    val parents = parentProvider(entryName)
-    if (parents.isNotEmpty()) {
-      parents.forEach {
-        findStyleableEntry(styleables, it)?.let { parentStyleable ->
-          nodeStyleables.add(parentStyleable)
-        }
-      }
-    }
-    return nodeStyleables
-  }
+		val parents = parentProvider(entryName)
+		if (parents.isNotEmpty()) {
+			parents.forEach {
+				findStyleableEntry(styleables, it)?.let { parentStyleable ->
+					nodeStyleables.add(parentStyleable)
+				}
+			}
+		}
+		return nodeStyleables
+	}
 }

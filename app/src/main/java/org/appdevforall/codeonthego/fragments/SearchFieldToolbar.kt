@@ -11,6 +11,13 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import androidx.core.graphics.drawable.toDrawable
+import com.itsaky.androidide.common.R
+import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionsRegistry
@@ -23,15 +30,8 @@ import org.appdevforall.codeonthego.actions.editor.PasteAction
 import org.appdevforall.codeonthego.actions.editor.SelectAllAction
 import org.appdevforall.codeonthego.actions.file.ShowTooltipAction
 import org.appdevforall.codeonthego.actions.internal.DefaultActionsRegistry
-import com.itsaky.androidide.common.R
-import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import org.appdevforall.codeonthego.utils.dpToPx
 import org.appdevforall.codeonthego.utils.resolveAttr
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 
 class SearchFieldToolbar(
 	private val anchor: EditText,

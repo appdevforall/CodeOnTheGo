@@ -24,18 +24,17 @@ package org.appdevforall.codeonthego.tooling.impl.sync;
  */
 public class ModelBuilderException extends RuntimeException {
 
-  public ModelBuilderException() {
-  }
+	public ModelBuilderException() {}
 
-  public ModelBuilderException(String message) {
-    super(message);
-  }
+	public ModelBuilderException(String message) {
+		super(message);
+	}
 
-  public ModelBuilderException(String message, Throwable cause) {
-    super(message, cause);
-  }
+	public ModelBuilderException(String message, Throwable cause) {
+		super(message, cause);
+	}
 
-  public ModelBuilderException(Throwable cause) {
-    super(cause);
-  }
+	public ModelBuilderException(Throwable cause) {
+		super(cause);
+	}
 }

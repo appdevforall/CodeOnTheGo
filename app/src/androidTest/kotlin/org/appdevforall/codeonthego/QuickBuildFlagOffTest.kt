@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.appdevforall.codeonthego.activities.SplashActivity
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
@@ -12,7 +13,6 @@ import org.appdevforall.codeonthego.helper.waitForMainHomeOrEditorUi
 import org.appdevforall.codeonthego.screens.QuickBuildScreen.assertQuickBuildButtonAbsent
 import org.appdevforall.codeonthego.screens.QuickBuildScreen.assertQuickBuildButtonShown
 import org.appdevforall.codeonthego.utils.EditorActivityActions
-import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Test
 import org.junit.runner.RunWith
 

@@ -31,113 +31,115 @@ import org.slf4j.LoggerFactory;
  */
 public class Cache<K, V> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(Cache.class);
-  // Cannot access FileManager from this module
-  private static Object FileManager_INSTANCE;
-  private static Method FileManager_getLastModified;
-  private final Map<Key<K>, Value> map = new HashMap<>();
+	private static final Logger LOG = LoggerFactory.getLogger(Cache.class);
+	// Cannot access FileManager from this module
+	private static Object FileManager_INSTANCE;
+	private static Method FileManager_getLastModified;
 
-  public boolean has(Path file, K k) {
-    return !needs(file, k);
-  }
+	private static Instant getLastModified(Path file) {
+		initProjectManagerInstance();
 
-  public boolean needs(Path file, K k) {
-    // If key is not in map, it needs to be loaded
-    Key<K> key = new Key<>(file, k);
-    if (!map.containsKey(key)) {
-      return true;
-    }
+		try {
+			return (Instant) FileManager_getLastModified.invoke(FileManager_INSTANCE, file);
+		} catch (Throwable err) {
+			LOG.error("Cannot get last modified from ProjectManager", err);
+			return Instant.now();
+		}
+	}
 
-    // If key was loaded before file was last modified, it needs to be reloaded
-    Value value = map.get(key);
-    if (value == null) {
-      return true;
-    }
+	private static void initProjectManagerInstance() {
+		if (FileManager_INSTANCE == null) {
+			try {
+				final var klass = Class.forName("org.appdevforall.codeonthego.projects.FileManager");
+				final var field = klass.getDeclaredField("INSTANCE");
+				if (!field.isAccessible()) {
+					field.setAccessible(true);
+				}
 
-    Instant modified = getLastModified(file);
-    // TODO remove all keys associated with file when file changes
-    return value.created.isBefore(modified);
-  }
+				FileManager_INSTANCE = field.get(null);
 
-  private static Instant getLastModified(Path file) {
-    initProjectManagerInstance();
+				FileManager_getLastModified = klass.getDeclaredMethod("getLastModified", Path.class);
+				if (!FileManager_getLastModified.isAccessible()) {
+					FileManager_getLastModified.setAccessible(true);
+				}
+			} catch (Throwable err) {
+				LOG.error("Cannot reflect ProjectManager INSTANCE", err);
+				throw new RuntimeException(err);
+			}
+		}
+	}
 
-    try {
-      return (Instant) FileManager_getLastModified.invoke(FileManager_INSTANCE, file);
-    } catch (Throwable err) {
-      LOG.error("Cannot get last modified from ProjectManager", err);
-      return Instant.now();
-    }
-  }
+	private final Map<Key<K>, Value> map = new HashMap<>();
 
-  private static void initProjectManagerInstance() {
-    if (FileManager_INSTANCE == null) {
-      try {
-        final var klass = Class.forName("org.appdevforall.codeonthego.projects.FileManager");
-        final var field = klass.getDeclaredField("INSTANCE");
-        if (!field.isAccessible()) {
-          field.setAccessible(true);
-        }
+	public V get(Path file, K k) {
+		final Key<K> key = new Key<>(file, k);
+		final var val = map.get(key);
+		if (val == null) {
+			throw new IllegalArgumentException(k + " is not in map " + map);
+		}
 
-        FileManager_INSTANCE = field.get(null);
+		return val.value;
+	}
 
-        FileManager_getLastModified = klass.getDeclaredMethod("getLastModified", Path.class);
-        if (!FileManager_getLastModified.isAccessible()) {
-          FileManager_getLastModified.setAccessible(true);
-        }
-      } catch (Throwable err) {
-        LOG.error("Cannot reflect ProjectManager INSTANCE", err);
-        throw new RuntimeException(err);
-      }
-    }
-  }
+	public boolean has(Path file, K k) {
+		return !needs(file, k);
+	}
 
-  public void load(Path file, K k, V v) {
-    // TODO limit total size of cache
-    Key<K> key = new Key<>(file, k);
-    Value value = new Value(v);
-    map.put(key, value);
-  }
+	public void load(Path file, K k, V v) {
+		// TODO limit total size of cache
+		Key<K> key = new Key<>(file, k);
+		Value value = new Value(v);
+		map.put(key, value);
+	}
 
-  public V get(Path file, K k) {
-    final Key<K> key = new Key<>(file, k);
-    final var val = map.get(key);
-    if (val == null) {
-      throw new IllegalArgumentException(k + " is not in map " + map);
-    }
+	public boolean needs(Path file, K k) {
+		// If key is not in map, it needs to be loaded
+		Key<K> key = new Key<>(file, k);
+		if (!map.containsKey(key)) {
+			return true;
+		}
 
-    return val.value;
-  }
+		// If key was loaded before file was last modified, it needs to be reloaded
+		Value value = map.get(key);
+		if (value == null) {
+			return true;
+		}
 
-  private static class Key<K> {
-    final Path file;
-    final K key;
+		Instant modified = getLastModified(file);
+		// TODO remove all keys associated with file when file changes
+		return value.created.isBefore(modified);
+	}
 
-    Key(Path file, K key) {
-      this.file = file;
-      this.key = key;
-    }
+	private static class Key<K> {
+		final Path file;
+		final K key;
 
-    @Override
-    public int hashCode() {
-      return Objects.hash(file, key);
-    }
+		Key(Path file, K key) {
+			this.file = file;
+			this.key = key;
+		}
 
-    @SuppressWarnings("rawtypes")
-    @Override
-    public boolean equals(Object other) {
-      if (other.getClass() != Cache.Key.class) return false;
-      Key that = (Cache.Key) other;
-      return Objects.equals(this.key, that.key) && Objects.equals(this.file, that.file);
-    }
-  }
+		@SuppressWarnings("rawtypes")
+		@Override
+		public boolean equals(Object other) {
+			if (other.getClass() != Cache.Key.class)
+				return false;
+			Key that = (Cache.Key) other;
+			return Objects.equals(this.key, that.key) && Objects.equals(this.file, that.file);
+		}
 
-  private class Value {
-    final V value;
-    final Instant created = Instant.now();
+		@Override
+		public int hashCode() {
+			return Objects.hash(file, key);
+		}
+	}
 
-    Value(V value) {
-      this.value = value;
-    }
-  }
+	private class Value {
+		final V value;
+		final Instant created = Instant.now();
+
+		Value(V value) {
+			this.value = value;
+		}
+	}
 }

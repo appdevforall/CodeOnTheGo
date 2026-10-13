@@ -6,19 +6,7 @@ import android.provider.DocumentsContract
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.plugins.PluginInfo
-import org.appdevforall.codeonthego.repositories.PluginRepository
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.ui.models.PluginInstallSource
-import org.appdevforall.codeonthego.ui.models.PluginManagerUiEffect
-import org.appdevforall.codeonthego.ui.models.PluginManagerUiEvent
-import org.appdevforall.codeonthego.ui.models.PluginManagerUiState
-import org.appdevforall.codeonthego.ui.models.PluginOperation
-import org.appdevforall.codeonthego.utils.EditorDecorationBridge
-import org.appdevforall.codeonthego.utils.InstallTempFiles
-import org.appdevforall.codeonthego.utils.LastValueGate
-import org.appdevforall.codeonthego.utils.UriFileImporter
-import org.appdevforall.codeonthego.utils.getFileName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +20,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.appdevforall.codeonthego.plugins.PluginInfo
+import org.appdevforall.codeonthego.repositories.PluginRepository
+import org.appdevforall.codeonthego.ui.models.PluginInstallSource
+import org.appdevforall.codeonthego.ui.models.PluginManagerUiEffect
+import org.appdevforall.codeonthego.ui.models.PluginManagerUiEvent
+import org.appdevforall.codeonthego.ui.models.PluginManagerUiState
+import org.appdevforall.codeonthego.ui.models.PluginOperation
+import org.appdevforall.codeonthego.utils.EditorDecorationBridge
+import org.appdevforall.codeonthego.utils.InstallTempFiles
+import org.appdevforall.codeonthego.utils.LastValueGate
+import org.appdevforall.codeonthego.utils.UriFileImporter
+import org.appdevforall.codeonthego.utils.getFileName
 import java.io.File
 
 /**

@@ -18,14 +18,17 @@
 package org.appdevforall.codeonthego.lsp.util
 
 import androidx.annotation.UiThread
-import org.appdevforall.codeonthego.lsp.models.TextEdit
 import io.github.rosemoe.sora.widget.CodeEditor
+import org.appdevforall.codeonthego.lsp.models.TextEdit
 
 /** @author Akash Yadav */
 object RewriteHelper {
 	@UiThread
 	@JvmStatic
-	fun performEdits(edits: List<TextEdit>, editor: CodeEditor) {
+	fun performEdits(
+		edits: List<TextEdit>,
+		editor: CodeEditor,
+	) {
 		if (edits.isEmpty()) {
 			return
 		}

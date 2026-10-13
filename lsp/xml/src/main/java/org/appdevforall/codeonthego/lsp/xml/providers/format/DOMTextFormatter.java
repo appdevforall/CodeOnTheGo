@@ -28,8 +28,8 @@
  *******************************************************************************/
 package org.appdevforall.codeonthego.lsp.xml.providers.format;
 
-import org.appdevforall.codeonthego.lsp.models.TextEdit;
 import java.util.List;
+import org.appdevforall.codeonthego.lsp.models.TextEdit;
 import org.eclipse.lemminx.dom.DOMText;
 
 /**
@@ -39,96 +39,96 @@ import org.eclipse.lemminx.dom.DOMText;
  */
 public class DOMTextFormatter {
 
-  private final XMLFormatterDocumentNew formatterDocument;
+	private static boolean isLineSeparator(char c) {
+		return c == '\r' || c == '\n';
+	}
 
-  public DOMTextFormatter(XMLFormatterDocumentNew formatterDocument) {
-    this.formatterDocument = formatterDocument;
-  }
+	private final XMLFormatterDocumentNew formatterDocument;
 
-  public void formatText(
-      DOMText textNode, XMLFormattingConstraints parentConstraints, List<TextEdit> edits) {
-    // Don't format the spacing in text for case of preserve empty content setting
-    if (isPreserveEmptyContent()) {
-      return;
-    }
-    FormatElementCategory formatElementCategory = parentConstraints.getFormatElementCategory();
-    String text = formatterDocument.getText();
-    int availableLineWidth = parentConstraints.getAvailableLineWidth();
+	public DOMTextFormatter(XMLFormatterDocumentNew formatterDocument) {
+		this.formatterDocument = formatterDocument;
+	}
 
-    int spaceStart = -1;
-    int spaceEnd = -1;
-    boolean containsNewLine = false;
+	public void formatText(
+			DOMText textNode, XMLFormattingConstraints parentConstraints, List<TextEdit> edits) {
+		// Don't format the spacing in text for case of preserve empty content setting
+		if (isPreserveEmptyContent()) {
+			return;
+		}
+		FormatElementCategory formatElementCategory = parentConstraints.getFormatElementCategory();
+		String text = formatterDocument.getText();
+		int availableLineWidth = parentConstraints.getAvailableLineWidth();
 
-    for (int i = textNode.getStart(); i < textNode.getEnd(); i++) {
-      char c = text.charAt(i);
-      if (Character.isWhitespace(c)) {
-        // Whitespaces...
-        if (isLineSeparator(c)) {
-          containsNewLine = true;
-        }
-        if (spaceStart == -1) {
-          spaceStart = i;
-        } else {
-          spaceEnd = i;
-        }
-      } else {
-        // Text content...
-        int contentStart = i;
-        while (i < textNode.getEnd() + 1 && !Character.isWhitespace(text.charAt(i + 1))) {
-          i++;
-        }
+		int spaceStart = -1;
+		int spaceEnd = -1;
+		boolean containsNewLine = false;
 
-        int contentEnd = i;
-        availableLineWidth -= (contentEnd - contentStart);
+		for (int i = textNode.getStart(); i < textNode.getEnd(); i++) {
+			char c = text.charAt(i);
+			if (Character.isWhitespace(c)) {
+				// Whitespaces...
+				if (isLineSeparator(c)) {
+					containsNewLine = true;
+				}
+				if (spaceStart == -1) {
+					spaceStart = i;
+				} else {
+					spaceEnd = i;
+				}
+			} else {
+				// Text content...
+				int contentStart = i;
+				while (i < textNode.getEnd() + 1 && !Character.isWhitespace(text.charAt(i + 1))) {
+					i++;
+				}
 
-        if (formatElementCategory != FormatElementCategory.PreserveSpace
-            && formatElementCategory != FormatElementCategory.IgnoreSpace) {
-          if (availableLineWidth <= 0) {
-            if (spaceStart != -1) {
-              insertLineBreak(spaceStart, contentStart, edits);
-              availableLineWidth = getMaxLineWidth();
-            }
-          } else if (isJoinContentLines()
-              || (spaceStart == textNode.getStart() || !containsNewLine)) {
-            // Case of isJoinContent == true: join all text content with single space
-            // Case of isJoinContent == false: normalize space only between element start
-            // tag and start of text content or doesn't contain a new line
-            replaceSpacesWithOneSpace(spaceStart, spaceEnd, edits);
-            containsNewLine = false;
-          }
-        }
+				int contentEnd = i;
+				availableLineWidth -= (contentEnd - contentStart);
 
-        spaceStart = -1;
-        spaceEnd = -1;
-      }
-    }
-    if (formatElementCategory != FormatElementCategory.PreserveSpace
-        && formatElementCategory != FormatElementCategory.IgnoreSpace) {
-      replaceSpacesWithOneSpace(spaceStart, spaceEnd, edits);
-    }
-  }
+				if (formatElementCategory != FormatElementCategory.PreserveSpace
+						&& formatElementCategory != FormatElementCategory.IgnoreSpace) {
+					if (availableLineWidth <= 0) {
+						if (spaceStart != -1) {
+							insertLineBreak(spaceStart, contentStart, edits);
+							availableLineWidth = getMaxLineWidth();
+						}
+					} else if (isJoinContentLines()
+							|| (spaceStart == textNode.getStart() || !containsNewLine)) {
+						// Case of isJoinContent == true: join all text content with single space
+						// Case of isJoinContent == false: normalize space only between element start
+						// tag and start of text content or doesn't contain a new line
+						replaceSpacesWithOneSpace(spaceStart, spaceEnd, edits);
+						containsNewLine = false;
+					}
+				}
 
-  private static boolean isLineSeparator(char c) {
-    return c == '\r' || c == '\n';
-  }
+				spaceStart = -1;
+				spaceEnd = -1;
+			}
+		}
+		if (formatElementCategory != FormatElementCategory.PreserveSpace
+				&& formatElementCategory != FormatElementCategory.IgnoreSpace) {
+			replaceSpacesWithOneSpace(spaceStart, spaceEnd, edits);
+		}
+	}
 
-  private int getMaxLineWidth() {
-    return formatterDocument.getMaxLineWidth();
-  }
+	private int getMaxLineWidth() {
+		return formatterDocument.getMaxLineWidth();
+	}
 
-  private void insertLineBreak(int start, int end, List<TextEdit> edits) {
-    formatterDocument.insertLineBreak(start, end, edits);
-  }
+	private void insertLineBreak(int start, int end, List<TextEdit> edits) {
+		formatterDocument.insertLineBreak(start, end, edits);
+	}
 
-  private boolean isPreserveEmptyContent() {
-    return formatterDocument.getSharedSettings().getFormattingOptions().isPreserveEmptyContent();
-  }
+	private boolean isJoinContentLines() {
+		return formatterDocument.getSharedSettings().getFormattingOptions().isJoinContentLines();
+	}
 
-  private void replaceSpacesWithOneSpace(int spaceStart, int spaceEnd, List<TextEdit> edits) {
-    formatterDocument.replaceSpacesWithOneSpace(spaceStart, spaceEnd, edits);
-  }
+	private boolean isPreserveEmptyContent() {
+		return formatterDocument.getSharedSettings().getFormattingOptions().isPreserveEmptyContent();
+	}
 
-  private boolean isJoinContentLines() {
-    return formatterDocument.getSharedSettings().getFormattingOptions().isJoinContentLines();
-  }
+	private void replaceSpacesWithOneSpace(int spaceStart, int spaceEnd, List<TextEdit> edits) {
+		formatterDocument.replaceSpacesWithOneSpace(spaceStart, spaceEnd, edits);
+	}
 }

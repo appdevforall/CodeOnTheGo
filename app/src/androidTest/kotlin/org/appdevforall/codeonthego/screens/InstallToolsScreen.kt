@@ -5,9 +5,8 @@ import com.kaspersky.kaspresso.screens.KScreen
 import io.github.kakaocup.kakao.text.KButton
 
 object InstallToolsScreen : KScreen<InstallToolsScreen>() {
+	override val layoutId: Int? = null
+	override val viewClass: Class<*>? = null
 
-    override val layoutId: Int? = null
-    override val viewClass: Class<*>? = null
-
-    val doneButton = KButton { withId(R.id.done) }
+	val doneButton = KButton { withId(R.id.done) }
 }

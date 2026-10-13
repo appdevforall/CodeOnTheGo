@@ -18,12 +18,12 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.TextSwitcher
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [TextSwitcher].
@@ -33,13 +33,12 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(TextSwitcher::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class TextSwitcherAdapter<T : TextSwitcher> : ViewSwitcherAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        TextSwitcher::class.java,
-        string.widget_textswitcher,
-        drawable.ic_widget_textswitcher
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				TextSwitcher::class.java,
+				string.widget_textswitcher,
+				drawable.ic_widget_textswitcher,
+			),
+		)
 }

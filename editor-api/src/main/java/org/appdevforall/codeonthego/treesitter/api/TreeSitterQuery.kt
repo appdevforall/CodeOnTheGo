@@ -24,30 +24,30 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
 /**
  * @author Akash Yadav
  */
-class TreeSitterQuery @JvmOverloads internal constructor(
-  pointer: Long = 0
-) : TSQuery(pointer), RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+class TreeSitterQuery
+	@JvmOverloads
+	internal constructor(
+		pointer: Long = 0,
+	) : TSQuery(pointer),
+		RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+		companion object {
+			@JvmStatic
+			fun obtain(pointer: Long): TreeSitterQuery =
+				obtainFromPool<TreeSitterQuery>().apply {
+					this.nativeObject = pointer
+				}
+		}
 
-  companion object {
+		override fun close() {
+			super.close()
+			recycle()
+		}
 
-    @JvmStatic
-    fun obtain(pointer: Long): TreeSitterQuery {
-      return obtainFromPool<TreeSitterQuery>().apply {
-        this.nativeObject = pointer
-      }
-    }
-  }
-
-  override fun close() {
-    super.close()
-    recycle()
-  }
-
-  override fun recycle() {
-    this.nativeObject = 0
-    this.captureNames = null
-    this.errorOffset = 0
-    this.errorType = 0
-    returnToPool()
-  }
-}
+		override fun recycle() {
+			this.nativeObject = 0
+			this.captureNames = null
+			this.errorOffset = 0
+			this.errorType = 0
+			returnToPool()
+		}
+	}

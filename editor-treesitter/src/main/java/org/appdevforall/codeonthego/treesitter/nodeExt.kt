@@ -24,6 +24,6 @@ package com.itsaky.androidide.treesitter
  * @param colBytes The 0-based column number in bytes.
  */
 fun TSNode.getNodeAt(line: Int, colBytes: Int): TSNode? {
-  return getDescendantForPointRange(TSPoint.create(line, colBytes),
-    TSPoint.create(line, colBytes + 1))
+return getDescendantForPointRange(TSPoint.create(line, colBytes),
+	TSPoint.create(line, colBytes + 1))
 }

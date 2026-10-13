@@ -18,6 +18,8 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.GridLayout
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
@@ -25,8 +27,6 @@ import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.IViewGroup
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [GridLayout].
@@ -36,52 +36,58 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(GridLayout::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class GridLayoutAdapter<T : GridLayout> : ViewGroupAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("alignmentMode") { view.alignmentMode = parseAlignmentMode(value) }
+		create("columnCount") {
+			view.columnCount = parseInteger(value, Int.MIN_VALUE)
+		}
+		create("columnOrderPreserved") {
+			view.isColumnOrderPreserved = parseBoolean(value)
+		}
+		create("orientation") { view.orientation = parseOrientation(value) }
+		create("rowCount") { view.rowCount = parseInteger(value, Int.MIN_VALUE) }
+		create("rowOrderPreserved") {
+			view.isRowOrderPreserved = parseBoolean(value)
+		}
+		create("useDefaultMargins") { view.useDefaultMargins = parseBoolean(value) }
+	}
 
-  override fun createAttrHandlers(
-    create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit
-  ) {
-    super.createAttrHandlers(create)
-    create("alignmentMode") { view.alignmentMode = parseAlignmentMode(value) }
-    create("columnCount") {
-      view.columnCount = parseInteger(value, Int.MIN_VALUE)
-    }
-    create("columnOrderPreserved") {
-      view.isColumnOrderPreserved = parseBoolean(value)
-    }
-    create("orientation") { view.orientation = parseOrientation(value) }
-    create("rowCount") { view.rowCount = parseInteger(value, Int.MIN_VALUE) }
-    create("rowOrderPreserved") {
-      view.isRowOrderPreserved = parseBoolean(value)
-    }
-    create("useDefaultMargins") { view.useDefaultMargins = parseBoolean(value) }
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				GridLayout::class.java,
+				string.widget_grid_layout,
+				drawable.ic_widget_grid_layout,
+			),
+		)
 
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(UiWidget(GridLayout::class.java, string.widget_grid_layout,
-      drawable.ic_widget_grid_layout))
-  }
+	override fun canAcceptChild(
+		view: IViewGroup,
+		child: IView?,
+		name: String,
+	): Boolean {
+		(view.view as GridLayout).run {
+			if (childCount >= rowCount * columnCount) {
+				// the maximum number of child views has been reached
+				// no more views can be added
+				return false
+			}
+		}
+		return super.canAcceptChild(view, child, name)
+	}
 
-  override fun canAcceptChild(view: IViewGroup, child: IView?, name: String
-  ): Boolean {
-    (view.view as GridLayout).run {
-      if (childCount >= rowCount * columnCount) {
-        // the maximum number of child views has been reached
-        // no more views can be added
-        return false
-      }
-    }
-    return super.canAcceptChild(view, child, name)
-  }
+	protected open fun parseOrientation(value: String): Int =
+		if ("vertical" == value) {
+			GridLayout.VERTICAL
+		} else {
+			GridLayout.HORIZONTAL
+		}
 
-  protected open fun parseOrientation(value: String): Int {
-    return if ("vertical" == value) {
-      GridLayout.VERTICAL
-    } else GridLayout.HORIZONTAL
-  }
-
-  protected open fun parseAlignmentMode(value: String): Int {
-    return if ("alignBounds" == value) {
-      GridLayout.ALIGN_BOUNDS
-    } else GridLayout.ALIGN_MARGINS
-  }
+	protected open fun parseAlignmentMode(value: String): Int =
+		if ("alignBounds" == value) {
+			GridLayout.ALIGN_BOUNDS
+		} else {
+			GridLayout.ALIGN_MARGINS
+		}
 }

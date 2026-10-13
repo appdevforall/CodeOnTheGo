@@ -24,13 +24,13 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import org.appdevforall.codeonthego.inflater.utils.newAttribute
-import org.appdevforall.codeonthego.inflater.viewAdapter
 import com.itsaky.androidide.uidesigner.R
 import com.itsaky.androidide.uidesigner.R.string
-import org.appdevforall.codeonthego.uidesigner.adapters.AddAttrListAdapter
 import com.itsaky.androidide.uidesigner.databinding.LayoutAddAttrBinding
 import com.itsaky.androidide.uidesigner.databinding.LayoutViewInfoHeaderBinding
+import org.appdevforall.codeonthego.inflater.utils.newAttribute
+import org.appdevforall.codeonthego.inflater.viewAdapter
+import org.appdevforall.codeonthego.uidesigner.adapters.AddAttrListAdapter
 import org.appdevforall.codeonthego.uidesigner.models.UiAttribute
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 
@@ -41,58 +41,58 @@ import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
  * @author Akash Yadav
  */
 class AddAttrFragment : Fragment() {
+	private val viewModel by viewModels<WorkspaceViewModel>(ownerProducer = { requireActivity() })
+	private var header: LayoutViewInfoHeaderBinding? = null
+	private var binding: LayoutAddAttrBinding? = null
+		set(value) {
+			if (value == null) {
+				field = null
+				header = null
+				return
+			}
 
-  private val viewModel by viewModels<WorkspaceViewModel>(ownerProducer = { requireActivity() })
-  private var header: LayoutViewInfoHeaderBinding? = null
-  private var binding: LayoutAddAttrBinding? = null
-    set(value) {
-      if (value == null) {
-        field = null
-        header = null
-        return
-      }
+			field = value
+			header = LayoutViewInfoHeaderBinding.bind(value.root)
+		}
 
-      field = value
-      header = LayoutViewInfoHeaderBinding.bind(value.root)
-    }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View = LayoutAddAttrBinding.inflate(inflater, container, false).also { this.binding = it }.root
 
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    return LayoutAddAttrBinding.inflate(inflater, container, false).also { this.binding = it }.root
-  }
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
+		header?.apply {
+			name.setText(string.msg_viewaction_add_attr)
+			desc.setText(string.msg_select_attr)
+		}
 
-    header?.apply {
-      name.setText(string.msg_viewaction_add_attr)
-      desc.setText(string.msg_select_attr)
-    }
+		showAttrs()
+	}
 
-    showAttrs()
-  }
+	override fun onDestroyView() {
+		super.onDestroyView()
+		this.binding = null
+	}
 
-  override fun onDestroyView() {
-    super.onDestroyView()
-    this.binding = null
-  }
-
-  private fun showAttrs() {
-    val binding = this.binding ?: return
-    val view = viewModel.view ?: return
-    val adapter = view.viewAdapter ?: return
-    val attributes =
-      adapter.supportedAttributes.filterNot { view.hasAttribute(it.name, it.namespace?.uri) }
-    binding.attrList.adapter =
-      AddAttrListAdapter(attributes) {
-        val attribute =
-          newAttribute(view = viewModel.view, namespace = it.namespace, name = it.name, value = "")
-        viewModel.selectedAttr = attribute as UiAttribute
-        viewModel.addAttrMode = true
-        findNavController().navigate(R.id.attrValueEditorFragment)
-      }
-  }
+	private fun showAttrs() {
+		val binding = this.binding ?: return
+		val view = viewModel.view ?: return
+		val adapter = view.viewAdapter ?: return
+		val attributes =
+			adapter.supportedAttributes.filterNot { view.hasAttribute(it.name, it.namespace?.uri) }
+		binding.attrList.adapter =
+			AddAttrListAdapter(attributes) {
+				val attribute =
+					newAttribute(view = viewModel.view, namespace = it.namespace, name = it.name, value = "")
+				viewModel.selectedAttr = attribute as UiAttribute
+				viewModel.addAttrMode = true
+				findNavController().navigate(R.id.attrValueEditorFragment)
+			}
+	}
 }

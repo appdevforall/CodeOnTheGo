@@ -22,36 +22,35 @@ package org.appdevforall.codeonthego.app.configuration
  *
  * @author Akash Yadav
  */
-enum class CpuArch(val abi: String) {
+enum class CpuArch(
+	val abi: String,
+) {
+	/**
+	 * `arm64-v8a` (64-bit).
+	 */
+	AARCH64("arm64-v8a"),
 
-  /**
-   * `arm64-v8a` (64-bit).
-   */
-  AARCH64("arm64-v8a"),
+	/**
+	 * `armeabi-v7a` flavor (32-bit).
+	 */
+	ARM("armeabi-v7a"),
 
-  /**
-   * `armeabi-v7a` flavor (32-bit).
-   */
-  ARM("armeabi-v7a"),
+	/**
+	 * `x86` (32-bit).
+	 */
+	X86("x86"),
 
-  /**
-   * `x86` (32-bit).
-   */
-  X86("x86"),
+	/**
+	 * `x86_64` (64-bit).
+	 */
+	X86_64("x86_64"),
+	;
 
-  /**
-   * `x86_64` (64-bit).
-   */
-  X86_64("x86_64");
-
-  companion object {
-
-    /**
-     * Get the [CpuArch] for the given ABI.
-     */
-    @JvmStatic
-    fun forAbi(abi: String): CpuArch? {
-      return entries.firstOrNull { it.abi == abi }
-    }
-  }
+	companion object {
+		/**
+		 * Get the [CpuArch] for the given ABI.
+		 */
+		@JvmStatic
+		fun forAbi(abi: String): CpuArch? = entries.firstOrNull { it.abi == abi }
+	}
 }

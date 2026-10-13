@@ -19,12 +19,12 @@ package org.appdevforall.codeonthego.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile

@@ -44,8 +44,11 @@ class ThermalSafeStrategy(
 					},
 				kotlin =
 					when (val k = kotlin) {
-						is KotlinCompilerExecution.InProcess -> k
-						is KotlinCompilerExecution.Daemon ->
+						is KotlinCompilerExecution.InProcess -> {
+							k
+						}
+
+						is KotlinCompilerExecution.Daemon -> {
 							k.run {
 								copy(
 									jvm =
@@ -58,6 +61,7 @@ class ThermalSafeStrategy(
 										},
 								)
 							}
+						}
 					},
 				aapt2 = aapt2.copy(threadPoolSize = newMaxWorkers),
 			)

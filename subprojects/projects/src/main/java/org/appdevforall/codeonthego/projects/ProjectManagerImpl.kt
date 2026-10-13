@@ -17,12 +17,19 @@
 
 package org.appdevforall.codeonthego.projects
 
-
-import com.itsaky.androidide.projects.R
 import androidx.annotation.RestrictTo
 import androidx.annotation.VisibleForTesting
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
+import com.itsaky.androidide.projects.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.eventbus.events.EventReceiver
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentSaveEvent
@@ -31,6 +38,7 @@ import org.appdevforall.codeonthego.eventbus.events.file.FileDeletionEvent
 import org.appdevforall.codeonthego.eventbus.events.file.FileEvent
 import org.appdevforall.codeonthego.eventbus.events.file.FileRenameEvent
 import org.appdevforall.codeonthego.eventbus.events.project.ProjectInitializedEvent
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.memprof.Memprof
 import org.appdevforall.codeonthego.project.AndroidModels
@@ -50,15 +58,6 @@ import org.appdevforall.codeonthego.utils.DocumentUtils
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.withStopWatch
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.withContext
-import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode

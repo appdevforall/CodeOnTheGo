@@ -25,10 +25,10 @@ import android.os.IBinder;
 import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
-import org.appdevforall.codeonthego.logsender.utils.LogReader;
-import org.appdevforall.codeonthego.logsender.utils.Logger;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.appdevforall.codeonthego.logsender.utils.LogReader;
+import org.appdevforall.codeonthego.logsender.utils.Logger;
 
 /**
  * Entry point for LogSender.

@@ -19,13 +19,13 @@ package org.appdevforall.codeonthego.activities.editor
 
 import android.os.Looper
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.app.BaseApplication
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.app.BaseApplication
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric

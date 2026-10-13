@@ -26,23 +26,22 @@ import com.android.builder.model.v2.models.ProjectSyncIssues
  * @author Akash Yadav
  */
 fun interface ISyncIssueReporter {
+	/**
+	 * Report all sync issues from the given [ProjectSyncIssues].
+	 */
+	fun reportAll(issues: ProjectSyncIssues) {
+		reportAll(issues.syncIssues)
+	}
 
-  /**
-   * Report all sync issues from the given [ProjectSyncIssues].
-   */
-  fun reportAll(issues: ProjectSyncIssues) {
-    reportAll(issues.syncIssues)
-  }
+	/**
+	 * Report all the given [sync issues][issues].
+	 */
+	fun reportAll(issues: Collection<SyncIssue>) {
+		issues.forEach(this::report)
+	}
 
-  /**
-   * Report all the given [sync issues][issues].
-   */
-  fun reportAll(issues: Collection<SyncIssue>) {
-    issues.forEach(this::report)
-  }
-
-  /**
-   * Report the give [sync issue][issue].
-   */
-  fun report(issue: SyncIssue)
+	/**
+	 * Report the give [sync issue][issue].
+	 */
+	fun report(issue: SyncIssue)
 }

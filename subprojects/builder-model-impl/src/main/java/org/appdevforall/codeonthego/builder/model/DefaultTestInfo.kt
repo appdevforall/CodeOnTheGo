@@ -23,10 +23,12 @@ import java.io.File
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultTestInfo : TestInfo, Serializable {
-  private val serialVersionUID = 1L
-  override var additionalRuntimeApks: Collection<File> = emptyList()
-  override var animationsDisabled: Boolean = false
-  override var execution: Execution? = null
-  override var instrumentedTestTaskName: String = ""
+class DefaultTestInfo :
+	TestInfo,
+	Serializable {
+	private val serialVersionUID = 1L
+	override var additionalRuntimeApks: Collection<File> = emptyList()
+	override var animationsDisabled: Boolean = false
+	override var execution: Execution? = null
+	override var instrumentedTestTaskName: String = ""
 }

@@ -13,42 +13,39 @@ import org.appdevforall.codeonthego.plugins.services.IdeUIService
  * for plugins that need to show dialogs or perform UI operations.
  */
 class IdeUIServiceImpl(
-    private val activityProvider: PluginManager.ActivityProvider?
+	private val activityProvider: PluginManager.ActivityProvider?,
 ) : IdeUIService {
+	override fun getCurrentActivity(): Activity? =
+		try {
+			activityProvider?.getCurrentActivity()
+		} catch (e: Exception) {
+			null
+		}
 
-    override fun getCurrentActivity(): Activity? {
-        return try {
-            activityProvider?.getCurrentActivity()
-        } catch (e: Exception) {
-            null
-        }
-    }
+	override fun isUIAvailable(): Boolean = getCurrentActivity() != null
 
-    override fun isUIAvailable(): Boolean {
-        return getCurrentActivity() != null
-    }
+	override fun openPluginScreen(
+		pluginId: String,
+		fragmentClassName: String,
+		title: String?,
+	): Boolean {
+		val activity = getCurrentActivity() ?: return false
+		val intent =
+			Intent(IdeUIService.ACTION_OPEN_PLUGIN_SCREEN).apply {
+				setPackage(activity.packageName)
+				putExtra(IdeUIService.EXTRA_PLUGIN_ID, pluginId)
+				putExtra(IdeUIService.EXTRA_FRAGMENT_CLASS_NAME, fragmentClassName)
+				putExtra(IdeUIService.EXTRA_TITLE, title)
+			}
+		return runCatching {
+			activity.startActivity(intent)
+			true
+		}.getOrDefault(false)
+	}
 
-    override fun openPluginScreen(
-        pluginId: String,
-        fragmentClassName: String,
-        title: String?
-    ): Boolean {
-        val activity = getCurrentActivity() ?: return false
-        val intent = Intent(IdeUIService.ACTION_OPEN_PLUGIN_SCREEN).apply {
-            setPackage(activity.packageName)
-            putExtra(IdeUIService.EXTRA_PLUGIN_ID, pluginId)
-            putExtra(IdeUIService.EXTRA_FRAGMENT_CLASS_NAME, fragmentClassName)
-            putExtra(IdeUIService.EXTRA_TITLE, title)
-        }
-        return runCatching {
-            activity.startActivity(intent)
-            true
-        }.getOrDefault(false)
-    }
-
-    override fun refreshToolbarActions() {
-        // Only the editor screen hosts the plugin toolbar. When some other (or no)
-        // activity is foreground this is simply a no-op.
-        (getCurrentActivity() as? PluginToolbarHost)?.refreshPluginToolbarActions()
-    }
+	override fun refreshToolbarActions() {
+		// Only the editor screen hosts the plugin toolbar. When some other (or no)
+		// activity is foreground this is simply a no-op.
+		(getCurrentActivity() as? PluginToolbarHost)?.refreshPluginToolbarActions()
+	}
 }

@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.lsp.kotlin.navigation
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
 import org.appdevforall.codeonthego.lsp.kotlin.fixtures.TestSourceModuleSpec
 import org.appdevforall.codeonthego.lsp.models.ReferenceParams
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.progress.ICancelChecker
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import java.nio.file.Path
 

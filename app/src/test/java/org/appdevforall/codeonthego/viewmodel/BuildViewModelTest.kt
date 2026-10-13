@@ -18,6 +18,10 @@
 package org.appdevforall.codeonthego.viewmodel
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.appdevforall.codeonthego.activities.editor.QuickBuildClobberConfirmation
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.project.AndroidModels
@@ -25,10 +29,6 @@ import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
-import io.mockk.every
-import io.mockk.mockk
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Rule
 import org.junit.Test
 import java.util.concurrent.CompletableFuture

@@ -4,20 +4,20 @@ import com.google.gson.annotations.SerializedName
 import org.appdevforall.codeonthego.lsp.debug.RemoteClient
 
 enum class SuspendPolicy {
-    /**
-     * Do not suspend,
-     */
-    None,
+	/**
+	 * Do not suspend,
+	 */
+	None,
 
-    /**
-     * Suspend on the thread where the breakpoint is hit.
-     */
-    Thread,
+	/**
+	 * Suspend on the thread where the breakpoint is hit.
+	 */
+	Thread,
 
-    /**
-     * Suspend the whole program.
-     */
-    All
+	/**
+	 * Suspend the whole program.
+	 */
+	All,
 }
 
 /**
@@ -27,43 +27,42 @@ enum class SuspendPolicy {
  * @author Akash Yadav
  */
 data class BreakpointRequest(
-    override val remoteClient: RemoteClient,
-    val breakpoints: List<BreakpointDefinition>,
-): DapRequest
+	override val remoteClient: RemoteClient,
+	val breakpoints: List<BreakpointDefinition>,
+) : DapRequest
 
 /**
  * Defines the response to a request to set breakpoints.
  */
 interface BreakpointDefinition {
+	/**
+	 * The source file to set the breakpoint in.
+	 */
+	val source: Source
 
-    /**
-     * The source file to set the breakpoint in.
-     */
-    val source: Source
+	/**
+	 * The policy to use when suspending the program.
+	 */
+	val suspendPolicy: SuspendPolicy
+		get() = SuspendPolicy.All
 
-    /**
-     * The policy to use when suspending the program.
-     */
-    val suspendPolicy: SuspendPolicy
-        get() = SuspendPolicy.All
+	/**
+	 * The condition to evaluate for the breakpoint.
+	 */
+	val condition: String?
+		get() = null
 
-    /**
-     * The condition to evaluate for the breakpoint.
-     */
-    val condition: String?
-        get() = null
+	/**
+	 * The condition to evaluate when the breakpoint is hit.
+	 */
+	val hitCondition: String?
+		get() = null
 
-    /**
-     * The condition to evaluate when the breakpoint is hit.
-     */
-    val hitCondition: String?
-        get() = null
-
-    /**
-     * The message to log when the breakpoint is hit.
-     */
-    val logMessage: String?
-        get() = null
+	/**
+	 * The message to log when the breakpoint is hit.
+	 */
+	val logMessage: String?
+		get() = null
 }
 
 /**
@@ -76,24 +75,19 @@ interface BreakpointDefinition {
  * @property logMessage The message to log when the breakpoint is hit.
  */
 data class PositionalBreakpoint(
-    @SerializedName("source")
-    override val source: Source,
-
-    @SerializedName("line")
-    val line: Int,
-
-    @SerializedName("column")
-    val column: Int = 0,
-
-    @SerializedName("condition")
-    override val condition: String? = null,
-
-    @SerializedName("hitCondition")
-    override val hitCondition: String? = null,
-
-    @SerializedName("logMessage")
-    override val logMessage: String? = null,
-): BreakpointDefinition
+	@SerializedName("source")
+	override val source: Source,
+	@SerializedName("line")
+	val line: Int,
+	@SerializedName("column")
+	val column: Int = 0,
+	@SerializedName("condition")
+	override val condition: String? = null,
+	@SerializedName("hitCondition")
+	override val hitCondition: String? = null,
+	@SerializedName("logMessage")
+	override val logMessage: String? = null,
+) : BreakpointDefinition
 
 /**
  * Defines a method breakpoint in source code.
@@ -105,21 +99,16 @@ data class PositionalBreakpoint(
  * @property logMessage The message to log when the breakpoint is hit.
  */
 data class MethodBreakpoint(
-    @SerializedName("source")
-    override val source: Source,
-
-    @SerializedName("methodId")
-    val methodId: String,
-
-    @SerializedName("methodArgs")
-    val methodArgs: List<String>,
-
-    @SerializedName("condition")
-    override val condition: String? = null,
-
-    @SerializedName("hitCondition")
-    override val hitCondition: String? = null,
-
-    @SerializedName("logMessage")
-    override val logMessage: String? = null,
-): BreakpointDefinition
+	@SerializedName("source")
+	override val source: Source,
+	@SerializedName("methodId")
+	val methodId: String,
+	@SerializedName("methodArgs")
+	val methodArgs: List<String>,
+	@SerializedName("condition")
+	override val condition: String? = null,
+	@SerializedName("hitCondition")
+	override val hitCondition: String? = null,
+	@SerializedName("logMessage")
+	override val logMessage: String? = null,
+) : BreakpointDefinition

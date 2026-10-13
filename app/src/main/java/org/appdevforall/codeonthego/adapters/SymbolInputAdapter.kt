@@ -25,12 +25,12 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutSymbolItemBinding
+import io.github.rosemoe.sora.widget.SelectionMovement
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.models.Symbol
 import org.appdevforall.codeonthego.utils.resolveAttr
-import io.github.rosemoe.sora.widget.SelectionMovement
 import java.util.Objects
 
 class SymbolInputAdapter

@@ -8,19 +8,18 @@ import org.appdevforall.codeonthego.lsp.debug.RemoteClient
  * @author Akash Yadav
  */
 interface EventOrResponse {
-
-    /**
-     * The remote client that triggered this event.
-     */
-    val remoteClient: RemoteClient
+	/**
+	 * The remote client that triggered this event.
+	 */
+	val remoteClient: RemoteClient
 }
 
 /**
  * A debugger event.
  */
-interface DebugEvent: EventOrResponse
+interface DebugEvent : EventOrResponse
 
 /**
  * A response to a debugger event.
  */
-interface DebugEventResponse: EventOrResponse
+interface DebugEventResponse : EventOrResponse

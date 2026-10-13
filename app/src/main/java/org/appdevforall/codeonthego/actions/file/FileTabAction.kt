@@ -30,32 +30,31 @@ import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
  * @author Akash Yadav
  */
 abstract class FileTabAction : EditorActivityAction() {
+	override var location: Location = EDITOR_FILE_TABS
+	override var requiresUIThread: Boolean = true
 
-  override var location: Location = EDITOR_FILE_TABS
-  override var requiresUIThread: Boolean = true
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		if (!visible) {
+			return
+		}
 
-    if (!visible) {
-      return
-    }
+		val activity =
+			data.getActivity()
+				?: run {
+					markInvisible()
+					return
+				}
 
-    val activity =
-      data.getActivity()
-        ?: run {
-          markInvisible()
-          return
-        }
+		visible = activity.editorViewModel.getOpenedFiles().isNotEmpty()
+		enabled = visible
+	}
 
-    visible = activity.editorViewModel.getOpenedFiles().isNotEmpty()
-    enabled = visible
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		val activity = data.getActivity() ?: return false
+		return activity.doAction(data)
+	}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val activity = data.getActivity() ?: return false
-    return activity.doAction(data)
-  }
-
-  abstract fun EditorHandlerActivity.doAction(data: ActionData): Boolean
+	abstract fun EditorHandlerActivity.doAction(data: ActionData): Boolean
 }

@@ -30,35 +30,34 @@ import org.appdevforall.codeonthego.inflater.internal.ViewImpl
  * @author Akash Yadav
  */
 class WorkspaceLayoutInflationHandler : IInflateEventsListener {
+	private var fragment: DesignerWorkspaceFragment? = null
 
-  private var fragment: DesignerWorkspaceFragment? = null
+	internal fun init(fragment: DesignerWorkspaceFragment) {
+		this.fragment = fragment
+	}
 
-  internal fun init(fragment: DesignerWorkspaceFragment) {
-    this.fragment = fragment
-  }
+	internal fun release() {
+		this.fragment = null
+	}
 
-  internal fun release() {
-    this.fragment = null
-  }
-
-  override fun onEvent(event: IInflationEvent<*>) {
-    val frag = this.fragment ?: return
-    if (event is InflationStartEvent) {
-      frag.isInflating = true
-      frag.undoManager.disable()
-    }
-    if (event is InflationFinishEvent) {
-      frag.isInflating = false
-      frag.undoManager.enable()
-      frag.updateHierarchy()
-    }
-    if (event is OnInflateViewEvent) {
-      frag.setupView(event.data)
-    }
-    if (event is InflationFinishEvent && event.data.isNotEmpty()) {
-      val file = (event.data[0] as ViewImpl).file
-      frag.workspaceView.file = file
-      frag.placeholder.file = file
-    }
-  }
+	override fun onEvent(event: IInflationEvent<*>) {
+		val frag = this.fragment ?: return
+		if (event is InflationStartEvent) {
+			frag.isInflating = true
+			frag.undoManager.disable()
+		}
+		if (event is InflationFinishEvent) {
+			frag.isInflating = false
+			frag.undoManager.enable()
+			frag.updateHierarchy()
+		}
+		if (event is OnInflateViewEvent) {
+			frag.setupView(event.data)
+		}
+		if (event is InflationFinishEvent && event.data.isNotEmpty()) {
+			val file = (event.data[0] as ViewImpl).file
+			frag.workspaceView.file = file
+			frag.placeholder.file = file
+		}
+	}
 }

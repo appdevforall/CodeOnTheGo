@@ -24,5 +24,4 @@ import androidx.lifecycle.DefaultLifecycleObserver
  *
  * @author Akash Yadav
  */
-interface IDEActivityDelegate : DefaultLifecycleObserver {
-}
+interface IDEActivityDelegate : DefaultLifecycleObserver

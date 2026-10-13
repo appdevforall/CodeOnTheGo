@@ -18,12 +18,12 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.NumberPicker
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [NumberPicker].
@@ -33,13 +33,12 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(NumberPicker::class)
 @IncludeInDesigner(group = WIDGETS)
 open class NumberPickerAdapter<T : NumberPicker> : LinearLayoutAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        NumberPicker::class.java,
-        string.widget_number_picker,
-        drawable.ic_widget_number_picker
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				NumberPicker::class.java,
+				string.widget_number_picker,
+				drawable.ic_widget_number_picker,
+			),
+		)
 }

@@ -26,17 +26,18 @@ import org.appdevforall.codeonthego.editor.schemes.internal.parser.SchemeParser.
  *
  * @author Akash Yadav
  */
-class EditorSchemeParser(private val reader: JsonReader) {
-  
-  fun parse(scheme: IDEColorScheme) {
-    scheme.apply {
-      reader.beginObject()
-      while (reader.hasNext()) {
-        val color = EditorColors.forKey(reader.nextName())
-        val value = reader.nextString()
-        editorScheme[color.id] = parseColorValue(value, false)
-      }
-      reader.endObject()
-    }
-  }
+class EditorSchemeParser(
+	private val reader: JsonReader,
+) {
+	fun parse(scheme: IDEColorScheme) {
+		scheme.apply {
+			reader.beginObject()
+			while (reader.hasNext()) {
+				val color = EditorColors.forKey(reader.nextName())
+				val value = reader.nextString()
+				editorScheme[color.id] = parseColorValue(value, false)
+			}
+			reader.endObject()
+		}
+	}
 }

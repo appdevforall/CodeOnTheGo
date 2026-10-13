@@ -27,21 +27,21 @@ import android.view.View
  */
 interface Widget<T> {
 
-  fun release()
+fun release()
 }
 
 /**
  * Widget for the given [parameter].
  */
 sealed class ParameterWidget<T>(val parameter: Parameter<T>) : Widget<T> {
-  init {
-    if (this is View) {
-      this.setBackgroundColor(Color.WHITE)
-    }
-  }
-  override fun release() {
-    parameter.release()
-  }
+init {
+	if (this is View) {
+	this.setBackgroundColor(Color.WHITE)
+	}
+}
+override fun release() {
+	parameter.release()
+}
 }
 
 /**

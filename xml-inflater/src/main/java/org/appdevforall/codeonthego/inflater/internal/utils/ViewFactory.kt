@@ -28,51 +28,53 @@ import java.lang.reflect.Method
 
 /** @author Akash Yadav */
 object ViewFactory {
+	private val log = LoggerFactory.getLogger(ViewFactory::class.java)
 
-  private val log = LoggerFactory.getLogger(ViewFactory::class.java)
+	fun createViewInstance(
+		name: String,
+		context: Context,
+	): View {
+		val adapter = ViewAdapterIndexImpl.INSTANCE.getViewAdapter(name)
+		return try {
+			if (adapter != null) {
+				// Check if adapter can create the view instance
+				val view = adapter.onCreateView(name, context)
+				if (view != null) {
+					return view
+				}
+			}
 
-  fun createViewInstance(name: String, context: Context): View {
-    val adapter = ViewAdapterIndexImpl.INSTANCE.getViewAdapter(name)
-    return try {
-      if (adapter != null) {
-        // Check if adapter can create the view instance
-        val view = adapter.onCreateView(name, context)
-        if (view != null) {
-          return view
-        }
-      }
+			val klass = javaClass.classLoader!!.loadClass(name)
+			val constructor = klass.getConstructor(Context::class.java)
+			constructor.newInstance(context) as View
+		} catch (err: Throwable) {
+			log.error("Failed to create view instance for view: {}", name, err)
+			throw RuntimeException(err)
+		}
+	}
 
-      val klass = javaClass.classLoader!!.loadClass(name)
-      val constructor = klass.getConstructor(Context::class.java)
-      constructor.newInstance(context) as View
-    } catch (err: Throwable) {
-      log.error("Failed to create view instance for view: {}", name, err)
-      throw RuntimeException(err)
-    }
-  }
+	fun generateLayoutParams(parent: ViewGroup): LayoutParams {
+		return try {
+			var clazz: Class<in ViewGroup> = parent.javaClass
+			var method: Method?
+			while (true) {
+				try {
+					method = clazz.getDeclaredMethod("generateDefaultLayoutParams")
+					break
+				} catch (e: Throwable) {
+					// ignored
+				}
 
-  fun generateLayoutParams(parent: ViewGroup): LayoutParams {
-    return try {
-      var clazz: Class<in ViewGroup> = parent.javaClass
-      var method: Method?
-      while (true) {
-        try {
-          method = clazz.getDeclaredMethod("generateDefaultLayoutParams")
-          break
-        } catch (e: Throwable) {
-          /* ignored */
-        }
-
-        clazz = clazz.superclass
-      }
-      if (method != null) {
-        method.isAccessible = true
-        return method.invoke(parent) as LayoutParams
-      }
-      log.error("Unable to create default params for view parent: {}", parent)
-      LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
-    } catch (th: Throwable) {
-      throw InflateException("Unable to create layout params for parent: $parent", th)
-    }
-  }
+				clazz = clazz.superclass
+			}
+			if (method != null) {
+				method.isAccessible = true
+				return method.invoke(parent) as LayoutParams
+			}
+			log.error("Unable to create default params for view parent: {}", parent)
+			LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+		} catch (th: Throwable) {
+			throw InflateException("Unable to create layout params for parent: $parent", th)
+		}
+	}
 }

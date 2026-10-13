@@ -2,13 +2,7 @@ package org.appdevforall.codeonthego.assets
 
 import android.content.Context
 import androidx.annotation.WorkerThread
-import org.appdevforall.codeonthego.app.configuration.CpuArch
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.utils.Environment
-import org.appdevforall.codeonthego.utils.TerminalInstaller
-import org.appdevforall.codeonthego.utils.retryOnceOnNoSuchFile
-import org.appdevforall.codeonthego.utils.throwIfNotSuccess
-import org.appdevforall.codeonthego.utils.withTempZipChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
@@ -18,6 +12,12 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.adfa.constants.PLUGIN_MAVEN_REPO_ZIP_NAME
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.appdevforall.codeonthego.app.configuration.CpuArch
+import org.appdevforall.codeonthego.utils.Environment
+import org.appdevforall.codeonthego.utils.TerminalInstaller
+import org.appdevforall.codeonthego.utils.retryOnceOnNoSuchFile
+import org.appdevforall.codeonthego.utils.throwIfNotSuccess
+import org.appdevforall.codeonthego.utils.withTempZipChannel
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException

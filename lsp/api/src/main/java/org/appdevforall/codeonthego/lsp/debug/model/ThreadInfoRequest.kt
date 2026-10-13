@@ -6,22 +6,21 @@ import org.appdevforall.codeonthego.lsp.debug.RemoteClient
  * Result in a [ThreadInfoResponse].
  */
 sealed interface ThreadInfoResult {
+	/**
+	 * The thread information was found.
+	 */
+	data class Success(
+		val threadInfo: ThreadInfo,
+	) : ThreadInfoResult
 
-    /**
-     * The thread information was found.
-     */
-    data class Success(
-        val threadInfo: ThreadInfo,
-    ): ThreadInfoResult
-
-    /**
-     * The thread information was not found.
-     */
-    data class Failure(
-        val cause: Throwable?
-    ): ThreadInfoResult {
-        constructor(message: String? = null) : this(IllegalStateException(message))
-    }
+	/**
+	 * The thread information was not found.
+	 */
+	data class Failure(
+		val cause: Throwable?,
+	) : ThreadInfoResult {
+		constructor(message: String? = null) : this(IllegalStateException(message))
+	}
 }
 
 /**
@@ -31,9 +30,9 @@ sealed interface ThreadInfoResult {
  * @author Akash Yadav
  */
 data class ThreadInfoRequestParams(
-    val threadId: String,
-    override val remoteClient: RemoteClient,
-): DapRequest
+	val threadId: String,
+	override val remoteClient: RemoteClient,
+) : DapRequest
 
 /**
  * Response to a [ThreadInfo] request.
@@ -42,15 +41,15 @@ data class ThreadInfoRequestParams(
  * @author Akash Yadav
  */
 data class ThreadInfoResponse(
-    val result: ThreadInfoResult?,
-): DapResponse
+	val result: ThreadInfoResult?,
+) : DapResponse
 
 /**
  * Request the adapter to list all the threads of the given VM.
  */
 data class ThreadListRequestParams(
-    override val remoteClient: RemoteClient
-): DapRequest
+	override val remoteClient: RemoteClient,
+) : DapRequest
 
 /**
  * Response to a [ThreadListRequestParams].
@@ -58,6 +57,5 @@ data class ThreadListRequestParams(
  * @param threads All known threads of the VM.
  */
 data class ThreadListResponse(
-    val threads: List<ThreadInfo>
-): DapResponse
-
+	val threads: List<ThreadInfo>,
+) : DapResponse

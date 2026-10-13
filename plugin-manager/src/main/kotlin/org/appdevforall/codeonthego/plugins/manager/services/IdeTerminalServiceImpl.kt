@@ -1,10 +1,5 @@
 package org.appdevforall.codeonthego.plugins.manager.services
 
-import org.appdevforall.codeonthego.plugins.PluginPermission
-import org.appdevforall.codeonthego.plugins.services.IdeTerminalService
-import org.appdevforall.codeonthego.plugins.services.TerminalCommandResult
-import org.appdevforall.codeonthego.utils.Environment
-import org.appdevforall.codeonthego.utils.TermuxProcessEnvironment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +9,11 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.plugins.PluginPermission
+import org.appdevforall.codeonthego.plugins.services.IdeTerminalService
+import org.appdevforall.codeonthego.plugins.services.TerminalCommandResult
+import org.appdevforall.codeonthego.utils.Environment
+import org.appdevforall.codeonthego.utils.TermuxProcessEnvironment
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap

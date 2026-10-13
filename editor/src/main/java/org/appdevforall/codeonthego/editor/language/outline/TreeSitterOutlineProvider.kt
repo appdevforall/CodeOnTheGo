@@ -1,13 +1,6 @@
 package org.appdevforall.codeonthego.editor.language.outline
 
 import android.content.Context
-import org.appdevforall.codeonthego.editor.language.treesitter.predicates.AnyOfPredicate
-import org.appdevforall.codeonthego.editor.language.treesitter.predicates.EqualPredicate
-import org.appdevforall.codeonthego.editor.language.treesitter.predicates.MatchPredicate
-import org.appdevforall.codeonthego.editor.language.treesitter.predicates.NotEqualPredicate
-import org.appdevforall.codeonthego.editor.language.treesitter.predicates.NotMatchPredicate
-import org.appdevforall.codeonthego.models.Position
-import org.appdevforall.codeonthego.models.Range
 import com.itsaky.androidide.treesitter.TSLanguage
 import com.itsaky.androidide.treesitter.TSNode
 import com.itsaky.androidide.treesitter.TSParser
@@ -25,6 +18,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.editor.language.treesitter.predicates.AnyOfPredicate
+import org.appdevforall.codeonthego.editor.language.treesitter.predicates.EqualPredicate
+import org.appdevforall.codeonthego.editor.language.treesitter.predicates.MatchPredicate
+import org.appdevforall.codeonthego.editor.language.treesitter.predicates.NotEqualPredicate
+import org.appdevforall.codeonthego.editor.language.treesitter.predicates.NotMatchPredicate
+import org.appdevforall.codeonthego.models.Position
+import org.appdevforall.codeonthego.models.Range
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
 

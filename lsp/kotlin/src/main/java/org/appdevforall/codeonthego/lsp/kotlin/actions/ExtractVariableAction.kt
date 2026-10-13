@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.lsp.kotlin.actions
 
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.get
 import org.appdevforall.codeonthego.actions.requireContext
@@ -24,7 +25,6 @@ import org.appdevforall.codeonthego.lsp.ui.ExtractVariableSelection
 import org.appdevforall.codeonthego.lsp.ui.ExtractVariableSheet
 import org.appdevforall.codeonthego.lsp.ui.findFragmentActivity
 import org.appdevforall.codeonthego.projects.FileManager
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.tasks.createJobCancelChecker
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashInfo

@@ -23,18 +23,18 @@ package org.appdevforall.codeonthego.utils;
 @SuppressWarnings("unused")
 public class LogTagUtils {
 
-  public static String trimTagIfNeeded(String tag, int maxLength) {
-    final var sb = new StringBuilder(tag);
-    final var length = tag.length();
-    if (length > maxLength) {
-      final var start = length - maxLength;
-      sb.delete(0, start);
+	public static String trimTagIfNeeded(String tag, int maxLength) {
+		final var sb = new StringBuilder(tag);
+		final var length = tag.length();
+		if (length > maxLength) {
+			final var start = length - maxLength;
+			sb.delete(0, start);
 
-      // When the tag is long enough, prefix the tag with '..'
-      sb.setCharAt(0, '.');
-      sb.setCharAt(1, '.');
-    }
+			// When the tag is long enough, prefix the tag with '..'
+			sb.setCharAt(0, '.');
+			sb.setCharAt(1, '.');
+		}
 
-    return sb.toString();
-  }
+		return sb.toString();
+	}
 }

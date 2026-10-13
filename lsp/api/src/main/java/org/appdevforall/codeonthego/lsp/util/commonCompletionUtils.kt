@@ -28,44 +28,44 @@ import java.io.File
 import java.nio.file.Path
 
 fun setupLookupForCompletion(file: File) {
-  setupLookupForCompletion(file.toPath())
+setupLookupForCompletion(file.toPath())
 }
 
 fun setupLookupForCompletion(file: Path) {
-  val module = IProjectManager.getInstance().findModuleForFile(file, false) ?: return
-  val lookup = Lookup.getDefault()
+val module = IProjectManager.getInstance().findModuleForFile(file, false) ?: return
+val lookup = Lookup.getDefault()
 
-  lookup.update(ModuleProject.COMPLETION_MODULE_KEY, module)
+lookup.update(ModuleProject.COMPLETION_MODULE_KEY, module)
 
-  if (module is AndroidModule) {
-    val versions = module.getApiVersions()
-    if (versions != null) {
-      lookup.update(ApiVersions.COMPLETION_LOOKUP_KEY, versions)
-    }
+if (module is AndroidModule) {
+	val versions = module.getApiVersions()
+	if (versions != null) {
+	lookup.update(ApiVersions.COMPLETION_LOOKUP_KEY, versions)
+	}
 
-    val widgets = module.getWidgetTable()
-    if (widgets != null) {
-      lookup.update(WidgetTable.COMPLETION_LOOKUP_KEY, widgets)
-    }
+	val widgets = module.getWidgetTable()
+	if (widgets != null) {
+	lookup.update(WidgetTable.COMPLETION_LOOKUP_KEY, widgets)
+	}
 
-    val frameworkResources = module.getFrameworkResourceTable()
-    if (frameworkResources != null) {
-      lookup.update(ResourceTableRegistry.COMPLETION_FRAMEWORK_RES, frameworkResources)
-    }
+	val frameworkResources = module.getFrameworkResourceTable()
+	if (frameworkResources != null) {
+	lookup.update(ResourceTableRegistry.COMPLETION_FRAMEWORK_RES, frameworkResources)
+	}
 
-    val moduleResources = module.getSourceResourceTables()
-    if (moduleResources.isNotEmpty()) {
-      lookup.update(ResourceTableRegistry.COMPLETION_MODULE_RES, moduleResources)
-    }
+	val moduleResources = module.getSourceResourceTables()
+	if (moduleResources.isNotEmpty()) {
+	lookup.update(ResourceTableRegistry.COMPLETION_MODULE_RES, moduleResources)
+	}
 
-    val depResTables = module.getDependencyResourceTables()
-    if (depResTables.isNotEmpty()) {
-      lookup.update(ResourceTableRegistry.COMPLETION_DEP_RES, depResTables)
-    }
+	val depResTables = module.getDependencyResourceTables()
+	if (depResTables.isNotEmpty()) {
+	lookup.update(ResourceTableRegistry.COMPLETION_DEP_RES, depResTables)
+	}
 
-    val manifestAttrTable = module.getManifestAttrTable()
-    if (manifestAttrTable != null) {
-      lookup.update(ResourceTableRegistry.COMPLETION_MANIFEST_ATTR_RES, manifestAttrTable)
-    }
-  }
+	val manifestAttrTable = module.getManifestAttrTable()
+	if (manifestAttrTable != null) {
+	lookup.update(ResourceTableRegistry.COMPLETION_MANIFEST_ATTR_RES, manifestAttrTable)
+	}
+}
 }

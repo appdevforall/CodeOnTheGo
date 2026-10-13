@@ -22,39 +22,39 @@ import java.util.Objects;
 
 public final class SheetOption {
 
-  public String id;
-  public Drawable icon;
-  public String title;
-  public Object extra;
+	public String id;
+	public Drawable icon;
+	public String title;
+	public Object extra;
 
-  public SheetOption(String id, Drawable icon, String title, Object extra) {
-    this.id = id;
-    this.icon = icon;
-    this.title = title;
-    this.extra = extra;
-  }
+	public SheetOption(String id, Drawable icon, String title, Object extra) {
+		this.id = id;
+		this.icon = icon;
+		this.title = title;
+		this.extra = extra;
+	}
 
-  public SheetOption setExtra(Object extra) {
-    this.extra = extra;
-    return this;
-  }
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (!(o instanceof SheetOption)) {
+			return false;
+		}
+		SheetOption that = (SheetOption) o;
+		return Objects.equals(id, that.id) && Objects.equals(icon, that.icon)
+				&& Objects.equals(title, that.title) && Objects.equals(extra, that.extra);
+	}
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (!(o instanceof SheetOption)) {
-      return false;
-    }
-    SheetOption that = (SheetOption) o;
-    return Objects.equals(id, that.id) && Objects.equals(icon, that.icon)
-      && Objects.equals(title, that.title) && Objects.equals(extra, that.extra);
-  }
+	@Override
+	public int hashCode() {
+		return Objects.hash(id, icon, title, extra);
+	}
 
-  @Override
-  public int hashCode() {
-    return Objects.hash(id, icon, title, extra);
-  }
+	public SheetOption setExtra(Object extra) {
+		this.extra = extra;
+		return this;
+	}
 
 }

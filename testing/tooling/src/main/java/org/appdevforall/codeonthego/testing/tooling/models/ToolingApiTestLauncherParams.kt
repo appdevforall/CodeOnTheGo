@@ -32,14 +32,15 @@ import kotlin.io.path.pathString
  * @author Akash Yadav
  */
 data class ToolingApiTestLauncherParams(
-  val projectDir: Path = FileProvider.testProjectRoot(),
-  val client: ToolingApiTestLauncher.MultiVersionTestClient = ToolingApiTestLauncher.MultiVersionTestClient(),
-  val initParams: InitializeProjectParams = InitializeProjectParams(
-    projectDir.pathString,
-    client.gradleDistParams,
-    buildId = BuildId.Unknown,
-  ),
-  val log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
-  val sysProps: Map<String, String> = emptyMap(),
-  val sysEnvs: Map<String, String> = emptyMap()
+	val projectDir: Path = FileProvider.testProjectRoot(),
+	val client: ToolingApiTestLauncher.MultiVersionTestClient = ToolingApiTestLauncher.MultiVersionTestClient(),
+	val initParams: InitializeProjectParams =
+		InitializeProjectParams(
+			projectDir.pathString,
+			client.gradleDistParams,
+			buildId = BuildId.Unknown,
+		),
+	val log: Logger = LoggerFactory.getLogger("BuildOutputLogger"),
+	val sysProps: Map<String, String> = emptyMap(),
+	val sysEnvs: Map<String, String> = emptyMap(),
 )

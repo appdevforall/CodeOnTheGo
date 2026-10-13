@@ -25,7 +25,10 @@ import java.io.Serializable
  *
  * @author Akash Yadav
  */
-class JavaSourceDirectory(val directory: File, val isGenerated: Boolean) : Serializable {
-  private val gsonType: String = javaClass.name
-  private val serialVersionUID = 1L
+class JavaSourceDirectory(
+	val directory: File,
+	val isGenerated: Boolean,
+) : Serializable {
+	private val gsonType: String = javaClass.name
+	private val serialVersionUID = 1L
 }

@@ -23,7 +23,7 @@ val XML_SNIPPET_SCOPES =
 	listOf(
 		DefaultXmlSnippetScope(XmlResourceType.LAYOUT, XmlScope.TAG),
 		DefaultXmlSnippetScope(XmlResourceType.LAYOUT, XmlScope.INSIDE),
-		DefaultXmlSnippetScope(XmlResourceType.MANIFEST, XmlScope.INSIDE)
+		DefaultXmlSnippetScope(XmlResourceType.MANIFEST, XmlScope.INSIDE),
 	)
 
 abstract class IXmlSnippetScope : ISnippetScope {
@@ -34,15 +34,17 @@ abstract class IXmlSnippetScope : ISnippetScope {
 		get() = "${type.name.lowercase()}-${scope.name.lowercase()}"
 }
 
-class DefaultXmlSnippetScope(override val type: XmlResourceType, override val scope: XmlScope) :
-	IXmlSnippetScope()
+class DefaultXmlSnippetScope(
+	override val type: XmlResourceType,
+	override val scope: XmlScope,
+) : IXmlSnippetScope()
 
 enum class XmlResourceType {
 	LAYOUT,
-	MANIFEST
+	MANIFEST,
 }
 
 enum class XmlScope {
 	TAG,
-	INSIDE
+	INSIDE,
 }

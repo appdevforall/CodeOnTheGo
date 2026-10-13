@@ -2,15 +2,15 @@ package org.appdevforall.codeonthego.editor.language.treesitter
 
 import android.content.Context
 import android.content.res.AssetManager
+import com.itsaky.androidide.treesitter.TSLanguage
+import com.itsaky.androidide.treesitter.TSLanguageCache
+import io.github.rosemoe.sora.util.MyCharacter
 import org.appdevforall.codeonthego.editor.language.newline.TSBracketsHandler
 import org.appdevforall.codeonthego.editor.language.newline.TSCStyleBracketsHandler
 import org.appdevforall.codeonthego.editor.schemes.LanguageSpecProvider
 import org.appdevforall.codeonthego.editor.schemes.LocalCaptureSpecProvider.newLocalCaptureSpec
 import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import org.appdevforall.codeonthego.lsp.api.ILanguageServerRegistry
-import com.itsaky.androidide.treesitter.TSLanguage
-import com.itsaky.androidide.treesitter.TSLanguageCache
-import io.github.rosemoe.sora.util.MyCharacter
 import java.io.File
 import java.util.IdentityHashMap
 

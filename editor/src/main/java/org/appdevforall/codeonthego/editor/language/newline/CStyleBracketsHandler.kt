@@ -23,12 +23,11 @@ package org.appdevforall.codeonthego.editor.language.newline
  * @author Akash Yadav
  */
 abstract class CStyleBracketsHandler : BaseNewlineHandler() {
-  
-  init {
-    openingBrackets.add("{")
-    closingBrackets.add("}")
-    
-    openingBrackets.add("(")
-    closingBrackets.add(")")
-  }
+	init {
+		openingBrackets.add("{")
+		closingBrackets.add("}")
+
+		openingBrackets.add("(")
+		closingBrackets.add(")")
+	}
 }

@@ -24,14 +24,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.MockitoAnnotations
 import org.mockito.junit.MockitoJUnitRunner
+
 class EditorHandlerActivityTest {
+	@Before
+	fun setUp() {
+		MockitoAnnotations.initMocks(MockitoJUnitRunner::class.java)
+	}
 
-  @Before
-  fun setUp(){
-    MockitoAnnotations.initMocks(MockitoJUnitRunner::class.java)
-  }
-
-  @Test
-  fun saveAll() {
-  }
+	@Test
+	fun saveAll() {
+	}
 }

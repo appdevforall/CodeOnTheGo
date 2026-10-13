@@ -39,57 +39,57 @@ import androidx.core.content.getSystemService
  * @author Akash Yadav
  */
 data class ConnectionInfo(
-  val isConnected: Boolean,
-  val isCellularTransport: Boolean,
-  val isMeteredConnection: Boolean,
-  val isBackgroundDataRestricted: Boolean
+val isConnected: Boolean,
+val isCellularTransport: Boolean,
+val isMeteredConnection: Boolean,
+val isBackgroundDataRestricted: Boolean
 ) {
 
-  companion object {
+companion object {
 
-    @JvmStatic
-    val UNKNOWN = ConnectionInfo(
-      isConnected = false,
-      isCellularTransport = false,
-      isMeteredConnection = false,
-      isBackgroundDataRestricted = false
-    )
-  }
+	@JvmStatic
+	val UNKNOWN = ConnectionInfo(
+	isConnected = false,
+	isCellularTransport = false,
+	isMeteredConnection = false,
+	isBackgroundDataRestricted = false
+	)
+}
 }
 
 @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
 @JvmOverloads
 fun getConnectionInfo(context: Context, networkCapabilities: NetworkCapabilities? = null): ConnectionInfo {
 /* JMT removed for offline demo 24sept24
-  val connectivityManager = context.getSystemService<ConnectivityManager>()
-    ?: return ConnectionInfo.UNKNOWN
-  val activeNetCapabilities = networkCapabilities ?: connectivityManager.activeNetwork?.let(
-    connectivityManager::getNetworkCapabilities) ?: return ConnectionInfo.UNKNOWN
+val connectivityManager = context.getSystemService<ConnectivityManager>()
+	?: return ConnectionInfo.UNKNOWN
+val activeNetCapabilities = networkCapabilities ?: connectivityManager.activeNetwork?.let(
+	connectivityManager::getNetworkCapabilities) ?: return ConnectionInfo.UNKNOWN
 
-  val isConnected = activeNetCapabilities.hasCapability(
-    NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-  val isCellularTransport = activeNetCapabilities.hasTransport(
-    NetworkCapabilities.TRANSPORT_CELLULAR)
-  val isMeteredConnection = connectivityManager.isActiveNetworkMetered
+val isConnected = activeNetCapabilities.hasCapability(
+	NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+val isCellularTransport = activeNetCapabilities.hasTransport(
+	NetworkCapabilities.TRANSPORT_CELLULAR)
+val isMeteredConnection = connectivityManager.isActiveNetworkMetered
 
-  // RESTRICT_BACKGROUND_STATUS_DISABLED -> background data usage is not restricted
-  // RESTRICT_BACKGROUND_STATUS_WHITELISTED -> background data usage might be restricted, but the application is whitelisted
-  val isBackgroundDataRestricted = !connectivityManager.restrictBackgroundStatus.let {
-    it == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_DISABLED
-        || it == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_WHITELISTED
-  }
+// RESTRICT_BACKGROUND_STATUS_DISABLED -> background data usage is not restricted
+// RESTRICT_BACKGROUND_STATUS_WHITELISTED -> background data usage might be restricted, but the application is whitelisted
+val isBackgroundDataRestricted = !connectivityManager.restrictBackgroundStatus.let {
+	it == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_DISABLED
+		|| it == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_WHITELISTED
+}
 
-  return ConnectionInfo(
-    isConnected = isConnected,
-    isCellularTransport = isCellularTransport,
-    isMeteredConnection = isMeteredConnection,
-    isBackgroundDataRestricted = isBackgroundDataRestricted
-  )
+return ConnectionInfo(
+	isConnected = isConnected,
+	isCellularTransport = isCellularTransport,
+	isMeteredConnection = isMeteredConnection,
+	isBackgroundDataRestricted = isBackgroundDataRestricted
+)
 */
-  return ConnectionInfo(
-    isConnected = true,
-    isCellularTransport = false,
-    isMeteredConnection = false,
-    isBackgroundDataRestricted = false
-  )
+return ConnectionInfo(
+	isConnected = true,
+	isCellularTransport = false,
+	isMeteredConnection = false,
+	isBackgroundDataRestricted = false
+)
 }

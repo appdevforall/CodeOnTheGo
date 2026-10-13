@@ -17,15 +17,15 @@
 
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
+import openjdk.source.tree.ClassTree
+import openjdk.source.tree.CompilationUnitTree
+import openjdk.source.util.TreePath
 import org.appdevforall.codeonthego.lsp.api.IServerSettings
 import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
 import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
 import org.appdevforall.codeonthego.lsp.java.providers.CompletionProvider
 import org.appdevforall.codeonthego.lsp.models.CompletionResult
 import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
-import openjdk.source.tree.ClassTree
-import openjdk.source.tree.CompilationUnitTree
-import openjdk.source.util.TreePath
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Objects

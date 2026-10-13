@@ -22,12 +22,11 @@ package org.appdevforall.codeonthego.preferences.internal
  */
 @Suppress("MemberVisibilityCanBePrivate")
 object JavaPreferences {
+	const val GOOGLE_CODE_STYLE = "idepref_editor_java_googleCodeStyle"
 
-  const val GOOGLE_CODE_STYLE = "idepref_editor_java_googleCodeStyle"
-
-  var googleCodeStyle: Boolean
-    get() = prefManager.getBoolean(GOOGLE_CODE_STYLE, false)
-    set(value) {
-      prefManager.putBoolean(GOOGLE_CODE_STYLE, value)
-    }
+	var googleCodeStyle: Boolean
+		get() = prefManager.getBoolean(GOOGLE_CODE_STYLE, false)
+		set(value) {
+			prefManager.putBoolean(GOOGLE_CODE_STYLE, value)
+		}
 }

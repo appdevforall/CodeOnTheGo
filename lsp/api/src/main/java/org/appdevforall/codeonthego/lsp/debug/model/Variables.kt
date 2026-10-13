@@ -4,149 +4,148 @@ package org.appdevforall.codeonthego.lsp.debug.model
  * The kind of [Variable].
  */
 enum class VariableKind {
+	/**
+	 * A primitive variable.
+	 */
+	PRIMITIVE,
 
-    /**
-     * A primitive variable.
-     */
-    PRIMITIVE,
+	/**
+	 * An array-like variable with fixed size, known element types and indices.
+	 */
+	ARRAYLIKE,
 
-    /**
-     * An array-like variable with fixed size, known element types and indices.
-     */
-    ARRAYLIKE,
+	/**
+	 * A reference variable.
+	 */
+	REFERENCE,
 
-    /**
-     * A reference variable.
-     */
-    REFERENCE,
-
-    /**
-     * An unknown variable.
-     */
-    UNKNOWN
+	/**
+	 * An unknown variable.
+	 */
+	UNKNOWN,
 }
 
 /**
  * The kind of [PrimitiveValue].
  */
 enum class PrimitiveKind {
-    BOOLEAN,
-    BYTE,
-    CHAR,
-    SHORT,
-    INT,
-    LONG,
-    FLOAT,
-    DOUBLE
+	BOOLEAN,
+	BYTE,
+	CHAR,
+	SHORT,
+	INT,
+	LONG,
+	FLOAT,
+	DOUBLE,
 }
 
 /**
  * A value assigned to a [Variable].
  */
 interface Value {
+	/**
+	 * The value of the variable.
+	 */
+	val value: Any?
 
-    /**
-     * The value of the variable.
-     */
-    val value: Any?
+	companion object {
+		val UNDEFINED =
+			object : Value {
+				override val value = null
 
-    companion object {
+				override fun toString(): String = "null"
 
-        val UNDEFINED = object : Value {
-            override val value = null
-            override fun toString(): String = "null"
-            override fun equals(other: Any?): Boolean = other is Value && other.value == null
-            override fun hashCode(): Int = 0
-        }
-    }
+				override fun equals(other: Any?): Boolean = other is Value && other.value == null
+
+				override fun hashCode(): Int = 0
+			}
+	}
 }
 
 /**
  * A primitive value.
  */
-interface PrimitiveValue: Value {
+interface PrimitiveValue : Value {
+	/**
+	 * The [kind][PrimitiveKind] of the variable.
+	 */
+	val kind: PrimitiveKind
 
-    /**
-     * The [kind][PrimitiveKind] of the variable.
-     */
-    val kind: PrimitiveKind
+	/**
+	 * The value of the variable as a [Byte].
+	 */
+	fun asByte(): Byte
 
-    /**
-     * The value of the variable as a [Byte].
-     */
-    fun asByte(): Byte
+	/**
+	 * The value of the variable as a [Short].
+	 */
+	fun asShort(): Short
 
-    /**
-     * The value of the variable as a [Short].
-     */
-    fun asShort(): Short
+	/**
+	 * The value of the variable as a [Int].
+	 */
+	fun asInt(): Int
 
-    /**
-     * The value of the variable as a [Int].
-     */
-    fun asInt(): Int
+	/**
+	 * The value of the variable as a [Long].
+	 */
+	fun asLong(): Long
 
-    /**
-     * The value of the variable as a [Long].
-     */
-    fun asLong(): Long
+	/**
+	 * The value of the variable as a [Float].
+	 */
+	fun asFloat(): Float
 
-    /**
-     * The value of the variable as a [Float].
-     */
-    fun asFloat(): Float
+	/**
+	 * The value of the variable as a [Double].
+	 */
+	fun asDouble(): Double
 
-    /**
-     * The value of the variable as a [Double].
-     */
-    fun asDouble(): Double
+	/**
+	 * The value of the variable as a [Boolean].
+	 */
+	fun asBoolean(): Boolean
 
-    /**
-     * The value of the variable as a [Boolean].
-     */
-    fun asBoolean(): Boolean
+	/**
+	 * The value of the variable as a [Char].
+	 */
+	fun asChar(): Char
 
-    /**
-     * The value of the variable as a [Char].
-     */
-    fun asChar(): Char
-
-    /**
-     * The value of the variable as a [String].
-     */
-    fun asString(): String
+	/**
+	 * The value of the variable as a [String].
+	 */
+	fun asString(): String
 }
 
 /**
  * A reference value.
  */
 interface ReferenceValue : Value {
-    /**
-     * Returns a string representation of the object.
-     */
-    override fun toString(): String
+	/**
+	 * Returns a string representation of the object.
+	 */
+	override fun toString(): String
 }
-
 
 /**
  * An array-like value with fixed size, known element types and indices.
  */
 interface ArrayLikeValue : Value {
-    /**
-     * The size of the array-like value.
-     */
-    val size: ULong
+	/**
+	 * The size of the array-like value.
+	 */
+	val size: ULong
 
-    /**
-     * Whether the array-like value is empty.
-     */
-    val isEmpty: Boolean
-        get() = size == 0UL
+	/**
+	 * Whether the array-like value is empty.
+	 */
+	val isEmpty: Boolean
+		get() = size == 0UL
 
-    /**
-     * Get the value of the element at the given [index].
-     */
-    suspend fun get(index: ULong): Value
+	/**
+	 * Get the value of the element at the given [index].
+	 */
+	suspend fun get(index: ULong): Value
 }
 
 /**
@@ -158,48 +157,46 @@ interface ArrayLikeValue : Value {
  * @property isMutable Whether the variable is mutable.
  */
 data class VariableDescriptor(
-    val name: String,
-    val typeName: String,
-    val kind: VariableKind,
-    val isMutable: Boolean,
+	val name: String,
+	val typeName: String,
+	val kind: VariableKind,
+	val isMutable: Boolean,
 )
 
 /**
  * Information about a local variable.
  */
-interface Variable<ValueType: Value> {
+interface Variable<ValueType : Value> {
+	/**
+	 * Get the descriptor for the variable.
+	 */
+	suspend fun descriptor(): VariableDescriptor
 
-    /**
-     * Get the descriptor for the variable.
-     */
-    suspend fun descriptor(): VariableDescriptor
+	/**
+	 * Get the value of the variable as [ValueType], or `null` if cannot be retrieved.
+	 */
+	suspend fun value(): ValueType?
 
-    /**
-     * Get the value of the variable as [ValueType], or `null` if cannot be retrieved.
-     */
-    suspend fun value(): ValueType?
+	/**
+	 * Get the members of of the object that this variable references. May be empty.
+	 */
+	suspend fun objectMembers(): Set<Variable<*>>
 
-    /**
-     * Get the members of of the object that this variable references. May be empty.
-     */
-    suspend fun objectMembers(): Set<Variable<*>>
-
-    /**
-     * Set the value of the variable.
-     *
-     * @param value The new value of the variable.
-     * @return The result of the operation.
-     */
-    suspend fun setValue(value: String): Boolean
+	/**
+	 * Set the value of the variable.
+	 *
+	 * @param value The new value of the variable.
+	 * @return The result of the operation.
+	 */
+	suspend fun setValue(value: String): Boolean
 }
 
 /**
  * A variable that has a primitive value.
  */
-interface PrimitiveVariable: Variable<PrimitiveValue> {
-
-    /**
-     * The [primitive kind][PrimitiveKind] of the variable.
-     */
-    val primitiveKind: PrimitiveKind
+interface PrimitiveVariable : Variable<PrimitiveValue> {
+	/**
+	 * The [primitive kind][PrimitiveKind] of the variable.
+	 */
+	val primitiveKind: PrimitiveKind
 }

@@ -22,7 +22,9 @@ import org.jetbrains.kotlin.load.kotlin.PackagePartProvider
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 
-internal class PackageProviderFactory: KtLspService, KotlinPackageProviderFactory {
+internal class PackageProviderFactory :
+	KtLspService,
+	KotlinPackageProviderFactory {
 	private lateinit var project: Project
 	private lateinit var index: KtSymbolIndex
 
@@ -30,7 +32,7 @@ internal class PackageProviderFactory: KtLspService, KotlinPackageProviderFactor
 		project: MockProject,
 		index: KtSymbolIndex,
 		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>
+		libraryRoots: List<JavaRoot>,
 	) {
 		this.project = project
 		this.index = index
@@ -42,18 +44,22 @@ internal class PackageProviderFactory: KtLspService, KotlinPackageProviderFactor
 private class PackageProvider(
 	project: Project,
 	searchScope: GlobalSearchScope,
-	private val index: KtSymbolIndex
-): KotlinPackageProviderBase(project, searchScope) {
-	override fun doesKotlinOnlyPackageExist(packageFqName: FqName): Boolean {
-		return packageFqName.isRoot || index.packageExistsInSource(packageFqName.asString())
-	}
+	private val index: KtSymbolIndex,
+) : KotlinPackageProviderBase(project, searchScope) {
+	override fun doesKotlinOnlyPackageExist(packageFqName: FqName): Boolean =
+		packageFqName.isRoot || index.packageExistsInSource(packageFqName.asString())
 
-	override fun getKotlinOnlySubpackageNames(packageFqName: FqName): Set<Name> {
-		return index.subpackageNames(packageFqName.asString()).map { Name.identifier(it) }.toSet()
-	}
+	override fun getKotlinOnlySubpackageNames(packageFqName: FqName): Set<Name> =
+		index
+			.subpackageNames(packageFqName.asString())
+			.map {
+				Name.identifier(it)
+			}.toSet()
 }
 
-internal class PackageProviderMerger(private val project: Project) : KotlinPackageProviderMerger {
+internal class PackageProviderMerger(
+	private val project: Project,
+) : KotlinPackageProviderMerger {
 	override fun merge(providers: List<KotlinPackageProvider>): KotlinPackageProvider =
 		providers.mergeSpecificProviders<_, PackageProvider>(KotlinCompositePackageProvider.factory) { targetProviders ->
 			val combinedScope = GlobalSearchScope.union(targetProviders.map { it.searchScope })
@@ -65,21 +71,22 @@ internal class PackageProviderMerger(private val project: Project) : KotlinPacka
 		}
 }
 
-internal class PackagePartProviderFactory: KtLspService, KotlinPackagePartProviderFactory {
+internal class PackagePartProviderFactory :
+	KtLspService,
+	KotlinPackagePartProviderFactory {
 	private lateinit var allLibraryRoots: List<JavaRoot>
 
 	override fun setupWith(
 		project: MockProject,
 		index: KtSymbolIndex,
 		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>
+		libraryRoots: List<JavaRoot>,
 	) {
 		this.allLibraryRoots = libraryRoots
 	}
 
-	override fun createPackagePartProvider(scope: GlobalSearchScope): PackagePartProvider {
-		return JvmPackagePartProvider(latestLanguageVersionSettings, scope).apply {
+	override fun createPackagePartProvider(scope: GlobalSearchScope): PackagePartProvider =
+		JvmPackagePartProvider(latestLanguageVersionSettings, scope).apply {
 			addRoots(allLibraryRoots, MessageCollector.NONE)
 		}
-	}
 }

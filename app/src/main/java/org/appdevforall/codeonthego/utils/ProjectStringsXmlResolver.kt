@@ -9,29 +9,29 @@ import java.io.File
  * within the provided project root.
  */
 object ProjectStringsXmlResolver {
+	private const val STRINGS_XML_RELATIVE_PATH = "app/src/main/res/values/strings.xml"
 
-    private const val STRINGS_XML_RELATIVE_PATH = "app/src/main/res/values/strings.xml"
+	suspend fun find(projectRootPath: String): File? =
+		withContext(Dispatchers.IO) {
+			findNow(projectRootPath)
+		}
 
-    suspend fun find(projectRootPath: String): File? = withContext(Dispatchers.IO) {
-        findNow(projectRootPath)
-    }
+	fun findNow(projectRootPath: String): File? {
+		val projectRoot = projectRootPath.toCanonicalDirectory() ?: return null
+		val stringsFile = File(projectRoot, STRINGS_XML_RELATIVE_PATH).canonicalFile
+		return stringsFile.takeIf {
+			it.exists() && it.isFile && it.isWithin(projectRoot)
+		}
+	}
 
-    fun findNow(projectRootPath: String): File? {
-        val projectRoot = projectRootPath.toCanonicalDirectory() ?: return null
-        val stringsFile = File(projectRoot, STRINGS_XML_RELATIVE_PATH).canonicalFile
-        return stringsFile.takeIf {
-            it.exists() && it.isFile && it.isWithin(projectRoot)
-        }
-    }
+	private fun String.toCanonicalDirectory(): File? {
+		val dir = File(this).canonicalFile
+		return dir.takeIf { it.exists() && it.isDirectory }
+	}
 
-    private fun String.toCanonicalDirectory(): File? {
-        val dir = File(this).canonicalFile
-        return dir.takeIf { it.exists() && it.isDirectory }
-    }
-
-    private fun File.isWithin(root: File): Boolean {
-        val rootPath = root.toPath()
-        val filePath = toPath()
-        return filePath.startsWith(rootPath)
-    }
+	private fun File.isWithin(root: File): Boolean {
+		val rootPath = root.toPath()
+		val filePath = toPath()
+		return filePath.startsWith(rootPath)
+	}
 }

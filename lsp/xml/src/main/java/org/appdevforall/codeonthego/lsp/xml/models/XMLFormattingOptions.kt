@@ -30,46 +30,56 @@ import org.eclipse.lemminx.dom.builder.EmptyElements
  * @author Akash Yadav
  */
 open class XMLFormattingOptions : BaseXmlFormattingOptions() {
+	override val isTrimFinalNewLine: Boolean
+		get() = XmlPreferences.trimFinalNewLine
+	override val isInsertFinalNewLine: Boolean
+		get() = XmlPreferences.insertFinalNewLine
+	override val isSplitAttributes: Boolean
+		get() = XmlPreferences.splitAttributes
+	override val isJoinCDataLines: Boolean
+		get() = XmlPreferences.joinCDataLines
+	override val isJoinCommentLines: Boolean
+		get() = XmlPreferences.joinCommentLines
+	override val isJoinContentLines: Boolean
+		get() = XmlPreferences.joinContentLines
+	override val isSpaceBeforeEmptyCloseTag: Boolean
+		get() = XmlPreferences.spaceBeforeEmptyCloseTag
+	override val isPreserveEmptyContent: Boolean
+		get() = XmlPreferences.preserveEmptyContent
+	override val isPreserveAttributeLineBreaks: Boolean
+		get() = XmlPreferences.preserveAttributeLineBreaks
+	override val isClosingBracketNewLine: Boolean
+		get() = XmlPreferences.closingBracketNewLine
+	override val isTrimTrailingWhitespace: Boolean
+		get() = XmlPreferences.trimTrailingWhitespace
 
-  override val isTrimFinalNewLine: Boolean
-    get() = XmlPreferences.trimFinalNewLine
-  override val isInsertFinalNewLine: Boolean
-    get() = XmlPreferences.insertFinalNewLine
-  override val isSplitAttributes: Boolean
-    get() = XmlPreferences.splitAttributes
-  override val isJoinCDataLines: Boolean
-    get() = XmlPreferences.joinCDataLines
-  override val isJoinCommentLines: Boolean
-    get() = XmlPreferences.joinCommentLines
-  override val isJoinContentLines: Boolean
-    get() = XmlPreferences.joinContentLines
-  override val isSpaceBeforeEmptyCloseTag: Boolean
-    get() = XmlPreferences.spaceBeforeEmptyCloseTag
-  override val isPreserveEmptyContent: Boolean
-    get() = XmlPreferences.preserveEmptyContent
-  override val isPreserveAttributeLineBreaks: Boolean
-    get() = XmlPreferences.preserveAttributeLineBreaks
-  override val isClosingBracketNewLine: Boolean
-    get() = XmlPreferences.closingBracketNewLine
-  override val isTrimTrailingWhitespace: Boolean
-    get() = XmlPreferences.trimTrailingWhitespace
+	override val maxLineWidth: Int
+		get() = XmlPreferences.maxLineWidth
+	override val preservedNewLines: Int
+		get() = XmlPreferences.preservedNewLines
+	override val splitAttributesIndentSize: Int
+		get() = XmlPreferences.splitAttributesIndentSize
 
-  override val maxLineWidth: Int
-    get() = XmlPreferences.maxLineWidth
-  override val preservedNewLines: Int
-    get() = XmlPreferences.preservedNewLines
-  override val splitAttributesIndentSize: Int
-    get() = XmlPreferences.splitAttributesIndentSize
+	override val emptyElementsBehavior: EmptyElements
+		get() =
+			EmptyElements.valueOf(XmlPreferences.emptyElementsBehavior)
 
-  override val emptyElementsBehavior: EmptyElements
-    get() = EmptyElements.valueOf(
-      XmlPreferences.emptyElementsBehavior)
+	private val preserveSpace =
+		listOf(
+			"xsl:text",
+			"xsl:comment",
+			"xsl:processing-instruction",
+			"literallayout",
+			"programlisting",
+			"screen",
+			"synopsis",
+			"pre",
+			"xd:pre",
+		)
 
-  private val preserveSpace =
-    listOf("xsl:text", "xsl:comment", "xsl:processing-instruction",
-      "literallayout", "programlisting", "screen", "synopsis", "pre", "xd:pre")
-
-  fun getFormatElementCategory(element: DOMElement): FormatElementCategory? {
-    return preserveSpace.find { it == element.tagName }?.let { PreserveSpace }
-  }
+	fun getFormatElementCategory(element: DOMElement): FormatElementCategory? =
+		preserveSpace
+			.find {
+				it == element.tagName
+			}?.let { PreserveSpace }
 }

@@ -29,22 +29,22 @@ package org.appdevforall.codeonthego.tooling.api.util
  * @return The comparison result.
  */
 fun compareSemanticVersions(versionA: String, versionB: String): Int {
-  val partsA = versionA.split(".").map { it.toInt() }
-  val partsB = versionB.split(".").map { it.toInt() }
+val partsA = versionA.split(".").map { it.toInt() }
+val partsB = versionB.split(".").map { it.toInt() }
 
-  for (i in 0 until minOf(partsA.size, partsB.size)) {
-    if (partsA[i] < partsB[i]) {
-      return -1
-    } else if (partsA[i] > partsB[i]) {
-      return 1
-    }
-  }
+for (i in 0 until minOf(partsA.size, partsB.size)) {
+	if (partsA[i] < partsB[i]) {
+	return -1
+	} else if (partsA[i] > partsB[i]) {
+	return 1
+	}
+}
 
-  if (partsA.size < partsB.size) {
-    return -1
-  } else if (partsA.size > partsB.size) {
-    return 1
-  }
+if (partsA.size < partsB.size) {
+	return -1
+} else if (partsA.size > partsB.size) {
+	return 1
+}
 
-  return 0
+return 0
 }

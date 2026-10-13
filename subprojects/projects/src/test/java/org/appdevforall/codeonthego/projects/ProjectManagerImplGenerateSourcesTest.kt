@@ -1,15 +1,15 @@
 package org.appdevforall.codeonthego.projects
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.projects.builder.BuildService
-import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
-import org.appdevforall.codeonthego.utils.flashError
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import org.appdevforall.codeonthego.projects.builder.BuildService
+import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
+import org.appdevforall.codeonthego.utils.flashError
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

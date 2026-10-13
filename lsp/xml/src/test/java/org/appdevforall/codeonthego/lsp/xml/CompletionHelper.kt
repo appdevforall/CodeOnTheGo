@@ -24,8 +24,5 @@ import org.appdevforall.codeonthego.lsp.models.CompletionItem
  * @author Akash Yadav
  */
 interface CompletionHelper {
-
-  fun complete(
-    transform: (CompletionItem) -> CharSequence = { it.ideLabel }
-  ): Pair<Boolean, List<CharSequence>>
+	fun complete(transform: (CompletionItem) -> CharSequence = { it.ideLabel }): Pair<Boolean, List<CharSequence>>
 }

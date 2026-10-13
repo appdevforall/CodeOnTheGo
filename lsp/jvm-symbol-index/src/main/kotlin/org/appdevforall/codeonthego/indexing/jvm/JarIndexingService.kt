@@ -1,10 +1,6 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
-import org.appdevforall.codeonthego.projects.ProjectManagerImpl
-import org.appdevforall.codeonthego.projects.api.Workspace
-import org.appdevforall.codeonthego.projects.reportUnreadableClasspathJars
-import org.appdevforall.codeonthego.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,6 +15,10 @@ import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.appdevforall.codeonthego.indexing.service.IndexingService
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.projects.api.Workspace
+import org.appdevforall.codeonthego.projects.reportUnreadableClasspathJars
+import org.appdevforall.codeonthego.tasks.cancelIfActive
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Paths

@@ -23,8 +23,7 @@ package org.appdevforall.codeonthego.uidesigner.models
  * @author Akash Yadav
  */
 interface CommonUiView {
-  
-  var includeInIndexComputation: Boolean
-  
-  var needSetup: Boolean
+	var includeInIndexComputation: Boolean
+
+	var needSetup: Boolean
 }

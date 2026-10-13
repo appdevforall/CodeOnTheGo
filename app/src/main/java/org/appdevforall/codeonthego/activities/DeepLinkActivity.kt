@@ -21,6 +21,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.activities.editor.EditorActivityKt
 import org.appdevforall.codeonthego.analytics.DeepLinkDepth
 import org.appdevforall.codeonthego.analytics.DeepLinkMetric
@@ -29,7 +30,6 @@ import org.appdevforall.codeonthego.analytics.IAnalyticsManager
 import org.appdevforall.codeonthego.analytics.depth
 import org.appdevforall.codeonthego.api.ActionContextProvider
 import org.appdevforall.codeonthego.models.DeepLinkRequest
-import com.itsaky.androidide.resources.R.string
 import org.koin.android.ext.android.inject
 
 /**

@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.lsp
 
+import io.github.rosemoe.sora.text.Content
 import org.appdevforall.codeonthego.models.Location
 import org.appdevforall.codeonthego.models.Range
 import org.appdevforall.codeonthego.models.SearchResult
-import io.github.rosemoe.sora.text.Content
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File

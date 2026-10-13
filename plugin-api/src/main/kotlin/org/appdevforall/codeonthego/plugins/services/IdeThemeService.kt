@@ -1,15 +1,13 @@
 package org.appdevforall.codeonthego.plugins.services
 
 interface IdeThemeService {
+	fun isDarkMode(): Boolean
 
-    fun isDarkMode(): Boolean
+	fun addThemeChangeListener(listener: ThemeChangeListener)
 
-    fun addThemeChangeListener(listener: ThemeChangeListener)
-
-    fun removeThemeChangeListener(listener: ThemeChangeListener)
+	fun removeThemeChangeListener(listener: ThemeChangeListener)
 }
 
 interface ThemeChangeListener {
-
-    fun onThemeChanged(isDarkMode: Boolean)
+	fun onThemeChanged(isDarkMode: Boolean)
 }

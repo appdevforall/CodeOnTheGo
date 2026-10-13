@@ -17,6 +17,13 @@
 
 package org.appdevforall.codeonthego.lsp.kotlin
 
+import io.sentry.Sentry
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
 import org.appdevforall.codeonthego.eventbus.events.BuildCompletedEvent
@@ -28,6 +35,12 @@ import org.appdevforall.codeonthego.eventbus.events.file.FileContentChangedEvent
 import org.appdevforall.codeonthego.eventbus.events.file.FileCreationEvent
 import org.appdevforall.codeonthego.eventbus.events.file.FileDeletionEvent
 import org.appdevforall.codeonthego.eventbus.events.file.FileRenameEvent
+import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.appdevforall.codeonthego.lsp.api.ILanguageClient
 import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import org.appdevforall.codeonthego.lsp.api.IServerSettings
@@ -62,19 +75,6 @@ import org.appdevforall.codeonthego.tasks.createJobCancelChecker
 import org.appdevforall.codeonthego.utils.DocumentUtils
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.ifNotEmpty
-import io.sentry.Sentry
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
-import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
-import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
-import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
-import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode

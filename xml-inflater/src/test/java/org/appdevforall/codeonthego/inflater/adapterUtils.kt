@@ -77,50 +77,50 @@ import org.appdevforall.codeonthego.inflater.internal.adapters.ViewAdapter
 import org.appdevforall.codeonthego.inflater.internal.adapters.WebViewAdapter
 
 internal fun viewDeclTemplate(name: String) : String =
-  """
-      <$name
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/template_view"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        />
-    """.trimIndent()
+"""
+	<$name
+		xmlns:android="http://schemas.android.com/apk/res/android"
+		android:id="@+id/template_view"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		/>
+	""".trimIndent()
 
 internal val viewToAdapter =
-  mapOf(
-    AbsoluteLayout::class to AbsoluteLayoutAdapter::class,
-    AutoCompleteTextView::class to AutoCompleteTextViewAdapter::class,
-    Button::class to ButtonAdapter::class,
-    CheckBox::class to CheckBoxAdapter::class,
-    CheckedTextView::class to CheckedTextViewAdapter::class,
-    EditText::class to EditTextAdapter::class,
-    FrameLayout::class to FrameLayoutAdapter::class,
-    GestureOverlayView::class to GestureOverlayViewAdapter::class,
-    GridLayout::class to GridLayoutAdapter::class,
-    ImageButton::class to ImageButtonAdapter::class,
-    ImageView::class to ImageViewAdapter::class,
-    LinearLayout::class to LinearLayoutAdapter::class,
-    ListView::class to ListViewAdapter::class,
-    ProgressBar::class to ProgressBarAdapter::class,
-    RadioButton::class to RadioButtonAdapter::class,
-    RelativeLayout::class to RelativeLayoutAdapter::class,
-    SeekBar::class to SeekBarAdapter::class,
-    Spinner::class to SpinnerAdapter::class,
-    Switch::class to SwitchAdapter::class,
-    SurfaceView::class to SurfaceViewAdapter::class,
-    TextView::class to TextViewAdapter::class,
-    TextureView::class to TextureViewAdapter::class,
-    ToggleButton::class to ToggleButtonAdapter::class,
-    View::class to ViewAdapter::class,
-    WebView::class to WebViewAdapter::class
-  )
+mapOf(
+	AbsoluteLayout::class to AbsoluteLayoutAdapter::class,
+	AutoCompleteTextView::class to AutoCompleteTextViewAdapter::class,
+	Button::class to ButtonAdapter::class,
+	CheckBox::class to CheckBoxAdapter::class,
+	CheckedTextView::class to CheckedTextViewAdapter::class,
+	EditText::class to EditTextAdapter::class,
+	FrameLayout::class to FrameLayoutAdapter::class,
+	GestureOverlayView::class to GestureOverlayViewAdapter::class,
+	GridLayout::class to GridLayoutAdapter::class,
+	ImageButton::class to ImageButtonAdapter::class,
+	ImageView::class to ImageViewAdapter::class,
+	LinearLayout::class to LinearLayoutAdapter::class,
+	ListView::class to ListViewAdapter::class,
+	ProgressBar::class to ProgressBarAdapter::class,
+	RadioButton::class to RadioButtonAdapter::class,
+	RelativeLayout::class to RelativeLayoutAdapter::class,
+	SeekBar::class to SeekBarAdapter::class,
+	Spinner::class to SpinnerAdapter::class,
+	Switch::class to SwitchAdapter::class,
+	SurfaceView::class to SurfaceViewAdapter::class,
+	TextView::class to TextViewAdapter::class,
+	TextureView::class to TextureViewAdapter::class,
+	ToggleButton::class to ToggleButtonAdapter::class,
+	View::class to ViewAdapter::class,
+	WebView::class to WebViewAdapter::class
+)
 
 internal val abstractViews =
-  listOf(
-    AbsListView::class,
-    AbsSeekBar::class,
-    AbsSpinner::class,
-    AdapterView::class,
-    CompoundButton::class,
-    ViewGroup::class
-  )
+listOf(
+	AbsListView::class,
+	AbsSeekBar::class,
+	AbsSpinner::class,
+	AdapterView::class,
+	CompoundButton::class,
+	ViewGroup::class
+)

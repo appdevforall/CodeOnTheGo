@@ -29,24 +29,24 @@ private val ALL = arrayOf(CpuArch.AARCH64, CpuArch.ARM, CpuArch.X86_64)
  */
 enum class SdkVersion(val version: String, val supportedArchs: Array<CpuArch>) {
 
-  SDK_33_0_1("33.0.1", ARM_ONLY),
-  SDK_34_0_0("34.0.0", ARM_ONLY),
-  SDK_34_0_1("34.0.1", ARM_ONLY),
-  SDK_34_0_3("34.0.3", ARM_ONLY),
-  SDK_34_0_4("34.0.4", ALL),
-  ;
+SDK_33_0_1("33.0.1", ARM_ONLY),
+SDK_34_0_0("34.0.0", ARM_ONLY),
+SDK_34_0_1("34.0.1", ARM_ONLY),
+SDK_34_0_3("34.0.3", ARM_ONLY),
+SDK_34_0_4("34.0.4", ALL),
+;
 
-  val displayName = "SDK $version"
+val displayName = "SDK $version"
 
-  companion object {
+companion object {
 
-    @JvmStatic
-    fun fromDisplayName(displayName: CharSequence) =
-      entries.first { it.displayName.contentEquals(displayName) }
+	@JvmStatic
+	fun fromDisplayName(displayName: CharSequence) =
+	entries.first { it.displayName.contentEquals(displayName) }
 
-    @JvmStatic
-    fun fromVersion(version: CharSequence) = entries.first { it.version.contentEquals(version) }
-  }
+	@JvmStatic
+	fun fromVersion(version: CharSequence) = entries.first { it.version.contentEquals(version) }
+}
 }
 
 /**
@@ -56,19 +56,19 @@ enum class SdkVersion(val version: String, val supportedArchs: Array<CpuArch>) {
  */
 enum class JdkVersion(val version: String) {
 
-  JDK_17("17"),
-  JDK_21("21"),
-  ;
+JDK_17("17"),
+JDK_21("21"),
+;
 
-  val displayName = "JDK $version"
+val displayName = "JDK $version"
 
-  companion object {
+companion object {
 
-    @JvmStatic
-    fun fromDisplayName(displayName: CharSequence) =
-      entries.first { it.displayName.contentEquals(displayName) }
+	@JvmStatic
+	fun fromDisplayName(displayName: CharSequence) =
+	entries.first { it.displayName.contentEquals(displayName) }
 
-    @JvmStatic
-    fun fromVersion(version: CharSequence) = entries.first { it.version.contentEquals(version) }
-  }
+	@JvmStatic
+	fun fromVersion(version: CharSequence) = entries.first { it.version.contentEquals(version) }
+}
 }

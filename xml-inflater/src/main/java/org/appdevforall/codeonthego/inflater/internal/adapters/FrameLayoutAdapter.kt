@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.FrameLayout
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [FrameLayout].
@@ -34,16 +34,14 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(FrameLayout::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class FrameLayoutAdapter<T : FrameLayout> : ViewGroupAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("foregroundGravity") { view.foregroundGravity = parseGravity(value) }
+		create("measureAllChildren") { view.measureAllChildren = parseBoolean(value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("foregroundGravity") { view.foregroundGravity = parseGravity(value) }
-    create("measureAllChildren") { view.measureAllChildren = parseBoolean(value) }
-  }
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(FrameLayout::class.java, string.widget_frame_layout, drawable.ic_widget_frame_layout)
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(FrameLayout::class.java, string.widget_frame_layout, drawable.ic_widget_frame_layout),
+		)
 }

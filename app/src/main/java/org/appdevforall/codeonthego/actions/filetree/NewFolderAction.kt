@@ -19,17 +19,17 @@ package org.appdevforall.codeonthego.actions.filetree
 
 import android.content.Context
 import android.view.LayoutInflater
+import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
+import com.itsaky.androidide.resources.R
+import com.unnamed.b.atv.model.TreeNode
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.adapters.viewholders.FileTreeViewHolder
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.idetooltips.attachTooltip
-import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashSuccess
-import com.unnamed.b.atv.model.TreeNode
 import java.io.File
 
 /**

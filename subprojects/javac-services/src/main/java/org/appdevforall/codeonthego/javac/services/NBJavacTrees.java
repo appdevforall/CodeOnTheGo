@@ -54,43 +54,43 @@ import openjdk.tools.javac.util.Context;
  */
 public class NBJavacTrees extends JavacTrees {
 
-  private final Map<Element, TreePath> element2paths = new HashMap<>();
+	public static void preRegister(Context context) {
+		context.put(JavacTrees.class, (Context.Factory<JavacTrees>) NBJavacTrees::new);
+	}
 
-  public static void preRegister(Context context) {
-    context.put(JavacTrees.class, (Context.Factory<JavacTrees>) NBJavacTrees::new);
-  }
+	private final Map<Element, TreePath> element2paths = new HashMap<>();
 
-  protected NBJavacTrees(Context context) {
-    super(context);
-  }
+	protected NBJavacTrees(Context context) {
+		super(context);
+	}
 
-  @Override
-  public TreePath getPath(Element e) {
-    TreePath path = super.getPath(e);
-    return path != null ? path : element2paths.get(e);
-  }
+	@Override
+	public Symbol getElement(TreePath path) {
+		return TreeInfo.symbolFor((JCTree) path.getLeaf());
+	}
 
-  @Override
-  public Symbol getElement(TreePath path) {
-    return TreeInfo.symbolFor((JCTree) path.getLeaf());
-  }
+	@Override
+	public TreePath getPath(Element e) {
+		TreePath path = super.getPath(e);
+		return path != null ? path : element2paths.get(e);
+	}
 
-  @Override
-  protected Copier createCopier(TreeMaker maker) {
-    return new Copier(maker) {
-      @Override
-      public JCTree visitVariable(VariableTree node, JCTree p) {
-        JCVariableDecl old = (JCVariableDecl) node;
-        JCVariableDecl nue = (JCVariableDecl) super.visitVariable(node, p);
-        if (old.sym != null) {
-          nue.mods.flags |= old.sym.flags_field & Flags.EFFECTIVELY_FINAL;
-        }
-        return nue;
-      }
-    };
-  }
+	@Override
+	protected Copier createCopier(TreeMaker maker) {
+		return new Copier(maker) {
+			@Override
+			public JCTree visitVariable(VariableTree node, JCTree p) {
+				JCVariableDecl old = (JCVariableDecl) node;
+				JCVariableDecl nue = (JCVariableDecl) super.visitVariable(node, p);
+				if (old.sym != null) {
+					nue.mods.flags |= old.sym.flags_field & Flags.EFFECTIVELY_FINAL;
+				}
+				return nue;
+			}
+		};
+	}
 
-  void addPathForElement(Element elem, TreePath path) {
-    element2paths.put(elem, path);
-  }
+	void addPathForElement(Element elem, TreePath path) {
+		element2paths.put(elem, path);
+	}
 }

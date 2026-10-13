@@ -3,12 +3,12 @@ package org.appdevforall.codeonthego.localWebServer
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.net.TrafficStats
-import org.appdevforall.codeonthego.utils.DatabaseVersionResolver
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import org.appdevforall.codeonthego.utils.DatabaseVersionResolver
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

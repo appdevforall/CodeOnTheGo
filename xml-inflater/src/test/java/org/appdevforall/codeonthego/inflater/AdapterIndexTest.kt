@@ -25,16 +25,15 @@ import org.robolectric.RobolectricTestRunner
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class AdapterIndexTest {
+	@Test
+	fun `verify instances of adapters`() {
+		viewToAdapter.forEach {
+			getViewAdapter(it.key.qualifiedName!!).apply {
+				assertThat(this).isNotNull()
+				assertThat(this).isInstanceOf(it.value.java)
+			}
+		}
 
-  @Test
-  fun `verify instances of adapters`() {
-    viewToAdapter.forEach {
-      getViewAdapter(it.key.qualifiedName!!).apply {
-        assertThat(this).isNotNull()
-        assertThat(this).isInstanceOf(it.value.java)
-      }
-    }
-
-    abstractViews.forEach { assertThat(getViewAdapter(it.qualifiedName!!)).isNull() }
-  }
+		abstractViews.forEach { assertThat(getViewAdapter(it.qualifiedName!!)).isNull() }
+	}
 }

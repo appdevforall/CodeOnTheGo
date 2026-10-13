@@ -30,61 +30,52 @@ import java.util.concurrent.ConcurrentHashMap
  * @author Akash Yadav
  */
 internal object TreeSitterObjectPoolProvider {
+	private val caches = ConcurrentHashMap<Class<out RecyclableObjectPool.Recyclable>, RecyclableObjectPool<*>>()
 
-  private val caches = ConcurrentHashMap<Class<out RecyclableObjectPool.Recyclable>, RecyclableObjectPool<*>>()
+	init {
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterInputEdit)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterLookaheadIterator)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterNativeLanguage)
+		putPool(capacity = 1_00_000, fillFirst = 1000, factory = ::TreeSitterNode)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterParser)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterPoint)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQuery)
+		putPool(capacity = 1_00_000, fillFirst = 1000, factory = ::TreeSitterQueryCapture)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQueryCursor)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQueryMatch)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQueryPredicateStep)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterRange)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterTree)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterTreeCursor)
+		putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterTreeCursorNode)
+	}
 
-  init {
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterInputEdit)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterLookaheadIterator)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterNativeLanguage)
-    putPool(capacity = 1_00_000, fillFirst = 1000, factory = ::TreeSitterNode)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterParser)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterPoint)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQuery)
-    putPool(capacity = 1_00_000, fillFirst = 1000, factory = ::TreeSitterQueryCapture)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQueryCursor)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQueryMatch)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterQueryPredicateStep)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterRange)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterTree)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterTreeCursor)
-    putPool(capacity = CAPACITY_MINI, factory = ::TreeSitterTreeCursorNode)
-  }
+	fun logMetrics() {
+		caches.forEach { (_, pool) ->
+			pool.logMetrics()
+		}
+	}
 
-  fun logMetrics() {
-    caches.forEach { (_, pool) ->
-      pool.logMetrics()
-    }
-  }
+	inline fun <reified T : RecyclableObjectPool.Recyclable> getPool(): RecyclableObjectPool<T>? = getPool(T::class.java)
 
-  inline fun <reified T : RecyclableObjectPool.Recyclable> getPool(): RecyclableObjectPool<T>? {
-    return getPool(T::class.java)
-  }
+	inline fun <reified T : RecyclableObjectPool.Recyclable> requirePool(): RecyclableObjectPool<T> = requireNotNull(getPool())
 
-  inline fun <reified T : RecyclableObjectPool.Recyclable> requirePool(): RecyclableObjectPool<T> {
-    return requireNotNull(getPool())
-  }
+	fun <T : RecyclableObjectPool.Recyclable> getPool(klass: Class<T>): RecyclableObjectPool<T>? = caches[klass]?.let { uncheckedCast(it) }
 
-  fun <T : RecyclableObjectPool.Recyclable> getPool(klass: Class<T>): RecyclableObjectPool<T>? {
-    return caches[klass]?.let { uncheckedCast(it) }
-  }
+	fun <T : RecyclableObjectPool.Recyclable> requirePool(klass: Class<T>): RecyclableObjectPool<T> = requireNotNull(getPool(klass))
 
-  fun <T : RecyclableObjectPool.Recyclable> requirePool(klass: Class<T>): RecyclableObjectPool<T> {
-    return requireNotNull(getPool(klass))
-  }
+	private inline fun <reified T : RecyclableObjectPool.Recyclable> putPool(
+		capacity: Int = CAPACITY_DEFAULT,
+		fillFirst: Int = 0,
+		factory: RecyclableObjectPool.Factory<T>,
+	) {
+		if (caches[T::class.java] != null) {
+			throw IllegalArgumentException("Attempt to replace object pool for ${T::class.java}")
+		}
 
-  private inline fun <reified T : RecyclableObjectPool.Recyclable> putPool(
-    capacity: Int = CAPACITY_DEFAULT,
-    fillFirst: Int = 0,
-    factory: RecyclableObjectPool.Factory<T>
-  ) {
-    if (caches[T::class.java] != null) {
-      throw IllegalArgumentException("Attempt to replace object pool for ${T::class.java}")
-    }
-
-    // disable metrics logging for tree sitter objects
-    // this is required because the log views also use tree sitter to highlight the lines
-    // if we enable metrics, it would result in an infite loop and 'analyze and log' in some cases
-    caches[T::class.java] = newRecyclableObjectPool(capacity, fillFirst, false, factory)
-  }
+		// disable metrics logging for tree sitter objects
+		// this is required because the log views also use tree sitter to highlight the lines
+		// if we enable metrics, it would result in an infite loop and 'analyze and log' in some cases
+		caches[T::class.java] = newRecyclableObjectPool(capacity, fillFirst, false, factory)
+	}
 }

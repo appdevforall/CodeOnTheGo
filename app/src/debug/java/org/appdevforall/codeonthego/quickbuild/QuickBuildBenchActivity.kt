@@ -3,13 +3,13 @@ package org.appdevforall.codeonthego.quickbuild
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.activities.editor.EditorActivityKt
 import org.appdevforall.codeonthego.models.EditorIntentExtras
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.FeatureFlags
-import kotlinx.coroutines.runBlocking
 import org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager
 import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory

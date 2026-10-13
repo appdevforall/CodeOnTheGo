@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego.lsp.java.debug.spec
 
-import org.appdevforall.codeonthego.lsp.debug.model.Source
-import org.appdevforall.codeonthego.lsp.java.debug.utils.matchesSourcePath
-import org.appdevforall.codeonthego.lsp.java.debug.utils.sourcePathOrNull
 import com.sun.jdi.ReferenceType
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.request.ClassPrepareRequest
+import org.appdevforall.codeonthego.lsp.debug.model.Source
+import org.appdevforall.codeonthego.lsp.java.debug.utils.matchesSourcePath
+import org.appdevforall.codeonthego.lsp.java.debug.utils.sourcePathOrNull
 
 /**
  * @author Akash Yadav

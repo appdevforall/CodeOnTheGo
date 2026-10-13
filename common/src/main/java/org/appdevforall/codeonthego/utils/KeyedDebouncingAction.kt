@@ -1,7 +1,5 @@
 package org.appdevforall.codeonthego.utils
 
-import org.appdevforall.codeonthego.progress.ICancelChecker
-import org.appdevforall.codeonthego.tasks.JobCancelChecker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,18 +13,19 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
+import org.appdevforall.codeonthego.progress.ICancelChecker
+import org.appdevforall.codeonthego.tasks.JobCancelChecker
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
-class KeyedDebouncingAction<T: Any>(
+class KeyedDebouncingAction<T : Any>(
 	private val scope: CoroutineScope,
 	private val debounceDuration: Duration = DEBOUNCE_DURATION_DEFAULT,
 	private val actionContext: CoroutineContext = Dispatchers.Default,
 	private val action: suspend (T, ICancelChecker) -> Unit,
 ) {
-
 	private data class ActionEntry<T>(
 		val channel: Channel<T>,
 		val job: Job,
@@ -63,45 +62,48 @@ class KeyedDebouncingAction<T: Any>(
 	@OptIn(ExperimentalCoroutinesApi::class)
 	private fun createEntry(): ActionEntry<T> {
 		val channel = Channel<T>(Channel.CONFLATED)
-		val job = scope.launch(actionContext) {
-			while (isActive) {
-				try {
-					var latestKey = channel.receive()
-					var debouncing = true
-					while (debouncing) {
-						debouncing = select {
-							onTimeout(debounceDuration) { false }
-							channel.onReceive { newKey ->
-								latestKey = newKey
-								true
+		val job =
+			scope.launch(actionContext) {
+				while (isActive) {
+					try {
+						var latestKey = channel.receive()
+						var debouncing = true
+						while (debouncing) {
+							debouncing =
+								select {
+									onTimeout(debounceDuration) { false }
+									channel.onReceive { newKey ->
+										latestKey = newKey
+										true
+									}
+								}
+						}
+
+						ensureActive()
+						val actionJob =
+							launch {
+								val cancelChecker = JobCancelChecker(currentCoroutineContext()[Job])
+								action(latestKey, cancelChecker)
+							}
+
+						select<Unit> {
+							actionJob.onJoin {}
+							channel.onReceive { newerKey ->
+								actionJob.cancel()
+								channel.trySend(newerKey)
 							}
 						}
-					}
 
-					ensureActive()
-					val actionJob = launch {
-						val cancelChecker = JobCancelChecker(currentCoroutineContext()[Job])
-						action(latestKey, cancelChecker)
+						actionJob.join()
+					} catch (e: ClosedReceiveChannelException) {
+						// The channel was closed (entry cancelled). Stop the worker cleanly
+						// instead of letting the exception propagate to an uncaught handler.
+						break
+					} catch (e: CancellationException) {
+						throw e
 					}
-
-					select<Unit> {
-						actionJob.onJoin {}
-						channel.onReceive { newerKey ->
-							actionJob.cancel()
-							channel.trySend(newerKey)
-						}
-					}
-
-					actionJob.join()
-				} catch (e: ClosedReceiveChannelException) {
-					// The channel was closed (entry cancelled). Stop the worker cleanly
-					// instead of letting the exception propagate to an uncaught handler.
-					break
-				} catch (e: CancellationException) {
-					throw e
 				}
 			}
-		}
 
 		return ActionEntry(channel, job)
 	}

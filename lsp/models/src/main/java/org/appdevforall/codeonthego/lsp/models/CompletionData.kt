@@ -32,22 +32,25 @@ interface ICompletionData
  * `com.my.pck.MyClass.Inner.InnerInner` will be `Inner.InnerInner`
  */
 data class ClassCompletionData
-@JvmOverloads
-constructor(val className: String, val isNested: Boolean = false, val topLevelClass: String = "") :
-	ICompletionData {
-	val simpleName: String
-		get() {
-			return className.substringAfterLast(delimiter = '.')
-		}
-
-	val nameWithoutTopLevel: String
-		get() {
-			if (!isNested) {
-				return className
+	@JvmOverloads
+	constructor(
+		val className: String,
+		val isNested: Boolean = false,
+		val topLevelClass: String = "",
+	) : ICompletionData {
+		val simpleName: String
+			get() {
+				return className.substringAfterLast(delimiter = '.')
 			}
-			return className.substring(topLevelClass.length + 1)
-		}
-}
+
+		val nameWithoutTopLevel: String
+			get() {
+				if (!isNested) {
+					return className
+				}
+				return className.substring(topLevelClass.length + 1)
+			}
+	}
 
 /**
  * Information about a member of a class.
@@ -63,7 +66,7 @@ interface MemberCompletionData : ICompletionData {
 /** Information about a field-related completion item. */
 data class FieldCompletionData(
 	override val memberName: String,
-	override val classInfo: ClassCompletionData
+	override val classInfo: ClassCompletionData,
 ) : MemberCompletionData
 
 /**
@@ -77,5 +80,5 @@ data class MethodCompletionData(
 	override val classInfo: ClassCompletionData,
 	val parameterTypes: List<String>,
 	val erasedParameterTypes: List<String>,
-	val plusOverloads: Int
+	val plusOverloads: Int,
 ) : MemberCompletionData

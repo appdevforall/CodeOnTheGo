@@ -25,13 +25,13 @@ package org.appdevforall.codeonthego.models
  * @author Akash Yadav
  */
 enum class IdeSetupArgument(val argumentName: String, val requiresValue: Boolean = false) {
-  INSTALL_DIR("--install-dir", true),
-  WITH_GIT("--with-git"),
-  ASSUME_YES("--assume-yes"),
-  WITH_OPENSSH("--with-openssh"),
-  SDK_VERSION("--sdk", true),
-  JDK_VERSION("--jdk", true),
-  OFFLINE_MODE("--offline-mode"),
-  CACHE_DIR("--cache-dir"),
-  ABI_FOLDER("--arch", true)
+INSTALL_DIR("--install-dir", true),
+WITH_GIT("--with-git"),
+ASSUME_YES("--assume-yes"),
+WITH_OPENSSH("--with-openssh"),
+SDK_VERSION("--sdk", true),
+JDK_VERSION("--jdk", true),
+OFFLINE_MODE("--offline-mode"),
+CACHE_DIR("--cache-dir"),
+ABI_FOLDER("--arch", true)
 }

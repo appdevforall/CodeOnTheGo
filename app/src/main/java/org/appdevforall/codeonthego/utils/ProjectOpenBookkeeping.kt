@@ -19,15 +19,15 @@ package org.appdevforall.codeonthego.utils
 
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.analytics.IAnalyticsManager
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.repositories.RecentProjectRepository
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.templates.Language
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.io.File
 

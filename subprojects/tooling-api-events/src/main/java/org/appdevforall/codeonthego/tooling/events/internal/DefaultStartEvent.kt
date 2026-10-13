@@ -21,5 +21,9 @@ import org.appdevforall.codeonthego.tooling.events.OperationDescriptor
 import org.appdevforall.codeonthego.tooling.events.StartEvent
 
 /** @author Akash Yadav */
-class DefaultStartEvent(displayName: String, eventTime: Long, descriptor: OperationDescriptor) :
-  DefaultProgressEvent(displayName, eventTime, descriptor), StartEvent
+class DefaultStartEvent(
+	displayName: String,
+	eventTime: Long,
+	descriptor: OperationDescriptor,
+) : DefaultProgressEvent(displayName, eventTime, descriptor),
+	StartEvent

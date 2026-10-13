@@ -17,11 +17,11 @@
 
 package org.appdevforall.codeonthego.editor.language.treesitter
 
-import org.appdevforall.codeonthego.editor.schemes.LanguageScheme
 import io.github.rosemoe.sora.editor.ts.TsAnalyzeManager
 import io.github.rosemoe.sora.editor.ts.TsLanguageSpec
 import io.github.rosemoe.sora.editor.ts.TsTheme
 import io.github.rosemoe.sora.lang.styling.Styles
+import org.appdevforall.codeonthego.editor.schemes.LanguageScheme
 
 /**
  * [TsAnalyzeManager] implementation for tree sitter languages.
@@ -29,27 +29,29 @@ import io.github.rosemoe.sora.lang.styling.Styles
  * @author Akash Yadav
  */
 class TreeSitterAnalyzeManager(
-  languageSpec: TsLanguageSpec,
-  theme: TsTheme
+	languageSpec: TsLanguageSpec,
+	theme: TsTheme,
 ) : TsAnalyzeManager(languageSpec, theme) {
+	override var styles: Styles = Styles()
+		set(value) {
+			field = value
+			resetSpanFactory(value, langScheme)
+		}
 
-  override var styles: Styles = Styles()
-    set(value) {
-      field = value
-      resetSpanFactory(value, langScheme)
-    }
+	internal var langScheme: LanguageScheme? = null
+		set(value) {
+			field = value
+			resetSpanFactory(styles, value)
+		}
 
-  internal var langScheme: LanguageScheme? = null
-    set(value) {
-      field = value
-      resetSpanFactory(styles, value)
-    }
+	init {
+		resetSpanFactory(styles, langScheme)
+	}
 
-  init {
-    resetSpanFactory(styles, langScheme)
-  }
-
-  private fun resetSpanFactory(styles: Styles, langScheme: LanguageScheme?) {
-    spanFactory = TreeSitterSpanFactory(reference, languageSpec.tsQuery, styles, langScheme)
-  }
+	private fun resetSpanFactory(
+		styles: Styles,
+		langScheme: LanguageScheme?,
+	) {
+		spanFactory = TreeSitterSpanFactory(reference, languageSpec.tsQuery, styles, langScheme)
+	}
 }

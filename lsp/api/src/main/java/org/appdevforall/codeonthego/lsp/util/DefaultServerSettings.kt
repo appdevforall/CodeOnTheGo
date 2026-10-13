@@ -25,13 +25,19 @@ import org.appdevforall.codeonthego.lsp.api.IServerSettings
  * @author Akash Yadav
  */
 open class DefaultServerSettings : IServerSettings {
-  override fun completionsEnabled(): Boolean = true
-  override fun codeActionsEnabled(): Boolean = true
-  override fun smartSelectionsEnabled(): Boolean = true
-  override fun signatureHelpEnabled(): Boolean = true
-  override fun referencesEnabled(): Boolean = true
-  override fun definitionsEnabled(): Boolean = true
-  override fun codeAnalysisEnabled(): Boolean = true
+	override fun completionsEnabled(): Boolean = true
 
-  override fun shouldMatchAllLowerCase(): Boolean = false
+	override fun codeActionsEnabled(): Boolean = true
+
+	override fun smartSelectionsEnabled(): Boolean = true
+
+	override fun signatureHelpEnabled(): Boolean = true
+
+	override fun referencesEnabled(): Boolean = true
+
+	override fun definitionsEnabled(): Boolean = true
+
+	override fun codeAnalysisEnabled(): Boolean = true
+
+	override fun shouldMatchAllLowerCase(): Boolean = false
 }

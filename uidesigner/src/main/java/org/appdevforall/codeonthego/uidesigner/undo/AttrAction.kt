@@ -24,10 +24,9 @@ import org.appdevforall.codeonthego.uidesigner.models.UiAttribute
  *
  * @author Akash Yadav
  */
-internal abstract class AttrAction(protected val view: org.appdevforall.codeonthego.inflater.IView, protected val attr: UiAttribute) :
-  IUiAction {
-  
-  override fun toString(): String {
-    return "${javaClass.simpleName}(view=$view, attr=$attr)"
-  }
+internal abstract class AttrAction(
+	protected val view: org.appdevforall.codeonthego.inflater.IView,
+	protected val attr: UiAttribute,
+) : IUiAction {
+	override fun toString(): String = "${javaClass.simpleName}(view=$view, attr=$attr)"
 }

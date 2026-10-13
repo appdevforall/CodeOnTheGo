@@ -1,5 +1,13 @@
 package org.appdevforall.codeonthego.lsp.kotlin.fixtures
 
+import org.appdevforall.codeonthego.indexing.InMemoryIndex
+import org.appdevforall.codeonthego.indexing.api.IndexQuery
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.CompilationKind
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.DEFAULT_LANGUAGE_VERSION
@@ -10,14 +18,6 @@ import org.appdevforall.codeonthego.lsp.kotlin.compiler.read
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.registrar.AnalysisApiServiceProviders
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.registrar.LspAnalysisApiServiceRegistrar
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.services.AnalysisPermissionOptions
-import org.appdevforall.codeonthego.indexing.InMemoryIndex
-import org.appdevforall.codeonthego.indexing.api.IndexQuery
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
-import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor
-import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
-import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
 import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.KaSession

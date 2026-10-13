@@ -28,21 +28,23 @@ import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
  *
  * @author Akash Yadav
  */
-class CloseFileAction(context: Context, override val order: Int) : FileTabAction() {
+class CloseFileAction(
+	context: Context,
+	override val order: Int,
+) : FileTabAction() {
+	override val id: String = ID
 
-  override val id: String = ID
+	companion object {
+		const val ID = "ide.editor.fileTab.close.current"
+	}
 
-  companion object {
-    const val ID = "ide.editor.fileTab.close.current"
-  }
+	init {
+		label = context.getString(R.string.action_closeThis)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_close_this)
+	}
 
-  init {
-    label = context.getString(R.string.action_closeThis)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_close_this)
-  }
-
-  override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
-    data.getActivity()?.closeCurrentFile()
-    return true
-  }
+	override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
+		data.getActivity()?.closeCurrentFile()
+		return true
+	}
 }

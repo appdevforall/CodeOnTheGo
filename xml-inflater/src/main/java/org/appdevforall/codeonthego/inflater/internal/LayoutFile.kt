@@ -27,4 +27,7 @@ import java.io.File
  * @property resName The resource name.
  * @author Akash Yadav
  */
-data class LayoutFile(val file: File, val resName: String)
+data class LayoutFile(
+	val file: File,
+	val resName: String,
+)

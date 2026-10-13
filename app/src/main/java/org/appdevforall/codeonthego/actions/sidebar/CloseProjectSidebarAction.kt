@@ -20,11 +20,11 @@ package org.appdevforall.codeonthego.actions.sidebar
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 import kotlin.reflect.KClass
 
 /**
@@ -32,21 +32,23 @@ import kotlin.reflect.KClass
  *
  * @author Akash Yadav
  */
-class CloseProjectSidebarAction(context: Context, override val order: Int) :
-  AbstractSidebarAction() {
+class CloseProjectSidebarAction(
+	context: Context,
+	override val order: Int,
+) : AbstractSidebarAction() {
+	override val id: String = "ide.editor.sidebar.closeProject"
+	override val fragmentClass: KClass<out Fragment>? = null
 
-  override val id: String = "ide.editor.sidebar.closeProject"
-  override val fragmentClass: KClass<out Fragment>? = null
+	init {
+		label = context.getString(R.string.title_close_project)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_folder_close)
+	}
 
-  init {
-    label = context.getString(R.string.title_close_project)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_folder_close)
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		val context = data.requireContext() as BaseEditorActivity
+		context.doConfirmProjectClose()
+		return true
+	}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val context = data.requireContext() as BaseEditorActivity
-    context.doConfirmProjectClose()
-    return true
-  }
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.CLOSE_PROJECT_SIDEBAR
+	override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.CLOSE_PROJECT_SIDEBAR
 }

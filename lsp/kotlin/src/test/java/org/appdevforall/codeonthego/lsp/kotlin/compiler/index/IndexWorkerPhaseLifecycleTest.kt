@@ -1,10 +1,6 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPreemptedException
-import org.appdevforall.codeonthego.memprof.Memprof
-import org.appdevforall.codeonthego.memprof.MemprofSink
-import org.appdevforall.codeonthego.memprof.MemprofSpan
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -23,6 +19,10 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPreemptedException
+import org.appdevforall.codeonthego.memprof.Memprof
+import org.appdevforall.codeonthego.memprof.MemprofSink
+import org.appdevforall.codeonthego.memprof.MemprofSpan
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.util.Key
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile

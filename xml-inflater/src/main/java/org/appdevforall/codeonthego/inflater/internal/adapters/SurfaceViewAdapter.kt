@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.view.SurfaceView
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [SurfaceView].
@@ -32,9 +32,8 @@ import com.itsaky.androidide.resources.R.string
 @org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(SurfaceView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class SurfaceViewAdapter<T : SurfaceView> : ViewAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(SurfaceView::class.java, string.widget_surfaceview, drawable.ic_widget_surface_view)
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(SurfaceView::class.java, string.widget_surfaceview, drawable.ic_widget_surface_view),
+		)
 }

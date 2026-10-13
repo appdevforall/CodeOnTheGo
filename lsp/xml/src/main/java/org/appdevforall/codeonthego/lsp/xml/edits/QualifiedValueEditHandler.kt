@@ -27,8 +27,7 @@ import org.appdevforall.codeonthego.lsp.models.CompletionItem
  * @author Akash Yadav
  */
 open class QualifiedValueEditHandler : DefaultEditHandler() {
-
-  override fun isPartialPart(c: Char): Boolean {
-    return super.isPartialPart(c) || c == '.' // Tags can contain '.' as well
-  }
+	override fun isPartialPart(c: Char): Boolean {
+		return super.isPartialPart(c) || c == '.' // Tags can contain '.' as well
+	}
 }

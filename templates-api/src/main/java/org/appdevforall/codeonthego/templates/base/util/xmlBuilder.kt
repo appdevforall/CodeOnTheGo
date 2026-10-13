@@ -26,13 +26,13 @@ import org.eclipse.lemminx.dom.builder.XmlBuilder
  * the element is automatically closed.
  */
 inline fun XmlBuilder.createElement(name: String, closeStartTag: Boolean = false, selfClose: Boolean = false, crossinline configure: XmlBuilder.() -> Unit) {
-  startElement(name, closeStartTag)
-  configure()
-  if (selfClose) {
-    selfCloseElement()
-  } else {
-    endElement(name)
-  }
+startElement(name, closeStartTag)
+configure()
+if (selfClose) {
+	selfCloseElement()
+} else {
+	endElement(name)
+}
 }
 
 /**
@@ -42,25 +42,25 @@ inline fun XmlBuilder.createElement(name: String, closeStartTag: Boolean = false
  * @param value The value of the XML resource.
  */
 fun XmlBuilder.stringRes(name: String, value: String, indent: Boolean = true) {
-  indent(1)
-  createElement("string") {
-    addSingleAttribute("name", name)
-    closeStartElement()
-    append(value)
-  }
-  linefeed()
+indent(1)
+createElement("string") {
+	addSingleAttribute("name", name)
+	closeStartElement()
+	append(value)
+}
+linefeed()
 }
 
 /**
  * Get the generated XML string from the [XmlBuilder] with XML declaration prepended.
  */
 fun XmlBuilder.withXmlDecl(): String {
-  return toString().withXmlDecl()
+return toString().withXmlDecl()
 }
 
 /**
  * Prepends XML declaration to this string.
  */
 fun String.withXmlDecl(): String {
-  return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n${this}"
+return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n${this}"
 }

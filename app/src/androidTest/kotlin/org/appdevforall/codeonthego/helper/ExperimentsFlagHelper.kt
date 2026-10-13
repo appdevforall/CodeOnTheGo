@@ -2,8 +2,8 @@ package org.appdevforall.codeonthego.helper
 
 import android.os.ParcelFileDescriptor
 import androidx.test.platform.app.InstrumentationRegistry
-import org.appdevforall.codeonthego.utils.FeatureFlags
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.utils.FeatureFlags
 import org.junit.Assert.assertEquals
 
 private const val EXPERIMENTS_FLAG_PATH = "/sdcard/Download/CodeOnTheGo.exp"

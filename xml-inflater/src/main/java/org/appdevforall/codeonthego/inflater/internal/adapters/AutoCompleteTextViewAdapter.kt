@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.AutoCompleteTextView
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [AutoCompleteTextView].
@@ -34,23 +34,21 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(AutoCompleteTextView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class AutoCompleteTextViewAdapter<T : AutoCompleteTextView> : EditTextAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("completionHint") { view.completionHint = parseString(value) }
+		create("completionThreshold") { view.threshold = parseInteger(value, 1) }
+		create("dropDownAnchor") { view.dropDownAnchor = parseId(file.resName, value) }
+		create("dropDownWidth") { view.dropDownWidth = parseDimension(context, value) }
+		create("dropDownHeight") { view.dropDownHeight = parseDimension(context, value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("completionHint") { view.completionHint = parseString(value) }
-    create("completionThreshold") { view.threshold = parseInteger(value, 1) }
-    create("dropDownAnchor") { view.dropDownAnchor = parseId(file.resName, value) }
-    create("dropDownWidth") { view.dropDownWidth = parseDimension(context, value) }
-    create("dropDownHeight") { view.dropDownHeight = parseDimension(context, value) }
-  }
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        AutoCompleteTextView::class.java,
-        string.widget_auto_complete_textview,
-        drawable.ic_widget_auto_complete_textview
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				AutoCompleteTextView::class.java,
+				string.widget_auto_complete_textview,
+				drawable.ic_widget_auto_complete_textview,
+			),
+		)
 }

@@ -19,6 +19,7 @@ package org.appdevforall.codeonthego.lsp.java.actions
 
 import android.content.Context
 import android.graphics.drawable.Drawable
+import com.itsaky.androidide.lsp.java.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.EditorActionItem
@@ -29,7 +30,6 @@ import org.appdevforall.codeonthego.lsp.api.ILanguageClient
 import org.appdevforall.codeonthego.lsp.api.ILanguageServerRegistry
 import org.appdevforall.codeonthego.lsp.java.JavaCompilerProvider
 import org.appdevforall.codeonthego.lsp.java.JavaLanguageServer
-import com.itsaky.androidide.lsp.java.R
 import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
 import org.appdevforall.codeonthego.lsp.java.rewrite.Rewrite
 import org.appdevforall.codeonthego.projects.IProjectManager

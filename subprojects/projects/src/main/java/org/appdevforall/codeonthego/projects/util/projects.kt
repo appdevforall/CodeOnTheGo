@@ -26,5 +26,5 @@ import org.appdevforall.codeonthego.projects.api.AndroidModule
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 fun findAppModule(): AndroidModule? {
-  return IProjectManager.getInstance().getAndroidAppModules().firstOrNull { it.path == ":app" }
+return IProjectManager.getInstance().getAndroidAppModules().firstOrNull { it.path == ":app" }
 }

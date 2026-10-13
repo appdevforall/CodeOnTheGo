@@ -19,13 +19,13 @@ package org.appdevforall.codeonthego.templates.impl
 
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
-import org.appdevforall.codeonthego.templates.ITemplateProvider
 import com.itsaky.androidide.templates.R
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
+import org.appdevforall.codeonthego.templates.ITemplateProvider
 import org.appdevforall.codeonthego.templates.Template
 import org.appdevforall.codeonthego.templates.impl.zip.ZipRecipeExecutor
 import org.appdevforall.codeonthego.templates.impl.zip.ZipTemplateReader
 import org.appdevforall.codeonthego.utils.Environment.TEMPLATES_DIR
-import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.slf4j.LoggerFactory
 import java.util.zip.ZipFile
 

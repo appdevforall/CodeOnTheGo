@@ -26,32 +26,32 @@ import java.util.Objects;
  */
 public final class SignalCommand extends AbstractSocketCommand {
 
-  public static final ISocketCommand STOP = new SignalCommand("stop");
-  private final String name;
+	public static final ISocketCommand STOP = new SignalCommand("stop");
+	private final String name;
 
-  public SignalCommand(String name) {
-    this.name = name;
-  }
+	public SignalCommand(String name) {
+		this.name = name;
+	}
 
-  @Override
-  public String getName() {
-    return name;
-  }
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (!(o instanceof SignalCommand)) {
+			return false;
+		}
+		SignalCommand that = (SignalCommand) o;
+		return Objects.equals(name, that.name);
+	}
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (!(o instanceof SignalCommand)) {
-      return false;
-    }
-    SignalCommand that = (SignalCommand) o;
-    return Objects.equals(name, that.name);
-  }
+	@Override
+	public String getName() {
+		return name;
+	}
 
-  @Override
-  public int hashCode() {
-    return Objects.hash(name);
-  }
+	@Override
+	public int hashCode() {
+		return Objects.hash(name);
+	}
 }

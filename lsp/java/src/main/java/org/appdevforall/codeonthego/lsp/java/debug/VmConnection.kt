@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.lsp.java.debug
 
 import androidx.annotation.WorkerThread
+import com.sun.jdi.VirtualMachine
 import org.appdevforall.codeonthego.lsp.debug.RemoteClient
 import org.appdevforall.codeonthego.lsp.java.debug.spec.EventRequestSpecList
 import org.appdevforall.codeonthego.lsp.java.debug.utils.EvaluationContext
-import com.sun.jdi.VirtualMachine
 
 /**
  * Represents a connected VM state.
@@ -14,33 +14,32 @@ import com.sun.jdi.VirtualMachine
  * @property eventHandler The event handler for the VM, if it supports events.
  */
 internal data class VmConnection(
-    val client: RemoteClient,
-    val vm: VirtualMachine,
-    val threadState: ThreadState = ThreadState(vm),
-    val eventHandler: EventHandler? = null,
-    val evalContext: EvaluationContext = EvaluationContext(),
+	val client: RemoteClient,
+	val vm: VirtualMachine,
+	val threadState: ThreadState = ThreadState(vm),
+	val eventHandler: EventHandler? = null,
+	val evalContext: EvaluationContext = EvaluationContext(),
 ) : AutoCloseable {
+	val isHandlingEvents: Boolean
+		get() = eventHandler != null
 
-    val isHandlingEvents: Boolean
-        get() = eventHandler != null
+	/**
+	 * The event request spec list for the VM.
+	 */
+	val eventRequestSpecList: EventRequestSpecList?
+		get() = eventHandler?.eventRequestSpecList
 
-    /**
-     * The event request spec list for the VM.
-     */
-    val eventRequestSpecList: EventRequestSpecList?
-        get() = eventHandler?.eventRequestSpecList
+	/**
+	 * Start listening for events from the VM.
+	 */
+	fun startEventHandler() {
+		eventHandler?.startListening()
+	}
 
-    /**
-     * Start listening for events from the VM.
-     */
-    fun startEventHandler() {
-        eventHandler?.startListening()
-    }
-
-    @WorkerThread
-    override fun close() {
-        eventHandler?.close()
-        vm.dispose()
-        evalContext.close()
-    }
+	@WorkerThread
+	override fun close() {
+		eventHandler?.close()
+		vm.dispose()
+		evalContext.close()
+	}
 }

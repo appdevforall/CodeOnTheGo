@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.utils
 
 import android.content.Context
 import com.itsaky.androidide.R
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.git.core.GitRepositoryManager
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.tasks.executeAsyncProvideError
@@ -9,7 +10,6 @@ import org.appdevforall.codeonthego.templates.ProjectTemplateRecipeResult
 import org.appdevforall.codeonthego.templates.StringParameter
 import org.appdevforall.codeonthego.templates.Template
 import org.appdevforall.codeonthego.templates.impl.ConstraintVerifier
-import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 
 class ProjectCreationManager(

@@ -2,14 +2,14 @@ package org.appdevforall.codeonthego.actions.debug
 
 import android.content.Context
 import com.itsaky.androidide.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lsp.IDEDebugClientImpl
 import org.appdevforall.codeonthego.utils.IntentUtils
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -21,7 +21,7 @@ class RestartVmAction(
 	override val id = "ide.debug.restart-vm"
 	override var label = context.getString(R.string.debugger_restart)
 	override val order = 5
-    override var tooltipTag = TooltipTag.DEBUGGER_ACTION_RESTART
+	override var tooltipTag = TooltipTag.DEBUGGER_ACTION_RESTART
 
 	companion object {
 		val RESTART_DELAY = 1.seconds

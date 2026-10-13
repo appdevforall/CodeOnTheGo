@@ -21,7 +21,6 @@ import org.appdevforall.codeonthego.templates.ProjectTemplateData
 import org.appdevforall.codeonthego.templates.ProjectTemplateRecipeResult
 
 data class ProjectTemplateRecipeResultImpl(
-    override val data: ProjectTemplateData,
-    override val hasErrorsWarnings: Boolean = false
+	override val data: ProjectTemplateData,
+	override val hasErrorsWarnings: Boolean = false
 ) : ProjectTemplateRecipeResult
-

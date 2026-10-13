@@ -33,22 +33,24 @@ import org.appdevforall.codeonthego.uidesigner.models.UiViewGroup
  * @author Akash Yadav
  */
 open class UiInflaterComponentFactory : org.appdevforall.codeonthego.inflater.IComponentFactory {
+	override fun createView(
+		file: LayoutFile,
+		name: String,
+		view: View,
+	): org.appdevforall.codeonthego.inflater.IView {
+		if (view is ViewGroup) {
+			return UiViewGroup(file, name, view)
+		}
+		return UiView(file, name, view)
+	}
 
-  override fun createView(file: LayoutFile, name: String, view: View): org.appdevforall.codeonthego.inflater.IView {
-    if (view is ViewGroup) {
-      return UiViewGroup(file, name, view)
-    }
-    return UiView(file, name, view)
-  }
-
-  override fun createAttr(
-    view: IView,
-    namespace: INamespace?,
-    name: String,
-    value: String
-  ): org.appdevforall.codeonthego.inflater.IAttribute {
-    return UiAttribute(namespace = namespace as NamespaceImpl?, name = name, value = value).apply {
-      isRequired = UiAttribute.isRequired(view, this)
-    }
-  }
+	override fun createAttr(
+		view: IView,
+		namespace: INamespace?,
+		name: String,
+		value: String,
+	): org.appdevforall.codeonthego.inflater.IAttribute =
+		UiAttribute(namespace = namespace as NamespaceImpl?, name = name, value = value).apply {
+			isRequired = UiAttribute.isRequired(view, this)
+		}
 }

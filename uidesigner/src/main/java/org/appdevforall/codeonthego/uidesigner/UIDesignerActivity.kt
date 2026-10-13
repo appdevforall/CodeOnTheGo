@@ -17,8 +17,6 @@
 
 package org.appdevforall.codeonthego.uidesigner
 
-
-import com.itsaky.androidide.uidesigner.R
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -31,6 +29,8 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.core.view.GravityCompat
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.uidesigner.R
+import com.itsaky.androidide.uidesigner.databinding.ActivityUiDesignerBinding
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem.Location.UI_DESIGNER_TOOLBAR
 import org.appdevforall.codeonthego.actions.ActionsRegistry
@@ -38,7 +38,6 @@ import org.appdevforall.codeonthego.actions.FillMenuParams
 import org.appdevforall.codeonthego.app.BaseIDEActivity
 import org.appdevforall.codeonthego.uidesigner.actions.clearUiDesignerActions
 import org.appdevforall.codeonthego.uidesigner.actions.registerUiDesignerActions
-import com.itsaky.androidide.uidesigner.databinding.ActivityUiDesignerBinding
 import org.appdevforall.codeonthego.uidesigner.fragments.DesignerWorkspaceFragment
 import org.appdevforall.codeonthego.uidesigner.utils.ViewToXml
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
@@ -52,185 +51,180 @@ import java.io.File
  * @author Akash Yadav
  */
 class UIDesignerActivity : BaseIDEActivity() {
+	private var binding: ActivityUiDesignerBinding? = null
+	private val viewModel by viewModels<WorkspaceViewModel>()
 
-  private var binding: ActivityUiDesignerBinding? = null
-  private val viewModel by viewModels<WorkspaceViewModel>()
+	private val workspace: DesignerWorkspaceFragment?
+		get() = this.binding?.workspace?.getFragment<DesignerWorkspaceFragment>()
 
-  private val workspace: DesignerWorkspaceFragment?
-    get() = this.binding?.workspace?.getFragment<DesignerWorkspaceFragment>()
+	private val backPressHandler =
+		object : OnBackPressedCallback(true) {
+			override fun handleOnBackPressed() {
+				val frag =
+					workspace()
+						?: run {
+							onFailedToReturnXml("Workspace fragment not found")
+							return
+						}
 
-  private val backPressHandler =
-    object : OnBackPressedCallback(true) {
-      override fun handleOnBackPressed() {
-        val frag =
-          workspace()
-            ?: run {
-              onFailedToReturnXml("Workspace fragment not found")
-              return
-            }
+				if (viewModel.layoutHasError) {
+					onFailedToReturnXml("Inflation failed, layout has errors.")
+					return
+				}
 
-        if (viewModel.layoutHasError) {
-          onFailedToReturnXml("Inflation failed, layout has errors.")
-          return
-        }
+				if (frag.workspaceView.childCount <= 0) {
+					onFailedToReturnXml("No views have been added")
+					return
+				}
 
-        if (frag.workspaceView.childCount <= 0) {
-          onFailedToReturnXml("No views have been added")
-          return
-        }
+				ViewToXml.generateXml(
+					frag.requireContext(),
+					frag.workspaceView,
+					::onXmlGenerated,
+				) { result, error ->
+					if (result != null && error == null) {
+						return@generateXml
+					}
 
-        ViewToXml.generateXml(
-          frag.requireContext(),
-          frag.workspaceView,
-          ::onXmlGenerated
-        ) { result, error ->
-          if (result != null && error == null) {
-            return@generateXml
-          }
+					// XML generation failed, notify user and exit activity
+					runOnUiThread {
+						flashError(R.string.msg_generate_xml_failed)
+						onFailedToReturnXml(error?.cause?.message ?: error?.message ?: "Unknown error")
+					}
+				}
+			}
+		}
 
-          // XML generation failed, notify user and exit activity
-          runOnUiThread {
-            flashError(R.string.msg_generate_xml_failed)
-            onFailedToReturnXml(error?.cause?.message ?: error?.message ?: "Unknown error")
-          }
-        }
-      }
-    }
+	companion object {
+		private val log = LoggerFactory.getLogger(UIDesignerActivity::class.java)
 
-  companion object {
+		const val EXTRA_FILE = "layout_file"
+		const val RESULT_GENERATED_XML = "ide.uidesigner.generatedXml"
+		const val EXTRA_GENERATED_STRINGS = "ide.uidesigner.generatedStrings"
+		const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
+	}
 
-    private val log = LoggerFactory.getLogger(UIDesignerActivity::class.java)
+	private fun onXmlGenerated(xml: String) {
+		setResult(RESULT_OK, Intent().apply { putExtra(RESULT_GENERATED_XML, xml) })
+		finish()
+	}
 
-    const val EXTRA_FILE = "layout_file"
-    const val RESULT_GENERATED_XML = "ide.uidesigner.generatedXml"
-    const val EXTRA_GENERATED_STRINGS = "ide.uidesigner.generatedStrings"
-    const val EXTRA_LAYOUT_FILE_PATH = "com.example.images.LAYOUT_FILE_PATH"
-  }
+	private fun onFailedToReturnXml(reason: String) {
+		log.error("Failed to generate XML code because '{}'", reason)
+		setResult(RESULT_CANCELED)
+		finish()
+	}
 
-  private fun onXmlGenerated(xml: String) {
-    setResult(RESULT_OK, Intent().apply { putExtra(RESULT_GENERATED_XML, xml) })
-    finish()
-  }
+	override fun bindLayout(): View {
+		this.binding = ActivityUiDesignerBinding.inflate(layoutInflater)
+		this.binding!!.root.childId = this.binding!!.container.id
+		return this.binding!!.root
+	}
 
-  private fun onFailedToReturnXml(reason: String) {
-    log.error("Failed to generate XML code because '{}'", reason)
-    setResult(RESULT_CANCELED)
-    finish()
-  }
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
 
-  override fun bindLayout(): View {
-    this.binding = ActivityUiDesignerBinding.inflate(layoutInflater)
-    this.binding!!.root.childId = this.binding!!.container.id
-    return this.binding!!.root
-  }
+		val extras = intent?.extras
+		if (extras == null) {
+			log.error("UIDesignerActivity started without intent extras")
+			setResult(RESULT_CANCELED)
+			finish()
+			return
+		}
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+		val path = extras.getString(EXTRA_FILE)
+		if (path == null) {
+			log.error("UIDesignerActivity started without layout file path")
+			setResult(RESULT_CANCELED)
+			finish()
+			return
+		}
 
-    val extras = intent?.extras
-    if (extras == null) {
-      log.error("UIDesignerActivity started without intent extras")
-      setResult(RESULT_CANCELED)
-      finish()
-      return
-    }
+		val file = File(path)
+		if (!file.exists()) {
+			log.error("Layout file does not exist: {}", file)
+			setResult(RESULT_CANCELED)
+			finish()
+			return
+		}
 
-    val path = extras.getString(EXTRA_FILE)
-    if (path == null) {
-      log.error("UIDesignerActivity started without layout file path")
-      setResult(RESULT_CANCELED)
-      finish()
-      return
-    }
+		viewModel.file = file
 
-    val file = File(path)
-    if (!file.exists()) {
-      log.error("Layout file does not exist: {}", file)
-      setResult(RESULT_CANCELED)
-      finish()
-      return
-    }
+		setSupportActionBar(this.binding!!.toolbar)
+		supportActionBar?.title = viewModel.file.nameWithoutExtension
 
-    viewModel.file = file
+		ActionBarDrawerToggle(
+			this,
+			binding!!.root,
+			binding!!.toolbar,
+			R.string.app_name,
+			R.string.app_name,
+		).apply {
+			binding!!.root.addDrawerListener(this)
+			syncState()
+		}
 
-    setSupportActionBar(this.binding!!.toolbar)
-    supportActionBar?.title = viewModel.file.nameWithoutExtension
+		viewModel._drawerOpened.observe(this) { opened ->
+			if (binding == null) {
+				return@observe
+			}
 
-    ActionBarDrawerToggle(
-      this,
-      binding!!.root,
-      binding!!.toolbar,
-      R.string.app_name,
-      R.string.app_name
-    )
-      .apply {
-        binding!!.root.addDrawerListener(this)
-        syncState()
-      }
+			if (opened) {
+				binding!!.root.openDrawer(GravityCompat.START)
+			} else {
+				binding!!.root.closeDrawer(GravityCompat.START)
+			}
+		}
 
-    viewModel._drawerOpened.observe(this) { opened ->
-      if (binding == null) {
-        return@observe
-      }
+		onBackPressedDispatcher.addCallback(backPressHandler)
 
-      if (opened) {
-        binding!!.root.openDrawer(GravityCompat.START)
-      } else {
-        binding!!.root.closeDrawer(GravityCompat.START)
-      }
-    }
+		registerUiDesignerActions(this)
+	}
 
-    onBackPressedDispatcher.addCallback(backPressHandler)
+	override fun onResume() {
+		super.onResume()
+		registerUiDesignerActions(this)
+	}
 
-    registerUiDesignerActions(this)
-  }
+	override fun onPause() {
+		super.onPause()
+		clearUiDesignerActions()
+	}
 
-  override fun onResume() {
-    super.onResume()
-    registerUiDesignerActions(this)
-  }
+	override fun onDestroy() {
+		super.onDestroy()
+		binding = null
+	}
 
-  override fun onPause() {
-    super.onPause()
-    clearUiDesignerActions()
-  }
+	override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+		ensureToolbarMenu(menu)
+		return true
+	}
 
-  override fun onDestroy() {
-    super.onDestroy()
-    binding = null
-  }
+	@SuppressLint("RestrictedApi")
+	override fun onCreateOptionsMenu(menu: Menu): Boolean {
+		if (menu is MenuBuilder) {
+			menu.setOptionalIconsVisible(true)
+		}
+		return true
+	}
 
-  override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-    ensureToolbarMenu(menu)
-    return true
-  }
+	private fun ensureToolbarMenu(menu: Menu) {
+		menu.clear()
 
-  @SuppressLint("RestrictedApi")
-  override fun onCreateOptionsMenu(menu: Menu): Boolean {
-    if (menu is MenuBuilder) {
-      menu.setOptionalIconsVisible(true)
-    }
-    return true
-  }
+		val data = ActionData.create(this)
+		data.put(Fragment::class.java, workspace())
 
-  private fun ensureToolbarMenu(menu: Menu) {
-    menu.clear()
+		ActionsRegistry.getInstance().fillMenu(FillMenuParams(data, UI_DESIGNER_TOOLBAR, menu))
+	}
 
-    val data = ActionData.create(this)
-    data.put(Fragment::class.java, workspace())
+	private fun workspace(): DesignerWorkspaceFragment? = workspace
 
-    ActionsRegistry.getInstance().fillMenu(FillMenuParams(data, UI_DESIGNER_TOOLBAR, menu))
-  }
+	fun setupHierarchy(view: org.appdevforall.codeonthego.inflater.IView) {
+		binding?.hierarchy?.setupWithView(view) { workspace()?.showViewInfo(it) }
+	}
 
-  private fun workspace(): DesignerWorkspaceFragment? {
-    return workspace
-  }
-
-  fun setupHierarchy(view: org.appdevforall.codeonthego.inflater.IView) {
-    binding?.hierarchy?.setupWithView(view) { workspace()?.showViewInfo(it) }
-  }
-
-  fun openHierarchyView() {
-    binding?.root?.openDrawer(GravityCompat.END)
-  }
+	fun openHierarchyView() {
+		binding?.root?.openDrawer(GravityCompat.END)
+	}
 }

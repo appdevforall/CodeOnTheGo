@@ -17,51 +17,50 @@
 package org.appdevforall.codeonthego.lsp.java.rewrite;
 
 import androidx.annotation.NonNull;
-import org.appdevforall.codeonthego.lsp.java.compiler.CompilerProvider;
-import org.appdevforall.codeonthego.lsp.java.utils.EditHelper;
-import org.appdevforall.codeonthego.lsp.java.utils.FindHelper;
-import org.appdevforall.codeonthego.lsp.models.TextEdit;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import openjdk.source.util.Trees;
+import org.appdevforall.codeonthego.lsp.java.compiler.CompilerProvider;
+import org.appdevforall.codeonthego.lsp.java.utils.EditHelper;
+import org.appdevforall.codeonthego.lsp.java.utils.FindHelper;
+import org.appdevforall.codeonthego.lsp.models.TextEdit;
 
 public class RemoveMethod extends Rewrite {
 
-  final String className, methodName;
-  final String[] erasedParameterTypes;
+	final String className, methodName;
+	final String[] erasedParameterTypes;
 
-  public RemoveMethod(String className, String methodName, String[] erasedParameterTypes) {
-    this.className = className;
-    this.methodName = methodName;
-    this.erasedParameterTypes = erasedParameterTypes;
-  }
+	public RemoveMethod(String className, String methodName, String[] erasedParameterTypes) {
+		this.className = className;
+		this.methodName = methodName;
+		this.erasedParameterTypes = erasedParameterTypes;
+	}
 
-  @NonNull
-  @Override
-  public Map<Path, TextEdit[]> rewrite(CompilerProvider compiler) {
-    Path file = compiler.findTypeDeclaration(className);
-    if (file == CompilerProvider.NOT_FOUND) {
-      return CANCELLED;
-    }
+	@NonNull
+	@Override
+	public Map<Path, TextEdit[]> rewrite(CompilerProvider compiler) {
+		Path file = compiler.findTypeDeclaration(className);
+		if (file == CompilerProvider.NOT_FOUND) {
+			return CANCELLED;
+		}
 
-    return compiler
-        .compile(file)
-        .get(
-            task -> {
-              final var methodElement =
-                  FindHelper.findMethod(task, className, methodName, erasedParameterTypes);
-              if (methodElement == null) {
-                return CANCELLED;
-              }
+		return compiler
+				.compile(file)
+				.get(
+						task -> {
+							final var methodElement = FindHelper.findMethod(task, className, methodName, erasedParameterTypes);
+							if (methodElement == null) {
+								return CANCELLED;
+							}
 
-              final var methodTree = Trees.instance(task.task).getTree(methodElement);
-              if (methodTree == null) {
-                return CANCELLED;
-              }
+							final var methodTree = Trees.instance(task.task).getTree(methodElement);
+							if (methodTree == null) {
+								return CANCELLED;
+							}
 
-              TextEdit[] edits = {EditHelper.removeTree(task.task, task.root(), methodTree)};
-              return Collections.singletonMap(file, edits);
-            });
-  }
+							TextEdit[] edits = {EditHelper.removeTree(task.task, task.root(), methodTree)};
+							return Collections.singletonMap(file, edits);
+						});
+	}
 }

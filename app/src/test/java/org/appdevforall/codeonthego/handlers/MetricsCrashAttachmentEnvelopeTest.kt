@@ -20,12 +20,6 @@ package org.appdevforall.codeonthego.handlers
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.utils.MemoryUsageWatcher
-import org.appdevforall.codeonthego.utils.MetricsAnnotationStore
-import org.appdevforall.codeonthego.utils.MetricsScratch
-import org.appdevforall.codeonthego.utils.MetricsSource
-import org.appdevforall.codeonthego.utils.NetworkUsageWatcher
-import org.appdevforall.codeonthego.utils.PowerUsageWatcher
 import io.sentry.Hint
 import io.sentry.ITransportFactory
 import io.sentry.Sentry
@@ -34,6 +28,12 @@ import io.sentry.SentryItemType
 import io.sentry.SentryOptions
 import io.sentry.transport.ITransport
 import io.sentry.transport.RateLimiter
+import org.appdevforall.codeonthego.utils.MemoryUsageWatcher
+import org.appdevforall.codeonthego.utils.MetricsAnnotationStore
+import org.appdevforall.codeonthego.utils.MetricsScratch
+import org.appdevforall.codeonthego.utils.MetricsSource
+import org.appdevforall.codeonthego.utils.NetworkUsageWatcher
+import org.appdevforall.codeonthego.utils.PowerUsageWatcher
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith

@@ -36,9 +36,15 @@ import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.LayoutEditorFileTreeBinding
+import com.itsaky.androidide.resources.R.drawable
+import com.unnamed.b.atv.model.TreeNode
+import com.unnamed.b.atv.model.TreeNode.TreeNodeClickListener
+import com.unnamed.b.atv.model.TreeNode.TreeNodeLongClickListener
+import com.unnamed.b.atv.view.AndroidTreeView
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.adapters.FileSearchAdapter
 import org.appdevforall.codeonthego.adapters.viewholders.FileTreeViewHolder
-import com.itsaky.androidide.databinding.LayoutEditorFileTreeBinding
 import org.appdevforall.codeonthego.dnd.FileDragError
 import org.appdevforall.codeonthego.dnd.FileDragResult
 import org.appdevforall.codeonthego.dnd.FileDragStarter
@@ -49,7 +55,6 @@ import org.appdevforall.codeonthego.events.CollapseTreeNodeRequestEvent
 import org.appdevforall.codeonthego.events.ExpandTreeNodeRequestEvent
 import org.appdevforall.codeonthego.events.ListProjectFilesRequestEvent
 import org.appdevforall.codeonthego.projects.IProjectManager
-import com.itsaky.androidide.resources.R.drawable
 import org.appdevforall.codeonthego.tasks.TaskExecutor.executeAsync
 import org.appdevforall.codeonthego.tasks.callables.FileTreeCallable
 import org.appdevforall.codeonthego.tasks.callables.FileTreeCallable.SortFileName
@@ -63,11 +68,6 @@ import org.appdevforall.codeonthego.utils.flashSuccess
 import org.appdevforall.codeonthego.viewmodel.FileSearchUiState
 import org.appdevforall.codeonthego.viewmodel.FileSearchViewModel
 import org.appdevforall.codeonthego.viewmodel.FileTreeViewModel
-import com.unnamed.b.atv.model.TreeNode
-import com.unnamed.b.atv.model.TreeNode.TreeNodeClickListener
-import com.unnamed.b.atv.model.TreeNode.TreeNodeLongClickListener
-import com.unnamed.b.atv.view.AndroidTreeView
-import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN

@@ -18,12 +18,12 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.Button
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [Button].
@@ -33,7 +33,5 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(Button::class)
 @IncludeInDesigner(group = WIDGETS)
 open class ButtonAdapter<T : Button> : TextViewAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(UiWidget(Button::class.java, string.widget_button, drawable.ic_widget_button))
-  }
+	override fun createUiWidgets(): List<UiWidget> = listOf(UiWidget(Button::class.java, string.widget_button, drawable.ic_widget_button))
 }

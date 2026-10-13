@@ -29,27 +29,33 @@ import java.nio.file.Path
  * @property action The code action to perform.
  */
 data class PerformCodeActionParams
-@JvmOverloads
-constructor(val async: Boolean = true, val action: CodeActionItem)
+	@JvmOverloads
+	constructor(
+		val async: Boolean = true,
+		val action: CodeActionItem,
+	)
 
 /**
  * @property command The command to execute after the action is performed. This action is always
  *   performed in the currently opened editor, irrespective of the changes specified in [changes].
  */
 data class CodeActionItem(
-  var title: String,
-  var changes: List<DocumentChange>,
-  var kind: CodeActionKind,
-  var command: Command
+	var title: String,
+	var changes: List<DocumentChange>,
+	var kind: CodeActionKind,
+	var command: Command,
 ) {
-  constructor() : this("", ArrayList(), None, Command("", ""))
+	constructor() : this("", ArrayList(), None, Command("", ""))
 }
 
 enum class CodeActionKind {
-  QuickFix,
-  None
+	QuickFix,
+	None,
 }
 
-data class DocumentChange(var file: Path?, var edits: List<TextEdit>) {
-  constructor() : this(null, ArrayList())
+data class DocumentChange(
+	var file: Path?,
+	var edits: List<TextEdit>,
+) {
+	constructor() : this(null, ArrayList())
 }

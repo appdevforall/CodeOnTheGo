@@ -18,7 +18,6 @@
 package org.appdevforall.codeonthego.app
 
 abstract class IDEActivity : BaseIDEActivity() {
-
-  val app: IDEApplication
-    get() = application as IDEApplication
+	val app: IDEApplication
+		get() = application as IDEApplication
 }

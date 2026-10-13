@@ -25,13 +25,18 @@ import org.appdevforall.codeonthego.inflater.IView
  *
  * @author Akash Yadav
  */
-open class SingleChildViewGroup(file: LayoutFile, name: String, view: ViewGroup) :
-  ViewGroupImpl(file, name, view) {
-
-  override fun addChild(index: Int, view: IView) {
-    if (childCount == 1) {
-      throw IllegalStateException("There can be only one child")
-    }
-    super.addChild(index, view)
-  }
+open class SingleChildViewGroup(
+	file: LayoutFile,
+	name: String,
+	view: ViewGroup,
+) : ViewGroupImpl(file, name, view) {
+	override fun addChild(
+		index: Int,
+		view: IView,
+	) {
+		if (childCount == 1) {
+			throw IllegalStateException("There can be only one child")
+		}
+		super.addChild(index, view)
+	}
 }

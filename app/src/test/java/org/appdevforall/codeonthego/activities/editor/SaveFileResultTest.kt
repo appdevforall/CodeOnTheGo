@@ -3,10 +3,10 @@ package org.appdevforall.codeonthego.activities.editor
 import android.os.Looper
 import androidx.lifecycle.Observer
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.app.BaseApplication
-import org.appdevforall.codeonthego.app.EditorProviderImpl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.app.BaseApplication
+import org.appdevforall.codeonthego.app.EditorProviderImpl
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric

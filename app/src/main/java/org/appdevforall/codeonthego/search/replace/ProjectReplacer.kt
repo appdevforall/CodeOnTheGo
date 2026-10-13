@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.search.replace
 
-import org.appdevforall.codeonthego.models.SearchResult
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.models.SearchResult
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files

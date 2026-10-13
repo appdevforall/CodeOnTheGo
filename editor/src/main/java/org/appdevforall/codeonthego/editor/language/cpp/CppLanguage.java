@@ -18,9 +18,6 @@ package org.appdevforall.codeonthego.editor.language.cpp;
 
 import android.os.Bundle;
 import androidx.annotation.NonNull;
-import org.appdevforall.codeonthego.editor.language.IDELanguage;
-import org.appdevforall.codeonthego.editor.language.newline.BracketsNewlineHandler;
-import org.appdevforall.codeonthego.editor.language.utils.CommonSymbolPairs;
 import com.itsaky.androidide.lexers.cpp.CPP14Lexer;
 import io.github.rosemoe.sora.lang.analysis.AnalyzeManager;
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException;
@@ -32,84 +29,86 @@ import io.github.rosemoe.sora.widget.SymbolPairMatch;
 import java.io.StringReader;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
+import org.appdevforall.codeonthego.editor.language.IDELanguage;
+import org.appdevforall.codeonthego.editor.language.newline.BracketsNewlineHandler;
+import org.appdevforall.codeonthego.editor.language.utils.CommonSymbolPairs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class CppLanguage extends IDELanguage {
 
-  private static final Logger LOG = LoggerFactory.getLogger(CppLanguage.class);
-  private final NewlineHandler[] newlineHandlers =
-      new NewlineHandler[]{new BracketsNewlineHandler(this::getIndentAdvance, this::useTab)};
-  private final CommonSymbolPairs symbolPairs = new CommonSymbolPairs();
-  private CppAnalyzer analyzer;
+	private static final Logger LOG = LoggerFactory.getLogger(CppLanguage.class);
+	private final NewlineHandler[] newlineHandlers = new NewlineHandler[]{new BracketsNewlineHandler(this::getIndentAdvance, this::useTab)};
+	private final CommonSymbolPairs symbolPairs = new CommonSymbolPairs();
+	private CppAnalyzer analyzer;
 
-  public CppLanguage() {
-    analyzer = new CppAnalyzer();
-  }
+	public CppLanguage() {
+		analyzer = new CppAnalyzer();
+	}
 
-  @NonNull
-  @Override
-  public AnalyzeManager getAnalyzeManager() {
-    return analyzer;
-  }
+	@Override
+	public void destroy() {
+		analyzer = null;
+	}
 
-  @Override
-  public int getInterruptionLevel() {
-    return INTERRUPTION_LEVEL_STRONG;
-  }
+	@NonNull
+	@Override
+	public AnalyzeManager getAnalyzeManager() {
+		return analyzer;
+	}
 
-  @Override
-  public void requireAutoComplete(
-      @NonNull ContentReference content,
-      @NonNull CharPosition position,
-      @NonNull CompletionPublisher publisher,
-      @NonNull Bundle extraArguments)
-      throws CompletionCancelledException {
+	@Override
+	public int getIndentAdvance(@NonNull ContentReference content, int line, int column) {
+		return getIndentAdvance(content.getLine(line).substring(0, column));
+	}
 
-    //  completer.complete(content, position, publisher, extraArguments);
-  }
+	@Override
+	public int getIndentAdvance(@NonNull String line) {
+		try {
+			CPP14Lexer lexer = new CPP14Lexer(CharStreams.fromReader(new StringReader(line)));
+			Token token;
+			int advance = 0;
+			while (((token = lexer.nextToken()) != null && token.getType() != token.EOF)) {
+				switch (token.getType()) {
+				case CPP14Lexer.LeftBrace:
+					advance++;
+					break;
+				case CPP14Lexer.RightBrace:
+					advance--;
+					break;
+				}
+			}
+			advance = Math.max(0, advance);
+			return advance * getTabSize();
+		} catch (Throwable e) {
+			LOG.error("Error calculating indent advance", e);
+		}
+		return 0;
+	}
 
-  @Override
-  public int getIndentAdvance(@NonNull ContentReference content, int line, int column) {
-    return getIndentAdvance(content.getLine(line).substring(0, column));
-  }
+	@Override
+	public int getInterruptionLevel() {
+		return INTERRUPTION_LEVEL_STRONG;
+	}
 
-  @Override
-  public SymbolPairMatch getSymbolPairs() {
-    return symbolPairs;
-  }
+	@Override
+	public NewlineHandler[] getNewlineHandlers() {
+		return newlineHandlers;
+	}
 
-  @Override
-  public NewlineHandler[] getNewlineHandlers() {
-    return newlineHandlers;
-  }
+	@Override
+	public SymbolPairMatch getSymbolPairs() {
+		return symbolPairs;
+	}
 
-  @Override
-  public void destroy() {
-    analyzer = null;
-  }
+	@Override
+	public void requireAutoComplete(
+			@NonNull ContentReference content,
+			@NonNull CharPosition position,
+			@NonNull CompletionPublisher publisher,
+			@NonNull Bundle extraArguments)
+			throws CompletionCancelledException {
 
-  @Override
-  public int getIndentAdvance(@NonNull String line) {
-    try {
-      CPP14Lexer lexer = new CPP14Lexer(CharStreams.fromReader(new StringReader(line)));
-      Token token;
-      int advance = 0;
-      while (((token = lexer.nextToken()) != null && token.getType() != token.EOF)) {
-        switch (token.getType()) {
-          case CPP14Lexer.LeftBrace:
-            advance++;
-            break;
-          case CPP14Lexer.RightBrace:
-            advance--;
-            break;
-        }
-      }
-      advance = Math.max(0, advance);
-      return advance * getTabSize();
-    } catch (Throwable e) {
-      LOG.error("Error calculating indent advance", e);
-    }
-    return 0;
-  }
+		// completer.complete(content, position, publisher, extraArguments);
+	}
 }

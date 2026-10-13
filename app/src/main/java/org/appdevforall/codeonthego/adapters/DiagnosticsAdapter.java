@@ -24,61 +24,60 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.itsaky.androidide.databinding.LayoutDiagnosticGroupBinding;
-import org.appdevforall.codeonthego.interfaces.DiagnosticClickListener;
-import org.appdevforall.codeonthego.models.DiagnosticGroup;
 import java.util.List;
 import java.util.Objects;
+import org.appdevforall.codeonthego.interfaces.DiagnosticClickListener;
+import org.appdevforall.codeonthego.models.DiagnosticGroup;
 
 public class DiagnosticsAdapter extends RecyclerView.Adapter<DiagnosticsAdapter.VH> {
 
-  private final List<DiagnosticGroup> diagnostics;
-  private final DiagnosticClickListener listener;
+	private final List<DiagnosticGroup> diagnostics;
+	private final DiagnosticClickListener listener;
 
-  public DiagnosticsAdapter(List<DiagnosticGroup> diagnostics, DiagnosticClickListener listener) {
-    this.diagnostics = Objects.requireNonNull(diagnostics);
-    this.listener = listener;
-  }
+	public DiagnosticsAdapter(List<DiagnosticGroup> diagnostics, DiagnosticClickListener listener) {
+		this.diagnostics = Objects.requireNonNull(diagnostics);
+		this.listener = listener;
+	}
 
-  @NonNull
-  @Override
-  public DiagnosticsAdapter.VH onCreateViewHolder(ViewGroup p1, int p2) {
-    return new VH(
-        LayoutDiagnosticGroupBinding.inflate(LayoutInflater.from(p1.getContext()), p1, false));
-  }
+	@Override
+	public int getItemCount() {
+		return diagnostics.size();
+	}
 
-  @Override
-  public void onBindViewHolder(DiagnosticsAdapter.VH p1, int p2) {
-    final DiagnosticGroup group = diagnostics.get(p2);
-    final LayoutDiagnosticGroupBinding binding = p1.binding;
+	@Override
+	public void onBindViewHolder(DiagnosticsAdapter.VH p1, int p2) {
+		final DiagnosticGroup group = diagnostics.get(p2);
+		final LayoutDiagnosticGroupBinding binding = p1.binding;
 
-    binding.info.icon.setImageResource(group.icon);
-    binding.info.title.setText(group.text);
-    binding.diagnostics.setLayoutManager(new LinearLayoutManager(binding.diagnostics.getContext()));
-    binding.diagnostics.setAdapter(
-        new DiagnosticItemAdapter(group.diagnostics, group.file, listener));
+		binding.info.icon.setImageResource(group.icon);
+		binding.info.title.setText(group.text);
+		binding.diagnostics.setLayoutManager(new LinearLayoutManager(binding.diagnostics.getContext()));
+		binding.diagnostics.setAdapter(
+				new DiagnosticItemAdapter(group.diagnostics, group.file, listener));
 
-    binding
-        .info
-        .getRoot()
-        .setOnClickListener(
-            v -> {
-              if (listener != null) {
-                listener.onGroupClick(group);
-              }
-            });
-  }
+		binding.info
+				.getRoot()
+				.setOnClickListener(
+						v -> {
+							if (listener != null) {
+								listener.onGroupClick(group);
+							}
+						});
+	}
 
-  @Override
-  public int getItemCount() {
-    return diagnostics.size();
-  }
+	@NonNull
+	@Override
+	public DiagnosticsAdapter.VH onCreateViewHolder(ViewGroup p1, int p2) {
+		return new VH(
+				LayoutDiagnosticGroupBinding.inflate(LayoutInflater.from(p1.getContext()), p1, false));
+	}
 
-  public class VH extends RecyclerView.ViewHolder {
-    private LayoutDiagnosticGroupBinding binding;
+	public class VH extends RecyclerView.ViewHolder {
+		private LayoutDiagnosticGroupBinding binding;
 
-    public VH(LayoutDiagnosticGroupBinding binding) {
-      super(binding.getRoot());
-      this.binding = binding;
-    }
-  }
+		public VH(LayoutDiagnosticGroupBinding binding) {
+			super(binding.getRoot());
+			this.binding = binding;
+		}
+	}
 }

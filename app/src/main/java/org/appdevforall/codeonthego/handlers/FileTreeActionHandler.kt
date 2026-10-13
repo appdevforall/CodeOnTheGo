@@ -20,6 +20,10 @@ package org.appdevforall.codeonthego.handlers
 import android.content.Context
 import androidx.core.view.GravityCompat
 import androidx.lifecycle.lifecycleScope
+import com.unnamed.b.atv.model.TreeNode
+import kotlinx.coroutines.launch
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem.Location.EDITOR_FILE_TREE
 import org.appdevforall.codeonthego.actions.ActionMenu
@@ -38,10 +42,6 @@ import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.models.SheetOption
 import org.appdevforall.codeonthego.plugins.extensions.FileTabMenuItem
 import org.appdevforall.codeonthego.utils.flashError
-import com.unnamed.b.atv.model.TreeNode
-import kotlinx.coroutines.launch
-import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
-import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN

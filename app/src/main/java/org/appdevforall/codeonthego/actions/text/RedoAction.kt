@@ -21,11 +21,11 @@ import android.app.Activity
 import android.content.Context
 import android.view.MenuItem
 import androidx.core.content.ContextCompat
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.EditorRelatedAction
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.isSoftInputVisible
 
 /** @author Akash Yadav */

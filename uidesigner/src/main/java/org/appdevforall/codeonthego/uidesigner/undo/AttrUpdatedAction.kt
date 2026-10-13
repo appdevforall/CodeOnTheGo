@@ -25,16 +25,18 @@ import org.appdevforall.codeonthego.uidesigner.models.UiAttribute
  *
  * @author Akash Yadav
  */
-internal class AttrUpdatedAction(view: org.appdevforall.codeonthego.inflater.IView, attr: UiAttribute, private val oldValue: String) :
-  AttrAction(view, attr) {
+internal class AttrUpdatedAction(
+	view: org.appdevforall.codeonthego.inflater.IView,
+	attr: UiAttribute,
+	private val oldValue: String,
+) : AttrAction(view, attr) {
+	override fun undo() {
+		// NOTE : We need to provide the view instance so that the new attribute object created will be
+		// an instance of UiAttribute
+		view.updateAttribute(attr.copyAttr(view = view, value = oldValue))
+	}
 
-  override fun undo() {
-    // NOTE : We need to provide the view instance so that the new attribute object created will be
-    // an instance of UiAttribute
-    view.updateAttribute(attr.copyAttr(view = view, value = oldValue))
-  }
-
-  override fun redo() {
-    view.updateAttribute(attr)
-  }
+	override fun redo() {
+		view.updateAttribute(attr)
+	}
 }

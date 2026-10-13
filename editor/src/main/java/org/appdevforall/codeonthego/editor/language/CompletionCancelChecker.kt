@@ -17,22 +17,22 @@
 
 package org.appdevforall.codeonthego.editor.language
 
-import org.appdevforall.codeonthego.progress.ICancelChecker
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher
+import org.appdevforall.codeonthego.progress.ICancelChecker
 
 /**
  * [CompletionPublisher] implementation which exposes the `checkCancelled` method.
  *
  * @author Akash Yadav
  */
-class CompletionCancelChecker(private val publisher: CompletionPublisher) :
-  ICancelChecker.Default() {
-
-  /** Check if the completion is cancelled. */
-  @Throws(CompletionCancelledException::class)
-  override fun abortIfCancelled() {
-    publisher.checkCancelled()
-    super.abortIfCancelled()
-  }
+class CompletionCancelChecker(
+	private val publisher: CompletionPublisher,
+) : ICancelChecker.Default() {
+	/** Check if the completion is cancelled. */
+	@Throws(CompletionCancelledException::class)
+	override fun abortIfCancelled() {
+		publisher.checkCancelled()
+		super.abortIfCancelled()
+	}
 }

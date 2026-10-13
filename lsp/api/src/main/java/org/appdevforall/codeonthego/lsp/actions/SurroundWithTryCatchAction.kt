@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.lsp.actions
 
 import android.content.Context
 import android.graphics.drawable.Drawable
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.EditorActionItem
@@ -16,7 +17,6 @@ import org.appdevforall.codeonthego.lsp.models.CodeActionKind
 import org.appdevforall.codeonthego.lsp.models.Command
 import org.appdevforall.codeonthego.lsp.models.DocumentChange
 import org.appdevforall.codeonthego.lsp.models.TextEdit
-import com.itsaky.androidide.resources.R
 import org.slf4j.LoggerFactory
 import java.io.File
 

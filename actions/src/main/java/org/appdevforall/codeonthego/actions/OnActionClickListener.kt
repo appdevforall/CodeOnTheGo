@@ -25,14 +25,18 @@ import android.view.MenuItem
  * @author Akash Yadav
  */
 fun interface OnActionClickListener {
-
-  /**
-   * Called when the given [action] is clicked.
-   *
-   * @param registry The [ActionsRegistry].
-   * @param action The action that was clicked.
-   * @param data The action data associated with the action.
-   * @return Whether the click event was consumed.
-   */
-  fun onClick(registry: ActionsRegistry, action: ActionItem, item: MenuItem, data: ActionData): Boolean
+	/**
+	 * Called when the given [action] is clicked.
+	 *
+	 * @param registry The [ActionsRegistry].
+	 * @param action The action that was clicked.
+	 * @param data The action data associated with the action.
+	 * @return Whether the click event was consumed.
+	 */
+	fun onClick(
+		registry: ActionsRegistry,
+		action: ActionItem,
+		item: MenuItem,
+		data: ActionData,
+	): Boolean
 }

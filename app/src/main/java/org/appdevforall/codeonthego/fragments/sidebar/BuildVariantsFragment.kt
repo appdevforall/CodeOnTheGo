@@ -21,9 +21,9 @@ import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.DividerItemDecoration
+import com.itsaky.androidide.databinding.FragmentBuildVariantsBinding
 import org.appdevforall.codeonthego.activities.editor.ProjectHandlerActivity
 import org.appdevforall.codeonthego.adapters.BuildVariantsAdapter
-import com.itsaky.androidide.databinding.FragmentBuildVariantsBinding
 import org.appdevforall.codeonthego.fragments.EmptyStateFragment
 import org.appdevforall.codeonthego.tooling.api.models.BuildVariantInfo
 import org.appdevforall.codeonthego.viewmodel.BuildVariantsViewModel

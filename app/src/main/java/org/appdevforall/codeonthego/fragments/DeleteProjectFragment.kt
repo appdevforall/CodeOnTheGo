@@ -10,8 +10,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.adapters.DeleteProjectListAdapter
 import com.itsaky.androidide.databinding.FragmentDeleteProjectBinding
+import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.adapters.DeleteProjectListAdapter
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT_BUTTON
@@ -26,7 +27,6 @@ import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashSuccess
 import org.appdevforall.codeonthego.viewmodel.MainViewModel
 import org.appdevforall.codeonthego.viewmodel.RecentProjectsViewModel
-import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class DeleteProjectFragment : BaseFragment() {

@@ -28,12 +28,15 @@ import org.antlr.v4.runtime.Token
  * @author Akash Yadav
  */
 open class BaseLexerTest {
-  protected open fun createStream(input: String): CharStream = CharStreams.fromString(input)
+	protected open fun createStream(input: String): CharStream = CharStreams.fromString(input)
 
-  protected open fun ensureTokenSequence(tokens: List<Token>, expectedTypes: List<Int>) {
-    assertThat(tokens.size).isEqualTo(expectedTypes.size)
-    for ((index, token) in tokens.withIndex()) {
-      assertThat(token.type).isEqualTo(expectedTypes[index])
-    }
-  }
+	protected open fun ensureTokenSequence(
+		tokens: List<Token>,
+		expectedTypes: List<Int>,
+	) {
+		assertThat(tokens.size).isEqualTo(expectedTypes.size)
+		for ((index, token) in tokens.withIndex()) {
+			assertThat(token.type).isEqualTo(expectedTypes[index])
+		}
+	}
 }

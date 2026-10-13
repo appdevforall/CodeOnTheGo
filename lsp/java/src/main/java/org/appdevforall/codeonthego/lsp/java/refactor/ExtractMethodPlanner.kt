@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
 import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.util.JavacTask
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.coroutines.cancellation.CancellationException

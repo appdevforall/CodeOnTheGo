@@ -24,25 +24,28 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
 /**
  * @author Akash Yadav
  */
-class TreeSitterPoint @JvmOverloads internal constructor(
-  row: Int = 0,
-  column: Int = 0
-) : TSPoint(row, column), RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+class TreeSitterPoint
+	@JvmOverloads
+	internal constructor(
+		row: Int = 0,
+		column: Int = 0,
+	) : TSPoint(row, column),
+		RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+		companion object {
+			@JvmStatic
+			fun obtain(
+				row: Int,
+				column: Int,
+			): TreeSitterPoint =
+				obtainFromPool<TreeSitterPoint>().apply {
+					this.row = row
+					this.column = column
+				}
+		}
 
-  companion object {
-
-    @JvmStatic
-    fun obtain(row: Int, column: Int): TreeSitterPoint {
-      return obtainFromPool<TreeSitterPoint>().apply {
-        this.row = row
-        this.column = column
-      }
-    }
-  }
-
-  override fun recycle() {
-    this.row = 0
-    this.column = 0
-    returnToPool()
-  }
-}
+		override fun recycle() {
+			this.row = 0
+			this.column = 0
+			returnToPool()
+		}
+	}

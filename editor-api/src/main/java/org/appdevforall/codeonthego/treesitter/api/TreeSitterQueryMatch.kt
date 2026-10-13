@@ -25,30 +25,32 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
 /**
  * @author Akash Yadav
  */
-class TreeSitterQueryMatch @JvmOverloads internal constructor(
-  id: Int = 0,
-  patternIndex: Int = 0,
-  captures: Array<out TSQueryCapture?>? = null
-) : TSQueryMatch(id, patternIndex, captures, null),
-  RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+class TreeSitterQueryMatch
+	@JvmOverloads
+	internal constructor(
+		id: Int = 0,
+		patternIndex: Int = 0,
+		captures: Array<out TSQueryCapture?>? = null,
+	) : TSQueryMatch(id, patternIndex, captures, null),
+		RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+		companion object {
+			@JvmStatic
+			fun obtain(
+				id: Int,
+				patternIndex: Int,
+				captures: Array<out TSQueryCapture?>?,
+			): TreeSitterQueryMatch =
+				obtainFromPool<TreeSitterQueryMatch>().apply {
+					this.id = id
+					this.patternIndex = patternIndex
+					this.captures = captures
+				}
+		}
 
-  companion object {
-
-    @JvmStatic
-    fun obtain(id: Int, patternIndex: Int,
-      captures: Array<out TSQueryCapture?>?): TreeSitterQueryMatch {
-      return obtainFromPool<TreeSitterQueryMatch>().apply {
-        this.id = id
-        this.patternIndex = patternIndex
-        this.captures = captures
-      }
-    }
-  }
-
-  override fun recycle() {
-    this.id = 0
-    this.patternIndex = 0
-    this.captures = null
-    returnToPool()
-  }
-}
+		override fun recycle() {
+			this.id = 0
+			this.patternIndex = 0
+			this.captures = null
+			returnToPool()
+		}
+	}

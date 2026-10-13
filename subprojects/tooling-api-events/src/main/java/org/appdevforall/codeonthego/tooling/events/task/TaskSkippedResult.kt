@@ -18,5 +18,8 @@
 package org.appdevforall.codeonthego.tooling.events.task
 
 /** @author Akash Yadav */
-class TaskSkippedResult(val skipMessage: String, startTime: Long, endTime: Long) :
-  TaskOperationResult(startTime, endTime)
+class TaskSkippedResult(
+	val skipMessage: String,
+	startTime: Long,
+	endTime: Long,
+) : TaskOperationResult(startTime, endTime)

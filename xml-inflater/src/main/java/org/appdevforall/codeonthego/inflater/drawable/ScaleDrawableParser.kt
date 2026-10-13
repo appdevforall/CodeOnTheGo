@@ -28,56 +28,58 @@ import org.xmlpull.v1.XmlPullParser
  *
  * @author Akash Yadav
  */
-open class ScaleDrawableParser protected constructor(parser: XmlPullParser?, minDepth: Int) :
-  IDrawableParser(parser, minDepth) {
-  @Throws(Exception::class)
-  public override fun parseDrawable(context: Context): Drawable {
-    var index = attrIndex("drawable")
-    if (index == -1) {
-      throw InflateException("<scale> drawable must specify android:drawable attribute")
-    }
-    val v =
-      value(index)
-    val drawable =
-      parseDrawable(context, v)
-    var gravity = Gravity.LEFT
-    index = attrIndex("scaleGravity")
-    if (index != -1) {
-      try {
-        gravity = parseGravity(value(index))
-      } catch (th: Throwable) {
-        // ignored
-      }
-    }
-    var scaleWidth = -1.0f
-    var scaleHeight = -1.0f // DO_NOT_SCALE by default
-    index = attrIndex("scaleWidth")
-    if (index != -1) {
-      try {
-        scaleWidth = parseScale(value(index))
-      } catch (th: Throwable) {
-        // ignored
-      }
-    }
-    index = attrIndex("scaleHeight")
-    if (index != -1) {
-      try {
-        scaleHeight = parseScale(value(index))
-      } catch (th: Throwable) {
-        // ignored
-      }
-    }
-    return ScaleDrawable(drawable, gravity, scaleWidth, scaleHeight)
-  }
+open class ScaleDrawableParser protected constructor(
+	parser: XmlPullParser?,
+	minDepth: Int,
+) : IDrawableParser(parser, minDepth) {
+	@Throws(Exception::class)
+	public override fun parseDrawable(context: Context): Drawable {
+		var index = attrIndex("drawable")
+		if (index == -1) {
+			throw InflateException("<scale> drawable must specify android:drawable attribute")
+		}
+		val v =
+			value(index)
+		val drawable =
+			parseDrawable(context, v)
+		var gravity = Gravity.LEFT
+		index = attrIndex("scaleGravity")
+		if (index != -1) {
+			try {
+				gravity = parseGravity(value(index))
+			} catch (th: Throwable) {
+				// ignored
+			}
+		}
+		var scaleWidth = -1.0f
+		var scaleHeight = -1.0f // DO_NOT_SCALE by default
+		index = attrIndex("scaleWidth")
+		if (index != -1) {
+			try {
+				scaleWidth = parseScale(value(index))
+			} catch (th: Throwable) {
+				// ignored
+			}
+		}
+		index = attrIndex("scaleHeight")
+		if (index != -1) {
+			try {
+				scaleHeight = parseScale(value(index))
+			} catch (th: Throwable) {
+				// ignored
+			}
+		}
+		return ScaleDrawable(drawable, gravity, scaleWidth, scaleHeight)
+	}
 
-  private fun parseScale(value: String): Float {
-    if (!value.endsWith("%")) {
-      throw InflateException("Invalid scale value:$value")
-    }
-    val factor = value.substring(0, value.length - 1).toFloat() / 100
-    if (factor < 0f || factor > 1f) {
-      throw InflateException("Scale factor must be between 0% and 100%")
-    }
-    return factor
-  }
+	private fun parseScale(value: String): Float {
+		if (!value.endsWith("%")) {
+			throw InflateException("Invalid scale value:$value")
+		}
+		val factor = value.substring(0, value.length - 1).toFloat() / 100
+		if (factor < 0f || factor > 1f) {
+			throw InflateException("Scale factor must be between 0% and 100%")
+		}
+		return factor
+	}
 }

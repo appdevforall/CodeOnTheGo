@@ -1,9 +1,5 @@
 package org.appdevforall.codeonthego.plugins.manager.services
 
-import org.appdevforall.codeonthego.plugins.extensions.CommandOutput
-import org.appdevforall.codeonthego.plugins.extensions.CommandResult
-import org.appdevforall.codeonthego.plugins.extensions.CommandSpec
-import org.appdevforall.codeonthego.plugins.services.GradleTaskResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +10,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.plugins.extensions.CommandOutput
+import org.appdevforall.codeonthego.plugins.extensions.CommandResult
+import org.appdevforall.codeonthego.plugins.extensions.CommandSpec
+import org.appdevforall.codeonthego.plugins.services.GradleTaskResult
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**

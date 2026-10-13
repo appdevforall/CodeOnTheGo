@@ -4,8 +4,6 @@ import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.editor.schemes.LanguageSpecProvider
-import org.appdevforall.codeonthego.logging.provider.IdeGlobalLogBuffer
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.treesitter.java.TSLanguageJava
 import com.itsaky.androidide.treesitter.log.TSLanguageLog
@@ -19,6 +17,8 @@ import io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer
 import io.github.rosemoe.sora.lang.styling.Styles
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.ContentReference
+import org.appdevforall.codeonthego.editor.schemes.LanguageSpecProvider
+import org.appdevforall.codeonthego.logging.provider.IdeGlobalLogBuffer
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith

@@ -28,8 +28,6 @@ import com.google.devtools.ksp.processing.SymbolProcessorProvider
  * @author Akash Yadav
  */
 class ViewAdapterSymbolProcessorProvider : SymbolProcessorProvider {
-
-  override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor {
-    return ViewAdapterSymbolProcessor(environment.codeGenerator, environment.logger)
-  }
+	override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor =
+		ViewAdapterSymbolProcessor(environment.codeGenerator, environment.logger)
 }

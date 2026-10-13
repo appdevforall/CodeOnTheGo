@@ -41,216 +41,217 @@ import java.io.File
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class LayoutInflaterTest {
+	// No per-test @Rule Timeout here on purpose. JUnit's Timeout wraps the test in a
+	// separate thread (FailOnTimeout$CallableStatement), which breaks Robolectric APIs
+	// that require the runner's main-looper thread — notably Robolectric.buildActivity
+	// backing XmlInflaterTest.activity, which throws "buildActivity must be called on
+	// main Looper thread" the moment a test reaches requiresActivity { ... }.
+	//
+	// Hang protection comes from two other layers added by ADFA-3863:
+	//   * the project-wide 10-minute Test task timeout in build.gradle.kts, and
+	//   * XmlInflaterTest's State machine (UNINITIALIZED → READY|FAILED) so a single
+	//     init failure short-circuits every subsequent test in the suite rather than
+	//     re-paying the cost.
 
-  // No per-test @Rule Timeout here on purpose. JUnit's Timeout wraps the test in a
-  // separate thread (FailOnTimeout$CallableStatement), which breaks Robolectric APIs
-  // that require the runner's main-looper thread — notably Robolectric.buildActivity
-  // backing XmlInflaterTest.activity, which throws "buildActivity must be called on
-  // main Looper thread" the moment a test reaches requiresActivity { ... }.
-  //
-  // Hang protection comes from two other layers added by ADFA-3863:
-  //   * the project-wide 10-minute Test task timeout in build.gradle.kts, and
-  //   * XmlInflaterTest's State machine (UNINITIALIZED → READY|FAILED) so a single
-  //     init failure short-circuits every subsequent test in the suite rather than
-  //     re-paying the cost.
+	@Before
+	fun `setup project`() {
+		XmlInflaterTest.initIfNeeded()
+	}
 
-  @Before
-  fun `setup project`() {
-    XmlInflaterTest.initIfNeeded()
-  }
+	@Test
+	fun `test functionality`() {
+		inflaterTest {
+			requiresActivity {
+				val file = layoutFile("singleView")
+				val parent = LinearLayout(this)
+				val inflater = ILayoutInflater.newInflater()
+				val inflated = inflater.inflate(file, parent)
+				inflated.apply {
+					assertThat(this).isNotEmpty()
+					assertThat(this).hasSize(1)
+					forEach { assertThat(it.view).isInstanceOf(View::class.java) }
+				}
+			}
+		}
+	}
 
-  @Test
-  fun `test functionality`() {
-    inflaterTest {
-      requiresActivity {
-        val file = layoutFile("singleView")
-        val parent = LinearLayout(this)
-        val inflater = ILayoutInflater.newInflater()
-        val inflated = inflater.inflate(file, parent)
-        inflated.apply {
-          assertThat(this).isNotEmpty()
-          assertThat(this).hasSize(1)
-          forEach { assertThat(it.view).isInstanceOf(View::class.java) }
-        }
-      }
-    }
-  }
+	@Test
+	fun `test inflated view is of expected type`() {
+		inflaterTest { module ->
+			requiresActivity {
+				val parent = LinearLayout(this)
+				val inflater = ILayoutInflater.newInflater() as LayoutInflaterImpl
+				viewToAdapter.keys.forEach { view ->
+					println("Testing layout inflater and adapter for ${view.qualifiedName}")
+					parent.removeAllViews()
+					module.createLayoutFile(view.simpleName!!) { file ->
+						file.writeText(viewDeclTemplate(view.simpleName!!))
+						val inflated = inflater.inflate(file, parent)[0]
+						assertThat(inflated.view).isInstanceOf(view.java)
+						assertThat(inflated.view.id).isEqualTo(IDTable.get(view.simpleName!!, "template_view"))
 
-  @Test
-  fun `test inflated view is of expected type`() {
-    inflaterTest { module ->
-      requiresActivity {
-        val parent = LinearLayout(this)
-        val inflater = ILayoutInflater.newInflater() as LayoutInflaterImpl
-        viewToAdapter.keys.forEach { view ->
-          println("Testing layout inflater and adapter for ${view.qualifiedName}")
-          parent.removeAllViews()
-          module.createLayoutFile(view.simpleName!!) { file ->
-            file.writeText(viewDeclTemplate(view.simpleName!!))
-            val inflated = inflater.inflate(file, parent)[0]
-            assertThat(inflated.view).isInstanceOf(view.java)
-            assertThat(inflated.view.id).isEqualTo(IDTable.get(view.simpleName!!, "template_view"))
+						(inflated as ViewImpl).attributes.apply {
+							assertThat(this)
+								.contains(newAttribute(inflated, INamespace.ANDROID, "id", "@+id/template_view"))
+							assertThat(this)
+								.contains(
+									newAttribute(inflated, INamespace.ANDROID, "layout_height", "match_parent"),
+								)
+							assertThat(this)
+								.contains(
+									newAttribute(inflated, INamespace.ANDROID, "layout_width", "match_parent"),
+								)
+						}
+					}
+				}
+			}
+		}
+	}
 
-            (inflated as ViewImpl).attributes.apply {
-              assertThat(this)
-                .contains(newAttribute(inflated, INamespace.ANDROID, "id", "@+id/template_view"))
-              assertThat(this)
-                .contains(
-                  newAttribute(inflated, INamespace.ANDROID, "layout_height", "match_parent")
-                )
-              assertThat(this)
-                .contains(
-                  newAttribute(inflated, INamespace.ANDROID, "layout_width", "match_parent")
-                )
-            }
-          }
-        }
-      }
-    }
-  }
+	@Test
+	fun `verify included view hierarchy`() {
+		inflaterTest {
+			requiresActivity {
+				val parent = LinearLayout(this)
+				val inflater = ILayoutInflater.newInflater()
+				val inflated = inflater.inflate(layoutFile("include"), parent)
+				assertThat(inflated).hasSize(1)
 
-  @Test
-  fun `verify included view hierarchy`() {
-    inflaterTest {
-      requiresActivity {
-        val parent = LinearLayout(this)
-        val inflater = ILayoutInflater.newInflater()
-        val inflated = inflater.inflate(layoutFile("include"), parent)
-        assertThat(inflated).hasSize(1)
+				val view = inflated[0] as ViewGroupImpl
+				assertThat(view.printHierarchy())
+					.isEqualTo(
+						"android.widget.LinearLayout\n" +
+							"    android.widget.RelativeLayout\n" +
+							"        android.widget.TextView\n" +
+							"        android.widget.TextView\n",
+					)
+				val included = view[0] as IncludeView
+				included.findAttribute("layout_height", INamespace.ANDROID.uri).apply {
+					assertThat(this).isNotNull()
+					assertThat(this!!.value).isEqualTo("48dp")
+				}
+				included.findAttribute("layout_width", INamespace.ANDROID.uri).apply {
+					assertThat(this).isNotNull()
+					assertThat(this!!.value).isEqualTo("48dp")
+				}
+				assertThat(included.embedded.hasAttribute("gravity", INamespace.ANDROID.uri)).isTrue()
+				assertThat(included.embedded.hasAttribute("id", INamespace.ANDROID.uri)).isTrue()
+			}
+		}
+	}
 
-        val view = inflated[0] as ViewGroupImpl
-        assertThat(view.printHierarchy())
-          .isEqualTo(
-            "android.widget.LinearLayout\n" +
-              "    android.widget.RelativeLayout\n" +
-              "        android.widget.TextView\n" +
-              "        android.widget.TextView\n"
-          )
-        val included = view[0] as IncludeView
-        included.findAttribute("layout_height", INamespace.ANDROID.uri).apply {
-          assertThat(this).isNotNull()
-          assertThat(this!!.value).isEqualTo("48dp")
-        }
-        included.findAttribute("layout_width", INamespace.ANDROID.uri).apply {
-          assertThat(this).isNotNull()
-          assertThat(this!!.value).isEqualTo("48dp")
-        }
-        assertThat(included.embedded.hasAttribute("gravity", INamespace.ANDROID.uri)).isTrue()
-        assertThat(included.embedded.hasAttribute("id", INamespace.ANDROID.uri)).isTrue()
-      }
-    }
-  }
+	@Test
+	fun `verify merged view hierarchy`() {
+		inflaterTest { module ->
+			requiresActivity {
+				val parent = LinearLayout(this)
+				val inflater = ILayoutInflater.newInflater(module)
+				val inflated = inflater.inflate(layoutFile("merge"), parent)
+				assertThat(inflated).hasSize(1)
 
-  @Test
-  fun `verify merged view hierarchy`() {
-    inflaterTest { module ->
-      requiresActivity {
-        val parent = LinearLayout(this)
-        val inflater = ILayoutInflater.newInflater(module)
-        val inflated = inflater.inflate(layoutFile("merge"), parent)
-        assertThat(inflated).hasSize(1)
+				val view = inflated[0] as ViewGroupImpl
+				assertThat(view.printHierarchy())
+					.isEqualTo(
+						"android.widget.LinearLayout\n" +
+							"    android.widget.TextView\n" +
+							"    android.widget.TextView\n",
+					)
 
-        val view = inflated[0] as ViewGroupImpl
-        assertThat(view.printHierarchy())
-          .isEqualTo(
-            "android.widget.LinearLayout\n" +
-              "    android.widget.TextView\n" +
-              "    android.widget.TextView\n"
-          )
+				assertThat(view.childCount).isEqualTo(2)
 
-        assertThat(view.childCount).isEqualTo(2)
+				// attributes on <include> tag must be ignored
+				for (i in 0 until view.childCount) {
+					assertThat(view[i].hasAttribute("clickable", INamespace.ANDROID.uri)).isFalse()
+				}
+			}
+		}
+	}
 
-        // attributes on <include> tag must be ignored
-        for (i in 0 until view.childCount) {
-          assertThat(view[i].hasAttribute("clickable", INamespace.ANDROID.uri)).isFalse()
-        }
-      }
-    }
-  }
+	@Test
+	fun `test unsupported views`() {
+		inflaterTest {
+			requiresActivity {
+				val parent = LinearLayout(this)
+				val inflater = ILayoutInflater.newInflater(it)
+				val inflated = inflater.inflate(layoutFile("unsupported_views"), parent)
 
-  @Test
-  fun `test unsupported views`() {
-    inflaterTest {
-      requiresActivity {
-        val parent = LinearLayout(this)
-        val inflater = ILayoutInflater.newInflater(it)
-        val inflated = inflater.inflate(layoutFile("unsupported_views"), parent)
+				assertThat(inflated).hasSize(1)
 
-        assertThat(inflated).hasSize(1)
+				val root = inflated[0] as ViewGroupImpl
 
-        val root = inflated[0] as ViewGroupImpl
+				// verity the inflated layout hierarchy
+				// this takes care of verifying that the generated XML elements will have proper XML tagsl
+				assertThat(root.printHierarchy())
+					.isEqualTo(
+						"android.widget.LinearLayout\n" +
+							"    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView\n" +
+							"    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout\n" +
+							"    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout\n" +
+							"        android.widget.ImageView\n" +
+							"        android.widget.ImageView\n" +
+							"    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout\n" +
+							"        org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView\n" +
+							"        org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView\n",
+					)
 
-        // verity the inflated layout hierarchy
-        // this takes care of verifying that the generated XML elements will have proper XML tagsl
-        assertThat(root.printHierarchy())
-          .isEqualTo(
-            "android.widget.LinearLayout\n" +
-              "    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView\n" +
-              "    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout\n" +
-              "    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout\n" +
-              "        android.widget.ImageView\n" +
-              "        android.widget.ImageView\n" +
-              "    org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout\n" +
-              "        org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView\n" +
-              "        org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView\n"
-          )
+				// TextView is used to inflate unsupported views
+				assertThat(root[0].view).isInstanceOf(TextView::class.java)
 
-        // TextView is used to inflate unsupported views
-        assertThat(root[0].view).isInstanceOf(TextView::class.java)
+				// TextView is also used for layouts which do not have any child viewsl
+				assertThat(root[1].view).isInstanceOf(TextView::class.java)
 
-        // TextView is also used for layouts which do not have any child viewsl
-        assertThat(root[1].view).isInstanceOf(TextView::class.java)
+				// FrameLayout is used to inflate unsupported layouts with child views
+				assertThat(root[2].view).isInstanceOf(FrameLayout::class.java)
+				assertThat(root[3].view).isInstanceOf(FrameLayout::class.java)
 
-        // FrameLayout is used to inflate unsupported layouts with child views
-        assertThat(root[2].view).isInstanceOf(FrameLayout::class.java)
-        assertThat(root[3].view).isInstanceOf(FrameLayout::class.java)
+				assertThat((root[2] as ViewGroupImpl)[0].view).isInstanceOf(ImageView::class.java)
+				assertThat((root[2] as ViewGroupImpl)[1].view).isInstanceOf(ImageView::class.java)
 
-        assertThat((root[2] as ViewGroupImpl)[0].view).isInstanceOf(ImageView::class.java)
-        assertThat((root[2] as ViewGroupImpl)[1].view).isInstanceOf(ImageView::class.java)
+				// Unsupported child views
+				assertThat((root[3] as ViewGroupImpl)[0].view).isInstanceOf(TextView::class.java)
+				assertThat((root[3] as ViewGroupImpl)[1].view).isInstanceOf(TextView::class.java)
+			}
+		}
+	}
 
-        // Unsupported child views
-        assertThat((root[3] as ViewGroupImpl)[0].view).isInstanceOf(TextView::class.java)
-        assertThat((root[3] as ViewGroupImpl)[1].view).isInstanceOf(TextView::class.java)
-      }
-    }
-  }
-  
-  @Test
-  fun `test order of included view with sibling views`() {
-    inflaterTest {
-      requiresActivity {
-        val parent = LinearLayout(this)
-        val inflater = ILayoutInflater.newInflater(it)
-        val inflated = inflater.inflate(layoutFile("include_order"), parent)
-        assertThat(inflated).hasSize(1)
-      
-        val view = inflated[0] as ViewGroupImpl
-        
-        // verify the hierarchy
-        assertThat(view.printHierarchy())
-          .isEqualTo(
-            "android.widget.LinearLayout\n" +
-              "    android.view.View\n" +
-              "    android.widget.RelativeLayout\n" +
-              "        android.widget.TextView\n" +
-              "        android.widget.TextView\n" +
-              "    android.view.View\n"
-          )
-      }
-    }
-  }
+	@Test
+	fun `test order of included view with sibling views`() {
+		inflaterTest {
+			requiresActivity {
+				val parent = LinearLayout(this)
+				val inflater = ILayoutInflater.newInflater(it)
+				val inflated = inflater.inflate(layoutFile("include_order"), parent)
+				assertThat(inflated).hasSize(1)
 
-  private fun layoutFile(name: String): File {
-    val app = findAppModule() ?: throw IllegalStateException("GradleProject is not initialized")
-    return File(app.projectDir, "src/main/res/layout/$name.xml")
-  }
+				val view = inflated[0] as ViewGroupImpl
 
-  private fun AndroidModule.createLayoutFile(name: String, block: (File) -> Unit = {}): File {
-    return File(projectDir, "src/main/res/layout/$name.xml").apply {
-      if (exists()) {
-        delete()
-      }
-      block(this)
-    }
-  }
+				// verify the hierarchy
+				assertThat(view.printHierarchy())
+					.isEqualTo(
+						"android.widget.LinearLayout\n" +
+							"    android.view.View\n" +
+							"    android.widget.RelativeLayout\n" +
+							"        android.widget.TextView\n" +
+							"        android.widget.TextView\n" +
+							"    android.view.View\n",
+					)
+			}
+		}
+	}
+
+	private fun layoutFile(name: String): File {
+		val app = findAppModule() ?: throw IllegalStateException("GradleProject is not initialized")
+		return File(app.projectDir, "src/main/res/layout/$name.xml")
+	}
+
+	private fun AndroidModule.createLayoutFile(
+		name: String,
+		block: (File) -> Unit = {},
+	): File =
+		File(projectDir, "src/main/res/layout/$name.xml").apply {
+			if (exists()) {
+				delete()
+			}
+			block(this)
+		}
 }

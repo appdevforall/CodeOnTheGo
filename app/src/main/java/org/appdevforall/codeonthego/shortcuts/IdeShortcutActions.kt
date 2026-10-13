@@ -55,10 +55,9 @@ class IdeShortcutActions(
 	private fun findActionById(
 		actionsRegistry: ActionsRegistry,
 		actionId: String,
-	): ActionItem? {
-		return ActionItem.Location.entries
+	): ActionItem? =
+		ActionItem.Location.entries
 			.asSequence()
 			.mapNotNull { location -> actionsRegistry.findAction(location, actionId) }
 			.firstOrNull()
-	}
 }

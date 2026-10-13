@@ -23,7 +23,6 @@ data class BuildId(
 enum class BuildRunType(
 	val typeName: String,
 ) {
-
 	/**
 	 * Gradle build for project synchronization.
 	 */

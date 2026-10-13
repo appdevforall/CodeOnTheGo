@@ -1,6 +1,10 @@
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
+import openjdk.source.util.TreePath
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.appdevforall.codeonthego.lsp.java.compiler.ClasspathClassNames
 import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
 import org.appdevforall.codeonthego.lsp.java.compiler.compilerWithClasspath
@@ -14,10 +18,6 @@ import org.appdevforall.codeonthego.projects.api.JavaModule
 import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.appdevforall.codeonthego.projects.util.BootClasspathProvider
 import org.appdevforall.codeonthego.utils.Environment
-import io.mockk.every
-import io.mockk.mockk
-import openjdk.source.util.TreePath
-import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.junit.After
 import org.junit.BeforeClass
 import org.junit.Test

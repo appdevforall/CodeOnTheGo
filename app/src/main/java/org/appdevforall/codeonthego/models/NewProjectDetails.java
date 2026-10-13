@@ -19,75 +19,75 @@ package org.appdevforall.codeonthego.models;
 
 public class NewProjectDetails {
 
-  public String name;
-  public String packageName;
-  public int minSdk;
-  public int targetSdk;
-  public String language;
-  public String savePath;
-  public String cppFlags;
+	public String name;
+	public String packageName;
+	public int minSdk;
+	public int targetSdk;
+	public String language;
+	public String savePath;
+	public String cppFlags;
 
-  public NewProjectDetails() {}
+	public NewProjectDetails() {}
 
-  public NewProjectDetails(
-      String name,
-      String packageName,
-      int minSdk,
-      int targetSdk,
-      String language,
-      String cppFlags,
-      String savePath) {
-    this.name = name;
-    this.packageName = packageName;
-    this.minSdk = minSdk;
-    this.targetSdk = targetSdk;
-    this.language = language;
-    this.cppFlags = cppFlags;
-    this.savePath = savePath;
-  }
+	public NewProjectDetails(
+			String name,
+			String packageName,
+			int minSdk,
+			int targetSdk,
+			String language,
+			String cppFlags,
+			String savePath) {
+		this.name = name;
+		this.packageName = packageName;
+		this.minSdk = minSdk;
+		this.targetSdk = targetSdk;
+		this.language = language;
+		this.cppFlags = cppFlags;
+		this.savePath = savePath;
+	}
 
-  public String getName() {
-    return name;
-  }
+	public String getCppFlags() {
+		return cppFlags;
+	}
 
-  public NewProjectDetails setName(String name) {
-    this.name = name;
-    return this;
-  }
+	public int getMinSdk() {
+		return minSdk;
+	}
 
-  public String getPackageName() {
-    return packageName;
-  }
+	public String getName() {
+		return name;
+	}
 
-  public NewProjectDetails setPackageName(String packageName) {
-    this.packageName = packageName;
-    return this;
-  }
+	public String getPackageName() {
+		return packageName;
+	}
 
-  public int getMinSdk() {
-    return minSdk;
-  }
+	public int getTargetSdk() {
+		return targetSdk;
+	}
 
-  public NewProjectDetails setMinSdk(int minSdk) {
-    this.minSdk = minSdk;
-    return this;
-  }
+	public NewProjectDetails setCppFlags(String cppFlags) {
+		this.cppFlags = cppFlags;
+		return this;
+	}
 
-  public int getTargetSdk() {
-    return targetSdk;
-  }
+	public NewProjectDetails setMinSdk(int minSdk) {
+		this.minSdk = minSdk;
+		return this;
+	}
 
-  public NewProjectDetails setTargetSdk(int targetSdk) {
-    this.targetSdk = targetSdk;
-    return this;
-  }
+	public NewProjectDetails setName(String name) {
+		this.name = name;
+		return this;
+	}
 
-  public String getCppFlags() {
-    return cppFlags;
-  }
+	public NewProjectDetails setPackageName(String packageName) {
+		this.packageName = packageName;
+		return this;
+	}
 
-  public NewProjectDetails setCppFlags(String cppFlags) {
-    this.cppFlags = cppFlags;
-    return this;
-  }
+	public NewProjectDetails setTargetSdk(int targetSdk) {
+		this.targetSdk = targetSdk;
+		return this;
+	}
 }

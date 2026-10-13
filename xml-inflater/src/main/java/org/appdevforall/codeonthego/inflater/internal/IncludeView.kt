@@ -25,32 +25,33 @@ import org.appdevforall.codeonthego.inflater.IViewGroup
  *
  * @author Akash Yadav
  */
-class IncludeView(internal val embedded: ViewImpl) :
-  ViewImpl(
-    file = embedded.file,
-    name = embedded.name,
-    view = embedded.view,
-    simpleName = embedded.simpleName,
-    tag = "include"
-  ) {
-  
-  override var parent: IViewGroup?
-    get() = embedded.parent
-    set(value) {
-      embedded.parent = value
-    }
+class IncludeView(
+	internal val embedded: ViewImpl,
+) : ViewImpl(
+		file = embedded.file,
+		name = embedded.name,
+		view = embedded.view,
+		simpleName = embedded.simpleName,
+		tag = "include",
+	) {
+	override var parent: IViewGroup?
+		get() = embedded.parent
+		set(value) {
+			embedded.parent = value
+		}
 
-  override fun applyAttribute(attribute: IAttribute) =
-    // The attributes must be applied to the embedded view
-    embedded.applyAttribute(attribute)
+	override fun applyAttribute(attribute: IAttribute) =
+		// The attributes must be applied to the embedded view
+		embedded.applyAttribute(attribute)
 
-  override fun onHighlightStateUpdated(highlight: Boolean) =
-    embedded.onHighlightStateUpdated(highlight)
+	override fun onHighlightStateUpdated(highlight: Boolean) = embedded.onHighlightStateUpdated(highlight)
 
-  override fun removeFromParent() = embedded.removeFromParent()
+	override fun removeFromParent() = embedded.removeFromParent()
 
-  override fun printHierarchy() = embedded.printHierarchy()
+	override fun printHierarchy() = embedded.printHierarchy()
 
-  override fun printHierarchy(builder: StringBuilder, indent: Int) =
-    embedded.printHierarchy(builder, indent)
+	override fun printHierarchy(
+		builder: StringBuilder,
+		indent: Int,
+	) = embedded.printHierarchy(builder, indent)
 }

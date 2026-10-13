@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
 import android.content.Context
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import org.appdevforall.codeonthego.lsp.ui.CandidateView
 import org.appdevforall.codeonthego.lsp.ui.ExtractVariableSelection
 import org.appdevforall.codeonthego.lsp.ui.NameMessages
 import org.appdevforall.codeonthego.lsp.ui.ScopeView
-import com.itsaky.androidide.resources.R
 
 /**
  * Java's wording for the four name problems the shared sheet can report.

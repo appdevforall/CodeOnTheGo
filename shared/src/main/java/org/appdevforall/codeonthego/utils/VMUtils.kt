@@ -22,14 +22,14 @@ package org.appdevforall.codeonthego.utils
  * @author Akash Yadav
  */
 object VMUtils {
-
 	/**
 	 * Whether the application is running in an instrumented test environment.
 	 */
 	@JvmStatic
 	val isInstrumentedTest by lazy {
 		try {
-			Class.forName("androidx.test.platform.app.InstrumentationRegistry")
+			Class
+				.forName("androidx.test.platform.app.InstrumentationRegistry")
 				.getDeclaredMethod("getInstrumentation")
 				.invoke(null) != null
 		} catch (_: Throwable) {

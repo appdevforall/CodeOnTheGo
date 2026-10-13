@@ -33,21 +33,23 @@ import org.eclipse.lemminx.dom.DOMNode
  * @author Akash Yadav
  */
 open class CommonAttrCompletionProvider(
-  protected val tagTransform: ITagTransformer,
-  provider: ICompletionProvider
+	protected val tagTransform: ITagTransformer,
+	provider: ICompletionProvider,
 ) : AttrCompletionProvider(provider) {
+	override fun findNodeStyleables(
+		node: DOMNode,
+		styleables: ResourceGroup,
+	): Set<Styleable> {
+		val name = node.nodeName
+		val styleable =
+			styleables
+				.findEntry(tagTransform.transform(name, nodeAtCursor.parentNode?.nodeName ?: ""))
+				?.findValue(ConfigDescription())
+				?.value
+		if (styleable != null && styleable is Styleable) {
+			return setOf(styleable)
+		}
 
-  override fun findNodeStyleables(node: DOMNode, styleables: ResourceGroup): Set<Styleable> {
-    val name = node.nodeName
-    val styleable =
-      styleables
-        .findEntry(tagTransform.transform(name, nodeAtCursor.parentNode?.nodeName ?: ""))
-        ?.findValue(ConfigDescription())
-        ?.value
-    if (styleable != null && styleable is Styleable) {
-      return setOf(styleable)
-    }
-
-    return emptySet()
-  }
+		return emptySet()
+	}
 }

@@ -18,12 +18,12 @@
 package org.appdevforall.codeonthego.api
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
 import org.appdevforall.codeonthego.adapters.EditorBottomSheetTabAdapter
 import org.appdevforall.codeonthego.fragments.output.BuildOutputFragment
 import org.appdevforall.codeonthego.ui.EditorBottomSheet
 import org.appdevforall.codeonthego.viewmodel.BuildOutputViewModel
-import io.mockk.every
-import io.mockk.mockk
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test

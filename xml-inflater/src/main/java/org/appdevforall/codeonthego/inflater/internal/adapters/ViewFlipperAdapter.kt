@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.ViewFlipper
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [ViewFlipper].
@@ -34,15 +34,14 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(ViewFlipper::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class ViewFlipperAdapter<T : ViewFlipper> : ViewAnimatorAdapter<T>() {
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("autoStart") { view.isAutoStart = parseBoolean(value) }
-    create("flipInterval") { view.flipInterval = parseInteger(value) }
-  }
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("autoStart") { view.isAutoStart = parseBoolean(value) }
+		create("flipInterval") { view.flipInterval = parseInteger(value) }
+	}
 
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(ViewFlipper::class.java, string.widget_viewflipper, drawable.ic_widget_viewflipper)
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(ViewFlipper::class.java, string.widget_viewflipper, drawable.ic_widget_viewflipper),
+		)
 }

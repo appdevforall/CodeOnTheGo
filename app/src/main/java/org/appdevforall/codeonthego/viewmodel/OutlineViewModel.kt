@@ -2,10 +2,6 @@ package org.appdevforall.codeonthego.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.editor.language.outline.OutlineProvider
-import org.appdevforall.codeonthego.ui.models.OutlineUiEffect
-import org.appdevforall.codeonthego.ui.models.OutlineUiEvent
-import org.appdevforall.codeonthego.ui.models.OutlineUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +18,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.editor.language.outline.OutlineProvider
+import org.appdevforall.codeonthego.ui.models.OutlineUiEffect
+import org.appdevforall.codeonthego.ui.models.OutlineUiEvent
+import org.appdevforall.codeonthego.ui.models.OutlineUiState
 import org.slf4j.LoggerFactory
 
 class OutlineViewModel(

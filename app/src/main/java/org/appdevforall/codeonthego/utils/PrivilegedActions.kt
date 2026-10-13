@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.utils
 
 import android.content.ComponentName
-import org.appdevforall.codeonthego.lsp.java.debug.JdwpOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.lsp.java.debug.JdwpOptions
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 
@@ -58,21 +58,24 @@ object PrivilegedActions {
 				// launch in debug mode,
 				launchCmd.add("-D")
 
-				val jdwpPort = run {
-					var resolvedPort: Int
-					repeat(20) {
-						resolvedPort = JdwpOptions.activeJdwpPort()
-						if (resolvedPort != -1) {
-							return@run resolvedPort
+				val jdwpPort =
+					run {
+						var resolvedPort: Int
+						repeat(20) {
+							resolvedPort = JdwpOptions.activeJdwpPort()
+							if (resolvedPort != -1) {
+								return@run resolvedPort
+							}
+							delay(50)
 						}
-						delay(50)
+						-1
 					}
-					-1
-				}
 
 				if (jdwpPort == -1) {
-					logger.error("Unable to launch application in debug mode. Cannot retrieve active" +
-							" JDWP listen port.")
+					logger.error(
+						"Unable to launch application in debug mode. Cannot retrieve active" +
+							" JDWP listen port.",
+					)
 					return false
 				}
 

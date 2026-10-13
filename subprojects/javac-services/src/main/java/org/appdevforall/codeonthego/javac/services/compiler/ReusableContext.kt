@@ -17,19 +17,6 @@
 
 package org.appdevforall.codeonthego.javac.services.compiler
 
-import org.appdevforall.codeonthego.javac.services.CancelService
-import org.appdevforall.codeonthego.javac.services.NBAttr
-import org.appdevforall.codeonthego.javac.services.NBClassFinder
-import org.appdevforall.codeonthego.javac.services.NBClassReader
-import org.appdevforall.codeonthego.javac.services.NBEnter
-import org.appdevforall.codeonthego.javac.services.NBJavacTrees
-import org.appdevforall.codeonthego.javac.services.NBMemberEnter
-import org.appdevforall.codeonthego.javac.services.NBParserFactory
-import org.appdevforall.codeonthego.javac.services.NBResolve
-import org.appdevforall.codeonthego.javac.services.NBTreeMaker
-import org.appdevforall.codeonthego.javac.services.fs.CacheFSInfoSingleton
-import org.appdevforall.codeonthego.javac.services.fs.JarPackageProviderImpl
-import org.appdevforall.codeonthego.utils.VMUtils
 import com.itsaky.androidide.zipfs2.JarPackageProvider
 import jdkx.tools.DiagnosticListener
 import jdkx.tools.JavaFileManager
@@ -56,6 +43,19 @@ import openjdk.tools.javac.util.Context
 import openjdk.tools.javac.util.DefinedBy
 import openjdk.tools.javac.util.DefinedBy.Api.COMPILER_TREE
 import openjdk.tools.javac.util.Log
+import org.appdevforall.codeonthego.javac.services.CancelService
+import org.appdevforall.codeonthego.javac.services.NBAttr
+import org.appdevforall.codeonthego.javac.services.NBClassFinder
+import org.appdevforall.codeonthego.javac.services.NBClassReader
+import org.appdevforall.codeonthego.javac.services.NBEnter
+import org.appdevforall.codeonthego.javac.services.NBJavacTrees
+import org.appdevforall.codeonthego.javac.services.NBMemberEnter
+import org.appdevforall.codeonthego.javac.services.NBParserFactory
+import org.appdevforall.codeonthego.javac.services.NBResolve
+import org.appdevforall.codeonthego.javac.services.NBTreeMaker
+import org.appdevforall.codeonthego.javac.services.fs.CacheFSInfoSingleton
+import org.appdevforall.codeonthego.javac.services.fs.JarPackageProviderImpl
+import org.appdevforall.codeonthego.utils.VMUtils
 import java.net.URI
 
 /**
@@ -63,88 +63,89 @@ import java.net.URI
  *
  * @author Akash Yadav
  */
-class ReusableContext(cancelService: CancelService) : Context(), TaskListener {
-  
-  private val flowCompleted = mutableSetOf<URI>()
-  
-  init {
-    put(Log.logKey, ReusableLog.factory)
-    put(FSInfo::class.java, if (VMUtils.isJvm) CacheFSInfo() else CacheFSInfoSingleton)
-    put(JavaCompiler.compilerKey, ReusableJavaCompiler.factory)
-    put(JavacFlowListener.flowListenerKey, JavacFlowListener { this.hasFlowCompleted(it) })
-    put(JarPackageProvider::class.java, JarPackageProviderImpl)
-    
-    NBAttr.preRegister(this)
-    NBParserFactory.preRegister(this)
-    NBTreeMaker.preRegister(this)
-    NBJavacTrees.preRegister(this)
-    NBResolve.preRegister(this)
-    NBEnter.preRegister(this)
-    NBMemberEnter.preRegister(this, false)
-    NBClassFinder.preRegister(this)
-    NBClassReader.preRegister(this)
-    CancelService.preRegister(this, cancelService)
-  }
-  
-  @DefinedBy(COMPILER_TREE)
-  override fun started(e: TaskEvent) {
-    //    log.debug("Started: $e")
-    // Do nothing
-  }
-  
-  @DefinedBy(COMPILER_TREE)
-  override fun finished(e: TaskEvent) {
-    if (e.kind == ANALYZE) {
-      val cu = e.compilationUnit as JCCompilationUnit
-      if (cu.sourcefile != null) {
-        flowCompleted.add(cu.sourcefile.toUri())
-      }
-    }
-  }
-  
-  fun clear() {
-    drop(Arguments.argsKey)
-    drop(DiagnosticListener::class.java)
-    drop(Log.outKey)
-    drop(Log.errKey)
-    drop(JavaFileManager::class.java)
-    drop(JavacTask::class.java)
-    drop(JavacTrees::class.java)
-    drop(JavacElements::class.java)
-    
-    if (ht[Log.logKey] is ReusableLog) {
-      // log already init-ed - not first round
-      (Log.instance(this) as ReusableLog).clear()
-      Enter.instance(this).newRound()
-      (JavaCompiler.instance(this) as ReusableJavaCompiler).clear()
-      Types.instance(this).newRound()
-      Check.instance(this).newRound()
-      Modules.instance(this).newRound()
-      Annotate.instance(this).newRound()
-      CompileStates.instance(this).clear()
-      MultiTaskListener.instance(this).clear()
-    }
-  }
-  
-  /** **FOR INTERNAL USE ONLY!** */
-  fun <T> drop(k: Key<T>?) {
-    ht.remove(k)
-  }
-  
-  /** **FOR INTERNAL USE ONLY!** */
-  fun <T> drop(c: Class<T>?) {
-    drop(key(c))
-  }
-  
-  private fun hasFlowCompleted(fo: JavaFileObject?): Boolean {
-    return if (fo == null) {
-      false
-    } else {
-      try {
-        this.flowCompleted.contains(fo.toUri())
-      } catch (e: Exception) {
-        false
-      }
-    }
-  }
+class ReusableContext(
+	cancelService: CancelService,
+) : Context(),
+	TaskListener {
+	private val flowCompleted = mutableSetOf<URI>()
+
+	init {
+		put(Log.logKey, ReusableLog.factory)
+		put(FSInfo::class.java, if (VMUtils.isJvm) CacheFSInfo() else CacheFSInfoSingleton)
+		put(JavaCompiler.compilerKey, ReusableJavaCompiler.factory)
+		put(JavacFlowListener.flowListenerKey, JavacFlowListener { this.hasFlowCompleted(it) })
+		put(JarPackageProvider::class.java, JarPackageProviderImpl)
+
+		NBAttr.preRegister(this)
+		NBParserFactory.preRegister(this)
+		NBTreeMaker.preRegister(this)
+		NBJavacTrees.preRegister(this)
+		NBResolve.preRegister(this)
+		NBEnter.preRegister(this)
+		NBMemberEnter.preRegister(this, false)
+		NBClassFinder.preRegister(this)
+		NBClassReader.preRegister(this)
+		CancelService.preRegister(this, cancelService)
+	}
+
+	@DefinedBy(COMPILER_TREE)
+	override fun started(e: TaskEvent) {
+		//    log.debug("Started: $e")
+		// Do nothing
+	}
+
+	@DefinedBy(COMPILER_TREE)
+	override fun finished(e: TaskEvent) {
+		if (e.kind == ANALYZE) {
+			val cu = e.compilationUnit as JCCompilationUnit
+			if (cu.sourcefile != null) {
+				flowCompleted.add(cu.sourcefile.toUri())
+			}
+		}
+	}
+
+	fun clear() {
+		drop(Arguments.argsKey)
+		drop(DiagnosticListener::class.java)
+		drop(Log.outKey)
+		drop(Log.errKey)
+		drop(JavaFileManager::class.java)
+		drop(JavacTask::class.java)
+		drop(JavacTrees::class.java)
+		drop(JavacElements::class.java)
+
+		if (ht[Log.logKey] is ReusableLog) {
+			// log already init-ed - not first round
+			(Log.instance(this) as ReusableLog).clear()
+			Enter.instance(this).newRound()
+			(JavaCompiler.instance(this) as ReusableJavaCompiler).clear()
+			Types.instance(this).newRound()
+			Check.instance(this).newRound()
+			Modules.instance(this).newRound()
+			Annotate.instance(this).newRound()
+			CompileStates.instance(this).clear()
+			MultiTaskListener.instance(this).clear()
+		}
+	}
+
+	/** **FOR INTERNAL USE ONLY!** */
+	fun <T> drop(k: Key<T>?) {
+		ht.remove(k)
+	}
+
+	/** **FOR INTERNAL USE ONLY!** */
+	fun <T> drop(c: Class<T>?) {
+		drop(key(c))
+	}
+
+	private fun hasFlowCompleted(fo: JavaFileObject?): Boolean =
+		if (fo == null) {
+			false
+		} else {
+			try {
+				this.flowCompleted.contains(fo.toUri())
+			} catch (e: Exception) {
+				false
+			}
+		}
 }

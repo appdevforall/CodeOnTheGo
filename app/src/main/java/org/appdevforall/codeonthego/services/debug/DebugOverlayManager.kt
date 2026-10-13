@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.services.debug
 import android.content.Context
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
+import android.provider.Settings
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -10,13 +11,12 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Toast
-import android.provider.Settings
 import androidx.core.content.ContextCompat
 import androidx.core.hardware.display.DisplayManagerCompat
 import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionsRegistry
-import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.utils.PermissionsHelper
@@ -68,7 +68,9 @@ class DebugOverlayManager private constructor(
 						overlayLayoutParams.y = initialWindowY + deltaY
 						windowManager.updateViewLayout(binding.root, overlayLayoutParams)
 						true
-					} else false
+					} else {
+						false
+					}
 				}
 
 				MotionEvent.ACTION_UP -> {
@@ -86,7 +88,9 @@ class DebugOverlayManager private constructor(
 					false
 				}
 
-				else -> false
+				else -> {
+					false
+				}
 			}
 		}
 
@@ -94,7 +98,7 @@ class DebugOverlayManager private constructor(
 			TooltipManager.showIdeCategoryTooltip(
 				context = view.context,
 				anchorView = view.rootView,
-				tag = TooltipTag.DEBUGGER_ACTION_MOVE
+				tag = TooltipTag.DEBUGGER_ACTION_MOVE,
 			)
 			true
 		}
@@ -102,15 +106,21 @@ class DebugOverlayManager private constructor(
 
 	private var isShown = false
 	private val overlayLayoutParams by lazy {
-		WindowManager.LayoutParams(
-			/* w = */ WindowManager.LayoutParams.WRAP_CONTENT,
-			/* h = */ WindowManager.LayoutParams.WRAP_CONTENT,
-			/* _type = */ WM_OVERLAY_TYPE,
-			/* _flags = */ WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-			/* _format = */ PixelFormat.TRANSLUCENT
-		).apply {
-			gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-		}
+		WindowManager
+			.LayoutParams(
+				// w =
+				WindowManager.LayoutParams.WRAP_CONTENT,
+				// h =
+				WindowManager.LayoutParams.WRAP_CONTENT,
+				// _type =
+				WM_OVERLAY_TYPE,
+				// _flags =
+				WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+				// _format =
+				PixelFormat.TRANSLUCENT,
+			).apply {
+				gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+			}
 	}
 
 	fun show() {
@@ -124,11 +134,12 @@ class DebugOverlayManager private constructor(
 			logger.warn("Overlay permission denied. Skipping debugger overlay window.")
 
 			val state = PermissionsHelper.getOverlayPermissionState(ctx)
-			val message = if (state == PermissionsHelper.OverlayPermissionState.UNSUPPORTED) {
-				ctx.getString(R.string.permission_overlay_unsupported_hint)
-			} else {
-				ctx.getString(R.string.permission_overlay_restricted_settings_hint)
-			}
+			val message =
+				if (state == PermissionsHelper.OverlayPermissionState.UNSUPPORTED) {
+					ctx.getString(R.string.permission_overlay_unsupported_hint)
+				} else {
+					ctx.getString(R.string.permission_overlay_restricted_settings_hint)
+				}
 			Toast.makeText(ctx, message, Toast.LENGTH_LONG).show()
 			return
 		}
@@ -161,7 +172,6 @@ class DebugOverlayManager private constructor(
 	}
 
 	companion object {
-
 		private val logger = LoggerFactory.getLogger(DebugOverlayManager::class.java)
 		private const val WM_OVERLAY_TYPE = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
@@ -170,23 +180,29 @@ class DebugOverlayManager private constructor(
 		 * @param ctx The [Context] to use for creating the [DebugOverlayManager].
 		 * @return A new [DebugOverlayManager].
 		 */
-		fun create(ctx: Context, displayId: Int = -1): DebugOverlayManager {
-			val windowContext = run {
-				if (displayId == -1) {
-					logger.debug("no display id provided. overlay will be shown on default display")
-					return@run ctx
+		fun create(
+			ctx: Context,
+			displayId: Int = -1,
+		): DebugOverlayManager {
+			val windowContext =
+				run {
+					if (displayId == -1) {
+						logger.debug("no display id provided. overlay will be shown on default display")
+						return@run ctx
+					}
+
+					logger.debug("trying to get window context for displayId={}", displayId)
+					val displayManager = DisplayManagerCompat.getInstance(ctx)
+					val targetDisplay = displayManager.getDisplay(displayId)
+					val displayContext =
+						if (targetDisplay != null) ctx.createDisplayContext(targetDisplay) else ctx
+
+					if (isAtLeastR()) {
+						displayContext.createWindowContext(WM_OVERLAY_TYPE, null)
+					} else {
+						displayContext
+					}
 				}
-
-				logger.debug("trying to get window context for displayId={}", displayId)
-				val displayManager = DisplayManagerCompat.getInstance(ctx)
-				val targetDisplay = displayManager.getDisplay(displayId)
-				val displayContext =
-					if (targetDisplay != null) ctx.createDisplayContext(targetDisplay) else ctx
-
-				if (isAtLeastR()) {
-					displayContext.createWindowContext(WM_OVERLAY_TYPE, null)
-				} else displayContext
-			}
 
 			// IMPORTANT!
 			// Wrap the context with a theme, so we could use MaterialButtons!

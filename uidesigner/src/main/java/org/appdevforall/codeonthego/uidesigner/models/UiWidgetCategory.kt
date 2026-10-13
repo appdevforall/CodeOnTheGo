@@ -20,4 +20,8 @@ package org.appdevforall.codeonthego.uidesigner.models
 import androidx.annotation.StringRes
 import org.appdevforall.codeonthego.inflater.models.UiWidget
 
-data class UiWidgetCategory(@StringRes val label: Int, var widgets: List<UiWidget> = emptyList(), var isExpanded: Boolean = false)
+data class UiWidgetCategory(
+	@StringRes val label: Int,
+	var widgets: List<UiWidget> = emptyList(),
+	var isExpanded: Boolean = false,
+)

@@ -17,9 +17,6 @@
 
 package org.appdevforall.codeonthego.projects.util;
 
-import org.appdevforall.codeonthego.projects.classpath.JarFsClasspathReader;
-import org.appdevforall.codeonthego.utils.ClassTrie;
-import org.appdevforall.codeonthego.utils.StopWatch;
 import java.io.File;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,6 +24,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import org.appdevforall.codeonthego.projects.classpath.JarFsClasspathReader;
+import org.appdevforall.codeonthego.utils.ClassTrie;
+import org.appdevforall.codeonthego.utils.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,94 +37,97 @@ import org.slf4j.LoggerFactory;
  */
 public class BootClasspathProvider {
 
-  private static final Map<String, ClassTrie> bootClasspathClasses = new ConcurrentHashMap<>();
-  private static final Logger LOG = LoggerFactory.getLogger(BootClasspathProvider.class);
+	private static final Map<String, ClassTrie> bootClasspathClasses = new ConcurrentHashMap<>();
+	private static final Logger LOG = LoggerFactory.getLogger(BootClasspathProvider.class);
 
-  /**
-   * Updates the boot classpath cache. If a classpath is already indexed, it is skipped.
-   *
-   * @param classpaths The full file paths of JAR files to index.
-   * @return <code>true</code> if the the classpath cache was updated. <code>false</code> otherwise.
-   * <p>This method <code>true</code> if and only if any new classpath classes are added into
-   * the cache.
-   */
-  public static synchronized boolean update(Collection<String> classpaths) {
-    final var watch = new StopWatch("Indexing " + classpaths.size() + " bootclasspaths");
-    var count = 0;
-    for (final var classpath : classpaths) {
-      if (bootClasspathClasses.containsKey(classpath)) {
-        LOG.info("Skipping indexing for boot classpath as it is already indexed: {}", classpath);
-        continue;
-      }
+	/**
+	 * Drops the entry for the given classpath from the cache.
+	 *
+	 * @param classpath
+	 *            The classpath to drop entry for.
+	 */
+	public static synchronized void drop(String classpath) {
+		bootClasspathClasses.remove(classpath);
+	}
 
-      LOG.debug("Indexing boot classpath: {}", classpath);
-      final var classes =
-          new JarFsClasspathReader().listClasses(Collections.singleton(new File(classpath)));
-      final var trie = new ClassTrie();
-      for (final var info : classes) {
-        if (!info.isTopLevel()) {
-          continue;
-        }
+	/**
+	 * Drops entries for all the given classpaths from the cache.
+	 *
+	 * @param classpaths
+	 *            The classpaths to drop entry for.
+	 */
+	public static synchronized void dropAll(Collection<String> classpaths) {
+		classpaths.forEach(BootClasspathProvider::drop);
+	}
 
-        trie.append(info.getName());
-      }
+	/**
+	 * Returns all the {@link ClassTrie} entries.
+	 *
+	 * @return All {@link ClassTrie} entries.
+	 */
+	public static Collection<ClassTrie> getAllEntries() {
+		return bootClasspathClasses.values();
+	}
 
-      bootClasspathClasses.put(classpath, trie);
-      count += classes.size();
-    }
+	/**
+	 * Returns all cached <strong>top-level</strong> classes from all the given classpath locations.
+	 *
+	 * @param classpaths
+	 *            The classpaths to get class list from.
+	 * @return The cached <strong>top-level</strong> classes from the given classpaths.
+	 */
+	public static synchronized Set<String> getTopLevelClasses(Collection<String> classpaths) {
+		final var result = new TreeSet<String>();
+		if (classpaths == null || classpaths.isEmpty()) {
+			return result;
+		}
 
-    watch.log();
-    return count > 0;
-  }
+		for (final String classpath : classpaths) {
+			final var trie = bootClasspathClasses.get(classpath);
+			if (trie == null) {
+				continue;
+			}
 
-  /**
-   * Drops entries for all the given classpaths from the cache.
-   *
-   * @param classpaths The classpaths to drop entry for.
-   */
-  public static synchronized void dropAll(Collection<String> classpaths) {
-    classpaths.forEach(BootClasspathProvider::drop);
-  }
+			result.addAll(trie.allClassNames());
+		}
 
-  /**
-   * Drops the entry for the given classpath from the cache.
-   *
-   * @param classpath The classpath to drop entry for.
-   */
-  public static synchronized void drop(String classpath) {
-    bootClasspathClasses.remove(classpath);
-  }
+		return result;
+	}
 
-  /**
-   * Returns all cached <strong>top-level</strong> classes from all the given classpath locations.
-   *
-   * @param classpaths The classpaths to get class list from.
-   * @return The cached <strong>top-level</strong> classes from the given classpaths.
-   */
-  public static synchronized Set<String> getTopLevelClasses(Collection<String> classpaths) {
-    final var result = new TreeSet<String>();
-    if (classpaths == null || classpaths.isEmpty()) {
-      return result;
-    }
+	/**
+	 * Updates the boot classpath cache. If a classpath is already indexed, it is skipped.
+	 *
+	 * @param classpaths
+	 *            The full file paths of JAR files to index.
+	 * @return <code>true</code> if the the classpath cache was updated. <code>false</code> otherwise.
+	 *         <p>
+	 *         This method <code>true</code> if and only if any new classpath classes are added into the cache.
+	 */
+	public static synchronized boolean update(Collection<String> classpaths) {
+		final var watch = new StopWatch("Indexing " + classpaths.size() + " bootclasspaths");
+		var count = 0;
+		for (final var classpath : classpaths) {
+			if (bootClasspathClasses.containsKey(classpath)) {
+				LOG.info("Skipping indexing for boot classpath as it is already indexed: {}", classpath);
+				continue;
+			}
 
-    for (final String classpath : classpaths) {
-      final var trie = bootClasspathClasses.get(classpath);
-      if (trie == null) {
-        continue;
-      }
+			LOG.debug("Indexing boot classpath: {}", classpath);
+			final var classes = new JarFsClasspathReader().listClasses(Collections.singleton(new File(classpath)));
+			final var trie = new ClassTrie();
+			for (final var info : classes) {
+				if (!info.isTopLevel()) {
+					continue;
+				}
 
-      result.addAll(trie.allClassNames());
-    }
+				trie.append(info.getName());
+			}
 
-    return result;
-  }
+			bootClasspathClasses.put(classpath, trie);
+			count += classes.size();
+		}
 
-  /**
-   * Returns all the {@link ClassTrie} entries.
-   *
-   * @return All {@link ClassTrie} entries.
-   */
-  public static Collection<ClassTrie> getAllEntries() {
-    return bootClasspathClasses.values();
-  }
+		watch.log();
+		return count > 0;
+	}
 }

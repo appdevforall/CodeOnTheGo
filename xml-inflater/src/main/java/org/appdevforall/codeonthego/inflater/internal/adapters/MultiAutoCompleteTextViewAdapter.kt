@@ -18,10 +18,10 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.MultiAutoCompleteTextView
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R
 
 /**
  * View adapter for [MultiAutoCompleteTextView].
@@ -30,16 +30,13 @@ import com.itsaky.androidide.resources.R
  */
 @org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(forView = MultiAutoCompleteTextView::class)
 @IncludeInDesigner(group = WIDGETS)
-open class MultiAutoCompleteTextViewAdapter<T : MultiAutoCompleteTextView> :
-  AutoCompleteTextViewAdapter<T>() {
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        MultiAutoCompleteTextView::class.java,
-        R.string.widget_multi_auto_complete_textview,
-        R.drawable.ic_widget_multi_auto_complete_textview
-      )
-    )
-  }
+open class MultiAutoCompleteTextViewAdapter<T : MultiAutoCompleteTextView> : AutoCompleteTextViewAdapter<T>() {
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				MultiAutoCompleteTextView::class.java,
+				R.string.widget_multi_auto_complete_textview,
+				R.drawable.ic_widget_multi_auto_complete_textview,
+			),
+		)
 }

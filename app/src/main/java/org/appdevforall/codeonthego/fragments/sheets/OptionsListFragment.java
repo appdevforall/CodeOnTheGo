@@ -28,13 +28,13 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import java.util.ArrayList;
+import java.util.List;
 import org.appdevforall.codeonthego.adapters.OptionsSheetAdapter;
 import org.appdevforall.codeonthego.events.FileContextMenuItemClickEvent;
 import org.appdevforall.codeonthego.events.FileContextMenuItemLongClickEvent;
 import org.appdevforall.codeonthego.models.SheetOption;
 import org.appdevforall.codeonthego.utils.ContextUtilsKt;
-import java.util.ArrayList;
-import java.util.List;
 import org.greenrobot.eventbus.EventBus;
 
 public class OptionsListFragment extends BaseBottomSheetFragment {

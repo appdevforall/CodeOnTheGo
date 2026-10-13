@@ -17,12 +17,12 @@
 
 package org.appdevforall.codeonthego.lsp.java.edits
 
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
 import org.appdevforall.codeonthego.lsp.java.utils.EditHelper
 import org.appdevforall.codeonthego.lsp.models.ClassCompletionData
 import org.appdevforall.codeonthego.lsp.models.CompletionItem
 import org.appdevforall.codeonthego.lsp.util.RewriteHelper
-import io.github.rosemoe.sora.widget.CodeEditor
 import java.nio.file.Path
 
 /**
@@ -32,12 +32,14 @@ import java.nio.file.Path
  * @param file The file in which this edit will be performed.
  * @author Akash Yadav
  */
-class ClassImportEditHandler(val imports: Set<String>, file: Path) : AdvancedJavaEditHandler(file) {
-
+class ClassImportEditHandler(
+	val imports: Set<String>,
+	file: Path,
+) : AdvancedJavaEditHandler(file) {
 	override fun performEdits(
 		compiler: JavaCompilerService,
 		editor: CodeEditor,
-		completionItem: CompletionItem
+		completionItem: CompletionItem,
 	) {
 		val data = completionItem.data as? ClassCompletionData ?: return
 		val className = data.className

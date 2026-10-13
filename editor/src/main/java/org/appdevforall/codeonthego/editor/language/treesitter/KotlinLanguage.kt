@@ -18,54 +18,45 @@
 package org.appdevforall.codeonthego.editor.language.treesitter
 
 import android.content.Context
+import com.itsaky.androidide.treesitter.kotlin.TSLanguageKotlin
+import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_STRONG
+import io.github.rosemoe.sora.util.MyCharacter
+import io.github.rosemoe.sora.widget.SymbolPairMatch
 import org.appdevforall.codeonthego.editor.language.newline.TSBracketsHandler
 import org.appdevforall.codeonthego.editor.language.newline.TSCStyleBracketsHandler
 import org.appdevforall.codeonthego.editor.language.utils.CommonSymbolPairs
 import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import org.appdevforall.codeonthego.lsp.api.ILanguageServerRegistry
 import org.appdevforall.codeonthego.lsp.kotlin.KotlinLanguageServer
-import com.itsaky.androidide.treesitter.kotlin.TSLanguageKotlin
-import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_STRONG
-import io.github.rosemoe.sora.util.MyCharacter
-import io.github.rosemoe.sora.widget.SymbolPairMatch
 
 /**
  * [TreeSitterLanguage] implementation for Kotlin.
  *
  * @author Akash Yadav
  */
-open class KotlinLanguage(context: Context) :
-  TreeSitterLanguage(context, TSLanguageKotlin.getInstance(), TS_TYPE_KT) {
+open class KotlinLanguage(
+	context: Context,
+) : TreeSitterLanguage(context, TSLanguageKotlin.getInstance(), TS_TYPE_KT) {
+	companion object {
+		val FACTORY = Factory { KotlinLanguage(it) }
+		const val TS_TYPE_KT = "kt"
+		const val TS_TYPE_KTS = "kts"
+	}
 
-  companion object {
+	override val languageServer: ILanguageServer?
+		get() = ILanguageServerRegistry.default.getServer(KotlinLanguageServer.SERVER_ID)
 
-    val FACTORY = Factory { KotlinLanguage(it) }
-    const val TS_TYPE_KT = "kt"
-    const val TS_TYPE_KTS = "kts"
-  }
+	override fun checkIsCompletionChar(c: Char): Boolean = MyCharacter.isJavaIdentifierPart(c) || c == '.'
 
-  override val languageServer: ILanguageServer?
-    get() = ILanguageServerRegistry.default.getServer(KotlinLanguageServer.SERVER_ID)
+	override fun getInterruptionLevel(): Int = INTERRUPTION_LEVEL_STRONG
 
-  override fun checkIsCompletionChar(c: Char): Boolean {
-    return MyCharacter.isJavaIdentifierPart(c) || c == '.'
-  }
+	override fun getSymbolPairs(): SymbolPairMatch = KotlinSymbolPairs()
 
-  override fun getInterruptionLevel(): Int {
-    return INTERRUPTION_LEVEL_STRONG
-  }
+	override fun createNewlineHandlers(): Array<TSBracketsHandler> = arrayOf(TSCStyleBracketsHandler(this))
 
-  override fun getSymbolPairs(): SymbolPairMatch {
-    return KotlinSymbolPairs()
-  }
-
-  override fun createNewlineHandlers(): Array<TSBracketsHandler> {
-    return arrayOf(TSCStyleBracketsHandler(this))
-  }
-
-  internal open class KotlinSymbolPairs : CommonSymbolPairs() {
-    init {
-      super.putPair('<', SymbolPair("<", ">"))
-    }
-  }
+	internal open class KotlinSymbolPairs : CommonSymbolPairs() {
+		init {
+			super.putPair('<', SymbolPair("<", ">"))
+		}
+	}
 }

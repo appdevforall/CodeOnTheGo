@@ -20,20 +20,20 @@ package org.appdevforall.codeonthego.handlers
 
 import android.content.pm.ApplicationInfo
 import android.os.SystemClock
-import org.appdevforall.codeonthego.analytics.AttachedDevicesCollector
-import org.appdevforall.codeonthego.app.IDEApplication
-import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.buildinfo.BuildInfo
-import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
-import org.appdevforall.codeonthego.utils.BuildInfoUtils
-import org.appdevforall.codeonthego.utils.DeviceUtils
-import org.appdevforall.codeonthego.utils.getAppVersionCode
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.android.SELinuxUtils
 import io.sentry.EventProcessor
 import io.sentry.Hint
 import io.sentry.SentryEvent
 import io.sentry.SentryOptions
+import org.appdevforall.codeonthego.analytics.AttachedDevicesCollector
+import org.appdevforall.codeonthego.app.IDEApplication
+import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
+import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
+import org.appdevforall.codeonthego.utils.BuildInfoUtils
+import org.appdevforall.codeonthego.utils.DeviceUtils
+import org.appdevforall.codeonthego.utils.getAppVersionCode
 import org.slf4j.LoggerFactory
 
 /**

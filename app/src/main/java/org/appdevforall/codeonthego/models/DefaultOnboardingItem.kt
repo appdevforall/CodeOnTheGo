@@ -26,11 +26,11 @@ import kotlinx.parcelize.Parcelize
  */
 @Parcelize
 data class DefaultOnboardingItem(
-  override val key: String,
-  override val title: CharSequence,
-  override val description: CharSequence = "",
-  override val icon: Int = 0,
-  override val iconTint: Int = 0,
-  override val isClickable: Boolean = false,
-  override val isLongClickable: Boolean = false
+	override val key: String,
+	override val title: CharSequence,
+	override val description: CharSequence = "",
+	override val icon: Int = 0,
+	override val iconTint: Int = 0,
+	override val isClickable: Boolean = false,
+	override val isLongClickable: Boolean = false,
 ) : OnboardingItem

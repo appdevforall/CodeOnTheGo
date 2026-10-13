@@ -4,10 +4,10 @@ import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByDescription
-import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByText
 import com.kaspersky.kaspresso.testcases.api.scenario.Scenario
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByDescription
+import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByText
 
 private const val CLOSE_PROJECT_TAG = "CloseProjectScenario"
 private const val DEFAULT_TOOLBAR_BUTTON_TIMEOUT_MS = 10_000L

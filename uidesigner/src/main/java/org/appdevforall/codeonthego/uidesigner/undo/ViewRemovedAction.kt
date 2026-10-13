@@ -22,14 +22,16 @@ package org.appdevforall.codeonthego.uidesigner.undo
  *
  * @author Akash Yadav
  */
-class ViewRemovedAction(child: org.appdevforall.codeonthego.inflater.IView, parent: org.appdevforall.codeonthego.inflater.IViewGroup, index: Int) :
-  ViewAction(child, parent, index) {
+class ViewRemovedAction(
+	child: org.appdevforall.codeonthego.inflater.IView,
+	parent: org.appdevforall.codeonthego.inflater.IViewGroup,
+	index: Int,
+) : ViewAction(child, parent, index) {
+	override fun undo() {
+		parent.addChild(parent.validateIndex(index), child)
+	}
 
-  override fun undo() {
-    parent.addChild(parent.validateIndex(index), child)
-  }
-
-  override fun redo() {
-    child.removeFromParent()
-  }
+	override fun redo() {
+		child.removeFromParent()
+	}
 }

@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import jdkx.lang.model.type.DeclaredType
 import openjdk.source.util.TreePath
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Test

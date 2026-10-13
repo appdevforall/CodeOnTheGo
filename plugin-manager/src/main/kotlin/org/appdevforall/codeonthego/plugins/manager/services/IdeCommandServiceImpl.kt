@@ -1,12 +1,5 @@
 package org.appdevforall.codeonthego.plugins.manager.services
 
-import org.appdevforall.codeonthego.plugins.PluginPermission
-import org.appdevforall.codeonthego.plugins.extensions.CommandOutput
-import org.appdevforall.codeonthego.plugins.extensions.CommandResult
-import org.appdevforall.codeonthego.plugins.extensions.CommandSpec
-import org.appdevforall.codeonthego.plugins.services.CommandExecution
-import org.appdevforall.codeonthego.plugins.services.IdeCommandService
-import org.appdevforall.codeonthego.utils.TermuxProcessEnvironment
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +10,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import org.appdevforall.codeonthego.plugins.PluginPermission
+import org.appdevforall.codeonthego.plugins.extensions.CommandOutput
+import org.appdevforall.codeonthego.plugins.extensions.CommandResult
+import org.appdevforall.codeonthego.plugins.extensions.CommandSpec
+import org.appdevforall.codeonthego.plugins.services.CommandExecution
+import org.appdevforall.codeonthego.plugins.services.IdeCommandService
+import org.appdevforall.codeonthego.utils.TermuxProcessEnvironment
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader

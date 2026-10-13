@@ -18,22 +18,21 @@
 package org.appdevforall.codeonthego.editor.language.treesitter
 
 import android.content.Context
-import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguage.Factory
 import com.itsaky.androidide.treesitter.log.TSLanguageLog
+import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguage.Factory
 
 /**
  * Tree Sitter language implementation for logs.
  *
  * @author Akash Yadav
  */
-class LogLanguage(context: Context) :
-  TreeSitterLanguage(context, TSLanguageLog.getInstance(), TS_TYPE) {
+class LogLanguage(
+	context: Context,
+) : TreeSitterLanguage(context, TSLanguageLog.getInstance(), TS_TYPE) {
+	companion object {
+		const val TS_TYPE = "log"
 
-  companion object {
-
-    const val TS_TYPE = "log"
-
-    @JvmField
-    val FACTORY = Factory { LogLanguage(it) }
-  }
+		@JvmField
+		val FACTORY = Factory { LogLanguage(it) }
+	}
 }

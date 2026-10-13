@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.lsp.kotlin.refactor
 
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.CandidateExpression
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.ExtractionPlan
 import org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.ScopeOption
@@ -7,7 +8,6 @@ import org.appdevforall.codeonthego.lsp.ui.CandidateView
 import org.appdevforall.codeonthego.lsp.ui.ExtractVariableSelection
 import org.appdevforall.codeonthego.lsp.ui.NameMessages
 import org.appdevforall.codeonthego.lsp.ui.ScopeView
-import com.itsaky.androidide.resources.R
 
 /**
  * Kotlin's wording for the four name problems the shared sheet can report.

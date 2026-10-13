@@ -21,8 +21,10 @@ import com.android.builder.model.v2.ide.TestedTargetVariant
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultTestedTargetVariant : TestedTargetVariant, Serializable {
-  private val serialVersionUID = 1L
-  override var targetProjectPath: String = ""
-  override var targetVariant: String = ""
+class DefaultTestedTargetVariant :
+	TestedTargetVariant,
+	Serializable {
+	private val serialVersionUID = 1L
+	override var targetProjectPath: String = ""
+	override var targetVariant: String = ""
 }

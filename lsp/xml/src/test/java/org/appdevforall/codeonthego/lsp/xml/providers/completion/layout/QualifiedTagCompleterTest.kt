@@ -19,6 +19,7 @@ package org.appdevforall.codeonthego.lsp.xml.providers.completion.layout
 
 import com.android.aaptcompiler.extractPathData
 import com.google.common.truth.Truth.assertThat
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.lsp.api.ICompletionProvider
 import org.appdevforall.codeonthego.lsp.models.CompletionItem
@@ -30,7 +31,6 @@ import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.appdevforall.codeonthego.xml.internal.widgets.DefaultWidgetTable
 import org.appdevforall.codeonthego.xml.widgets.WidgetTable
-import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.eclipse.lemminx.dom.DOMParser
 import org.eclipse.lemminx.uriresolver.URIResolverExtensionManager
 import org.junit.Before

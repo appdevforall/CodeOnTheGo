@@ -24,7 +24,7 @@ import java.util.Locale
  */
 @JvmOverloads
 fun String.capitalizeString(locale: Locale = Locale.getDefault()): String {
-  return replaceFirstChar { char ->
-    if (char.isLowerCase()) char.titlecase(locale) else char.toString()
-  }
+return replaceFirstChar { char ->
+	if (char.isLowerCase()) char.titlecase(locale) else char.toString()
+}
 }

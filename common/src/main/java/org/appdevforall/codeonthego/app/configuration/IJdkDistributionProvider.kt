@@ -27,7 +27,6 @@ import org.appdevforall.codeonthego.utils.ServiceLoader
  * @author Akash Yadav
  */
 interface IJdkDistributionProvider {
-
 	/**
 	 * The list of JDK distributions installed on the device.
 	 */
@@ -46,9 +45,7 @@ interface IJdkDistributionProvider {
 	 * @return The [JdkDistribution] instance for the given java version, or `null` if no such
 	 * distribution is found.
 	 */
-	fun forVersion(javaVersion: String): JdkDistribution? =
-		installedDistributions.firstOrNull { it.javaVersion == javaVersion }
-
+	fun forVersion(javaVersion: String): JdkDistribution? = installedDistributions.firstOrNull { it.javaVersion == javaVersion }
 
 	/**
 	 * Get the [JdkDistribution] instance for the given java home.
@@ -56,11 +53,9 @@ interface IJdkDistributionProvider {
 	 * @return The [JdkDistribution] instance for the given java home, or `null` if no such
 	 * distribution is found.
 	 */
-	fun forJavaHome(javaHome: String): JdkDistribution? =
-		installedDistributions.firstOrNull { it.javaHome == javaHome }
+	fun forJavaHome(javaHome: String): JdkDistribution? = installedDistributions.firstOrNull { it.javaHome == javaHome }
 
 	companion object {
-
 		/**
 		 * The default Java version.
 		 */
@@ -72,10 +67,11 @@ interface IJdkDistributionProvider {
 		const val DEFAULT_JAVA_VERSION = DEFAULT_JAVA_RELEASE.toString()
 
 		private val _instance by lazy {
-			ServiceLoader.load(
-				IJdkDistributionProvider::class.java,
-				IJdkDistributionProvider::class.java.classLoader
-			).findFirstOrThrow()
+			ServiceLoader
+				.load(
+					IJdkDistributionProvider::class.java,
+					IJdkDistributionProvider::class.java.classLoader,
+				).findFirstOrThrow()
 		}
 
 		/**

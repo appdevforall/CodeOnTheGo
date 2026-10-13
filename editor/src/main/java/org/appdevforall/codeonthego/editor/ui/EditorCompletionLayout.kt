@@ -32,29 +32,31 @@ import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
  * @author Akash Yadav
  */
 class EditorCompletionLayout : DefaultCompletionLayout() {
+	override fun onApplyColorScheme(colorScheme: EditorColorScheme) {
+		val resources = completionList.context.resources
+		val cornerRadius =
+			resources
+				.getDimensionPixelSize(R.dimen.completion_window_corner_radius)
+				.toFloat()
 
-  override fun onApplyColorScheme(colorScheme: EditorColorScheme) {
+		val strokeWidth =
+			resources
+				.getDimensionPixelSize(R.dimen.completion_window_stroke_width)
 
-    val resources = completionList.context.resources
-    val cornerRadius = resources.getDimensionPixelSize(R.dimen.completion_window_corner_radius)
-      .toFloat()
+		(completionList.parent as? ViewGroup?)?.background =
+			GradientDrawable().apply {
+				setCornerRadius(cornerRadius)
+				setStroke(strokeWidth, colorScheme.getColor(EditorColorScheme.COMPLETION_WND_CORNER))
+				setColor(colorScheme.getColor(EditorColorScheme.COMPLETION_WND_BACKGROUND))
+			}
 
-    val strokeWidth = resources
-      .getDimensionPixelSize(R.dimen.completion_window_stroke_width)
-
-    (completionList.parent as? ViewGroup?)?.background = GradientDrawable().apply {
-      setCornerRadius(cornerRadius)
-      setStroke(strokeWidth, colorScheme.getColor(EditorColorScheme.COMPLETION_WND_CORNER))
-      setColor(colorScheme.getColor(EditorColorScheme.COMPLETION_WND_BACKGROUND))
-    }
-
-    if (completionList.layoutParams is MarginLayoutParams) {
-      completionList.updateLayoutParams<MarginLayoutParams> {
-        marginStart = strokeWidth
-        topMargin = strokeWidth
-        marginEnd = strokeWidth
-        bottomMargin = strokeWidth
-      }
-    }
-  }
+		if (completionList.layoutParams is MarginLayoutParams) {
+			completionList.updateLayoutParams<MarginLayoutParams> {
+				marginStart = strokeWidth
+				topMargin = strokeWidth
+				marginEnd = strokeWidth
+				bottomMargin = strokeWidth
+			}
+		}
+	}
 }

@@ -43,31 +43,31 @@ import openjdk.tools.javac.util.Context;
  */
 public class CancelService {
 
-  /** The context key for the parameter name resolver. */
-  protected static final Context.Key<CancelService> cancelServiceKey = new Context.Key<>();
+	/** The context key for the parameter name resolver. */
+	protected static final Context.Key<CancelService> cancelServiceKey = new Context.Key<>();
 
-  protected CancelService() {}
+	public static CancelService instance(Context context) {
+		CancelService instance = context.get(cancelServiceKey);
+		if (instance == null) {
+			instance = new CancelService();
+			context.put(cancelServiceKey, instance);
+		}
+		return instance;
+	}
 
-  public static CancelService instance(Context context) {
-    CancelService instance = context.get(cancelServiceKey);
-    if (instance == null) {
-      instance = new CancelService();
-      context.put(cancelServiceKey, instance);
-    }
-    return instance;
-  }
+	public static void preRegister(Context context, CancelService impl) {
+		context.put(CancelService.cancelServiceKey, impl);
+	}
 
-  public static void preRegister(Context context, CancelService impl) {
-    context.put(CancelService.cancelServiceKey, impl);
-  }
+	protected CancelService() {}
 
-  public final void abortIfCanceled() {
-    if (isCanceled()) {
-      throw new CancelAbort();
-    }
-  }
+	public final void abortIfCanceled() {
+		if (isCanceled()) {
+			throw new CancelAbort();
+		}
+	}
 
-  public boolean isCanceled() {
-    return false;
-  }
+	public boolean isCanceled() {
+		return false;
+	}
 }

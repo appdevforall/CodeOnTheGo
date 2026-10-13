@@ -22,16 +22,13 @@ import java.nio.file.spi.FileSystemProvider
 
 /** @author Akash Yadav */
 object AndroidFsProviderImpl : AndroidFsProvider() {
+	init {
+		INSTANCE = this
+	}
 
-  init {
-    INSTANCE = this
-  }
+	fun init() {
+		// Used to instantiate this class and override the AndroidFsProvider instance
+	}
 
-  fun init() {
-    // Used to instantiate this class and override the AndroidFsProvider instance
-  }
-
-  override fun zipFsProvider(): FileSystemProvider {
-    return CachingJarFileSystemProvider
-  }
+	override fun zipFsProvider(): FileSystemProvider = CachingJarFileSystemProvider
 }

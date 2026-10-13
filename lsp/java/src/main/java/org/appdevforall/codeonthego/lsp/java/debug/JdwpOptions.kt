@@ -9,7 +9,6 @@ import kotlin.time.Duration.Companion.seconds
  * @author Akash Yadav
  */
 object JdwpOptions {
-
 	private val logger = LoggerFactory.getLogger(JdwpOptions::class.java)
 
 	/**
@@ -33,11 +32,12 @@ object JdwpOptions {
 	/**
 	 * Options for configuring the JDWP agent in a VM.
 	 */
-	val JDWP_OPTIONS_MAP = mapOf(
-		"suspend" to "n",
-		"server" to "n",
-		"transport" to "dt_socket",
-	)
+	val JDWP_OPTIONS_MAP =
+		mapOf(
+			"suspend" to "n",
+			"server" to "n",
+			"transport" to "dt_socket",
+		)
 
 	/**
 	 * The argument provided to JDI [Connector][com.sun.jdi.connect.Connector] to provide the port to listen at.
@@ -56,26 +56,30 @@ object JdwpOptions {
 	 */
 	fun activeJdwpPort(): Int {
 		val messagePrefix = "Cannot get current JDWP port."
-		val debugAdapter = JavaDebugAdapter.currentInstance()
-			?: run {
-				logger.error("{} No debug adapter instance found.", messagePrefix)
+		val debugAdapter =
+			JavaDebugAdapter.currentInstance()
+				?: run {
+					logger.error("{} No debug adapter instance found.", messagePrefix)
+					return -1
+				}
+
+		val listenAddress =
+			debugAdapter.listenerState.listenAddress
+				?: run {
+					logger.error(
+						"{} Debug adapter is not listening for connections.",
+						messagePrefix,
+					)
+					return -1
+				}
+
+		val port =
+			listenAddress
+				.substringAfterLast(':')
+				.toIntOrNull() ?: run {
+				logger.error("{} Unable to get port from address: {}", messagePrefix, listenAddress)
 				return -1
 			}
-
-		val listenAddress = debugAdapter.listenerState.listenAddress
-			?: run {
-				logger.error(
-					"{} Debug adapter is not listening for connections.",
-					messagePrefix
-				)
-				return -1
-			}
-
-		val port = listenAddress.substringAfterLast(':')
-			.toIntOrNull() ?: run {
-			logger.error("{} Unable to get port from address: {}", messagePrefix, listenAddress)
-			return -1
-		}
 
 		return port
 	}

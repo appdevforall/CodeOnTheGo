@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
+import kotlinx.parcelize.Parcelize
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.plugins.PluginMetadata
@@ -53,7 +54,6 @@ import org.appdevforall.codeonthego.utils.flashSuccess
 import org.appdevforall.codeonthego.utils.flashbarBuilder
 import org.appdevforall.codeonthego.utils.showOnUiThread
 import org.appdevforall.codeonthego.viewmodels.PluginManagerViewModel
-import kotlinx.parcelize.Parcelize
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("PluginManagerContent")

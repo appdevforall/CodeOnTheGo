@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.activities.editor
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.mockk
 import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.services.debug.DebuggerService
-import io.mockk.mockk
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric

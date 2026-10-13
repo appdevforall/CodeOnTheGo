@@ -7,20 +7,20 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.utils.BasicBuildInfo
-import org.appdevforall.codeonthego.activities.editor.HelpActivity
-import org.appdevforall.codeonthego.adapters.MainActionsListAdapter
+import com.itsaky.androidide.databinding.FragmentMainBinding
+import org.adfa.constants.CONTENT_KEY
+import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionsRegistry
 import org.appdevforall.codeonthego.actions.internal.DefaultActionsRegistry
-import com.itsaky.androidide.databinding.FragmentMainBinding
+import org.appdevforall.codeonthego.activities.editor.HelpActivity
+import org.appdevforall.codeonthego.adapters.MainActionsListAdapter
 import org.appdevforall.codeonthego.dnd.handleGitUrlDrop
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.MAIN_GET_STARTED
+import org.appdevforall.codeonthego.utils.BasicBuildInfo
 import org.appdevforall.codeonthego.viewmodel.MainViewModel
-import org.adfa.constants.CONTENT_KEY
-import org.adfa.constants.CONTENT_TITLE_KEY
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 class MainFragment : BaseFragment() {
@@ -93,9 +93,9 @@ class MainFragment : BaseFragment() {
 		handleGitUrlDrop(
 			shouldAcceptDrop = {
 				isVisible &&
-				viewModel.currentScreen.value == MainViewModel.SCREEN_MAIN
+					viewModel.currentScreen.value == MainViewModel.SCREEN_MAIN
 			},
-			onDropped = viewModel::requestCloneRepository
+			onDropped = viewModel::requestCloneRepository,
 		)
 	}
 
@@ -115,11 +115,13 @@ class MainFragment : BaseFragment() {
 
 	private fun reloadActions() {
 		val actionData = createActionData()
-		val actions = registry.getActions(ActionItem.Location.MAIN_SCREEN)
-			.values
-			.onEach { it.prepare(actionData) }
-			.filter { it.visible }
-			.sortedWith(compareBy({ it.order }, { it.id }))
+		val actions =
+			registry
+				.getActions(ActionItem.Location.MAIN_SCREEN)
+				.values
+				.onEach { it.prepare(actionData) }
+				.filter { it.visible }
+				.sortedWith(compareBy({ it.order }, { it.id }))
 
 		// Portrait: single list. Landscape: first 3 (Create, Open, Delete) in middle, last 3 (Terminal, Preferences, Docs) on right.
 		val leftActions = if (binding!!.actionsRight != null) actions.take(3) else actions
@@ -127,11 +129,10 @@ class MainFragment : BaseFragment() {
 		binding!!.actionsRight?.adapter = MainActionsListAdapter(actions.drop(3), onClick, onLongClick)
 	}
 
-	private fun createActionData(): ActionData {
-		return ActionData.create(requireActivity()).apply {
+	private fun createActionData(): ActionData =
+		ActionData.create(requireActivity()).apply {
 			put(MainViewModel::class.java, viewModel)
 		}
-	}
 
 	override fun onDestroyView() {
 		super.onDestroyView()

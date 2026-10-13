@@ -21,5 +21,7 @@ import org.appdevforall.codeonthego.lsp.api.ICompletionProvider
 
 /** @author Akash Yadav */
 class NoCompletionsProvider : ICompletionProvider {
-  override fun complete(params: org.appdevforall.codeonthego.lsp.models.CompletionParams?): org.appdevforall.codeonthego.lsp.models.CompletionResult = org.appdevforall.codeonthego.lsp.models.CompletionResult.EMPTY
+	override fun complete(
+		params: org.appdevforall.codeonthego.lsp.models.CompletionParams?,
+	): org.appdevforall.codeonthego.lsp.models.CompletionResult = org.appdevforall.codeonthego.lsp.models.CompletionResult.EMPTY
 }

@@ -14,8 +14,7 @@ import org.jetbrains.kotlin.com.intellij.psi.impl.PsiElementFinderImpl
 @OptIn(KaImplementationDetail::class)
 internal class LspAnalysisApiServiceRegistrar(
 	private val provider: AnalysisApiServiceProvider,
-): AnalysisApiSimpleServiceRegistrar() {
-
+) : AnalysisApiSimpleServiceRegistrar() {
 	@Suppress("UNCHECKED_CAST")
 	private fun MockComponentManager.servAll(services: ServiceMap) {
 		services.forEach { (_, registration) ->
@@ -39,7 +38,10 @@ internal class LspAnalysisApiServiceRegistrar(
 		project.servAll(provider.projectServices)
 	}
 
-	override fun registerProjectModelServices(project: MockProject, disposable: Disposable) {
+	override fun registerProjectModelServices(
+		project: MockProject,
+		disposable: Disposable,
+	) {
 		with(PsiElementFinder.EP.getPoint(project)) {
 			registerExtension(JavaElementFinder(project), disposable)
 			registerExtension(PsiElementFinderImpl(project), disposable)

@@ -19,6 +19,9 @@ package org.appdevforall.codeonthego.lsp.api;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import java.io.File;
+import java.util.Collections;
+import java.util.List;
 import org.appdevforall.codeonthego.lsp.debug.IDebugClient;
 import org.appdevforall.codeonthego.lsp.models.CodeActionItem;
 import org.appdevforall.codeonthego.lsp.models.DiagnosticItem;
@@ -28,9 +31,6 @@ import org.appdevforall.codeonthego.lsp.models.ShowDocumentParams;
 import org.appdevforall.codeonthego.lsp.models.ShowDocumentResult;
 import org.appdevforall.codeonthego.models.Location;
 import org.appdevforall.codeonthego.models.Range;
-import java.io.File;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * A language client handles notifications and events from a {@link ILanguageServer}.

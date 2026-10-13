@@ -35,29 +35,27 @@ import org.appdevforall.codeonthego.utils.getSystemBarInsets
  * @author Smooth E
  */
 class BottomInsetHeightDistributor : FrameLayout {
+	constructor(context: Context) : super(context) {
+		applyLayoutParameters()
+	}
 
-  constructor(context: Context) : super(context) {
-    applyLayoutParameters()
-  }
+	constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
+		applyLayoutParameters()
+	}
 
-  constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
-    applyLayoutParameters()
-  }
+	constructor(
+		context: Context,
+		attrs: AttributeSet?,
+		defStyleAttr: Int,
+	) : super(context, attrs, defStyleAttr) {
+		applyLayoutParameters()
+	}
 
-  constructor(
-    context: Context,
-    attrs: AttributeSet?,
-    defStyleAttr: Int
-  ) : super(context, attrs, defStyleAttr) {
-    applyLayoutParameters()
-  }
-
-  private fun applyLayoutParameters() {
-    doOnAttach { view ->
-      updateLayoutParams<ViewGroup.LayoutParams> {
-        height = getSystemBarInsets(view).bottom
-      }
-    }
-  }
-
+	private fun applyLayoutParameters() {
+		doOnAttach { view ->
+			updateLayoutParams<ViewGroup.LayoutParams> {
+				height = getSystemBarInsets(view).bottom
+			}
+		}
+	}
 }

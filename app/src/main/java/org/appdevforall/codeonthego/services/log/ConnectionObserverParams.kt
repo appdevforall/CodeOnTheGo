@@ -27,29 +27,29 @@ import android.os.Bundle
  * @property totalConnections The total number of connections after this client was connected/disconnected.
  * @author Akash Yadav
  */
-data class ConnectionObserverParams(val clientId: String, val totalConnections: Int) {
+data class ConnectionObserverParams(
+	val clientId: String,
+	val totalConnections: Int,
+) {
+	companion object {
+		const val KEY_CLIENT_ID = "org.appdevforall.codeonthego.logreceiver.connectedClientId"
+		const val KEY_CONNECTION_COUNT = "org.appdevforall.codeonthego.logreceiver.connectionCount"
 
-  companion object {
+		@JvmStatic
+		internal fun from(intent: Intent?): ConnectionObserverParams? {
+			val clientId = intent?.getStringExtra(KEY_CLIENT_ID) ?: return null
+			val connectionCount = intent.getIntExtra(KEY_CONNECTION_COUNT, -1)
+			if (connectionCount == -1) {
+				return null
+			}
 
-    const val KEY_CLIENT_ID = "org.appdevforall.codeonthego.logreceiver.connectedClientId"
-    const val KEY_CONNECTION_COUNT = "org.appdevforall.codeonthego.logreceiver.connectionCount"
+			return ConnectionObserverParams(clientId, connectionCount)
+		}
+	}
 
-    @JvmStatic
-    internal fun from(intent: Intent?): ConnectionObserverParams? {
-      val clientId = intent?.getStringExtra(KEY_CLIENT_ID) ?: return null
-      val connectionCount = intent.getIntExtra(KEY_CONNECTION_COUNT, -1)
-      if (connectionCount == -1) {
-        return null
-      }
-
-      return ConnectionObserverParams(clientId, connectionCount)
-    }
-  }
-
-  internal fun bundle(): Bundle {
-    return Bundle().apply {
-      putString(KEY_CLIENT_ID, clientId)
-      putInt(KEY_CONNECTION_COUNT, totalConnections)
-    }
-  }
+	internal fun bundle(): Bundle =
+		Bundle().apply {
+			putString(KEY_CLIENT_ID, clientId)
+			putInt(KEY_CONNECTION_COUNT, totalConnections)
+		}
 }

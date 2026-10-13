@@ -28,36 +28,34 @@ import java.io.PrintStream
  * @author Akash Yadav
  */
 class StopWatch
-@JvmOverloads
-constructor(
-  val label: String,
-  val start: Long = System.currentTimeMillis(),
-  var lastLap: Long = start
-) {
+	@JvmOverloads
+	constructor(
+		val label: String,
+		val start: Long = System.currentTimeMillis(),
+		var lastLap: Long = start,
+	) {
+		companion object {
+			private val log = LoggerFactory.getLogger(StopWatch::class.java)
+		}
 
-  companion object {
+		fun log() {
+			log.debug("{} completed in {}ms", label, System.currentTimeMillis() - start)
+		}
 
-    private val log = LoggerFactory.getLogger(StopWatch::class.java)
-  }
+		fun lap(message: String) {
+			log.debug("{} in {}ms", message, System.currentTimeMillis() - start)
+			lastLap = System.currentTimeMillis()
+		}
 
-  fun log() {
-    log.debug("{} completed in {}ms", label, System.currentTimeMillis() - start)
-  }
+		fun lapFromLast(message: String) {
+			log.debug("{} in {}ms", message, System.currentTimeMillis() - lastLap)
+			lastLap = System.currentTimeMillis()
+		}
 
-  fun lap(message: String) {
-    log.debug("{} in {}ms", message, System.currentTimeMillis() - start)
-    lastLap = System.currentTimeMillis()
-  }
-
-  fun lapFromLast(message: String) {
-    log.debug("{} in {}ms", message, System.currentTimeMillis() - lastLap)
-    lastLap = System.currentTimeMillis()
-  }
-
-  fun writeTo(stream: PrintStream) {
-    stream.println("$label completed in ${System.currentTimeMillis() - start}ms")
-  }
-}
+		fun writeTo(stream: PrintStream) {
+			stream.println("$label completed in ${System.currentTimeMillis() - start}ms")
+		}
+	}
 
 /**
  * Run the given action with a stopwatch to log the time the action took to execute.
@@ -65,16 +63,15 @@ constructor(
  * @see StopWatch
  */
 inline fun <R> withStopWatch(
-  label: String,
-  start: Long = System.currentTimeMillis(),
-  lastLap: Long = start,
-  action: (StopWatch) -> R
-): R {
-  return StopWatch(label, start, lastLap).run {
-    try {
-      action(this)
-    } finally {
-      log()
-    }
-  }
-}
+	label: String,
+	start: Long = System.currentTimeMillis(),
+	lastLap: Long = start,
+	action: (StopWatch) -> R,
+): R =
+	StopWatch(label, start, lastLap).run {
+		try {
+			action(this)
+		} finally {
+			log()
+		}
+	}

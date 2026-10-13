@@ -23,40 +23,42 @@ import org.appdevforall.codeonthego.models.Range
  * Model class for a syntax highlighting token.
  * @author Akash Yadav
  */
-data class HighlightToken(var range: Range, var kind: HighlightTokenKind)
+data class HighlightToken(
+	var range: Range,
+	var kind: HighlightTokenKind,
+)
 
 enum class HighlightTokenKind {
+	// Common
+	TEXT_NORMAL,
 
-  // Common
-  TEXT_NORMAL,
+	// Java and Gradle
+	KEYWORD,
+	COMMENT,
+	OPERATOR,
+	LITERAL,
+	LOCAL_VARIABLE,
+	RESOURCE_VARIABLE,
+	PARAMETER,
+	EXCEPTION_PARAMETER,
+	TYPE_PARAMETER,
+	FIELD,
+	STATIC_FIELD,
+	ENUM,
+	TYPE_NAME,
+	ENUM_TYPE,
+	INTERFACE,
+	METHOD_DECLARATION,
+	METHOD_INVOCATION,
+	CONSTRUCTOR,
+	ANNOTATION,
+	STATIC_INIT,
+	INSTANCE_INIT,
+	PACKAGE_NAME,
 
-  // Java and Gradle
-  KEYWORD,
-  COMMENT,
-  OPERATOR,
-  LITERAL,
-  LOCAL_VARIABLE,
-  RESOURCE_VARIABLE,
-  PARAMETER,
-  EXCEPTION_PARAMETER,
-  TYPE_PARAMETER,
-  FIELD,
-  STATIC_FIELD,
-  ENUM,
-  TYPE_NAME,
-  ENUM_TYPE,
-  INTERFACE,
-  METHOD_DECLARATION,
-  METHOD_INVOCATION,
-  CONSTRUCTOR,
-  ANNOTATION,
-  STATIC_INIT,
-  INSTANCE_INIT,
-  PACKAGE_NAME,
-
-  // XML
-  TAG_NAME,
-  NAMESPACE,
-  ATTRIBUTE_NAME,
-  ATTRIBUTE_VALUE
+	// XML
+	TAG_NAME,
+	NAMESPACE,
+	ATTRIBUTE_NAME,
+	ATTRIBUTE_VALUE,
 }

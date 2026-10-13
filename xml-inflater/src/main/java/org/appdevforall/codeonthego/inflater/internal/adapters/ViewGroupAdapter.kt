@@ -30,42 +30,36 @@ import org.appdevforall.codeonthego.inflater.LayoutStrategy.Companion.TOP_LEFT
  *
  * @author Akash Yadav
  */
-abstract class ViewGroupAdapter<T : ViewGroup> : ViewAdapter<T>(),
-                                                 IViewGroupAdapter {
+abstract class ViewGroupAdapter<T : ViewGroup> :
+	ViewAdapter<T>(),
+	IViewGroupAdapter {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("animateLayoutChanges") {
+			view.layoutTransition = LayoutTransition()
+		}
+		create("clipChildren") { view.clipChildren = parseBoolean(value) }
+		create("clipToPadding") { view.clipToPadding = parseBoolean(value) }
+		create("descendantFocusability") {
+			view.descendantFocusability = parseDescendantsFocusability(value)
+		}
+		create("layoutMode") { view.layoutMode = parseLayoutMode(value) }
+	}
 
-  override fun createAttrHandlers(
-    create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit
-  ) {
-    super.createAttrHandlers(create)
-    create("animateLayoutChanges") {
-      view.layoutTransition = LayoutTransition()
-    }
-    create("clipChildren") { view.clipChildren = parseBoolean(value) }
-    create("clipToPadding") { view.clipToPadding = parseBoolean(value) }
-    create("descendantFocusability") {
-      view.descendantFocusability = parseDescendantsFocusability(value)
-    }
-    create("layoutMode") { view.layoutMode = parseLayoutMode(value) }
-  }
+	override fun getLayoutStrategy(group: IViewGroup): LayoutStrategy = TOP_LEFT
 
-  override fun getLayoutStrategy(group: IViewGroup): LayoutStrategy {
-    return TOP_LEFT
-  }
+	protected open fun parseLayoutMode(value: String): Int =
+		when (value) {
+			"opticalBounds" -> ViewGroup.LAYOUT_MODE_OPTICAL_BOUNDS
+			"clipBounds" -> ViewGroup.LAYOUT_MODE_CLIP_BOUNDS
+			else -> ViewGroup.LAYOUT_MODE_CLIP_BOUNDS
+		}
 
-  protected open fun parseLayoutMode(value: String): Int {
-    return when (value) {
-      "opticalBounds" -> ViewGroup.LAYOUT_MODE_OPTICAL_BOUNDS
-      "clipBounds" -> ViewGroup.LAYOUT_MODE_CLIP_BOUNDS
-      else -> ViewGroup.LAYOUT_MODE_CLIP_BOUNDS
-    }
-  }
-
-  protected open fun parseDescendantsFocusability(value: String): Int {
-    return when (value) {
-      "beforeDescendants" -> ViewGroup.FOCUS_BEFORE_DESCENDANTS
-      "blocksDescendants" -> ViewGroup.FOCUS_BLOCK_DESCENDANTS
-      "afterDescendants" -> ViewGroup.FOCUS_AFTER_DESCENDANTS
-      else -> ViewGroup.FOCUS_AFTER_DESCENDANTS
-    }
-  }
+	protected open fun parseDescendantsFocusability(value: String): Int =
+		when (value) {
+			"beforeDescendants" -> ViewGroup.FOCUS_BEFORE_DESCENDANTS
+			"blocksDescendants" -> ViewGroup.FOCUS_BLOCK_DESCENDANTS
+			"afterDescendants" -> ViewGroup.FOCUS_AFTER_DESCENDANTS
+			else -> ViewGroup.FOCUS_AFTER_DESCENDANTS
+		}
 }

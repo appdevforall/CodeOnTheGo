@@ -18,6 +18,10 @@
 package org.appdevforall.codeonthego.editor.language.treesitter
 
 import android.content.Context
+import com.itsaky.androidide.treesitter.java.TSLanguageJava
+import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_SLIGHT
+import io.github.rosemoe.sora.util.MyCharacter
+import io.github.rosemoe.sora.widget.SymbolPairMatch
 import org.appdevforall.codeonthego.editor.language.newline.TSBracketsHandler
 import org.appdevforall.codeonthego.editor.language.newline.TSCStyleBracketsHandler
 import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguage.Factory
@@ -25,49 +29,36 @@ import org.appdevforall.codeonthego.editor.language.utils.CommonSymbolPairs
 import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import org.appdevforall.codeonthego.lsp.api.ILanguageServerRegistry
 import org.appdevforall.codeonthego.lsp.java.JavaLanguageServer
-import com.itsaky.androidide.treesitter.java.TSLanguageJava
-import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_SLIGHT
-import io.github.rosemoe.sora.util.MyCharacter
-import io.github.rosemoe.sora.widget.SymbolPairMatch
 
 /**
  * Tree Sitter language specification for Java.
  *
  * @author Akash Yadav
  */
-class JavaLanguage(context: Context) :
-  TreeSitterLanguage(context, TSLanguageJava.getInstance(), TS_TYPE) {
+class JavaLanguage(
+	context: Context,
+) : TreeSitterLanguage(context, TSLanguageJava.getInstance(), TS_TYPE) {
+	companion object {
+		const val TS_TYPE = "java"
 
-  companion object {
+		@JvmField
+		val FACTORY = Factory { JavaLanguage(it) }
+	}
 
-    const val TS_TYPE = "java"
+	override val languageServer: ILanguageServer?
+		get() = ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
 
-    @JvmField
-    val FACTORY = Factory { JavaLanguage(it) }
-  }
+	override fun checkIsCompletionChar(c: Char): Boolean = MyCharacter.isJavaIdentifierPart(c) || c == '.'
 
-  override val languageServer: ILanguageServer?
-    get() = ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
+	override fun getInterruptionLevel(): Int = INTERRUPTION_LEVEL_SLIGHT
 
-  override fun checkIsCompletionChar(c: Char): Boolean {
-    return MyCharacter.isJavaIdentifierPart(c) || c == '.'
-  }
+	override fun getSymbolPairs(): SymbolPairMatch = JavaSymbolPairs()
 
-  override fun getInterruptionLevel(): Int {
-    return INTERRUPTION_LEVEL_SLIGHT
-  }
+	override fun createNewlineHandlers(): Array<TSBracketsHandler> = arrayOf(TSCStyleBracketsHandler(this))
 
-  override fun getSymbolPairs(): SymbolPairMatch {
-    return JavaSymbolPairs()
-  }
-
-  override fun createNewlineHandlers(): Array<TSBracketsHandler> {
-    return arrayOf(TSCStyleBracketsHandler(this))
-  }
-
-  internal open class JavaSymbolPairs : CommonSymbolPairs() {
-    init {
-      super.putPair('<', SymbolPair("<", ">"))
-    }
-  }
+	internal open class JavaSymbolPairs : CommonSymbolPairs() {
+		init {
+			super.putPair('<', SymbolPair("<", ">"))
+		}
+	}
 }

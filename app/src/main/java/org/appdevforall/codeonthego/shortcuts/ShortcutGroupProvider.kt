@@ -10,10 +10,11 @@ import org.appdevforall.codeonthego.shortcuts.groups.WindowsAndDisplayGroup
  * Provides the set of available shortcut groups for the IDE.
  */
 class ShortcutGroupProvider {
-	fun all(): List<ShortcutGroup> = listOf(
-		ProjectsAndSolutionsGroup(),
-		WindowsAndDisplayGroup(),
-		FileManagementGroup(),
-		SearchAndReplaceGroup(),
-	)
+	fun all(): List<ShortcutGroup> =
+		listOf(
+			ProjectsAndSolutionsGroup(),
+			WindowsAndDisplayGroup(),
+			FileManagementGroup(),
+			SearchAndReplaceGroup(),
+		)
 }

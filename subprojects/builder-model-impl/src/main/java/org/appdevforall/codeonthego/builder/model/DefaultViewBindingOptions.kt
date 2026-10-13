@@ -21,7 +21,9 @@ import com.android.builder.model.v2.ide.ViewBindingOptions
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultViewBindingOptions : ViewBindingOptions, Serializable {
-  private val serialVersionUID = 1L
-  override var isEnabled: Boolean = false
+class DefaultViewBindingOptions :
+	ViewBindingOptions,
+	Serializable {
+	private val serialVersionUID = 1L
+	override var isEnabled: Boolean = false
 }

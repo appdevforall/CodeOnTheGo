@@ -21,8 +21,9 @@ import org.appdevforall.codeonthego.tooling.events.FinishEvent
 
 /** @author Akash Yadav */
 class TestFinishEvent(
-  displayName: String,
-  eventTime: Long,
-  operationDescriptor: TestOperationDescriptor,
-  override val result: TestOperationResult
-) : TestProgressEvent(displayName, eventTime, operationDescriptor), FinishEvent
+	displayName: String,
+	eventTime: Long,
+	operationDescriptor: TestOperationDescriptor,
+	override val result: TestOperationResult,
+) : TestProgressEvent(displayName, eventTime, operationDescriptor),
+	FinishEvent

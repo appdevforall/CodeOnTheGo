@@ -20,12 +20,12 @@ package org.appdevforall.codeonthego.utils
 import android.content.Context
 import android.os.Build
 import com.itsaky.androidide.BuildConfig
-import org.appdevforall.codeonthego.app.IDEApplication
-import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.termux.TermuxConstants
 import com.termux.shared.termux.TermuxUtils
+import org.appdevforall.codeonthego.app.IDEApplication
+import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
 
 /**
  * @author Akash Yadav

@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.Space
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [Space].
@@ -31,8 +31,9 @@ import com.itsaky.androidide.resources.R.string
  */
 @org.appdevforall.codeonthego.annotations.inflater.ViewAdapter(Space::class)
 @IncludeInDesigner(group = WIDGETS)
-open class SpaceAdapter<@Suppress("FINAL_UPPER_BOUND") T : Space> : ViewAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(UiWidget(Space::class.java, string.widget_space, drawable.ic_widget_space))
-  }
+open class SpaceAdapter<
+	@Suppress("FINAL_UPPER_BOUND")
+	T : Space,
+> : ViewAdapter<T>() {
+	override fun createUiWidgets(): List<UiWidget> = listOf(UiWidget(Space::class.java, string.widget_space, drawable.ic_widget_space))
 }

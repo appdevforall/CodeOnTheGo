@@ -17,13 +17,13 @@
 package org.appdevforall.codeonthego.activities.editor
 
 import android.os.Process
-import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
-import org.appdevforall.codeonthego.utils.Environment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
+import org.appdevforall.codeonthego.utils.Environment
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.text.SimpleDateFormat
@@ -36,99 +36,102 @@ import java.util.Locale
  * @author Akash Yadav
  */
 class IDELogcatReader {
+	private var job: Job? = null
+	private var shouldRun = false
 
-  private var job: Job? = null
-  private var shouldRun = false
+	companion object {
+		private val log = LoggerFactory.getLogger(IDELogcatReader::class.java)
+		private const val MAX_LOG_BYTES: Long = 5L * 1024L * 1024L
+	}
 
-  companion object {
+	/**
+	 * Start reading the logs.
+	 */
+	fun start() {
+		shouldRun = true
 
-    private val log = LoggerFactory.getLogger(IDELogcatReader::class.java)
-    private const val MAX_LOG_BYTES: Long = 5L * 1024L * 1024L
-  }
+		check(job == null) {
+			"Logcat reader is already running"
+		}
 
-  /**
-   * Start reading the logs.
-   */
-  fun start() {
-    shouldRun = true
+		job =
+			CoroutineScope(Dispatchers.IO).launch {
+				run()
+			}
+	}
 
-    check(job == null) {
-      "Logcat reader is already running"
-    }
+	/**
+	 * Stop the log reader.
+	 */
+	fun stop() {
+		shouldRun = false
+		job?.cancel("User requested cancellation")
+		job = null
+	}
 
-    job = CoroutineScope(Dispatchers.IO).launch {
-      run()
-    }
-  }
+	private fun run() {
+		val date = Date()
+		val dateFormat = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss.SSS", Locale.US)
+		val outputFile =
+			File(
+				Environment.ANDROIDIDE_HOME,
+				"logs/CodeOnTheGo-LOG-${dateFormat.format(date)}.txt",
+			)
 
-  /**
-   * Stop the log reader.
-   */
-  fun stop() {
-    shouldRun = false
-    job?.cancel("User requested cancellation")
-    job = null
-  }
+		log.debug("Creating output file: {}", outputFile)
 
-  private fun run() {
-    val date = Date()
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd_HH:mm:ss.SSS", Locale.US)
-    val outputFile = File(Environment.ANDROIDIDE_HOME,
-      "logs/CodeOnTheGo-LOG-${dateFormat.format(date)}.txt")
+		outputFile.parentFile!!.mkdirs()
+		try {
+			outputFile.createNewFile()
+		} catch (e: Exception) {
+			log.error("Failed to create output file for log", e)
+			return
+		}
 
-    log.debug("Creating output file: {}", outputFile)
+		outputFile.outputStream().buffered().use { writer ->
+			try {
+				val captureAllBuffers = GeneralPreferences.logcatCaptureAll
+				val args = mutableListOf("logcat")
+				if (captureAllBuffers) {
+					args.addAll(listOf("-b", "all"))
+				}
+				args.addAll(listOf("--pid", Process.myPid().toString(), "-v", "threadtime"))
 
-    outputFile.parentFile!!.mkdirs()
-    try {
-      outputFile.createNewFile()
-    } catch (e: Exception) {
-      log.error("Failed to create output file for log", e)
-      return
-    }
+				val process =
+					ProcessBuilder(args).let { builder ->
+						builder.redirectErrorStream(true)
+						builder.start()
+					}
+				try {
+					val buffer = ByteArray(8 * 1024)
+					var written = 0L
+					process.inputStream.use { input ->
+						while (shouldRun) {
+							val read = input.read(buffer)
+							if (read <= 0) break
+							val remaining = MAX_LOG_BYTES - written
+							if (remaining <= 0) break
+							val toWrite = if (read > remaining) remaining.toInt() else read
+							writer.write(buffer, 0, toWrite)
+							written += toWrite
+							if (written >= MAX_LOG_BYTES) break
+						}
+					}
 
-    outputFile.outputStream().buffered().use { writer ->
-      try {
-        val captureAllBuffers = GeneralPreferences.logcatCaptureAll
-        val args = mutableListOf("logcat")
-        if (captureAllBuffers) {
-          args.addAll(listOf("-b", "all"))
-        }
-        args.addAll(listOf("--pid", Process.myPid().toString(), "-v", "threadtime"))
-
-        val process = ProcessBuilder(args).let { builder ->
-          builder.redirectErrorStream(true)
-          builder.start()
-        }
-        try {
-          val buffer = ByteArray(8 * 1024)
-          var written = 0L
-          process.inputStream.use { input ->
-            while (shouldRun) {
-              val read = input.read(buffer)
-              if (read <= 0) break
-              val remaining = MAX_LOG_BYTES - written
-              if (remaining <= 0) break
-              val toWrite = if (read > remaining) remaining.toInt() else read
-              writer.write(buffer, 0, toWrite)
-              written += toWrite
-              if (written >= MAX_LOG_BYTES) break
-            }
-          }
-
-          writer.flush()
-          if (written >= MAX_LOG_BYTES) {
-            log.warn(
-              "Logcat capture reached max size ({} bytes). Truncating output.",
-              MAX_LOG_BYTES
-            )
-          }
-        } finally {
-          process.destroy()
-          log.info("Process ended with exit code: {}", process.waitFor())
-        }
-      } catch (err: Throwable) {
-        log.error("Failed to read logs", err)
-      }
-    }
-  }
+					writer.flush()
+					if (written >= MAX_LOG_BYTES) {
+						log.warn(
+							"Logcat capture reached max size ({} bytes). Truncating output.",
+							MAX_LOG_BYTES,
+						)
+					}
+				} finally {
+					process.destroy()
+					log.info("Process ended with exit code: {}", process.waitFor())
+				}
+			} catch (err: Throwable) {
+				log.error("Failed to read logs", err)
+			}
+		}
+	}
 }

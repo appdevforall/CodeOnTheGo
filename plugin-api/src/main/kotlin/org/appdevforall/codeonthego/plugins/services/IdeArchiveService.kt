@@ -13,12 +13,12 @@ import java.io.InputStream
  *   which must be a directory.
  */
 enum class ArchiveFormat {
-    XZ,
-    GZIP,
-    TAR,
-    TAR_XZ,
-    TAR_GZ,
-    ZIP
+	XZ,
+	GZIP,
+	TAR,
+	TAR_XZ,
+	TAR_GZ,
+	ZIP,
 }
 
 /**
@@ -26,12 +26,14 @@ enum class ArchiveFormat {
  * handle both paths exhaustively.
  */
 sealed class ExtractResult {
-    data class Success(
-        val bytesWritten: Long,
-        val filesExtracted: Int
-    ) : ExtractResult()
+	data class Success(
+		val bytesWritten: Long,
+		val filesExtracted: Int,
+	) : ExtractResult()
 
-    data class Failure(val error: Throwable) : ExtractResult()
+	data class Failure(
+		val error: Throwable,
+	) : ExtractResult()
 }
 
 /**
@@ -49,28 +51,28 @@ sealed class ExtractResult {
  * [InterruptedException].
  */
 interface IdeArchiveService {
-    /**
-     * Extracts [source] into [destination].
-     *
-     * For single-stream formats ([ArchiveFormat.XZ], [ArchiveFormat.GZIP]),
-     * [destination] is the output file path.
-     * For multi-entry formats, [destination] is the directory into which
-     * entries are written; it is created if it does not exist.
-     *
-     * [onProgress] is invoked periodically with the running byte count and,
-     * for multi-entry formats, the name of the entry currently being
-     * extracted.
-     *
-     * The caller owns [source] and is responsible for closing it.
-     *
-     * @return [ExtractResult.Success] with the byte and file counts on
-     *   success, [ExtractResult.Failure] carrying the cause on any error
-     *   (IO, malformed archive, path traversal, cancellation).
-     */
-    fun extract(
-        source: InputStream,
-        format: ArchiveFormat,
-        destination: File,
-        onProgress: ((bytesProcessed: Long, currentEntry: String?) -> Unit)? = null
-    ): ExtractResult
+	/**
+	 * Extracts [source] into [destination].
+	 *
+	 * For single-stream formats ([ArchiveFormat.XZ], [ArchiveFormat.GZIP]),
+	 * [destination] is the output file path.
+	 * For multi-entry formats, [destination] is the directory into which
+	 * entries are written; it is created if it does not exist.
+	 *
+	 * [onProgress] is invoked periodically with the running byte count and,
+	 * for multi-entry formats, the name of the entry currently being
+	 * extracted.
+	 *
+	 * The caller owns [source] and is responsible for closing it.
+	 *
+	 * @return [ExtractResult.Success] with the byte and file counts on
+	 *   success, [ExtractResult.Failure] carrying the cause on any error
+	 *   (IO, malformed archive, path traversal, cancellation).
+	 */
+	fun extract(
+		source: InputStream,
+		format: ArchiveFormat,
+		destination: File,
+		onProgress: ((bytesProcessed: Long, currentEntry: String?) -> Unit)? = null,
+	): ExtractResult
 }

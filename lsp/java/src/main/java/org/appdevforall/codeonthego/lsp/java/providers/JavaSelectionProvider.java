@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.lsp.java.providers;
 
 import androidx.annotation.NonNull;
+import openjdk.source.tree.CompilationUnitTree;
 import org.appdevforall.codeonthego.lsp.java.compiler.CompilerProvider;
 import org.appdevforall.codeonthego.lsp.java.visitors.FindBiggerRange;
 import org.appdevforall.codeonthego.lsp.models.ExpandSelectionParams;
 import org.appdevforall.codeonthego.models.Range;
-import openjdk.source.tree.CompilationUnitTree;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,30 +33,30 @@ import org.slf4j.LoggerFactory;
  */
 public class JavaSelectionProvider {
 
-  private static final Logger LOG = LoggerFactory.getLogger(JavaSelectionProvider.class);
-  private final CompilerProvider compiler;
+	private static final Logger LOG = LoggerFactory.getLogger(JavaSelectionProvider.class);
+	private final CompilerProvider compiler;
 
-  public JavaSelectionProvider(CompilerProvider compiler) {
-    this.compiler = compiler;
-  }
+	public JavaSelectionProvider(CompilerProvider compiler) {
+		this.compiler = compiler;
+	}
 
-  @NonNull
-  public Range expandSelection(@NonNull ExpandSelectionParams params) {
-    return compiler
-        .compile(params.getFile())
-        .get(
-            task -> {
-              final CompilationUnitTree root = task.root(params.getFile());
-              final FindBiggerRange rangeFinder = new FindBiggerRange(task.task, root);
-              final Range range = rangeFinder.scan(root, params.getSelection());
+	@NonNull
+	public Range expandSelection(@NonNull ExpandSelectionParams params) {
+		return compiler
+				.compile(params.getFile())
+				.get(
+						task -> {
+							final CompilationUnitTree root = task.root(params.getFile());
+							final FindBiggerRange rangeFinder = new FindBiggerRange(task.task, root);
+							final Range range = rangeFinder.scan(root, params.getSelection());
 
-              if (range != null) {
-                LOG.info("Expanding selection to range: {}", range);
-                return range;
-              }
+							if (range != null) {
+								LOG.info("Expanding selection to range: {}", range);
+								return range;
+							}
 
-              LOG.debug("Unable to expand selection");
-              return params.getSelection();
-            });
-  }
+							LOG.debug("Unable to expand selection");
+							return params.getSelection();
+						});
+	}
 }

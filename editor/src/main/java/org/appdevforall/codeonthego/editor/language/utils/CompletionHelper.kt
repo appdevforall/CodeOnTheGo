@@ -26,26 +26,26 @@ import io.github.rosemoe.sora.text.ContentReference
  * @author Akash Yadav
  */
 object CompletionHelper {
-
-  /**
-   * Searches backward on the line, with the given checker to check chars.
-   * Returns the longest text that matches the requirement.
-   *
-   * This is a variant of [CompletionHelper.computePrefix][io.github.rosemoe.sora.lang.completion.CompletionHelper.computePrefix]
-   * which inlines the predicate for better performance.
-   */
-  inline fun computePrefix(
-    ref: ContentReference, pos: CharPosition,
-    checker: (Char) -> Boolean
-  ): String {
-    var begin = pos.column
-    val line = ref.getLine(pos.line)
-    while (begin > 0) {
-      if (!checker(line[begin - 1])) {
-        break
-      }
-      begin--
-    }
-    return line.substring(begin, pos.column)
-  }
+	/**
+	 * Searches backward on the line, with the given checker to check chars.
+	 * Returns the longest text that matches the requirement.
+	 *
+	 * This is a variant of [CompletionHelper.computePrefix][io.github.rosemoe.sora.lang.completion.CompletionHelper.computePrefix]
+	 * which inlines the predicate for better performance.
+	 */
+	inline fun computePrefix(
+		ref: ContentReference,
+		pos: CharPosition,
+		checker: (Char) -> Boolean,
+	): String {
+		var begin = pos.column
+		val line = ref.getLine(pos.line)
+		while (begin > 0) {
+			if (!checker(line[begin - 1])) {
+				break
+			}
+			begin--
+		}
+		return line.substring(begin, pos.column)
+	}
 }

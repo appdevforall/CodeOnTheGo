@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.search.replace
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.utils.ProjectSearchOptions
-import org.appdevforall.codeonthego.utils.RecursiveFileSearcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.utils.ProjectSearchOptions
+import org.appdevforall.codeonthego.utils.RecursiveFileSearcher
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

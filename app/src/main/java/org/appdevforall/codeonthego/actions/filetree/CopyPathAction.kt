@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.actions.filetree
 
 import android.content.Context
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.copyToClipboard
 import org.appdevforall.codeonthego.utils.flashSuccess
 

@@ -23,29 +23,37 @@ import org.appdevforall.codeonthego.lookup.Lookup.Key
 
 /** Creates instances of views and attributes. */
 interface IComponentFactory {
+	/**
+	 * Creates a new instance of [IView].
+	 *
+	 * @param file The layout file.
+	 * @param name The fully qualified name of the view being created.
+	 * @param view The Android view object.
+	 * @return The [IView] instance.
+	 */
+	fun createView(
+		file: LayoutFile,
+		name: String,
+		view: View,
+	): IView
 
-  /**
-   * Creates a new instance of [IView].
-   *
-   * @param file The layout file.
-   * @param name The fully qualified name of the view being created.
-   * @param view The Android view object.
-   * @return The [IView] instance.
-   */
-  fun createView(file: LayoutFile, name: String, view: View): IView
+	/**
+	 * Creates a new [IAttribute] instance.
+	 *
+	 * @param view The view to which the attribute will be applied.
+	 * @param namespace The namespace of the attribute.
+	 * @param name The name of the attribute.
+	 * @param value The value of the attribute.
+	 * @return The [IAttribute] instance.
+	 */
+	fun createAttr(
+		view: IView,
+		namespace: INamespace?,
+		name: String,
+		value: String,
+	): IAttribute
 
-  /**
-   * Creates a new [IAttribute] instance.
-   *
-   * @param view The view to which the attribute will be applied.
-   * @param namespace The namespace of the attribute.
-   * @param name The name of the attribute.
-   * @param value The value of the attribute.
-   * @return The [IAttribute] instance.
-   */
-  fun createAttr(view: IView, namespace: INamespace?, name: String, value: String): IAttribute
-
-  companion object {
-    @JvmField val LAYOUT_INFLATER_COMPONENT_FACTORY_KEY = Key<IComponentFactory>()
-  }
+	companion object {
+		@JvmField val LAYOUT_INFLATER_COMPONENT_FACTORY_KEY = Key<IComponentFactory>()
+	}
 }

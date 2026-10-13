@@ -1,14 +1,14 @@
 package org.appdevforall.codeonthego.actions
 
-import org.appdevforall.codeonthego.actions.observers.FileActionObserver
-import org.appdevforall.codeonthego.eventbus.events.file.FileCreationEvent
-import org.appdevforall.codeonthego.utils.FileIOUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.commons.text.StringEscapeUtils
+import org.appdevforall.codeonthego.actions.observers.FileActionObserver
+import org.appdevforall.codeonthego.eventbus.events.file.FileCreationEvent
+import org.appdevforall.codeonthego.utils.FileIOUtils
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 import java.io.IOException

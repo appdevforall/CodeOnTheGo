@@ -1,11 +1,6 @@
 package org.appdevforall.codeonthego.viewmodel
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import org.appdevforall.codeonthego.git.core.GitCredentialsManager
-import org.appdevforall.codeonthego.git.core.GitRepository
-import org.appdevforall.codeonthego.git.core.GitRepositoryManager
-import org.appdevforall.codeonthego.git.core.models.GitBranch
-import org.appdevforall.codeonthego.projects.IProjectManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -16,6 +11,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.git.core.GitCredentialsManager
+import org.appdevforall.codeonthego.git.core.GitRepository
+import org.appdevforall.codeonthego.git.core.GitRepositoryManager
+import org.appdevforall.codeonthego.git.core.models.GitBranch
+import org.appdevforall.codeonthego.projects.IProjectManager
 import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.junit.After

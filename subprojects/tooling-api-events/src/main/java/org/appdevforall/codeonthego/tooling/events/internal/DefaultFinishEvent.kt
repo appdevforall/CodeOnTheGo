@@ -23,8 +23,9 @@ import org.appdevforall.codeonthego.tooling.events.OperationResult
 
 /** @author Akash Yadav */
 class DefaultFinishEvent(
-  displayName: String,
-  eventTime: Long,
-  descriptor: OperationDescriptor,
-  override val result: OperationResult
-) : DefaultProgressEvent(displayName, eventTime, descriptor), FinishEvent
+	displayName: String,
+	eventTime: Long,
+	descriptor: OperationDescriptor,
+	override val result: OperationResult,
+) : DefaultProgressEvent(displayName, eventTime, descriptor),
+	FinishEvent

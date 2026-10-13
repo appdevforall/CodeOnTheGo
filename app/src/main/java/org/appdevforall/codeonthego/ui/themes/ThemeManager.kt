@@ -31,31 +31,28 @@ import org.appdevforall.codeonthego.utils.isSystemInDarkMode
 @Suppress("unused")
 @AutoService(IThemeManager::class)
 class ThemeManager : IThemeManager {
+	/**
+	 * Apply the current theme to the given activity. Does nothing if theme is set to [Material You][IDETheme.MATERIAL_YOU].
+	 */
+	override fun applyTheme(activity: Activity) {
+		val theme = getCurrentTheme()
+		if (theme == IDETheme.MATERIAL_YOU) {
+			// No need to apply Material You theme
+			return
+		}
 
-  /**
-   * Apply the current theme to the given activity. Does nothing if theme is set to [Material You][IDETheme.MATERIAL_YOU].
-   */
-  override fun applyTheme(activity: Activity) {
+		val style =
+			if (activity.isSystemInDarkMode()) {
+				theme.styleDark
+			} else {
+				theme.styleLight
+			}
 
-    val theme = getCurrentTheme()
-    if (theme == IDETheme.MATERIAL_YOU) {
-      // No need to apply Material You theme
-      return
-    }
+		activity.setTheme(style)
+	}
 
-    val style = if (activity.isSystemInDarkMode()) {
-      theme.styleDark
-    } else {
-      theme.styleLight
-    }
-
-    activity.setTheme(style)
-  }
-
-  /**
-   * Get the currently selected theme.
-   */
-  override fun getCurrentTheme(): IDETheme {
-    return GeneralPreferences.selectedTheme?.let { IDETheme.valueOf(it) } ?: IDETheme.DEFAULT
-  }
+	/**
+	 * Get the currently selected theme.
+	 */
+	override fun getCurrentTheme(): IDETheme = GeneralPreferences.selectedTheme?.let { IDETheme.valueOf(it) } ?: IDETheme.DEFAULT
 }

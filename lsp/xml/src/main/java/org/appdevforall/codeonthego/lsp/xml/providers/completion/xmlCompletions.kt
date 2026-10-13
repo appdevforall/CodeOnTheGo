@@ -27,40 +27,40 @@ import org.eclipse.lemminx.dom.DOMNode
 import kotlin.math.min
 
 fun match(simpleName: String, qualifiedName: String, prefix: String): MatchLevel {
-  val simpleNameMatchLevel = matchLevel(simpleName, prefix)
-  val nameMatchLevel = matchLevel(qualifiedName, prefix)
-  if (simpleNameMatchLevel == NO_MATCH && nameMatchLevel == NO_MATCH) {
-    return NO_MATCH
-  }
+val simpleNameMatchLevel = matchLevel(simpleName, prefix)
+val nameMatchLevel = matchLevel(qualifiedName, prefix)
+if (simpleNameMatchLevel == NO_MATCH && nameMatchLevel == NO_MATCH) {
+	return NO_MATCH
+}
 
-  return MatchLevel.values()[min(simpleNameMatchLevel.ordinal, nameMatchLevel.ordinal)]
+return MatchLevel.values()[min(simpleNameMatchLevel.ordinal, nameMatchLevel.ordinal)]
 }
 
 fun platformResourceTable(): ResourceTable? {
-  return Lookup.getDefault().lookup(ResourceTableRegistry.COMPLETION_FRAMEWORK_RES)
+return Lookup.getDefault().lookup(ResourceTableRegistry.COMPLETION_FRAMEWORK_RES)
 }
 
 fun findAllNamespaces(node: DOMNode): MutableSet<Pair<String, String>> {
-  val namespaces = mutableSetOf<Pair<String, String>>()
-  var curr: DOMNode? = node
-  
-  while (curr != null && !curr.isOwnerDocument) {
-    
-    @Suppress("SENSELESS_COMPARISON") // attributes might be null. Ignore warning
-    if (curr.attributes == null) {
-      curr = curr.parentNode
-      continue
-    }
-    
-    for (i in 0 until curr.attributes.length) {
-      val currAttr = curr.getAttributeAtIndex(i)
-      if (currAttr.isXmlns) {
-        namespaces.add(currAttr.localName to currAttr.value)
-      }
-    }
-    curr = curr.parentNode
-  }
-  return namespaces
+val namespaces = mutableSetOf<Pair<String, String>>()
+var curr: DOMNode? = node
+
+while (curr != null && !curr.isOwnerDocument) {
+
+	@Suppress("SENSELESS_COMPARISON") // attributes might be null. Ignore warning
+	if (curr.attributes == null) {
+	curr = curr.parentNode
+	continue
+	}
+
+	for (i in 0 until curr.attributes.length) {
+	val currAttr = curr.getAttributeAtIndex(i)
+	if (currAttr.isXmlns) {
+		namespaces.add(currAttr.localName to currAttr.value)
+	}
+	}
+	curr = curr.parentNode
+}
+return namespaces
 }
 
 /**
@@ -69,21 +69,21 @@ fun findAllNamespaces(node: DOMNode): MutableSet<Pair<String, String>> {
  * For example: `AndroidManifestUsesPermission` -> `uses-permission`
  */
 fun transformToTagName(entryName: String, prefix: String = ""): String {
-  val name = StringBuilder()
-  var index = prefix.length
-  while (index < entryName.length) {
-    var c = entryName[index]
-    if (c.isUpperCase()) {
-      if (index != prefix.length) {
-        name.append('-')
-      }
-      c = c.lowercaseChar()
-    }
+val name = StringBuilder()
+var index = prefix.length
+while (index < entryName.length) {
+	var c = entryName[index]
+	if (c.isUpperCase()) {
+	if (index != prefix.length) {
+		name.append('-')
+	}
+	c = c.lowercaseChar()
+	}
 
-    name.append(c)
-    ++index
-  }
-  return name.toString()
+	name.append(c)
+	++index
+}
+return name.toString()
 }
 
 /**
@@ -92,28 +92,28 @@ fun transformToTagName(entryName: String, prefix: String = ""): String {
  * For example: `uses-permission` -> `AndroidManifestUsesPermission`
  */
 fun transformToEntryName(tagName: String, prefix: String = ""): String {
-  if (tagName == "manifest") {
-    return MANIFEST_TAG_PREFIX
-  }
+if (tagName == "manifest") {
+	return MANIFEST_TAG_PREFIX
+}
 
-  val name = StringBuilder(prefix)
+val name = StringBuilder(prefix)
 
-  var index = 0
-  var capitalize = false
-  while (index < tagName.length) {
-    var c = tagName[index]
-    if (c == '-') {
-      capitalize = true
-      ++index
-      continue
-    }
-    if (index == 0 || capitalize) {
-      c = c.uppercaseChar()
-      capitalize = false
-    }
-    name.append(c)
-    ++index
-  }
+var index = 0
+var capitalize = false
+while (index < tagName.length) {
+	var c = tagName[index]
+	if (c == '-') {
+	capitalize = true
+	++index
+	continue
+	}
+	if (index == 0 || capitalize) {
+	c = c.uppercaseChar()
+	capitalize = false
+	}
+	name.append(c)
+	++index
+}
 
-  return name.toString()
+return name.toString()
 }

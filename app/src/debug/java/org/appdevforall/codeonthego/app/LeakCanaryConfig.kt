@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.app
 
-import org.appdevforall.codeonthego.utils.FeatureFlags
 import leakcanary.LeakCanary
+import org.appdevforall.codeonthego.utils.FeatureFlags
 
 internal object LeakCanaryConfig {
 	fun applyFromFeatureFlags() {

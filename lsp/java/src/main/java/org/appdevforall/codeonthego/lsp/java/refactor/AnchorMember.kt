@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import jdkx.lang.model.element.Modifier
 import openjdk.source.tree.BlockTree
 import openjdk.source.tree.ClassTree
@@ -11,6 +10,7 @@ import openjdk.source.tree.VariableTree
 import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 
 /**
  * The class member the new method becomes a sibling of (R4).

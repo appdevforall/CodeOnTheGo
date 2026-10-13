@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego.utils
 
-import org.appdevforall.codeonthego.templates.Language
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.templates.Language
 import java.io.File
 
 suspend fun readGradleVersion(root: File): String =

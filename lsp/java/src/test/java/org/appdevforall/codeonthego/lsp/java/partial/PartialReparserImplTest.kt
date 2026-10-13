@@ -18,14 +18,6 @@
 package org.appdevforall.codeonthego.lsp.java.partial
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.eventbus.events.editor.ChangeType.INSERT
-import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
-import org.appdevforall.codeonthego.lsp.java.JavaLSPTest
-import org.appdevforall.codeonthego.lsp.java.compiler.SourceFileObject
-import org.appdevforall.codeonthego.lsp.java.models.CompilationRequest
-import org.appdevforall.codeonthego.lsp.java.models.PartialReparseRequest
-import org.appdevforall.codeonthego.lsp.java.visitors.PrintingVisitor
-import org.appdevforall.codeonthego.models.Range
 import jdkx.lang.model.type.ArrayType
 import openjdk.source.tree.ExpressionStatementTree
 import openjdk.source.tree.LiteralTree
@@ -35,6 +27,14 @@ import openjdk.tools.javac.tree.JCTree.JCMethodDecl
 import openjdk.tools.javac.tree.JCTree.JCMethodInvocation
 import openjdk.tools.javac.tree.JCTree.JCVariableDecl
 import openjdk.tools.javac.tree.TreeScanner
+import org.appdevforall.codeonthego.eventbus.events.editor.ChangeType.INSERT
+import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
+import org.appdevforall.codeonthego.lsp.java.JavaLSPTest
+import org.appdevforall.codeonthego.lsp.java.compiler.SourceFileObject
+import org.appdevforall.codeonthego.lsp.java.models.CompilationRequest
+import org.appdevforall.codeonthego.lsp.java.models.PartialReparseRequest
+import org.appdevforall.codeonthego.lsp.java.visitors.PrintingVisitor
+import org.appdevforall.codeonthego.models.Range
 import org.junit.Before
 import org.junit.Ignore
 import org.junit.Test
@@ -47,123 +47,122 @@ import org.robolectric.annotation.Config
 @Config(manifest = Config.DEFAULT_VALUE_STRING)
 @Ignore("Partial reparser is currently unused")
 class PartialReparserImplTest {
+	@Before
+	fun setup() {
+		JavaLSPTest.setup()
+	}
 
-  @Before
-  fun setup() {
-    JavaLSPTest.setup()
-  }
+	@Test
+	fun parseMethod() {
+		JavaLSPTest.apply {
+			openFile("partial/PartialReparserTest")
+			getCompiler().compile(file).run { task ->
+				AssertingScanner().scan(task.root() as JCCompilationUnit)
+			}
+		}
+	}
 
-  @Test
-  fun parseMethod() {
-    JavaLSPTest.apply {
-      openFile("partial/PartialReparserTest")
-      getCompiler().compile(file).run { task ->
-        AssertingScanner().scan(task.root() as JCCompilationUnit)
-      }
-    }
-  }
+	@Test
+	fun testSimpleErrorneousStatement() {
+		JavaLSPTest.apply {
+			openFile("partial/PartialErrReparserTest")
+			getCompiler()
+				.compile(
+					CompilationRequest(
+						listOf(SourceFileObject(file)),
+						PartialReparseRequest(172, contents.toString()),
+					),
+				).run { PrintingVisitor().scan(it.root() as JCCompilationUnit) }
+			val changedText = contents!!.insert(192, "trim().").toString()
+			dispatchEvent(
+				DocumentChangeEvent(
+					file!!,
+					changedText,
+					changedText,
+					2,
+					INSERT,
+					"trim().".length,
+					Range.NONE,
+				),
+			)
+			getCompiler()
+				.compile(
+					CompilationRequest(
+						listOf(SourceFileObject(file)),
+						PartialReparseRequest(179, contents.toString()),
+					),
+				)
+		}
+	}
 
-  @Test
-  fun testSimpleErrorneousStatement() {
-    JavaLSPTest.apply {
-      openFile("partial/PartialErrReparserTest")
-      getCompiler()
-        .compile(
-          CompilationRequest(
-            listOf(SourceFileObject(file)),
-            PartialReparseRequest(172, contents.toString())
-          )
-        )
-        .run { PrintingVisitor().scan(it.root() as JCCompilationUnit) }
-      val changedText = contents!!.insert(192, "trim().").toString()
-      dispatchEvent(
-        DocumentChangeEvent(
-          file!!,
-          changedText,
-          changedText,
-          2,
-          INSERT,
-          "trim().".length,
-          Range.NONE
-        )
-      )
-      getCompiler()
-        .compile(
-          CompilationRequest(
-            listOf(SourceFileObject(file)),
-            PartialReparseRequest(179, contents.toString())
-          )
-        )
-    }
-  }
+	class AssertingScanner : TreeScanner() {
+		private var methodCount = 0
 
-  class AssertingScanner : TreeScanner() {
-    private var methodCount = 0
-    override fun visitMethodDef(tree: JCMethodDecl?) {
-      assertThat(tree).isNotNull()
-      tree!!
+		override fun visitMethodDef(tree: JCMethodDecl?) {
+			assertThat(tree).isNotNull()
+			tree!!
 
-      if (tree.name.contentEquals("<init>")) {
-        // Javac automatically adds the deafult constructor
-        methodCount++
-        return super.visitMethodDef(tree)
-      }
+			if (tree.name.contentEquals("<init>")) {
+				// Javac automatically adds the deafult constructor
+				methodCount++
+				return super.visitMethodDef(tree)
+			}
 
-      assertThat(methodCount).isEqualTo(1)
-      methodCount++
+			assertThat(methodCount).isEqualTo(1)
+			methodCount++
 
-      val params = tree.params
-      assertThat(params).isNotNull()
-      assertThat(params.size).isEqualTo(1)
+			val params = tree.params
+			assertThat(params).isNotNull()
+			assertThat(params.size).isEqualTo(1)
 
-      val argsParam = params[0]
-      assertThat(argsParam.name.toString()).isEqualTo("args")
-      assertThat(argsParam.type).isInstanceOf(ArrayType::class.java)
+			val argsParam = params[0]
+			assertThat(argsParam.name.toString()).isEqualTo("args")
+			assertThat(argsParam.type).isInstanceOf(ArrayType::class.java)
 
-      val argType = argsParam.type as ArrayType
-      assertThat(argType.componentType.toString()).isEqualTo("java.lang.String")
+			val argType = argsParam.type as ArrayType
+			assertThat(argType.componentType.toString()).isEqualTo("java.lang.String")
 
-      val body = tree.body
-      assertThat(body).isNotNull()
+			val body = tree.body
+			assertThat(body).isNotNull()
 
-      val statements = body.statements
-      assertThat(statements).isNotNull()
-      assertThat(statements.size).isEqualTo(2)
+			val statements = body.statements
+			assertThat(statements).isNotNull()
+			assertThat(statements.size).isEqualTo(2)
 
-      val println = statements[0]
-      assertThat(println).isNotNull()
-      assertThat(println.kind).isEqualTo(Tree.Kind.EXPRESSION_STATEMENT)
-      println as ExpressionStatementTree
+			val println = statements[0]
+			assertThat(println).isNotNull()
+			assertThat(println.kind).isEqualTo(Tree.Kind.EXPRESSION_STATEMENT)
+			println as ExpressionStatementTree
 
-      val arguments = (println.expression as JCMethodInvocation).arguments
-      assertThat(arguments).isNotNull()
-      assertThat(arguments.size).isEqualTo(1)
+			val arguments = (println.expression as JCMethodInvocation).arguments
+			assertThat(arguments).isNotNull()
+			assertThat(arguments.size).isEqualTo(1)
 
-      val arg = arguments[0]
-      assertThat(arg).isNotNull()
-      assertThat(arg.kind).isEqualTo(Tree.Kind.STRING_LITERAL)
-      arg as LiteralTree
-      assertThat(arg.value).isEqualTo("Hello World!")
+			val arg = arguments[0]
+			assertThat(arg).isNotNull()
+			assertThat(arg.kind).isEqualTo(Tree.Kind.STRING_LITERAL)
+			arg as LiteralTree
+			assertThat(arg.value).isEqualTo("Hello World!")
 
-      val varDecl = statements[1]
-      assertThat(varDecl).isNotNull()
-      assertThat(varDecl.kind).isEqualTo(Tree.Kind.VARIABLE)
-      varDecl as JCVariableDecl
-      assertThat(varDecl.name.toString()).isEqualTo("klass")
+			val varDecl = statements[1]
+			assertThat(varDecl).isNotNull()
+			assertThat(varDecl.kind).isEqualTo(Tree.Kind.VARIABLE)
+			varDecl as JCVariableDecl
+			assertThat(varDecl.name.toString()).isEqualTo("klass")
 
-      val type = varDecl.type
-      assertThat(type).isNotNull()
-      assertThat(type.tsym.qualifiedName.toString()).isEqualTo("java.lang.Class")
+			val type = varDecl.type
+			assertThat(type).isNotNull()
+			assertThat(type.tsym.qualifiedName.toString()).isEqualTo("java.lang.Class")
 
-      val targs = type.typeArguments
-      assertThat(targs).isNotNull()
-      assertThat(targs.size).isEqualTo(1)
+			val targs = type.typeArguments
+			assertThat(targs).isNotNull()
+			assertThat(targs.size).isEqualTo(1)
 
-      val tOne = targs[0]
-      assertThat(tOne).isNotNull()
-      assertThat(tOne.tsym.qualifiedName.toString()).isEqualTo("java.lang.String")
+			val tOne = targs[0]
+			assertThat(tOne).isNotNull()
+			assertThat(tOne.tsym.qualifiedName.toString()).isEqualTo("java.lang.String")
 
-      super.visitMethodDef(tree)
-    }
-  }
+			super.visitMethodDef(tree)
+		}
+	}
 }

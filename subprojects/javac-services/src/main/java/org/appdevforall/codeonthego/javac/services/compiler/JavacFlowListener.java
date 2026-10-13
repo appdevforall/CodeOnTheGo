@@ -26,11 +26,11 @@ import openjdk.tools.javac.util.Context;
  */
 public interface JavacFlowListener {
 
-  Context.Key<JavacFlowListener> flowListenerKey = new Context.Key<>();
+	Context.Key<JavacFlowListener> flowListenerKey = new Context.Key<>();
 
-  static JavacFlowListener instance(@NonNull Context context) {
-    return context.get(flowListenerKey);
-  }
+	static JavacFlowListener instance(@NonNull Context context) {
+		return context.get(flowListenerKey);
+	}
 
-  boolean hasFlowCompleted(final JavaFileObject jfo);
+	boolean hasFlowCompleted(final JavaFileObject jfo);
 }

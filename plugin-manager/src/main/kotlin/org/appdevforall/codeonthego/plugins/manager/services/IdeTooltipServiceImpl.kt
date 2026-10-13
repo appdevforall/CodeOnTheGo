@@ -14,40 +14,46 @@ import org.appdevforall.codeonthego.plugins.services.IdeTooltipService
  * without conflicting with them.
  */
 class IdeTooltipServiceImpl(
-    private val context: Context,
-    private val pluginId: String,
-    private val activityProvider: PluginManager.ActivityProvider?
+	private val context: Context,
+	private val pluginId: String,
+	private val activityProvider: PluginManager.ActivityProvider?,
 ) : IdeTooltipService {
+	private val pluginCategory = pluginCategory(pluginId)
 
-    private val pluginCategory = pluginCategory(pluginId)
+	/**
+	 * Returns a context suitable for inflating the tooltip layout.
+	 * Prefers the live Activity (correct Material3 theme + dark mode configuration).
+	 * Falls back to the app context.
+	 */
+	private fun resolvedContext(): Context {
+		activityProvider?.getCurrentActivity()?.let { activity ->
+			if (!activity.isFinishing && !activity.isDestroyed) return activity
+		}
+		return context
+	}
 
-    /**
-     * Returns a context suitable for inflating the tooltip layout.
-     * Prefers the live Activity (correct Material3 theme + dark mode configuration).
-     * Falls back to the app context.
-     */
-    private fun resolvedContext(): Context {
-        activityProvider?.getCurrentActivity()?.let { activity ->
-            if (!activity.isFinishing && !activity.isDestroyed) return activity
-        }
-        return context
-    }
+	override fun showTooltip(
+		anchorView: View,
+		category: String,
+		tag: String,
+	) {
+		try {
+			TooltipManager.showTooltip(resolvedContext(), anchorView, pluginCategory, tag)
+		} catch (e: android.view.InflateException) {
+			android.util.Log.e("IdeTooltipService", "Failed to inflate tooltip layout: $pluginCategory.$tag", e)
+		} catch (e: Exception) {
+			android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $pluginCategory.$tag", e)
+		}
+	}
 
-    override fun showTooltip(anchorView: View, category: String, tag: String) {
-        try {
-            TooltipManager.showTooltip(resolvedContext(), anchorView, pluginCategory, tag)
-        } catch (e: android.view.InflateException) {
-            android.util.Log.e("IdeTooltipService", "Failed to inflate tooltip layout: $pluginCategory.$tag", e)
-        } catch (e: Exception) {
-            android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $pluginCategory.$tag", e)
-        }
-    }
-
-    override fun showTooltip(anchorView: View, tag: String) {
-        try {
-            TooltipManager.showTooltip(resolvedContext(), anchorView, pluginCategory, tag)
-        } catch (e: Exception) {
-            android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $pluginCategory.$tag", e)
-        }
-    }
+	override fun showTooltip(
+		anchorView: View,
+		tag: String,
+	) {
+		try {
+			TooltipManager.showTooltip(resolvedContext(), anchorView, pluginCategory, tag)
+		} catch (e: Exception) {
+			android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $pluginCategory.$tag", e)
+		}
+	}
 }

@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.RatingBar
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [RatingBar].
@@ -34,17 +34,16 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(RatingBar::class)
 @IncludeInDesigner(group = WIDGETS)
 open class RatingBarAdapter<T : RatingBar> : AbsSeekBarAdapter<T>() {
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("isIndicator") { view.setIsIndicator(parseBoolean(value)) }
-    create("numStars") { view.numStars = parseInteger(value) }
-    create("rating") { view.rating = parseFloat(value) }
-    create("stepSize") { view.stepSize = parseFloat(value) }
-  }
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("isIndicator") { view.setIsIndicator(parseBoolean(value)) }
+		create("numStars") { view.numStars = parseInteger(value) }
+		create("rating") { view.rating = parseFloat(value) }
+		create("stepSize") { view.stepSize = parseFloat(value) }
+	}
 
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(RatingBar::class.java, string.widget_rating_bar, drawable.ic_widget_rating_bar)
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(RatingBar::class.java, string.widget_rating_bar, drawable.ic_widget_rating_bar),
+		)
 }

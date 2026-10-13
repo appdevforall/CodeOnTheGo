@@ -21,7 +21,10 @@ import com.android.builder.model.v2.ide.UnresolvedDependency
 import java.io.Serializable
 
 /** @author Akash Yadav */
-data class DefaultUnresolvedDependency(override val cause: String?, override val name: String) :
-  UnresolvedDependency, Serializable {
-  private val serialVersionUID = 1L
+data class DefaultUnresolvedDependency(
+	override val cause: String?,
+	override val name: String,
+) : UnresolvedDependency,
+	Serializable {
+	private val serialVersionUID = 1L
 }

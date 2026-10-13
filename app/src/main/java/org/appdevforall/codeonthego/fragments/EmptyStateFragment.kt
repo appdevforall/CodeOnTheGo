@@ -12,15 +12,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewbinding.ViewBinding
 import com.itsaky.androidide.databinding.FragmentEmptyStateBinding
-import org.appdevforall.codeonthego.editor.ui.IDEEditor
-import org.appdevforall.codeonthego.idetooltips.TooltipManager
-import org.appdevforall.codeonthego.utils.viewLifecycleScope
-import org.appdevforall.codeonthego.viewmodel.EmptyStateFragmentViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.editor.ui.IDEEditor
+import org.appdevforall.codeonthego.idetooltips.TooltipManager
+import org.appdevforall.codeonthego.utils.viewLifecycleScope
+import org.appdevforall.codeonthego.viewmodel.EmptyStateFragmentViewModel
 
 abstract class EmptyStateFragment<T : ViewBinding> : FragmentWithBinding<T> {
 	constructor(layout: Int, bind: (View) -> T) : super(layout, bind)

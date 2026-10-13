@@ -22,5 +22,7 @@ package org.appdevforall.codeonthego.tooling.impl
  *
  * @author Akash Yadav
  */
-class ProjectInitializationExeption(reason: String = "", cause: Throwable? = null) :
-  RuntimeException("Failed to initialize project: $reason", cause)
+class ProjectInitializationExeption(
+	reason: String = "",
+	cause: Throwable? = null,
+) : RuntimeException("Failed to initialize project: $reason", cause)

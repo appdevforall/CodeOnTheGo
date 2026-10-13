@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.TextClock
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [TextClock].
@@ -34,17 +34,15 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(TextClock::class)
 @IncludeInDesigner(group = WIDGETS)
 open class TextClockAdapter<T : TextClock> : TextViewAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("format12Hour") { view.format12Hour = parseString(value) }
+		create("format24Hour") { view.format24Hour = parseString(value) }
+		create("timeZone") { view.timeZone = parseString(value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("format12Hour") { view.format12Hour = parseString(value) }
-    create("format24Hour") { view.format24Hour = parseString(value) }
-    create("timeZone") { view.timeZone = parseString(value) }
-  }
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(TextClock::class.java, string.widget_text_clock, drawable.ic_widget_text_clock)
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(TextClock::class.java, string.widget_text_clock, drawable.ic_widget_text_clock),
+		)
 }

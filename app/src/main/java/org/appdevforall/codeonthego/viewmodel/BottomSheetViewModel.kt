@@ -4,10 +4,10 @@ import androidx.annotation.IntDef
 import androidx.annotation.Keep
 import androidx.lifecycle.ViewModel
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import org.appdevforall.codeonthego.adapters.EditorBottomSheetTabAdapter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.appdevforall.codeonthego.adapters.EditorBottomSheetTabAdapter
 import org.slf4j.LoggerFactory
 
 class BottomSheetViewModel : ViewModel() {

@@ -27,17 +27,16 @@ import org.appdevforall.codeonthego.inflater.IView
  * @author Akash Yadav
  */
 abstract class CompoundButtonAdapter<T : CompoundButton> : ButtonAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("buttonTint") { view.buttonTintList = parseColorStateList(context, value) }
+		create("button") { view.buttonDrawable = parseDrawable(context, value) }
+		create("buttonTintMode") { view.buttonTintMode = parsePorterDuffMode(value) }
+		create("checked") { view.isChecked = parseBoolean(value = value, def = true) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("buttonTint") { view.buttonTintList = parseColorStateList(context, value) }
-    create("button") { view.buttonDrawable = parseDrawable(context, value) }
-    create("buttonTintMode") { view.buttonTintMode = parsePorterDuffMode(value) }
-    create("checked") { view.isChecked = parseBoolean(value = value, def = true) }
-  }
-
-  override fun applyBasic(view: IView) {
-    super.applyBasic(view)
-    (view.view as CompoundButton).isChecked = true
-  }
+	override fun applyBasic(view: IView) {
+		super.applyBasic(view)
+		(view.view as CompoundButton).isChecked = true
+	}
 }

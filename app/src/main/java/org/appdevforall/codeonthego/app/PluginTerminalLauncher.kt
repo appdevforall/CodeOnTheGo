@@ -7,6 +7,10 @@ import android.os.Looper
 import androidx.core.os.HandlerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.activities.TerminalActivity
 import org.appdevforall.codeonthego.plugins.manager.services.LaunchedTerminalCommand
 import org.appdevforall.codeonthego.plugins.manager.services.TerminalSessionLauncher
@@ -18,10 +22,6 @@ import org.appdevforall.codeonthego.terminal.TerminalCommandListener
 import org.appdevforall.codeonthego.terminal.TerminalCommandRequests
 import org.appdevforall.codeonthego.terminal.TerminalStartFailure
 import org.appdevforall.codeonthego.utils.applyMultiWindowFlags
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 

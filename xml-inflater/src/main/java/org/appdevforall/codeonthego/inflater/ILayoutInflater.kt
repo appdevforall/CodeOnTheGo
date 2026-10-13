@@ -31,74 +31,77 @@ import java.io.File
  * @author Akash Yadav
  */
 interface ILayoutInflater : Closeable {
+	/** The listener which listens to layout inflation events. */
+	var inflationEventListener: IInflateEventsListener?
 
-  /** The listener which listens to layout inflation events. */
-  var inflationEventListener: IInflateEventsListener?
+	/** The [IComponentFactory] which is used to create components of the layout inflater. */
+	var componentFactory: IComponentFactory
 
-  /** The [IComponentFactory] which is used to create components of the layout inflater. */
-  var componentFactory: IComponentFactory
+	/** The [AndroidModule] which is used to resolve resource references. */
+	var module: AndroidModule?
 
-  /** The [AndroidModule] which is used to resolve resource references. */
-  var module: AndroidModule?
+	/**
+	 * Inflate the given raw XML file.
+	 *
+	 * **NOTE** : The [startParse][org.appdevforall.codeonthego.inflater.utils.startParse] method is called
+	 * if it hasn't been called yet. However, the [endParse]
+	 * [org.appdevforall.codeonthego.inflater.utils.endParse] method is not called after the parse is done.
+	 * The caller is expected to call [close] when this inflater instance is no longer needed. The
+	 * [close] method calls the [endParse] [org.appdevforall.codeonthego.inflater.utils.endParse].
+	 *
+	 * @param file The file to inflate.
+	 * @param parent The parent view.
+	 */
+	fun inflate(
+		file: File,
+		parent: ViewGroup,
+	): List<IView>
 
-  /**
-   * Inflate the given raw XML file.
-   *
-   * **NOTE** : The [startParse][org.appdevforall.codeonthego.inflater.utils.startParse] method is called
-   * if it hasn't been called yet. However, the [endParse]
-   * [org.appdevforall.codeonthego.inflater.utils.endParse] method is not called after the parse is done.
-   * The caller is expected to call [close] when this inflater instance is no longer needed. The
-   * [close] method calls the [endParse] [org.appdevforall.codeonthego.inflater.utils.endParse].
-   *
-   * @param file The file to inflate.
-   * @param parent The parent view.
-   */
-  fun inflate(file: File, parent: ViewGroup): List<IView>
+	/**
+	 * Inflate the given raw XML file.
+	 *
+	 * **NOTE** : The [startParse][org.appdevforall.codeonthego.inflater.utils.startParse] method is called
+	 * if it hasn't been called yet. However, the [endParse]
+	 * [org.appdevforall.codeonthego.inflater.utils.endParse] method is not called after the parse is done.
+	 * The caller is expected to call [close] when this inflater instance is no longer needed. The
+	 * [close] method calls the [endParse] [org.appdevforall.codeonthego.inflater.utils.endParse].
+	 *
+	 * @param file The file to inflate.
+	 * @param parent The parent view.
+	 */
+	fun inflate(
+		file: File,
+		parent: IViewGroup,
+	): List<IView>
 
-  /**
-   * Inflate the given raw XML file.
-   *
-   * **NOTE** : The [startParse][org.appdevforall.codeonthego.inflater.utils.startParse] method is called
-   * if it hasn't been called yet. However, the [endParse]
-   * [org.appdevforall.codeonthego.inflater.utils.endParse] method is not called after the parse is done.
-   * The caller is expected to call [close] when this inflater instance is no longer needed. The
-   * [close] method calls the [endParse] [org.appdevforall.codeonthego.inflater.utils.endParse].
-   *
-   * @param file The file to inflate.
-   * @param parent The parent view.
-   */
-  fun inflate(file: File, parent: IViewGroup): List<IView>
+	fun closeSilently() {
+		try {
+			close()
+		} catch (err: Throwable) {
+			// ignored
+		}
+	}
 
-  fun closeSilently() {
-    try {
-      close()
-    } catch (err: Throwable) {
-      // ignored
-    }
-  }
+	companion object {
+		/** The [Key] that can be used to lookup the layout inflater service. */
+		@JvmField val LOOKUP_KEY = Key<ILayoutInflater>()
 
-  companion object {
-
-    /** The [Key] that can be used to lookup the layout inflater service. */
-    @JvmField val LOOKUP_KEY = Key<ILayoutInflater>()
-
-    /**
-     * Creates a new [ILayoutInflater] instance.
-     *
-     * @param module The [AndroidModule] that will be used to resolve resource references.
-     * @param componentFactory The [IComponentFactory] that will be used to create [ILayoutInflater]
-     * components.
-     */
-    @JvmStatic
-    @JvmOverloads
-    fun newInflater(
-      module: AndroidModule? = null,
-      componentFactory: IComponentFactory = DefaultComponentFactory()
-    ): ILayoutInflater {
-      return LayoutInflaterImpl().also {
-        it.module = module
-        it.componentFactory = componentFactory
-      }
-    }
-  }
+		/**
+		 * Creates a new [ILayoutInflater] instance.
+		 *
+		 * @param module The [AndroidModule] that will be used to resolve resource references.
+		 * @param componentFactory The [IComponentFactory] that will be used to create [ILayoutInflater]
+		 * components.
+		 */
+		@JvmStatic
+		@JvmOverloads
+		fun newInflater(
+			module: AndroidModule? = null,
+			componentFactory: IComponentFactory = DefaultComponentFactory(),
+		): ILayoutInflater =
+			LayoutInflaterImpl().also {
+				it.module = module
+				it.componentFactory = componentFactory
+			}
+	}
 }

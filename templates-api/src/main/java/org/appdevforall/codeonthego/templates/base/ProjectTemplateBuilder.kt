@@ -23,7 +23,6 @@ import org.appdevforall.codeonthego.templates.ProjectTemplate
 import org.appdevforall.codeonthego.templates.ProjectTemplateData
 import org.appdevforall.codeonthego.templates.ProjectTemplateRecipeResult
 
-
 /**
  * Builder for building project templates.
  *
@@ -55,7 +54,7 @@ class ProjectTemplateBuilder : ExecutorDataTemplateBuilder<ProjectTemplateRecipe
 			tooltipTag,
 			widgets!!,
 			recipe!!,
-            templateNameStr!!,
-            thumbData
+			templateNameStr!!,
+			thumbData,
 		)
 }

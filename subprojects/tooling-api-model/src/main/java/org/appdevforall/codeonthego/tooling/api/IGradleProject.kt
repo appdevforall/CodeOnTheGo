@@ -30,18 +30,17 @@ import java.util.concurrent.CompletableFuture
  */
 @JsonSegment("gradle")
 interface IGradleProject {
+	/**
+	 * Get the metadata about the project. This includes basic information about the project.
+	 *
+	 * @see [ProjectMetadata].
+	 */
+	@JsonRequest
+	fun getMetadata(): CompletableFuture<ProjectMetadata>
 
-  /**
-   * Get the metadata about the project. This includes basic information about the project.
-   *
-   * @see [ProjectMetadata].
-   */
-  @JsonRequest
-  fun getMetadata(): CompletableFuture<ProjectMetadata>
-
-  /**
-   * Get this project's tasks.
-   */
-  @JsonRequest
-  fun getTasks(): CompletableFuture<List<GradleTask>>
+	/**
+	 * Get this project's tasks.
+	 */
+	@JsonRequest
+	fun getTasks(): CompletableFuture<List<GradleTask>>
 }

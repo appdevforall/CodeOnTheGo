@@ -21,77 +21,79 @@
 package org.appdevforall.codeonthego.tasks.callables;
 
 import android.content.Context;
-
-import org.appdevforall.codeonthego.adapters.viewholders.FileTreeViewHolder;
 import com.unnamed.b.atv.model.TreeNode;
-
 import java.io.File;
 import java.io.FileFilter;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.concurrent.Callable;
+import org.appdevforall.codeonthego.adapters.viewholders.FileTreeViewHolder;
 
 public class FileTreeCallable implements Callable<Boolean> {
-    private final Context ctx;
-    private final TreeNode parent;
-    private final File file;
-    private final FileTreeViewHolder.ExternalDropHandler externalDropHandler;
+	private final Context ctx;
+	private final TreeNode parent;
+	private final File file;
+	private final FileTreeViewHolder.ExternalDropHandler externalDropHandler;
 
-    public FileTreeCallable(Context ctx, TreeNode parent, File file) {
-        this(ctx, parent, file, null);
-    }
+	public FileTreeCallable(Context ctx, TreeNode parent, File file) {
+		this(ctx, parent, file, null);
+	}
 
-    public FileTreeCallable(
-            Context ctx, TreeNode parent, File file, FileTreeViewHolder.ExternalDropHandler externalDropHandler) {
-        this.ctx = ctx;
-        this.parent = parent;
-        this.file = file;
-        this.externalDropHandler = externalDropHandler;
-    }
+	public FileTreeCallable(
+			Context ctx, TreeNode parent, File file, FileTreeViewHolder.ExternalDropHandler externalDropHandler) {
+		this.ctx = ctx;
+		this.parent = parent;
+		this.file = file;
+		this.externalDropHandler = externalDropHandler;
+	}
 
-    @Override
-    public Boolean call() throws Exception {
-        populateChildren(file.listFiles(/*new HiddenFilesFilter()*/), parent);
-        return true;
-    }
+	@Override
+	public Boolean call() throws Exception {
+		populateChildren(file.listFiles(/* new HiddenFilesFilter() */), parent);
+		return true;
+	}
 
-    private void populateChildren(File[] files, TreeNode parent) {
-        if (files == null) return;
+	private TreeNode createNode(File file) {
+		TreeNode node = new TreeNode(file);
+		node.setViewHolder(new FileTreeViewHolder(ctx, externalDropHandler));
+		return node;
+	}
 
-        Arrays.sort(files, new SortFileName());
-        Arrays.sort(files, new SortFolder());
-        for (File file : files) {
-            parent.addChild(createNode(file), false);
-        }
-    }
+	private void populateChildren(File[] files, TreeNode parent) {
+		if (files == null)
+			return;
 
-    private TreeNode createNode(File file) {
-        TreeNode node = new TreeNode(file);
-        node.setViewHolder(new FileTreeViewHolder(ctx, externalDropHandler));
-        return node;
-    }
+		Arrays.sort(files, new SortFileName());
+		Arrays.sort(files, new SortFolder());
+		for (File file : files) {
+			parent.addChild(createNode(file), false);
+		}
+	}
 
-    public static class HiddenFilesFilter implements FileFilter {
+	public static class HiddenFilesFilter implements FileFilter {
 
-        @Override
-        public boolean accept(File p1) {
-            return !p1.getName().startsWith(".");
-        }
-    }
+		@Override
+		public boolean accept(File p1) {
+			return !p1.getName().startsWith(".");
+		}
+	}
 
-    public static class SortFileName implements Comparator<File> {
-        @Override
-        public int compare(File f1, File f2) {
-            return f1.getName().compareTo(f2.getName());
-        }
-    }
+	public static class SortFileName implements Comparator<File> {
+		@Override
+		public int compare(File f1, File f2) {
+			return f1.getName().compareTo(f2.getName());
+		}
+	}
 
-    public static class SortFolder implements Comparator<File> {
-        @Override
-        public int compare(File f1, File f2) {
-            if (f1.isDirectory() == f2.isDirectory()) return 0;
-            else if (f1.isDirectory() && !f2.isDirectory()) return -1;
-            else return 1;
-        }
-    }
+	public static class SortFolder implements Comparator<File> {
+		@Override
+		public int compare(File f1, File f2) {
+			if (f1.isDirectory() == f2.isDirectory())
+				return 0;
+			else if (f1.isDirectory() && !f2.isDirectory())
+				return -1;
+			else
+				return 1;
+		}
+	}
 }

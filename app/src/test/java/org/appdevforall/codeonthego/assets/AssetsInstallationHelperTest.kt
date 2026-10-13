@@ -2,9 +2,6 @@ package org.appdevforall.codeonthego.assets
 
 import android.content.Context
 import com.aayushatharva.brotli4j.Brotli4jLoader
-import org.appdevforall.codeonthego.app.configuration.CpuArch
-import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
-import org.appdevforall.codeonthego.assets.AssetsInstallationHelper.Result.Failure
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -16,6 +13,9 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.app.configuration.CpuArch
+import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
+import org.appdevforall.codeonthego.assets.AssetsInstallationHelper.Result.Failure
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

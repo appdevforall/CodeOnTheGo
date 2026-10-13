@@ -24,10 +24,10 @@ import org.appdevforall.codeonthego.tooling.api.messages.GradleDistributionParam
  * The distribution params. This considers [gradleInstallationDir] preference as well.
  */
 val gradleDistributionParams: GradleDistributionParams
-  get() {
-    if (BuildPreferences.gradleInstallationDir.isBlank()) {
-      return GradleDistributionParams.WRAPPER
-    }
+get() {
+	if (BuildPreferences.gradleInstallationDir.isBlank()) {
+	return GradleDistributionParams.WRAPPER
+	}
 
-    return GradleDistributionParams.forInstallationDir(BuildPreferences.gradleInstallationDir)
-  }
+	return GradleDistributionParams.forInstallationDir(BuildPreferences.gradleInstallationDir)
+}

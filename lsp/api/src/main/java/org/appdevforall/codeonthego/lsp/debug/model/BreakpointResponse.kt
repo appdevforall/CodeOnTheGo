@@ -4,31 +4,30 @@ package org.appdevforall.codeonthego.lsp.debug.model
  * Result of a single breakpoint request.
  */
 sealed interface BreakpointResult {
+	/**
+	 * The [BreakpointDefinition] this result is associated with.
+	 */
+	val definition: BreakpointDefinition
 
-    /**
-     * The [BreakpointDefinition] this result is associated with.
-     */
-    val definition: BreakpointDefinition
+	/**
+	 * A breakpoint was added.
+	 *
+	 * @property isDeferred Whether the breakpoint resolution was deferred.
+	 */
+	data class Success(
+		override val definition: BreakpointDefinition,
+		val isDeferred: Boolean,
+	) : BreakpointResult
 
-    /**
-     * A breakpoint was added.
-     *
-     * @property isDeferred Whether the breakpoint resolution was deferred.
-     */
-    data class Success(
-        override val definition: BreakpointDefinition,
-        val isDeferred: Boolean,
-    ): BreakpointResult
-
-    /**
-     * The breakpoint action failed.
-     *
-     * @property cause The cause of the failure.
-     */
-    data class Failure(
-        override val definition: BreakpointDefinition,
-        val cause: Throwable?,
-    ): BreakpointResult
+	/**
+	 * The breakpoint action failed.
+	 *
+	 * @property cause The cause of the failure.
+	 */
+	data class Failure(
+		override val definition: BreakpointDefinition,
+		val cause: Throwable?,
+	) : BreakpointResult
 }
 
 /**
@@ -38,9 +37,9 @@ sealed interface BreakpointResult {
  * @author Akash Yadav
  */
 data class BreakpointResponse(
-    val results: List<BreakpointResult>
-): DapResponse {
-    companion object {
-        val EMPTY = BreakpointResponse(emptyList())
-    }
+	val results: List<BreakpointResult>,
+) : DapResponse {
+	companion object {
+		val EMPTY = BreakpointResponse(emptyList())
+	}
 }

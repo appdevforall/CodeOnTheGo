@@ -3,9 +3,9 @@ package org.appdevforall.codeonthego.ui.models
 import android.net.Uri
 import android.os.Parcelable
 import androidx.annotation.StringRes
+import kotlinx.parcelize.Parcelize
 import org.appdevforall.codeonthego.plugins.PluginInfo
 import org.appdevforall.codeonthego.plugins.PluginMetadata
-import kotlinx.parcelize.Parcelize
 import java.io.File
 
 data class PluginManagerUiState(

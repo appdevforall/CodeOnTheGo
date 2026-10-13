@@ -24,33 +24,36 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
 /**
  * @author Akash Yadav
  */
-class TreeSitterTreeCursorNode @JvmOverloads internal constructor(
-  type: String? = null,
-  name: String? = null,
-  startByte: Int = 0,
-  endByte: Int = 0
-) : TSTreeCursorNode(type, name, startByte, endByte),
-  RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+class TreeSitterTreeCursorNode
+	@JvmOverloads
+	internal constructor(
+		type: String? = null,
+		name: String? = null,
+		startByte: Int = 0,
+		endByte: Int = 0,
+	) : TSTreeCursorNode(type, name, startByte, endByte),
+		RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+		companion object {
+			@JvmStatic
+			fun obtain(
+				type: String?,
+				name: String?,
+				startByte: Int,
+				endByte: Int,
+			): TreeSitterTreeCursorNode =
+				obtainFromPool<TreeSitterTreeCursorNode>().apply {
+					this.type = type
+					this.name = name
+					this.startByte = startByte
+					this.endByte = endByte
+				}
+		}
 
-  companion object {
-
-    @JvmStatic
-    fun obtain(type: String?, name: String?, startByte: Int,
-      endByte: Int): TreeSitterTreeCursorNode {
-      return obtainFromPool<TreeSitterTreeCursorNode>().apply {
-        this.type = type
-        this.name = name
-        this.startByte = startByte
-        this.endByte = endByte
-      }
-    }
-  }
-
-  override fun recycle() {
-    this.type = null
-    this.name = null
-    this.startByte = 0
-    this.endByte = 0
-    returnToPool()
-  }
-}
+		override fun recycle() {
+			this.type = null
+			this.name = null
+			this.startByte = 0
+			this.endByte = 0
+			returnToPool()
+		}
+	}

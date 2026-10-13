@@ -53,13 +53,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.appdevforall.codeonthego.floating.model.ChromeControl
-import org.appdevforall.codeonthego.floating.model.DockAction
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.floating.model.ChromeControl
+import org.appdevforall.codeonthego.floating.model.DockAction
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("FloatingWindowChrome")

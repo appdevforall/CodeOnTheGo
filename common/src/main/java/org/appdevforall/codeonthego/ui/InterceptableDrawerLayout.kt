@@ -31,61 +31,66 @@ import androidx.drawerlayout.widget.DrawerLayout
  * @author Akash Yadav
  */
 open class InterceptableDrawerLayout : DrawerLayout {
+	private val rect: Rect = Rect()
 
-  private val rect: Rect = Rect()
+	constructor(context: Context) : super(context)
+	constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
+	constructor(
+		context: Context,
+		attrs: AttributeSet?,
+		defStyleAttr: Int,
+	) : super(context, attrs, defStyleAttr)
 
-  constructor(context: Context) : super(context)
-  constructor(context: Context, attrs: AttributeSet?) : super(context, attrs)
-  constructor(
-    context: Context,
-    attrs: AttributeSet?,
-    defStyleAttr: Int,
-  ) : super(context, attrs, defStyleAttr)
+	override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+		val child = findScrollingChild(this, event.x, event.y)
+		return if (child != null) {
+			false
+		} else {
+			super.onInterceptTouchEvent(event)
+		}
+	}
 
-  override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
-    val child = findScrollingChild(this, event.x, event.y)
-    return if (child != null) {
-      false
-    } else super.onInterceptTouchEvent(event)
-  }
+	private fun findScrollingChild(
+		parent: ViewGroup,
+		x: Float,
+		y: Float,
+	): View? {
+		val n = parent.childCount
+		if (parent === this && n <= 1) {
+			return null
+		}
 
-  private fun findScrollingChild(parent: ViewGroup, x: Float, y: Float): View? {
-    val n = parent.childCount
-    if (parent === this && n <= 1) {
-      return null
-    }
+		var start = 0
+		if (parent === this) {
+			start = 1
+		}
 
-    var start = 0
-    if (parent === this) {
-      start = 1
-    }
+		for (i in start until n) {
+			val child = parent.getChildAt(i)
+			if (child.visibility != View.VISIBLE) {
+				continue
+			}
 
-    for (i in start until n) {
-      val child = parent.getChildAt(i)
-      if (child.visibility != View.VISIBLE) {
-        continue
-      }
+			child.getHitRect(rect)
+			if (!rect.contains(x.toInt(), y.toInt())) {
+				continue
+			}
 
-      child.getHitRect(rect)
-      if (!rect.contains(x.toInt(), y.toInt())) {
-        continue
-      }
+			if (child.canScrollHorizontally(-1) || // left
+				child.canScrollHorizontally(1) // right
+			) {
+				return child
+			}
 
-      if (child.canScrollHorizontally(-1) // left
-        || child.canScrollHorizontally(1) // right
-        ) {
-        return child
-      }
+			if (child !is ViewGroup) {
+				continue
+			}
 
-      if (child !is ViewGroup) {
-        continue
-      }
-
-      val v = findScrollingChild(child, x - rect.left, y - rect.top)
-      if (v != null) {
-        return v
-      }
-    }
-    return null
-  }
+			val v = findScrollingChild(child, x - rect.left, y - rect.top)
+			if (v != null) {
+				return v
+			}
+		}
+		return null
+	}
 }

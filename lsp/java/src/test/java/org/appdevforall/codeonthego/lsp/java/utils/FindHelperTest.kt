@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.lsp.java.utils
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.lsp.java.JavaLSPTest
 import org.appdevforall.codeonthego.lsp.models.DefinitionParams
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.progress.ICancelChecker
-import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -35,24 +35,23 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.DEFAULT_VALUE_STRING)
 class FindHelperTest {
+	@Before
+	fun setup() {
+		JavaLSPTest.setup()
+	}
 
-  @Before
-  fun setup() {
-    JavaLSPTest.setup()
-  }
+	@Test
+	fun `test FindHelper#findNameIn behavior with on-demand import`() {
+		JavaLSPTest.apply {
+			openFile("utils/FindHelperRegexElements")
 
-  @Test
-  fun `test FindHelper#findNameIn behavior with on-demand import`() {
-    JavaLSPTest.apply {
-      openFile("utils/FindHelperRegexElements")
-
-      // Find definition for 'field' class of type 'String'
-      val position = Position(9, 7)
-      val params = DefinitionParams(file!!, position, ICancelChecker.NOOP)
-      val definitions = runBlocking { server.findDefinition(params) }
-      assertThat(definitions).isNotNull()
-      assertThat(definitions.locations).hasSize(1)
-      assertThat(definitions.locations[0].range.contains(Position(6, 20))).isTrue()
-    }
-  }
+			// Find definition for 'field' class of type 'String'
+			val position = Position(9, 7)
+			val params = DefinitionParams(file!!, position, ICancelChecker.NOOP)
+			val definitions = runBlocking { server.findDefinition(params) }
+			assertThat(definitions).isNotNull()
+			assertThat(definitions.locations).hasSize(1)
+			assertThat(definitions.locations[0].range.contains(Position(6, 20))).isTrue()
+		}
+	}
 }

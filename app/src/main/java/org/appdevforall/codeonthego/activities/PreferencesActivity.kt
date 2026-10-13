@@ -21,10 +21,10 @@ import android.view.View
 import androidx.core.graphics.Insets
 import androidx.core.os.BundleCompat
 import androidx.fragment.app.Fragment
-import org.appdevforall.codeonthego.FeedbackButtonManager
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityPreferencesBinding
+import org.appdevforall.codeonthego.FeedbackButtonManager
+import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
 import org.appdevforall.codeonthego.fragments.IDEPreferencesFragment
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.preferences.PluginSettingsEntryPreference

@@ -20,5 +20,4 @@ package org.appdevforall.codeonthego.inflater.internal.adapters.appcompat
 /**
  * @author Akash Yadav
  */
-class AppCompatTextView {
-}
+class AppCompatTextView

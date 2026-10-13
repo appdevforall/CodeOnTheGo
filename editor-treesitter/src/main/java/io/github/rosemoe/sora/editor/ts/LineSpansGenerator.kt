@@ -44,8 +44,6 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.util.LruCache
-import org.appdevforall.codeonthego.plugins.extensions.DecorationSpan
-import org.appdevforall.codeonthego.syntax.decoration.EditorDecorationRegistry
 import com.itsaky.androidide.treesitter.TSQueryCapture
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
@@ -66,6 +64,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.plugins.extensions.DecorationSpan
+import org.appdevforall.codeonthego.syntax.decoration.EditorDecorationRegistry
 import java.util.TreeMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors

@@ -17,11 +17,11 @@
 
 package org.appdevforall.codeonthego.services.log
 
-import org.appdevforall.codeonthego.logsender.socket.SenderInfoCommand
-import org.appdevforall.codeonthego.models.LogLine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.logsender.socket.SenderInfoCommand
+import org.appdevforall.codeonthego.models.LogLine
 import org.slf4j.LoggerFactory
 import java.net.Socket
 import java.net.SocketException
@@ -31,51 +31,53 @@ import java.net.SocketException
  *
  * @author Akash Yadav
  */
-class LogSenderHandler(private val sender: SenderInfoCommand, private val socket: Socket,
-  internal var consumer: ((LogLine) -> Unit)? = null,
-  private var onClose: ((String) -> Unit)? = null) : AutoCloseable {
+class LogSenderHandler(
+	private val sender: SenderInfoCommand,
+	private val socket: Socket,
+	internal var consumer: ((LogLine) -> Unit)? = null,
+	private var onClose: ((String) -> Unit)? = null,
+) : AutoCloseable {
+	private var manuallyClosed = false
 
-  private var manuallyClosed = false
+	companion object {
+		private val log = LoggerFactory.getLogger(LogSenderHandler::class.java)
+	}
 
-  companion object {
+	suspend fun startAsync() =
+		withContext(Dispatchers.IO) {
+			try {
+				socket.getInputStream().bufferedReader().use { reader ->
+					while (!socket.isClosed) {
+						try {
+							LogLine.forLogString(reader.readLine())?.let { line -> consumer?.invoke(line) }
+						} catch (cancellation: CancellationException) {
+							break
+						}
+					}
+				}
+			} catch (err: SocketException) {
+				if (!manuallyClosed) {
+					log.error("An error occurred while reading from socket", err)
+				}
+			} finally {
+				close()
+			}
+		}
 
-    private val log = LoggerFactory.getLogger(LogSenderHandler::class.java)
-  }
+	override fun close() {
+		try {
+			manuallyClosed = true
 
-  suspend fun startAsync() = withContext(Dispatchers.IO) {
-    try {
-      socket.getInputStream().bufferedReader().use { reader ->
-        while (!socket.isClosed) {
-          try {
-            LogLine.forLogString(reader.readLine())?.let { line -> consumer?.invoke(line) }
-          } catch (cancellation: CancellationException) {
-            break
-          }
-        }
-      }
-    } catch (err: SocketException) {
-      if (!manuallyClosed) {
-        log.error("An error occurred while reading from socket", err)
-      }
-    } finally {
-      close()
-    }
-  }
-
-  override fun close() {
-    try {
-      manuallyClosed = true
-
-      if (!socket.isClosed) {
-        log.debug("Closing log sender handler...")
-        socket.close()
-      }
-    } catch (err: Throwable) {
-      log.error("Failed to close socket", err)
-    } finally {
-      onClose?.invoke(this.sender.senderId)
-      this.consumer = null
-      this.onClose = null
-    }
-  }
+			if (!socket.isClosed) {
+				log.debug("Closing log sender handler...")
+				socket.close()
+			}
+		} catch (err: Throwable) {
+			log.error("Failed to close socket", err)
+		} finally {
+			onClose?.invoke(this.sender.senderId)
+			this.consumer = null
+			this.onClose = null
+		}
+	}
 }

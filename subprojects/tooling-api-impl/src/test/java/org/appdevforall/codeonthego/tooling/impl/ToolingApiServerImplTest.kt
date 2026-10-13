@@ -1,6 +1,13 @@
 package org.appdevforall.codeonthego.tooling.impl
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.slot
+import io.mockk.spyk
+import io.mockk.unmockkAll
+import io.mockk.verify
 import org.appdevforall.codeonthego.tooling.api.IToolingApiClient
 import org.appdevforall.codeonthego.tooling.api.messages.BuildId
 import org.appdevforall.codeonthego.tooling.api.messages.InitializeProjectParams
@@ -11,13 +18,6 @@ import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionRes
 import org.appdevforall.codeonthego.tooling.api.messages.result.isSuccessful
 import org.appdevforall.codeonthego.tooling.api.sync.ProjectSyncHelper
 import org.appdevforall.codeonthego.tooling.impl.sync.RootModelBuilder
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkObject
-import io.mockk.slot
-import io.mockk.spyk
-import io.mockk.unmockkAll
-import io.mockk.verify
 import org.gradle.tooling.BuildCancelledException
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection

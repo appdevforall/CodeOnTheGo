@@ -25,28 +25,27 @@ import org.appdevforall.codeonthego.lookup.Lookup
  * @author Akash Yadav
  */
 interface WidgetTable {
+	companion object {
+		@JvmStatic val COMPLETION_LOOKUP_KEY = Lookup.Key<WidgetTable>()
+	}
 
-  companion object {
-    @JvmStatic val COMPLETION_LOOKUP_KEY = Lookup.Key<WidgetTable>()
-  }
+	/**
+	 * Get the widget for the given fully qualified name. For example, `android.widget.TextView`.
+	 *
+	 * @return The widget or `null`.
+	 */
+	fun getWidget(name: String): Widget?
 
-  /**
-   * Get the widget for the given fully qualified name. For example, `android.widget.TextView`.
-   *
-   * @return The widget or `null`.
-   */
-  fun getWidget(name: String): Widget?
+	/**
+	 * Finds the first widget with the given simple name. This searches the whole table so [getWidget]
+	 * is preferable.
+	 */
+	fun findWidgetWithSimpleName(name: String): Widget?
 
-  /**
-   * Finds the first widget with the given simple name. This searches the whole table so [getWidget]
-   * is preferable.
-   */
-  fun findWidgetWithSimpleName(name: String): Widget?
-
-  /**
-   * Get the set of all registered widgets.
-   *
-   * @return The set of widgets.
-   */
-  fun getAllWidgets(): Set<Widget>
+	/**
+	 * Get the set of all registered widgets.
+	 *
+	 * @return The set of widgets.
+	 */
+	fun getAllWidgets(): Set<Widget>
 }

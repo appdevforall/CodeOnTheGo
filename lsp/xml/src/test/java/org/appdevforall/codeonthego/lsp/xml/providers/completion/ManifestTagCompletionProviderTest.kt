@@ -33,27 +33,26 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class ManifestTagCompletionProviderTest : CompletionHelper by CompletionHelperImpl() {
-  
-  @Before
-  fun setup () = XMLLSPTest.initProjectIfNeeded()
-  
-  @Test // prefix: 'perm'
-  fun `simple tag completion test with prefix 'perm'` () {
-    XMLLSPTest.apply {
-      openFile("completion/ManifestPermTagTest")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).containsAtLeast("permission", "permission-group", "permission-tree")
-    }
-  }
-  
-  @Test // prefix: 'uses'
-  fun `simple tag completion test with prefix 'uses'` () {
-    XMLLSPTest.apply {
-      openFile("completion/ManifestUsesTagTest")
-      val (isIncomplete, items) = complete()
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).containsAtLeast("uses-permission", "uses-sdk", "uses-configuration", "uses-feature")
-    }
-  }
+	@Before
+	fun setup() = XMLLSPTest.initProjectIfNeeded()
+
+	@Test // prefix: 'perm'
+	fun `simple tag completion test with prefix 'perm'`() {
+		XMLLSPTest.apply {
+			openFile("completion/ManifestPermTagTest")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).containsAtLeast("permission", "permission-group", "permission-tree")
+		}
+	}
+
+	@Test // prefix: 'uses'
+	fun `simple tag completion test with prefix 'uses'`() {
+		XMLLSPTest.apply {
+			openFile("completion/ManifestUsesTagTest")
+			val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).containsAtLeast("uses-permission", "uses-sdk", "uses-configuration", "uses-feature")
+		}
+	}
 }

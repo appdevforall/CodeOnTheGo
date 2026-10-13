@@ -25,46 +25,52 @@ import androidx.core.view.updateLayoutParams
 import com.itsaky.androidide.databinding.FragmentOnboardingBinding
 import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 
-open class OnboardingFragment :
-  FragmentWithBinding<FragmentOnboardingBinding>(FragmentOnboardingBinding::inflate) {
+open class OnboardingFragment : FragmentWithBinding<FragmentOnboardingBinding>(FragmentOnboardingBinding::inflate) {
+	companion object {
+		const val KEY_ONBOARDING_TITLE = "ide.onboarding.fragment.title"
+		const val KEY_ONBOARDING_SUBTITLE = "ide.onboarding.fragment.subtitle"
+		const val KEY_ONBOARDING_EXTRA_INFO = "ide.onboarding.fragment.extraInfo"
 
-  companion object {
+		@JvmStatic
+		fun newInstance(
+			title: CharSequence,
+			subtitle: CharSequence,
+			extraInfo: CharSequence = "",
+		): OnboardingFragment =
+			OnboardingFragment().apply {
+				arguments =
+					Bundle().apply {
+						putCharSequence(KEY_ONBOARDING_TITLE, title)
+						putCharSequence(KEY_ONBOARDING_SUBTITLE, subtitle)
+						putCharSequence(KEY_ONBOARDING_EXTRA_INFO, extraInfo)
+					}
+			}
+	}
 
-    const val KEY_ONBOARDING_TITLE = "ide.onboarding.fragment.title"
-    const val KEY_ONBOARDING_SUBTITLE = "ide.onboarding.fragment.subtitle"
-    const val KEY_ONBOARDING_EXTRA_INFO = "ide.onboarding.fragment.extraInfo"
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		binding.onboardingTitle.text = requireArguments().getCharSequence(KEY_ONBOARDING_TITLE)
+		binding.onboardingSubtitle.text = requireArguments().getCharSequence(KEY_ONBOARDING_SUBTITLE)
 
-    @JvmStatic
-    fun newInstance(title: CharSequence, subtitle: CharSequence,
-      extraInfo: CharSequence = ""): OnboardingFragment {
-      return OnboardingFragment().apply {
-        arguments = Bundle().apply {
-          putCharSequence(KEY_ONBOARDING_TITLE, title)
-          putCharSequence(KEY_ONBOARDING_SUBTITLE, subtitle)
-          putCharSequence(KEY_ONBOARDING_EXTRA_INFO, extraInfo)
-        }
-      }
-    }
-  }
+		val extraInfo = requireArguments().getCharSequence(KEY_ONBOARDING_EXTRA_INFO, "")
+		if (extraInfo.isBlank()) {
+			binding.onboardingExtraInfo.updateLayoutParams<ViewGroup.LayoutParams> {
+				height = 0
+			}
+		} else {
+			binding.onboardingExtraInfo.movementMethod = LinkMovementMethodCompat.getInstance()
+			binding.onboardingExtraInfo.text = extraInfo
+		}
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    binding.onboardingTitle.text = requireArguments().getCharSequence(KEY_ONBOARDING_TITLE)
-    binding.onboardingSubtitle.text = requireArguments().getCharSequence(KEY_ONBOARDING_SUBTITLE)
+		binding.contentContainer.removeAllViews()
+		createContentView(binding.contentContainer, true)
+	}
 
-    val extraInfo = requireArguments().getCharSequence(KEY_ONBOARDING_EXTRA_INFO, "")
-    if (extraInfo.isBlank()) {
-      binding.onboardingExtraInfo.updateLayoutParams<ViewGroup.LayoutParams> {
-        height = 0
-      }
-    } else {
-      binding.onboardingExtraInfo.movementMethod = LinkMovementMethodCompat.getInstance()
-      binding.onboardingExtraInfo.text = extraInfo
-    }
-
-    binding.contentContainer.removeAllViews()
-    createContentView(binding.contentContainer, true)
-  }
-
-  protected open fun createContentView(parent: ViewGroup, attachToParent: Boolean) {}
+	protected open fun createContentView(
+		parent: ViewGroup,
+		attachToParent: Boolean,
+	) {}
 }

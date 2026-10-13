@@ -19,8 +19,8 @@ package org.appdevforall.codeonthego.fragments.sidebar
 
 import android.os.Bundle
 import android.view.View
-import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.databinding.FragmentEditorSidebarBinding
+import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipCategory
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
@@ -31,35 +31,38 @@ import org.appdevforall.codeonthego.utils.EditorSidebarActions
  *
  * @author Akash Yadav
  */
-class EditorSidebarFragment : FragmentWithBinding<FragmentEditorSidebarBinding>(
-  FragmentEditorSidebarBinding::inflate
-) {
+class EditorSidebarFragment :
+	FragmentWithBinding<FragmentEditorSidebarBinding>(
+		FragmentEditorSidebarBinding::inflate,
+	) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		EditorSidebarActions.setup(this)
+	}
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-    EditorSidebarActions.setup(this)
-  }
+	fun setupTooltip(
+		view: View,
+		tooltipTag: String,
+		category: String = TooltipCategory.CATEGORY_IDE,
+	) {
+		(requireActivity() as? EditorHandlerActivity)?.let { activity ->
+			view.setOnLongClickListener { view ->
+				TooltipManager.showTooltip(
+					context = view.context,
+					anchorView = view,
+					category = category,
+					tag = tooltipTag,
+				)
+				true
+			}
+		}
+	}
 
-  fun setupTooltip(
-    view: View,
-    tooltipTag: String,
-    category: String = TooltipCategory.CATEGORY_IDE,
-  ) {
-    (requireActivity() as? EditorHandlerActivity)?.let { activity ->
-      view.setOnLongClickListener { view ->
-        TooltipManager.showTooltip(
-          context = view.context,
-          anchorView = view,
-          category = category,
-          tag = tooltipTag,
-        )
-        true
-      }
-    }
-  }
-
-  /**
-   * Get the (nullable) binding object for this fragment.
-   */
-  internal fun getBinding() = _binding
+	/**
+	 * Get the (nullable) binding object for this fragment.
+	 */
+	internal fun getBinding() = _binding
 }

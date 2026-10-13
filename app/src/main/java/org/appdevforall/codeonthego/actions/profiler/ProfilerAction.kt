@@ -1,6 +1,9 @@
 package org.appdevforall.codeonthego.actions.profiler
 
 import android.content.Context
+import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.build.AbstractRunAction
 import org.appdevforall.codeonthego.actions.canShowPairingNotification
@@ -11,12 +14,9 @@ import org.appdevforall.codeonthego.project.AndroidModels
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.isPluginProject
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.isAtLeastR
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
 class ProfilerAction(

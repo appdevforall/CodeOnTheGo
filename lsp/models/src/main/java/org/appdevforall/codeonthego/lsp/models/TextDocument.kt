@@ -20,5 +20,11 @@ package org.appdevforall.codeonthego.lsp.models
 import org.appdevforall.codeonthego.models.Range
 import java.nio.file.Path
 
-data class ShowDocumentParams(var file: Path, var selection: Range)
-data class ShowDocumentResult(var success: Boolean)
+data class ShowDocumentParams(
+	var file: Path,
+	var selection: Range,
+)
+
+data class ShowDocumentResult(
+	var success: Boolean,
+)

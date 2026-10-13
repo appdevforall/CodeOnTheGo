@@ -30,82 +30,82 @@ import java.time.Instant
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class CompilerTest {
+	@Before
+	fun setup() {
+		JavaLSPTest.setup()
+	}
 
-  @Before
-  fun setup() {
-    JavaLSPTest.setup()
-  }
+	@Test
+	fun testMultipleThreads() {
+		JavaLSPTest.apply {
+			openFile("completion/MembersCompletionTest")
+			val threads = mutableListOf<Thread>()
+			val thread =
+				Thread {
+					getCompiler().compile(file!!).run {
+						println(Thread.currentThread().name)
+						delay(1000)
+					}
+				}
+			thread.name = "Long running task"
+			threads.add(thread)
+			thread.start()
 
-  @Test
-  fun testMultipleThreads() {
-    JavaLSPTest.apply {
-      openFile("completion/MembersCompletionTest")
-      val threads = mutableListOf<Thread>()
-      val thread = Thread {
-        getCompiler().compile(file!!).run {
-          println(Thread.currentThread().name)
-          delay(1000)
-        }
-      }
-      thread.name = "Long running task"
-      threads.add(thread)
-      thread.start()
+			for (i in 0..300) {
+				val th =
+					Thread {
+						getCompiler().compile(file!!).run { println(Thread.currentThread().name) }
+					}
+				th.name = "Thread #$i"
+				threads.add(th)
+				th.start()
+			}
 
-      for (i in 0..300) {
-        val th = Thread {
-          getCompiler().compile(file!!).run { println(Thread.currentThread().name) }
-        }
-        th.name = "Thread #$i"
-        threads.add(th)
-        th.start()
-      }
+			threads.forEach { it.join() }
+		}
+	}
 
-      threads.forEach { it.join() }
-    }
-  }
+	@Test
+	fun testClosedFileChannel() {
+		JavaLSPTest.apply {
+			openFile("completion/MembersCompletionTest")
 
-  @Test
-  fun testClosedFileChannel() {
-    JavaLSPTest.apply {
-      openFile("completion/MembersCompletionTest")
+			Thread { getCompiler().compile(file!!).run { delay(500) } }.start()
+			Thread { getCompiler().compile(file!!).run { delay(200) } }.start()
 
-      Thread { getCompiler().compile(file!!).run { delay(500) } }.start()
-      Thread { getCompiler().compile(file!!).run { delay(200) } }.start()
+			getCompiler().compile(file!!).run { assertThat(it.diagnostics).isNotEmpty() }
+		}
+	}
 
-      getCompiler().compile(file!!).run { assertThat(it.diagnostics).isNotEmpty() }
-    }
-  }
+	private fun delay(millis: Long) {
+		Thread.sleep(millis)
+	}
 
-  private fun delay(millis: Long) {
-    Thread.sleep(millis)
-  }
+	@Test
+	fun testConcurrentAccess() {
+		JavaLSPTest.apply {
+			openFile("completion/MembersCompletionTest")
 
-  @Test
-  fun testConcurrentAccess() {
-    JavaLSPTest.apply {
-      openFile("completion/MembersCompletionTest")
+			var task = getCompiler().compile(file!!)
+			var fileObject = SourceFileObject(file!!)
+			val threads = mutableListOf<Thread>()
+			for (i in 1..10) {
+				threads.add(
+					Thread {
+						task.run {
+							delay(100)
+							println(Thread.currentThread())
+						}
+					}.apply { name = "CompileTask Acessor #$i" },
+				)
+			}
 
-      var task = getCompiler().compile(file!!)
-      var fileObject = SourceFileObject(file!!)
-      val threads = mutableListOf<Thread>()
-      for (i in 1..10) {
-        threads.add(
-          Thread {
-              task.run {
-                delay(100)
-                println(Thread.currentThread())
-              }
-            }
-            .apply { name = "CompileTask Acessor #$i" }
-        )
-      }
+			fileObject = SourceFileObject(file!!, fileObject.contents, Instant.now())
+			task = getCompiler().compile(listOf(fileObject))
+			threads.forEach { it.start() }
 
-      fileObject = SourceFileObject(file!!, fileObject.contents, Instant.now())
-      task = getCompiler().compile(listOf(fileObject))
-      threads.forEach { it.start() }
-
-      Thread { task.run { println("Writer thread") } }.start()
-      threads.forEach { it.join() }
-    }
-  }
+			Thread { task.run { println("Writer thread") } }.start()
+			threads.forEach { it.join() }
+		}
+	}
 }

@@ -6,18 +6,17 @@ package org.appdevforall.codeonthego.lsp.debug
  * @author Akash Yadav
  */
 interface IDebugClient : IDebugEventHandler {
+	/**
+	 * Called when the application being debugged has been attached to the client.
+	 *
+	 * @param client The client being debugged.
+	 */
+	fun onAttach(client: RemoteClient)
 
-    /**
-     * Called when the application being debugged has been attached to the client.
-     *
-     * @param client The client being debugged.
-     */
-    fun onAttach(client: RemoteClient)
-
-    /**
-     * Called when the application being debugged has been disconnected.
-     *
-     * @param client The client that disconnected.
-     */
-    fun onDisconnect(client: RemoteClient)
+	/**
+	 * Called when the application being debugged has been disconnected.
+	 *
+	 * @param client The client that disconnected.
+	 */
+	fun onDisconnect(client: RemoteClient)
 }

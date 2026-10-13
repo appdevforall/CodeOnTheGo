@@ -29,36 +29,43 @@ import openjdk.source.util.Trees
  *
  * @author Akash Yadav
  */
-class FindMethodAt(val task: JavacTask) : TreePathScanner<TreePath?, Long>() {
+class FindMethodAt(
+	val task: JavacTask,
+) : TreePathScanner<TreePath?, Long>() {
+	private val sourcePositions = Trees.instance(task).sourcePositions
+	private var root: CompilationUnitTree? = null
 
-  private val sourcePositions = Trees.instance(task).sourcePositions
-  private var root: CompilationUnitTree? = null
+	override fun visitCompilationUnit(
+		node: CompilationUnitTree?,
+		p: Long,
+	): TreePath? {
+		this.root = node
+		return super.visitCompilationUnit(node, p)
+	}
 
-  override fun visitCompilationUnit(node: CompilationUnitTree?, p: Long): TreePath? {
-    this.root = node
-    return super.visitCompilationUnit(node, p)
-  }
+	override fun visitMethod(
+		node: MethodTree?,
+		p: Long,
+	): TreePath? {
+		val smaller = super.visitMethod(node, p)
+		if (smaller != null || node == null) {
+			return smaller
+		}
 
-  override fun visitMethod(node: MethodTree?, p: Long): TreePath? {
-    val smaller = super.visitMethod(node, p)
-    if (smaller != null || node == null) {
-      return smaller
-    }
+		if (node.body != null) {
+			val bodyStart = sourcePositions.getStartPosition(root, node.body)
+			val bodyEnd = sourcePositions.getEndPosition(root, node.body)
+			if (p in bodyStart..bodyEnd) {
+				return currentPath
+			}
+		}
 
-    if (node.body != null) {
-      val bodyStart = sourcePositions.getStartPosition(root, node.body)
-      val bodyEnd = sourcePositions.getEndPosition(root, node.body)
-      if (p in bodyStart..bodyEnd) {
-        return currentPath
-      }
-    }
+		val start = sourcePositions.getStartPosition(root, node)
+		val end = sourcePositions.getEndPosition(root, node)
+		if (p in start..end) {
+			return currentPath
+		}
 
-    val start = sourcePositions.getStartPosition(root, node)
-    val end = sourcePositions.getEndPosition(root, node)
-    if (p in start..end) {
-      return currentPath
-    }
-
-    return null
-  }
+		return null
+	}
 }

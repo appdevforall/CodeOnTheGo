@@ -25,14 +25,15 @@ import org.appdevforall.codeonthego.uidesigner.models.UiAttribute
  *
  * @author Akash Yadav
  */
-internal class AttrAddedAction(view: org.appdevforall.codeonthego.inflater.IView, attr: UiAttribute) :
-  AttrAction(view, attr.copyAttr(view = view) as UiAttribute) {
+internal class AttrAddedAction(
+	view: org.appdevforall.codeonthego.inflater.IView,
+	attr: UiAttribute,
+) : AttrAction(view, attr.copyAttr(view = view) as UiAttribute) {
+	override fun undo() {
+		view.removeAttribute(attr)
+	}
 
-  override fun undo() {
-    view.removeAttribute(attr)
-  }
-
-  override fun redo() {
-    view.addAttribute(attr, update = true)
-  }
+	override fun redo() {
+		view.addAttribute(attr, update = true)
+	}
 }

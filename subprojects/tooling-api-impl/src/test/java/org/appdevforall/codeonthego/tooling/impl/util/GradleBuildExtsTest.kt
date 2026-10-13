@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.tooling.impl.util
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.tooling.api.messages.ClientGradleBuildConfig
-import org.appdevforall.codeonthego.tooling.api.messages.GradleBuildParams
 import io.mockk.every
 import io.mockk.mockk
+import org.appdevforall.codeonthego.tooling.api.messages.ClientGradleBuildConfig
+import org.appdevforall.codeonthego.tooling.api.messages.GradleBuildParams
 import org.gradle.tooling.BuildLauncher
 import org.gradle.tooling.events.OperationType
 import org.gradle.tooling.events.ProgressListener

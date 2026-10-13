@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.lsp.java.compiler
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
+import org.appdevforall.codeonthego.utils.Environment
 import org.junit.AfterClass
 import org.junit.BeforeClass
 import org.junit.Test

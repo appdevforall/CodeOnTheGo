@@ -4,6 +4,13 @@ import android.app.Activity
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import com.itsaky.androidide.buildinfo.BuildInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionsRegistry
 import org.appdevforall.codeonthego.actions.debug.KillVmAction
@@ -14,15 +21,8 @@ import org.appdevforall.codeonthego.actions.debug.StepOverAction
 import org.appdevforall.codeonthego.actions.debug.SuspendResumeVmAction
 import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
 import org.appdevforall.codeonthego.app.IDEApplication
-import com.itsaky.androidide.buildinfo.BuildInfo
 import org.appdevforall.codeonthego.tasks.cancelIfActive
 import org.appdevforall.codeonthego.viewmodel.DebuggerConnectionState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**

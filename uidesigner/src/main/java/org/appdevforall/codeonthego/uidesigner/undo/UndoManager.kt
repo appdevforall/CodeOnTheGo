@@ -22,98 +22,89 @@ package org.appdevforall.codeonthego.uidesigner.undo
  *
  * @author Akash Yadav
  */
-class UndoManager @JvmOverloads constructor(private var maxStackSize: Int = DEFAULT_STACK_SIZE) {
+class UndoManager
+	@JvmOverloads
+	constructor(
+		private var maxStackSize: Int = DEFAULT_STACK_SIZE,
+	) {
+		internal var enabled = true
 
-  internal var enabled = true
+		private var undoStack = ArrayDeque<IUiAction>()
+		private var redoStack = ArrayDeque<IUiAction>()
 
-  private var undoStack = ArrayDeque<IUiAction>()
-  private var redoStack = ArrayDeque<IUiAction>()
+		companion object {
+			const val DEFAULT_STACK_SIZE = 30
+		}
 
-  companion object {
-    const val DEFAULT_STACK_SIZE = 30
-  }
+		fun enable() {
+			this.enabled = true
+		}
 
-  fun enable() {
-    this.enabled = true
-  }
+		fun disable() {
+			this.enabled = false
+		}
 
-  fun disable() {
-    this.enabled = false
-  }
+		fun canUndo(): Boolean = enabled && undoStack.isNotEmpty()
 
-  fun canUndo(): Boolean {
-    return enabled && undoStack.isNotEmpty()
-  }
+		fun canRedo(): Boolean = enabled && redoStack.isNotEmpty()
 
-  fun canRedo(): Boolean {
-    return enabled && redoStack.isNotEmpty()
-  }
+		fun undo() {
+			if (!canUndo()) {
+				return
+			}
 
-  fun undo() {
-    if (!canUndo()) {
-      return
-    }
+			disable()
+			val action = undoStack.removeLast()
+			action.undo()
 
-    disable()
-    val action = undoStack.removeLast()
-    action.undo()
+			redoStack.addLast(action)
+			trimStacks()
+			enable()
+		}
 
-    redoStack.addLast(action)
-    trimStacks()
-    enable()
-  }
+		fun redo() {
+			if (!canRedo()) {
+				return
+			}
 
-  fun redo() {
-    if (!canRedo()) {
-      return
-    }
+			disable()
+			val action = redoStack.removeLast()
+			action.redo()
 
-    disable()
-    val action = redoStack.removeLast()
-    action.redo()
+			undoStack.addLast(action)
+			trimStacks()
+			enable()
+		}
 
-    undoStack.addLast(action)
-    trimStacks()
-    enable()
-  }
+		/**
+		 * Push the given action to the action stack.
+		 *
+		 * @param action The action to push.
+		 */
+		fun push(action: IUiAction) {
+			if (!enabled) {
+				return
+			}
 
-  /**
-   * Push the given action to the action stack.
-   *
-   * @param action The action to push.
-   */
-  fun push(action: IUiAction) {
-    if (!enabled) {
-      return
-    }
+			redoStack.clear()
+			undoStack.addLast(action)
+			trimStacks()
+		}
 
-    redoStack.clear()
-    undoStack.addLast(action)
-    trimStacks()
-  }
+		fun peekUndo(): IUiAction? = undoStack.lastOrNull()
 
-  fun peekUndo(): IUiAction? {
-    return undoStack.lastOrNull()
-  }
+		fun peekRedo(): IUiAction? = redoStack.lastOrNull()
 
-  fun peekRedo(): IUiAction? {
-    return redoStack.lastOrNull()
-  }
+		fun popUndo(): IUiAction? = undoStack.removeLastOrNull()
 
-  fun popUndo(): IUiAction? {
-    return undoStack.removeLastOrNull()
-  }
+		fun popRedo(): IUiAction? = redoStack.removeLastOrNull()
 
-  fun popRedo(): IUiAction? {
-    return redoStack.removeLastOrNull()
-  }
-
-  private fun trimStacks() {
-    while (undoStack.size > maxStackSize) {
-      undoStack.removeFirst()
-    }
-    while (redoStack.size > maxStackSize) {
-      redoStack.removeFirst()
-    }
-  }
-}
+		private fun trimStacks() {
+			while (undoStack.size > maxStackSize) {
+				undoStack.removeFirst()
+			}
+			while (redoStack.size > maxStackSize) {
+				redoStack.removeFirst()
+			}
+		}
+	}

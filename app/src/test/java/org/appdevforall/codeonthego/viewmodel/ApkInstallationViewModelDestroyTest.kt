@@ -4,12 +4,12 @@ import android.content.Context
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.viewmodel.ApkInstallationViewModel.SessionState
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import org.appdevforall.codeonthego.viewmodel.ApkInstallationViewModel.SessionState
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

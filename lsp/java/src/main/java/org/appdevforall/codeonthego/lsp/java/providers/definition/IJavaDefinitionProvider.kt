@@ -17,6 +17,7 @@
 
 package org.appdevforall.codeonthego.lsp.java.providers.definition
 
+import jdkx.lang.model.element.Element
 import org.appdevforall.codeonthego.lsp.api.IServerSettings
 import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
 import org.appdevforall.codeonthego.lsp.java.providers.BaseJavaServiceProvider
@@ -24,7 +25,6 @@ import org.appdevforall.codeonthego.lsp.java.providers.DefinitionProvider
 import org.appdevforall.codeonthego.models.Location
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.progress.ICancelChecker
-import jdkx.lang.model.element.Element
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -35,33 +35,32 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 abstract class IJavaDefinitionProvider(
-  protected val position: Position,
-  completingFile: Path,
-  compiler: JavaCompilerService,
-  settings: IServerSettings,
-  cancelChecker: ICancelChecker
-) : BaseJavaServiceProvider(completingFile, compiler, settings), ICancelChecker by cancelChecker {
+	protected val position: Position,
+	completingFile: Path,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
+	cancelChecker: ICancelChecker,
+) : BaseJavaServiceProvider(completingFile, compiler, settings),
+	ICancelChecker by cancelChecker {
+	protected val line = position.line
+	protected val column = position.column
 
-  protected val line = position.line
-  protected val column = position.column
+	companion object {
+		@JvmStatic
+		protected val log: Logger = LoggerFactory.getLogger(IJavaDefinitionProvider::class.java)
+	}
 
-  companion object {
+	/**
+	 * Finds the definition for the given element.
+	 * @param element The element to find definition for.
+	 */
+	fun findDefinition(element: Element?): List<Location> {
+		if (element == null) {
+			return DefinitionProvider.NOT_SUPPORTED
+		}
 
-    @JvmStatic
-    protected val log: Logger = LoggerFactory.getLogger(IJavaDefinitionProvider::class.java)
-  }
+		return doFindDefinition(element)
+	}
 
-  /**
-   * Finds the definition for the given element.
-   * @param element The element to find definition for.
-   */
-  fun findDefinition(element: Element?): List<Location> {
-    if (element == null) {
-      return DefinitionProvider.NOT_SUPPORTED
-    }
-
-    return doFindDefinition(element)
-  }
-
-  abstract fun doFindDefinition(element: Element): List<Location>
+	abstract fun doFindDefinition(element: Element): List<Location>
 }

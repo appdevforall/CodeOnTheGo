@@ -44,16 +44,17 @@ import openjdk.tools.javac.util.Context;
  */
 public class NBClassWriter extends ClassWriter {
 
-  private final NBNames nbNames;
-  private final Types types;
+	public static void preRegister(Context context) {
+		context.put(classWriterKey, (Context.Factory<ClassWriter>) NBClassWriter::new);
+	}
 
-  public static void preRegister(Context context) {
-    context.put(classWriterKey, (Context.Factory<ClassWriter>) NBClassWriter::new);
-  }
+	private final NBNames nbNames;
 
-  protected NBClassWriter(Context context) {
-    super(context);
-    nbNames = NBNames.instance(context);
-    types = Types.instance(context);
-  }
+	private final Types types;
+
+	protected NBClassWriter(Context context) {
+		super(context);
+		nbNames = NBNames.instance(context);
+		types = Types.instance(context);
+	}
 }

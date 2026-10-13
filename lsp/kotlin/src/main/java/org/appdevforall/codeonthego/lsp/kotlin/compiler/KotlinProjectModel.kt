@@ -1,13 +1,13 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler
 
-import org.appdevforall.codeonthego.projects.ProjectManagerImpl
-import org.appdevforall.codeonthego.projects.api.Workspace
 import org.appdevforall.codeonthego.indexing.jvm.JVM_GENERATED_SYMBOL_INDEX
 import org.appdevforall.codeonthego.indexing.jvm.JVM_LIBRARY_SYMBOL_INDEX
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.projects.api.Workspace
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory

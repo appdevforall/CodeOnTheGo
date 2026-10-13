@@ -21,8 +21,8 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.recyclerview.widget.RecyclerView
-import org.appdevforall.codeonthego.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateWidgetlistItemBinding
+import org.appdevforall.codeonthego.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.templates.ITemplateWidgetViewProvider
 import org.appdevforall.codeonthego.templates.Widget
@@ -63,11 +63,11 @@ class TemplateWidgetsListAdapter(
 			val widget = widgets[position]
 			val view = viewProvider.createView(root.context, widget)
 			viewProvider.applyCallTooltip { tooltipTag ->
-                TooltipManager.showIdeCategoryTooltip(
-                    context = root.context,
-                    anchorView = root,
-                    tag = tooltipTag,
-                )
+				TooltipManager.showIdeCategoryTooltip(
+					context = root.context,
+					anchorView = root,
+					tag = tooltipTag,
+				)
 			}
 			root.removeAllViews()
 			root.addView(

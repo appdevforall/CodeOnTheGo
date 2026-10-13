@@ -26,7 +26,6 @@ import java.io.File
  * @author Akash Yadav
  */
 interface IClasspathReader {
-
-  /** List classes in the given JAR files. */
-  fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo>
+	/** List classes in the given JAR files. */
+	fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo>
 }

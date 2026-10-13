@@ -29,22 +29,21 @@ import org.appdevforall.codeonthego.plugins.extensions.EditorDecorationProvider
  * any provider decorates.
  */
 object EditorDecorationRegistry {
+	@Volatile
+	private var providers: List<EditorDecorationProvider> = emptyList()
 
-    @Volatile
-    private var providers: List<EditorDecorationProvider> = emptyList()
+	/** Whether the editor is currently showing a dark theme; passed to each provider. */
+	@Volatile
+	@JvmField
+	var isDark: Boolean = false
 
-    /** Whether the editor is currently showing a dark theme; passed to each provider. */
-    @Volatile
-    @JvmField
-    var isDark: Boolean = false
+	/** Replace the set of active decoration providers (empty disables decoration entirely). */
+	@JvmStatic
+	fun update(newProviders: List<EditorDecorationProvider>) {
+		providers = newProviders
+	}
 
-    /** Replace the set of active decoration providers (empty disables decoration entirely). */
-    @JvmStatic
-    fun update(newProviders: List<EditorDecorationProvider>) {
-        providers = newProviders
-    }
-
-    /** The active decoration providers, or an empty list if none. */
-    @JvmStatic
-    fun providers(): List<EditorDecorationProvider> = providers
+	/** The active decoration providers, or an empty list if none. */
+	@JvmStatic
+	fun providers(): List<EditorDecorationProvider> = providers
 }

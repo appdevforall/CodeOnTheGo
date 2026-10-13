@@ -21,11 +21,6 @@ import static org.appdevforall.codeonthego.lsp.java.rewrite.ConvertVariableToSta
 import static org.appdevforall.codeonthego.lsp.java.rewrite.ConvertVariableToStatement.isExpressionStatement;
 
 import androidx.annotation.NonNull;
-import org.appdevforall.codeonthego.lsp.java.compiler.CompilerProvider;
-import org.appdevforall.codeonthego.lsp.java.parser.ParseTask;
-import org.appdevforall.codeonthego.lsp.models.TextEdit;
-import org.appdevforall.codeonthego.models.Position;
-import org.appdevforall.codeonthego.models.Range;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
@@ -35,51 +30,56 @@ import openjdk.source.tree.LineMap;
 import openjdk.source.tree.VariableTree;
 import openjdk.source.util.SourcePositions;
 import openjdk.source.util.Trees;
+import org.appdevforall.codeonthego.lsp.java.compiler.CompilerProvider;
+import org.appdevforall.codeonthego.lsp.java.parser.ParseTask;
+import org.appdevforall.codeonthego.lsp.models.TextEdit;
+import org.appdevforall.codeonthego.models.Position;
+import org.appdevforall.codeonthego.models.Range;
 
 public class ConvertFieldToBlock extends Rewrite {
-  final Path file;
-  final int position;
+	final Path file;
+	final int position;
 
-  public ConvertFieldToBlock(Path file, int position) {
-    this.file = file;
-    this.position = position;
-  }
+	public ConvertFieldToBlock(Path file, int position) {
+		this.file = file;
+		this.position = position;
+	}
 
-  @NonNull
-  @Override
-  public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
-    ParseTask task = compiler.parse(file);
-    Trees trees = Trees.instance(task.task);
-    SourcePositions pos = trees.getSourcePositions();
-    LineMap lines = task.root.getLineMap();
-    VariableTree variable = findVariable(task, position);
-    if (variable == null) {
-      return CANCELLED;
-    }
-    ExpressionTree expression = variable.getInitializer();
-    if (!isExpressionStatement(expression)) {
-      return CANCELLED;
-    }
-    long start = pos.getStartPosition(task.root, variable);
-    long end = pos.getStartPosition(task.root, expression);
-    int startLine = (int) lines.getLineNumber(start);
-    int startColumn = (int) lines.getColumnNumber(start);
-    Position startPos = new Position(startLine - 1, startColumn - 1);
-    int endLine = (int) lines.getLineNumber(end);
-    int endColumn = (int) lines.getColumnNumber(end);
-    Position endPos = new Position(endLine - 1, endColumn - 1);
-    Range deleteLhs = new Range(startPos, endPos);
-    TextEdit fixLhs = new TextEdit(deleteLhs, "{ ");
-    if (variable.getModifiers().getFlags().contains(Modifier.STATIC)) {
-      fixLhs.setNewText("static { ");
-    }
-    long right = pos.getEndPosition(task.root, variable);
-    int rightLine = (int) lines.getLineNumber(right);
-    int rightColumn = (int) lines.getColumnNumber(right);
-    Position rightPos = new Position(rightLine - 1, rightColumn - 1);
-    Range insertRight = new Range(rightPos, rightPos);
-    TextEdit fixRhs = new TextEdit(insertRight, " }");
-    TextEdit[] edits = {fixLhs, fixRhs};
-    return Collections.singletonMap(file, edits);
-  }
+	@NonNull
+	@Override
+	public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
+		ParseTask task = compiler.parse(file);
+		Trees trees = Trees.instance(task.task);
+		SourcePositions pos = trees.getSourcePositions();
+		LineMap lines = task.root.getLineMap();
+		VariableTree variable = findVariable(task, position);
+		if (variable == null) {
+			return CANCELLED;
+		}
+		ExpressionTree expression = variable.getInitializer();
+		if (!isExpressionStatement(expression)) {
+			return CANCELLED;
+		}
+		long start = pos.getStartPosition(task.root, variable);
+		long end = pos.getStartPosition(task.root, expression);
+		int startLine = (int) lines.getLineNumber(start);
+		int startColumn = (int) lines.getColumnNumber(start);
+		Position startPos = new Position(startLine - 1, startColumn - 1);
+		int endLine = (int) lines.getLineNumber(end);
+		int endColumn = (int) lines.getColumnNumber(end);
+		Position endPos = new Position(endLine - 1, endColumn - 1);
+		Range deleteLhs = new Range(startPos, endPos);
+		TextEdit fixLhs = new TextEdit(deleteLhs, "{ ");
+		if (variable.getModifiers().getFlags().contains(Modifier.STATIC)) {
+			fixLhs.setNewText("static { ");
+		}
+		long right = pos.getEndPosition(task.root, variable);
+		int rightLine = (int) lines.getLineNumber(right);
+		int rightColumn = (int) lines.getColumnNumber(right);
+		Position rightPos = new Position(rightLine - 1, rightColumn - 1);
+		Range insertRight = new Range(rightPos, rightPos);
+		TextEdit fixRhs = new TextEdit(insertRight, " }");
+		TextEdit[] edits = {fixLhs, fixRhs};
+		return Collections.singletonMap(file, edits);
+	}
 }

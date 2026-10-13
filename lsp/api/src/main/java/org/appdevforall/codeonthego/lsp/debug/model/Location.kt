@@ -4,11 +4,10 @@ package org.appdevforall.codeonthego.lsp.debug.model
  * An event that has a location.
  */
 interface LocatableEvent {
-
-    /**
-     * The location of the event.
-     */
-    val location: Location
+	/**
+	 * The location of the event.
+	 */
+	val location: Location
 }
 
 /**
@@ -19,7 +18,7 @@ interface LocatableEvent {
  * @property column The column number.
  */
 data class Location(
-    val source: Source,
-    val line: Int,
-    val column: Int? = null
+	val source: Source,
+	val line: Int,
+	val column: Int? = null,
 )

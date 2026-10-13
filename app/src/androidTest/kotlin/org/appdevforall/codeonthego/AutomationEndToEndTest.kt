@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego
 
-
-import com.itsaky.androidide.R
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.itsaky.androidide.R
+import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.appdevforall.codeonthego.activities.SplashActivity
 import org.appdevforall.codeonthego.helper.advancePastWelcomeScreen
 import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByText
@@ -23,7 +23,6 @@ import org.appdevforall.codeonthego.screens.ProjectSettingsScreen.clickCreatePro
 import org.appdevforall.codeonthego.screens.ProjectSettingsScreen.selectKotlinLanguage
 import org.appdevforall.codeonthego.screens.ProjectSettingsScreen.setProjectName
 import org.appdevforall.codeonthego.utils.PermissionsHelper
-import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

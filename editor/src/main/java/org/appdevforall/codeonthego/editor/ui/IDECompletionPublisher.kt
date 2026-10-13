@@ -27,19 +27,18 @@ import io.github.rosemoe.sora.lang.completion.CompletionPublisher
  * @author Akash Yadav
  */
 class IDECompletionPublisher(
-  handler: Handler,
-  callback: Runnable,
-  languageInterruptionLevel: Int
+	handler: Handler,
+	callback: Runnable,
+	languageInterruptionLevel: Int,
 ) : CompletionPublisher(handler, callback, languageInterruptionLevel) {
+	init {
+		setUpdateThreshold(1)
+	}
 
-  init {
-    setUpdateThreshold(1)
-  }
-
-  /**
-   * Adds the given [completion items][items] to the completion list.
-   */
-  fun <CompletionItemT : CompletionItem> addLSPItems(items: Collection<CompletionItemT>) {
-    super.addItems(items)
-  }
+	/**
+	 * Adds the given [completion items][items] to the completion list.
+	 */
+	fun <CompletionItemT : CompletionItem> addLSPItems(items: Collection<CompletionItemT>) {
+		super.addItems(items)
+	}
 }

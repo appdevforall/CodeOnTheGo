@@ -7,7 +7,6 @@ import java.io.File
 import java.io.IOException
 
 object UserSnippetLoader {
-
 	private val log = LoggerFactory.getLogger(UserSnippetLoader::class.java)
 
 	fun <S : ISnippetScope> loadUserSnippets(
@@ -19,24 +18,23 @@ object UserSnippetLoader {
 
 		return scopes.associate { scope ->
 			val file = File(langDir, "snippets.${scope.filename}.json")
-			val snippets = if (file.isFile) {
-				try {
-					SnippetParser.parseFromReader(file.reader())
-				} catch (e: IOException) {
-					log.error("Failed to read user snippets from {}", file.absolutePath, e)
-					emptyList()
-				} catch (e: JsonParseException) {
-					log.error("Failed to parse user snippets from {}", file.absolutePath, e)
+			val snippets =
+				if (file.isFile) {
+					try {
+						SnippetParser.parseFromReader(file.reader())
+					} catch (e: IOException) {
+						log.error("Failed to read user snippets from {}", file.absolutePath, e)
+						emptyList()
+					} catch (e: JsonParseException) {
+						log.error("Failed to parse user snippets from {}", file.absolutePath, e)
+						emptyList()
+					}
+				} else {
 					emptyList()
 				}
-			} else {
-				emptyList()
-			}
 			scope.filename to snippets
 		}
 	}
 
-	fun getUserSnippetsDir(language: String): File {
-		return File(Environment.SNIPPETS_DIR, language)
-	}
+	fun getUserSnippetsDir(language: String): File = File(Environment.SNIPPETS_DIR, language)
 }

@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.repositories
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
 import org.appdevforall.codeonthego.templates.manager.models.TemplateMetadata
 import org.appdevforall.codeonthego.templates.manager.models.TemplateProvenance
-import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule

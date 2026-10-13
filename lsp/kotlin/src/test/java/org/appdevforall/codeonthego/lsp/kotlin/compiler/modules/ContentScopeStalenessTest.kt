@@ -7,15 +7,16 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.junit.Test
 
 class ContentScopeStalenessTest : KtLspTest() {
-
 	@Test
 	fun `file resolvable by path but missing from a stale scope snapshot can still be analyzed`() {
-		val a = createSourceFile(
-			"demo/A.kt", """
-            package demo
-            fun a(): Int = 1
-        """.trimIndent()
-		)
+		val a =
+			createSourceFile(
+				"demo/A.kt",
+				"""
+				package demo
+				fun a(): Int = 1
+				""".trimIndent(),
+			)
 
 		// Materialize the module's content scope and resolution scope NOW, while
 		// A.kt is the only file on disk. Previously, this used to freeze
@@ -28,12 +29,14 @@ class ContentScopeStalenessTest : KtLspTest() {
 		// B.kt is written AFTER the snapshot, WITHOUT invalidating the module scope.
 		// This simulates a file appearing (or being refreshed to a new VirtualFile
 		// instance) after the scope was last computed.
-		val b = env.createSourceFile(
-			"demo/B.kt", """
-            package demo
-            fun b(): Int = 2
-        """.trimIndent(),
-		)
+		val b =
+			env.createSourceFile(
+				"demo/B.kt",
+				"""
+				package demo
+				fun b(): Int = 2
+				""".trimIndent(),
+			)
 
 		// B.kt is resolvable to the same source module by path, so analysis opens a
 		// session for that module, but the stale snapshot scope does not contain B.kt.

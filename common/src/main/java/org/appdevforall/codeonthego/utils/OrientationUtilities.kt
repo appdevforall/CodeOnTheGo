@@ -20,17 +20,15 @@ package org.appdevforall.codeonthego.utils
 import android.content.pm.ActivityInfo
 
 class OrientationUtilities {
+	companion object {
+		fun setOrientation(function: () -> Unit) {
+			// not sure what limitations we should add here.
+			// But we will add something when we will figure it out.
+			function.invoke()
+		}
 
-    companion object {
-        fun setOrientation(function: () -> Unit) {
-            // not sure what limitations we should add here.
-            // But we will add something when we will figure it out.
-            function.invoke()
-        }
-
-        fun setAdaptiveOrientation(setRequestedOrientation: (Int) -> Unit) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER)
-        }
-    }
-
+		fun setAdaptiveOrientation(setRequestedOrientation: (Int) -> Unit) {
+			setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER)
+		}
+	}
 }

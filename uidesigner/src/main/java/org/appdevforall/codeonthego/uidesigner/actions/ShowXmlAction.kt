@@ -21,10 +21,10 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.itsaky.androidide.uidesigner.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
-import com.itsaky.androidide.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.ShowXmlActivity
 import org.appdevforall.codeonthego.uidesigner.utils.ViewToXml
 import org.appdevforall.codeonthego.utils.flashError
@@ -34,44 +34,45 @@ import org.appdevforall.codeonthego.utils.flashError
  *
  * @author Akash Yadav
  */
-class ShowXmlAction(context: Context) : UiDesignerAction() {
+class ShowXmlAction(
+	context: Context,
+) : UiDesignerAction() {
+	override val id: String = "ide.uidesigner.showXml"
 
-  override val id: String = "ide.uidesigner.showXml"
+	init {
+		label = context.getString(R.string.xml)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_language_xml)
+	}
 
-  init {
-    label = context.getString(R.string.xml)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_language_xml)
-  }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!data.hasRequiredData(Context::class.java, Fragment::class.java)) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (!data.hasRequiredData(Context::class.java, Fragment::class.java)) {
-      markInvisible()
-      return
-    }
+		val fragment = data.requireWorkspace()
 
-    val fragment = data.requireWorkspace()
+		this.visible = true
+		this.enabled = fragment.workspaceView.childCount == 1
+	}
 
-    this.visible = true
-    this.enabled = fragment.workspaceView.childCount == 1
-  }
-
-  override suspend fun execAction(data: ActionData): Any {
-    data.requireActivity().apply {
-      val workspace = data.requireWorkspace().workspaceView
-      ViewToXml.generateXml(this, workspace, { result ->
-        val intent = Intent(this, ShowXmlActivity::class.java)
-        intent.putExtra(ShowXmlActivity.KEY_XML, result)
-        startActivity(intent)
-      }) { result, error ->
-        if (result == null || error != null) {
-          val message = "${
-            getString(R.string.msg_generate_xml_failed)
-          }: ${error?.cause?.message ?: error?.message ?: "Unknown error"}"
-          flashError(message)
-        }
-      }
-    }
-    return true
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		data.requireActivity().apply {
+			val workspace = data.requireWorkspace().workspaceView
+			ViewToXml.generateXml(this, workspace, { result ->
+				val intent = Intent(this, ShowXmlActivity::class.java)
+				intent.putExtra(ShowXmlActivity.KEY_XML, result)
+				startActivity(intent)
+			}) { result, error ->
+				if (result == null || error != null) {
+					val message = "${
+						getString(R.string.msg_generate_xml_failed)
+					}: ${error?.cause?.message ?: error?.message ?: "Unknown error"}"
+					flashError(message)
+				}
+			}
+		}
+		return true
+	}
 }

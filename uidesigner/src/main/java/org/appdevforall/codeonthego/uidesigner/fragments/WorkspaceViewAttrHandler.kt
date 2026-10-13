@@ -28,35 +28,44 @@ import org.appdevforall.codeonthego.uidesigner.undo.AttrUpdatedAction
  * @author Akash Yadav
  */
 internal class WorkspaceViewAttrHandler : org.appdevforall.codeonthego.inflater.IView.AttributeChangeListener {
+	private var fragment: DesignerWorkspaceFragment? = null
 
-  private var fragment: DesignerWorkspaceFragment? = null
+	internal fun init(fragment: DesignerWorkspaceFragment) {
+		this.fragment = fragment
+	}
 
-  internal fun init(fragment: DesignerWorkspaceFragment) {
-    this.fragment = fragment
-  }
+	internal fun release() {
+		this.fragment = null
+	}
 
-  internal fun release() {
-    this.fragment = null
-  }
+	override fun onAttributeAdded(
+		view: org.appdevforall.codeonthego.inflater.IView,
+		attribute: org.appdevforall.codeonthego.inflater.IAttribute,
+	) {
+		val frag = this.fragment ?: return
+		frag.undoManager.push(AttrAddedAction(view = view, attr = attribute as UiAttribute))
+	}
 
-  override fun onAttributeAdded(view: org.appdevforall.codeonthego.inflater.IView, attribute: org.appdevforall.codeonthego.inflater.IAttribute) {
-    val frag = this.fragment ?: return
-    frag.undoManager.push(AttrAddedAction(view = view, attr = attribute as UiAttribute))
-  }
+	override fun onAttributeRemoved(
+		view: org.appdevforall.codeonthego.inflater.IView,
+		attribute: org.appdevforall.codeonthego.inflater.IAttribute,
+	) {
+		val frag = this.fragment ?: return
+		frag.undoManager.push(AttrRemovedAction(view = view, attr = attribute as UiAttribute))
+	}
 
-  override fun onAttributeRemoved(view: org.appdevforall.codeonthego.inflater.IView, attribute: org.appdevforall.codeonthego.inflater.IAttribute) {
-    val frag = this.fragment ?: return
-    frag.undoManager.push(AttrRemovedAction(view = view, attr = attribute as UiAttribute))
-  }
-
-  override fun onAttributeUpdated(view: org.appdevforall.codeonthego.inflater.IView, attribute: org.appdevforall.codeonthego.inflater.IAttribute, oldValue: String) {
-    val frag = this.fragment ?: return
-    frag.undoManager.push(
-      AttrUpdatedAction(
-        view = view,
-        attr = attribute as UiAttribute,
-        oldValue = oldValue
-      )
-    )
-  }
+	override fun onAttributeUpdated(
+		view: org.appdevforall.codeonthego.inflater.IView,
+		attribute: org.appdevforall.codeonthego.inflater.IAttribute,
+		oldValue: String,
+	) {
+		val frag = this.fragment ?: return
+		frag.undoManager.push(
+			AttrUpdatedAction(
+				view = view,
+				attr = attribute as UiAttribute,
+				oldValue = oldValue,
+			),
+		)
+	}
 }

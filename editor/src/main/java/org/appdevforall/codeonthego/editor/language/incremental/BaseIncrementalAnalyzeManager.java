@@ -24,8 +24,6 @@ import static org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.
 import androidx.annotation.NonNull;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.EvictingQueue;
-import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE;
-import org.appdevforall.codeonthego.utils.CharSequenceReader;
 import io.github.rosemoe.sora.lang.analysis.AsyncIncrementalAnalyzeManager;
 import io.github.rosemoe.sora.lang.styling.CodeBlock;
 import io.github.rosemoe.sora.lang.styling.Span;
@@ -43,6 +41,8 @@ import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.Token;
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE;
+import org.appdevforall.codeonthego.utils.CharSequenceReader;
 
 /**
  * Base class for implementing an {@link AsyncIncrementalAnalyzeManager} in AndroidIDE.

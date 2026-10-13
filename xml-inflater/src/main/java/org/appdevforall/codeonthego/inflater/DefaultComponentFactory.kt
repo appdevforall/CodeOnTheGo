@@ -26,19 +26,21 @@ import org.appdevforall.codeonthego.inflater.internal.ViewImpl
 
 /** Default implementation of [IComponentFactory]. */
 open class DefaultComponentFactory : IComponentFactory {
+	override fun createView(
+		file: LayoutFile,
+		name: String,
+		view: View,
+	): IView =
+		if (view is ViewGroup) {
+			ViewGroupImpl(file, name, view)
+		} else {
+			ViewImpl(file, name, view)
+		}
 
-  override fun createView(file: LayoutFile, name: String, view: View): IView {
-    return if (view is ViewGroup) {
-      ViewGroupImpl(file, name, view)
-    } else ViewImpl(file, name, view)
-  }
-
-  override fun createAttr(
-    view: IView,
-    namespace: INamespace?,
-    name: String,
-    value: String
-  ): IAttribute {
-    return AttributeImpl(namespace = namespace, name = name, value = value)
-  }
+	override fun createAttr(
+		view: IView,
+		namespace: INamespace?,
+		name: String,
+		value: String,
+	): IAttribute = AttributeImpl(namespace = namespace, name = name, value = value)
 }

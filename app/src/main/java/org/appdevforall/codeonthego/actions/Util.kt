@@ -17,19 +17,19 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.startForegroundService
 import androidx.core.view.setPadding
 import com.google.android.material.textview.MaterialTextView
+import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import moe.shizuku.manager.adb.AdbPairingService
+import org.adfa.constants.CONTENT_KEY
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.activities.editor.HelpActivity
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.PermissionsHelper
 import org.appdevforall.codeonthego.utils.appendHtmlWithLinks
 import org.appdevforall.codeonthego.utils.appendOrderedList
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.isAtLeastS
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import moe.shizuku.manager.adb.AdbPairingService
-import org.adfa.constants.CONTENT_KEY
 import org.slf4j.Logger
 
 @RequiresApi(Build.VERSION_CODES.R)
@@ -87,6 +87,7 @@ suspend fun handleMissingOverlayPermission(
 			PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
 				activity.flashError(activity.getString(R.string.permission_overlay_unsupported_hint))
 			}
+
 			PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
 				val intent =
 					Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
@@ -102,6 +103,7 @@ suspend fun handleMissingOverlayPermission(
 					)
 				}
 			}
+
 			else -> {}
 		}
 	}

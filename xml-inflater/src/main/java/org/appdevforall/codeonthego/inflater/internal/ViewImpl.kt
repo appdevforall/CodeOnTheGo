@@ -20,6 +20,7 @@ package org.appdevforall.codeonthego.inflater.internal
 import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.core.content.ContextCompat.getDrawable
+import com.itsaky.androidide.resources.R.drawable
 import org.appdevforall.codeonthego.inflater.IAttribute
 import org.appdevforall.codeonthego.inflater.INamespace
 import org.appdevforall.codeonthego.inflater.IView
@@ -29,172 +30,174 @@ import org.appdevforall.codeonthego.inflater.internal.utils.simpleName
 import org.appdevforall.codeonthego.inflater.internal.utils.tagName
 import org.appdevforall.codeonthego.inflater.utils.newAttribute
 import org.appdevforall.codeonthego.inflater.viewAdapter
-import com.itsaky.androidide.resources.R.drawable
 import org.slf4j.LoggerFactory
 
 open class ViewImpl
-@JvmOverloads
-constructor(
-  var file: LayoutFile,
-  override val name: String,
-  override val view: View,
-  override val simpleName: String = name.simpleName(),
-  override val tag: String = name.tagName()
-) : IView {
+	@JvmOverloads
+	constructor(
+		var file: LayoutFile,
+		override val name: String,
+		override val view: View,
+		override val simpleName: String = name.simpleName(),
+		override val tag: String = name.tagName(),
+	) : IView {
+		private var fg: Drawable? = null
+		private var touched: Drawable? = null
 
-  private var fg: Drawable? = null
-  private var touched: Drawable? = null
+		private val attrChangeListeners = mutableListOf<AttributeChangeListener>()
+		private val _attributes = mutableListOf<IAttribute>()
+		internal val namespaces = mutableMapOf<String, INamespace>()
 
-  private val attrChangeListeners = mutableListOf<AttributeChangeListener>()
-  private val _attributes = mutableListOf<IAttribute>()
-  internal val namespaces = mutableMapOf<String, INamespace>()
+		override var parent: IViewGroup? = null
+		override val namespaceDecls: Collection<INamespace>
+			get() = this.namespaces.values
+		override val attributes: List<IAttribute>
+			get() = this._attributes
 
-  override var parent: IViewGroup? = null
-  override val namespaceDecls: Collection<INamespace>
-    get() = this.namespaces.values
-  override val attributes: List<IAttribute>
-    get() = this._attributes
+		companion object {
+			private val log = LoggerFactory.getLogger(ViewImpl::class.java)
+		}
 
-  companion object {
+		override fun addAttribute(
+			attribute: IAttribute,
+			apply: Boolean,
+			update: Boolean,
+		) {
+			if (hasAttribute(attribute)) {
+				if (!update) {
+					return
+				}
+				updateAttribute(attribute)
+			} else {
+				this._attributes.add(attribute)
 
-    private val log = LoggerFactory.getLogger(ViewImpl::class.java)
-  }
+				if (!apply) {
+					// attribute should not be applied
+					return
+				}
 
-  override fun addAttribute(attribute: IAttribute, apply: Boolean, update: Boolean) {
-    if (hasAttribute(attribute)) {
-      if (!update) {
-        return
-      }
-      updateAttribute(attribute)
-    } else {
-      this._attributes.add(attribute)
+				applyAttribute(attribute)
+				notifyAttrAdded(attribute)
+			}
+		}
 
-      if (!apply) {
-        // attribute should not be applied
-        return
-      }
+		override fun removeAttribute(attribute: IAttribute) {
+			val exising = findAttribute(attribute) ?: return
+			val value = exising.value
 
-      applyAttribute(attribute)
-      notifyAttrAdded(attribute)
-    }
-  }
+			// reset the value of the attribute to its default value
+			applyAttribute(attribute = newAttribute(view = this, attribute = exising, value = ""))
 
-  override fun removeAttribute(attribute: IAttribute) {
+			if (this._attributes.remove(exising)) {
+				notifyAttrRemoved(newAttribute(view = this, attribute = exising, value = value))
+			}
+		}
 
-    val exising = findAttribute(attribute) ?: return
-    val value = exising.value
+		override fun updateAttribute(attribute: IAttribute) {
+			updateAttributeInternal(attribute)
+		}
 
-    // reset the value of the attribute to its default value
-    applyAttribute(attribute = newAttribute(view = this, attribute = exising, value = ""))
+		override fun findAttribute(
+			name: String,
+			namespaceUri: String?,
+		): IAttribute? =
+			this.attributes.find {
+				it.namespace?.uri == namespaceUri && it.name == name
+			}
 
-    if (this._attributes.remove(exising)) {
-      notifyAttrRemoved(newAttribute(view = this, attribute = exising, value = value))
-    }
-  }
+		override fun onHighlightStateUpdated(highlight: Boolean) {
+			if (highlight) {
+				this.fg = view.foreground
+				this.touched = this.touched ?: getDrawable(view.context, drawable.bg_designer_view)
+				view.foreground = this.touched
+			} else {
+				view.foreground = this.fg
+			}
+		}
 
-  override fun updateAttribute(attribute: IAttribute) {
-    updateAttributeInternal(attribute)
-  }
+		override fun registerAttributeChangeListener(listener: AttributeChangeListener) {
+			if (this.attrChangeListeners.contains(listener)) {
+				log.warn("Attempt to register an already-registered AttributeChangeListener")
+				return
+			}
+			this.attrChangeListeners.add(listener)
+		}
 
-  override fun findAttribute(name: String, namespaceUri: String?): IAttribute? {
-    return this.attributes.find { it.namespace?.uri == namespaceUri && it.name == name }
-  }
+		override fun unregisterAttributeChangeListener(listener: AttributeChangeListener) {
+			this.attrChangeListeners.remove(listener)
+		}
 
-  override fun onHighlightStateUpdated(highlight: Boolean) {
-    if (highlight) {
-      this.fg = view.foreground
-      this.touched = this.touched ?: getDrawable(view.context, drawable.bg_designer_view)
-      view.foreground = this.touched
-    } else {
-      view.foreground = this.fg
-    }
-  }
+		override fun applyAttribute(attribute: IAttribute) {
+			val adapter = viewAdapter
+			if (adapter == null) {
+				log.warn("No attribute adapter found for view {}", name)
+				return
+			}
+			adapter.apply(this, attribute)
+		}
 
-  override fun registerAttributeChangeListener(listener: AttributeChangeListener) {
-    if (this.attrChangeListeners.contains(listener)) {
-      log.warn("Attempt to register an already-registered AttributeChangeListener")
-      return
-    }
-    this.attrChangeListeners.add(listener)
-  }
+		fun findNamespaces(): Set<INamespace> =
+			hashSetOf<INamespace>().apply {
+				addAll(namespaces.values)
+				if (parent is ViewImpl) {
+					(parent as? ViewImpl)?.findNamespaces()?.let { addAll(it) }
+				}
+			}
 
-  override fun unregisterAttributeChangeListener(listener: AttributeChangeListener) {
-    this.attrChangeListeners.remove(listener)
-  }
+		fun findNamespaceByUri(uri: String): INamespace? = this.namespaces[uri] ?: (parent as? ViewImpl)?.findNamespaceByUri(uri)
 
-  override fun applyAttribute(attribute: IAttribute) {
-    val adapter = viewAdapter
-    if (adapter == null) {
-      log.warn("No attribute adapter found for view {}", name)
-      return
-    }
-    adapter.apply(this, attribute)
-  }
+		open fun immutable(): IView = ImmutableViewImpl(this)
 
-  fun findNamespaces(): Set<INamespace> {
-    return hashSetOf<INamespace>().apply {
-      addAll(namespaces.values)
-      if (parent is ViewImpl) {
-        (parent as? ViewImpl)?.findNamespaces()?.let { addAll(it) }
-      }
-    }
-  }
+		protected open fun hasAttribute(attribute: IAttribute): Boolean = hasAttribute(attribute.name, attribute.namespace?.uri)
 
-  fun findNamespaceByUri(uri: String): INamespace? {
-    return this.namespaces[uri] ?: (parent as? ViewImpl)?.findNamespaceByUri(uri)
-  }
+		protected open fun findAttribute(attribute: IAttribute): IAttribute? = findAttribute(attribute.name, attribute.namespace?.uri)
 
-  open fun immutable(): IView {
-    return ImmutableViewImpl(this)
-  }
+		internal open fun printHierarchy(): String = StringBuilder().apply { printHierarchy(this, 0) }.toString()
 
-  protected open fun hasAttribute(attribute: IAttribute): Boolean {
-    return hasAttribute(attribute.name, attribute.namespace?.uri)
-  }
+		internal open fun printHierarchy(
+			builder: StringBuilder,
+			indent: Int,
+		) {
+			builder.append(" ".repeat(indent * 4))
+			builder.append(name)
+			builder.append("\n")
+		}
 
-  protected open fun findAttribute(attribute: IAttribute): IAttribute? {
-    return findAttribute(attribute.name, attribute.namespace?.uri)
-  }
+		private fun updateAttributeInternal(
+			attribute: IAttribute,
+			notify: Boolean = true,
+		) {
+			val existing =
+				findAttribute(attribute)
+					?: throw IllegalArgumentException("Attribute '${attribute.name}' not found")
 
-  internal open fun printHierarchy(): String {
-    return StringBuilder().apply { printHierarchy(this, 0) }.toString()
-  }
+			val oldVal = existing.value
+			existing.value = attribute.value
+			applyAttribute(existing)
 
-  internal open fun printHierarchy(builder: StringBuilder, indent: Int) {
-    builder.append(" ".repeat(indent * 4))
-    builder.append(name)
-    builder.append("\n")
-  }
+			if (notify) {
+				notifyAttrUpdated(newAttribute(view = this, attribute = attribute), oldVal)
+			}
+		}
 
-  private fun updateAttributeInternal(attribute: IAttribute, notify: Boolean = true) {
-    val existing =
-      findAttribute(attribute)
-        ?: throw IllegalArgumentException("Attribute '${attribute.name}' not found")
+		private fun notifyAttrAdded(attribute: IAttribute) {
+			for (listener in this.attrChangeListeners) {
+				listener.onAttributeAdded(this, attribute)
+			}
+		}
 
-    val oldVal = existing.value
-    existing.value = attribute.value
-    applyAttribute(existing)
+		private fun notifyAttrRemoved(attribute: IAttribute) {
+			for (listener in this.attrChangeListeners) {
+				listener.onAttributeRemoved(this, attribute)
+			}
+		}
 
-    if (notify) {
-      notifyAttrUpdated(newAttribute(view = this, attribute = attribute), oldVal)
-    }
-  }
-
-  private fun notifyAttrAdded(attribute: IAttribute) {
-    for (listener in this.attrChangeListeners) {
-      listener.onAttributeAdded(this, attribute)
-    }
-  }
-
-  private fun notifyAttrRemoved(attribute: IAttribute) {
-    for (listener in this.attrChangeListeners) {
-      listener.onAttributeRemoved(this, attribute)
-    }
-  }
-
-  private fun notifyAttrUpdated(attribute: IAttribute, oldValue: String) {
-    for (listener in this.attrChangeListeners) {
-      listener.onAttributeUpdated(this, attribute, oldValue)
-    }
-  }
-}
+		private fun notifyAttrUpdated(
+			attribute: IAttribute,
+			oldValue: String,
+		) {
+			for (listener in this.attrChangeListeners) {
+				listener.onAttributeUpdated(this, attribute, oldValue)
+			}
+		}
+	}

@@ -30,44 +30,42 @@ import java.io.File
  */
 @AutoService(IJdkDistributionProvider::class)
 class JdkDistributionProviderImpl : IJdkDistributionProvider {
+	companion object {
+		private val log = LoggerFactory.getLogger(JdkDistributionProviderImpl::class.java)
+	}
 
-  companion object {
+	private var _installedDistributions: List<JdkDistribution>? = null
 
-    private val log = LoggerFactory.getLogger(JdkDistributionProviderImpl::class.java)
-  }
+	override val installedDistributions: List<JdkDistribution>
+		get() = _installedDistributions ?: emptyList()
 
-  private var _installedDistributions: List<JdkDistribution>? = null
+	override fun loadDistributions() {
+		_installedDistributions = doLoadDistributions()
+	}
 
-  override val installedDistributions: List<JdkDistribution>
-    get() = _installedDistributions ?: emptyList()
+	private fun doLoadDistributions(): List<JdkDistribution> {
+		return JdkUtils.findJavaInstallations().also { distributions ->
+			if (distributions.isEmpty()) {
+				return emptyList()
+			}
 
-  override fun loadDistributions() {
-    _installedDistributions = doLoadDistributions()
-  }
+			val selectedJavaHome =
+				findDefaultDistribution(distributions)?.javaHome?.let { File(it) }
+					?: distributions.first().javaHome.let { File(it) }
 
-    private fun doLoadDistributions(): List<JdkDistribution> {
-        return JdkUtils.findJavaInstallations().also { distributions ->
-            if(distributions.isEmpty()) {
-                return emptyList()
-            }
+			log.debug("Setting Environment.JAVA_HOME to {}", selectedJavaHome.absolutePath)
+			Environment.JAVA_HOME = selectedJavaHome
+			Environment.JAVA = selectedJavaHome.resolve("bin/java")
+		}
+	}
 
-            val selectedJavaHome = findDefaultDistribution(distributions)?.javaHome?.let { File(it) }
-                ?: distributions.first().javaHome.let { File(it) }
+	private fun findDefaultDistribution(distributions: List<JdkDistribution>): JdkDistribution? =
+		distributions.find {
+			it.javaVersion.startsWith(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
+		}
 
-            log.debug("Setting Environment.JAVA_HOME to {}", selectedJavaHome.absolutePath)
-            Environment.JAVA_HOME = selectedJavaHome
-            Environment.JAVA = selectedJavaHome.resolve("bin/java")
-        }
-    }
-
-  private fun findDefaultDistribution(distributions: List<JdkDistribution>): JdkDistribution? {
-    return distributions.find {
-      it.javaVersion.startsWith(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
-    }
-  }
-
-  private fun isValidJavaHome(javaHome: File): Boolean {
-    val javaExec = javaHome.resolve("bin/java")
-    return javaHome.exists() && javaExec.exists() && javaExec.isFile && javaExec.canExecute()
-  }
+	private fun isValidJavaHome(javaHome: File): Boolean {
+		val javaExec = javaHome.resolve("bin/java")
+		return javaHome.exists() && javaExec.exists() && javaExec.isFile && javaExec.canExecute()
+	}
 }

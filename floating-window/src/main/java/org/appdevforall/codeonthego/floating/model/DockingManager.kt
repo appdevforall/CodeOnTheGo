@@ -2,9 +2,6 @@
 
 package org.appdevforall.codeonthego.floating.model
 
-import org.appdevforall.codeonthego.floating.window.FloatingWindowState
-import org.appdevforall.codeonthego.floating.window.WindowBounds
-import org.appdevforall.codeonthego.floating.window.WindowMode
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -12,6 +9,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.appdevforall.codeonthego.floating.window.FloatingWindowState
+import org.appdevforall.codeonthego.floating.window.WindowBounds
+import org.appdevforall.codeonthego.floating.window.WindowMode
 
 /**
  * The single source of truth for which tabs are currently floating and the state of their windows.

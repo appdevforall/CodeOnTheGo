@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.editor.language
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextRange
 import io.mockk.every
 import io.mockk.mockk
+import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

@@ -26,25 +26,24 @@ import org.appdevforall.codeonthego.utils.ServiceLoader
  * @author Akash Yadav
  */
 interface IThemeManager {
+	companion object {
+		private object Provider {
+			val instance by lazy { ServiceLoader.load(IThemeManager::class.java).findFirstOrThrow() }
+		}
 
-  companion object {
-    private object Provider {
-      val instance by lazy { ServiceLoader.load(IThemeManager::class.java).findFirstOrThrow() }
-    }
+		/**
+		 * Get the [IThemeManager] instance.
+		 */
+		fun getInstance(): IThemeManager = Provider.instance
+	}
 
-    /**
-     * Get the [IThemeManager] instance.
-     */
-    fun getInstance() : IThemeManager = Provider.instance
-  }
+	/**
+	 * Apply current theme to [activity].
+	 */
+	fun applyTheme(activity: Activity)
 
-  /**
-   * Apply current theme to [activity].
-   */
-  fun applyTheme(activity: Activity)
-
-  /**
-   * Get the current IDE theme.
-   */
-  fun getCurrentTheme(): IDETheme
+	/**
+	 * Get the current IDE theme.
+	 */
+	fun getCurrentTheme(): IDETheme
 }

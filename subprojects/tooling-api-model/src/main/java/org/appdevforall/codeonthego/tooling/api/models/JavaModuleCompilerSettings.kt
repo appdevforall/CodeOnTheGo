@@ -25,14 +25,14 @@ import org.appdevforall.codeonthego.builder.model.IJavaCompilerSettings
  * @author Akash Yadav
  */
 class JavaModuleCompilerSettings(
-  override val javaSourceVersion: String,
-  override val javaBytecodeVersion: String
-) : IJavaCompilerSettings(), java.io.Serializable {
-
-  // IMPORTANT
-  // Do not use javax.lang.model.SourceVersion reference here
-  // When running on Android, this class is preset as jdkx.lang.model.SourceVersion
-  // Using the 'javax' reference will result a 'ClassNotFoundException' while deserializing the
-  // JSONRpc data received from the Tooling API server
-  constructor() : this("RELEASE_11", "RELEASE_11")
+	override val javaSourceVersion: String,
+	override val javaBytecodeVersion: String,
+) : IJavaCompilerSettings(),
+	java.io.Serializable {
+	// IMPORTANT
+	// Do not use javax.lang.model.SourceVersion reference here
+	// When running on Android, this class is preset as jdkx.lang.model.SourceVersion
+	// Using the 'javax' reference will result a 'ClassNotFoundException' while deserializing the
+	// JSONRpc data received from the Tooling API server
+	constructor() : this("RELEASE_11", "RELEASE_11")
 }

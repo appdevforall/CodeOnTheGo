@@ -20,12 +20,12 @@ import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
-import org.appdevforall.codeonthego.eventbus.events.editor.ReportCaughtExceptionEvent
 import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.eventbus.events.editor.ReportCaughtExceptionEvent
 import org.greenrobot.eventbus.EventBus
 import org.slf4j.LoggerFactory
 import java.io.File

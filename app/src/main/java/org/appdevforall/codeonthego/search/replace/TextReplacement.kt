@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.search.replace
 
-import org.appdevforall.codeonthego.models.SearchResult
 import io.github.rosemoe.sora.text.Content
+import org.appdevforall.codeonthego.models.SearchResult
 
 object TextReplacement {
 	sealed interface Result {

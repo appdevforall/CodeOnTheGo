@@ -21,25 +21,25 @@ import org.appdevforall.codeonthego.tooling.events.OperationDescriptor
 
 /** @author Akash Yadav */
 class WorkItemOperationDescriptor(
-  val className: String,
-  override val name: String,
-  override val displayName: String
+	val className: String,
+	override val name: String,
+	override val displayName: String,
 ) : OperationDescriptor() {
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is WorkItemOperationDescriptor) return false
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is WorkItemOperationDescriptor) return false
 
-    if (className != other.className) return false
-    if (name != other.name) return false
-    if (displayName != other.displayName) return false
+		if (className != other.className) return false
+		if (name != other.name) return false
+		if (displayName != other.displayName) return false
 
-    return true
-  }
+		return true
+	}
 
-  override fun hashCode(): Int {
-    var result = className.hashCode()
-    result = 31 * result + name.hashCode()
-    result = 31 * result + displayName.hashCode()
-    return result
-  }
+	override fun hashCode(): Int {
+		var result = className.hashCode()
+		result = 31 * result + name.hashCode()
+		result = 31 * result + displayName.hashCode()
+		return result
+	}
 }

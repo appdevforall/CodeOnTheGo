@@ -17,9 +17,9 @@
 
 package org.appdevforall.codeonthego.actions
 
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.projects.builder.BuildService
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.flashInfoLong
 
 /**

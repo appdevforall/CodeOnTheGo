@@ -27,31 +27,33 @@ import org.appdevforall.codeonthego.utils.ServiceLoader
  * @author Akash Yadav
  */
 interface ITemplateWidgetViewProvider {
+	companion object {
+		private var service: ITemplateWidgetViewProvider? = null
 
-  companion object {
+		@JvmStatic
+		@JvmOverloads
+		fun getInstance(reload: Boolean = false): ITemplateWidgetViewProvider {
+			if (reload) {
+				service = null
+			}
+			return service ?: ServiceLoader
+				.load(ITemplateWidgetViewProvider::class.java)
+				.findFirstOrThrow()
+				.also { service = it }
+		}
+	}
 
-    private var service: ITemplateWidgetViewProvider? = null
+	/**
+	 * Creates [View] objects for the given widget.
+	 *
+	 * @param context The context used to create the views.
+	 * @param widget The widget to create the view for.
+	 * @return The view.
+	 */
+	fun <T> createView(
+		context: Context,
+		widget: Widget<T>,
+	): View
 
-    @JvmStatic
-    @JvmOverloads
-    fun getInstance(reload: Boolean = false): ITemplateWidgetViewProvider {
-      if (reload) {
-        service = null
-      }
-      return service ?: ServiceLoader.load(
-        ITemplateWidgetViewProvider::class.java)
-        .findFirstOrThrow()
-        .also { service = it }
-    }
-  }
-
-  /**
-   * Creates [View] objects for the given widget.
-   *
-   * @param context The context used to create the views.
-   * @param widget The widget to create the view for.
-   * @return The view.
-   */
-  fun <T> createView(context: Context, widget: Widget<T>): View
-  fun applyCallTooltip(callTooltip: (String) -> Unit)
+	fun applyCallTooltip(callTooltip: (String) -> Unit)
 }

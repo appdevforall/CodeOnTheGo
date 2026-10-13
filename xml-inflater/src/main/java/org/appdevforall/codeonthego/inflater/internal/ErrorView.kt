@@ -32,25 +32,32 @@ import org.appdevforall.codeonthego.utils.resolveAttr
  *
  * @author Akash Yadav
  */
-class ErrorView(file: LayoutFile, name: String, context: Context, message: String) :
-  ViewImpl(file = file, name = name, view = createErrView(context, message)) {
-  override val tag: String = name
+class ErrorView(
+	file: LayoutFile,
+	name: String,
+	context: Context,
+	message: String,
+) : ViewImpl(file = file, name = name, view = createErrView(context, message)) {
+	override val tag: String = name
 }
 
-class ErrorLayout(file: LayoutFile, name: String, context: Context) :
-  ViewGroupImpl(file = file, name = name, view = createErrLayout(context)) {
-  override val tag: String = name
+class ErrorLayout(
+	file: LayoutFile,
+	name: String,
+	context: Context,
+) : ViewGroupImpl(file = file, name = name, view = createErrLayout(context)) {
+	override val tag: String = name
 }
 
-private fun createErrView(context: Context, message: String): View {
-  return TextView(context).apply {
-    text = message
-    background = ColorDrawable(Color.WHITE)
-    setTextColor(context.resolveAttr(R.attr.colorError))
-    setTextIsSelectable(true)
-  }
-}
+private fun createErrView(
+	context: Context,
+	message: String,
+): View =
+	TextView(context).apply {
+		text = message
+		background = ColorDrawable(Color.WHITE)
+		setTextColor(context.resolveAttr(R.attr.colorError))
+		setTextIsSelectable(true)
+	}
 
-private fun createErrLayout(context: Context): ViewGroup {
-  return FrameLayout(context)
-}
+private fun createErrLayout(context: Context): ViewGroup = FrameLayout(context)

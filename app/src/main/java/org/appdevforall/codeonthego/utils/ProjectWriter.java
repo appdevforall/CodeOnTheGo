@@ -21,11 +21,11 @@ import static java.lang.Character.isUpperCase;
 import static java.lang.Character.toLowerCase;
 
 import androidx.annotation.NonNull;
-import org.appdevforall.codeonthego.utils.ClassBuilder.SourceLanguage;
 import java.io.File;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import kotlin.text.StringsKt;
+import org.appdevforall.codeonthego.utils.ClassBuilder.SourceLanguage;
 
 public class ProjectWriter {
 

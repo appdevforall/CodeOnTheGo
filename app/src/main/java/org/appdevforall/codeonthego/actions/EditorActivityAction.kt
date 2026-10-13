@@ -19,46 +19,41 @@ package org.appdevforall.codeonthego.actions
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
-import org.appdevforall.codeonthego.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.plus
+import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
+import org.appdevforall.codeonthego.tasks.cancelIfActive
 
 /** @author Akash Yadav */
 abstract class EditorActivityAction : ActionItem {
+	override var enabled: Boolean = true
+	override var visible: Boolean = true
+	override var icon: Drawable? = null
+	override var label: String = ""
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_TOOLBAR
 
-  override var enabled: Boolean = true
-  override var visible: Boolean = true
-  override var icon: Drawable? = null
-  override var label: String = ""
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_TOOLBAR
+	override var requiresUIThread: Boolean = false
 
-  override var requiresUIThread: Boolean = false
+	protected val actionScope =
+		CoroutineScope(Dispatchers.Default) +
+			CoroutineName("${javaClass.simpleName}Scope")
 
-  protected val actionScope = CoroutineScope(Dispatchers.Default) +
-      CoroutineName("${javaClass.simpleName}Scope")
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!data.hasRequiredData(Context::class.java)) {
+			markInvisible()
+			return
+		}
+	}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (!data.hasRequiredData(Context::class.java)) {
-      markInvisible()
-      return
-    }
-  }
+	fun ActionData.getActivity(): EditorHandlerActivity? = this[Context::class.java] as? EditorHandlerActivity
 
-  fun ActionData.getActivity(): EditorHandlerActivity? {
-    return this[Context::class.java] as? EditorHandlerActivity
-  }
+	fun ActionData.requireActivity(): EditorHandlerActivity = getActivity()!!
 
-  fun ActionData.requireActivity(): EditorHandlerActivity {
-    return getActivity()!!
-  }
-
-  override fun destroy() {
-    super.destroy()
-    actionScope.cancelIfActive("Action is being destroyed")
-  }
-
+	override fun destroy() {
+		super.destroy()
+		actionScope.cancelIfActive("Action is being destroyed")
+	}
 }

@@ -31,41 +31,42 @@ import java.util.Objects;
  */
 public class ActionData {
 
-  private ActionData() {}
+	/**
+	 * Creates a new {@link ActionData} instance.
+	 *
+	 * @param context
+	 *            The context to this instance is attached to.
+	 * @return A new {@link ActionData} instance.
+	 */
+	@NonNull
+	public static ActionData create(@NonNull Context context) {
+		final var data = new ActionData();
+		data.put(Context.class, context);
+		return data;
+	}
 
-  /**
-   * Creates a new {@link ActionData} instance.
-   *
-   * @param context The context to this instance is attached to.
-   * @return A new {@link ActionData} instance.
-   */
-  @NonNull
-  public static ActionData create(@NonNull Context context) {
-    final var data = new ActionData();
-    data.put(Context.class, context);
-    return data;
-  }
+	private final Map<Class<?>, Object> instances = new HashMap<>();
 
-  private final Map<Class<?>, Object> instances = new HashMap<>();
+	private ActionData() {}
 
-  public <T> void put(@NonNull Class<T> type, @Nullable T object) {
-    Objects.requireNonNull(type);
-    this.instances.put(type, object);
-  }
+	public void clear() {
+		this.instances.clear();
+	}
 
-  @Nullable
-  public <T> T get(@NonNull Class<T> type) {
-    Objects.requireNonNull(type);
+	@Nullable
+	public <T> T get(@NonNull Class<T> type) {
+		Objects.requireNonNull(type);
 
-    final var object = this.instances.get(type);
-    if (object == null) {
-      return null;
-    }
+		final var object = this.instances.get(type);
+		if (object == null) {
+			return null;
+		}
 
-    return type.cast(object);
-  }
+		return type.cast(object);
+	}
 
-  public void clear() {
-    this.instances.clear();
-  }
+	public <T> void put(@NonNull Class<T> type, @Nullable T object) {
+		Objects.requireNonNull(type);
+		this.instances.put(type, object);
+	}
 }

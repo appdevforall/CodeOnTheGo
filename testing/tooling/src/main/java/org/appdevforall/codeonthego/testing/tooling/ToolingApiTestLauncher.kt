@@ -17,6 +17,7 @@
 
 package org.appdevforall.codeonthego.testing.tooling
 
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.testing.tooling.models.ToolingApiTestLauncherParams
 import org.appdevforall.codeonthego.testing.tooling.models.ToolingApiTestScope
 import org.appdevforall.codeonthego.tooling.api.IToolingApiClient
@@ -39,7 +40,6 @@ import org.appdevforall.codeonthego.tooling.api.util.ToolingProps
 import org.appdevforall.codeonthego.tooling.events.ProgressEvent
 import org.appdevforall.codeonthego.utils.FileProvider
 import org.appdevforall.codeonthego.utils.ILogger
-import kotlinx.coroutines.runBlocking
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader

@@ -1,5 +1,9 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.eventbus.events.editor.ChangeType
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentCloseEvent
@@ -8,10 +12,6 @@ import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
 import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
 import org.appdevforall.codeonthego.models.Range
 import org.appdevforall.codeonthego.projects.FileManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.After

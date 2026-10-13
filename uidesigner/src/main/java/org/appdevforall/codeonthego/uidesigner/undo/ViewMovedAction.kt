@@ -23,20 +23,19 @@ package org.appdevforall.codeonthego.uidesigner.undo
  * @author Akash Yadav
  */
 class ViewMovedAction(
-  private val child: org.appdevforall.codeonthego.inflater.IView,
-  private val fromParent: org.appdevforall.codeonthego.inflater.IViewGroup,
-  private val toParent: org.appdevforall.codeonthego.inflater.IViewGroup,
-  private val fromIndex: Int,
-  private val toIndex: Int
+	private val child: org.appdevforall.codeonthego.inflater.IView,
+	private val fromParent: org.appdevforall.codeonthego.inflater.IViewGroup,
+	private val toParent: org.appdevforall.codeonthego.inflater.IViewGroup,
+	private val fromIndex: Int,
+	private val toIndex: Int,
 ) : IUiAction {
-  
-  override fun undo() {
-    child.removeFromParent()
-    fromParent.addChild(fromParent.validateIndex(fromIndex), child)
-  }
+	override fun undo() {
+		child.removeFromParent()
+		fromParent.addChild(fromParent.validateIndex(fromIndex), child)
+	}
 
-  override fun redo() {
-    child.removeFromParent()
-    toParent.addChild(toParent.validateIndex(toIndex), child)
-  }
+	override fun redo() {
+		child.removeFromParent()
+		toParent.addChild(toParent.validateIndex(toIndex), child)
+	}
 }

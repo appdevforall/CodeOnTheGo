@@ -19,32 +19,33 @@ package org.appdevforall.codeonthego.uidesigner.actions
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import org.appdevforall.codeonthego.actions.ActionData
 import com.itsaky.androidide.uidesigner.R
+import org.appdevforall.codeonthego.actions.ActionData
 
 /**
  * Undo action for UI Designer.
  *
  * @author Akash Yadav
  */
-class UndoAction(context: Context) : UiDesignerAction() {
-  
-  override val id: String = "ide.uidesigner.undo"
-  
-  init {
-    label = context.getString(R.string.undo)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_undo)
-  }
-  
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    visible = true
-    enabled = data.requireWorkspace().undoManager.canUndo()
-  }
-  
-  override suspend fun execAction(data: ActionData): Any {
-    data.requireWorkspace().undoManager.undo()
-    data.requireActivity().invalidateOptionsMenu()
-    return true
-  }
+class UndoAction(
+	context: Context,
+) : UiDesignerAction() {
+	override val id: String = "ide.uidesigner.undo"
+
+	init {
+		label = context.getString(R.string.undo)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_undo)
+	}
+
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		visible = true
+		enabled = data.requireWorkspace().undoManager.canUndo()
+	}
+
+	override suspend fun execAction(data: ActionData): Any {
+		data.requireWorkspace().undoManager.undo()
+		data.requireActivity().invalidateOptionsMenu()
+		return true
+	}
 }

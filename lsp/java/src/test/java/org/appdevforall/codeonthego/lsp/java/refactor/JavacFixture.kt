@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.RewriteSpan
 import jdkx.tools.JavaFileManager
 import jdkx.tools.JavaFileObject
 import jdkx.tools.SimpleJavaFileObject
@@ -8,6 +7,7 @@ import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.util.JavacTask
 import openjdk.source.util.Trees
 import openjdk.tools.javac.api.JavacTool
+import org.appdevforall.codeonthego.lsp.refactor.RewriteSpan
 import java.net.URI
 
 /**

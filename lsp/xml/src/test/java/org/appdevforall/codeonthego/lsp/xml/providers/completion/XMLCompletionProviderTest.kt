@@ -29,65 +29,64 @@ import org.robolectric.RobolectricTestRunner
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class XMLCompletionProviderTest : CompletionHelper by CompletionHelperImpl() {
+	@Before
+	fun setup() {
+		XMLLSPTest.initProjectIfNeeded()
+	}
 
-  @Before
-  fun setup() {
-    XMLLSPTest.initProjectIfNeeded()
-  }
+	@Test
+	fun `test simple tag completion`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/TagCompletion")
 
-  @Test
-  fun `test simple tag completion`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/TagCompletion")
+			val (isIncomplete, items) = complete()
 
-      val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isTrue()
+			assertThat(items).isNotEmpty()
 
-      assertThat(isIncomplete).isTrue()
-      assertThat(items).isNotEmpty()
+			assertThat(items).containsAtLeast("ImageView", "ImageButton")
+		}
+	}
 
-      assertThat(items).containsAtLeast("ImageView", "ImageButton")
-    }
-  }
-  
-  @Test
-  fun `test empty tag completion`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/EmptyTagNameCompletion")
-      
-      val (isIncomplete, items) = complete()
-      
-      assertThat(isIncomplete).isTrue()
-      assertThat(items).isNotEmpty()
-      
-      assertThat(items).containsAtLeast("ImageView", "ImageButton")
-    }
-  }
+	@Test
+	fun `test empty tag completion`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/EmptyTagNameCompletion")
 
-  @Test
-  fun `test simple attribute value completion`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/AttributeValueCompletion")
+			val (isIncomplete, items) = complete()
 
-      val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isTrue()
+			assertThat(items).isNotEmpty()
 
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).isNotEmpty()
+			assertThat(items).containsAtLeast("ImageView", "ImageButton")
+		}
+	}
 
-      assertThat(items).containsAtLeast("center", "fitCenter", "fitXY", "matrix")
-    }
-  }
+	@Test
+	fun `test simple attribute value completion`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/AttributeValueCompletion")
 
-  @Test
-  fun `test simple attribute completion`() {
-    XMLLSPTest.apply {
-      openFile("../res/layout/AttributeCompletion")
+			val (isIncomplete, items) = complete()
 
-      val (isIncomplete, items) = complete()
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).isNotEmpty()
 
-      assertThat(isIncomplete).isFalse()
-      assertThat(items).isNotEmpty()
+			assertThat(items).containsAtLeast("center", "fitCenter", "fitXY", "matrix")
+		}
+	}
 
-      assertThat(items).containsAtLeast("android:text", "android:textColor", "android:textAlignment", "android:textAllCaps")
-    }
-  }
+	@Test
+	fun `test simple attribute completion`() {
+		XMLLSPTest.apply {
+			openFile("../res/layout/AttributeCompletion")
+
+			val (isIncomplete, items) = complete()
+
+			assertThat(isIncomplete).isFalse()
+			assertThat(items).isNotEmpty()
+
+			assertThat(items).containsAtLeast("android:text", "android:textColor", "android:textAlignment", "android:textAllCaps")
+		}
+	}
 }

@@ -1,5 +1,8 @@
 package org.appdevforall.codeonthego.di
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import org.appdevforall.codeonthego.actions.FileActionManager
 import org.appdevforall.codeonthego.analytics.AnalyticsManager
 import org.appdevforall.codeonthego.analytics.IAnalyticsManager
@@ -14,9 +17,6 @@ import org.appdevforall.codeonthego.viewmodel.CloneRepositoryViewModel
 import org.appdevforall.codeonthego.viewmodel.GitBottomSheetViewModel
 import org.appdevforall.codeonthego.viewmodel.MainViewModel
 import org.appdevforall.codeonthego.viewmodel.OutlineViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel

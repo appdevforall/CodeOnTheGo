@@ -11,10 +11,10 @@ package org.appdevforall.codeonthego.lsp.debug
  * @author Akash Yadav
  */
 data class RemoteClient(
-    val name: String,
-    val version: String,
-    val capabilities: RemoteClientCapabilities,
-    val adapter: IDebugAdapter,
+	val name: String,
+	val version: String,
+	val capabilities: RemoteClientCapabilities,
+	val adapter: IDebugAdapter,
 )
 
 /**
@@ -28,10 +28,10 @@ data class RemoteClient(
  * @property killSupport Whether the remote client supports killing the debug application process.
  */
 data class RemoteClientCapabilities(
-    val breakpointSupport: Boolean,
-    val stepSupport: Boolean,
-    val threadInfoSupport: Boolean,
-    val threadListSupport: Boolean,
-    val suspensionSupport: Boolean,
-    val killSupport: Boolean
+	val breakpointSupport: Boolean,
+	val stepSupport: Boolean,
+	val threadInfoSupport: Boolean,
+	val threadListSupport: Boolean,
+	val suspensionSupport: Boolean,
+	val killSupport: Boolean,
 )

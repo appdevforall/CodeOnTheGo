@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.services.builder
 
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
 import org.appdevforall.codeonthego.services.ToolingServerNotStartedException
 import org.appdevforall.codeonthego.tooling.api.IToolingApiServer
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.appdevforall.codeonthego.utils.Environment
-import io.mockk.every
-import io.mockk.mockk
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test

@@ -24,5 +24,5 @@ package org.appdevforall.codeonthego.tooling.api.models
  * @author Akash Yadav
  */
 data class ToolingServerMetadata(
-  val pid: Int
+	val pid: Int,
 )

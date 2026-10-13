@@ -22,70 +22,69 @@ package org.appdevforall.codeonthego.adapters;
 
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
-
 import androidx.recyclerview.widget.RecyclerView;
-
 import com.itsaky.androidide.databinding.LayoutOptionssheetItemBinding;
-import org.appdevforall.codeonthego.models.SheetOption;
-
 import java.util.List;
+import org.appdevforall.codeonthego.models.SheetOption;
 
 public class OptionsSheetAdapter extends RecyclerView.Adapter<OptionsSheetAdapter.VH> {
 
-  private OnOptionsClickListener listener;
-  private List<SheetOption> options;
+	private OnOptionsClickListener listener;
+	private List<SheetOption> options;
 
-  public OptionsSheetAdapter(List<SheetOption> options, OnOptionsClickListener listener) {
-    this.options = options;
-    this.listener = listener;
-  }
+	public OptionsSheetAdapter(List<SheetOption> options, OnOptionsClickListener listener) {
+		this.options = options;
+		this.listener = listener;
+	}
 
-  @Override
-  public OptionsSheetAdapter.VH onCreateViewHolder(ViewGroup p1, int p2) {
-    return new VH(
-        LayoutOptionssheetItemBinding.inflate(LayoutInflater.from(p1.getContext()), p1, false));
-  }
+	@Override
+	public int getItemCount() {
+		return options.size();
+	}
 
-  @Override
-  public void onBindViewHolder(OptionsSheetAdapter.VH p1, int p2) {
-    final LayoutOptionssheetItemBinding binding = p1.binding;
-    final SheetOption option = options.get(p2);
+	@Override
+	public void onBindViewHolder(OptionsSheetAdapter.VH p1, int p2) {
+		final LayoutOptionssheetItemBinding binding = p1.binding;
+		final SheetOption option = options.get(p2);
 
-    binding.text.setText(option.title);
-    binding.icon.setImageDrawable(option.icon);
+		binding.text.setText(option.title);
+		binding.icon.setImageDrawable(option.icon);
 
-    binding
-            .getRoot()
-            .setOnClickListener(
-                    v -> {
-                      if (listener != null) listener.onOptionClick(option);
-                    });
-    binding
-            .getRoot()
-            .setOnLongClickListener(
-                    v -> {
-                      if (listener != null) listener.onOptionLongClick(option);
-                      return true;
-                    });
-  }
+		binding
+				.getRoot()
+				.setOnClickListener(
+						v -> {
+							if (listener != null)
+								listener.onOptionClick(option);
+						});
+		binding
+				.getRoot()
+				.setOnLongClickListener(
+						v -> {
+							if (listener != null)
+								listener.onOptionLongClick(option);
+							return true;
+						});
+	}
 
-  @Override
-  public int getItemCount() {
-    return options.size();
-  }
+	@Override
+	public OptionsSheetAdapter.VH onCreateViewHolder(ViewGroup p1, int p2) {
+		return new VH(
+				LayoutOptionssheetItemBinding.inflate(LayoutInflater.from(p1.getContext()), p1, false));
+	}
 
-  public class VH extends RecyclerView.ViewHolder {
-    private LayoutOptionssheetItemBinding binding;
+	public static interface OnOptionsClickListener {
+		public void onOptionClick(SheetOption option);
 
-    public VH(LayoutOptionssheetItemBinding binding) {
-      super(binding.getRoot());
-      this.binding = binding;
-    }
-  }
+		public void onOptionLongClick(SheetOption option);
+	}
 
-  public static interface OnOptionsClickListener {
-    public void onOptionClick(SheetOption option);
+	public class VH extends RecyclerView.ViewHolder {
+		private LayoutOptionssheetItemBinding binding;
 
-    public void onOptionLongClick(SheetOption option);
-  }
+		public VH(LayoutOptionssheetItemBinding binding) {
+			super(binding.getRoot());
+			this.binding = binding;
+		}
+	}
 }

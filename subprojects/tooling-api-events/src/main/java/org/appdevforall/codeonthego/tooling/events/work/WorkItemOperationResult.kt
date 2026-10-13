@@ -21,7 +21,7 @@ import org.appdevforall.codeonthego.tooling.events.OperationResult
 
 /** @author Akash Yadav */
 class WorkItemOperationResult(
-  val success: Boolean,
-  override val startTime: Long,
-  override val endTime: Long
+	val success: Boolean,
+	override val startTime: Long,
+	override val endTime: Long,
 ) : OperationResult()

@@ -7,8 +7,9 @@ import org.appdevforall.codeonthego.lsp.snippets.ISnippetScope
  *
  * @author Akash Yadav
  */
-enum class KotlinSnippetScope(override val filename: String) : ISnippetScope {
-
+enum class KotlinSnippetScope(
+	override val filename: String,
+) : ISnippetScope {
 	/**
 	 * Snippets that can be used at the top level. This includes snippets such as class, interface,
 	 * enum templates.

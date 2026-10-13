@@ -26,52 +26,48 @@ import java.io.Serializable
  * @property value The value for the distribution type.
  * @author Akash Yadav
  */
-data class GradleDistributionParams(val type: GradleDistributionType, val value: String) :
-  Serializable {
+data class GradleDistributionParams(
+	val type: GradleDistributionType,
+	val value: String,
+) : Serializable {
+	companion object {
+		/**
+		 * [GradleDistributionParams] with type [GRADLE_WRAPPER][GradleDistributionType.GRADLE_WRAPPER].
+		 */
+		@JvmStatic
+		val WRAPPER = GradleDistributionParams(GradleDistributionType.GRADLE_WRAPPER, "")
 
-  companion object {
+		/**
+		 * Creates [GradleDistributionParams] for the given [distribution path][path].
+		 */
+		@JvmStatic
+		fun forInstallationDir(path: String): GradleDistributionParams =
+			GradleDistributionParams(GradleDistributionType.GRADLE_INSTALLATION, path)
 
-    /**
-     * [GradleDistributionParams] with type [GRADLE_WRAPPER][GradleDistributionType.GRADLE_WRAPPER].
-     */
-    @JvmStatic
-    val WRAPPER = GradleDistributionParams(GradleDistributionType.GRADLE_WRAPPER, "")
-
-    /**
-     * Creates [GradleDistributionParams] for the given [distribution path][path].
-     */
-    @JvmStatic
-    fun forInstallationDir(path: String): GradleDistributionParams {
-      return GradleDistributionParams(GradleDistributionType.GRADLE_INSTALLATION, path)
-    }
-
-    /**
-     * Creates [GradleDistributionParams] for the given [Gradle version][version].
-     */
-    @JvmStatic
-    fun forVersion(version: String): GradleDistributionParams {
-      return GradleDistributionParams(GradleDistributionType.GRADLE_VERSION, version)
-    }
-  }
+		/**
+		 * Creates [GradleDistributionParams] for the given [Gradle version][version].
+		 */
+		@JvmStatic
+		fun forVersion(version: String): GradleDistributionParams = GradleDistributionParams(GradleDistributionType.GRADLE_VERSION, version)
+	}
 }
 
 /**
  * Type of Gradle distributions for project initialization.
  */
 enum class GradleDistributionType {
+	/**
+	 * Initialize the project using the distribution specified in `gradle-wrapper.properties`.
+	 */
+	GRADLE_WRAPPER,
 
-  /**
-   * Initialize the project using the distribution specified in `gradle-wrapper.properties`.
-   */
-  GRADLE_WRAPPER,
+	/**
+	 * Initialize the project using a specific Gradle version.
+	 */
+	GRADLE_VERSION,
 
-  /**
-   * Initialize the project using a specific Gradle version.
-   */
-  GRADLE_VERSION,
-
-  /**
-   * Initialize the project using a specific Gradle distribution path.
-   */
-  GRADLE_INSTALLATION
+	/**
+	 * Initialize the project using a specific Gradle distribution path.
+	 */
+	GRADLE_INSTALLATION,
 }

@@ -36,12 +36,11 @@ import org.eclipse.lemminx.dom.builder.XmlBuilder;
  */
 public class XMLBuilder extends XmlBuilder {
 
-  public XMLBuilder(String whitespacesIndent, String lineDelimiter) {
-    this(whitespacesIndent, lineDelimiter, XMLServerSettings.INSTANCE.getFormattingOptions());
-  }
+	public XMLBuilder(String whitespacesIndent, String lineDelimiter) {
+		this(whitespacesIndent, lineDelimiter, XMLServerSettings.INSTANCE.getFormattingOptions());
+	}
 
-  public XMLBuilder(String whitespacesIndent, String lineDelimiter, BaseXmlFormattingOptions settings
-  ) {
-    super(whitespacesIndent, lineDelimiter, settings);
-  }
+	public XMLBuilder(String whitespacesIndent, String lineDelimiter, BaseXmlFormattingOptions settings) {
+		super(whitespacesIndent, lineDelimiter, settings);
+	}
 }

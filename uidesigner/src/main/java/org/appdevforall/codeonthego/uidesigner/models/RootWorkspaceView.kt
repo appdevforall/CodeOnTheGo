@@ -27,13 +27,12 @@ import org.appdevforall.codeonthego.inflater.internal.LayoutFile
  * @author Akash Yadav
  */
 internal class RootWorkspaceView(
-  file: LayoutFile,
-  name: String,
-  view: ViewGroup
-) :
-  UiViewGroup(file, name, view) {
-
-  override fun canAcceptChild(name: String, child: IView?): Boolean {
-    return childCount == 0 && super.canAcceptChild(name, child)
-  }
+	file: LayoutFile,
+	name: String,
+	view: ViewGroup,
+) : UiViewGroup(file, name, view) {
+	override fun canAcceptChild(
+		name: String,
+		child: IView?,
+	): Boolean = childCount == 0 && super.canAcceptChild(name, child)
 }

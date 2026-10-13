@@ -26,12 +26,11 @@ import jdkx.tools.JavaFileObject
  * @author Akash Yadav
  */
 interface IJavaParser<T> : AutoCloseable {
-
-  /**
-   * Parses the contents of the given [JavaFileObject].
-   *
-   * @param file The [JavaFileObject] to parse.
-   * @return The result of the parse.
-   */
-  fun parse(file: JavaFileObject): T
+	/**
+	 * Parses the contents of the given [JavaFileObject].
+	 *
+	 * @param file The [JavaFileObject] to parse.
+	 * @return The result of the parse.
+	 */
+	fun parse(file: JavaFileObject): T
 }

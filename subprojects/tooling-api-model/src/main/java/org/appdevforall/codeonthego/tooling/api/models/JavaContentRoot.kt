@@ -21,7 +21,7 @@ import java.io.Serializable
 
 /** @author Akash Yadav */
 class JavaContentRoot : Serializable {
-  private val serialVersionUID = 1L
-  val sourceDirectories: List<JavaSourceDirectory> = mutableListOf()
-  val testDirectories: List<JavaSourceDirectory> = mutableListOf()
+	private val serialVersionUID = 1L
+	val sourceDirectories: List<JavaSourceDirectory> = mutableListOf()
+	val testDirectories: List<JavaSourceDirectory> = mutableListOf()
 }

@@ -17,16 +17,6 @@
 
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
-import org.appdevforall.codeonthego.lsp.api.IServerSettings
-import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
-import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
-import org.appdevforall.codeonthego.lsp.models.CompletionItem
-import org.appdevforall.codeonthego.lsp.models.CompletionResult
-import org.appdevforall.codeonthego.lsp.models.MatchLevel.CASE_SENSITIVE_EQUAL
-import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
-import org.appdevforall.codeonthego.projects.api.ModuleProject
-import org.appdevforall.codeonthego.projects.util.BootClasspathProvider
-import org.appdevforall.codeonthego.utils.ClassTrie
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ElementKind.ANNOTATION_TYPE
@@ -47,6 +37,16 @@ import openjdk.tools.javac.code.Symbol.MethodSymbol
 import openjdk.tools.javac.model.JavacTypes
 import openjdk.tools.javac.tree.JCTree.JCImport
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
+import org.appdevforall.codeonthego.lsp.api.IServerSettings
+import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
+import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
+import org.appdevforall.codeonthego.lsp.models.CompletionItem
+import org.appdevforall.codeonthego.lsp.models.CompletionResult
+import org.appdevforall.codeonthego.lsp.models.MatchLevel.CASE_SENSITIVE_EQUAL
+import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
+import org.appdevforall.codeonthego.projects.api.ModuleProject
+import org.appdevforall.codeonthego.projects.util.BootClasspathProvider
+import org.appdevforall.codeonthego.utils.ClassTrie
 import java.nio.file.Path
 
 /**

@@ -19,9 +19,9 @@ package org.appdevforall.codeonthego.viewmodel
 
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.unnamed.b.atv.view.AndroidTreeView
 import org.appdevforall.codeonthego.tasks.executeAsync
 import org.appdevforall.codeonthego.tasks.runOnUiThread
-import com.unnamed.b.atv.view.AndroidTreeView
 
 /**
  * [ViewModel] for the file tree fragment.
@@ -29,23 +29,22 @@ import com.unnamed.b.atv.view.AndroidTreeView
  * @author Akash Yadav
  */
 internal class FileTreeViewModel : ViewModel() {
+	val treeState = MutableLiveData<String?>()
 
-  val treeState = MutableLiveData<String?>()
+	val savedState: String
+		get() = treeState.value ?: ""
 
-  val savedState: String
-    get() = treeState.value ?: ""
-
-  fun saveState(treeView: AndroidTreeView?) {
-    treeView?.let { tree ->
-      executeAsync({
-        // if a large number of directories have been expanded in the tree
-        // this could block teh UI thread
-        return@executeAsync tree.saveState
-      }) { result ->
-        runOnUiThread {
-          treeState.value = result
-        }
-      }
-    }
-  }
+	fun saveState(treeView: AndroidTreeView?) {
+		treeView?.let { tree ->
+			executeAsync({
+				// if a large number of directories have been expanded in the tree
+				// this could block teh UI thread
+				return@executeAsync tree.saveState
+			}) { result ->
+				runOnUiThread {
+					treeState.value = result
+				}
+			}
+		}
+	}
 }

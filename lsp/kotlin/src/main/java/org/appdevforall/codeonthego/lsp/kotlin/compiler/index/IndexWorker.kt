@@ -1,5 +1,12 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.CompilationEnvironment
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.backingFilePath
@@ -8,13 +15,6 @@ import org.appdevforall.codeonthego.memprof.Memprof
 import org.appdevforall.codeonthego.memprof.MemprofSpan
 import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.appdevforall.codeonthego.utils.KeyedDebouncingAction
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
-import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
-import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.psi.KtFile

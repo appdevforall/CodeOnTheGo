@@ -17,12 +17,12 @@
  **************************************************************************************/
 package org.appdevforall.codeonthego.interfaces;
 
+import java.io.File;
 import org.appdevforall.codeonthego.lsp.models.DiagnosticItem;
 import org.appdevforall.codeonthego.models.DiagnosticGroup;
-import java.io.File;
 
 public interface DiagnosticClickListener {
-  void onGroupClick(DiagnosticGroup group);
+	void onDiagnosticClick(File file, DiagnosticItem diagnostic);
 
-  void onDiagnosticClick(File file, DiagnosticItem diagnostic);
+	void onGroupClick(DiagnosticGroup group);
 }

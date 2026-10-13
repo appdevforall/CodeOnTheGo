@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.handlers
 
 import android.content.Intent
+import io.sentry.Sentry
 import org.appdevforall.codeonthego.activities.CrashHandlerActivity
 import org.appdevforall.codeonthego.app.IDEApplication
 import org.appdevforall.codeonthego.eventbus.events.editor.ReportCaughtExceptionEvent
-import io.sentry.Sentry
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory

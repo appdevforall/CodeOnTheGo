@@ -28,21 +28,22 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class GradleBuildServiceConnnection : ServiceConnection {
+	internal var onConnected: ((GradleBuildService) -> Unit)? = null
 
-  internal var onConnected: ((GradleBuildService) -> Unit)? = null
+	companion object {
+		private val log = LoggerFactory.getLogger(GradleBuildServiceConnnection::class.java)
+	}
 
-  companion object {
+	override fun onServiceConnected(
+		name: ComponentName?,
+		service: IBinder?,
+	) {
+		val serviceBinder = service as GradleServiceBinder
+		onConnected?.invoke(serviceBinder.service!!)
+	}
 
-    private val log = LoggerFactory.getLogger(GradleBuildServiceConnnection::class.java)
-  }
-
-  override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-    val serviceBinder = service as GradleServiceBinder
-    onConnected?.invoke(serviceBinder.service!!)
-  }
-
-  override fun onServiceDisconnected(name: ComponentName?) {
-    onConnected = null
-    log.info("Disconnected from Gradle build service")
-  }
+	override fun onServiceDisconnected(name: ComponentName?) {
+		onConnected = null
+		log.info("Disconnected from Gradle build service")
+	}
 }

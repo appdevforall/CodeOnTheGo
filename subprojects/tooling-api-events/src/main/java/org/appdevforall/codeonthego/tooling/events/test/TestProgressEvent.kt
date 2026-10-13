@@ -21,7 +21,7 @@ import org.appdevforall.codeonthego.tooling.events.ProgressEvent
 
 /** @author Akash Yadav */
 open class TestProgressEvent(
-  override val displayName: String,
-  override val eventTime: Long,
-  override val descriptor: TestOperationDescriptor
+	override val displayName: String,
+	override val eventTime: Long,
+	override val descriptor: TestOperationDescriptor,
 ) : ProgressEvent()

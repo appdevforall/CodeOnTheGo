@@ -13,30 +13,36 @@ import org.slf4j.LoggerFactory
 private val logger = LoggerFactory.getLogger("EditExts")
 
 fun TextRange.toRange(containingFile: PsiFile): Range {
-	val doc = PsiDocumentManager.getInstance(containingFile.project).getDocument(containingFile)
-		?: return Range.NONE
+	val doc =
+		PsiDocumentManager.getInstance(containingFile.project).getDocument(containingFile)
+			?: return Range.NONE
 	val startLine = doc.getLineNumber(startOffset)
 	val startCol = startOffset - doc.getLineStartOffset(startLine)
 	val endLine = doc.getLineNumber(endOffset)
 	val endCol = endOffset - doc.getLineStartOffset(endLine)
 	return Range(
-		start = Position(
-			line = startLine,
-			column = startCol,
-			index = startOffset,
-		), end = Position(
-			line = endLine,
-			column = endCol,
-			index = endOffset,
-		)
+		start =
+			Position(
+				line = startLine,
+				column = startCol,
+				index = startOffset,
+			),
+		end =
+			Position(
+				line = endLine,
+				column = endCol,
+				index = endOffset,
+			),
 	)
 }
 
 context(ctx: AnalysisContext)
-internal fun insertImport(fqn: String): List<TextEdit> =
-	insertImport(ctx.ktFile, fqn)
+internal fun insertImport(fqn: String): List<TextEdit> = insertImport(ctx.ktFile, fqn)
 
-internal fun insertImport(ktFile: KtFile, fqn: String): List<TextEdit> {
+internal fun insertImport(
+	ktFile: KtFile,
+	fqn: String,
+): List<TextEdit> {
 	val imports = ktFile.importDirectives
 	val importText = "import $fqn"
 	for (import in imports) {
@@ -66,31 +72,38 @@ internal fun insertImport(ktFile: KtFile, fqn: String): List<TextEdit> {
 	return listOf(
 		TextEdit(
 			range = Range(start, start),
-			newText = importText + System.lineSeparator()
-		)
+			newText = importText + System.lineSeparator(),
+		),
 	)
 }
 
-internal fun insertBefore(element: PsiElement, text: String): List<TextEdit> {
+internal fun insertBefore(
+	element: PsiElement,
+	text: String,
+): List<TextEdit> {
 	val range = rangeOf(element)
 	return listOf(
 		TextEdit(
 			range = Range(range.start, range.start),
-			newText = text
-		)
+			newText = text,
+		),
 	)
 }
 
-internal fun insertAfter(element: PsiElement, text: String): List<TextEdit> {
+internal fun insertAfter(
+	element: PsiElement,
+	text: String,
+): List<TextEdit> {
 	val range = rangeOf(element)
 	return listOf(
 		TextEdit(
 			range = Range(range.end, range.end),
-			newText = text
-		)
+			newText = text,
+		),
 	)
 }
 
-internal fun rangeOf(element: PsiElement, containingFile: PsiFile = element.containingFile): Range {
-	return element.textRange.toRange(containingFile)
-}
+internal fun rangeOf(
+	element: PsiElement,
+	containingFile: PsiFile = element.containingFile,
+): Range = element.textRange.toRange(containingFile)

@@ -21,7 +21,8 @@ import org.appdevforall.codeonthego.tooling.events.StartEvent
 
 /** @author Akash Yadav */
 class WorkItemStartEvent(
-  displayName: String,
-  eventTime: Long,
-  descriptor: WorkItemOperationDescriptor
-) : WorkItemProgressEvent(displayName, eventTime, descriptor), StartEvent
+	displayName: String,
+	eventTime: Long,
+	descriptor: WorkItemOperationDescriptor,
+) : WorkItemProgressEvent(displayName, eventTime, descriptor),
+	StartEvent

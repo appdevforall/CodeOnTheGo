@@ -25,10 +25,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.graphics.Insets
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityFaqBinding
-import org.appdevforall.codeonthego.documentation.DocumentationRequestInterceptor
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
+import org.appdevforall.codeonthego.documentation.DocumentationRequestInterceptor
 
 class FAQActivity : EdgeToEdgeIDEActivity() {
 	@Suppress("ktlint:standard:backing-property-naming")

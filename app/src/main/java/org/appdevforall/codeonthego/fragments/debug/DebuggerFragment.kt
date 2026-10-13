@@ -20,6 +20,15 @@ import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.FragmentDebuggerBinding
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import moe.shizuku.manager.ShizukuState
+import moe.shizuku.manager.model.ServiceStatus
 import org.appdevforall.codeonthego.fragments.EmptyStateFragment
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_NOT_CONNECTED
@@ -33,15 +42,6 @@ import org.appdevforall.codeonthego.utils.viewLifecycleScope
 import org.appdevforall.codeonthego.viewmodel.DebuggerConnectionState
 import org.appdevforall.codeonthego.viewmodel.DebuggerViewModel
 import org.appdevforall.codeonthego.viewmodel.WADBConnectionViewModel
-import io.sentry.Sentry
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import moe.shizuku.manager.ShizukuState
-import moe.shizuku.manager.model.ServiceStatus
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 
@@ -326,6 +326,7 @@ class DebuggerFragment : EmptyStateFragment<FragmentDebuggerBinding>(FragmentDeb
 				DebuggerConnectionState.SUSPENDED -> {
 					null
 				}
+
 				// suspended due to a breakpoint hit or step event
 				DebuggerConnectionState.AWAITING_BREAKPOINT -> {
 					null

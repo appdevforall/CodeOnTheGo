@@ -26,27 +26,29 @@ import org.slf4j.LoggerFactory
  *
  * @author Akash Yadav
  */
-abstract class AbstractPopupWindow(editor: CodeEditor, features: Int) :
-  EditorPopupWindow(editor, features) {
+abstract class AbstractPopupWindow(
+	editor: CodeEditor,
+	features: Int,
+) : EditorPopupWindow(editor, features) {
+	companion object {
+		private val log = LoggerFactory.getLogger(AbstractPopupWindow::class.java)
+	}
 
-  companion object {
+	override fun show() {
+		(editor as? IDEEditor)?.dismissPopupWindows()
+		if (!editor.isAttachedToWindow) {
+			log.error(
+				"Trying to show popup window '{}' when editor is not attached to window",
+				javaClass.name,
+			)
+			return
+		}
 
-    private val log = LoggerFactory.getLogger(AbstractPopupWindow::class.java)
-  }
+		super.show()
+	}
 
-  override fun show() {
-    (editor as? IDEEditor)?.dismissPopupWindows()
-    if (!editor.isAttachedToWindow) {
-      log.error("Trying to show popup window '{}' when editor is not attached to window",
-        javaClass.name)
-      return
-    }
-
-    super.show()
-  }
-
-  override fun isShowing(): Boolean {
-    @Suppress("UNNECESSARY_SAFE_CALL", "USELESS_ELVIS")
-    return popup?.isShowing ?: false
-  }
+	override fun isShowing(): Boolean {
+		@Suppress("UNNECESSARY_SAFE_CALL", "USELESS_ELVIS")
+		return popup?.isShowing ?: false
+	}
 }

@@ -2,61 +2,64 @@ package org.appdevforall.codeonthego.lsp.java.actions.common
 
 import com.google.googlejavaformat.java.FormatterException
 import com.google.googlejavaformat.java.RemoveUnusedImports
+import com.itsaky.androidide.resources.R.string
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.actions.requireEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lsp.java.actions.BaseJavaCodeAction
-import com.itsaky.androidide.resources.R.string
-import io.github.rosemoe.sora.widget.CodeEditor
 import org.slf4j.LoggerFactory
 
 class RemoveUnusedImportsAction : BaseJavaCodeAction() {
+	override val id: String = "ide.editor.lsp.java.removeUnusedImports"
+	override var label: String = ""
+	override val titleTextRes: Int = string.action_remove_unused_imports
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_UNUSED_IMPORTS
 
-  override val id: String = "ide.editor.lsp.java.removeUnusedImports"
-  override var label: String = ""
-  override val titleTextRes: Int = string.action_remove_unused_imports
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_UNUSED_IMPORTS
+	companion object {
+		private val log = LoggerFactory.getLogger(RemoveUnusedImportsAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!visible) {
+			return
+		}
 
-    private val log = LoggerFactory.getLogger(RemoveUnusedImportsAction::class.java)
-  }
+		if (!data.hasRequiredData(CodeEditor::class.java)) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (!visible) {
-      return
-    }
+		visible = true
+		enabled = true
+	}
 
-    if (!data.hasRequiredData(CodeEditor::class.java)) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val watch =
+			org.appdevforall.codeonthego.utils
+				.StopWatch("Remove unused imports")
+		return try {
+			val editor = data.requireEditor()
+			val content = editor.text
+			val output = RemoveUnusedImports.removeUnusedImports(content.toString())
+			watch.log()
+			output
+		} catch (e: FormatterException) {
+			log.error("Failed to remove unused imports", e)
+			false
+		}
+	}
 
-    visible = true
-    enabled = true
-  }
-
-  override suspend fun execAction(data: ActionData): Any {
-    val watch = org.appdevforall.codeonthego.utils.StopWatch("Remove unused imports")
-    return try {
-      val editor = data.requireEditor()
-      val content = editor.text
-      val output = RemoveUnusedImports.removeUnusedImports(content.toString())
-      watch.log()
-      output
-    } catch (e: FormatterException) {
-      log.error("Failed to remove unused imports", e)
-      false
-    }
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    if (result is String && result.isNotEmpty()) {
-      val editor = data.requireEditor()
-      editor.setText(result)
-    }
-  }
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result is String && result.isNotEmpty()) {
+			val editor = data.requireEditor()
+			editor.setText(result)
+		}
+	}
 }

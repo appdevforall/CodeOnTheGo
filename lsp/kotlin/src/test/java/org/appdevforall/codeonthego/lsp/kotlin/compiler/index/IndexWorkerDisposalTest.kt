@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,6 +12,7 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
+import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
 import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.junit.Test
 

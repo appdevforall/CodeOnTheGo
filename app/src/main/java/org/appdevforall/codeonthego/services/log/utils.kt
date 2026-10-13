@@ -21,10 +21,10 @@ import android.os.RemoteException
 import org.appdevforall.codeonthego.logsender.ILogSender
 
 fun ILogSender.isAlive() : Boolean {
-  return try {
-    ping()
-    true
-  } catch (err: RemoteException) {
-    false
-  }
+return try {
+	ping()
+	true
+} catch (err: RemoteException) {
+	false
+}
 }

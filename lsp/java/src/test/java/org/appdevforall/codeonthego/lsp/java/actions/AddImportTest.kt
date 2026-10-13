@@ -18,14 +18,14 @@
 package org.appdevforall.codeonthego.lsp.java.actions
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.lsp.java.JavaCompilerProvider
-import org.appdevforall.codeonthego.lsp.java.JavaLSPTest
-import org.appdevforall.codeonthego.lsp.java.actions.diagnostics.AddImportAction
-import org.appdevforall.codeonthego.lsp.java.actions.diagnostics.ImportCandidates
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.lsp.java.JavaCompilerProvider
+import org.appdevforall.codeonthego.lsp.java.JavaLSPTest
+import org.appdevforall.codeonthego.lsp.java.actions.diagnostics.AddImportAction
+import org.appdevforall.codeonthego.lsp.java.actions.diagnostics.ImportCandidates
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith

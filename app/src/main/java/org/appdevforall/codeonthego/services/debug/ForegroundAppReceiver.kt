@@ -54,7 +54,10 @@ class ForegroundAppReceiver : BroadcastReceiver() {
 		val foregroundAppState = _foregroundAppState.asStateFlow()
 	}
 
-	override fun onReceive(context: Context?, intent: Intent?) {
+	override fun onReceive(
+		context: Context?,
+		intent: Intent?,
+	) {
 		if (intent?.action != ACTION_FOREGROUND_APP_CHANGED) {
 			logger.error("onReceive: intent.action={} is not supported", intent?.action ?: "null")
 			return
@@ -65,7 +68,10 @@ class ForegroundAppReceiver : BroadcastReceiver() {
 		val packageNames =
 			intent.getStringArrayExtra(EXTRA_FOREGROUND_PACKAGES) ?: emptyArray<String>()
 		logger.debug(
-			"onReceive: uid={}, pid={}, packageName={}", uid, pid, packageNames.contentToString()
+			"onReceive: uid={}, pid={}, packageName={}",
+			uid,
+			pid,
+			packageNames.contentToString(),
 		)
 
 		if (packageNames.isEmpty()) {

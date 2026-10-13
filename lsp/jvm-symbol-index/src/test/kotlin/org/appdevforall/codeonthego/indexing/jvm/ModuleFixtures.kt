@@ -1,5 +1,7 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
+import io.mockk.every
+import io.mockk.spyk
 import org.appdevforall.codeonthego.project.AndroidModels
 import org.appdevforall.codeonthego.project.GradleModels
 import org.appdevforall.codeonthego.project.JavaModels
@@ -9,8 +11,6 @@ import org.appdevforall.codeonthego.projects.api.GradleProject
 import org.appdevforall.codeonthego.projects.api.JavaModule
 import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.appdevforall.codeonthego.projects.api.Workspace
-import io.mockk.every
-import io.mockk.spyk
 import org.junit.rules.TemporaryFolder
 import java.io.File
 

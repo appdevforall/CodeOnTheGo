@@ -6,15 +6,15 @@ import android.content.SharedPreferences
 import android.content.res.AssetManager
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.plugins.extensions.DocumentationExtension
 import org.appdevforall.codeonthego.plugins.extensions.PluginTooltipEntry
 import org.appdevforall.codeonthego.plugins.manager.pluginCategory
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.BrotliDictionaryCodec
 import org.appdevforall.codeonthego.utils.expectsCompressionDictionary
 import org.appdevforall.codeonthego.utils.loadCompressionDictionary
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 

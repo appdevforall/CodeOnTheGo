@@ -23,12 +23,12 @@ import android.graphics.BlendMode
 import android.os.Build.VERSION_CODES
 import android.widget.AnalogClock
 import androidx.annotation.RequiresApi
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [AnalogClock].
@@ -39,35 +39,32 @@ import com.itsaky.androidide.resources.R.string
 @IncludeInDesigner(group = WIDGETS)
 @RequiresApi(VERSION_CODES.S)
 open class AnalogClockAdapter<T : AnalogClock> : ViewAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("dialTint") { view.dialTintList = parseColorStateList(context, value) }
+		create("dialTintMode") { view.dialTintBlendMode = parseBlendMode(value) }
+		create("hand_hourTint") { view.hourHandTintList = parseColorStateList(context, value) }
+		create("hand_hourTintMode") { view.hourHandTintBlendMode = parseBlendMode(value) }
+		create("hand_minuteTint") { view.minuteHandTintList = parseColorStateList(context, value) }
+		create("hand_minuteTintMode") { view.minuteHandTintBlendMode = parseBlendMode(value) }
+		create("hand_secondTint") { view.secondHandTintList = parseColorStateList(context, value) }
+		create("hand_secondTintMode") { view.secondHandTintBlendMode = parseBlendMode(value) }
+		create("timeZone") { view.timeZone = parseString(value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("dialTint") { view.dialTintList = parseColorStateList(context, value) }
-    create("dialTintMode") { view.dialTintBlendMode = parseBlendMode(value) }
-    create("hand_hourTint") { view.hourHandTintList = parseColorStateList(context, value) }
-    create("hand_hourTintMode") { view.hourHandTintBlendMode = parseBlendMode(value) }
-    create("hand_minuteTint") { view.minuteHandTintList = parseColorStateList(context, value) }
-    create("hand_minuteTintMode") { view.minuteHandTintBlendMode = parseBlendMode(value) }
-    create("hand_secondTint") { view.secondHandTintList = parseColorStateList(context, value) }
-    create("hand_secondTintMode") { view.secondHandTintBlendMode = parseBlendMode(value) }
-    create("timeZone") { view.timeZone = parseString(value) }
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(AnalogClock::class.java, string.widget_analog_clock, drawable.ic_widget_analog_clock),
+		)
 
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(AnalogClock::class.java, string.widget_analog_clock, drawable.ic_widget_analog_clock)
-    )
-  }
-
-  protected fun parseBlendMode(value: String): BlendMode {
-    return when (value) {
-      "add" -> BlendMode.PLUS
-      "multiply" -> BlendMode.MODULATE
-      "screen" -> BlendMode.SCREEN
-      "src_atop" -> BlendMode.SRC_ATOP
-      "src_in" -> BlendMode.SRC_IN
-      "src_over" -> BlendMode.SRC_OVER
-      else -> BlendMode.SRC_IN
-    }
-  }
+	protected fun parseBlendMode(value: String): BlendMode =
+		when (value) {
+			"add" -> BlendMode.PLUS
+			"multiply" -> BlendMode.MODULATE
+			"screen" -> BlendMode.SCREEN
+			"src_atop" -> BlendMode.SRC_ATOP
+			"src_in" -> BlendMode.SRC_IN
+			"src_over" -> BlendMode.SRC_OVER
+			else -> BlendMode.SRC_IN
+		}
 }

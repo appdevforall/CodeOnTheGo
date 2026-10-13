@@ -23,32 +23,31 @@ import java.io.File
 import java.nio.file.Files
 
 class FileProviderTest {
+	@Test
+	fun testPath() {
+		val path = FileProvider.sourceFile("SourceFileTest")
+		assertThat(Files.exists(path)).isTrue()
+		assertThat(path.fileName.toString()).isEqualTo("SourceFileTest_template.java")
+	}
 
-  @Test
-  fun testPath() {
-    val path = FileProvider.sourceFile("SourceFileTest")
-    assertThat(Files.exists(path)).isTrue()
-    assertThat(path.fileName.toString()).isEqualTo("SourceFileTest_template.java")
-  }
+	@Test
+	fun testNested() {
+		val path = FileProvider.sourceFile("package/SourceFileTest")
+		assertThat(Files.exists(path)).isTrue()
+		assertThat(path.fileName.toString()).isEqualTo("SourceFileTest_template.java")
+	}
 
-  @Test
-  fun testNested() {
-    val path = FileProvider.sourceFile("package/SourceFileTest")
-    assertThat(Files.exists(path)).isTrue()
-    assertThat(path.fileName.toString()).isEqualTo("SourceFileTest_template.java")
-  }
+	@Test
+	fun testExtension() {
+		val folder = File(".").canonicalFile
 
-  @Test
-  fun testExtension() {
-    val folder = File(".").canonicalFile
-
-    assertThat(FileProvider.extension).isNotEmpty()
-    assertThat(FileProvider.extension)
-      .isEqualTo(
-        when (folder.name) {
-          "xml" -> "xml"
-          else -> "java"
-        }
-      )
-  }
+		assertThat(FileProvider.extension).isNotEmpty()
+		assertThat(FileProvider.extension)
+			.isEqualTo(
+				when (folder.name) {
+					"xml" -> "xml"
+					else -> "java"
+				},
+			)
+	}
 }

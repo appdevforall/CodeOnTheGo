@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.lsp.java.debug.utils
 
-import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.io.path.nameWithoutExtension

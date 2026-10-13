@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.templates.impl.zip
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import org.adfa.constants.Sdk
 import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.templates.Language
 import org.appdevforall.codeonthego.templates.ModuleTemplateData
@@ -12,7 +13,6 @@ import org.appdevforall.codeonthego.templates.ProjectVersionData
 import org.appdevforall.codeonthego.templates.RecipeExecutor
 import org.appdevforall.codeonthego.templates.TestRecipeExecutor
 import org.appdevforall.codeonthego.utils.Environment
-import org.adfa.constants.Sdk
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule

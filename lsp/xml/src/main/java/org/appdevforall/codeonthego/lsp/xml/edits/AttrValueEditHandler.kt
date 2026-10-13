@@ -23,8 +23,5 @@ package org.appdevforall.codeonthego.lsp.xml.edits
  * @author Akash Yadav
  */
 class AttrValueEditHandler : QualifiedValueEditHandler() {
-
-  override fun isPartialPart(c: Char): Boolean {
-    return super.isPartialPart(c) || c in charArrayOf('@', '.', ':', '/')
-  }
+	override fun isPartialPart(c: Char): Boolean = super.isPartialPart(c) || c in charArrayOf('@', '.', ':', '/')
 }

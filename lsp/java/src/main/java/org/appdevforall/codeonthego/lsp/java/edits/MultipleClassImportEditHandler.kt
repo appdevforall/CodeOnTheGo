@@ -17,9 +17,9 @@
 
 package org.appdevforall.codeonthego.lsp.java.edits
 
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
 import org.appdevforall.codeonthego.lsp.java.utils.EditHelper
-import io.github.rosemoe.sora.widget.CodeEditor
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 
@@ -31,29 +31,28 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class MultipleClassImportEditHandler(
-  private val classes: Set<String>,
-  private val imported: Set<String>,
-  file: Path
+	private val classes: Set<String>,
+	private val imported: Set<String>,
+	file: Path,
 ) : AdvancedJavaEditHandler(file) {
+	companion object {
+		private val log = LoggerFactory.getLogger(MultipleClassImportEditHandler::class.java)
+	}
 
-  companion object {
-
-    private val log = LoggerFactory.getLogger(MultipleClassImportEditHandler::class.java)
-  }
-
-  override fun performEdits(
-    compiler: JavaCompilerService,
-    editor: CodeEditor,
-    completionItem: org.appdevforall.codeonthego.lsp.models.CompletionItem
-  ) {
-    val edits = mutableListOf<org.appdevforall.codeonthego.lsp.models.TextEdit>()
-    for (className in classes) {
-      try {
-        edits.addAll(EditHelper.addImportIfNeeded(compiler, file, imported, className))
-      } catch (err: Throwable) {
-        log.error("Unable to compute edits to perform import for class: {}", className)
-      }
-    }
-    org.appdevforall.codeonthego.lsp.util.RewriteHelper.performEdits(edits, editor)
-  }
+	override fun performEdits(
+		compiler: JavaCompilerService,
+		editor: CodeEditor,
+		completionItem: org.appdevforall.codeonthego.lsp.models.CompletionItem,
+	) {
+		val edits = mutableListOf<org.appdevforall.codeonthego.lsp.models.TextEdit>()
+		for (className in classes) {
+			try {
+				edits.addAll(EditHelper.addImportIfNeeded(compiler, file, imported, className))
+			} catch (err: Throwable) {
+				log.error("Unable to compute edits to perform import for class: {}", className)
+			}
+		}
+		org.appdevforall.codeonthego.lsp.util.RewriteHelper
+			.performEdits(edits, editor)
+	}
 }

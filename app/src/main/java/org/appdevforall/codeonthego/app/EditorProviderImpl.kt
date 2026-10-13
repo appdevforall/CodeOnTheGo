@@ -3,6 +3,10 @@ package org.appdevforall.codeonthego.app
 import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.lifecycleScope
+import io.github.rosemoe.sora.text.Content
+import io.github.rosemoe.sora.widget.CodeEditor
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.activities.editor.FileSaveOutcome
 import org.appdevforall.codeonthego.activities.editor.PeerCursorOverlayManager
@@ -14,10 +18,6 @@ import org.appdevforall.codeonthego.models.SaveResult
 import org.appdevforall.codeonthego.plugins.manager.services.IdeEditorServiceImpl
 import org.appdevforall.codeonthego.plugins.services.CursorPosition
 import org.appdevforall.codeonthego.plugins.services.SelectionRange
-import io.github.rosemoe.sora.text.Content
-import io.github.rosemoe.sora.widget.CodeEditor
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode

@@ -24,11 +24,8 @@ import org.appdevforall.codeonthego.lsp.util.PrefBasedServerSettings
  * @author Akash Yadav
  */
 object XMLServerSettings : PrefBasedServerSettings() {
+	/** Options for XML code formatting. */
+	val formattingOptions = XMLFormattingOptions()
 
-  /** Options for XML code formatting. */
-  val formattingOptions = XMLFormattingOptions()
-
-  override fun completionFuzzyMatchMinRatio(): Int {
-    return 50
-  }
+	override fun completionFuzzyMatchMinRatio(): Int = 50
 }

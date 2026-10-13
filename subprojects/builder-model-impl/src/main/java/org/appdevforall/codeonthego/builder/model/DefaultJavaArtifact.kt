@@ -22,18 +22,19 @@ import java.io.File
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultJavaArtifact : JavaArtifact, Serializable {
+class DefaultJavaArtifact :
+	JavaArtifact,
+	Serializable {
+	private val serialVersionUID = 1L
+	override var modelSyncFiles: Collection<Void> = emptyList()
 
-  private val serialVersionUID = 1L
-  override var modelSyncFiles: Collection<Void> = emptyList()
-
-  override var assembleTaskName: String = ""
-  override var classesFolders: Set<File> = emptySet()
-  override var compileTaskName: String = ""
-  override var generatedSourceFolders: Collection<File> = emptyList()
-  override var ideSetupTaskNames: Set<String> = emptySet()
-  override var mockablePlatformJar: File? = null
-  override var runtimeResourceFolder: File? = null
-  override val generatedClassPaths: Map<String, File> = emptyMap()
-  override val bytecodeTransformations: Collection<BytecodeTransformation> = emptyList()
+	override var assembleTaskName: String = ""
+	override var classesFolders: Set<File> = emptySet()
+	override var compileTaskName: String = ""
+	override var generatedSourceFolders: Collection<File> = emptyList()
+	override var ideSetupTaskNames: Set<String> = emptySet()
+	override var mockablePlatformJar: File? = null
+	override var runtimeResourceFolder: File? = null
+	override val generatedClassPaths: Map<String, File> = emptyMap()
+	override val bytecodeTransformations: Collection<BytecodeTransformation> = emptyList()
 }

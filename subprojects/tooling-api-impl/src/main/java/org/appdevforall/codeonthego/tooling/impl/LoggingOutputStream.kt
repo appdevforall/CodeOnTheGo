@@ -26,6 +26,7 @@ import java.io.OutputStream
  */
 class LoggingOutputStream : OutputStream() {
 	private val lineBuilder = StringBuilder()
+
 	override fun write(b: Int) {
 		val c = b.toChar()
 		lineBuilder.append(c)

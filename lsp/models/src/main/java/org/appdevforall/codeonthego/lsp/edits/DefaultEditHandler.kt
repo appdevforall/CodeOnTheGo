@@ -18,15 +18,15 @@
 package org.appdevforall.codeonthego.lsp.edits
 
 import android.os.Looper
+import io.github.rosemoe.sora.lang.completion.snippet.parser.CodeSnippetParser
+import io.github.rosemoe.sora.text.Content
+import io.github.rosemoe.sora.text.batchEdit
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.lsp.models.Command
 import org.appdevforall.codeonthego.lsp.models.CompletionItem
 import org.appdevforall.codeonthego.lsp.models.InsertTextFormat.SNIPPET
 import org.appdevforall.codeonthego.lsp.util.RewriteHelper
 import org.appdevforall.codeonthego.tasks.runOnUiThread
-import io.github.rosemoe.sora.lang.completion.snippet.parser.CodeSnippetParser
-import io.github.rosemoe.sora.text.Content
-import io.github.rosemoe.sora.text.batchEdit
-import io.github.rosemoe.sora.widget.CodeEditor
 import org.slf4j.LoggerFactory
 
 /**

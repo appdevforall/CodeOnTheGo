@@ -17,12 +17,12 @@
 
 package org.appdevforall.codeonthego.editor.ui
 
+import io.github.rosemoe.sora.widget.SelectionMovement
 import org.appdevforall.codeonthego.editor.api.IEditor
 import org.appdevforall.codeonthego.editor.ui.IDEEditor.Companion.log
 import org.appdevforall.codeonthego.editor.utils.append
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.models.Range
-import io.github.rosemoe.sora.widget.SelectionMovement
 import java.io.File
 
 /**

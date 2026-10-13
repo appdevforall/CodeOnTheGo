@@ -31,32 +31,43 @@ import kotlin.math.min
  * @author Akash Yadav
  */
 abstract class BaseNewlineHandler : NewlineHandler {
-  
-  protected val openingBrackets = mutableListOf<String>()
-  protected val closingBrackets = mutableListOf<String>()
-  
-  override fun matchesRequirement(text: Content, position: CharPosition, style: Styles?): Boolean {
-    val line = text.getLine(position.line)
-    return !StylesUtils.checkNoCompletion(style, position) &&
-      (getNonEmptyTextBefore(line, position.column, 1) in openingBrackets) &&
-      (getNonEmptyTextAfter(line, position.column, 1) in closingBrackets)
-  }
-  
-  @Suppress("SameParameterValue")
-  protected open fun getNonEmptyTextBefore(text: CharSequence, index: Int, length: Int): String {
-    var idx = index
-    while (idx > 0 && Character.isWhitespace(text[idx - 1])) {
-      idx--
-    }
-    return text.subSequence(max(0, idx - length), idx).toString()
-  }
-  
-  @Suppress("SameParameterValue")
-  protected open fun getNonEmptyTextAfter(text: CharSequence, index: Int, length: Int): String {
-    var idx = index
-    while (idx < text.length && Character.isWhitespace(text[idx])) {
-      idx++
-    }
-    return text.subSequence(idx, min(idx + length, text.length)).toString()
-  }
+	protected val openingBrackets = mutableListOf<String>()
+	protected val closingBrackets = mutableListOf<String>()
+
+	override fun matchesRequirement(
+		text: Content,
+		position: CharPosition,
+		style: Styles?,
+	): Boolean {
+		val line = text.getLine(position.line)
+		return !StylesUtils.checkNoCompletion(style, position) &&
+			(getNonEmptyTextBefore(line, position.column, 1) in openingBrackets) &&
+			(getNonEmptyTextAfter(line, position.column, 1) in closingBrackets)
+	}
+
+	@Suppress("SameParameterValue")
+	protected open fun getNonEmptyTextBefore(
+		text: CharSequence,
+		index: Int,
+		length: Int,
+	): String {
+		var idx = index
+		while (idx > 0 && Character.isWhitespace(text[idx - 1])) {
+			idx--
+		}
+		return text.subSequence(max(0, idx - length), idx).toString()
+	}
+
+	@Suppress("SameParameterValue")
+	protected open fun getNonEmptyTextAfter(
+		text: CharSequence,
+		index: Int,
+		length: Int,
+	): String {
+		var idx = index
+		while (idx < text.length && Character.isWhitespace(text[idx])) {
+			idx++
+		}
+		return text.subSequence(idx, min(idx + length, text.length)).toString()
+	}
 }

@@ -24,14 +24,15 @@ package org.appdevforall.codeonthego.annotations.uidesigner
  *
  * @author Akash Yadav
  */
-annotation class IncludeInDesigner(val group: Group) {
+annotation class IncludeInDesigner(
+	val group: Group,
+) {
+	/** The widget groups that are available in the UI Designer. */
+	enum class Group {
+		/** Includes the Android platform widgets. */
+		WIDGETS,
 
-  /** The widget groups that are available in the UI Designer. */
-  enum class Group {
-    /** Includes the Android platform widgets. */
-    WIDGETS,
-
-    /** Includes the Android platform layouts. */
-    LAYOUTS
-  }
+		/** Includes the Android platform layouts. */
+		LAYOUTS,
+	}
 }

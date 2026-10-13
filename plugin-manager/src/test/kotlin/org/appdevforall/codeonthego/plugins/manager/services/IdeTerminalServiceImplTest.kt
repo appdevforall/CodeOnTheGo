@@ -1,14 +1,14 @@
 package org.appdevforall.codeonthego.plugins.manager.services
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.plugins.PluginPermission
-import org.appdevforall.codeonthego.plugins.services.TerminalCommandResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
+import org.appdevforall.codeonthego.plugins.PluginPermission
+import org.appdevforall.codeonthego.plugins.services.TerminalCommandResult
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

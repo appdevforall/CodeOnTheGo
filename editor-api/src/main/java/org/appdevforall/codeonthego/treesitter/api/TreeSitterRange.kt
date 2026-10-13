@@ -25,36 +25,39 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
 /**
  * @author Akash Yadav
  */
-class TreeSitterRange @JvmOverloads internal constructor(
-  startByte: Int = 0,
-  endByte: Int = 0,
-  startPoint: TSPoint? = null,
-  endPoint: TSPoint? = null
-) : TSRange(startByte, endByte, startPoint, endPoint),
-  RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+class TreeSitterRange
+	@JvmOverloads
+	internal constructor(
+		startByte: Int = 0,
+		endByte: Int = 0,
+		startPoint: TSPoint? = null,
+		endPoint: TSPoint? = null,
+	) : TSRange(startByte, endByte, startPoint, endPoint),
+		RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+		companion object {
+			@JvmStatic
+			fun obtain(
+				startByte: Int,
+				endByte: Int,
+				startPoint: TSPoint?,
+				endPoint: TSPoint?,
+			): TreeSitterRange =
+				obtainFromPool<TreeSitterRange>().apply {
+					this.startByte = startByte
+					this.endByte = endByte
+					this.startPoint = startPoint
+					this.endPoint = endPoint
+				}
+		}
 
-  companion object {
+		override fun recycle() {
+			(this.startPoint as? TreeSitterPoint?)?.recycle()
+			(this.endPoint as? TreeSitterPoint?)?.recycle()
 
-    @JvmStatic
-    fun obtain(startByte: Int, endByte: Int, startPoint: TSPoint?,
-      endPoint: TSPoint?): TreeSitterRange {
-      return obtainFromPool<TreeSitterRange>().apply {
-        this.startByte = startByte
-        this.endByte = endByte
-        this.startPoint = startPoint
-        this.endPoint = endPoint
-      }
-    }
-  }
-
-  override fun recycle() {
-    (this.startPoint as? TreeSitterPoint?)?.recycle()
-    (this.endPoint as? TreeSitterPoint?)?.recycle()
-
-    this.startByte = 0
-    this.endByte = 0
-    this.startPoint = null
-    this.endPoint = null
-    returnToPool()
-  }
-}
+			this.startByte = 0
+			this.endByte = 0
+			this.startPoint = null
+			this.endPoint = null
+			returnToPool()
+		}
+	}

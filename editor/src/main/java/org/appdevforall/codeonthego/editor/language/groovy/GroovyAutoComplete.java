@@ -17,9 +17,6 @@
 package org.appdevforall.codeonthego.editor.language.groovy;
 
 import android.os.Bundle;
-import org.appdevforall.codeonthego.lsp.models.CompletionItem;
-import org.appdevforall.codeonthego.lsp.models.CompletionItemKind;
-import org.appdevforall.codeonthego.lsp.models.InsertTextFormat;
 import io.github.rosemoe.sora.lang.completion.CompletionHelper;
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher;
 import io.github.rosemoe.sora.text.CharPosition;
@@ -28,6 +25,9 @@ import io.github.rosemoe.sora.util.MyCharacter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.appdevforall.codeonthego.lsp.models.CompletionItem;
+import org.appdevforall.codeonthego.lsp.models.CompletionItemKind;
+import org.appdevforall.codeonthego.lsp.models.InsertTextFormat;
 
 public class GroovyAutoComplete {
 

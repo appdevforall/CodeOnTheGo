@@ -18,31 +18,31 @@
 package org.appdevforall.codeonthego.lsp.java.rewrite;
 
 import androidx.annotation.NonNull;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Map;
+import openjdk.source.tree.ClassTree;
 import org.appdevforall.codeonthego.lsp.java.compiler.CompilerProvider;
 import org.appdevforall.codeonthego.lsp.java.parser.ParseTask;
 import org.appdevforall.codeonthego.lsp.java.utils.EditHelper;
 import org.appdevforall.codeonthego.lsp.java.visitors.FindTypeDeclarationAt;
 import org.appdevforall.codeonthego.lsp.models.TextEdit;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.Map;
-import openjdk.source.tree.ClassTree;
 
 public class RemoveClass extends Rewrite {
-  final Path file;
-  final int position;
+	final Path file;
+	final int position;
 
-  public RemoveClass(Path file, int position) {
-    this.file = file;
-    this.position = position;
-  }
+	public RemoveClass(Path file, int position) {
+		this.file = file;
+		this.position = position;
+	}
 
-  @NonNull
-  @Override
-  public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
-    ParseTask task = compiler.parse(file);
-    final ClassTree type = new FindTypeDeclarationAt(task.task).scan(task.root, (long) position);
-    TextEdit[] edits = {EditHelper.removeTree(task.task, task.root, type)};
-    return Collections.singletonMap(file, edits);
-  }
+	@NonNull
+	@Override
+	public Map<Path, TextEdit[]> rewrite(@NonNull CompilerProvider compiler) {
+		ParseTask task = compiler.parse(file);
+		final ClassTree type = new FindTypeDeclarationAt(task.task).scan(task.root, (long) position);
+		TextEdit[] edits = {EditHelper.removeTree(task.task, task.root, type)};
+		return Collections.singletonMap(file, edits);
+	}
 }

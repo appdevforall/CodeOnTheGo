@@ -20,5 +20,7 @@ package org.appdevforall.codeonthego.tooling.events.task
 import org.appdevforall.codeonthego.tooling.events.OperationResult
 
 /** @author Akash Yadav */
-open class TaskOperationResult(override val startTime: Long, override val endTime: Long) :
-  OperationResult()
+open class TaskOperationResult(
+	override val startTime: Long,
+	override val endTime: Long,
+) : OperationResult()

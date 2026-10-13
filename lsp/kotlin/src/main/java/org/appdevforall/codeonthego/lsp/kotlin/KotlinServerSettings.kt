@@ -20,16 +20,14 @@ package org.appdevforall.codeonthego.lsp.kotlin
 import org.appdevforall.codeonthego.lsp.util.PrefBasedServerSettings
 
 class KotlinServerSettings private constructor() : PrefBasedServerSettings() {
+	override fun diagnosticsEnabled(): Boolean = true
 
-    override fun diagnosticsEnabled(): Boolean = true
-
-    companion object {
-        private val _instance by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
+	companion object {
+		private val _instance by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
 			KotlinServerSettings()
 		}
 
-        @JvmStatic
-        fun getInstance(): KotlinServerSettings =
-			_instance
-    }
+		@JvmStatic
+		fun getInstance(): KotlinServerSettings = _instance
+	}
 }

@@ -17,8 +17,6 @@
 
 package org.appdevforall.codeonthego.lsp.java.compiler;
 
-import org.appdevforall.codeonthego.lsp.java.models.CompilationRequest;
-import org.appdevforall.codeonthego.lsp.java.parser.ParseTask;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -27,6 +25,8 @@ import java.util.Optional;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import jdkx.tools.JavaFileObject;
+import org.appdevforall.codeonthego.lsp.java.models.CompilationRequest;
+import org.appdevforall.codeonthego.lsp.java.parser.ParseTask;
 
 public interface CompilerProvider {
 	Path NOT_FOUND = Paths.get("");

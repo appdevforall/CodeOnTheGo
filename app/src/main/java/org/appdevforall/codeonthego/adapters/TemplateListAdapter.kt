@@ -24,8 +24,8 @@ import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.android.material.shape.CornerFamily
-import org.appdevforall.codeonthego.adapters.TemplateListAdapter.ViewHolder
 import com.itsaky.androidide.databinding.LayoutTemplateListItemBinding
+import org.appdevforall.codeonthego.adapters.TemplateListAdapter.ViewHolder
 import org.appdevforall.codeonthego.templates.Template
 import org.appdevforall.codeonthego.utils.dpToPx
 

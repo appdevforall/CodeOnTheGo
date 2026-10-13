@@ -23,13 +23,13 @@ import android.text.SpannableStringBuilder;
 import android.text.style.ForegroundColorSpan;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import org.appdevforall.codeonthego.lsp.models.SignatureHelp;
-import org.appdevforall.codeonthego.lsp.models.SignatureInformation;
-import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 import io.github.rosemoe.sora.event.SelectionChangeEvent;
 import io.github.rosemoe.sora.widget.base.EditorPopupWindow;
 import java.util.ArrayList;
 import java.util.List;
+import org.appdevforall.codeonthego.lsp.models.SignatureHelp;
+import org.appdevforall.codeonthego.lsp.models.SignatureInformation;
+import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

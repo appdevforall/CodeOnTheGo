@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.lsp.java.actions
 
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.actions.requireEditor
@@ -21,7 +22,6 @@ import org.appdevforall.codeonthego.lsp.ui.ExtractVariableSelection
 import org.appdevforall.codeonthego.lsp.ui.ExtractVariableSheet
 import org.appdevforall.codeonthego.lsp.ui.findFragmentActivity
 import org.appdevforall.codeonthego.projects.FileManager
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashInfo
 import org.slf4j.LoggerFactory

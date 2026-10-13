@@ -30,11 +30,11 @@ const val TRANSITION_ARC_MOTION = "ArcMotion"
 const val TRANSITION_PATTERN_PATH_MOTION = "PatternPathMotion"
 
 fun forTransitionAttr(entry: String) : List<String> {
-  return when(entry) {
-    TRANSITION_SLIDE,
-    TRANSITION_FADE -> mutableListOf(TRANSITION_VISIBILITY)
-    else -> mutableListOf()
-  }.apply {
-    add(TRANSITION)
-  }
+return when(entry) {
+	TRANSITION_SLIDE,
+	TRANSITION_FADE -> mutableListOf(TRANSITION_VISIBILITY)
+	else -> mutableListOf()
+}.apply {
+	add(TRANSITION)
+}
 }

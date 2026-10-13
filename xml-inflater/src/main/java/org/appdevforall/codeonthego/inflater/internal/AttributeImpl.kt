@@ -23,46 +23,39 @@ import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.utils.newAttribute
 
 open class AttributeImpl
-@JvmOverloads
-constructor(
-  override val namespace: INamespace? = null,
-  override val name: String,
-  override var value: String
-) : IAttribute {
+	@JvmOverloads
+	constructor(
+		override val namespace: INamespace? = null,
+		override val name: String,
+		override var value: String,
+	) : IAttribute {
+		@JvmOverloads
+		fun copyAttr(
+			view: IView? = null,
+			namespace: INamespace? = this.namespace,
+			name: String = this.name,
+			value: String = this.value,
+		): IAttribute = newAttribute(view = view, namespace = namespace, name = name, value = value)
 
-  @JvmOverloads
-  fun copyAttr(
-    view: IView? = null,
-    namespace: INamespace? = this.namespace,
-    name: String = this.name,
-    value: String = this.value
-  ): IAttribute {
-    return newAttribute(view = view, namespace = namespace, name = name, value = value)
-  }
+		fun immutable(): IAttribute = ImmutableAttributeImpl(this)
 
-  fun immutable(): IAttribute {
-    return ImmutableAttributeImpl(this)
-  }
+		override fun equals(other: Any?): Boolean {
+			if (this === other) return true
+			if (other !is AttributeImpl) return false
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is AttributeImpl) return false
+			if (namespace != other.namespace) return false
+			if (name != other.name) return false
+			if (value != other.value) return false
 
-    if (namespace != other.namespace) return false
-    if (name != other.name) return false
-    if (value != other.value) return false
+			return true
+		}
 
-    return true
-  }
+		override fun hashCode(): Int {
+			var result = namespace?.hashCode() ?: 0
+			result = 31 * result + name.hashCode()
+			result = 31 * result + value.hashCode()
+			return result
+		}
 
-  override fun hashCode(): Int {
-    var result = namespace?.hashCode() ?: 0
-    result = 31 * result + name.hashCode()
-    result = 31 * result + value.hashCode()
-    return result
-  }
-
-  override fun toString(): String {
-    return "AttributeImpl(namespace=$namespace, name='$name', value='$value')"
-  }
-}
+		override fun toString(): String = "AttributeImpl(namespace=$namespace, name='$name', value='$value')"
+	}

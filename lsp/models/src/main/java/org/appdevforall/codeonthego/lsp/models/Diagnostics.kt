@@ -17,16 +17,16 @@
 
 package org.appdevforall.codeonthego.lsp.models
 
-import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.ERROR
-import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.HINT
-import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.INFO
-import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.WARNING
-import org.appdevforall.codeonthego.models.Range
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion.SEVERITY_ERROR
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion.SEVERITY_NONE
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion.SEVERITY_TYPO
 import io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion.SEVERITY_WARNING
+import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.ERROR
+import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.HINT
+import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.INFO
+import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity.WARNING
+import org.appdevforall.codeonthego.models.Range
 import java.nio.file.Path
 import java.nio.file.Paths
 

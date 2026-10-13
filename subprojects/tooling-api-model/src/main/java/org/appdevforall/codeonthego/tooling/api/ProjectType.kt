@@ -23,22 +23,21 @@ package org.appdevforall.codeonthego.tooling.api
  * @author Akash Yadav
  */
 enum class ProjectType {
+	/** A simple Gradle project. Only root projects are represented by this type. */
+	Gradle,
 
-  /** A simple Gradle project. Only root projects are represented by this type. */
-  Gradle,
+	/**
+	 * An Android project. Mostly module projects are of this type. But in some cases, this type can
+	 * also be applied to a root Gradle project.
+	 */
+	Android,
 
-  /**
-   * An Android project. Mostly module projects are of this type. But in some cases, this type can
-   * also be applied to a root Gradle project.
-   */
-  Android,
+	/**
+	 * A Java project. Usually, module projects which are not {@link Type#Android} type are of this
+	 * type.
+	 */
+	Java,
 
-  /**
-   * A Java project. Usually, module projects which are not {@link Type#Android} type are of this
-   * type.
-   */
-  Java,
-
-  /** An unknown project type. */
-  Unknown
+	/** An unknown project type. */
+	Unknown,
 }

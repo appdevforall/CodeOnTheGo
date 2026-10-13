@@ -1,8 +1,5 @@
 package org.appdevforall.codeonthego.lsp.kotlin.actions
 
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.index.findSymbolBySimpleName
-import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
-import org.appdevforall.codeonthego.lsp.models.TextEdit
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
@@ -10,6 +7,9 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.index.findSymbolBySimpleName
+import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
+import org.appdevforall.codeonthego.lsp.models.TextEdit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

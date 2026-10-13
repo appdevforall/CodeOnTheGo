@@ -22,9 +22,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
+import com.itsaky.androidide.uidesigner.databinding.FragmentUiWidgetsBinding
 import org.appdevforall.codeonthego.fragments.BaseFragment
 import org.appdevforall.codeonthego.uidesigner.adapters.WidgetsCategoryAdapter
-import com.itsaky.androidide.uidesigner.databinding.FragmentUiWidgetsBinding
 import org.appdevforall.codeonthego.uidesigner.utils.Widgets
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 
@@ -34,27 +34,29 @@ import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
  * @author Akash Yadav
  */
 class WidgetsListFragment : BaseFragment() {
+	private var binding: FragmentUiWidgetsBinding? = null
+	private val viewModel by viewModels<WorkspaceViewModel>(ownerProducer = { requireActivity() })
 
-  private var binding: FragmentUiWidgetsBinding? = null
-  private val viewModel by viewModels<WorkspaceViewModel>(ownerProducer = { requireActivity() })
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		this.binding = FragmentUiWidgetsBinding.inflate(inflater, container, false)
+		return this.binding!!.root
+	}
 
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    this.binding = FragmentUiWidgetsBinding.inflate(inflater, container, false)
-    return this.binding!!.root
-  }
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
+		this.binding!!.widgets.adapter = WidgetsCategoryAdapter(Widgets.categories, viewModel)
+	}
 
-    this.binding!!.widgets.adapter = WidgetsCategoryAdapter(Widgets.categories, viewModel)
-  }
-
-  override fun onDestroyView() {
-    super.onDestroyView()
-    binding = null
-  }
+	override fun onDestroyView() {
+		super.onDestroyView()
+		binding = null
+	}
 }

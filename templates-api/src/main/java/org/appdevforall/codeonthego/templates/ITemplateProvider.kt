@@ -25,56 +25,52 @@ import org.appdevforall.codeonthego.utils.ServiceLoader
  * @author Akash Yadav
  */
 interface ITemplateProvider {
+	companion object {
+		private var provider: ITemplateProvider? = null
 
-  companion object {
+		/**
+		 * Get the template provider instance.
+		 *
+		 * @param reload Whether to reload the provider. If the value is `true`
+		 * and the provider is cached, the provider is cleared and loaded again.
+		 */
+		@JvmStatic
+		@JvmOverloads
+		fun getInstance(reload: Boolean = false): ITemplateProvider =
+			provider?.also { if (reload) it.reload() } ?: ServiceLoader
+				.load(ITemplateProvider::class.java)
+				.findFirstOrThrow()
+				.also { provider = it }
 
-    private var provider: ITemplateProvider? = null
+		/**
+		 * @return Whether the [ITemplateProvider] has been loaded or not.
+		 */
+		@JvmStatic
+		fun isLoaded() = provider != null
+	}
 
-    /**
-     * Get the template provider instance.
-     *
-     * @param reload Whether to reload the provider. If the value is `true`
-     * and the provider is cached, the provider is cleared and loaded again.
-     */
-    @JvmStatic
-    @JvmOverloads
-    fun getInstance(reload: Boolean = false): ITemplateProvider {
+	/**
+	 * Get the templates.
+	 *
+	 * @return The templates.
+	 */
+	fun getTemplates(): List<Template<*>>
 
-      return provider?.also { if (reload) it.reload() } ?: ServiceLoader.load(
-        ITemplateProvider::class.java)
-        .findFirstOrThrow()
-        .also { provider = it }
-    }
+	/**
+	 * Get the template with the given id.
+	 *
+	 * @param templateId The ID for the template.
+	 * @return The [Template] with the given [templateId] if any, or `null`.
+	 */
+	fun getTemplate(templateId: String): Template<*>?
 
-    /**
-     * @return Whether the [ITemplateProvider] has been loaded or not.
-     */
-    @JvmStatic
-    fun isLoaded() = provider != null
-  }
+	/**
+	 * Reloads the templates.
+	 */
+	fun reload()
 
-  /**
-   * Get the templates.
-   *
-   * @return The templates.
-   */
-  fun getTemplates(): List<Template<*>>
-
-  /**
-   * Get the template with the given id.
-   *
-   * @param templateId The ID for the template.
-   * @return The [Template] with the given [templateId] if any, or `null`.
-   */
-  fun getTemplate(templateId: String): Template<*>?
-
-  /**
-   * Reloads the templates.
-   */
-  fun reload()
-
-  /**
-   * Clear all the templates stored in the provider.
-   */
-  fun release()
+	/**
+	 * Clear all the templates stored in the provider.
+	 */
+	fun release()
 }

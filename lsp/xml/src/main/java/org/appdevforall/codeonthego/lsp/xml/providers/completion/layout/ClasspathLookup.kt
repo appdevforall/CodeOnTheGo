@@ -17,9 +17,9 @@
 
 package org.appdevforall.codeonthego.lsp.xml.providers.completion.layout
 
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.projects.api.ModuleProject
-import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 
 /**
  * The package and class children a layout tag completer reads from a module's compile classpath.

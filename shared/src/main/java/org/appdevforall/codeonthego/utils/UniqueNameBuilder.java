@@ -7,193 +7,194 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
- * @param <T> The type of path.
- * @see <a
- * href="https://github.com/JetBrains/intellij-community/blob/master/platform/util/base/src/com/intellij/filename/UniqueNameBuilder.java">UniqueNameBuilder.java</a>
+ * @param <T>
+ *            The type of path.
+ * @see <a href="https://github.com/JetBrains/intellij-community/blob/master/platform/util/base/src/com/intellij/filename/UniqueNameBuilder.java">UniqueNameBuilder.java</a>
  */
 public final class UniqueNameBuilder<T> {
 
-  private static final String VFS_SEPARATOR = "/";
-  private final Map<T, String> myPaths = new HashMap<>();
-  private final String mySeparator;
-  private final String myRoot;
+	private static final String VFS_SEPARATOR = "/";
 
-  public UniqueNameBuilder(String root, String separator) {
-    myRoot = root;
-    mySeparator = separator;
-  }
+	private static String trimStart(String s, String prefix) {
+		if (s.startsWith(prefix)) {
+			return s.substring(prefix.length());
+		}
+		return s;
+	}
 
-  public boolean contains(T file) {
-    return myPaths.containsKey(file);
-  }
+	private final Map<T, String> myPaths = new HashMap<>();
+	private final String mySeparator;
 
-  public int size() {
-    return myPaths.size();
-  }
+	private final String myRoot;
 
-  private static final class Node {
+	private final Node myRootNode = new Node("", null);
 
-    final String myText;
-    final HashMap<String, Node> myChildren;
-    final Node myParentNode;
-    int myNestedChildrenCount;
+	public UniqueNameBuilder(String root, String separator) {
+		myRoot = root;
+		mySeparator = separator;
+	}
 
-    Node(String text, Node parentNode) {
-      myText = text;
-      myParentNode = parentNode;
-      myChildren = new HashMap<>();
-    }
+	// Build a trie from path components starting from end
+	// E.g. following try will be build from example
+	// |<-------[/fabrique] <- [/idea]
+	// /idea/pycharm/download/index.html |
+	// /idea/fabrique/download/index.html [RootNode] <- [/index.html] <- [/download] <- [/pycharm] <- [/idea]
+	// /idea/pycharm/documentation/index.html |
+	// |<------[/documentation] <- [/pycharm] <- [/idea]
+	public void addPath(T key, String path) {
+		path = trimStart(path, myRoot);
+		myPaths.put(key, path);
 
-    Node findOrAddChild(String word) {
-      Node node = myChildren.get(word);
-      if (node == null) {
-        myChildren.put(word, node = new Node(word, this));
-      }
-      return node;
-    }
-  }
+		Node current = myRootNode;
+		Iterator<String> pathComponentsIterator = new PathComponentsIterator(path);
 
-  private final Node myRootNode = new Node("", null);
+		while (pathComponentsIterator.hasNext()) {
+			String word = pathComponentsIterator.next();
+			current = current.findOrAddChild(word);
+		}
+		for (Node c = current; c != null; c = c.myParentNode) {
+			++c.myNestedChildrenCount;
+		}
+	}
 
-  // Build a trie from path components starting from end
-  // E.g. following try will be build from example
-  //                                                                                   |<-------[/fabrique]  <-  [/idea]
-  // /idea/pycharm/download/index.html                                                 |
-  // /idea/fabrique/download/index.html           [RootNode] <- [/index.html] <- [/download] <- [/pycharm]  <- [/idea]
-  // /idea/pycharm/documentation/index.html                              |
-  //                                                                     |<------[/documentation] <- [/pycharm]  <- [/idea]
-  public void addPath(T key, String path) {
-    path = trimStart(path, myRoot);
-    myPaths.put(key, path);
+	public boolean contains(T file) {
+		return myPaths.containsKey(file);
+	}
 
-    Node current = myRootNode;
-    Iterator<String> pathComponentsIterator = new PathComponentsIterator(path);
+	public String getSeparator() {
+		return mySeparator;
+	}
 
-    while (pathComponentsIterator.hasNext()) {
-      String word = pathComponentsIterator.next();
-      current = current.findOrAddChild(word);
-    }
-    for (Node c = current; c != null; c = c.myParentNode) {
-      ++c.myNestedChildrenCount;
-    }
-  }
+	public String getShortPath(T key) {
+		String path = myPaths.get(key);
+		if (path == null) {
+			return key.toString();
+		}
 
-  private static String trimStart(String s, String prefix) {
-    if (s.startsWith(prefix)) {
-      return s.substring(prefix.length());
-    }
-    return s;
-  }
+		Node current = myRootNode;
+		Node firstNodeWithBranches = null;
+		Node firstNodeBeforeNodeWithBranches = null;
+		Node fileNameNode = null;
 
-  public String getShortPath(T key) {
-    String path = myPaths.get(key);
-    if (path == null) {
-      return key.toString();
-    }
+		Iterator<String> pathComponentsIterator = new PathComponentsIterator(path);
 
-    Node current = myRootNode;
-    Node firstNodeWithBranches = null;
-    Node firstNodeBeforeNodeWithBranches = null;
-    Node fileNameNode = null;
+		while (pathComponentsIterator.hasNext()) {
+			String pathComponent = pathComponentsIterator.next();
+			current = current.findOrAddChild(pathComponent);
 
-    Iterator<String> pathComponentsIterator = new PathComponentsIterator(path);
+			if (fileNameNode == null) {
+				fileNameNode = current;
+			}
+			if (firstNodeBeforeNodeWithBranches == null &&
+					firstNodeWithBranches != null &&
+					current.myChildren.size() <= 1) {
+				if (current.myParentNode.myNestedChildrenCount - current.myParentNode.myChildren.size() < 1) {
+					firstNodeBeforeNodeWithBranches = current;
+				}
+			}
 
-    while (pathComponentsIterator.hasNext()) {
-      String pathComponent = pathComponentsIterator.next();
-      current = current.findOrAddChild(pathComponent);
+			if (current.myChildren.size() != 1 && firstNodeWithBranches == null) {
+				firstNodeWithBranches = current;
+			}
+		}
 
-      if (fileNameNode == null) {
-        fileNameNode = current;
-      }
-      if (firstNodeBeforeNodeWithBranches == null &&
-        firstNodeWithBranches != null &&
-        current.myChildren.size() <= 1) {
-        if (current.myParentNode.myNestedChildrenCount - current.myParentNode.myChildren.size()
-          < 1) {
-          firstNodeBeforeNodeWithBranches = current;
-        }
-      }
+		StringBuilder b = new StringBuilder();
+		if (firstNodeBeforeNodeWithBranches == null) {
+			firstNodeBeforeNodeWithBranches = current;
+		}
 
-      if (current.myChildren.size() != 1 && firstNodeWithBranches == null) {
-        firstNodeWithBranches = current;
-      }
-    }
+		boolean skipFirstSeparator = true;
+		for (Node c = firstNodeBeforeNodeWithBranches; c != myRootNode; c = c.myParentNode) {
+			if (c != fileNameNode && c != firstNodeBeforeNodeWithBranches
+					&& c.myParentNode.myChildren.size() == 1) {
+				b.append(mySeparator);
+				b.append("\u2026");
 
-    StringBuilder b = new StringBuilder();
-    if (firstNodeBeforeNodeWithBranches == null) {
-      firstNodeBeforeNodeWithBranches = current;
-    }
+				while (c.myParentNode != fileNameNode && c.myParentNode.myChildren.size() == 1) {
+					c = c.myParentNode;
+				}
+			} else {
+				if (c.myText.startsWith(VFS_SEPARATOR)) {
+					if (!skipFirstSeparator) {
+						b.append(mySeparator);
+					}
+					skipFirstSeparator = false;
+					b.append(c.myText, VFS_SEPARATOR.length(), c.myText.length());
+				} else {
+					b.append(c.myText);
+				}
+			}
+		}
+		return b.toString();
+	}
 
-    boolean skipFirstSeparator = true;
-    for (Node c = firstNodeBeforeNodeWithBranches; c != myRootNode; c = c.myParentNode) {
-      if (c != fileNameNode && c != firstNodeBeforeNodeWithBranches
-        && c.myParentNode.myChildren.size() == 1) {
-        b.append(mySeparator);
-        b.append("\u2026");
+	public int size() {
+		return myPaths.size();
+	}
 
-        while (c.myParentNode != fileNameNode && c.myParentNode.myChildren.size() == 1) {
-          c = c.myParentNode;
-        }
-      } else {
-        if (c.myText.startsWith(VFS_SEPARATOR)) {
-          if (!skipFirstSeparator) {
-            b.append(mySeparator);
-          }
-          skipFirstSeparator = false;
-          b.append(c.myText, VFS_SEPARATOR.length(), c.myText.length());
-        } else {
-          b.append(c.myText);
-        }
-      }
-    }
-    return b.toString();
-  }
+	private static final class Node {
 
-  public String getSeparator() {
-    return mySeparator;
-  }
+		final String myText;
+		final HashMap<String, Node> myChildren;
+		final Node myParentNode;
+		int myNestedChildrenCount;
 
-  private static final class PathComponentsIterator implements Iterator<String> {
+		Node(String text, Node parentNode) {
+			myText = text;
+			myParentNode = parentNode;
+			myChildren = new HashMap<>();
+		}
 
-    private final String myPath;
-    private int myLastPos;
-    private int mySeparatorPos;
+		Node findOrAddChild(String word) {
+			Node node = myChildren.get(word);
+			if (node == null) {
+				myChildren.put(word, node = new Node(word, this));
+			}
+			return node;
+		}
+	}
 
-    PathComponentsIterator(String path) {
-      myPath = path;
-      myLastPos = path.length();
-      mySeparatorPos = path.lastIndexOf(VFS_SEPARATOR);
-    }
+	private static final class PathComponentsIterator implements Iterator<String> {
 
-    @Override
-    public boolean hasNext() {
-      return myLastPos != 0;
-    }
+		private final String myPath;
+		private int myLastPos;
+		private int mySeparatorPos;
 
-    @Override
-    public String next() {
-      if (myLastPos == 0) {
-        throw new NoSuchElementException();
-      }
-      String pathComponent;
+		PathComponentsIterator(String path) {
+			myPath = path;
+			myLastPos = path.length();
+			mySeparatorPos = path.lastIndexOf(VFS_SEPARATOR);
+		}
 
-      if (mySeparatorPos != -1) {
-        pathComponent = myPath.substring(mySeparatorPos, myLastPos);
-        myLastPos = mySeparatorPos;
-        mySeparatorPos = myPath.lastIndexOf(VFS_SEPARATOR, myLastPos - 1);
-      } else {
-        pathComponent = myPath.substring(0, myLastPos);
-        if (!pathComponent.startsWith(VFS_SEPARATOR)) {
-          pathComponent = VFS_SEPARATOR + pathComponent;
-        }
-        myLastPos = 0;
-      }
-      return pathComponent;
-    }
+		@Override
+		public boolean hasNext() {
+			return myLastPos != 0;
+		}
 
-    @Override
-    public void remove() {
-      Iterator.super.remove();
-    }
-  }
+		@Override
+		public String next() {
+			if (myLastPos == 0) {
+				throw new NoSuchElementException();
+			}
+			String pathComponent;
+
+			if (mySeparatorPos != -1) {
+				pathComponent = myPath.substring(mySeparatorPos, myLastPos);
+				myLastPos = mySeparatorPos;
+				mySeparatorPos = myPath.lastIndexOf(VFS_SEPARATOR, myLastPos - 1);
+			} else {
+				pathComponent = myPath.substring(0, myLastPos);
+				if (!pathComponent.startsWith(VFS_SEPARATOR)) {
+					pathComponent = VFS_SEPARATOR + pathComponent;
+				}
+				myLastPos = 0;
+			}
+			return pathComponent;
+		}
+
+		@Override
+		public void remove() {
+			Iterator.super.remove();
+		}
+	}
 }

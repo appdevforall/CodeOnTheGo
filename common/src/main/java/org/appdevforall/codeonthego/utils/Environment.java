@@ -22,13 +22,13 @@ import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import androidx.annotation.NonNull;
-import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider;
 import com.itsaky.androidide.buildinfo.BuildInfo;
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.adfa.constants.ConstantsKt;
+import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

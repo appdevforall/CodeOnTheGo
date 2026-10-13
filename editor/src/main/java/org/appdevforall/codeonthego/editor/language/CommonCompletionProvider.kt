@@ -16,6 +16,9 @@
  */
 package org.appdevforall.codeonthego.editor.language
 
+import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
+import io.github.rosemoe.sora.text.CharPosition
+import io.github.rosemoe.sora.text.ContentReference
 import org.appdevforall.codeonthego.editor.language.utils.CompletionHelper
 import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import org.appdevforall.codeonthego.lsp.models.CompletionItem
@@ -25,9 +28,6 @@ import org.appdevforall.codeonthego.lsp.models.FailureType.COMPLETION
 import org.appdevforall.codeonthego.lsp.models.LSPFailure
 import org.appdevforall.codeonthego.lsp.util.setupLookupForCompletion
 import org.appdevforall.codeonthego.models.Position
-import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
-import io.github.rosemoe.sora.text.CharPosition
-import io.github.rosemoe.sora.text.ContentReference
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.util.concurrent.CancellationException
@@ -40,11 +40,9 @@ import java.util.concurrent.CancellationException
  */
 internal class CommonCompletionProvider(
 	private val server: ILanguageServer,
-	private val cancelChecker: CompletionCancelChecker
+	private val cancelChecker: CompletionCancelChecker,
 ) {
-
 	companion object {
-
 		private val log = LoggerFactory.getLogger(CommonCompletionProvider::class.java)
 	}
 
@@ -61,7 +59,7 @@ internal class CommonCompletionProvider(
 		content: ContentReference,
 		file: Path,
 		position: CharPosition,
-		prefixMatcher: (Char) -> Boolean
+		prefixMatcher: (Char) -> Boolean,
 	): List<CompletionItem> {
 		val completionResult =
 			try {
@@ -69,14 +67,14 @@ internal class CommonCompletionProvider(
 				val prefix = CompletionHelper.computePrefix(content, position, prefixMatcher)
 				val params =
 					CompletionParams(
-						Position(position.line, position.column, position.index), file,
-						cancelChecker
+						Position(position.line, position.column, position.index),
+						file,
+						cancelChecker,
 					)
 				params.content = content
 				params.prefix = prefix
 				server.complete(params)
 			} catch (e: Throwable) {
-
 				if (e is CancellationException) {
 					log.debug("Completion process cancelled")
 				}

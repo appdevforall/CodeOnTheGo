@@ -8,19 +8,21 @@ import com.sun.jdi.request.ClassPrepareRequest
  * @author Akash Yadav
  */
 interface ReferenceTypeSpec {
+	/**
+	 * Get all [ReferenceType]s that match this spec.
+	 */
+	fun matchingRefTypes(vm: VirtualMachine): List<ReferenceType>
 
-    /**
-     * Get all [ReferenceType]s that match this spec.
-     */
-    fun matchingRefTypes(vm: VirtualMachine): List<ReferenceType>
+	/**
+	 * Whether this spec matches the given reference type.
+	 */
+	fun matches(
+		vm: VirtualMachine,
+		refType: ReferenceType,
+	): Boolean
 
-    /**
-     * Whether this spec matches the given reference type.
-     */
-    fun matches(vm: VirtualMachine, refType: ReferenceType): Boolean
-
-    /**
-     * Creates a [ClassPrepareRequest] for this spec.
-     */
-    fun createPrepareRequest(vm: VirtualMachine): ClassPrepareRequest
+	/**
+	 * Creates a [ClassPrepareRequest] for this spec.
+	 */
+	fun createPrepareRequest(vm: VirtualMachine): ClassPrepareRequest
 }

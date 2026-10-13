@@ -24,10 +24,10 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import androidx.core.view.updateLayoutParams
 import com.itsaky.androidide.databinding.LayoutMemUsageBinding
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.floating.model.ChromeControl
 import org.appdevforall.codeonthego.floating.model.DockableContent
 import org.appdevforall.codeonthego.floating.window.FloatingWindowHost
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.ui.MetricsCarouselController
 
 /**

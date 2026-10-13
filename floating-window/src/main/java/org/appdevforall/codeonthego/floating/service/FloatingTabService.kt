@@ -16,15 +16,15 @@ import android.view.Display
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import org.appdevforall.codeonthego.floating.model.DockingManager
-import org.appdevforall.codeonthego.floating.model.FloatingTab
-import org.appdevforall.codeonthego.floating.window.FloatingWindow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.floating.model.DockingManager
+import org.appdevforall.codeonthego.floating.model.FloatingTab
+import org.appdevforall.codeonthego.floating.window.FloatingWindow
 import org.slf4j.LoggerFactory
 import com.itsaky.androidide.resources.R as ResR
 

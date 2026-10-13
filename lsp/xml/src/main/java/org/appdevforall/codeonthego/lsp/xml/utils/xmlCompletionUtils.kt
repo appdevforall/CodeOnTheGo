@@ -20,11 +20,11 @@ package org.appdevforall.codeonthego.lsp.xml.utils
 import com.android.SdkConstants
 
 val dimensionUnits =
-  arrayOf(
-    SdkConstants.UNIT_DP,
-    SdkConstants.UNIT_SP,
-    SdkConstants.UNIT_PX,
-    SdkConstants.UNIT_IN,
-    SdkConstants.UNIT_MM,
-    SdkConstants.UNIT_PT
-  )
+arrayOf(
+	SdkConstants.UNIT_DP,
+	SdkConstants.UNIT_SP,
+	SdkConstants.UNIT_PX,
+	SdkConstants.UNIT_IN,
+	SdkConstants.UNIT_MM,
+	SdkConstants.UNIT_PT
+)

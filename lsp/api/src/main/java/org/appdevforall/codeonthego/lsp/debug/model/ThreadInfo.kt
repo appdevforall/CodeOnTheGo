@@ -6,11 +6,10 @@ import java.util.Stack
  * Any [DebugEvent] that has a thread associated with it.
  */
 interface HasThreadInfo {
-
-    /**
-     * The unique ID of the thread associated with this event.
-     */
-    val threadId: String
+	/**
+	 * The unique ID of the thread associated with this event.
+	 */
+	val threadId: String
 }
 
 /**
@@ -22,34 +21,36 @@ interface HasThreadInfo {
  * @property lineNumber The line number in the source file.
  */
 data class StackFrameDescriptor(
-    val method: String,
-    val methodSignature: String,
-    val sourceFile: String,
-    val lineNumber: Long,
+	val method: String,
+	val methodSignature: String,
+	val sourceFile: String,
+	val lineNumber: Long,
 )
 
 /**
  * A stack frame in the call stack.
  */
 interface StackFrame {
+	/**
+	 * Get the descriptor for this stack frame.
+	 */
+	suspend fun descriptor(): StackFrameDescriptor
 
-    /**
-     * Get the descriptor for this stack frame.
-     */
-    suspend fun descriptor(): StackFrameDescriptor
+	/**
+	 * Get the visible variables in this call frame.
+	 */
+	suspend fun getVariables(): List<Variable<*>>
 
-    /**
-     * Get the visible variables in this call frame.
-     */
-    suspend fun getVariables(): List<Variable<*>>
-
-    /**
-     * Set the value of the given variable.
-     *
-     * @param variable The variable to set the value of.
-     * @param value The value to set the variable to.
-     */
-    suspend fun <Val: Value> setValue(variable: Variable<Val>, value: Val)
+	/**
+	 * Set the value of the given variable.
+	 *
+	 * @param variable The variable to set the value of.
+	 * @param value The value to set the variable to.
+	 */
+	suspend fun <Val : Value> setValue(
+		variable: Variable<Val>,
+		value: Val,
+	)
 }
 
 /**
@@ -61,10 +62,10 @@ interface StackFrame {
  * @property state The state of the thread.
  */
 data class ThreadDescriptor(
-    val id: String,
-    val name: String,
-    val group: String,
-    val state: ThreadState,
+	val id: String,
+	val name: String,
+	val group: String,
+	val state: ThreadState,
 ) {
 	override fun toString(): String = "'$name'@$id in group '$group': ${state.name}"
 }
@@ -73,16 +74,15 @@ data class ThreadDescriptor(
  * Information about a thread.
  */
 interface ThreadInfo {
+	/**
+	 * Get the descriptor for this thread.
+	 */
+	suspend fun descriptor(): ThreadDescriptor
 
-    /**
-     * Get the descriptor for this thread.
-     */
-    suspend fun descriptor(): ThreadDescriptor
-
-    /**
-     * Get the call frames of this thread.
-     */
-    suspend fun getFrames(): List<StackFrame>
+	/**
+	 * Get the call frames of this thread.
+	 */
+	suspend fun getFrames(): List<StackFrame>
 }
 
 /**
@@ -91,13 +91,13 @@ interface ThreadInfo {
  * @property isInteractable Whether the thread can be interacted with.
  */
 enum class ThreadState(
-    val isInteractable: Boolean = true
+	val isInteractable: Boolean = true,
 ) {
-    UNKNOWN(false),
-    ZOMBIE (false),
-    RUNNING,
-    SLEEPING,
-    MONITOR,
-    WAITING,
-    NOT_STARTED(false),
+	UNKNOWN(false),
+	ZOMBIE(false),
+	RUNNING,
+	SLEEPING,
+	MONITOR,
+	WAITING,
+	NOT_STARTED(false),
 }

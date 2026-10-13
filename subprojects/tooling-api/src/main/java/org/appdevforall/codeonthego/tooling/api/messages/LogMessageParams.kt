@@ -25,11 +25,13 @@ import org.appdevforall.codeonthego.utils.ILogger
  *
  * @author Akash Yadav
  */
-data class LogMessageParams(val level: Char, val tag: String, val message: String)
+data class LogMessageParams(
+	val level: Char,
+	val tag: String,
+	val message: String,
+)
 
 /**
  * Creates a new [LogLine] instance from this [LogMessageParams].
  */
-fun LogMessageParams.toLogLine(): LogLine {
-  return LogLine.obtain(ILogger.Level.forChar(level), tag, message)
-}
+fun LogMessageParams.toLogLine(): LogLine = LogLine.obtain(ILogger.Level.forChar(level), tag, message)

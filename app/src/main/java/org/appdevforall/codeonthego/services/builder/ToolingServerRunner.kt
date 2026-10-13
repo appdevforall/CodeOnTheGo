@@ -18,6 +18,14 @@
 package org.appdevforall.codeonthego.services.builder
 
 import android.content.Context
+import com.termux.shared.reflection.ReflectionUtils
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.logging.provider.IdeLogRouter
 import org.appdevforall.codeonthego.managers.ToolsManager
 import org.appdevforall.codeonthego.tasks.cancelIfActive
@@ -28,14 +36,6 @@ import org.appdevforall.codeonthego.tooling.api.util.ToolingApiLauncher
 import org.appdevforall.codeonthego.tooling.api.util.ToolingProps
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.FeatureFlags
-import com.termux.shared.reflection.ReflectionUtils
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.io.InputStream
 import java.util.concurrent.atomic.AtomicBoolean

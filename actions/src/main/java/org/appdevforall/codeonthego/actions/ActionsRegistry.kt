@@ -22,102 +22,114 @@ import org.appdevforall.codeonthego.utils.VMUtils
 
 /** @author Akash Yadav */
 abstract class ActionsRegistry {
+	companion object {
+		private var instance: ActionsRegistry? = null
 
-  companion object {
+		@JvmStatic
+		fun getInstance(): ActionsRegistry {
+			if (instance == null) {
+				instance =
+					if (VMUtils.isJvm) {
+						DefaultActionsRegistry()
+					} else {
+						ServiceLoader.load(ActionsRegistry::class.java).findFirstOrThrow()
+					}
+			}
 
-    private var instance: ActionsRegistry? = null
+			return instance as ActionsRegistry
+		}
+	}
 
-    @JvmStatic
-    fun getInstance(): ActionsRegistry {
-      if (instance == null) {
-        instance = if (VMUtils.isJvm) {
-          DefaultActionsRegistry()
-        } else ServiceLoader.load(ActionsRegistry::class.java).findFirstOrThrow()
-      }
+	/**
+	 * Register the given action.
+	 *
+	 * @param action The action to register. Must not be `null`.
+	 * @return `true` if the action was registered successfully. `false` otherwise.
+	 */
+	abstract fun registerAction(action: ActionItem): Boolean
 
-      return instance as ActionsRegistry
-    }
-  }
+	/**
+	 * Unregister the given action.
+	 *
+	 * @param action The action to unregister. Must not be `null`.
+	 * @return `true` if the action was unregistered successfully. `false` otherwise.
+	 */
+	abstract fun unregisterAction(action: ActionItem): Boolean
 
-  /**
-   * Register the given action.
-   *
-   * @param action The action to register. Must not be `null`.
-   * @return `true` if the action was registered successfully. `false` otherwise.
-   */
-  abstract fun registerAction(action: ActionItem): Boolean
+	/**
+	 * Unregister the action with the given ID.
+	 *
+	 * @param id The ID of action to unregister. Must not be `null`.
+	 * @return `true` if the action was unregistered successfully. `false` otherwise.
+	 */
+	abstract fun unregisterAction(id: String): Boolean
 
-  /**
-   * Unregister the given action.
-   *
-   * @param action The action to unregister. Must not be `null`.
-   * @return `true` if the action was unregistered successfully. `false` otherwise.
-   */
-  abstract fun unregisterAction(action: ActionItem): Boolean
+	/**
+	 * Find the action with the given ID.
+	 *
+	 * @param id The ID of the action to find.
+	 * @return The found action or `null`.
+	 */
+	abstract fun findAction(
+		location: ActionItem.Location,
+		id: String,
+	): ActionItem?
 
-  /**
-   * Unregister the action with the given ID.
-   *
-   * @param id The ID of action to unregister. Must not be `null`.
-   * @return `true` if the action was unregistered successfully. `false` otherwise.
-   */
-  abstract fun unregisterAction(id: String): Boolean
+	/**
+	 * Find the action with the given unique item ID.
+	 *
+	 * @param itemId The ID of the action to find.
+	 * @return The found action or `null`.
+	 */
+	abstract fun findAction(
+		location: ActionItem.Location,
+		itemId: Int,
+	): ActionItem?
 
-  /**
-   * Find the action with the given ID.
-   *
-   * @param id The ID of the action to find.
-   * @return The found action or `null`.
-   */
-  abstract fun findAction(location: ActionItem.Location, id: String): ActionItem?
+	/**
+	 * Fill the given menu with the registered actions.
+	 *
+	 * Subclasses must first call [ActionItem.prepare] to update the action.
+	 */
+	abstract fun fillMenu(params: FillMenuParams)
 
-  /**
-   * Find the action with the given unique item ID.
-   *
-   * @param itemId The ID of the action to find.
-   * @return The found action or `null`.
-   */
-  abstract fun findAction(location: ActionItem.Location, itemId: Int): ActionItem?
+	/** Get all the registered actions at the given location. */
+	abstract fun getActions(location: ActionItem.Location): Map<String, ActionItem>
 
-  /**
-   * Fill the given menu with the registered actions.
-   *
-   * Subclasses must first call [ActionItem.prepare] to update the action.
-   */
-  abstract fun fillMenu(params: FillMenuParams)
+	/** Clear all the registered actions. */
+	abstract fun clearActions(location: ActionItem.Location)
 
-  /** Get all the registered actions at the given location. */
-  abstract fun getActions(location: ActionItem.Location): Map<String, ActionItem>
+	/** Clear all actions at the given location except those matching the predicate. */
+	abstract fun clearActionsExceptWhere(
+		location: ActionItem.Location,
+		predicate: (ActionItem) -> Boolean,
+	)
 
-  /** Clear all the registered actions. */
-  abstract fun clearActions(location: ActionItem.Location)
+	/**
+	 * Register a listener that will be called when any action is executed. The callbacks are called
+	 * irrespective of the action's execution result.
+	 *
+	 * @param listener The listener to register.
+	 */
+	abstract fun registerActionExecListener(listener: ActionExecListener)
 
-  /** Clear all actions at the given location except those matching the predicate. */
-  abstract fun clearActionsExceptWhere(location: ActionItem.Location, predicate: (ActionItem) -> Boolean)
+	/**
+	 * Unregister the given listener.
+	 *
+	 * @param listener The listener to unregister.
+	 */
+	abstract fun unregisterActionExecListener(listener: ActionExecListener)
 
-  /**
-   * Register a listener that will be called when any action is executed. The callbacks are called
-   * irrespective of the action's execution result.
-   *
-   * @param listener The listener to register.
-   */
-  abstract fun registerActionExecListener(listener: ActionExecListener)
-
-  /**
-   * Unregister the given listener.
-   *
-   * @param listener The listener to unregister.
-   */
-  abstract fun unregisterActionExecListener(listener: ActionExecListener)
-
-  /** Listener for listening to callbacks for action execution. */
-  interface ActionExecListener {
-
-    /**
-     * The given action was executed.
-     * @param action The action that was executed.
-     * @param result The result of the action execution.
-     */
-    fun onExec(action: ActionItem, result: Any)
-  }
+	/** Listener for listening to callbacks for action execution. */
+	interface ActionExecListener {
+		/**
+		 * The given action was executed.
+		 * @param action The action that was executed.
+		 * @param result The result of the action execution.
+		 */
+		fun onExec(
+			action: ActionItem,
+			result: Any,
+		)
+	}
 }

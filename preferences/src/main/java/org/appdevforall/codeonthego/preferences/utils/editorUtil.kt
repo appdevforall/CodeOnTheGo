@@ -26,11 +26,11 @@ import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
  * '\t'.
  */
 val indentationChar: Char
-  get() = if (EditorPreferences.useSoftTab) ' ' else '\t'
+get() = if (EditorPreferences.useSoftTab) ' ' else '\t'
 
 /** Get the string which should be used as indentation while generating code. */
 val indentationString: String
-  get() = if (EditorPreferences.useSoftTab) " ".repeat(EditorPreferences.tabSize) else "\t"
+get() = if (EditorPreferences.useSoftTab) " ".repeat(EditorPreferences.tabSize) else "\t"
 
 /**
  * Creates the indentation string for the given number of spaces. The result is simply
@@ -41,6 +41,6 @@ val indentationString: String
  * @return The indentation string.
  */
 fun indentationString(spaceCount: Int): String {
-  val count = if (EditorPreferences.useSoftTab) spaceCount else spaceCount / EditorPreferences.tabSize
-  return indentationChar.toString().repeat(count)
+val count = if (EditorPreferences.useSoftTab) spaceCount else spaceCount / EditorPreferences.tabSize
+return indentationChar.toString().repeat(count)
 }

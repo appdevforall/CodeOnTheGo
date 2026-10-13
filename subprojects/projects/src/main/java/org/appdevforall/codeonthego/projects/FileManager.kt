@@ -17,6 +17,7 @@
 
 package org.appdevforall.codeonthego.projects
 
+import org.apache.commons.io.FileUtils
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentCloseEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentOpenEvent
@@ -24,7 +25,6 @@ import org.appdevforall.codeonthego.eventbus.events.file.FileDeletionEvent
 import org.appdevforall.codeonthego.eventbus.events.file.FileRenameEvent
 import org.appdevforall.codeonthego.progress.ProgressManager
 import org.appdevforall.codeonthego.projects.models.ActiveDocument
-import org.apache.commons.io.FileUtils
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.InputStream

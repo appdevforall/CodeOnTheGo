@@ -27,41 +27,50 @@ import com.android.aaptcompiler.extractPathData
 import com.android.utils.StdLogger
 import com.android.utils.StdLogger.Level.VERBOSE
 import org.appdevforall.codeonthego.utils.FileProvider
-import java.nio.file.Paths
-import kotlin.io.path.absolute
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.nio.file.Paths
+import kotlin.io.path.absolute
 
 /** @author Akash Yadav */
 @RunWith(RobolectricTestRunner::class)
 class CompilerTest {
+	@Test
+	fun `test simple compilatation`() {
+		val input =
+			FileProvider.projectRoot().resolve("app/src/main/res/layout/activity_editor.xml").toFile()
+		val output =
+			Paths
+				.get("./build")
+				.absolute()
+				.normalize()
+				.toFile()
+		println(input)
+		println(output)
 
-  @Test
-  fun `test simple compilatation`() {
-    val input =
-      FileProvider.projectRoot().resolve("app/src/main/res/layout/activity_editor.xml").toFile()
-    val output = Paths.get("./build").absolute().normalize().toFile()
-    println(input)
-    println(output)
+		val start = System.nanoTime()
+		compileResource(input, output, ResourceCompilerOptions(), BlameLogger(StdLogger(VERBOSE)))
+		println("Compiled in ${System.nanoTime() - start} nano seconds")
+	}
 
-    val start = System.nanoTime()
-    compileResource(input, output, ResourceCompilerOptions(), BlameLogger(StdLogger(VERBOSE)))
-    println("Compiled in ${System.nanoTime() - start} nano seconds")
-  }
-  
-  @Test
-  fun `test xml processor`() {
-    val input =
-      Paths.get(".", "src/test/resources/layout/activity_editor.xml").absolute().normalize().toFile()
-    val pathData = extractPathData(input, input.absolutePath)
-    val resFile = ResourceFile(
-      ResourceName("", pathData.type!!, pathData.name),
-      pathData.config,
-      pathData.source,
-      ResourceFile.Type.ProtoXml
-    )
-    val processor = XmlProcessor(pathData.source, BlameLogger(StdLogger(VERBOSE)))
-    processor.process(resFile, input.inputStream().buffered())
-  }
+	@Test
+	fun `test xml processor`() {
+		val input =
+			Paths
+				.get(".", "src/test/resources/layout/activity_editor.xml")
+				.absolute()
+				.normalize()
+				.toFile()
+		val pathData = extractPathData(input, input.absolutePath)
+		val resFile =
+			ResourceFile(
+				ResourceName("", pathData.type!!, pathData.name),
+				pathData.config,
+				pathData.source,
+				ResourceFile.Type.ProtoXml,
+			)
+		val processor = XmlProcessor(pathData.source, BlameLogger(StdLogger(VERBOSE)))
+		processor.process(resFile, input.inputStream().buffered())
+	}
 }

@@ -26,20 +26,16 @@ import java.io.Serializable
  * @author Akash Yadav
  */
 class JavaModuleExternalDependency(
-  jar: File,
-
-  /** `sources.jar` for this dependency. */
-  val sources: File? = null,
-
-  /** `javadoc.jar` for this dependency. */
-  val javadoc: File? = null,
-
-  /** The Gradle dependency artifact for this dependency. */
-  val gradleArtifact: GradleArtifact?,
-
-  /** Scope of this dependency. */
-  scope: String,
-
-  /** Whether the dependency is exported. */
-  exported: Boolean
-) : JavaModuleDependency(jar, scope, exported), Serializable
+	jar: File,
+	/** `sources.jar` for this dependency. */
+	val sources: File? = null,
+	/** `javadoc.jar` for this dependency. */
+	val javadoc: File? = null,
+	/** The Gradle dependency artifact for this dependency. */
+	val gradleArtifact: GradleArtifact?,
+	/** Scope of this dependency. */
+	scope: String,
+	/** Whether the dependency is exported. */
+	exported: Boolean,
+) : JavaModuleDependency(jar, scope, exported),
+	Serializable

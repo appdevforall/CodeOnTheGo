@@ -26,8 +26,10 @@ import java.io.Serializable
  * @property isPublic Whether the launchable is publicly accessible.
  * @author Akash Yadav
  */
-open class Launchable(val displayName: String?, val isPublic: Boolean) : Serializable {
-
-  protected val gsonType: String = javaClass.name
-  private val serialVersionUID = 1L
+open class Launchable(
+	val displayName: String?,
+	val isPublic: Boolean,
+) : Serializable {
+	protected val gsonType: String = javaClass.name
+	private val serialVersionUID = 1L
 }

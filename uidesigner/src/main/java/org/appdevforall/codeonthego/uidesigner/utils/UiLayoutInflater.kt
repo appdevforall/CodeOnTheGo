@@ -27,9 +27,8 @@ import org.appdevforall.codeonthego.lookup.Lookup
  * @author Akash Yadav
  */
 class UiLayoutInflater : LayoutInflaterImpl() {
-
-  init {
-    this.componentFactory = UiInflaterComponentFactory()
-    Lookup.getDefault().update(ILayoutInflater.LOOKUP_KEY, this)
-  }
+	init {
+		this.componentFactory = UiInflaterComponentFactory()
+		Lookup.getDefault().update(ILayoutInflater.LOOKUP_KEY, this)
+	}
 }

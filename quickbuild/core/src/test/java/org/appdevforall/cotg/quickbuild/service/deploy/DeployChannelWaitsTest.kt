@@ -5,11 +5,11 @@ package org.appdevforall.cotg.quickbuild.service.deploy
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import org.junit.jupiter.api.Test
 
 /**

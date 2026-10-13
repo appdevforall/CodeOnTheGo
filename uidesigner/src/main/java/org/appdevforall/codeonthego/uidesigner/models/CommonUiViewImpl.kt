@@ -23,6 +23,6 @@ package org.appdevforall.codeonthego.uidesigner.models
  * @author Akash Yadav
  */
 class CommonUiViewImpl : CommonUiView {
-  override var includeInIndexComputation: Boolean = true
-  override var needSetup: Boolean = true
+	override var includeInIndexComputation: Boolean = true
+	override var needSetup: Boolean = true
 }

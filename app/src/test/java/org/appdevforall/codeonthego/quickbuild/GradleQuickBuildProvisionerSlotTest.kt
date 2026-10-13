@@ -2,18 +2,18 @@ package org.appdevforall.codeonthego.quickbuild
 
 import android.content.Context
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.resources.R
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.projects.builder.BuildService
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.tooling.api.messages.InitializeProjectParams
 import org.appdevforall.codeonthego.tooling.api.messages.TaskExecutionMessage
 import org.appdevforall.codeonthego.tooling.api.messages.result.BuildCancellationRequestResult
 import org.appdevforall.codeonthego.tooling.api.messages.result.InitializeResult
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.appdevforall.codeonthego.tooling.api.models.ToolingServerMetadata
-import io.mockk.every
-import io.mockk.mockk
-import kotlinx.coroutines.test.runTest
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.service.provision.ProvisionOutcome
 import org.junit.After

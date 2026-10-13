@@ -23,27 +23,27 @@ import java.io.File
 
 private var currentModule: AndroidModule? = null
 var isParsing: Boolean = false
-  private set
+private set
 
 val module: AndroidModule
-  get() =
-    currentModule ?: throw IllegalStateException("You must call startParse(AndroidModule) first")
+get() =
+	currentModule ?: throw IllegalStateException("You must call startParse(AndroidModule) first")
 
 fun startParse(file: File) {
-  if (isParsing) {
-    return
-  }
-  (IProjectManager.getInstance().findModuleForFile(file, false) as? AndroidModule)?.let {
-    startParse(it)
-  }
+if (isParsing) {
+	return
+}
+(IProjectManager.getInstance().findModuleForFile(file, false) as? AndroidModule)?.let {
+	startParse(it)
+}
 }
 
 fun startParse(m: AndroidModule) {
-  currentModule = m
-  isParsing = true
+currentModule = m
+isParsing = true
 }
 
 fun endParse() {
-  currentModule = null
-  isParsing = false
+currentModule = null
+isParsing = false
 }

@@ -2,8 +2,8 @@ package org.appdevforall.codeonthego.helper
 
 import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
-import org.appdevforall.codeonthego.preferences.internal.BuildPreferences
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import org.appdevforall.codeonthego.preferences.internal.BuildPreferences
 
 private const val TAG = "AutomationBuildPrefs"
 private const val ARG_BUILD_OFFLINE = "androidide.build.offline"

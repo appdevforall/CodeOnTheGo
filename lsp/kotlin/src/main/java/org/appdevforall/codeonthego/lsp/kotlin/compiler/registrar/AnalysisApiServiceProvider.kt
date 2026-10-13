@@ -7,38 +7,49 @@ internal typealias ServiceMap = Map<KClass<*>, ServiceRegistration<*>>
 internal typealias MutableServiceMap = MutableMap<KClass<*>, ServiceRegistration<*>>
 
 internal sealed class ServiceRegistration<T : Any> {
-
 	companion object {
-		operator fun <T : Any> invoke(klass: KClass<T>, type: KClass<out T>) =
-			Typed(klass, type)
+		operator fun <T : Any> invoke(
+			klass: KClass<T>,
+			type: KClass<out T>,
+		) = Typed(klass, type)
 
-		operator fun <T : Any> invoke(klass: KClass<T>, instance: T) =
-			Instance(klass, instance)
+		operator fun <T : Any> invoke(
+			klass: KClass<T>,
+			instance: T,
+		) = Instance(klass, instance)
 
-		operator fun <T : Any> invoke(klass: KClass<T>, factory: () -> T) =
-			InstanceFactory(klass, factory)
+		operator fun <T : Any> invoke(
+			klass: KClass<T>,
+			factory: () -> T,
+		) = InstanceFactory(klass, factory)
 	}
 
 	abstract val klass: KClass<T>
 
 	abstract fun register(to: MockComponentManager)
 
-	data class Typed<T : Any>(override val klass: KClass<T>, val type: KClass<out T>) :
-		ServiceRegistration<T>() {
+	data class Typed<T : Any>(
+		override val klass: KClass<T>,
+		val type: KClass<out T>,
+	) : ServiceRegistration<T>() {
 		override fun register(to: MockComponentManager) {
 			to.registerService(klass.java, type.java)
 		}
 	}
 
-	data class Instance<T : Any>(override val klass: KClass<T>, val instance: T) :
-		ServiceRegistration<T>() {
+	data class Instance<T : Any>(
+		override val klass: KClass<T>,
+		val instance: T,
+	) : ServiceRegistration<T>() {
 		override fun register(to: MockComponentManager) {
 			to.registerService(klass.java, instance)
 		}
 	}
 
-	data class InstanceFactory<T : Any>(override val klass: KClass<T>, val factory: () -> T) :
-		ServiceRegistration<T>() {
+	data class InstanceFactory<T : Any>(
+		override val klass: KClass<T>,
+		val factory: () -> T,
+	) : ServiceRegistration<T>() {
 		override fun register(to: MockComponentManager) {
 			val instance = factory()
 			to.registerService(klass.java, instance)
@@ -52,11 +63,12 @@ internal interface AnalysisApiServiceProvider {
 	val applicationServices: ServiceMap
 	val projectServices: ServiceMap
 
-	fun toBuilder(): Builder = Builder(
-		pluginRelativePath = pluginRelativePath,
-		appServices = applicationServices,
-		projectServices = projectServices,
-	)
+	fun toBuilder(): Builder =
+		Builder(
+			pluginRelativePath = pluginRelativePath,
+			appServices = applicationServices,
+			projectServices = projectServices,
+		)
 
 	private data class SimpleAnalysisApiServiceProvider(
 		override val pluginRelativePath: String?,
@@ -81,7 +93,7 @@ internal interface AnalysisApiServiceProvider {
 			store: MutableServiceMap,
 			key: KClass<*>,
 			value: ServiceRegistration<*>,
-			replace: Boolean
+			replace: Boolean,
 		) {
 			if (!replace) {
 				check(store.putIfAbsent(key, value) == null) {
@@ -95,11 +107,15 @@ internal interface AnalysisApiServiceProvider {
 		}
 
 		private fun appSvc(
-			key: KClass<*>, value: ServiceRegistration<*>, replace: Boolean = false
+			key: KClass<*>,
+			value: ServiceRegistration<*>,
+			replace: Boolean = false,
 		) = put(applicationServices, key, value, replace)
 
 		private fun projSvc(
-			key: KClass<*>, value: ServiceRegistration<*>, replace: Boolean = false
+			key: KClass<*>,
+			value: ServiceRegistration<*>,
+			replace: Boolean = false,
 		) = put(projectServices, key, value, replace)
 
 		fun <T : Any> appService(
@@ -108,11 +124,17 @@ internal interface AnalysisApiServiceProvider {
 			replace: Boolean = false,
 		) = appSvc(key, ServiceRegistration(key, type), replace)
 
-		fun <T : Any> appService(key: KClass<T>, value: T, replace: Boolean = false) =
-			appSvc(key, ServiceRegistration(key, value), replace)
+		fun <T : Any> appService(
+			key: KClass<T>,
+			value: T,
+			replace: Boolean = false,
+		) = appSvc(key, ServiceRegistration(key, value), replace)
 
-		fun <T : Any> appService(key: KClass<T>, replace: Boolean = false, value: () -> T) =
-			appSvc(key, ServiceRegistration(key, value), replace)
+		fun <T : Any> appService(
+			key: KClass<T>,
+			replace: Boolean = false,
+			value: () -> T,
+		) = appSvc(key, ServiceRegistration(key, value), replace)
 
 		fun <T : Any> projectService(
 			key: KClass<T>,
@@ -120,16 +142,23 @@ internal interface AnalysisApiServiceProvider {
 			replace: Boolean = false,
 		) = projSvc(key, ServiceRegistration(key, type), replace)
 
-		fun <T : Any> projectService(key: KClass<T>, value: T, replace: Boolean = false) =
-			projSvc(key, ServiceRegistration(key, value), replace)
+		fun <T : Any> projectService(
+			key: KClass<T>,
+			value: T,
+			replace: Boolean = false,
+		) = projSvc(key, ServiceRegistration(key, value), replace)
 
-		fun <T : Any> projectService(key: KClass<T>, replace: Boolean = false, value: () -> T) =
-			projSvc(key, ServiceRegistration(key, value), replace)
+		fun <T : Any> projectService(
+			key: KClass<T>,
+			replace: Boolean = false,
+			value: () -> T,
+		) = projSvc(key, ServiceRegistration(key, value), replace)
 
-		fun build(): AnalysisApiServiceProvider = SimpleAnalysisApiServiceProvider(
-			pluginRelativePath = pluginRelativePath,
-			applicationServices = applicationServices.toMap(),
-			projectServices = projectServices.toMap(),
-		)
+		fun build(): AnalysisApiServiceProvider =
+			SimpleAnalysisApiServiceProvider(
+				pluginRelativePath = pluginRelativePath,
+				applicationServices = applicationServices.toMap(),
+				projectServices = projectServices.toMap(),
+			)
 	}
 }

@@ -23,10 +23,9 @@ package org.appdevforall.codeonthego.uidesigner.undo
  * @author Akash Yadav
  */
 interface IUiAction {
+	/** Undo this action. */
+	fun undo()
 
-  /** Undo this action. */
-  fun undo()
-
-  /** Redo this action. */
-  fun redo()
+	/** Redo this action. */
+	fun redo()
 }

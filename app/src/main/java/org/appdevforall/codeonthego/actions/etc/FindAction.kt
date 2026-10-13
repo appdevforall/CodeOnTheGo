@@ -19,41 +19,39 @@ package org.appdevforall.codeonthego.actions.etc
 
 import android.content.Context
 import androidx.core.content.ContextCompat
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.EditorActivityAction
 import org.appdevforall.codeonthego.actions.build.AbstractCancellableRunAction.Companion.isBuildInProgress
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
 class FindAction() : EditorActivityAction() {
+	override var requiresUIThread: Boolean = true
+	override var order: Int = 0
 
-    override var requiresUIThread: Boolean = true
-    override var order: Int = 0
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String {
-        return TooltipTag.EDITOR_TOOLBAR_FIND
-    }
-    
-    constructor(context: Context, order: Int) : this() {
-        this.label = context.getString(R.string.menu_find)
-        this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search)
-        this.order = order
-    }
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND
 
-    override val id: String = "ide.editor.find"
+	constructor(context: Context, order: Int) : this() {
+		this.label = context.getString(R.string.menu_find)
+		this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search)
+		this.order = order
+	}
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
-        enabled = data.getActivity().isBuildInProgress().not()
-    }
+	override val id: String = "ide.editor.find"
 
-    override suspend fun execAction(data: ActionData): Boolean {
-        val context = data.getActivity() ?: return false
-        val dialog = context.findActionDialog(data)
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		enabled = data.getActivity().isBuildInProgress().not()
+	}
 
-        return run {
-            dialog.show()
-            true
-        }
-    }
+	override suspend fun execAction(data: ActionData): Boolean {
+		val context = data.getActivity() ?: return false
+		val dialog = context.findActionDialog(data)
+
+		return run {
+			dialog.show()
+			true
+		}
+	}
 }

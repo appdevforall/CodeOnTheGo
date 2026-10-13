@@ -17,6 +17,11 @@
 
 package org.appdevforall.codeonthego.lsp.java.compiler
 
+import jdkx.tools.JavaFileObject
+import jdkx.tools.JavaFileObject.Kind.SOURCE
+import openjdk.tools.javac.api.ClientCodeWrapper
+import openjdk.tools.javac.tree.JCTree.JCCompilationUnit
+import openjdk.tools.javac.util.Context
 import org.appdevforall.codeonthego.javac.services.compiler.ReusableContext
 import org.appdevforall.codeonthego.javac.services.compiler.ReusableJavaCompiler
 import org.appdevforall.codeonthego.lsp.java.parser.ts.TSJavaParser
@@ -24,67 +29,69 @@ import org.appdevforall.codeonthego.lsp.java.parser.ts.TSMethodPruner.prune
 import org.appdevforall.codeonthego.projects.FileManager
 import org.appdevforall.codeonthego.utils.VMUtils
 import org.appdevforall.codeonthego.utils.withStopWatch
-import jdkx.tools.JavaFileObject
-import jdkx.tools.JavaFileObject.Kind.SOURCE
-import openjdk.tools.javac.api.ClientCodeWrapper
-import openjdk.tools.javac.tree.JCTree.JCCompilationUnit
-import openjdk.tools.javac.util.Context
 import kotlin.io.path.name
 
-class JavaCompilerImpl(context: Context?) : ReusableJavaCompiler(context) {
+class JavaCompilerImpl(
+	context: Context?,
+) : ReusableJavaCompiler(context) {
+	override fun parse(
+		filename: JavaFileObject?,
+		content: CharSequence?,
+	): JCCompilationUnit {
+		if (VMUtils.isJvm) {
+			return super.parse(filename, content)
+		}
 
-  override fun parse(filename: JavaFileObject?, content: CharSequence?): JCCompilationUnit {
+		val file = ClientCodeWrapper.instance(context).unwrap(filename)
+		val compilerConfig = JavaCompilerConfig.instance(context)
 
-    if (VMUtils.isJvm) {
-      return super.parse(filename, content)
-    }
+		// Preconditions
+		if (
+			content == null ||
+			compilerConfig.files == null ||
+			filename?.kind != SOURCE ||
+			compilerConfig.files?.contains(file) == false
+		) {
+			return super.parse(filename, content)
+		}
 
-    val file = ClientCodeWrapper.instance(context).unwrap(filename)
-    val compilerConfig = JavaCompilerConfig.instance(context)
+		// If the file is NOT being parsed for a completion request,
+		// we should not prune method bodies of active documents
+		if (compilerConfig.completionInfo == null && FileManager.isActive(filename.toUri())) {
+			return super.parse(filename, content)
+		}
 
-    // Preconditions
-    if (
-      content == null ||
-        compilerConfig.files == null ||
-        filename?.kind != SOURCE ||
-        compilerConfig.files?.contains(file) == false
-    ) {
-      return super.parse(filename, content)
-    }
+		val pruned =
+			withStopWatch("${if (file is SourceFileObject) "[${file.path.name}] " else ""}Prune method bodies") { watch ->
+				val contentBuilder = StringBuilder(content)
 
-    // If the file is NOT being parsed for a completion request,
-    // we should not prune method bodies of active documents
-    if (compilerConfig.completionInfo == null && FileManager.isActive(filename.toUri())) {
-      return super.parse(filename, content)
-    }
+				return@withStopWatch TSJavaParser.parse(file).use { parseResult ->
 
-    val pruned = withStopWatch("${if(file is SourceFileObject) "[${file.path.name}] " else ""}Prune method bodies") { watch ->
-      val contentBuilder = StringBuilder(content)
+					prune(
+						contentBuilder,
+						parseResult.tree,
+						compilerConfig.completionInfo?.cursor?.index ?: -1,
+					)
 
-      return@withStopWatch TSJavaParser.parse(file).use { parseResult ->
+					watch.log()
 
-        prune(
-          contentBuilder,
-          parseResult.tree,
-          compilerConfig.completionInfo?.cursor?.index ?: -1
-        )
+					return@use contentBuilder
+				}
+			}
 
-        watch.log()
+		return super.parse(filename, pruned)
+	}
 
-        return@use contentBuilder
-      }
-    }
-
-    return super.parse(filename, pruned)
-  }
-
-  companion object {
-    @JvmStatic
-    fun preRegister(context: ReusableContext, replace: Boolean = false) {
-      if (replace) {
-        context.drop(compilerKey)
-      }
-      context.put(compilerKey, Context.Factory { JavaCompilerImpl(it) })
-    }
-  }
+	companion object {
+		@JvmStatic
+		fun preRegister(
+			context: ReusableContext,
+			replace: Boolean = false,
+		) {
+			if (replace) {
+				context.drop(compilerKey)
+			}
+			context.put(compilerKey, Context.Factory { JavaCompilerImpl(it) })
+		}
+	}
 }

@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.lsp.kotlin.diagnostic
 
+import kotlinx.coroutines.CancellationException
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.CompilationEnvironment
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.ScheduledCancelChecker
@@ -8,7 +9,6 @@ import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
 import org.appdevforall.codeonthego.lsp.models.DiagnosticResult
 import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity
 import org.appdevforall.codeonthego.progress.ICancelChecker
-import kotlinx.coroutines.CancellationException
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.diagnostics.KaDiagnosticWithPsi

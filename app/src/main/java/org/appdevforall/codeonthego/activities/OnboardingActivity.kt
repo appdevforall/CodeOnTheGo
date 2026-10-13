@@ -34,9 +34,16 @@ import androidx.lifecycle.lifecycleScope
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import org.appdevforall.codeonthego.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
+import com.termux.shared.android.PackageUtils
+import com.termux.shared.markdown.MarkdownUtils
+import com.termux.shared.termux.TermuxConstants
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.FeedbackButtonManager
 import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
 import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
 import org.appdevforall.codeonthego.fragments.onboarding.GreetingFragment
@@ -52,13 +59,6 @@ import org.appdevforall.codeonthego.utils.isAtLeastV
 import org.appdevforall.codeonthego.utils.isSystemInDarkMode
 import org.appdevforall.codeonthego.utils.isTestMode
 import org.appdevforall.codeonthego.utils.resolveAttr
-import com.termux.shared.android.PackageUtils
-import com.termux.shared.markdown.MarkdownUtils
-import com.termux.shared.termux.TermuxConstants
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 class OnboardingActivity : AppIntro2() {

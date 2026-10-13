@@ -1,5 +1,13 @@
 package org.appdevforall.codeonthego.lsp.java.debug
 
+import com.sun.jdi.Location
+import com.sun.jdi.Method
+import com.sun.jdi.ObjectCollectedException
+import com.sun.jdi.StackFrame
+import com.sun.jdi.ThreadReference
+import com.sun.jdi.VMDisconnectedException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.lsp.debug.model.PrimitiveKind
 import org.appdevforall.codeonthego.lsp.debug.model.PrimitiveValue
 import org.appdevforall.codeonthego.lsp.debug.model.StackFrameDescriptor
@@ -14,14 +22,6 @@ import org.appdevforall.codeonthego.lsp.java.debug.utils.kotlinDisplayName
 import org.appdevforall.codeonthego.lsp.java.debug.utils.kotlinLambdaScopes
 import org.appdevforall.codeonthego.lsp.java.debug.utils.lineNumberInKotlin
 import org.appdevforall.codeonthego.lsp.java.debug.utils.sourceNameInKotlinOrNull
-import com.sun.jdi.Location
-import com.sun.jdi.Method
-import com.sun.jdi.ObjectCollectedException
-import com.sun.jdi.StackFrame
-import com.sun.jdi.ThreadReference
-import com.sun.jdi.VMDisconnectedException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.appdevforall.codeonthego.lsp.debug.model.StackFrame as LspStackFrame
 import org.appdevforall.codeonthego.lsp.debug.model.ThreadInfo as LspThreadInfo

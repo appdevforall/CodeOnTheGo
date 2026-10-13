@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego.lsp.kotlin.utils
 
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.services.ProjectStructureProvider
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.services.ProjectStructureProvider
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.allDirectDependencies
 import org.slf4j.LoggerFactory
@@ -24,8 +24,9 @@ internal class SymbolVisibilityChecker(
 		useSiteModule: KaModule,
 		useSitePackage: String? = null,
 	): Boolean {
-		val declaringModule = structureProvider.findModuleForSourceId(symbol.sourceId)
-			?: return false
+		val declaringModule =
+			structureProvider.findModuleForSourceId(symbol.sourceId)
+				?: return false
 
 		if (!isReachable(useSiteModule, declaringModule)) return false
 		if (!arePlatformCompatible(useSiteModule, declaringModule)) return false
@@ -34,7 +35,10 @@ internal class SymbolVisibilityChecker(
 		return true
 	}
 
-	fun isReachable(useSiteModule: KaModule, declaringModule: KaModule): Boolean {
+	fun isReachable(
+		useSiteModule: KaModule,
+		declaringModule: KaModule,
+	): Boolean {
 		if (useSiteModule == declaringModule) return true
 		if (moduleVisibilityCache[useSiteModule]?.contains(declaringModule) == true) return true
 
@@ -54,7 +58,10 @@ internal class SymbolVisibilityChecker(
 		return false
 	}
 
-	fun arePlatformCompatible(useSiteModule: KaModule, declaringModule: KaModule): Boolean {
+	fun arePlatformCompatible(
+		useSiteModule: KaModule,
+		declaringModule: KaModule,
+	): Boolean {
 		val usePlatform = useSiteModule.targetPlatform
 		val declPlatform = declaringModule.targetPlatform
 

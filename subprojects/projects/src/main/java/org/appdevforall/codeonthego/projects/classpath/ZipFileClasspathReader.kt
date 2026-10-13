@@ -27,40 +27,39 @@ import java.util.zip.ZipFile
  * @author Akash Yadav
  */
 class ZipFileClasspathReader : IClasspathReader {
-  
-  override fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo> {
-    val classes = ImmutableSet.builder<ClassInfo>()
-    files.forEach {
-      if (!it.exists()) {
-        return@forEach
-      }
-    
-      ZipFile(it).use { zipFile ->
-        for (entry in zipFile.entries()) {
-          if (!entry.name.endsWith(".class")) {
-            continue
-          }
-        
-          var name = entry.name.substringBeforeLast(".class")
-          if (name.length <= 1) {
-            continue
-          }
-        
-          if (name.startsWith('/')) {
-            name = name.substring(1)
-          }
-        
-          if (name.contains('/')) {
-            name = name.replace('/', '.')
-          }
+	override fun listClasses(files: Collection<File>): ImmutableSet<ClassInfo> {
+		val classes = ImmutableSet.builder<ClassInfo>()
+		files.forEach {
+			if (!it.exists()) {
+				return@forEach
+			}
 
-          ClassInfo.create(name)?.also { classInfo ->
-            classes.add(classInfo)
-          }
-        }
-      }
-    }
-  
-    return classes.build()
-  }
+			ZipFile(it).use { zipFile ->
+				for (entry in zipFile.entries()) {
+					if (!entry.name.endsWith(".class")) {
+						continue
+					}
+
+					var name = entry.name.substringBeforeLast(".class")
+					if (name.length <= 1) {
+						continue
+					}
+
+					if (name.startsWith('/')) {
+						name = name.substring(1)
+					}
+
+					if (name.contains('/')) {
+						name = name.replace('/', '.')
+					}
+
+					ClassInfo.create(name)?.also { classInfo ->
+						classes.add(classInfo)
+					}
+				}
+			}
+		}
+
+		return classes.build()
+	}
 }

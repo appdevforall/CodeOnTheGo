@@ -33,7 +33,7 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(WebView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class WebViewAdapter<T : WebView> : AbsoluteLayoutAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(UiWidget(WebView::class.java, string.widget_webview, drawable.ic_widget_webview))
-  }
+override fun createUiWidgets(): List<UiWidget> {
+	return listOf(UiWidget(WebView::class.java, string.widget_webview, drawable.ic_widget_webview))
+}
 }

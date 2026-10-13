@@ -13,16 +13,16 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.fragments.RecyclerViewFragment
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK
 import org.appdevforall.codeonthego.utils.resolveAttr
 import org.appdevforall.codeonthego.utils.viewLifecycleScope
 import org.appdevforall.codeonthego.viewmodel.DebuggerViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * @author Akash Yadav

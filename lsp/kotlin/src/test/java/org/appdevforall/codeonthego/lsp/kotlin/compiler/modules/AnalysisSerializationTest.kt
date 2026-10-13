@@ -3,13 +3,13 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.modules
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.read
-import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
-import org.appdevforall.codeonthego.progress.ICancelChecker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.read
+import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
+import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.jetbrains.kotlin.com.intellij.openapi.progress.ProgressManager
 import org.junit.Test
 import java.util.Collections

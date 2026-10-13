@@ -5,12 +5,12 @@ import android.app.Application
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.plugins.manager.services.LaunchedTerminalCommand
 import org.appdevforall.codeonthego.plugins.services.TerminalCommandResult
 import org.appdevforall.codeonthego.terminal.AgentRunner
 import org.appdevforall.codeonthego.terminal.TerminalStartFailure
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

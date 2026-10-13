@@ -28,21 +28,21 @@ import org.appdevforall.codeonthego.utils.VMUtils;
  */
 class LookupProvider {
 
-  private static Lookup sLookup;
-  private static final Object lock = new Object();
+	private static Lookup sLookup;
+	private static final Object lock = new Object();
 
-  static synchronized Lookup lookupService() {
-    synchronized (lock) {
-      if (sLookup != null) {
-        return sLookup;
-      }
+	static synchronized Lookup lookupService() {
+		synchronized (lock) {
+			if (sLookup != null) {
+				return sLookup;
+			}
 
-      if (VMUtils.isJvm()) {
-        // When in a test environment, load the default lookup
-        return sLookup = new DefaultLookup();
-      }
+			if (VMUtils.isJvm()) {
+				// When in a test environment, load the default lookup
+				return sLookup = new DefaultLookup();
+			}
 
-      return sLookup = ServiceLoader.load(Lookup.class).findFirstOrThrow();
-    }
-  }
+			return sLookup = ServiceLoader.load(Lookup.class).findFirstOrThrow();
+		}
+	}
 }

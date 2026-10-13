@@ -25,5 +25,10 @@ import openjdk.source.util.TreePath
  * @author Akash Yadav
  */
 interface PartialReparser {
-  fun reparseMethod(ci: CompilationInfo, methodPath: TreePath, newBody: String, fileContents: CharSequence): Boolean
+	fun reparseMethod(
+		ci: CompilationInfo,
+		methodPath: TreePath,
+		newBody: String,
+		fileContents: CharSequence,
+	): Boolean
 }

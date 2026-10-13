@@ -20,21 +20,20 @@ class KotlinCompletionItem(
 	matchLevel: MatchLevel,
 	additionalTextEdits: List<TextEdit>?,
 	data: ICompletionData?,
-	editHandler: IEditHandler = BaseKotlinEditHandler()
+	editHandler: IEditHandler = BaseKotlinEditHandler(),
 ) : CompletionItem(
-	ideLabel,
-	detail,
-	insertText,
-	insertTextFormat,
-	sortText,
-	command,
-	completionKind,
-	matchLevel,
-	additionalTextEdits,
-	data,
-	editHandler
-) {
-
+		ideLabel,
+		detail,
+		insertText,
+		insertTextFormat,
+		sortText,
+		command,
+		completionKind,
+		matchLevel,
+		additionalTextEdits,
+		data,
+		editHandler,
+	) {
 	constructor() : this(
 		"", // label
 		"", // detail
@@ -45,6 +44,6 @@ class KotlinCompletionItem(
 		CompletionItemKind.NONE, // kind
 		MatchLevel.NO_MATCH, // match level
 		ArrayList(), // additionalEdits
-		null // data
+		null, // data
 	)
 }

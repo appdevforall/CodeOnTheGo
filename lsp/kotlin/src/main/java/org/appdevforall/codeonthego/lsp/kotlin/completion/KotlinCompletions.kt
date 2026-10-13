@@ -2,6 +2,14 @@
 
 package org.appdevforall.codeonthego.lsp.kotlin.completion
 
+import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
+import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
+import org.appdevforall.codeonthego.indexing.jvm.dedupeKey
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.lsp.api.describeSnippet
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.CompilationEnvironment
@@ -27,14 +35,6 @@ import org.appdevforall.codeonthego.preferences.utils.indentationString
 import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.appdevforall.codeonthego.progress.ProgressManager
 import org.appdevforall.codeonthego.projects.FileManager
-import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
-import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
-import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
-import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
-import org.appdevforall.codeonthego.indexing.jvm.dedupeKey
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaIdeApi
 import org.jetbrains.kotlin.analysis.api.KaSession

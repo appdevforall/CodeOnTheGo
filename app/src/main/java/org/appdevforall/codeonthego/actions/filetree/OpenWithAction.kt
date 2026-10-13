@@ -19,11 +19,11 @@ package org.appdevforall.codeonthego.actions.filetree
 
 import android.content.Context
 import android.content.Intent
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.IntentUtils
 
 /**
@@ -31,29 +31,29 @@ import org.appdevforall.codeonthego.utils.IntentUtils
  *
  * @author Akash Yadav
  */
-class OpenWithAction(context: Context, override val order: Int) :
-  BaseFileTreeAction(
-    context = context,
-    labelRes = R.string.open_with,
-    iconRes = R.drawable.ic_open_with
-  ) {
+class OpenWithAction(
+	context: Context,
+	override val order: Int,
+) : BaseFileTreeAction(
+		context = context,
+		labelRes = R.string.open_with,
+		iconRes = R.drawable.ic_open_with,
+	) {
+	override val id: String = "ide.editor.fileTree.openWith"
 
-  override val id: String = "ide.editor.fileTree.openWith"
+	override fun retrieveTooltipTag(isAlternateContext: Boolean): String = TooltipTag.PROJECT_FILE_OPENWITH
 
-  override fun retrieveTooltipTag(isAlternateContext: Boolean): String =
-    TooltipTag.PROJECT_FILE_OPENWITH
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    
-    // Hide "Open with" option for directories
-    val file = data.requireFile()
-    if (file.isDirectory) {
-      markInvisible()
-    }
-  }
+		// Hide "Open with" option for directories
+		val file = data.requireFile()
+		if (file.isDirectory) {
+			markInvisible()
+		}
+	}
 
-  override suspend fun execAction(data: ActionData) {
-    IntentUtils.startIntent(data.requireActivity(), data.requireFile(), "*/*", Intent.ACTION_VIEW)
-  }
+	override suspend fun execAction(data: ActionData) {
+		IntentUtils.startIntent(data.requireActivity(), data.requireFile(), "*/*", Intent.ACTION_VIEW)
+	}
 }

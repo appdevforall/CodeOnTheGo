@@ -1,57 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
+<LinearLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	tools:context=".MainActivity">
 
-    <org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView
-        android:id="@+id/myView"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"/>
+	<org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView
+		android:id="@+id/myView"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:gravity="center" />
 
-    <org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout
-        android:id="@+id/myLayout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+	<org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout
+		android:id="@+id/myLayout"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content" />
 
-    <org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout
-        android:id="@+id/myLayout_withSupportedChildren"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+	<org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout
+		android:id="@+id/myLayout_withSupportedChildren"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content">
 
-        <ImageView
-            android:id="@+id/image_1"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-        />
+		<ImageView
+			android:id="@+id/image_1"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <ImageView
-            android:id="@+id/image_2"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-        />
+		<ImageView
+			android:id="@+id/image_2"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-    </org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout>
+	</org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout>
 
-    <org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout
-        android:id="@+id/myLayout_withUnsupportedChildren"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+	<org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout
+		android:id="@+id/myLayout_withUnsupportedChildren"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content">
 
-        <org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView
-            android:id="@+id/image_1"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-        />
+		<org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView
+			android:id="@+id/image_1"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView
-            android:id="@+id/image_2"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-        />
+		<org.appdevforall.codeonthego.inflater.unsupported.UnsupportedView
+			android:id="@+id/image_2"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-    </org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout>
+	</org.appdevforall.codeonthego.inflater.unsupported.UnsupportedLayout>
 
 </LinearLayout>

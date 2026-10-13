@@ -21,87 +21,85 @@ import org.appdevforall.codeonthego.lsp.models.CompletionsKt;
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences;
 
 /**
- * Settings contain preferences for the language server. Clients can use settings to enable/disable
- * specific features of a server.
+ * Settings contain preferences for the language server. Clients can use settings to enable/disable specific features of a server.
  *
  * @author Akash Yadav
  */
 public interface IServerSettings {
 
-  String KEY_COMPLETIONS_MATCH_LOWER = EditorPreferences.COMPLETIONS_MATCH_LOWER;
+	String KEY_COMPLETIONS_MATCH_LOWER = EditorPreferences.COMPLETIONS_MATCH_LOWER;
 
-  /**
-   * Called by language server to check if the completions are enabled. If not enabled, the server
-   * should not was time and memory computing completions.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean completionsEnabled();
+	/**
+	 * Called by the language server to check if the code actions are enabled.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean codeActionsEnabled();
 
-  /**
-   * Called by the language server to check if the source code analysis is enabled or not.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  default boolean diagnosticsEnabled() {
-    return true;
-  }
+	/**
+	 * Called by the language server to check if code analysis is enabled.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean codeAnalysisEnabled();
 
-  /**
-   * Called by the language server to check if the code actions are enabled.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean codeActionsEnabled();
+	/**
+	 * The minimum match ratio that is needed for the completions to be considered as 'matched'.
+	 *
+	 * @return The match ratio. Betweeen 0 and 100.
+	 */
+	default int completionFuzzyMatchMinRatio() {
+		return CompletionsKt.DEFAULT_MIN_MATCH_RATIO;
+	}
 
-  /**
-   * Called by language server to check if smart selections are enabled or not.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean smartSelectionsEnabled();
+	/**
+	 * Called by language server to check if the completions are enabled. If not enabled, the server should not was time and memory computing completions.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean completionsEnabled();
 
-  /**
-   * Called by the language server to check if the signature help is enabled.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean signatureHelpEnabled();
+	/**
+	 * Called by the language server to check if finding definitions is enabled.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean definitionsEnabled();
 
-  /**
-   * Called by the language server to check if finding references is enabled.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean referencesEnabled();
+	/**
+	 * Called by the language server to check if the source code analysis is enabled or not.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	default boolean diagnosticsEnabled() {
+		return true;
+	}
 
-  /**
-   * Called by the language server to check if finding definitions is enabled.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean definitionsEnabled();
+	/**
+	 * Called by the language server to check if finding references is enabled.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean referencesEnabled();
 
-  /**
-   * Called by the language server to check if code analysis is enabled.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean codeAnalysisEnabled();
+	/**
+	 * Called by the completions provider to check if it should match partial names in all lowercase.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean shouldMatchAllLowerCase();
 
-  /**
-   * Called by the completions provider to check if it should match partial names in all lowercase.
-   *
-   * @return {@code true} if enabled, {@code false} otherwise.
-   */
-  boolean shouldMatchAllLowerCase();
+	/**
+	 * Called by the language server to check if the signature help is enabled.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean signatureHelpEnabled();
 
-  /**
-   * The minimum match ratio that is needed for the completions to be considered as 'matched'.
-   *
-   * @return The match ratio. Betweeen 0 and 100.
-   */
-  default int completionFuzzyMatchMinRatio() {
-    return CompletionsKt.DEFAULT_MIN_MATCH_RATIO;
-  }
+	/**
+	 * Called by language server to check if smart selections are enabled or not.
+	 *
+	 * @return {@code true} if enabled, {@code false} otherwise.
+	 */
+	boolean smartSelectionsEnabled();
 }

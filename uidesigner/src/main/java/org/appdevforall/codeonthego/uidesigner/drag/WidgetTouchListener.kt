@@ -33,51 +33,49 @@ import org.appdevforall.codeonthego.uidesigner.fragments.DesignerWorkspaceFragme
  * @author Akash Yadav
  */
 internal class WidgetTouchListener(
-  private val view: org.appdevforall.codeonthego.inflater.IView,
-  context: Context,
-  private val onClick: (org.appdevforall.codeonthego.inflater.IView) -> Boolean = { false }
+	private val view: org.appdevforall.codeonthego.inflater.IView,
+	context: Context,
+	private val onClick: (org.appdevforall.codeonthego.inflater.IView) -> Boolean = { false },
 ) : OnTouchListener {
+	private var touchedView: View? = null
 
-  private var touchedView: View? = null
+	private val gestureDetector by lazy {
+		GestureDetector(
+			context,
+			object : GestureDetector.SimpleOnGestureListener() {
+				override fun onDown(e: MotionEvent): Boolean = true
 
-  private val gestureDetector by lazy {
-    GestureDetector(
-      context,
-      object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean {
-          return true
-        }
+				override fun onSingleTapUp(e: MotionEvent): Boolean = onClick(this@WidgetTouchListener.view)
 
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-          return onClick(this@WidgetTouchListener.view)
-        }
+				override fun onLongPress(e: MotionEvent) {
+					touchedView
+						?: throw IllegalStateException("Received onLongPress event but 'touchedView' is null")
+					val shadow = WidgetDragShadowBuilder(touchedView!!)
+					val dataItem = ClipData.Item(DesignerWorkspaceFragment.DRAGGING_WIDGET)
+					val data =
+						ClipData(
+							DesignerWorkspaceFragment.DRAGGING_WIDGET,
+							arrayOf(DesignerWorkspaceFragment.DRAGGING_WIDGET_MIME),
+							dataItem,
+						)
+					ViewCompat.startDragAndDrop(touchedView!!, data, shadow, view, 0)
+				}
+			},
+		)
+	}
 
-        override fun onLongPress(e: MotionEvent) {
-          touchedView
-            ?: throw IllegalStateException("Received onLongPress event but 'touchedView' is null")
-          val shadow = WidgetDragShadowBuilder(touchedView!!)
-          val dataItem = ClipData.Item(DesignerWorkspaceFragment.DRAGGING_WIDGET)
-          val data =
-            ClipData(
-              DesignerWorkspaceFragment.DRAGGING_WIDGET,
-              arrayOf(DesignerWorkspaceFragment.DRAGGING_WIDGET_MIME),
-              dataItem
-            )
-          ViewCompat.startDragAndDrop(touchedView!!, data, shadow, view, 0)
-        }
-      }
-    )
-  }
-
-  @SuppressLint("ClickableViewAccessibility")
-  override fun onTouch(v: View, event: MotionEvent): Boolean {
-    if (event.action == MotionEvent.ACTION_DOWN) {
-      this.touchedView = v
-      view.onHighlightStateUpdated(true)
-    } else if (event.action == MotionEvent.ACTION_UP) {
-      this.touchedView = null
-      view.onHighlightStateUpdated(false)
-    }
-    return gestureDetector.onTouchEvent(event)
-  }
+	@SuppressLint("ClickableViewAccessibility")
+	override fun onTouch(
+		v: View,
+		event: MotionEvent,
+	): Boolean {
+		if (event.action == MotionEvent.ACTION_DOWN) {
+			this.touchedView = v
+			view.onHighlightStateUpdated(true)
+		} else if (event.action == MotionEvent.ACTION_UP) {
+			this.touchedView = null
+			view.onHighlightStateUpdated(false)
+		}
+		return gestureDetector.onTouchEvent(event)
+	}
 }

@@ -27,5 +27,9 @@ import org.appdevforall.codeonthego.inflater.internal.ViewImpl
  *
  * @author Akash Yadav
  */
-internal open class UiView(file: LayoutFile, name: String, view: View) :
-  ViewImpl(file, name, view), CommonUiView by CommonUiViewImpl()
+internal open class UiView(
+	file: LayoutFile,
+	name: String,
+	view: View,
+) : ViewImpl(file, name, view),
+	CommonUiView by CommonUiViewImpl()

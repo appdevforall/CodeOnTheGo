@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.activity.viewModels
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.openApplicationModuleChooser
 import org.appdevforall.codeonthego.actions.profiler.ProfilerAction
@@ -12,7 +13,6 @@ import org.appdevforall.codeonthego.project.AndroidModels
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.isPluginProject
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.viewmodel.BuildViewModel
 

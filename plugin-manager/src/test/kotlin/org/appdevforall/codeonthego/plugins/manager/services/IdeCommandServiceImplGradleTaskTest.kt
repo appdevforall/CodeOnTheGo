@@ -1,14 +1,14 @@
 package org.appdevforall.codeonthego.plugins.manager.services
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.appdevforall.codeonthego.plugins.PluginPermission
 import org.appdevforall.codeonthego.plugins.extensions.CommandOutput
 import org.appdevforall.codeonthego.plugins.extensions.CommandResult
 import org.appdevforall.codeonthego.plugins.extensions.CommandSpec
 import org.appdevforall.codeonthego.plugins.services.GradleTaskResult
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import java.io.File
 import java.util.concurrent.CompletableFuture

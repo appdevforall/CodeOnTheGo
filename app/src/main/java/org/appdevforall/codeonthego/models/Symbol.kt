@@ -21,36 +21,36 @@ package org.appdevforall.codeonthego.models
  *
  * @author Akash Yadav
  */
-open class Symbol @JvmOverloads constructor(
-  open val label: String,
-  open val commit: String,
-  open val offset: Int = 1,
-  open val description: String = label
-) {
-  @JvmOverloads
-  constructor(both: String, offset: Int = 1) : this(both, both, offset)
+open class Symbol
+	@JvmOverloads
+	constructor(
+		open val label: String,
+		open val commit: String,
+		open val offset: Int = 1,
+		open val description: String = label,
+	) {
+		@JvmOverloads
+		constructor(both: String, offset: Int = 1) : this(both, both, offset)
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is Symbol) return false
+		override fun equals(other: Any?): Boolean {
+			if (this === other) return true
+			if (other !is Symbol) return false
 
-    if (label != other.label) return false
-    if (commit != other.commit) return false
-    if (offset != other.offset) return false
-    if (description != other.description) return false
+			if (label != other.label) return false
+			if (commit != other.commit) return false
+			if (offset != other.offset) return false
+			if (description != other.description) return false
 
-    return true
-  }
+			return true
+		}
 
-  override fun hashCode(): Int {
-    var result = label.hashCode()
-    result = 31 * result + commit.hashCode()
-    result = 31 * result + offset
-    result = 31 * result + description.hashCode()
-    return result
-  }
+		override fun hashCode(): Int {
+			var result = label.hashCode()
+			result = 31 * result + commit.hashCode()
+			result = 31 * result + offset
+			result = 31 * result + description.hashCode()
+			return result
+		}
 
-  override fun toString(): String {
-    return "Symbol(label='$label', commit='$commit', offset=$offset, description='$description')"
-  }
-}
+		override fun toString(): String = "Symbol(label='$label', commit='$commit', offset=$offset, description='$description')"
+	}

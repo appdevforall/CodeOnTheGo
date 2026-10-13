@@ -30,74 +30,74 @@ import org.appdevforall.codeonthego.utils.resolveAttr
  * @author Akash Yadav
  */
 open class DynamicColorScheme : SchemeAndroidIDE() {
+	private var isInDarkMode: Boolean = true
 
-  private var isInDarkMode: Boolean = true
+	fun apply(context: Context) {
+		this.isInDarkMode = context.isSystemInDarkMode()
+		val secondaryVariant = context.resolveAttr(attr.colorSecondaryVariant)
+		val surface = context.resolveAttr(attr.colorSurface)
+		val surfaceVariant = context.resolveAttr(attr.colorSurfaceVariant)
+		val onSurface = context.resolveAttr(attr.colorOnSurface)
+		val onSurfaceVariant = context.resolveAttr(attr.colorOnSurfaceVariant)
+		val outline = context.resolveAttr(attr.colorOutline)
+		setColor(WHOLE_BACKGROUND, surface)
+		setColor(LINE_NUMBER_BACKGROUND, surface)
+		setColor(LINE_NUMBER, onSurface)
+		setColor(LINE_NUMBER_PANEL, surfaceVariant)
+		setColor(LINE_NUMBER_PANEL_TEXT, onSurfaceVariant)
+		setColor(CURRENT_LINE, surfaceVariant)
+		setColor(TEXT_NORMAL, onSurface)
+		setColor(BLOCK_LINE, surfaceVariant)
+		setColor(BLOCK_LINE_CURRENT, outline)
+		setColor(UNDERLINE, outline)
 
-  fun apply(context: Context) {
-    this.isInDarkMode = context.isSystemInDarkMode()
-    val secondaryVariant = context.resolveAttr(attr.colorSecondaryVariant)
-    val surface = context.resolveAttr(attr.colorSurface)
-    val surfaceVariant = context.resolveAttr(attr.colorSurfaceVariant)
-    val onSurface = context.resolveAttr(attr.colorOnSurface)
-    val onSurfaceVariant = context.resolveAttr(attr.colorOnSurfaceVariant)
-    val outline = context.resolveAttr(attr.colorOutline)
-    setColor(WHOLE_BACKGROUND, surface)
-    setColor(LINE_NUMBER_BACKGROUND, surface)
-    setColor(LINE_NUMBER, onSurface)
-    setColor(LINE_NUMBER_PANEL, surfaceVariant)
-    setColor(LINE_NUMBER_PANEL_TEXT, onSurfaceVariant)
-    setColor(CURRENT_LINE, surfaceVariant)
-    setColor(TEXT_NORMAL, onSurface)
-    setColor(BLOCK_LINE, surfaceVariant)
-    setColor(BLOCK_LINE_CURRENT, outline)
-    setColor(UNDERLINE, outline)
+		setColor(COMPLETION_WND_BACKGROUND, surface)
+		setColor(COMPLETION_WND_BG_CURRENT_ITEM, surfaceVariant)
+		setColor(COMPLETION_WND_CORNER, outline)
+		setColor(COMPLETION_WND_TEXT_LABEL, onSurface)
+		setColor(COMPLETION_WND_TEXT_DETAIL, secondaryVariant)
+		setColor(COMPLETION_WND_TEXT_API, secondaryVariant)
+		setColor(COMPLETION_WND_TEXT_TYPE, secondaryVariant)
 
-    setColor(COMPLETION_WND_BACKGROUND, surface)
-    setColor(COMPLETION_WND_BG_CURRENT_ITEM, surfaceVariant)
-    setColor(COMPLETION_WND_CORNER, outline)
-    setColor(COMPLETION_WND_TEXT_LABEL, onSurface)
-    setColor(COMPLETION_WND_TEXT_DETAIL, secondaryVariant)
-    setColor(COMPLETION_WND_TEXT_API, secondaryVariant)
-    setColor(COMPLETION_WND_TEXT_TYPE, secondaryVariant)
+		setColor(BREAKPOINT_LINE_INDICATOR, 0xfff44336)
+		setColor(BREAKPOINT_LINE_BG, 0xfff44336)
+		setColor(SchemeAndroidIDE.SYNTAX_SPAN_NO_BACKGROUND, Color.TRANSPARENT)
 
-    setColor(BREAKPOINT_LINE_INDICATOR, 0xfff44336)
-    setColor(BREAKPOINT_LINE_BG, 0xfff44336)
-    setColor(SchemeAndroidIDE.SYNTAX_SPAN_NO_BACKGROUND, Color.TRANSPARENT)
+		if (!isInDarkMode) {
+			applyLightColors()
+		}
+	}
 
-    if (!isInDarkMode) {
-      applyLightColors()
-    }
-  }
+	override fun isDark(): Boolean = this.isInDarkMode
 
-  override fun isDark(): Boolean {
-    return this.isInDarkMode
-  }
+	private fun applyLightColors() {
+		setColor(KEYWORD, 0xffd32f2f)
+		setColor(OPERATOR, 0xff1976d2)
+		setColor(LITERAL, 0xff558b2f)
+		setColor(TYPE_NAME, 0xff1976d2)
+		setColor(ANNOTATION, 0xff1976d2)
+		setColor(FIELD, 0xffff6f00)
 
-  private fun applyLightColors() {
-    setColor(KEYWORD, 0xffd32f2f)
-    setColor(OPERATOR, 0xff1976d2)
-    setColor(LITERAL, 0xff558b2f)
-    setColor(TYPE_NAME, 0xff1976d2)
-    setColor(ANNOTATION, 0xff1976d2)
-    setColor(FIELD, 0xffff6f00)
+		setColor(XML_TAG, 0xffe64a19)
 
-    setColor(XML_TAG, 0xffe64a19)
+		setColor(LOG_TEXT_ERROR, 0xfff44336)
+		setColor(LOG_TEXT_WARNING, 0xffffab00)
+		setColor(LOG_TEXT_INFO, 0xff4CAF50)
+		setColor(LOG_TEXT_DEBUG, 0xff212121)
+		setColor(LOG_TEXT_VERBOSE, 0xff0288d1)
 
-    setColor(LOG_TEXT_ERROR, 0xfff44336)
-    setColor(LOG_TEXT_WARNING, 0xffffab00)
-    setColor(LOG_TEXT_INFO, 0xff4CAF50)
-    setColor(LOG_TEXT_DEBUG, 0xff212121)
-    setColor(LOG_TEXT_VERBOSE, 0xff0288d1)
+		setColor(TODO_COMMENT, 0xffff6d00)
+		setColor(FIXME_COMMENT, 0xffff6d00)
+		setColor(COMMENT, 0xff9e9e9e)
 
-    setColor(TODO_COMMENT, 0xffff6d00)
-    setColor(FIXME_COMMENT, 0xffff6d00)
-    setColor(COMMENT, 0xff9e9e9e)
+		setColor(BREAKPOINT_LINE_INDICATOR, 0xfff77b72)
+		setColor(BREAKPOINT_LINE_BG, 0xfff77b72)
+	}
 
-    setColor(BREAKPOINT_LINE_INDICATOR, 0xfff77b72)
-    setColor(BREAKPOINT_LINE_BG, 0xfff77b72)
-  }
-
-  private fun setColor(key: Int, value: Long) {
-    setColor(key, value.toInt())
-  }
+	private fun setColor(
+		key: Int,
+		value: Long,
+	) {
+		setColor(key, value.toInt())
+	}
 }

@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.plugins.ai.prompt
 
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.files
 import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.load
 import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.loadWith
 import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.parser
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

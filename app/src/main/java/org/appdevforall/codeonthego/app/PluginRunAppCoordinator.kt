@@ -3,6 +3,10 @@ package org.appdevforall.codeonthego.app
 import android.app.Activity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.activities.editor.ProjectHandlerActivity
 import org.appdevforall.codeonthego.interfaces.IEditorHandler
 import org.appdevforall.codeonthego.plugins.services.BuildAndLaunchCallback
@@ -10,10 +14,6 @@ import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.isPluginProject
 import org.appdevforall.codeonthego.viewmodel.BuildState
 import org.appdevforall.codeonthego.viewmodel.BuildViewModel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 

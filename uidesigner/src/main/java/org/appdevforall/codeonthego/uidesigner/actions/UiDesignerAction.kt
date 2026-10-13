@@ -35,31 +35,28 @@ import org.appdevforall.codeonthego.uidesigner.fragments.DesignerWorkspaceFragme
  * @author Akash Yadav
  */
 abstract class UiDesignerAction : ActionItem {
+	override var requiresUIThread: Boolean = true
+	override var location: Location = UI_DESIGNER_TOOLBAR
+	override var label: String = ""
+	override var icon: Drawable? = null
+	override var enabled: Boolean = true
+	override var visible: Boolean = true
 
-  override var requiresUIThread: Boolean = true
-  override var location: Location = UI_DESIGNER_TOOLBAR
-  override var label: String = ""
-  override var icon: Drawable? = null
-  override var enabled: Boolean = true
-  override var visible: Boolean = true
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (!data.hasRequiredData(Context::class.java, Fragment::class.java)) {
+			markInvisible()
+			return
+		}
+	}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (!data.hasRequiredData(Context::class.java, Fragment::class.java)) {
-      markInvisible()
-      return
-    }
-  }
+	fun ActionData.requireActivity(): UIDesignerActivity =
+		get(Context::class.java) as? UIDesignerActivity
+			?: throw IllegalArgumentException("UIDesignerActivity instance is required in ActionData")
 
-  fun ActionData.requireActivity(): UIDesignerActivity {
-    return get(Context::class.java) as? UIDesignerActivity
-      ?: throw IllegalArgumentException("UIDesignerActivity instance is required in ActionData")
-  }
-
-  fun ActionData.requireWorkspace(): DesignerWorkspaceFragment {
-    return get(Fragment::class.java) as? DesignerWorkspaceFragment
-      ?: throw IllegalArgumentException(
-        "DesignerWorkspaceFragment instance is required in ActionData"
-      )
-  }
+	fun ActionData.requireWorkspace(): DesignerWorkspaceFragment =
+		get(Fragment::class.java) as? DesignerWorkspaceFragment
+			?: throw IllegalArgumentException(
+				"DesignerWorkspaceFragment instance is required in ActionData",
+			)
 }

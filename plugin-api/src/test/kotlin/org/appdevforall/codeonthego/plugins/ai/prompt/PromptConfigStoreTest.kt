@@ -1,7 +1,5 @@
 package org.appdevforall.codeonthego.plugins.ai.prompt
 
-import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.files
-import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.parser
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -12,6 +10,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.files
+import org.appdevforall.codeonthego.plugins.ai.prompt.PromptConfigFixture.parser
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

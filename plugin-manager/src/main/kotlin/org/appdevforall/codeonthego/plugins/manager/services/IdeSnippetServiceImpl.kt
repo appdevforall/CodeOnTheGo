@@ -4,7 +4,6 @@ import org.appdevforall.codeonthego.plugins.services.IdeSnippetService
 import org.slf4j.LoggerFactory
 
 class IdeSnippetServiceImpl : IdeSnippetService {
-
 	private val log = LoggerFactory.getLogger(IdeSnippetServiceImpl::class.java)
 
 	private var refreshCallback: ((String) -> Unit)? = null

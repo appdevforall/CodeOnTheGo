@@ -37,48 +37,46 @@ import io.github.rosemoe.sora.editor.ts.predicate.builtin.getCaptureContent
  * @author Akash Yadav
  */
 object EqualPredicate : TreeSitterPredicate() {
+	override val name: String
+		get() = "eq"
 
-  override val name: String
-    get() = "eq"
+	override fun canHandle(steps: List<TsClientPredicateStep>): Boolean =
+		steps.size == 4 &&
+			steps[0].predicateType == TSQueryPredicateStep.Type.String &&
+			steps[1].predicateType == TSQueryPredicateStep.Type.Capture &&
+			steps[2].predicateType.let {
+				it == TSQueryPredicateStep.Type.Capture || it == TSQueryPredicateStep.Type.String
+			} &&
+			steps[3].predicateType == TSQueryPredicateStep.Type.Done
 
-  override fun canHandle(steps: List<TsClientPredicateStep>): Boolean {
-    return steps.size == 4 &&
-        steps[0].predicateType == TSQueryPredicateStep.Type.String &&
-        steps[1].predicateType == TSQueryPredicateStep.Type.Capture &&
-        steps[2].predicateType.let {
-          it == TSQueryPredicateStep.Type.Capture || it == TSQueryPredicateStep.Type.String
-        } &&
-        steps[3].predicateType == TSQueryPredicateStep.Type.Done
-  }
+	override fun doPredicateInternal(
+		tsQuery: TSQuery,
+		text: CharSequence,
+		match: TSQueryMatch,
+		predicateSteps: List<TsClientPredicateStep>,
+		syntheticCaptures: TsSyntheticCaptureContainer,
+	): PredicateResult {
+		val first = getCaptureContent(tsQuery, match, predicateSteps[1].content, text)
+		val second =
+			predicateSteps[2].let {
+				check(
+					it.predicateType == TSQueryPredicateStep.Type.String ||
+						it.predicateType == TSQueryPredicateStep.Type.Capture,
+				) {
+					"Second predicate step of #eq? predicate must be a string or a capture"
+				}
 
-  override fun doPredicateInternal(
-    tsQuery: TSQuery,
-    text: CharSequence,
-    match: TSQueryMatch,
-    predicateSteps: List<TsClientPredicateStep>,
-    syntheticCaptures: TsSyntheticCaptureContainer
-  ): PredicateResult {
-    val first = getCaptureContent(tsQuery, match, predicateSteps[1].content, text)
-    val second =
-      predicateSteps[2].let {
-        check(
-          it.predicateType == TSQueryPredicateStep.Type.String ||
-              it.predicateType == TSQueryPredicateStep.Type.Capture
-        ) {
-          "Second predicate step of #eq? predicate must be a string or a capture"
-        }
+				if (it.predicateType == TSQueryPredicateStep.Type.Capture) {
+					getCaptureContent(tsQuery, match, it.content, text)
+				} else {
+					it.content
+				}
+			}
 
-        if (it.predicateType == TSQueryPredicateStep.Type.Capture) {
-          getCaptureContent(tsQuery, match, it.content, text)
-        } else {
-          it.content
-        }
-      }
-
-    return if (first == second) {
-      PredicateResult.ACCEPT
-    } else {
-      PredicateResult.REJECT
-    }
-  }
+		return if (first == second) {
+			PredicateResult.ACCEPT
+		} else {
+			PredicateResult.REJECT
+		}
+	}
 }

@@ -3,9 +3,9 @@ package org.appdevforall.codeonthego.helper
 import android.Manifest
 import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.R
+import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.appdevforall.codeonthego.screens.PermissionScreen
 import org.appdevforall.codeonthego.utils.PermissionsHelper
-import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 
 /**
  * Drives the onboarding permission list and system Settings UIs for every entry in
@@ -41,15 +41,19 @@ fun TestContext<Unit>.grantAllRequiredPermissionsThroughOnboardingUi() {
 					Manifest.permission.POST_NOTIFICATIONS -> {
 						device.grantPostNotificationsUi()
 					}
+
 					Manifest.permission_group.STORAGE -> {
 						device.grantStorageManageAllFilesUi()
 					}
+
 					Manifest.permission.REQUEST_INSTALL_PACKAGES -> {
 						device.grantInstallUnknownAppsUi()
 					}
+
 					Manifest.permission.SYSTEM_ALERT_WINDOW -> {
 						device.grantDisplayOverOtherAppsUi()
 					}
+
 					else -> {
 						throw IllegalStateException("Unknown permission row: ${item.permission}")
 					}

@@ -21,7 +21,8 @@ import org.appdevforall.codeonthego.tooling.events.StartEvent
 
 /** @author Akash Yadav */
 class TransformStartEvent(
-  displayName: String,
-  eventTime: Long,
-  descriptor: TransformOperationDescriptor
-) : TransformProgressEvent(displayName, eventTime, descriptor), StartEvent
+	displayName: String,
+	eventTime: Long,
+	descriptor: TransformOperationDescriptor,
+) : TransformProgressEvent(displayName, eventTime, descriptor),
+	StartEvent

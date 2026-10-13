@@ -24,4 +24,6 @@ import org.appdevforall.codeonthego.inflater.IView
  *
  * @author Akash Yadav
  */
-open class ForwardingView(protected open val src: IView) : IView by src
+open class ForwardingView(
+	protected open val src: IView,
+) : IView by src

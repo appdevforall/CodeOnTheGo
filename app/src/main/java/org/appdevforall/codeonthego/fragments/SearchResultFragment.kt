@@ -28,17 +28,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
+import com.itsaky.androidide.databinding.FragmentSearchResultsReplaceBarBinding
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
 import org.appdevforall.codeonthego.adapters.SearchListAdapter
-import com.itsaky.androidide.databinding.FragmentSearchResultsReplaceBarBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.models.SearchResult
 import org.appdevforall.codeonthego.search.replace.ReplaceHost
 import org.appdevforall.codeonthego.search.replace.ReplaceSession
 import org.appdevforall.codeonthego.viewmodel.EditorViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
 import java.io.File
 import com.itsaky.androidide.resources.R as ResR
 

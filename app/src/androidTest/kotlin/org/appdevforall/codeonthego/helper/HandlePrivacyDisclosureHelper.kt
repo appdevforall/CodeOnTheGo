@@ -3,9 +3,9 @@ package org.appdevforall.codeonthego.helper
 import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
+import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.appdevforall.codeonthego.preferences.internal.StatPreferences
 import org.appdevforall.codeonthego.preferences.internal.TelemetryConsent
-import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import com.itsaky.androidide.resources.R as ResourcesR

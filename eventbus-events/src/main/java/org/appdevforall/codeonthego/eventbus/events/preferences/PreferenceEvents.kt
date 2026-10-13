@@ -26,11 +26,16 @@ import org.appdevforall.codeonthego.eventbus.events.Event
  * @param value The new value of the preference.
  * @author Akash Yadav
  */
-data class PreferenceChangeEvent(val key: String, val value: Any?) : Event()
+data class PreferenceChangeEvent(
+	val key: String,
+	val value: Any?,
+) : Event()
 
 /**
  * Dispatched when a preference is removed from shared preferences.
  *
  * @param key The key of the preference that was removed.
  */
-data class PreferenceRemoveEvent(val key: String) : Event()
+data class PreferenceRemoveEvent(
+	val key: String,
+) : Event()

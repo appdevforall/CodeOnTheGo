@@ -9,7 +9,6 @@ import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.utils.flashError
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -28,6 +27,7 @@ import moe.shizuku.manager.adb.AdbKeyException
 import moe.shizuku.manager.adb.AdbMdns
 import moe.shizuku.manager.adb.AdbPairingService
 import moe.shizuku.manager.adb.PreferenceAdbKeyStore
+import org.appdevforall.codeonthego.utils.flashError
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 import java.net.ConnectException
@@ -191,6 +191,7 @@ class WADBConnectionViewModel : ViewModel() {
 			AdbPairingService.ACTION_PAIR_STARTED -> {
 				_status.update { ConnectionStatus.Pairing }
 			}
+
 			AdbPairingService.ACTION_PAIR_SUCCEEDED -> {
 				_status.update { ConnectionStatus.Paired }
 

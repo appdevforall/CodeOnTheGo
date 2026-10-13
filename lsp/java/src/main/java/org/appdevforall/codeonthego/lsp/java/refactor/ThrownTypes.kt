@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ExecutableElement
 import jdkx.lang.model.element.TypeElement
@@ -26,6 +25,7 @@ import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 
 /**
  * The checked exception types the new method must declare (R10), or null when one cannot be written.

@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
-import org.appdevforall.codeonthego.lsp.java.compiler.ClasspathClassNames
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
+import org.appdevforall.codeonthego.lsp.java.compiler.ClasspathClassNames
 
 /** A compile classpath holding the top-level [classes], answering package queries the way the class index does. */
 internal class FakeClasspathPackages(

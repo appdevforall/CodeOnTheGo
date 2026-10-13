@@ -18,12 +18,12 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.ViewSwitcher
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [ViewSwitcher].
@@ -33,13 +33,12 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(ViewSwitcher::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class ViewSwitcherAdapter<T : ViewSwitcher> : ViewAnimatorAdapter<T>() {
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        ViewSwitcher::class.java,
-        string.widget_viewswitcher,
-        drawable.ic_widget_viewswitcher
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				ViewSwitcher::class.java,
+				string.widget_viewswitcher,
+				drawable.ic_widget_viewswitcher,
+			),
+		)
 }

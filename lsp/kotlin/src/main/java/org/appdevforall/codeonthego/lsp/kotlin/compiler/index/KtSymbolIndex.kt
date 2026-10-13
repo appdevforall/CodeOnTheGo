@@ -1,6 +1,18 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
 import com.github.benmanes.caffeine.cache.Caffeine
+import io.sentry.Sentry
+import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.CompilationKind
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.KtModule
@@ -14,18 +26,6 @@ import org.appdevforall.codeonthego.lsp.kotlin.compiler.write
 import org.appdevforall.codeonthego.lsp.kotlin.utils.toVirtualFileOrNull
 import org.appdevforall.codeonthego.projects.FileManager
 import org.appdevforall.codeonthego.utils.DocumentUtils
-import io.sentry.Sentry
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.future.await
-import kotlinx.coroutines.launch
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
-import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.checkerframework.checker.index.qual.NonNegative
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType

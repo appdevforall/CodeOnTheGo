@@ -3,11 +3,11 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.projects.ProjectManagerImpl
-import org.appdevforall.codeonthego.projects.api.ModuleProject
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.jetbrains.org.objectweb.asm.ClassWriter
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.junit.After

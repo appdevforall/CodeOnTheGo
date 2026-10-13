@@ -16,11 +16,11 @@
  */
 package org.appdevforall.codeonthego.lsp.api
 
+import kotlinx.coroutines.CancellationException
 import org.appdevforall.codeonthego.eventbus.events.project.ProjectInitializedEvent
 import org.appdevforall.codeonthego.lsp.debug.DebugClientConnectionResult
 import org.appdevforall.codeonthego.lsp.debug.IDebugClient
 import org.appdevforall.codeonthego.projects.api.Workspace
-import kotlinx.coroutines.CancellationException
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode

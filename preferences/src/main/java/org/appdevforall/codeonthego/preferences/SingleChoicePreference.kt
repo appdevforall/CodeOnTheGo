@@ -30,50 +30,51 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
  *
  * @author Akash Yadav
  */
-abstract class SingleChoicePreference : ChoiceBasedDialogPreference(), PreferenceChoices {
+abstract class SingleChoicePreference :
+	ChoiceBasedDialogPreference(),
+	PreferenceChoices {
+	/**
+	 * The currently selected item in the dialog.
+	 */
+	protected open var currentSelection: Int = -1
 
-  /**
-   * The currently selected item in the dialog.
-   */
-  protected open var currentSelection: Int = -1
+	override fun onConfigureDialogChoices(
+		preference: Preference,
+		dialog: MaterialAlertDialogBuilder,
+		entries: Array<PreferenceChoices.Entry>,
+		selections: BooleanArray,
+	) {
+		currentSelection = entries.indexOfFirst { it.isChecked }
 
-  override fun onConfigureDialogChoices(
-    preference: Preference,
-    dialog: MaterialAlertDialogBuilder,
-    entries: Array<PreferenceChoices.Entry>,
-    selections: BooleanArray
-  ) {
-    currentSelection = entries.indexOfFirst { it.isChecked }
+		dialog.setSingleChoiceItems(
+			entries.labels,
+			currentSelection,
+		)
+			{ _, position ->
+				if (currentSelection != -1) {
+					onSelectionChanged(preference, entries[currentSelection], currentSelection, false)
+				}
 
-    dialog.setSingleChoiceItems(
-      entries.labels,
-      currentSelection
-    )
-    { _, position ->
-      if (currentSelection != -1) {
-        onSelectionChanged(preference, entries[currentSelection], currentSelection, false)
-      }
+				currentSelection = position
+				onSelectionChanged(preference, entries[currentSelection], position, true)
+			}
+	}
 
-      currentSelection = position
-      onSelectionChanged(preference, entries[currentSelection], position, true)
-    }
-  }
+	override fun onChoicesConfirmed(
+		preference: Preference,
+		entries: Array<PreferenceChoices.Entry>,
+	) {
+		if (currentSelection < 0 || currentSelection > entries.lastIndex) {
+			onChoiceConfirmed(preference, null, currentSelection)
+		} else {
+			onChoiceConfirmed(preference, entries[currentSelection], currentSelection)
+		}
+	}
 
-  override fun onChoicesConfirmed(
-    preference: Preference,
-    entries: Array<PreferenceChoices.Entry>
-  ) {
-    if (currentSelection < 0 || currentSelection > entries.lastIndex) {
-      onChoiceConfirmed(preference, null, currentSelection)
-    } else {
-      onChoiceConfirmed(preference, entries[currentSelection], currentSelection)
-    }
-  }
-
-  protected open fun onChoiceConfirmed(
-    preference: Preference,
-    entry: PreferenceChoices.Entry?,
-    position: Int
-  ) {
-  }
+	protected open fun onChoiceConfirmed(
+		preference: Preference,
+		entry: PreferenceChoices.Entry?,
+		position: Int,
+	) {
+	}
 }

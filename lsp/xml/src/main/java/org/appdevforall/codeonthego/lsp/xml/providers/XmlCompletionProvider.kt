@@ -26,6 +26,7 @@ import com.android.aaptcompiler.AaptResourceType.MENU
 import com.android.aaptcompiler.AaptResourceType.TRANSITION
 import com.android.aaptcompiler.ResourcePathData
 import com.android.aaptcompiler.extractPathData
+import io.github.rosemoe.sora.text.ContentReference
 import org.appdevforall.codeonthego.lsp.api.AbstractServiceProvider
 import org.appdevforall.codeonthego.lsp.api.ICompletionProvider
 import org.appdevforall.codeonthego.lsp.api.IServerSettings
@@ -58,7 +59,6 @@ import org.appdevforall.codeonthego.lsp.xml.utils.XmlUtils.NodeType.UNKNOWN
 import org.appdevforall.codeonthego.lsp.xml.utils.forTransitionAttr
 import org.appdevforall.codeonthego.utils.CharSequenceReader
 import org.appdevforall.codeonthego.utils.StopWatch
-import io.github.rosemoe.sora.text.ContentReference
 import org.eclipse.lemminx.dom.DOMParser
 import org.eclipse.lemminx.uriresolver.URIResolverExtensionManager
 import org.slf4j.LoggerFactory
@@ -70,144 +70,148 @@ import kotlin.io.path.name
  *
  * @author Akash Yadav
  */
-class XmlCompletionProvider(settings: IServerSettings) :
-  AbstractServiceProvider(), ICompletionProvider {
+class XmlCompletionProvider(
+	settings: IServerSettings,
+) : AbstractServiceProvider(),
+	ICompletionProvider {
+	companion object {
+		private val log = LoggerFactory.getLogger(XmlCompletionProvider::class.java)
+	}
 
-  companion object {
+	init {
+		super.applySettings(settings)
+	}
 
-    private val log = LoggerFactory.getLogger(XmlCompletionProvider::class.java)
-  }
+	override fun complete(params: CompletionParams): CompletionResult =
+		try {
+			val watch =
+				StopWatch(
+					"Complete at ${params.file.name}:${params.position.line}:${params.position.column}",
+				)
+			doComplete(params).also { watch.log() }
+		} catch (error: Throwable) {
+			log.error("An error occurred while computing XML completions", error)
+			EMPTY
+		}
 
-  init {
-    super.applySettings(settings)
-  }
+	private fun doComplete(params: CompletionParams): CompletionResult {
+		val contents = toString(contents = params.requireContents())
+		val document =
+			DOMParser.getInstance().parse(
+				contents,
+				"http://schemas.android.com/apk/res/android",
+				URIResolverExtensionManager(),
+			)
+		val type = XmlUtils.getNodeType(document, params.position.requireIndex())
 
-  override fun complete(params: CompletionParams): CompletionResult {
-    return try {
-      val watch =
-        StopWatch(
-          "Complete at ${params.file.name}:${params.position.line}:${params.position.column}"
-        )
-      doComplete(params).also { watch.log() }
-    } catch (error: Throwable) {
-      log.error("An error occurred while computing XML completions", error)
-      EMPTY
-    }
-  }
+		if (type == UNKNOWN) {
+			log.warn("Unknown node type. Aborting completion.")
+			return EMPTY
+		}
 
-  private fun doComplete(params: CompletionParams): CompletionResult {
-    val contents = toString(contents = params.requireContents())
-    val document =
-      DOMParser.getInstance().parse(contents, "http://schemas.android.com/apk/res/android",
-        URIResolverExtensionManager())
-    val type = XmlUtils.getNodeType(document, params.position.requireIndex())
+		val prefix = XmlUtils.getPrefix(document, params.position.requireIndex(), type) ?: return EMPTY
+		if (prefix.isBlank() && type != ATTRIBUTE_VALUE) {
+			return EMPTY
+		}
 
-    if (type == UNKNOWN) {
-      log.warn("Unknown node type. Aborting completion.")
-      return EMPTY
-    }
+		val pathData = extractPathData(params.file.toFile())
 
-    val prefix = XmlUtils.getPrefix(document, params.position.requireIndex(), type) ?: return EMPTY
-    if (prefix.isBlank() && type != ATTRIBUTE_VALUE) {
-      return EMPTY
-    }
+		val completer =
+			getCompleter(pathData, type)
+				?: run {
+					log.error(
+						"No completer available for resource type '{}' and node type '{}'",
+						pathData.type,
+						type,
+					)
+					return EMPTY
+				}
 
-    val pathData = extractPathData(params.file.toFile())
+		return completer.complete(params, pathData, document, type, prefix)
+	}
 
-    val completer =
-      getCompleter(pathData, type)
-        ?: run {
-          log.error(
-            "No completer available for resource type '{}' and node type '{}'", pathData.type, type
-          )
-          return EMPTY
-        }
+	private fun toString(contents: CharSequence): String = getReader(contents).use { it.readText() }
 
-    return completer.complete(params, pathData, document, type, prefix)
-  }
+	private fun getReader(contents: CharSequence): Reader =
+		if (contents is ContentReference) {
+			contents.createReader()
+		} else {
+			CharSequenceReader(contents)
+		}
 
-  private fun toString(contents: CharSequence): String {
-    return getReader(contents).use { it.readText() }
-  }
+	private fun getCompleter(
+		pathData: ResourcePathData,
+		type: NodeType,
+	): IXmlCompletionProvider? =
+		when (pathData.type) {
+			LAYOUT -> createLayoutCompleter(type)
+			TRANSITION -> createTransitionCompleter(type)
+			null -> createNullTypeCompleter(pathData, type)
+			else -> createCommonCompleter(pathData, type)
+		}
 
-  private fun getReader(contents: CharSequence): Reader =
-    if (contents is ContentReference) {
-      contents.createReader()
-    } else {
-      CharSequenceReader(contents)
-    }
+	private fun createTransitionCompleter(type: NodeType): IXmlCompletionProvider? =
+		when (type) {
+			ATTRIBUTE -> {
+				InheritingAttrCompletionProvider(::forTransitionAttr, TransitionTagTransformer, this)
+			}
 
-  private fun getCompleter(pathData: ResourcePathData, type: NodeType): IXmlCompletionProvider? {
-    return when (pathData.type) {
-      LAYOUT -> createLayoutCompleter(type)
-      TRANSITION -> createTransitionCompleter(type)
-      null -> createNullTypeCompleter(pathData, type)
-      else -> createCommonCompleter(pathData, type)
-    }
-  }
+			ATTRIBUTE_VALUE -> {
+				AttrValueCompletionProvider(this)
+			}
 
-  private fun createTransitionCompleter(type: NodeType): IXmlCompletionProvider? {
-    return when (type) {
-      ATTRIBUTE ->
-        InheritingAttrCompletionProvider(::forTransitionAttr, TransitionTagTransformer, this)
+			else -> {
+				null
+			}
+		}
 
-      ATTRIBUTE_VALUE -> AttrValueCompletionProvider(this)
-      else -> null
-    }
-  }
+	private fun createCommonCompleter(
+		pathData: ResourcePathData,
+		type: NodeType,
+	): IXmlCompletionProvider? =
+		when (type) {
+			ATTRIBUTE -> CommonAttrCompletionProvider(tagTransformerFor(pathData), this)
+			ATTRIBUTE_VALUE -> AttrValueCompletionProvider(this)
+			else -> null
+		}
 
-  private fun createCommonCompleter(
-    pathData: ResourcePathData,
-    type: NodeType
-  ): IXmlCompletionProvider? {
-    return when (type) {
-      ATTRIBUTE -> CommonAttrCompletionProvider(tagTransformerFor(pathData), this)
-      ATTRIBUTE_VALUE -> AttrValueCompletionProvider(this)
-      else -> null
-    }
-  }
+	private fun tagTransformerFor(pathData: ResourcePathData): ITagTransformer =
+		when (pathData.type) {
+			ANIM -> AnimTagTransformer
+			ANIMATOR -> AnimatorTagTransformer
+			DRAWABLE -> DrawableTagTransformer
+			MENU -> MenuTagTransformer
+			else -> NoOpTagTransformer
+		}
 
-  private fun tagTransformerFor(pathData: ResourcePathData): ITagTransformer {
-    return when (pathData.type) {
-      ANIM -> AnimTagTransformer
-      ANIMATOR -> AnimatorTagTransformer
-      DRAWABLE -> DrawableTagTransformer
-      MENU -> MenuTagTransformer
-      else -> NoOpTagTransformer
-    }
-  }
+	private fun createNullTypeCompleter(
+		pathData: ResourcePathData,
+		type: NodeType,
+	): IXmlCompletionProvider? {
+		// In test cases
+		if (canCompleteManifest(pathData, type)) {
+			return createManifestCompleter(type)
+		}
 
-  private fun createNullTypeCompleter(
-    pathData: ResourcePathData,
-    type: NodeType
-  ): IXmlCompletionProvider? {
+		return when (pathData.file.name) {
+			ANDROID_MANIFEST_XML -> createManifestCompleter(type)
+			else -> null
+		}
+	}
 
-    // In test cases
-    if (canCompleteManifest(pathData, type)) {
-      return createManifestCompleter(type)
-    }
+	private fun createManifestCompleter(type: NodeType): IXmlCompletionProvider? =
+		when (type) {
+			TAG -> ManifestTagCompletionProvider(this)
+			ATTRIBUTE -> ManifestAttrCompletionProvider(this)
+			ATTRIBUTE_VALUE -> ManifestAttrValueCompletionProvider(this)
+			else -> null
+		}
 
-    return when (pathData.file.name) {
-      ANDROID_MANIFEST_XML -> createManifestCompleter(type)
-      else -> null
-    }
-  }
-
-  private fun createManifestCompleter(type: NodeType): IXmlCompletionProvider? {
-    return when (type) {
-      TAG -> ManifestTagCompletionProvider(this)
-      ATTRIBUTE -> ManifestAttrCompletionProvider(this)
-      ATTRIBUTE_VALUE -> ManifestAttrValueCompletionProvider(this)
-      else -> null
-    }
-  }
-
-  private fun createLayoutCompleter(type: NodeType): IXmlCompletionProvider? {
-    return when (type) {
-      TAG -> LayoutTagCompletionProvider(this)
-      ATTRIBUTE -> LayoutAttrCompletionProvider(this)
-      ATTRIBUTE_VALUE -> AttrValueCompletionProvider(this)
-      else -> null
-    }
-  }
+	private fun createLayoutCompleter(type: NodeType): IXmlCompletionProvider? =
+		when (type) {
+			TAG -> LayoutTagCompletionProvider(this)
+			ATTRIBUTE -> LayoutAttrCompletionProvider(this)
+			ATTRIBUTE_VALUE -> AttrValueCompletionProvider(this)
+			else -> null
+		}
 }

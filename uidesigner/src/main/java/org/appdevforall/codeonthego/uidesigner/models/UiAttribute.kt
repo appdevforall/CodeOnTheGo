@@ -33,68 +33,67 @@ import org.appdevforall.codeonthego.inflater.viewAdapter
  * @author Akash Yadav
  */
 open class UiAttribute
-@JvmOverloads
-constructor(
-  override val namespace: INamespace? = null,
-  override val name: String,
-  override var value: String,
-  internal var isRequired: Boolean = false
-) : AttributeImpl(namespace, name, value), Parcelable {
+	@JvmOverloads
+	constructor(
+		override val namespace: INamespace? = null,
+		override val name: String,
+		override var value: String,
+		internal var isRequired: Boolean = false,
+	) : AttributeImpl(namespace, name, value),
+		Parcelable {
+		constructor(
+			src: IAttribute,
+		) : this(namespace = src.namespace as NamespaceImpl?, name = src.name, value = src.value)
 
-  constructor(
-    src: IAttribute
-  ) : this(namespace = src.namespace as NamespaceImpl?, name = src.name, value = src.value)
+		private constructor(
+			parcel: Parcel,
+		) : this(createNs(parcel), parcel.readString() ?: "", parcel.readString() ?: "")
 
-  private constructor(
-    parcel: Parcel
-  ) : this(createNs(parcel), parcel.readString() ?: "", parcel.readString() ?: "")
+		companion object {
+			@JvmField
+			@Suppress("UNUSED")
+			val CREATOR =
+				object : Creator<UiAttribute> {
+					override fun createFromParcel(parcel: Parcel): UiAttribute = UiAttribute(parcel)
 
-  companion object {
+					override fun newArray(size: Int): Array<UiAttribute?> = arrayOfNulls(size)
+				}
 
-    @JvmField
-    @Suppress("UNUSED")
-    val CREATOR =
-      object : Creator<UiAttribute> {
-        override fun createFromParcel(parcel: Parcel): UiAttribute {
-          return UiAttribute(parcel)
-        }
+			@JvmStatic
+			fun isRequired(
+				view: IView,
+				attribute: IAttribute,
+			): Boolean {
+				val adapter = view.viewAdapter ?: return false
+				return adapter.isRequiredAttribute(attribute)
+			}
 
-        override fun newArray(size: Int): Array<UiAttribute?> {
-          return arrayOfNulls(size)
-        }
-      }
+			@JvmStatic
+			private fun createNs(parcel: Parcel): INamespace? {
+				if (parcel.readByte() == 0.toByte()) {
+					return null
+				}
 
-    @JvmStatic
-    fun isRequired(view: IView, attribute: IAttribute): Boolean {
-      val adapter = view.viewAdapter ?: return false
-      return adapter.isRequiredAttribute(attribute)
-    }
+				return NamespaceImpl(parcel.readString() ?: "", parcel.readString() ?: "")
+			}
+		}
 
-    @JvmStatic
-    private fun createNs(parcel: Parcel): INamespace? {
-      if (parcel.readByte() == 0.toByte()) {
-        return null
-      }
+		override fun describeContents(): Int = 0
 
-      return NamespaceImpl(parcel.readString() ?: "", parcel.readString() ?: "")
-    }
-  }
+		override fun writeToParcel(
+			dest: Parcel,
+			flags: Int,
+		) {
+			dest.apply {
+				namespace?.let {
+					writeByte(1)
+					writeString(it.uri)
+					writeString(it.prefix)
+				}
+					?: writeByte(0)
 
-  override fun describeContents(): Int {
-    return 0
-  }
-
-  override fun writeToParcel(dest: Parcel, flags: Int) {
-    dest.apply {
-      namespace?.let {
-        writeByte(1)
-        writeString(it.uri)
-        writeString(it.prefix)
-      }
-        ?: writeByte(0)
-
-      writeString(name)
-      writeString(value)
-    }
-  }
-}
+				writeString(name)
+				writeString(value)
+			}
+		}
+	}

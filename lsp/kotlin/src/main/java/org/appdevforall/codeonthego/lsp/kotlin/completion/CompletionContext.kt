@@ -4,7 +4,6 @@ package org.appdevforall.codeonthego.lsp.kotlin.completion
  * The context for the providing code completions in a file.
  */
 enum class CompletionContext {
-
 	/**
 	 * Scope completions (local variables, parameters, etc.)
 	 */

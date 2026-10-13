@@ -6,6 +6,6 @@ package org.appdevforall.codeonthego.idetooltips
  * suggesting data integrity issues in the database.
  */
 class DatabaseCorruptionException(
-    message: String,
-    cause: Throwable? = null
-) : Exception(message, cause) 
+	message: String,
+	cause: Throwable? = null,
+) : Exception(message, cause)

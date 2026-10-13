@@ -19,10 +19,6 @@
  **************************************************************************************/
 package org.appdevforall.codeonthego.utils;
 
-import org.appdevforall.codeonthego.models.Position;
-import org.appdevforall.codeonthego.models.Range;
-import org.appdevforall.codeonthego.models.SearchResult;
-import org.appdevforall.codeonthego.tasks.TaskExecutor;
 import io.github.rosemoe.sora.text.CharPosition;
 import io.github.rosemoe.sora.text.Content;
 import java.io.File;
@@ -37,6 +33,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.appdevforall.codeonthego.models.Position;
+import org.appdevforall.codeonthego.models.Range;
+import org.appdevforall.codeonthego.models.SearchResult;
+import org.appdevforall.codeonthego.tasks.TaskExecutor;
 
 /**
  * This class provides API to search in files recursively

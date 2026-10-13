@@ -27,44 +27,42 @@ import kotlin.coroutines.CoroutineContext
  * @author Akash Yadav
  */
 interface IProcessBuilder {
+	/**
+	 * The command to execute.
+	 */
+	var command: List<String>
 
-  /**
-   * The command to execute.
-   */
-  var command: List<String>
+	/**
+	 * The environment variables.
+	 */
+	var environment: Map<String, String>
 
-  /**
-   * The environment variables.
-   */
-  var environment: Map<String, String>
+	/**
+	 * The working directory for the command. If set to `null`, the
+	 * [Environment.HOME][org.appdevforall.codeonthego.utils.Environment.HOME] directory will be used.
+	 *
+	 * Default value is `null`.
+	 */
+	var workingDirectory: File?
 
-  /**
-   * The working directory for the command. If set to `null`, the
-   * [Environment.HOME][org.appdevforall.codeonthego.utils.Environment.HOME] directory will be used.
-   *
-   * Default value is `null`.
-   */
-  var workingDirectory: File?
-
-  /**
-   * Whether the error stream should be redirected to the output stream.
-   */
-  var redirectErrorStream: Boolean
+	/**
+	 * Whether the error stream should be redirected to the output stream.
+	 */
+	var redirectErrorStream: Boolean
 }
 
 internal interface IProcessBuilderInternal : IProcessBuilder {
+	/**
+	 * Start the process asynchronously.
+	 *
+	 * @return The [Process] instance.
+	 */
+	fun startAsync(): Process
 
-  /**
-   * Start the process asynchronously.
-   *
-   * @return The [Process] instance.
-   */
-  fun startAsync() : Process
-
-  /**
-   * Start the process and suspend until the process finishes.
-   *
-   * @return The exit code of the process.
-   */
-  suspend fun start(context: CoroutineContext = Dispatchers.IO): Int
+	/**
+	 * Start the process and suspend until the process finishes.
+	 *
+	 * @return The exit code of the process.
+	 */
+	suspend fun start(context: CoroutineContext = Dispatchers.IO): Int
 }

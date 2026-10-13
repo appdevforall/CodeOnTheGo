@@ -19,34 +19,34 @@ package org.appdevforall.codeonthego.actions.etc
 
 import android.content.Context
 import androidx.core.content.ContextCompat
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.EditorRelatedAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
 class FindInFileAction() : EditorRelatedAction() {
+	override val id: String = ID
+	override var requiresUIThread: Boolean = true
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
+	override var order: Int = 0
 
-  override val id: String = ID
-  override var requiresUIThread: Boolean = true
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_FIND_ACTION_MENU
-  override var order: Int = 0
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_FIND_IN_FILE
 
-  companion object{
-    const val ID = "ide.editor.find.inFile"
-  }
+	companion object {
+		const val ID = "ide.editor.find.inFile"
+	}
 
-  constructor(context: Context, order: Int) : this() {
-    this.label = context.getString(R.string.menu_find_file)
-    this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search_file)
-    this.order = order
-  }
+	constructor(context: Context, order: Int) : this() {
+		this.label = context.getString(R.string.menu_find_file)
+		this.icon = ContextCompat.getDrawable(context, R.drawable.ic_search_file)
+		this.order = order
+	}
 
-  override suspend fun execAction(data: ActionData): Boolean {
-    val editor = data.getEditorView() ?: return false
-    editor.beginSearch()
-    return true
-  }
+	override suspend fun execAction(data: ActionData): Boolean {
+		val editor = data.getEditorView() ?: return false
+		editor.beginSearch()
+		return true
+	}
 }

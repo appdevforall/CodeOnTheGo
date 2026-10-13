@@ -27,32 +27,31 @@ import android.graphics.Rect
  * @see WindowManager#getCurrentWindowMetrics
  * @see WindowManager#getMaximumWindowMetrics
  */
-class WindowMetrics internal constructor(private val _bounds: Bounds) {
+class WindowMetrics internal constructor(
+	private val _bounds: Bounds,
+) {
+	constructor(bounds: Rect) : this(Bounds(bounds))
 
-  constructor(bounds: Rect) : this(Bounds(bounds))
+	/**
+	 * Returns a new [Rect] describing the bounds of the area the window occupies.
+	 *
+	 *
+	 * **Note that the size of the reported bounds can have different size than
+	 * [Display#getSize].** This method reports the window size including all system
+	 * decorations, while [Display#getSize] reports the area excluding navigation bars
+	 * and display cutout areas.
+	 *
+	 * @return window bounds in pixels.
+	 */
+	val bounds: Rect
+		get() = _bounds.toRect()
 
-  /**
-   * Returns a new [Rect] describing the bounds of the area the window occupies.
-   *
-   *
-   * **Note that the size of the reported bounds can have different size than
-   * [Display#getSize].** This method reports the window size including all system
-   * decorations, while [Display#getSize] reports the area excluding navigation bars
-   * and display cutout areas.
-   *
-   * @return window bounds in pixels.
-   */
-  val bounds: Rect
-    get() = _bounds.toRect()
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other == null || javaClass != other.javaClass) return false
+		val that = other as WindowMetrics
+		return _bounds == that._bounds
+	}
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other == null || javaClass != other.javaClass) return false
-    val that = other as WindowMetrics
-    return _bounds == that._bounds
-  }
-
-  override fun hashCode(): Int {
-    return _bounds.hashCode()
-  }
+	override fun hashCode(): Int = _bounds.hashCode()
 }

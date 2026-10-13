@@ -17,23 +17,22 @@
 
 package org.appdevforall.codeonthego.uidesigner
 
-
-import com.itsaky.androidide.uidesigner.R
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import com.itsaky.androidide.uidesigner.R
+import com.itsaky.androidide.uidesigner.databinding.ActivityShowXmlBinding
+import io.github.rosemoe.sora.event.Unsubscribe
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.app.BaseIDEActivity
 import org.appdevforall.codeonthego.editor.language.treesitter.XMLLanguage
 import org.appdevforall.codeonthego.editor.schemes.IDEColorSchemeProvider
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
-import com.itsaky.androidide.uidesigner.databinding.ActivityShowXmlBinding
 import org.appdevforall.codeonthego.utils.flashInfo
 import org.appdevforall.codeonthego.utils.jetbrainsMono
-import io.github.rosemoe.sora.event.Unsubscribe
-import io.github.rosemoe.sora.widget.CodeEditor
 import org.slf4j.LoggerFactory
 
 /**
@@ -42,72 +41,70 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 class ShowXmlActivity : BaseIDEActivity() {
+	private var editor: CodeEditor? = null
+	private var unsubscribe: Unsubscribe? = null
+	private var binding: ActivityShowXmlBinding? = null
 
-  private var editor: CodeEditor? = null
-  private var unsubscribe: Unsubscribe? = null
-  private var binding: ActivityShowXmlBinding? = null
+	companion object {
+		private val log = LoggerFactory.getLogger(ShowXmlActivity::class.java)
 
-  companion object {
+		const val KEY_XML = "ide.uidesigner.viewXml.Xml"
+	}
 
-    private val log = LoggerFactory.getLogger(ShowXmlActivity::class.java)
+	override fun bindLayout(): View {
+		this.binding = ActivityShowXmlBinding.inflate(layoutInflater)
+		this.editor = IDEEditor(this)
 
-    const val KEY_XML = "ide.uidesigner.viewXml.Xml"
-  }
+		setSupportActionBar(this.binding!!.toolbar)
+		supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-  override fun bindLayout(): View {
-    this.binding = ActivityShowXmlBinding.inflate(layoutInflater)
-    this.editor = IDEEditor(this)
+		this.binding!!.toolbar.setNavigationOnClickListener { finish() }
 
-    setSupportActionBar(this.binding!!.toolbar)
-    supportActionBar?.setDisplayHomeAsUpEnabled(true)
+		this.editor?.let { editor ->
+			editor.colorScheme = SchemeAndroidIDE.newInstance(this@ShowXmlActivity)
+			editor.editable = false
+			editor.typefaceText = jetbrainsMono()
+			editor.typefaceLineNumber = jetbrainsMono()
+			editor.setText(intent?.getStringExtra(KEY_XML) ?: "")
+			editor.setTextSize(EditorPreferences.fontSize)
 
-    this.binding!!.toolbar.setNavigationOnClickListener { finish() }
+			IDEColorSchemeProvider.readSchemeAsync(
+				context = this,
+				coroutineScope = activityScope,
+				type = XMLLanguage.TS_TYPE,
+			) {
+				if (it == null) {
+					log.error("Unable to load color sheme")
+					return@readSchemeAsync
+				}
 
-    this.editor?.let { editor ->
-      editor.colorScheme = SchemeAndroidIDE.newInstance(this@ShowXmlActivity)
-      editor.editable = false
-      editor.typefaceText = jetbrainsMono()
-      editor.typefaceLineNumber = jetbrainsMono()
-      editor.setText(intent?.getStringExtra(KEY_XML) ?: "")
-      editor.setTextSize(EditorPreferences.fontSize)
+				editor.colorScheme = it
+				editor.setEditorLanguage(XMLLanguage(this))
+			}
 
-      IDEColorSchemeProvider.readSchemeAsync(
-        context = this,
-        coroutineScope = activityScope,
-        type = XMLLanguage.TS_TYPE
-      ) {
-        if (it == null) {
-          log.error("Unable to load color sheme")
-          return@readSchemeAsync
-        }
+			binding!!.editorContainer.let { container ->
+				container.removeAllViews()
+				container.addView(editor, ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+			}
+		}
 
-        editor.colorScheme = it
-        editor.setEditorLanguage(XMLLanguage(this))
-      }
+		this.binding?.copy?.setOnClickListener {
+			this.editor?.copyText(false)
+			flashInfo(R.string.copied)
+		}
 
-      binding!!.editorContainer.let { container ->
-        container.removeAllViews()
-        container.addView(editor, ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-      }
-    }
+		return this.binding!!.root
+	}
 
-    this.binding?.copy?.setOnClickListener {
-      this.editor?.copyText(false)
-      flashInfo(R.string.copied)
-    }
+	override fun onCreate(savedInstanceState: Bundle?) {
+		super.onCreate(savedInstanceState)
+	}
 
-    return this.binding!!.root
-  }
-
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-  }
-
-  override fun onDestroy() {
-    super.onDestroy()
-    this.binding = null
-    this.unsubscribe?.unsubscribe()
-    this.editor?.release()
-    this.editor = null
-  }
+	override fun onDestroy() {
+		super.onDestroy()
+		this.binding = null
+		this.unsubscribe?.unsubscribe()
+		this.editor?.release()
+		this.editor = null
+	}
 }

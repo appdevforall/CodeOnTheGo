@@ -5,11 +5,11 @@ import android.os.Looper
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProjectDao
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProjectRoomDatabase
 import org.appdevforall.codeonthego.utils.canonicalProjectLocation
-import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test

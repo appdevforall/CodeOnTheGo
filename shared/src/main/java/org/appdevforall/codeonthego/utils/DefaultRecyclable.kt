@@ -23,17 +23,16 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @author Akash Yadav
  */
 open class DefaultRecyclable : RecyclableObjectPool.Recyclable {
+	private val _isRecycled = AtomicBoolean(false)
 
-  private val _isRecycled = AtomicBoolean(false)
+	@set:Synchronized
+	@get:Synchronized
+	override var isRecycled: Boolean
+		get() = _isRecycled.get()
+		set(value) {
+			_isRecycled.set(value)
+		}
 
-  @set:Synchronized
-  @get:Synchronized
-  override var isRecycled: Boolean
-    get() = _isRecycled.get()
-    set(value) {
-      _isRecycled.set(value)
-    }
-
-  override fun recycle() {
-  }
+	override fun recycle() {
+	}
 }

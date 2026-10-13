@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.lsp.kotlin.navigation
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentCloseEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentOpenEvent
 import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
@@ -8,7 +9,6 @@ import org.appdevforall.codeonthego.lsp.models.ReferenceParams
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.appdevforall.codeonthego.projects.FileManager
-import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Test
 import java.nio.file.Path

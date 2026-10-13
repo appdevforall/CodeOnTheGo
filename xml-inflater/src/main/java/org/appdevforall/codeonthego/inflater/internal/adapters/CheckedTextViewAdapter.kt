@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.CheckedTextView
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [CheckedTextView].
@@ -34,20 +34,18 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(CheckedTextView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class CheckedTextViewAdapter<T : CheckedTextView> : TextViewAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("checkMarkTintMode") { view.checkMarkTintMode = parsePorterDuffMode(value) }
+		create("checkMarkTint") { view.checkMarkTintList = parseColorStateList(context, value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("checkMarkTintMode") { view.checkMarkTintMode = parsePorterDuffMode(value) }
-    create("checkMarkTint") { view.checkMarkTintList = parseColorStateList(context, value) }
-  }
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        CheckedTextView::class.java,
-        string.widget_checked_textview,
-        drawable.ic_widget_checked_textview
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				CheckedTextView::class.java,
+				string.widget_checked_textview,
+				drawable.ic_widget_checked_textview,
+			),
+		)
 }

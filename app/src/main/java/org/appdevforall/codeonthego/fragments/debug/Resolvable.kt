@@ -1,5 +1,11 @@
 package org.appdevforall.codeonthego.fragments.debug
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.lsp.debug.model.StackFrame
 import org.appdevforall.codeonthego.lsp.debug.model.StackFrameDescriptor
 import org.appdevforall.codeonthego.lsp.debug.model.ThreadDescriptor
@@ -10,81 +16,73 @@ import org.appdevforall.codeonthego.lsp.debug.model.VariableDescriptor
 import org.appdevforall.codeonthego.lsp.debug.model.VariableKind
 import org.appdevforall.codeonthego.lsp.java.utils.completedOrNull
 import org.appdevforall.codeonthego.lsp.java.utils.getValue
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
 interface Resolvable<T> {
+	/**
+	 * Whether the value is resolved.
+	 */
+	val isResolved: Boolean
 
-    /**
-     * Whether the value is resolved.
-     */
-    val isResolved: Boolean
+	/**
+	 * Get the resolved value, or throw an exception if the value is not resolved.
+	 */
+	val resolved: T
 
-    /**
-     * Get the resolved value, or throw an exception if the value is not resolved.
-     */
-    val resolved: T
-
-    /**
-     * Resolve the value.
-     */
-    suspend fun resolve(): T?
+	/**
+	 * Resolve the value.
+	 */
+	suspend fun resolve(): T?
 }
 
 abstract class AbstractResolvable<T> : Resolvable<T> {
+	private val _deferred = CompletableDeferred<T>()
 
-    private val _deferred = CompletableDeferred<T>()
+	val deferred: Deferred<T>
+		get() = _deferred
 
-    val deferred: Deferred<T>
-        get() = _deferred
+	@OptIn(ExperimentalCoroutinesApi::class)
+	override val isResolved: Boolean
+		get() = deferred.completedOrNull != null
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    override val isResolved: Boolean
-        get() = deferred.completedOrNull != null
+	companion object {
+		@JvmStatic
+		protected val logger: Logger = LoggerFactory.getLogger(AbstractResolvable::class.java)
+		private val resolutionDispatcher = Dispatchers.IO
+	}
 
-    companion object {
-        @JvmStatic
-        protected val logger: Logger = LoggerFactory.getLogger(AbstractResolvable::class.java)
-        private val resolutionDispatcher = Dispatchers.IO
-    }
+	@OptIn(ExperimentalCoroutinesApi::class)
+	final override suspend fun resolve(): T? {
+		deferred.completedOrNull?.also { completed ->
+			// already resolved
+			return completed
+		}
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    final override suspend fun resolve(): T? {
-        deferred.completedOrNull?.also { completed ->
-            // already resolved
-            return completed
-        }
+		val result =
+			withContext(resolutionDispatcher) {
+				try {
+					doResolve()?.also(_deferred::complete)
+				} catch (err: Throwable) {
+					logger.error("Resolution failure", err)
+					_deferred.completeExceptionally(err)
+					null
+				}
+			}
 
-        val result = withContext(resolutionDispatcher) {
-            try {
-                doResolve()?.also(_deferred::complete)
-            } catch (err: Throwable) {
-                logger.error("Resolution failure", err)
-                _deferred.completeExceptionally(err)
-                null
-            }
-        }
+		return result
+	}
 
-        return result
-    }
+	protected suspend fun <T> withContext(action: suspend CoroutineScope.() -> T): T = withContext(resolutionDispatcher, action)
 
-    protected suspend fun <T> withContext(action: suspend CoroutineScope.() -> T): T =
-        withContext(resolutionDispatcher, action)
-
-    protected abstract suspend fun doResolve(): T
+	protected abstract suspend fun doResolve(): T
 }
 
 /**
  * Get the resolved value, or return `null` if the value is not resolved.
  */
 val <T> Resolvable<T>.resolvedOrNull: T?
-    get() = if (isResolved) resolved else null
+	get() = if (isResolved) resolved else null
 
 /**
  * Get the resolved value, or return [default value][default] if the value is not resolved.
@@ -100,72 +98,76 @@ fun <T> Resolvable<T>.resolvedOr(default: T): T? = if (isResolved) resolved else
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ResolvableVariable<T : Value> private constructor(
-    private val delegate: Variable<T>,
-) : AbstractResolvable<VariableDescriptor>(), Variable<T> by delegate, Resolvable<VariableDescriptor> {
+	private val delegate: Variable<T>,
+) : AbstractResolvable<VariableDescriptor>(),
+	Variable<T> by delegate,
+	Resolvable<VariableDescriptor> {
+	internal val deferredValue = CompletableDeferred<T?>()
 
-    internal val deferredValue = CompletableDeferred<T?>()
+	/**
+	 * Whether the variable is resolved.
+	 */
+	override val isResolved: Boolean
+		get() = super.isResolved && deferredValue.completedOrNull != null
 
-    /**
-     * Whether the variable is resolved.
-     */
-    override val isResolved: Boolean
-        get() = super.isResolved && deferredValue.completedOrNull != null
+	override val resolved: VariableDescriptor
+		get() =
+			checkNotNull(deferred.completedOrNull) {
+				"Variable is not resolved"
+			}
 
-    override val resolved: VariableDescriptor
-        get() = checkNotNull(deferred.completedOrNull) {
-            "Variable is not resolved"
-        }
+	fun resolvedName() = deferred.completedOrNull?.name ?: ""
 
-    fun resolvedName() = deferred.completedOrNull?.name ?: ""
+	fun resolvedTypeName() = deferred.completedOrNull?.typeName ?: ""
 
-    fun resolvedTypeName() = deferred.completedOrNull?.typeName ?: ""
+	fun resolvedValue() =
+		deferredValue.getValue(
+			defaultValue = null,
+		)
 
-    fun resolvedValue() = deferredValue.getValue(
-        defaultValue = null,
-    )
+	fun resolvedKind(): VariableKind = deferred.completedOrNull?.kind ?: VariableKind.UNKNOWN
 
-    fun resolvedKind(): VariableKind = deferred.completedOrNull?.kind ?: VariableKind.UNKNOWN
+	companion object {
+		private val logger = LoggerFactory.getLogger(ResolvableVariable::class.java)
 
-    companion object {
+		/**
+		 * Create a new eagerly-resolved variable delegating to [delegate].
+		 *
+		 * @param delegate The delegate variable.
+		 * @return The new eagerly-resolved variable.
+		 */
+		fun <T : Value> create(delegate: Variable<T>): ResolvableVariable<T> {
+			if (delegate is ResolvableVariable<T>) {
+				return delegate
+			}
 
-        private val logger = LoggerFactory.getLogger(ResolvableVariable::class.java)
+			return ResolvableVariable(delegate)
+		}
+	}
 
-        /**
-         * Create a new eagerly-resolved variable delegating to [delegate].
-         *
-         * @param delegate The delegate variable.
-         * @return The new eagerly-resolved variable.
-         */
-        fun <T : Value> create(delegate: Variable<T>): ResolvableVariable<T> {
-            if (delegate is ResolvableVariable<T>) {
-                return delegate
-            }
+	/**
+	 * Resolve the variable state.
+	 */
+	override suspend fun doResolve(): VariableDescriptor {
+		// NOTE:
+		// Care must be taken to only resolve values which are absolutely needed
+		// to render the UI. Resolution of values which are not immediately required must be deferred.
 
-            return ResolvableVariable(delegate)
-        }
-    }
+		val descriptor = delegate.descriptor()
+		val value = delegate.value()
+		deferredValue.complete(value)
+		return descriptor
+	}
 
-    /**
-     * Resolve the variable state.
-     */
-    override suspend fun doResolve(): VariableDescriptor {
-        // NOTE:
-        // Care must be taken to only resolve values which are absolutely needed
-        // to render the UI. Resolution of values which are not immediately required must be deferred.
-
-        val descriptor = delegate.descriptor()
-        val value = delegate.value()
-        deferredValue.complete(value)
-        return descriptor
-    }
-
-    override suspend fun objectMembers(): Set<ResolvableVariable<*>> = withContext {
-        delegate.objectMembers()
-            .map { variable ->
-                // members of an eagerly-resolved variable are also eagerly-resolved
-                create(variable)
-            }.toSet()
-    }
+	override suspend fun objectMembers(): Set<ResolvableVariable<*>> =
+		withContext {
+			delegate
+				.objectMembers()
+				.map { variable ->
+					// members of an eagerly-resolved variable are also eagerly-resolved
+					create(variable)
+				}.toSet()
+		}
 }
 
 /**
@@ -173,64 +175,61 @@ class ResolvableVariable<T : Value> private constructor(
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ResolvableStackFrame private constructor(
-    private val delegate: StackFrame,
-) : AbstractResolvable<StackFrameDescriptor>(), StackFrame by delegate, Resolvable<StackFrameDescriptor> {
+	private val delegate: StackFrame,
+) : AbstractResolvable<StackFrameDescriptor>(),
+	StackFrame by delegate,
+	Resolvable<StackFrameDescriptor> {
+	override val resolved: StackFrameDescriptor
+		get() =
+			checkNotNull(deferred.completedOrNull) {
+				"Stack frame is not resolved"
+			}
 
-    override val resolved: StackFrameDescriptor
-        get() = checkNotNull(deferred.completedOrNull) {
-            "Stack frame is not resolved"
-        }
+	companion object {
+		/**
+		 * Create a new eagerly-resolved stack frame delegating to [delegate].
+		 */
+		fun create(delegate: StackFrame): ResolvableStackFrame {
+			if (delegate is ResolvableStackFrame) {
+				return delegate
+			}
 
-    companion object {
+			return ResolvableStackFrame(delegate)
+		}
+	}
 
-        /**
-         * Create a new eagerly-resolved stack frame delegating to [delegate].
-         */
-        fun create(delegate: StackFrame): ResolvableStackFrame {
-            if (delegate is ResolvableStackFrame) {
-                return delegate
-            }
+	override suspend fun doResolve(): StackFrameDescriptor = delegate.descriptor()
 
-            return ResolvableStackFrame(delegate)
-        }
-    }
-
-    override suspend fun doResolve(): StackFrameDescriptor {
-        return delegate.descriptor()
-    }
-
-    override suspend fun getVariables(): List<ResolvableVariable<*>> =
-        delegate.getVariables().map { variable -> ResolvableVariable.create(variable) }
+	override suspend fun getVariables(): List<ResolvableVariable<*>> =
+		delegate.getVariables().map { variable -> ResolvableVariable.create(variable) }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ResolvableThreadInfo private constructor(
-    private val delegate: ThreadInfo,
-) : AbstractResolvable<ThreadDescriptor>(), ThreadInfo by delegate, Resolvable<ThreadDescriptor> {
+	private val delegate: ThreadInfo,
+) : AbstractResolvable<ThreadDescriptor>(),
+	ThreadInfo by delegate,
+	Resolvable<ThreadDescriptor> {
+	override val resolved: ThreadDescriptor
+		get() =
+			checkNotNull(deferred.completedOrNull) {
+				"Thread is not resolved"
+			}
 
-    override val resolved: ThreadDescriptor
-        get() = checkNotNull(deferred.completedOrNull) {
-            "Thread is not resolved"
-        }
+	companion object {
+		/**
+		 * Create a new eagerly-resolved thread info delegating to [delegate].
+		 */
+		fun create(delegate: ThreadInfo): ResolvableThreadInfo {
+			if (delegate is ResolvableThreadInfo) {
+				return delegate
+			}
 
-    companion object {
+			return ResolvableThreadInfo(delegate)
+		}
+	}
 
-        /**
-         * Create a new eagerly-resolved thread info delegating to [delegate].
-         */
-        fun create(delegate: ThreadInfo): ResolvableThreadInfo {
-            if (delegate is ResolvableThreadInfo) {
-                return delegate
-            }
+	override suspend fun doResolve(): ThreadDescriptor = delegate.descriptor()
 
-            return ResolvableThreadInfo(delegate)
-        }
-    }
-
-    override suspend fun doResolve(): ThreadDescriptor {
-        return delegate.descriptor()
-    }
-
-    override suspend fun getFrames(): List<ResolvableStackFrame> =
-        delegate.getFrames().map { frame -> ResolvableStackFrame.create(frame) }
+	override suspend fun getFrames(): List<ResolvableStackFrame> = delegate.getFrames().map { frame -> ResolvableStackFrame.create(frame) }
 }

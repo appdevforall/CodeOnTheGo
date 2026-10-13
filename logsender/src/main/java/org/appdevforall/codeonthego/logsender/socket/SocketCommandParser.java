@@ -24,42 +24,42 @@ import java.util.UUID;
  */
 public final class SocketCommandParser {
 
-  public static ISocketCommand parse(String line) {
-    // remove leading '/'
-    line = line.substring(1);
-    if (!line.contains(ISocketCommand.PARAM_DELIMITER)) {
-      return create(line);
-    }
+	public static ISocketCommand parse(String line) {
+		// remove leading '/'
+		line = line.substring(1);
+		if (!line.contains(ISocketCommand.PARAM_DELIMITER)) {
+			return create(line);
+		}
 
-    final String[] segments = line.split(ISocketCommand.PARAM_DELIMITER);
-    if (segments.length >= 2) {
-      return createParameterized(segments);
-    }
+		final String[] segments = line.split(ISocketCommand.PARAM_DELIMITER);
+		if (segments.length >= 2) {
+			return createParameterized(segments);
+		}
 
-    return null;
-  }
+		return null;
+	}
 
-  private static ISocketCommand create(String name) {
-    if (name.equals(SignalCommand.STOP.getName())) {
-      return SignalCommand.STOP;
-    }
+	private static ISocketCommand create(String name) {
+		if (name.equals(SignalCommand.STOP.getName())) {
+			return SignalCommand.STOP;
+		}
 
-    return null;
-  }
+		return null;
+	}
 
-  private static ISocketCommand createParameterized(String[] segments) {
-    final String command = segments[0];
-    if (SenderInfoCommand.NAME.equals(command)) {
-      try {
-        // validate the sender ID
-        // noinspection ResultOfMethodCallIgnored
-        UUID.fromString(segments[1]);
-      } catch (Exception e) {
-        return null;
-      }
+	private static ISocketCommand createParameterized(String[] segments) {
+		final String command = segments[0];
+		if (SenderInfoCommand.NAME.equals(command)) {
+			try {
+				// validate the sender ID
+				// noinspection ResultOfMethodCallIgnored
+				UUID.fromString(segments[1]);
+			} catch (Exception e) {
+				return null;
+			}
 
-      return new SenderInfoCommand(segments[1], segments[2]);
-    }
-    return null;
-  }
+			return new SenderInfoCommand(segments[1], segments[2]);
+		}
+		return null;
+	}
 }

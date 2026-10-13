@@ -8,15 +8,15 @@ import android.widget.EditText
 class ShortcutManager(
 	context: Context,
 ) {
-
 	private val catalog: List<ShortcutDefinition> = ShortcutCatalog().all(context)
 
-	private val contextPriority = listOf(
-		ShortcutContext.MODAL,
-		ShortcutContext.EDITOR,
-		ShortcutContext.MAIN,
-		ShortcutContext.APP_GLOBAL,
-	)
+	private val contextPriority =
+		listOf(
+			ShortcutContext.MODAL,
+			ShortcutContext.EDITOR,
+			ShortcutContext.MAIN,
+			ShortcutContext.APP_GLOBAL,
+		)
 
 	fun dispatch(
 		event: KeyEvent,
@@ -27,11 +27,12 @@ class ShortcutManager(
 	): Boolean {
 		if (!shouldHandleShortcuts(event, focusView)) return false
 
-		val activeContexts = if (hasModal) {
-			setOf(ShortcutContext.APP_GLOBAL, ShortcutContext.MODAL)
-		} else {
-			setOf(ShortcutContext.APP_GLOBAL, context)
-		}
+		val activeContexts =
+			if (hasModal) {
+				setOf(ShortcutContext.APP_GLOBAL, ShortcutContext.MODAL)
+			} else {
+				setOf(ShortcutContext.APP_GLOBAL, context)
+			}
 
 		val definition = findMatchingShortcut(event, activeContexts) ?: return false
 		return executionContext.ideShortcutActions.execute(definition.actionId)
@@ -49,10 +50,11 @@ class ShortcutManager(
 		event: KeyEvent,
 		activeContexts: Set<ShortcutContext>,
 	): ShortcutDefinition? {
-		val matchingDefinitions = catalog.filter { definition ->
-			definition.contexts.any(activeContexts::contains) &&
-			definition.bindings.any { it.matches(event) }
-		}
+		val matchingDefinitions =
+			catalog.filter { definition ->
+				definition.contexts.any(activeContexts::contains) &&
+					definition.bindings.any { it.matches(event) }
+			}
 
 		return matchingDefinitions.maxByOrNull { definition ->
 			definition.contexts

@@ -26,7 +26,8 @@ import java.io.File
  *
  * @author Akash Yadav
  */
-internal class PlaceholderView(view: View) :
-  UiView(LayoutFile(File(""), ""), View::class.qualifiedName!!, view) {
-  override var includeInIndexComputation: Boolean = false
+internal class PlaceholderView(
+	view: View,
+) : UiView(LayoutFile(File(""), ""), View::class.qualifiedName!!, view) {
+	override var includeInIndexComputation: Boolean = false
 }

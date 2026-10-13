@@ -2,6 +2,14 @@ package org.appdevforall.codeonthego.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.appdevforall.codeonthego.activities.editor.QuickBuildClobberConfirmation
 import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.lookup.Lookup
@@ -14,18 +22,10 @@ import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.projects.isPluginProject
 import org.appdevforall.codeonthego.projects.models.assembleTaskOutputListingFile
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.tooling.api.messages.BuildRunType
 import org.appdevforall.codeonthego.tooling.api.messages.GradleBuildParams
 import org.appdevforall.codeonthego.tooling.api.messages.TaskExecutionMessage
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.future.await
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException

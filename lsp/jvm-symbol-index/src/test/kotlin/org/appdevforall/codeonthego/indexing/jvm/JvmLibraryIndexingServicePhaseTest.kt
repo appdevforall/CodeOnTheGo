@@ -3,10 +3,6 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.memprof.Memprof
-import org.appdevforall.codeonthego.projects.api.GradleProject
-import org.appdevforall.codeonthego.projects.api.ModuleProject
-import org.appdevforall.codeonthego.projects.api.Workspace
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineStart
@@ -19,6 +15,10 @@ import kotlinx.coroutines.withTimeout
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.appdevforall.codeonthego.indexing.service.IndexingState
+import org.appdevforall.codeonthego.memprof.Memprof
+import org.appdevforall.codeonthego.projects.api.GradleProject
+import org.appdevforall.codeonthego.projects.api.ModuleProject
+import org.appdevforall.codeonthego.projects.api.Workspace
 import org.jetbrains.org.objectweb.asm.ClassWriter
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.junit.After

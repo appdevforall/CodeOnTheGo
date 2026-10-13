@@ -1,8 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
-import org.appdevforall.codeonthego.lsp.refactor.leadingIndentAt
-import org.appdevforall.codeonthego.lsp.refactor.uniqueName
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ExecutableElement
@@ -35,6 +32,9 @@ import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
+import org.appdevforall.codeonthego.lsp.refactor.leadingIndentAt
+import org.appdevforall.codeonthego.lsp.refactor.uniqueName
 
 /** Either a fully derived candidate or the reason the region could not become one. */
 internal sealed interface AnalysisResult {

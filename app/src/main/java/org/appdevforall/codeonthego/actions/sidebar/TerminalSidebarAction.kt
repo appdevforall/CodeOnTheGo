@@ -22,13 +22,13 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
+import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.activities.TerminalActivity
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.utils.applyMultiWindowFlags
-import com.termux.shared.termux.TermuxConstants.TERMUX_APP.TERMUX_ACTIVITY
 import java.util.Objects
 import kotlin.reflect.KClass
 
@@ -58,21 +58,22 @@ class TerminalSidebarAction(
 		) {
 			val context = data.requireContext()
 			val intent =
-				Intent(context, TerminalActivity::class.java).apply {
-					putExtra(
-						TERMUX_ACTIVITY.EXTRA_SESSION_WORKING_DIR,
-						Objects.requireNonNull(IProjectManager.getInstance().projectDirPath),
-					)
-					putExtra(
-						TERMUX_ACTIVITY.EXTRA_SESSION_NAME,
-						IProjectManager
-							.getInstance()
-							.workspace
-							?.rootProject
-							?.name,
-					)
-					putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, isFailsafe)
-			}.applyMultiWindowFlags(context)
+				Intent(context, TerminalActivity::class.java)
+					.apply {
+						putExtra(
+							TERMUX_ACTIVITY.EXTRA_SESSION_WORKING_DIR,
+							Objects.requireNonNull(IProjectManager.getInstance().projectDirPath),
+						)
+						putExtra(
+							TERMUX_ACTIVITY.EXTRA_SESSION_NAME,
+							IProjectManager
+								.getInstance()
+								.workspace
+								?.rootProject
+								?.name,
+						)
+						putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, isFailsafe)
+					}.applyMultiWindowFlags(context)
 			context.startActivity(intent)
 		}
 	}

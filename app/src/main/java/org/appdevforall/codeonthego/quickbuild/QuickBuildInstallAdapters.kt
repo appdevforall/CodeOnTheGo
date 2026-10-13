@@ -4,10 +4,10 @@ import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
-import org.appdevforall.codeonthego.events.InstallationEvent
-import org.appdevforall.codeonthego.utils.isAtLeastP
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import org.appdevforall.codeonthego.events.InstallationEvent
+import org.appdevforall.codeonthego.utils.isAtLeastP
 import org.appdevforall.cotg.quickbuild.service.provision.InstallBroadcast
 import org.appdevforall.cotg.quickbuild.service.provision.InstalledPackages
 import org.greenrobot.eventbus.EventBus

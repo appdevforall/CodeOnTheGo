@@ -1,99 +1,90 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-  ~  This file is part of AndroidIDE.
-  ~
-  ~  AndroidIDE is free software: you can redistribute it and/or modify
-  ~  it under the terms of the GNU General Public License as published by
-  ~  the Free Software Foundation, either version 3 of the License, or
-  ~  (at your option) any later version.
-  ~
-  ~  AndroidIDE is distributed in the hope that it will be useful,
-  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~  GNU General Public License for more details.
-  ~
-  ~  You should have received a copy of the GNU General Public License
-  ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+<?xml version="1.0" encoding="utf-8"?><!-- ~ This file is part of AndroidIDE. ~ ~ AndroidIDE is free software: you can redistribute
+	it and/or modify ~ it under the terms of the GNU General Public License as published by ~ the Free Software Foundation, either
+	version 3 of the License, or ~ (at your option) any later version. ~ ~ AndroidIDE is distributed in the hope that it will
+	be useful, ~ but WITHOUT ANY WARRANTY; without even the implied warranty of ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR
+	PURPOSE. See the ~ GNU General Public License for more details. ~ ~ You should have received a copy of the GNU General Public
+	License ~ along with AndroidIDE. If not, see <https://www.gnu.org/licenses/>. -->
 
-<org.appdevforall.codeonthego.ui.ContentTranslatingDrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
-  xmlns:app="http://schemas.android.com/apk/res-auto"
-  xmlns:tools="http://schemas.android.com/tools"
-  android:layout_width="match_parent"
-  android:layout_height="match_parent"
-  android:animateLayoutChanges="true"
-  tools:ignore="DuplicateIncludedIds">
+<org.appdevforall.codeonthego.ui.ContentTranslatingDrawerLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:animateLayoutChanges="true"
+	tools:ignore="DuplicateIncludedIds">
 
-  <androidx.coordinatorlayout.widget.CoordinatorLayout
-    android:id="@+id/container"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+	<androidx.coordinatorlayout.widget.CoordinatorLayout
+		android:id="@+id/container"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent">
 
-    <com.google.android.material.appbar.AppBarLayout
-      android:id="@+id/appbar"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
+		<com.google.android.material.appbar.AppBarLayout
+			android:id="@+id/appbar"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior">
 
-      <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:elevation="10dp"
-        tools:title="@string/app_name" />
+			<com.google.android.material.appbar.MaterialToolbar
+				android:id="@+id/toolbar"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:elevation="10dp"
+				tools:title="@string/app_name" />
 
-    </com.google.android.material.appbar.AppBarLayout>
+		</com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.fragment.app.FragmentContainerView
-      android:id="@+id/workspace"
-      android:name="org.appdevforall.codeonthego.uidesigner.fragments.DesignerWorkspaceFragment"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior"
-      tools:layout="@layout/fragment_designer_workspace" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/workspace"
+			android:name="org.appdevforall.codeonthego.uidesigner.fragments.DesignerWorkspaceFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior"
+			tools:layout="@layout/fragment_designer_workspace" />
 
-  </androidx.coordinatorlayout.widget.CoordinatorLayout>
+	</androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-  <com.google.android.material.navigation.NavigationView
-    android:id="@+id/nav_widgets"
-    android:layout_width="wrap_content"
-    android:layout_height="match_parent"
-    android:layout_gravity="start">
+	<com.google.android.material.navigation.NavigationView
+		android:id="@+id/nav_widgets"
+		android:layout_width="wrap_content"
+		android:layout_height="match_parent"
+		android:layout_gravity="start">
 
-    <androidx.fragment.app.FragmentContainerView
-      android:id="@+id/widgets_fragment"
-      android:name="org.appdevforall.codeonthego.uidesigner.fragments.WidgetsListFragment"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      tools:layout="@layout/fragment_ui_widgets" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/widgets_fragment"
+			android:name="org.appdevforall.codeonthego.uidesigner.fragments.WidgetsListFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			tools:layout="@layout/fragment_ui_widgets" />
 
-  </com.google.android.material.navigation.NavigationView>
+	</com.google.android.material.navigation.NavigationView>
 
-  <com.google.android.material.navigation.NavigationView
-    android:id="@+id/nav_hierarchy"
-    android:layout_width="wrap_content"
-    android:layout_height="match_parent"
-    android:layout_gravity="end">
+	<com.google.android.material.navigation.NavigationView
+		android:id="@+id/nav_hierarchy"
+		android:layout_width="wrap_content"
+		android:layout_height="match_parent"
+		android:layout_gravity="end">
 
-    <androidx.core.widget.NestedScrollView
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      android:fillViewport="true">
+		<androidx.core.widget.NestedScrollView
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:fillViewport="true">
 
-      <HorizontalScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
+			<HorizontalScrollView
+				android:layout_width="match_parent"
+				android:layout_height="match_parent"
+				android:fillViewport="true">
 
-        <org.appdevforall.codeonthego.uidesigner.views.LayoutHierarchyView
-          android:id="@+id/hierarchy"
-          android:layout_width="wrap_content"
-          android:layout_height="match_parent"
-          android:padding="16dp" />
+				<org.appdevforall.codeonthego.uidesigner.views.LayoutHierarchyView
+					android:id="@+id/hierarchy"
+					android:layout_width="wrap_content"
+					android:layout_height="match_parent"
+					android:padding="16dp" />
 
-      </HorizontalScrollView>
+			</HorizontalScrollView>
 
-    </androidx.core.widget.NestedScrollView>
+		</androidx.core.widget.NestedScrollView>
 
-  </com.google.android.material.navigation.NavigationView>
+	</com.google.android.material.navigation.NavigationView>
 
 </org.appdevforall.codeonthego.ui.ContentTranslatingDrawerLayout>

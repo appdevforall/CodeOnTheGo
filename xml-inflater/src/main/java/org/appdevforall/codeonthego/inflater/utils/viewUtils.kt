@@ -21,4 +21,4 @@ import android.view.ViewGroup
 
 /** Helper extension property which casts [IView.view] to [ViewGroup]. */
 val IViewGroup.viewGroup: ViewGroup
-  get() = this.view as ViewGroup
+get() = this.view as ViewGroup

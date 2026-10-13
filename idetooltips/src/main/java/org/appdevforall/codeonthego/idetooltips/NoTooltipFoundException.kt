@@ -5,6 +5,6 @@ package org.appdevforall.codeonthego.idetooltips
  * This typically indicates a bad request - the category/tag combination doesn't exist.
  */
 class NoTooltipFoundException(
-    category: String,
-    tag: String
-) : Exception("No tooltip found for category='$category', tag='$tag'") 
+	category: String,
+	tag: String,
+) : Exception("No tooltip found for category='$category', tag='$tag'")

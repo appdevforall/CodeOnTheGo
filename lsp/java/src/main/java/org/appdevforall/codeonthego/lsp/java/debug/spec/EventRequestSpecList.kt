@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.lsp.java.debug.spec
 
-import org.appdevforall.codeonthego.lsp.debug.model.Source
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.event.ClassPrepareEvent
 import com.sun.jdi.request.BreakpointRequest
+import org.appdevforall.codeonthego.lsp.debug.model.Source
 import org.slf4j.LoggerFactory
 import java.util.Collections
 

@@ -20,6 +20,11 @@ import android.content.Context
 import android.view.View
 import android.widget.ListView
 import com.google.common.collect.Iterables.toArray
+import com.itsaky.androidide.resources.R
+import jdkx.tools.Diagnostic
+import jdkx.tools.JavaFileObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
@@ -29,6 +34,7 @@ import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.actions.requirePath
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.appdevforall.codeonthego.javac.services.util.JavaDiagnosticUtils
 import org.appdevforall.codeonthego.lsp.api.ILanguageClient
 import org.appdevforall.codeonthego.lsp.java.JavaCompilerProvider
@@ -40,14 +46,8 @@ import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.projects.util.StringSearch
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively
 import org.appdevforall.codeonthego.utils.flashError
-import jdkx.tools.Diagnostic
-import jdkx.tools.JavaFileObject
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */

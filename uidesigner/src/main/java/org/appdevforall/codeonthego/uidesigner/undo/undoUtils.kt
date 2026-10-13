@@ -21,5 +21,5 @@ import kotlin.math.max
 import kotlin.math.min
 
 internal fun org.appdevforall.codeonthego.inflater.IViewGroup.validateIndex(index: Int) : Int {
-  return min(max(0, index), childCount)
+return min(max(0, index), childCount)
 }

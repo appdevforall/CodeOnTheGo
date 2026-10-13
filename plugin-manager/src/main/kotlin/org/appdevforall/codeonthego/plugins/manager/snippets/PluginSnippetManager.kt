@@ -5,34 +5,36 @@ import org.appdevforall.codeonthego.plugins.extensions.SnippetExtension
 import org.slf4j.LoggerFactory
 
 class PluginSnippetManager private constructor() {
-
 	companion object {
 		private val log = LoggerFactory.getLogger(PluginSnippetManager::class.java)
 
 		@Volatile
 		private var instance: PluginSnippetManager? = null
 
-		fun getInstance(): PluginSnippetManager {
-			return instance ?: synchronized(this) {
+		fun getInstance(): PluginSnippetManager =
+			instance ?: synchronized(this) {
 				instance ?: PluginSnippetManager().also { instance = it }
 			}
-		}
 	}
 
 	private val extensions = mutableMapOf<String, SnippetExtension>()
 	private val contributions = mutableMapOf<String, List<SnippetContribution>>()
 
-	fun registerPlugin(pluginId: String, extension: SnippetExtension) {
+	fun registerPlugin(
+		pluginId: String,
+		extension: SnippetExtension,
+	) {
 		synchronized(contributions) {
 			extensions[pluginId] = extension
 		}
 
-		val snippets = try {
-			extension.getSnippetContributions()
-		} catch (e: Exception) {
-			log.error("Failed to get snippet contributions from plugin: {}", pluginId, e)
-			emptyList()
-		}
+		val snippets =
+			try {
+				extension.getSnippetContributions()
+			} catch (e: Exception) {
+				log.error("Failed to get snippet contributions from plugin: {}", pluginId, e)
+				emptyList()
+			}
 
 		synchronized(contributions) {
 			contributions[pluginId] = snippets
@@ -42,12 +44,13 @@ class PluginSnippetManager private constructor() {
 
 	fun refreshPlugin(pluginId: String): List<SnippetContribution> {
 		val extension = synchronized(contributions) { extensions[pluginId] } ?: return emptyList()
-		val snippets = try {
-			extension.getSnippetContributions()
-		} catch (e: Exception) {
-			log.error("Failed to refresh snippet contributions from plugin: {}", pluginId, e)
-			return emptyList()
-		}
+		val snippets =
+			try {
+				extension.getSnippetContributions()
+			} catch (e: Exception) {
+				log.error("Failed to refresh snippet contributions from plugin: {}", pluginId, e)
+				return emptyList()
+			}
 
 		synchronized(contributions) {
 			if (extensions[pluginId] == null) return emptyList()

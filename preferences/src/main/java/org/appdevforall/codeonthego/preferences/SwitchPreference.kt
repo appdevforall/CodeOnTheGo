@@ -27,24 +27,26 @@ import kotlin.reflect.KMutableProperty0
  * @author Akash Yadav
  */
 abstract class SwitchPreference
-@JvmOverloads
-constructor(val setValue: ((Boolean) -> Unit)? = null, val getValue: (() -> Boolean)? = null) :
-  BasePreference() {
+	@JvmOverloads
+	constructor(
+		val setValue: ((Boolean) -> Unit)? = null,
+		val getValue: (() -> Boolean)? = null,
+	) : BasePreference() {
+		constructor(property: KMutableProperty0<Boolean>) : this(property::set, property::get)
 
-    constructor(property: KMutableProperty0<Boolean>) : this(property::set, property::get)
+		override fun onCreatePreference(context: Context): Preference {
+			val pref = androidx.preference.SwitchPreference(context)
+			pref.isChecked = prefValue()
+			return pref
+		}
 
-  override fun onCreatePreference(context: Context): Preference {
-    val pref = androidx.preference.SwitchPreference(context)
-    pref.isChecked = prefValue()
-    return pref
-  }
-  
-  override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-    setValue?.let { it(newValue as Boolean? ?: prefValue()) }
-    return true
-  }
-  
-  private fun prefValue(): Boolean {
-    return getValue?.let { it() } ?: false
-  }
-}
+		override fun onPreferenceChanged(
+			preference: Preference,
+			newValue: Any?,
+		): Boolean {
+			setValue?.let { it(newValue as Boolean? ?: prefValue()) }
+			return true
+		}
+
+		private fun prefValue(): Boolean = getValue?.let { it() } ?: false
+	}

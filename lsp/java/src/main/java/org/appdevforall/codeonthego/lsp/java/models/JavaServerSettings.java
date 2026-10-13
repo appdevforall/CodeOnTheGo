@@ -21,7 +21,6 @@ import com.google.googlejavaformat.java.JavaFormatterOptions;
 import org.appdevforall.codeonthego.lsp.util.PrefBasedServerSettings;
 import org.appdevforall.codeonthego.managers.PreferenceManager;
 import org.appdevforall.codeonthego.preferences.internal.JavaPreferences;
-import org.appdevforall.codeonthego.utils.VMUtils;
 
 /**
  * Server settings for the java language server.
@@ -30,46 +29,46 @@ import org.appdevforall.codeonthego.utils.VMUtils;
  */
 public class JavaServerSettings extends PrefBasedServerSettings {
 
-  public static final String KEY_JAVA_PREF_GOOGLE_CODE_STYLE = JavaPreferences.GOOGLE_CODE_STYLE;
-  public static final int CODE_STYLE_AOSP = 0;
-  public static final int CODE_STYLE_GOOGLE = 1;
-  private static JavaServerSettings instance;
+	public static final String KEY_JAVA_PREF_GOOGLE_CODE_STYLE = JavaPreferences.GOOGLE_CODE_STYLE;
+	public static final int CODE_STYLE_AOSP = 0;
+	public static final int CODE_STYLE_GOOGLE = 1;
+	private static JavaServerSettings instance;
 
-  @NonNull
-  public static JavaServerSettings getInstance() {
-    if (instance == null) {
-      instance = new JavaServerSettings();
-    }
+	@NonNull
+	public static JavaServerSettings getInstance() {
+		if (instance == null) {
+			instance = new JavaServerSettings();
+		}
 
-    return instance;
-  }
+		return instance;
+	}
 
-  @Override
-  public boolean diagnosticsEnabled() {
-    return true;
-  }
+	@Override
+	public boolean diagnosticsEnabled() {
+		return true;
+	}
 
-  public JavaFormatterOptions getFormatterOptions() {
-    return JavaFormatterOptions.builder().formatJavadoc(true).style(getStyle()).build();
-  }
+	public JavaFormatterOptions getFormatterOptions() {
+		return JavaFormatterOptions.builder().formatJavadoc(true).style(getStyle()).build();
+	}
 
-  public JavaFormatterOptions.Style getStyle() {
-    if (getCodeStyle() == JavaServerSettings.CODE_STYLE_AOSP) {
+	public JavaFormatterOptions.Style getStyle() {
+		if (getCodeStyle() == JavaServerSettings.CODE_STYLE_AOSP) {
 
-      return JavaFormatterOptions.Style.AOSP;
-    }
+			return JavaFormatterOptions.Style.AOSP;
+		}
 
-    return JavaFormatterOptions.Style.GOOGLE;
-  }
+		return JavaFormatterOptions.Style.GOOGLE;
+	}
 
-  private int getCodeStyle() {
-    final PreferenceManager prefs = getPrefs();
-    if (prefs != null) {
-      if (prefs.getBoolean(KEY_JAVA_PREF_GOOGLE_CODE_STYLE, false)) {
-        return CODE_STYLE_GOOGLE;
-      }
-    }
+	private int getCodeStyle() {
+		final PreferenceManager prefs = getPrefs();
+		if (prefs != null) {
+			if (prefs.getBoolean(KEY_JAVA_PREF_GOOGLE_CODE_STYLE, false)) {
+				return CODE_STYLE_GOOGLE;
+			}
+		}
 
-    return CODE_STYLE_AOSP;
-  }
+		return CODE_STYLE_AOSP;
+	}
 }

@@ -21,9 +21,11 @@ import com.android.builder.model.v2.ide.ApiVersion
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultApiVersion : ApiVersion, Serializable {
-  private val serialVersionUID = 1L
+class DefaultApiVersion :
+	ApiVersion,
+	Serializable {
+	private val serialVersionUID = 1L
 
-  override var apiLevel: Int = -1
-  override var codename: String? = null
+	override var apiLevel: Int = -1
+	override var codename: String? = null
 }

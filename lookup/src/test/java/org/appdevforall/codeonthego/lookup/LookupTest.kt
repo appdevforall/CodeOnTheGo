@@ -26,7 +26,6 @@ import org.junit.runners.JUnit4
 /** @author Akash Yadav */
 @RunWith(JUnit4::class)
 class LookupTest {
-
 	@Test
 	fun `test with class`() {
 		val lookup = Lookup.getDefault()

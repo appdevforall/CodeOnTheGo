@@ -30,16 +30,15 @@ import kotlin.reflect.KClass
  * @author Akash Yadav
  */
 interface SidebarActionItem : ActionItem {
+	/**
+	 * The fragment class for this action item. Implementations can provide a fragment class which
+	 * will be shown when this action item is selected.
+	 */
+	val fragmentClass: KClass<out Fragment>?
 
-  /**
-   * The fragment class for this action item. Implementations can provide a fragment class which
-   * will be shown when this action item is selected.
-   */
-  val fragmentClass: KClass<out Fragment>?
-
-  /**
-   * Build/setup the fragment navigation for this action item. This method is called only if the [fragmentClass] property
-   * is non-null.
-   */
-  fun FragmentNavigatorDestinationBuilder.buildNavigation() {}
+	/**
+	 * Build/setup the fragment navigation for this action item. This method is called only if the [fragmentClass] property
+	 * is non-null.
+	 */
+	fun FragmentNavigatorDestinationBuilder.buildNavigation() {}
 }

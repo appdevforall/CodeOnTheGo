@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego.services.log
 
-import org.appdevforall.codeonthego.logsender.ILogSender
 import io.mockk.every
 import io.mockk.mockk
+import org.appdevforall.codeonthego.logsender.ILogSender
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

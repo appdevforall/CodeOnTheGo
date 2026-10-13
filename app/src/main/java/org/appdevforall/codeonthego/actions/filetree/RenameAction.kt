@@ -21,11 +21,11 @@ import android.content.Context
 import android.view.LayoutInflater
 import androidx.activity.viewModels
 import com.itsaky.androidide.R
+import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.idetooltips.attachTooltip
-import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.viewmodel.FileManagerViewModel

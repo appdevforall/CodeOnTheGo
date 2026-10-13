@@ -11,7 +11,6 @@ import com.itsaky.androidide.resources.R
 import org.slf4j.LoggerFactory
 
 object OverlayPermissionGuide {
-
 	private val log = LoggerFactory.getLogger(OverlayPermissionGuide::class.java)
 
 	fun showRestrictedSettingsDialog(context: Context) {
@@ -27,16 +26,16 @@ object OverlayPermissionGuide {
 			.setPositiveButton(R.string.permission_overlay_open_app_info) { dialog, _ ->
 				dialog.dismiss()
 				openAppInfo(context)
-			}
-			.setNegativeButton(android.R.string.cancel, null)
+			}.setNegativeButton(android.R.string.cancel, null)
 			.show()
 	}
 
 	private fun openAppInfo(context: Context) {
-		val intent = Intent(
-			Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-			Uri.fromParts("package", context.packageName, null),
-		)
+		val intent =
+			Intent(
+				Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+				Uri.fromParts("package", context.packageName, null),
+			)
 		if (context !is Activity) {
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 		}

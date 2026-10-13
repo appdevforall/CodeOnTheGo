@@ -18,7 +18,6 @@ fun FragmentManager.hasVisibleDialog(): Boolean {
 
 fun FragmentManager.dismissTopDialog(): Boolean {
 	for (fragment in fragments.asReversed()) {
-
 		if (fragment is DialogFragment && fragment.dialog?.isShowing == true) {
 			fragment.dismissAllowingStateLoss()
 			return true

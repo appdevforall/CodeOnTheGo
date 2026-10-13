@@ -1,10 +1,5 @@
 package org.appdevforall.codeonthego.repositories
 
-import org.appdevforall.codeonthego.templates.ITemplateProvider
-import org.appdevforall.codeonthego.templates.TemplateRecipe
-import org.appdevforall.codeonthego.templates.impl.TemplateWarning
-import org.appdevforall.codeonthego.templates.impl.zip.ZipTemplateReader
-import org.appdevforall.codeonthego.utils.Environment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -12,6 +7,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.appdevforall.codeonthego.templates.ITemplateProvider
+import org.appdevforall.codeonthego.templates.TemplateRecipe
+import org.appdevforall.codeonthego.templates.impl.TemplateWarning
+import org.appdevforall.codeonthego.templates.impl.zip.ZipTemplateReader
+import org.appdevforall.codeonthego.utils.Environment
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.UUID

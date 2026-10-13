@@ -7,8 +7,10 @@ import android.view.ViewGroup
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.itsaky.androidide.databinding.LayoutProjectInfoSheetBinding
-import org.appdevforall.codeonthego.models.ProjectFile
 import com.itsaky.androidide.resources.R
+import com.termux.shared.interact.ShareUtils.copyTextToClipboard
+import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.models.ProjectFile
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.templates.Language
 import org.appdevforall.codeonthego.utils.ProjectDetails
@@ -16,8 +18,6 @@ import org.appdevforall.codeonthego.utils.capitalizeString
 import org.appdevforall.codeonthego.utils.formatDate
 import org.appdevforall.codeonthego.utils.loadProjectDetails
 import org.appdevforall.codeonthego.utils.viewLifecycleScope
-import com.termux.shared.interact.ShareUtils.copyTextToClipboard
-import kotlinx.coroutines.launch
 
 class ProjectInfoBottomSheet : BottomSheetDialogFragment() {
 	companion object {

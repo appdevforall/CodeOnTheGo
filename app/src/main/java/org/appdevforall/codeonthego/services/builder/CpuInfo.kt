@@ -126,25 +126,31 @@ object CpuInfo {
 		total: Int,
 	): CpuTopology =
 		when (clusters.size) {
-			0 -> CpuTopology(null, total, 0, total)
+			0 -> {
+				CpuTopology(null, total, 0, total)
+			}
 
-			1 -> CpuTopology(null, clusters[0].second, 0, total)
+			1 -> {
+				CpuTopology(null, clusters[0].second, 0, total)
+			}
 
-			2 ->
+			2 -> {
 				CpuTopology(
 					primeCores = null,
 					bigCores = clusters[1].second,
 					smallCores = clusters[0].second,
 					totalCores = total,
 				)
+			}
 
-			3 ->
+			3 -> {
 				CpuTopology(
 					primeCores = clusters[2].second,
 					bigCores = clusters[1].second,
 					smallCores = clusters[0].second,
 					totalCores = total,
 				)
+			}
 
 			else -> {
 				// 4+ clusters: small = lowest, prime = highest, big = everything in between

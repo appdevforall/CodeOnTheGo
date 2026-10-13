@@ -25,27 +25,22 @@ import org.appdevforall.codeonthego.logsender.ILogSender
  * @author Akash Yadav
  */
 class CachingLogSender(
-  private val sender: ILogSender,
-  internal val port: Int,
-  internal var isStarted: Boolean
+	private val sender: ILogSender,
+	internal val port: Int,
+	internal var isStarted: Boolean,
 ) : ILogSender by sender {
+	private var cachedPid: Int = -1
+	private var cachedId: String? = null
+	private var cachedPckName: String? = null
 
-  private var cachedPid: Int = -1
-  private var cachedId: String? = null
-  private var cachedPckName: String? = null
+	override fun getPid(): Int {
+		if (this.cachedPid != -1) {
+			return this.cachedPid
+		}
+		return sender.pid.also { this.cachedPid = it }
+	}
 
-  override fun getPid(): Int {
-    if (this.cachedPid != -1) {
-      return this.cachedPid
-    }
-    return sender.pid.also { this.cachedPid = it }
-  }
+	override fun getPackageName(): String = this.cachedPckName ?: sender.packageName.also { this.cachedPckName = it }
 
-  override fun getPackageName(): String {
-    return this.cachedPckName ?: sender.packageName.also { this.cachedPckName = it }
-  }
-
-  override fun getId(): String {
-    return this.cachedId ?: sender.id.also { this.cachedId = it }
-  }
+	override fun getId(): String = this.cachedId ?: sender.id.also { this.cachedId = it }
 }

@@ -35,48 +35,45 @@ import java.util.regex.PatternSyntaxException
  * @author Akash Yadav
  */
 object MatchPredicate : TreeSitterPredicate() {
+	override val name: String
+		get() = "match"
 
-  override val name: String
-    get() = "match"
+	@JvmField
+	val PARAMETERS =
+		arrayOf(
+			TSQueryPredicateStep.Type.String,
+			TSQueryPredicateStep.Type.Capture,
+			TSQueryPredicateStep.Type.String,
+			TSQueryPredicateStep.Type.Done,
+		)
 
-  @JvmField
-  val PARAMETERS =
-    arrayOf(
-      TSQueryPredicateStep.Type.String,
-      TSQueryPredicateStep.Type.Capture,
-      TSQueryPredicateStep.Type.String,
-      TSQueryPredicateStep.Type.Done
-    )
+	private val cache = ConcurrentHashMap<String, Regex>()
 
-  private val cache = ConcurrentHashMap<String, Regex>()
+	override fun doPredicateInternal(
+		tsQuery: TSQuery,
+		text: CharSequence,
+		match: TSQueryMatch,
+		predicateSteps: List<TsClientPredicateStep>,
+		syntheticCaptures: TsSyntheticCaptureContainer,
+	): PredicateResult {
+		val captured = getCaptureContent(tsQuery, match, predicateSteps[1].content, text)
+		try {
+			var regex = cache[predicateSteps[2].content]
+			if (regex == null) {
+				regex = Regex(predicateSteps[2].content)
+				cache[predicateSteps[2].content] = regex
+			}
+			for (str in captured) {
+				if (regex.find(str) == null) {
+					return PredicateResult.REJECT
+				}
+			}
+			return PredicateResult.ACCEPT
+		} catch (e: PatternSyntaxException) {
+			e.printStackTrace()
+			return PredicateResult.UNHANDLED
+		}
+	}
 
-  override fun doPredicateInternal(
-    tsQuery: TSQuery,
-    text: CharSequence,
-    match: TSQueryMatch,
-    predicateSteps: List<TsClientPredicateStep>,
-    syntheticCaptures: TsSyntheticCaptureContainer
-  ): PredicateResult {
-    val captured = getCaptureContent(tsQuery, match, predicateSteps[1].content, text)
-    try {
-      var regex = cache[predicateSteps[2].content]
-      if (regex == null) {
-        regex = Regex(predicateSteps[2].content)
-        cache[predicateSteps[2].content] = regex
-      }
-      for (str in captured) {
-        if (regex.find(str) == null) {
-          return PredicateResult.REJECT
-        }
-      }
-      return PredicateResult.ACCEPT
-    } catch (e: PatternSyntaxException) {
-      e.printStackTrace()
-      return PredicateResult.UNHANDLED
-    }
-  }
-
-  override fun canHandle(steps: List<TsClientPredicateStep>): Boolean {
-    return parametersMatch(steps, PARAMETERS)
-  }
+	override fun canHandle(steps: List<TsClientPredicateStep>): Boolean = parametersMatch(steps, PARAMETERS)
 }

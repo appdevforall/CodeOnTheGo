@@ -22,4 +22,6 @@ package org.appdevforall.codeonthego.tooling.api.models.params
  *
  * @author Akash Yadav
  */
-data class StringParameter(val value: String)
+data class StringParameter(
+	val value: String,
+)

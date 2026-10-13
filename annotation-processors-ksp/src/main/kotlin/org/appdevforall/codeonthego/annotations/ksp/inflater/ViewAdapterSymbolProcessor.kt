@@ -35,77 +35,76 @@ import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
  * @author Akash Yadav
  */
 class ViewAdapterSymbolProcessor(
-  private val codeGenerator: CodeGenerator,
-  private val logger: KSPLogger
+	private val codeGenerator: CodeGenerator,
+	private val logger: KSPLogger,
 ) : SymbolProcessor {
+	private val generator = ViewAdapterIndexGenerator(logger)
 
-  private val generator = ViewAdapterIndexGenerator(logger)
+	init {
+		generator.init()
+	}
 
-  init {
-    generator.init()
-  }
+	override fun process(resolver: Resolver): List<KSAnnotated> {
+		val symbols = resolver.getSymbolsWithAnnotation(ViewAdapter::class.java.name)
 
-  override fun process(resolver: Resolver): List<KSAnnotated> {
-    val symbols = resolver.getSymbolsWithAnnotation(ViewAdapter::class.java.name)
+		if (!symbols.iterator().hasNext()) {
+			return emptyList()
+		}
 
-    if (!symbols.iterator().hasNext()) {
-      return emptyList()
-    }
+		val unprocessed = mutableListOf<KSAnnotated>()
+		val files = mutableListOf<KSFile>()
+		symbols.forEach {
+			it.containingFile?.also { file -> files.add(file) }
+			if (!process(it)) {
+				unprocessed.add(it)
+			}
+		}
 
-    val unprocessed = mutableListOf<KSAnnotated>()
-    val files = mutableListOf<KSFile>()
-    symbols.forEach {
-      it.containingFile?.also { file -> files.add(file) }
-      if (!process(it)) {
-        unprocessed.add(it)
-      }
-    }
+		val file =
+			codeGenerator.createNewFile(
+				Dependencies(true, *files.toTypedArray()),
+				INDEX_PACKAGE_NAME,
+				INDEX_CLASS_NAME,
+				"java",
+			)
 
-    val file =
-      codeGenerator.createNewFile(
-        Dependencies(true, *files.toTypedArray()),
-        INDEX_PACKAGE_NAME,
-        INDEX_CLASS_NAME,
-        "java"
-      )
+		generator.generate(file)
 
-    generator.generate(file)
+		file.flush()
+		file.close()
 
-    file.flush()
-    file.close()
+		return unprocessed
+	}
 
-    return unprocessed
-  }
+	private fun process(sym: KSAnnotated): Boolean {
+		if (sym !is KSClassDeclaration) {
+			logger.error("${ViewAdapter::class} must be applied to a class.", sym)
+			return false
+		}
 
-  private fun process(sym: KSAnnotated): Boolean {
-    if (sym !is KSClassDeclaration) {
-      logger.error("${ViewAdapter::class} must be applied to a class.", sym)
-      return false
-    }
+		if (sym.parent !is KSFile) {
+			logger.error(
+				"${ViewAdapter::class} must be applied to a top level class. (${sym.parent})",
+				sym,
+			)
+			return false
+		}
 
-    if (sym.parent !is KSFile) {
-      logger.error(
-        "${ViewAdapter::class} must be applied to a top level class. (${sym.parent})",
-        sym
-      )
-      return false
-    }
+		if (sym.primaryConstructor?.parameters?.size != 0) {
+			logger.error("A view adapter must have a single primary constructor", sym)
+			return false
+		}
 
-    if (sym.primaryConstructor?.parameters?.size != 0) {
-      logger.error("A view adapter must have a single primary constructor", sym)
-      return false
-    }
+		if (sym.typeParameters.size != 1) {
+			logger.error("A view adapter must have exactly one type parameter", sym)
+			return false
+		}
 
-    if (sym.typeParameters.size != 1) {
-      logger.error("A view adapter must have exactly one type parameter", sym)
-      return false
-    }
+		if (!sym.isOpen()) {
+			logger.error("A view adapter implementation must be open.", sym)
+			return false
+		}
 
-    if (!sym.isOpen()) {
-      logger.error("A view adapter implementation must be open.", sym)
-      return false
-    }
-
-    return generator.addViewAdapter(sym)
-  }
+		return generator.addViewAdapter(sym)
+	}
 }

@@ -51,48 +51,49 @@ import openjdk.tools.javac.util.Context;
  */
 public class NBEnter extends Enter {
 
-  private final CancelService cancelService;
-  private final Symtab syms;
-  private final NBJavaCompiler compiler;
+	public static void preRegister(Context context) {
+		context.put(enterKey, (Context.Factory<Enter>) NBEnter::new);
+	}
 
-  public static void preRegister(Context context) {
-    context.put(enterKey, (Context.Factory<Enter>) NBEnter::new);
-  }
+	private final CancelService cancelService;
+	private final Symtab syms;
 
-  public NBEnter(Context context) {
-    super(context);
-    cancelService = CancelService.instance(context);
-    syms = Symtab.instance(context);
-    JavaCompiler c = JavaCompiler.instance(context);
-    compiler = c instanceof NBJavaCompiler ? (NBJavaCompiler) c : null;
-  }
+	private final NBJavaCompiler compiler;
 
-  @SuppressWarnings("unused")
-  public void doUnenter(JCTree.JCCompilationUnit cu, JCTree tree) {
-    super.unenter(cu, tree);
-  }
+	public NBEnter(Context context) {
+		super(context);
+		cancelService = CancelService.instance(context);
+		syms = Symtab.instance(context);
+		JavaCompiler c = JavaCompiler.instance(context);
+		compiler = c instanceof NBJavaCompiler ? (NBJavaCompiler) c : null;
+	}
 
-  @Override
-  public Env<AttrContext> getEnv(TypeSymbol sym) {
-    Env<AttrContext> env = super.getEnv(sym);
-    if (compiler != null) {
-      compiler.maybeInvokeDesugarCallback(env);
-    }
-    return env;
-  }
+	@SuppressWarnings("unused")
+	public void doUnenter(JCTree.JCCompilationUnit cu, JCTree tree) {
+		super.unenter(cu, tree);
+	}
 
-  @Override
-  public void visitTopLevel(JCTree.JCCompilationUnit tree) {
-    if (TreeInfo.isModuleInfo(tree) && tree.modle == syms.noModule) {
-      // workaround: when source level == 8, then visitTopLevel crashes for module-info.java
-      return;
-    }
-    super.visitTopLevel(tree);
-  }
+	@Override
+	public Env<AttrContext> getEnv(TypeSymbol sym) {
+		Env<AttrContext> env = super.getEnv(sym);
+		if (compiler != null) {
+			compiler.maybeInvokeDesugarCallback(env);
+		}
+		return env;
+	}
 
-  @Override
-  public void visitClassDef(JCClassDecl tree) {
-    cancelService.abortIfCanceled();
-    super.visitClassDef(tree);
-  }
+	@Override
+	public void visitClassDef(JCClassDecl tree) {
+		cancelService.abortIfCanceled();
+		super.visitClassDef(tree);
+	}
+
+	@Override
+	public void visitTopLevel(JCTree.JCCompilationUnit tree) {
+		if (TreeInfo.isModuleInfo(tree) && tree.modle == syms.noModule) {
+			// workaround: when source level == 8, then visitTopLevel crashes for module-info.java
+			return;
+		}
+		super.visitTopLevel(tree);
+	}
 }

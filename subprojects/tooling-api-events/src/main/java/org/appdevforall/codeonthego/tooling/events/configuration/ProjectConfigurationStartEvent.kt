@@ -21,7 +21,8 @@ import org.appdevforall.codeonthego.tooling.events.StartEvent
 
 /** @author Akash Yadav */
 class ProjectConfigurationStartEvent(
-  displayName: String,
-  eventTime: Long,
-  descriptor: ProjectConfigurationOperationDescriptor
-) : ProjectConfigurationProgressEvent(displayName, eventTime, descriptor), StartEvent
+	displayName: String,
+	eventTime: Long,
+	descriptor: ProjectConfigurationOperationDescriptor,
+) : ProjectConfigurationProgressEvent(displayName, eventTime, descriptor),
+	StartEvent

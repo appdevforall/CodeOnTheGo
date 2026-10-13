@@ -23,14 +23,14 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** @author Akash Yadav */
 internal class DefaultApiVersions : ApiVersions {
+	val classes = ConcurrentHashMap<String, ClassInfo>()
 
-  val classes = ConcurrentHashMap<String, ClassInfo>()
+	override fun getClass(name: String): ClassInfo? = classes[name.replace('.', '/')]
 
-  override fun getClass(name: String): ClassInfo? {
-    return classes[name.replace('.', '/')]
-  }
-  
-  internal fun putClass(name: String, info: ClassInfo) {
-    classes[name] = info
-  }
+	internal fun putClass(
+		name: String,
+		info: ClassInfo,
+	) {
+		classes[name] = info
+	}
 }

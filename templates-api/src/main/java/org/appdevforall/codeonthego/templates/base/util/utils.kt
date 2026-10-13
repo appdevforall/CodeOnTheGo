@@ -22,20 +22,20 @@ import org.appdevforall.codeonthego.templates.ProjectTemplateData
 import java.io.File
 
 internal fun BaseTemplateData.optonallyKts(file: String): String {
-  return if (useKts) "${file}.kts" else file
+return if (useKts) "${file}.kts" else file
 }
 
 fun ProjectTemplateData.moduleNameToDir(name: String): File {
-  return File(this.projectDir, moduleNameToDirName(name).replace(':', '/').trim { it == '/' })
+return File(this.projectDir, moduleNameToDirName(name).replace(':', '/').trim { it == '/' })
 }
 
 fun isValidModuleName(name: String): Boolean {
-  if (name.length < 2 || name.isBlank() || name[0] != ':') {
-    return false
-  }
+if (name.length < 2 || name.isBlank() || name[0] != ':') {
+	return false
+}
 
-  val moduleName = name.substring(1)
-  return moduleNameToDirName(moduleName) == moduleName
+val moduleName = name.substring(1)
+return moduleNameToDirName(moduleName) == moduleName
 }
 
 /**
@@ -45,35 +45,35 @@ fun isValidModuleName(name: String): Boolean {
  * @return The directory name.
  */
 fun moduleNameToDirName(name: String): String {
-  val result = StringBuilder()
-  var prev: Char? = null
-  for (i in name.indices) {
-    var c = name[i]
-    if (c == ' ') {
-      c = '-'
-    }
+val result = StringBuilder()
+var prev: Char? = null
+for (i in name.indices) {
+	var c = name[i]
+	if (c == ' ') {
+	c = '-'
+	}
 
-    if (
+	if (
 
-    // the first character must be a letter
-      (i == 0 && !c.isLetter())
+	// the first character must be a letter
+	(i == 0 && !c.isLetter())
 
-      // chars at other indices must be a letter, digit, hyphen or an underscore
-      || !(c.isDigit() || c.isLetter() || c == '-' || c =='_')
+	// chars at other indices must be a letter, digit, hyphen or an underscore
+	|| !(c.isDigit() || c.isLetter() || c == '-' || c =='_')
 
-      // must not include consecutive '-'
-      || (prev == '-' && c == '-')
-    ) {
+	// must not include consecutive '-'
+	|| (prev == '-' && c == '-')
+	) {
 
-      prev = c
-      continue
-    }
+	prev = c
+	continue
+	}
 
-    result.append(c)
-    prev = c
-  }
+	result.append(c)
+	prev = c
+}
 
-  return result.trim { it == ' ' || it == '-' }.toString()
+return result.trim { it == ' ' || it == '-' }.toString()
 }
 
 /**
@@ -84,12 +84,12 @@ fun moduleNameToDirName(name: String): String {
  * @param name The current project name.
  */
 fun getNewProjectName(baseDir: String, name: String) : String {
-  var i = 1
-  var projectDir = File(baseDir, name)
-  while (projectDir.exists()) {
-    projectDir = File(baseDir, name + i)
-    ++i
-  }
+var i = 1
+var projectDir = File(baseDir, name)
+while (projectDir.exists()) {
+	projectDir = File(baseDir, name + i)
+	++i
+}
 
-  return projectDir.name
+return projectDir.name
 }

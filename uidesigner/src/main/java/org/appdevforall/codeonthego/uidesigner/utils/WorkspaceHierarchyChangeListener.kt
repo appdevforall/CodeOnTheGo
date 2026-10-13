@@ -26,9 +26,6 @@ import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
  * @author Akash Yadav
  */
 internal class WorkspaceHierarchyChangeListener(
-  private val viewModel: WorkspaceViewModel,
-  private val workspaceView: UiViewGroup
-) : org.appdevforall.codeonthego.inflater.IViewGroup.SingleOnHierarchyChangeListener() {
-
-
-}
+	private val viewModel: WorkspaceViewModel,
+	private val workspaceView: UiViewGroup,
+) : org.appdevforall.codeonthego.inflater.IViewGroup.SingleOnHierarchyChangeListener()

@@ -22,4 +22,6 @@ package org.appdevforall.codeonthego.inflater
  *
  * @author Akash Yadav
  */
-open class ForwardingViewGroup(val src: IViewGroup) : IViewGroup by src
+open class ForwardingViewGroup(
+	val src: IViewGroup,
+) : IViewGroup by src

@@ -10,18 +10,17 @@ import org.appdevforall.codeonthego.lsp.debug.events.StepEventResponse
  * @author Akash Yadav
  */
 interface IDebugEventHandler {
+	/**
+	 * Called when a breakpoint is hit in the target application.
+	 *
+	 * @param event The parameters describing the breakpoint event.
+	 */
+	fun onBreakpointHit(event: BreakpointHitEvent)
 
-    /**
-     * Called when a breakpoint is hit in the target application.
-     *
-     * @param event The parameters describing the breakpoint event.
-     */
-    fun onBreakpointHit(event: BreakpointHitEvent)
-
-    /**
-     * Called when a step request is successful in the target application.
-     *
-     * @param event The event model describing the event.
-     */
-    fun onStep(event: StepEvent): StepEventResponse
+	/**
+	 * Called when a step request is successful in the target application.
+	 *
+	 * @param event The event model describing the event.
+	 */
+	fun onStep(event: StepEvent): StepEventResponse
 }

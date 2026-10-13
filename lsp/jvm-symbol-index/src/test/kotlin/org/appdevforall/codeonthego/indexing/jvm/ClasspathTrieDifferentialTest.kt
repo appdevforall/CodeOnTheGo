@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.projects.classpath.JarFsClasspathReader
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.projects.classpath.JarFsClasspathReader
 import org.junit.Assume.assumeFalse
 import org.junit.Test
 import org.junit.runner.RunWith

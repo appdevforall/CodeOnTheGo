@@ -2,13 +2,6 @@ package org.appdevforall.codeonthego.viewmodels
 
 import android.util.Log
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.repositories.TemplateRepository
-import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
-import org.appdevforall.codeonthego.templates.manager.models.TemplateMetadata
-import org.appdevforall.codeonthego.templates.manager.models.TemplateProvenance
-import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEffect
-import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEvent
-import org.appdevforall.codeonthego.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -19,6 +12,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.repositories.TemplateRepository
+import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
+import org.appdevforall.codeonthego.templates.manager.models.TemplateMetadata
+import org.appdevforall.codeonthego.templates.manager.models.TemplateProvenance
+import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEffect
+import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEvent
+import org.appdevforall.codeonthego.viewmodel.MainDispatcherRule
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule

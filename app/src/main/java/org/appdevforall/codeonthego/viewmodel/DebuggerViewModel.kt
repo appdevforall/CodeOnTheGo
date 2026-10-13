@@ -5,16 +5,6 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.buildinfo.BuildInfo
-import org.appdevforall.codeonthego.fragments.debug.DebuggerFragment
-import org.appdevforall.codeonthego.fragments.debug.ResolvableThreadInfo
-import org.appdevforall.codeonthego.fragments.debug.ResolvableVariable
-import org.appdevforall.codeonthego.fragments.debug.VariableTreeNodeGenerator
-import org.appdevforall.codeonthego.fragments.debug.resolvedOrNull
-import org.appdevforall.codeonthego.lookup.Lookup
-import org.appdevforall.codeonthego.lsp.IDEDebugClientImpl
-import org.appdevforall.codeonthego.lsp.debug.model.StackFrame
-import org.appdevforall.codeonthego.lsp.debug.model.ThreadInfo
-import org.appdevforall.codeonthego.utils.PrivilegedActions
 import io.github.dingyi222666.view.treeview.Tree
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +19,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.fragments.debug.DebuggerFragment
+import org.appdevforall.codeonthego.fragments.debug.ResolvableThreadInfo
+import org.appdevforall.codeonthego.fragments.debug.ResolvableVariable
+import org.appdevforall.codeonthego.fragments.debug.VariableTreeNodeGenerator
+import org.appdevforall.codeonthego.fragments.debug.resolvedOrNull
+import org.appdevforall.codeonthego.lookup.Lookup
+import org.appdevforall.codeonthego.lsp.IDEDebugClientImpl
+import org.appdevforall.codeonthego.lsp.debug.model.StackFrame
+import org.appdevforall.codeonthego.lsp.debug.model.ThreadInfo
+import org.appdevforall.codeonthego.utils.PrivilegedActions
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku
 

@@ -22,4 +22,6 @@ package org.appdevforall.codeonthego.inflater.events
  *
  * @author Akash Yadav
  */
-abstract class IInflationEvent<T>(val data: T)
+abstract class IInflationEvent<T>(
+	val data: T,
+)

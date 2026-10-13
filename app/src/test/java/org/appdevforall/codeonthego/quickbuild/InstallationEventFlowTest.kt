@@ -4,13 +4,13 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Bundle
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.events.InstallationEvent
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.events.InstallationEvent
 import org.appdevforall.cotg.quickbuild.service.provision.InstallBroadcast
 import org.junit.Test
 

@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.lsp.kotlin.fixtures
 
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.index.toMetadata
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.ScheduledCancelChecker
@@ -7,7 +8,6 @@ import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.UnpinnedAnalysis
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.analyzeMaybeDangling
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.read
 import org.appdevforall.codeonthego.progress.ICancelChecker
-import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaFunctionCall
 import org.jetbrains.kotlin.analysis.api.resolution.successfulFunctionCallOrNull

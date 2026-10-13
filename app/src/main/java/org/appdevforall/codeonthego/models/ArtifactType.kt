@@ -20,30 +20,30 @@ package org.appdevforall.codeonthego.models
 import com.google.gson.annotations.SerializedName
 
 class ArtifactType {
-  @SerializedName("type") var type: String? = null
-  @SerializedName("kind") var kind: String? = null
+@SerializedName("type") var type: String? = null
+@SerializedName("kind") var kind: String? = null
 
-  companion object {
-    var TYPE_APK = "APK"
-  }
+companion object {
+	var TYPE_APK = "APK"
+}
 
-  override fun toString(): String {
-    return "ArtifactType(type=$type, kind=$kind)"
-  }
+override fun toString(): String {
+	return "ArtifactType(type=$type, kind=$kind)"
+}
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is ArtifactType) return false
+override fun equals(other: Any?): Boolean {
+	if (this === other) return true
+	if (other !is ArtifactType) return false
 
-    if (type != other.type) return false
-    if (kind != other.kind) return false
+	if (type != other.type) return false
+	if (kind != other.kind) return false
 
-    return true
-  }
+	return true
+}
 
-  override fun hashCode(): Int {
-    var result = type?.hashCode() ?: 0
-    result = 31 * result + (kind?.hashCode() ?: 0)
-    return result
-  }
+override fun hashCode(): Int {
+	var result = type?.hashCode() ?: 0
+	result = 31 * result + (kind?.hashCode() ?: 0)
+	return result
+}
 }

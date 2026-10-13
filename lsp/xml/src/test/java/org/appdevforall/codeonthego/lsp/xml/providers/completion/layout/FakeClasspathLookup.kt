@@ -17,11 +17,11 @@
 
 package org.appdevforall.codeonthego.lsp.xml.providers.completion.layout
 
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 import org.appdevforall.codeonthego.project.GradleModels
 import org.appdevforall.codeonthego.project.JavaModels
 import org.appdevforall.codeonthego.projects.api.JavaModule
 import org.appdevforall.codeonthego.projects.api.ModuleProject
-import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 
 /** A hand-built [ClasspathLookup] a test can shape without a real module or index. */
 class FakeClasspathLookup(

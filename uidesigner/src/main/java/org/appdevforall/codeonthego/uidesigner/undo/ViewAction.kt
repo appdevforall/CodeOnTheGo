@@ -26,9 +26,9 @@ package org.appdevforall.codeonthego.uidesigner.undo
  * @author Akash Yadav
  */
 abstract class ViewAction
-@JvmOverloads
-constructor(
-  val child: org.appdevforall.codeonthego.inflater.IView,
-  val parent: org.appdevforall.codeonthego.inflater.IViewGroup,
-  var index: Int = parent.indexOfChild(child)
-) : IUiAction
+	@JvmOverloads
+	constructor(
+		val child: org.appdevforall.codeonthego.inflater.IView,
+		val parent: org.appdevforall.codeonthego.inflater.IViewGroup,
+		var index: Int = parent.indexOfChild(child),
+	) : IUiAction

@@ -31,40 +31,49 @@ import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBindin
  * @author Akash Yadav
  */
 abstract class NumberInputEditTextPreference(
-  val hint: Int? = null,
-  val setValue: ((Int) -> Unit)? = null,
-  val getValue: (() -> Int)? = null
+	val hint: Int? = null,
+	val setValue: ((Int) -> Unit)? = null,
+	val getValue: (() -> Int)? = null,
 ) : DialogPreference() {
+	override fun onConfigureDialog(
+		preference: Preference,
+		dialog: MaterialAlertDialogBuilder,
+	) {
+		super.onConfigureDialog(preference, dialog)
+		val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(dialog.context))
+		onConfigureTextInput(binding.name)
+		dialog.setView(binding.root)
+		dialog.setPositiveButton(android.R.string.ok) { iface, _ ->
+			iface.dismiss()
+			onPreferenceChanged(
+				preference,
+				binding.name.editText
+					?.text
+					?.toString()
+					?.trim(),
+			)
+		}
+		dialog.setNegativeButton(android.R.string.cancel) { iface, _ -> iface.dismiss() }
+	}
 
-  override fun onConfigureDialog(preference: Preference, dialog: MaterialAlertDialogBuilder) {
-    super.onConfigureDialog(preference, dialog)
-    val binding = LayoutDialogTextInputBinding.inflate(LayoutInflater.from(dialog.context))
-    onConfigureTextInput(binding.name)
-    dialog.setView(binding.root)
-    dialog.setPositiveButton(android.R.string.ok) { iface, _ ->
-      iface.dismiss()
-      onPreferenceChanged(preference, binding.name.editText?.text?.toString()?.trim())
-    }
-    dialog.setNegativeButton(android.R.string.cancel) { iface, _ -> iface.dismiss() }
-  }
+	protected open fun onConfigureTextInput(input: TextInputLayout) {
+		input.startIconDrawable = null
+		hint?.let { input.setHint(it) } ?: run { input.hint = "" }
+		input.editText?.apply {
+			inputType = EditorInfo.TYPE_NUMBER_FLAG_SIGNED
+			imeOptions = EditorInfo.IME_ACTION_DONE
+			keyListener = DigitsKeyListener.getInstance("0123456789")
+			setText(prefValue())
+		}
+	}
 
-  protected open fun onConfigureTextInput(input: TextInputLayout) {
-    input.startIconDrawable = null
-    hint?.let { input.setHint(it) } ?: run { input.hint = "" }
-    input.editText?.apply {
-      inputType = EditorInfo.TYPE_NUMBER_FLAG_SIGNED
-      imeOptions = EditorInfo.IME_ACTION_DONE
-      keyListener = DigitsKeyListener.getInstance("0123456789")
-      setText(prefValue())
-    }
-  }
+	override fun onPreferenceChanged(
+		preference: Preference,
+		newValue: Any?,
+	): Boolean {
+		setValue?.let { it((newValue as String?)?.toInt() ?: 0) }
+		return true
+	}
 
-  override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
-    setValue?.let { it((newValue as String?)?.toInt() ?: 0) }
-    return true
-  }
-
-  private fun prefValue(): String {
-    return getValue?.let { it() }?.toString() ?: ""
-  }
+	private fun prefValue(): String = getValue?.let { it() }?.toString() ?: ""
 }

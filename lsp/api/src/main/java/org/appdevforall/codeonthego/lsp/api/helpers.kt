@@ -22,8 +22,8 @@ import io.github.rosemoe.sora.lang.completion.snippet.CodeSnippet
 
 @JvmOverloads
 fun describeSnippet(
-  prefix: String,
-  deleteSelected: Boolean = true,
-  snippet: CodeSnippet? = null,
-  allowCommandExecution: Boolean = false
+prefix: String,
+deleteSelected: Boolean = true,
+snippet: CodeSnippet? = null,
+allowCommandExecution: Boolean = false
 ) = SnippetDescription(prefix.length, deleteSelected, snippet, allowCommandExecution)

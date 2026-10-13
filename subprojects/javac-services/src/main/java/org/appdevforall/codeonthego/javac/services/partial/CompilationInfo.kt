@@ -29,9 +29,9 @@ import openjdk.tools.javac.api.JavacTrees
  * @author Akash Yadav
  */
 data class CompilationInfo(
-  @JvmField val task: JavacTaskImpl,
-  @JvmField val diagnosticListener: DiagnosticListener<JavaFileObject>,
-  @JvmField val cu: CompilationUnitTree,
+	@JvmField val task: JavacTaskImpl,
+	@JvmField val diagnosticListener: DiagnosticListener<JavaFileObject>,
+	@JvmField val cu: CompilationUnitTree,
 ) {
-  val trees: JavacTrees = JavacTrees.instance(task)
+	val trees: JavacTrees = JavacTrees.instance(task)
 }

@@ -21,8 +21,9 @@ import org.appdevforall.codeonthego.tooling.events.FinishEvent
 
 /** @author Akash Yadav */
 class TransformFinishEvent(
-  displayName: String,
-  eventTime: Long,
-  operationDescriptor: TransformOperationDescriptor,
-  override val result: TransformOperationResult
-) : TransformProgressEvent(displayName, eventTime, operationDescriptor), FinishEvent
+	displayName: String,
+	eventTime: Long,
+	operationDescriptor: TransformOperationDescriptor,
+	override val result: TransformOperationResult,
+) : TransformProgressEvent(displayName, eventTime, operationDescriptor),
+	FinishEvent

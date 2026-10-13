@@ -26,29 +26,22 @@ import androidx.annotation.RequiresApi
 @SuppressLint("ObsoleteSdkInt")
 @RequiresApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
 internal object DisplayCompatHelperApi17 {
-
-  @Suppress("DEPRECATION")
-  fun getRealSize(display: Display, point: Point) {
-    display.getRealSize(point)
-  }
+	@Suppress("DEPRECATION")
+	fun getRealSize(
+		display: Display,
+		point: Point,
+	) {
+		display.getRealSize(point)
+	}
 }
 
 @RequiresApi(Build.VERSION_CODES.P)
 internal object DisplayCompatHelperApi28 {
+	fun safeInsetLeft(displayCutout: DisplayCutout): Int = displayCutout.safeInsetLeft
 
-  fun safeInsetLeft(displayCutout: DisplayCutout): Int {
-    return displayCutout.safeInsetLeft
-  }
+	fun safeInsetTop(displayCutout: DisplayCutout): Int = displayCutout.safeInsetTop
 
-  fun safeInsetTop(displayCutout: DisplayCutout): Int {
-    return displayCutout.safeInsetTop
-  }
+	fun safeInsetRight(displayCutout: DisplayCutout): Int = displayCutout.safeInsetRight
 
-  fun safeInsetRight(displayCutout: DisplayCutout): Int {
-    return displayCutout.safeInsetRight
-  }
-
-  fun safeInsetBottom(displayCutout: DisplayCutout): Int {
-    return displayCutout.safeInsetBottom
-  }
+	fun safeInsetBottom(displayCutout: DisplayCutout): Int = displayCutout.safeInsetBottom
 }

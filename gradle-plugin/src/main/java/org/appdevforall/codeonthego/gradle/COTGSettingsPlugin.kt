@@ -1,8 +1,8 @@
 package com.itsaky.androidide.gradle
 
+import org.adfa.constants.MAVEN_LOCAL_REPOSITORY
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig._PROPERTY_IS_TEST_ENV
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig._PROPERTY_MAVEN_LOCAL_REPOSITORY
-import org.adfa.constants.MAVEN_LOCAL_REPOSITORY
 import org.gradle.StartParameter
 import org.gradle.api.Plugin
 import org.gradle.api.Project

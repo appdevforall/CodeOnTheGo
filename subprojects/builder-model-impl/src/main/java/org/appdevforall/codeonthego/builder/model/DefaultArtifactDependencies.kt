@@ -20,9 +20,11 @@ import com.android.builder.model.v2.ide.ArtifactDependencies
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultArtifactDependencies : ArtifactDependencies, Serializable {
-  private val serialVersionUID = 1L
-  override var compileDependencies: List<DefaultGraphItem> = emptyList()
-  override var runtimeDependencies: List<DefaultGraphItem> = emptyList()
-  override var unresolvedDependencies: List<DefaultUnresolvedDependency> = emptyList()
+class DefaultArtifactDependencies :
+	ArtifactDependencies,
+	Serializable {
+	private val serialVersionUID = 1L
+	override var compileDependencies: List<DefaultGraphItem> = emptyList()
+	override var runtimeDependencies: List<DefaultGraphItem> = emptyList()
+	override var unresolvedDependencies: List<DefaultUnresolvedDependency> = emptyList()
 }

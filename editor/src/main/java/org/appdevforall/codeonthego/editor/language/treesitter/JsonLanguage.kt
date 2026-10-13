@@ -18,27 +18,24 @@
 package org.appdevforall.codeonthego.editor.language.treesitter
 
 import android.content.Context
-import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguage.Factory
 import com.itsaky.androidide.treesitter.json.TSLanguageJson
 import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_STRONG
+import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguage.Factory
 
 /**
  * [TreeSitterLanguage] implementation for JSON files.
  *
  * @author Akash Yadav
  */
-class JsonLanguage(context: Context) :
-  TreeSitterLanguage(context, TSLanguageJson.getInstance(), TS_TYPE) {
+class JsonLanguage(
+	context: Context,
+) : TreeSitterLanguage(context, TSLanguageJson.getInstance(), TS_TYPE) {
+	companion object {
+		const val TS_TYPE = "json"
 
-  companion object {
+		@JvmField
+		val FACTORY = Factory { JsonLanguage(it) }
+	}
 
-    const val TS_TYPE = "json"
-
-    @JvmField
-    val FACTORY = Factory { JsonLanguage(it) }
-  }
-
-  override fun getInterruptionLevel(): Int {
-    return INTERRUPTION_LEVEL_STRONG
-  }
+	override fun getInterruptionLevel(): Int = INTERRUPTION_LEVEL_STRONG
 }

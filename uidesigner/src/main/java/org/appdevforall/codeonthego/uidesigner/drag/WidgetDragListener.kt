@@ -35,89 +35,103 @@ import kotlin.math.min
  * @author Akash Yadav
  */
 internal class WidgetDragListener(
-  val view: UiViewGroup,
-  private val placeholder: IView,
-  private val touchSlop: Int
+	val view: UiViewGroup,
+	private val placeholder: IView,
+	private val touchSlop: Int,
 ) : View.OnDragListener {
+	private var lastX = 0f
+	private var lastY = 0f
 
-  private var lastX = 0f
-  private var lastY = 0f
+	override fun onDrag(
+		v: View,
+		event: DragEvent,
+	): Boolean {
+		when (event.action) {
+			DragEvent.ACTION_DRAG_STARTED -> {
+				val name =
+					when (val data = event.localState) {
+						is IView -> data.name
+						is UiWidget -> data.name
+						else -> throw IllegalArgumentException("A local state of UiWidget or IView is expected")
+					}
 
-  override fun onDrag(v: View, event: DragEvent): Boolean {
-    when (event.action) {
-      DragEvent.ACTION_DRAG_STARTED -> {
+				return event.clipDescription.hasMimeType(DRAGGING_WIDGET_MIME) &&
+					event.localState != view &&
+					view.canAcceptChild(name, event.localState as? IView?)
+			}
 
-        val name =
-          when (val data = event.localState) {
-            is IView -> data.name
-            is UiWidget -> data.name
-            else -> throw IllegalArgumentException("A local state of UiWidget or IView is expected")
-          }
- 
-        return event.clipDescription.hasMimeType(DRAGGING_WIDGET_MIME) &&
-          event.localState != view &&
-          view.canAcceptChild(name, event.localState as? IView?)
-      }
-      DragEvent.ACTION_DRAG_ENTERED,
-      DragEvent.ACTION_DRAG_LOCATION -> {
+			DragEvent.ACTION_DRAG_ENTERED,
+			DragEvent.ACTION_DRAG_LOCATION,
+			-> {
+				if (event.action == DragEvent.ACTION_DRAG_ENTERED) {
+					view.onHighlightStateUpdated(true)
+				}
 
-        if (event.action == DragEvent.ACTION_DRAG_ENTERED) {
-          view.onHighlightStateUpdated(true)
-        }
+				val distX = event.x - lastX
+				val distY = event.y - lastY
+				if (distX.absoluteValue < touchSlop && distY.absoluteValue < touchSlop) {
+					return true
+				}
 
-        val distX = event.x - lastX
-        val distY = event.y - lastY
-        if (distX.absoluteValue < touchSlop && distY.absoluteValue < touchSlop) {
-          return true
-        }
+				placeholder.removeFromParent()
+				val state = event.localState
+				if (state is UiView) {
+					state.includeInIndexComputation = false
+				}
 
-        placeholder.removeFromParent()
-        val state = event.localState
-        if (state is UiView) {
-          state.includeInIndexComputation = false
-        }
+				val index = view.computeViewIndex(event.x, event.y)
+				view.addChild(index, placeholder)
 
-        val index = view.computeViewIndex(event.x, event.y)
-        view.addChild(index, placeholder)
+				lastX = event.x
+				lastY = event.y
 
-        lastX = event.x
-        lastY = event.y
+				return true
+			}
 
-        return true
-      }
-      DragEvent.ACTION_DRAG_EXITED -> {
-        view.onHighlightStateUpdated(false)
-        return true
-      }
-      DragEvent.ACTION_DROP -> {
-        val child =
-          when (val data = event.localState) {
-            is IView -> {
-              data.removeFromParent()
-              data
-            }
-            is UiWidget -> data.createView(view.viewGroup.context, view.viewGroup, view.file)
-            else -> throw IllegalArgumentException("A local state of UiWidget or IView is expected")
-          }
+			DragEvent.ACTION_DRAG_EXITED -> {
+				view.onHighlightStateUpdated(false)
+				return true
+			}
 
-        var index = view.indexOfChild(this.placeholder)
-        this.placeholder.removeFromParent()
-        index = min(max(0, index), view.childCount)
+			DragEvent.ACTION_DROP -> {
+				val child =
+					when (val data = event.localState) {
+						is IView -> {
+							data.removeFromParent()
+							data
+						}
 
-        this.view.addChild(index, child)
-        this.view.onHighlightStateUpdated(false)
+						is UiWidget -> {
+							data.createView(view.viewGroup.context, view.viewGroup, view.file)
+						}
 
-        if (child is UiView) {
-          child.includeInIndexComputation = true
-        }
+						else -> {
+							throw IllegalArgumentException("A local state of UiWidget or IView is expected")
+						}
+					}
 
-        return true
-      }
-      DragEvent.ACTION_DRAG_ENDED -> {
-        this.placeholder.removeFromParent()
-        return true
-      }
-      else -> return false
-    }
-  }
+				var index = view.indexOfChild(this.placeholder)
+				this.placeholder.removeFromParent()
+				index = min(max(0, index), view.childCount)
+
+				this.view.addChild(index, child)
+				this.view.onHighlightStateUpdated(false)
+
+				if (child is UiView) {
+					child.includeInIndexComputation = true
+				}
+
+				return true
+			}
+
+			DragEvent.ACTION_DRAG_ENDED -> {
+				this.placeholder.removeFromParent()
+				return true
+			}
+
+			else -> {
+				return false
+			}
+		}
+	}
 }

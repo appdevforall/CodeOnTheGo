@@ -24,13 +24,14 @@ import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguag
  *
  * @author Akash Yadav
  */
-class TSCStyleBracketsHandler(language: TreeSitterLanguage) : TSBracketsHandler(language) {
-  
-  init {
-    openingBrackets.add("{")
-    closingBrackets.add("}")
-    
-    openingBrackets.add("(")
-    closingBrackets.add(")")
-  }
+class TSCStyleBracketsHandler(
+	language: TreeSitterLanguage,
+) : TSBracketsHandler(language) {
+	init {
+		openingBrackets.add("{")
+		closingBrackets.add("}")
+
+		openingBrackets.add("(")
+		closingBrackets.add(")")
+	}
 }

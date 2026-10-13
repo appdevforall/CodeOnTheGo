@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.quickbuild
 
-import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildSessionState
 import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory

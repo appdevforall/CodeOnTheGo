@@ -17,6 +17,12 @@
 package org.appdevforall.codeonthego.editor.language
 
 import android.os.Bundle
+import io.github.rosemoe.sora.lang.Language
+import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
+import io.github.rosemoe.sora.lang.completion.CompletionPublisher
+import io.github.rosemoe.sora.lang.format.Formatter
+import io.github.rosemoe.sora.text.CharPosition
+import io.github.rosemoe.sora.text.ContentReference
 import org.appdevforall.codeonthego.editor.api.IEditor
 import org.appdevforall.codeonthego.editor.ui.IDECompletionPublisher
 import org.appdevforall.codeonthego.lookup.Lookup
@@ -26,12 +32,6 @@ import org.appdevforall.codeonthego.lsp.debug.model.BreakpointRequest
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.appdevforall.codeonthego.progress.ProgressManager
-import io.github.rosemoe.sora.lang.Language
-import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
-import io.github.rosemoe.sora.lang.completion.CompletionPublisher
-import io.github.rosemoe.sora.lang.format.Formatter
-import io.github.rosemoe.sora.text.CharPosition
-import io.github.rosemoe.sora.text.ContentReference
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Paths

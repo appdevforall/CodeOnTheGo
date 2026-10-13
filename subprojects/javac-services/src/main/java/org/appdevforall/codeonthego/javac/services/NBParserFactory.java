@@ -60,193 +60,194 @@ import openjdk.tools.javac.util.Position;
  */
 public class NBParserFactory extends ParserFactory {
 
-  public static final String KEEP_COMMENTS_OVERRIDE = "keepCommentsOverride";
-  public static final String KEEP_COMMENTS_OVERRIDE_KEEP = "keep";
-  public static final String KEEP_COMMENTS_OVERRIDE_IGNORE = "ignore";
+	public static final String KEEP_COMMENTS_OVERRIDE = "keepCommentsOverride";
+	public static final String KEEP_COMMENTS_OVERRIDE_KEEP = "keep";
+	public static final String KEEP_COMMENTS_OVERRIDE_IGNORE = "ignore";
 
-  protected final ScannerFactory scannerFactory;
-  protected final Names names;
-  protected final CancelService cancelService;
+	public static void preRegister(Context context) {
+		context.put(parserFactoryKey, (Context.Factory<ParserFactory>) NBParserFactory::new);
+	}
 
-  protected final String keepCommentsOverride;
+	protected final ScannerFactory scannerFactory;
+	protected final Names names;
 
-  public static void preRegister(Context context) {
-    context.put(parserFactoryKey, (Context.Factory<ParserFactory>) NBParserFactory::new);
-  }
+	protected final CancelService cancelService;
 
-  protected NBParserFactory(Context context) {
-    super(context);
-    this.scannerFactory = ScannerFactory.instance(context);
-    this.names = Names.instance(context);
-    this.cancelService = CancelService.instance(context);
-    this.keepCommentsOverride = Options.instance(context).get(KEEP_COMMENTS_OVERRIDE);
+	protected final String keepCommentsOverride;
 
-  }
+	protected NBParserFactory(Context context) {
+		super(context);
+		this.scannerFactory = ScannerFactory.instance(context);
+		this.names = Names.instance(context);
+		this.cancelService = CancelService.instance(context);
+		this.keepCommentsOverride = Options.instance(context).get(KEEP_COMMENTS_OVERRIDE);
 
-  @Override
-  public JavacParser newParser(
-      CharSequence input,
-      boolean keepDocComments,
-      boolean keepEndPos,
-      boolean keepLineMap,
-      boolean parseModuleInfo) {
-    var keepDocCommentsOverride = keepDocComments;
-    if (this.keepCommentsOverride != null) {
-      if (KEEP_COMMENTS_OVERRIDE_IGNORE.equals(this.keepCommentsOverride)) {
-        keepDocCommentsOverride = false;
-      } else if (KEEP_COMMENTS_OVERRIDE_KEEP.equals(this.keepCommentsOverride)) {
-        keepDocCommentsOverride = true;
-      }
-    }
+	}
 
-    Lexer lexer = scannerFactory.newScanner(input, keepDocCommentsOverride);
-    return new NBJavacParser(
-        this, lexer, keepDocCommentsOverride, keepLineMap, keepEndPos, parseModuleInfo,
-        cancelService);
-  }
+	@Override
+	public JavacParser newParser(
+			CharSequence input,
+			boolean keepDocComments,
+			boolean keepEndPos,
+			boolean keepLineMap,
+			boolean parseModuleInfo) {
+		var keepDocCommentsOverride = keepDocComments;
+		if (this.keepCommentsOverride != null) {
+			if (KEEP_COMMENTS_OVERRIDE_IGNORE.equals(this.keepCommentsOverride)) {
+				keepDocCommentsOverride = false;
+			} else if (KEEP_COMMENTS_OVERRIDE_KEEP.equals(this.keepCommentsOverride)) {
+				keepDocCommentsOverride = true;
+			}
+		}
 
-  public static class NBJavacParser extends JavacParser {
+		Lexer lexer = scannerFactory.newScanner(input, keepDocCommentsOverride);
+		return new NBJavacParser(
+				this, lexer, keepDocCommentsOverride, keepLineMap, keepEndPos, parseModuleInfo,
+				cancelService);
+	}
 
-    private final Names names;
-    private final CancelService cancelService;
+	public static class NBJavacParser extends JavacParser {
 
-    public NBJavacParser(
-        NBParserFactory fac,
-        Lexer S,
-        boolean keepDocComments,
-        boolean keepLineMap,
-        boolean keepEndPos,
-        boolean parseModuleInfo,
-        CancelService cancelService) {
-      super(fac, S, keepDocComments, keepLineMap, keepEndPos, parseModuleInfo);
-      this.names = fac.names;
-      this.cancelService = cancelService;
-    }
+		private final Names names;
+		private final CancelService cancelService;
 
-    @Override
-    protected AbstractEndPosTable newEndPosTable(boolean keepEndPositions) {
-      AbstractEndPosTable res = super.newEndPosTable(keepEndPositions);
+		public NBJavacParser(
+				NBParserFactory fac,
+				Lexer S,
+				boolean keepDocComments,
+				boolean keepLineMap,
+				boolean keepEndPos,
+				boolean parseModuleInfo,
+				CancelService cancelService) {
+			super(fac, S, keepDocComments, keepLineMap, keepEndPos, parseModuleInfo);
+			this.names = fac.names;
+			this.cancelService = cancelService;
+		}
 
-      if (keepEndPositions) {
-        return new EndPosTableImpl(S, this, (SimpleEndPosTable) res);
-      }
+		@Override
+		public int getEndPos(JCTree jctree) {
+			return TreeInfo.getEndPos(jctree, endPosTable);
+		}
 
-      return res;
-    }
+		@Override
+		public JCStatement parseSimpleStatement() {
+			JCStatement result = super.parseSimpleStatement();
+			// workaround: if the code looks like:
+			// for (name : <collection>) {...}
+			// the "name" will be made a type of a variable with name "<error>", with
+			// no end position. Inject the end position for the variable:
+			if (result instanceof JCEnhancedForLoop) {
+				JCEnhancedForLoop tree = (JCEnhancedForLoop) result;
+				if (getEndPos(tree.var) == Position.NOPOS) {
+					endPosTable.storeEnd(tree.var, getEndPos(tree.var.vartype));
+				}
+			}
+			return result;
+		}
 
-    @Override
-    public int getEndPos(JCTree jctree) {
-      return TreeInfo.getEndPos(jctree, endPosTable);
-    }
+		@Override
+		protected JCClassDecl classDeclaration(JCModifiers mods, Comment dc) {
+			if (cancelService != null) {
+				cancelService.abortIfCanceled();
+			}
+			return super.classDeclaration(mods, dc);
+		}
 
-    @Override
-    public JCStatement parseSimpleStatement() {
-      JCStatement result = super.parseSimpleStatement();
-      // workaround: if the code looks like:
-      // for (name : <collection>) {...}
-      // the "name" will be made a type of a variable with name "<error>", with
-      // no end position. Inject the end position for the variable:
-      if (result instanceof JCEnhancedForLoop) {
-        JCEnhancedForLoop tree = (JCEnhancedForLoop) result;
-        if (getEndPos(tree.var) == Position.NOPOS) {
-          endPosTable.storeEnd(tree.var, getEndPos(tree.var.vartype));
-        }
-      }
-      return result;
-    }
+		@Override
+		protected JCClassDecl enumDeclaration(JCModifiers mods, Comment dc) {
+			if (cancelService != null) {
+				cancelService.abortIfCanceled();
+			}
+			return super.enumDeclaration(mods, dc);
+		}
 
-    @Override
-    protected JCClassDecl classDeclaration(JCModifiers mods, Comment dc) {
-      if (cancelService != null) {
-        cancelService.abortIfCanceled();
-      }
-      return super.classDeclaration(mods, dc);
-    }
+		@Override
+		protected JCClassDecl interfaceDeclaration(JCModifiers mods, Comment dc) {
+			if (cancelService != null) {
+				cancelService.abortIfCanceled();
+			}
+			return super.interfaceDeclaration(mods, dc);
+		}
 
-    @Override
-    protected JCClassDecl interfaceDeclaration(JCModifiers mods, Comment dc) {
-      if (cancelService != null) {
-        cancelService.abortIfCanceled();
-      }
-      return super.interfaceDeclaration(mods, dc);
-    }
+		@Override
+		protected JCTree methodDeclaratorRest(
+				int pos,
+				JCModifiers mods,
+				JCExpression type,
+				Name name,
+				List<JCTypeParameter> typarams,
+				boolean isInterface,
+				boolean isVoid,
+				boolean isRecord,
+				Comment dc) {
+			if (cancelService != null) {
+				cancelService.abortIfCanceled();
+			}
+			return super.methodDeclaratorRest(
+					pos, mods, type, name, typarams, isInterface, isVoid, isRecord, dc);
+		}
 
-    @Override
-    protected JCClassDecl enumDeclaration(JCModifiers mods, Comment dc) {
-      if (cancelService != null) {
-        cancelService.abortIfCanceled();
-      }
-      return super.enumDeclaration(mods, dc);
-    }
+		@Override
+		protected AbstractEndPosTable newEndPosTable(boolean keepEndPositions) {
+			AbstractEndPosTable res = super.newEndPosTable(keepEndPositions);
 
-    @Override
-    protected JCTree methodDeclaratorRest(
-        int pos,
-        JCModifiers mods,
-        JCExpression type,
-        Name name,
-        List<JCTypeParameter> typarams,
-        boolean isInterface,
-        boolean isVoid,
-        boolean isRecord,
-        Comment dc) {
-      if (cancelService != null) {
-        cancelService.abortIfCanceled();
-      }
-      return super.methodDeclaratorRest(
-          pos, mods, type, name, typarams, isInterface, isVoid, isRecord, dc);
-    }
+			if (keepEndPositions) {
+				return new EndPosTableImpl(S, this, (SimpleEndPosTable) res);
+			}
 
-    public final class EndPosTableImpl extends AbstractEndPosTable {
+			return res;
+		}
 
-      private final Lexer lexer;
-      private final SimpleEndPosTable delegate;
+		public final class EndPosTableImpl extends AbstractEndPosTable {
 
-      private EndPosTableImpl(Lexer lexer, JavacParser parser, SimpleEndPosTable delegate) {
-        super(parser);
-        this.lexer = lexer;
-        this.delegate = delegate;
-      }
+			private final Lexer lexer;
+			private final SimpleEndPosTable delegate;
 
-      public void resetErrorEndPos() {
-        delegate.errorEndPos = Position.NOPOS;
-        errorEndPos = delegate.errorEndPos;
-      }
+			private EndPosTableImpl(Lexer lexer, JavacParser parser, SimpleEndPosTable delegate) {
+				super(parser);
+				this.lexer = lexer;
+				this.delegate = delegate;
+			}
 
-      @Override
-      public int getEndPos(JCTree jctree) {
-        return delegate.getEndPos(jctree);
-      }
+			@Override
+			public int getEndPos(JCTree jctree) {
+				return delegate.getEndPos(jctree);
+			}
 
-      @Override
-      public void storeEnd(JCTree tree, int endpos) {
-        if (endpos >= 0) {
-          delegate.storeEnd(tree, endpos);
-        }
-      }
+			@Override
+			public int replaceTree(JCTree jctree, JCTree jctree1) {
+				return delegate.replaceTree(jctree, jctree1);
+			}
 
-      @Override
-      public int replaceTree(JCTree jctree, JCTree jctree1) {
-        return delegate.replaceTree(jctree, jctree1);
-      }
+			public void resetErrorEndPos() {
+				delegate.errorEndPos = Position.NOPOS;
+				errorEndPos = delegate.errorEndPos;
+			}
 
-      @Override
-      protected <T extends JCTree> T to(T t) {
-        storeEnd(t, parser.token().endPos);
-        return t;
-      }
+			@Override
+			public void setErrorEndPos(int errPos) {
+				delegate.setErrorEndPos(errPos);
+				errorEndPos = delegate.errorEndPos;
+			}
 
-      @Override
-      protected <T extends JCTree> T toP(T t) {
-        storeEnd(t, lexer.prevToken().endPos);
-        return t;
-      }
+			@Override
+			public void storeEnd(JCTree tree, int endpos) {
+				if (endpos >= 0) {
+					delegate.storeEnd(tree, endpos);
+				}
+			}
 
-      @Override
-      public void setErrorEndPos(int errPos) {
-        delegate.setErrorEndPos(errPos);
-        errorEndPos = delegate.errorEndPos;
-      }
-    }
-  }
+			@Override
+			protected <T extends JCTree> T to(T t) {
+				storeEnd(t, parser.token().endPos);
+				return t;
+			}
+
+			@Override
+			protected <T extends JCTree> T toP(T t) {
+				storeEnd(t, lexer.prevToken().endPos);
+				return t;
+			}
+		}
+	}
 }

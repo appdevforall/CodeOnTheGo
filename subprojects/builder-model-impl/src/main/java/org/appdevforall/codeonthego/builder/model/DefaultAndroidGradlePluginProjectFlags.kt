@@ -21,15 +21,15 @@ import com.android.builder.model.v2.ide.AndroidGradlePluginProjectFlags.BooleanF
 import java.io.Serializable
 
 /** @author Akash Yadav */
-class DefaultAndroidGradlePluginProjectFlags(val booleanFlagMap: Map<BooleanFlag, Boolean?>) :
-  AndroidGradlePluginProjectFlags, Serializable {
-  private val serialVersionUID = 1L
+class DefaultAndroidGradlePluginProjectFlags(
+	val booleanFlagMap: Map<BooleanFlag, Boolean?>,
+) : AndroidGradlePluginProjectFlags,
+	Serializable {
+	private val serialVersionUID = 1L
 
-  companion object {
-    private val flagByName = BooleanFlag.values().associateBy { it.name }
-  }
+	companion object {
+		private val flagByName = BooleanFlag.values().associateBy { it.name }
+	}
 
-  override fun getFlagValue(flagName: String): Boolean? {
-    return flagByName[flagName]?.let { booleanFlagMap[it] }
-  }
+	override fun getFlagValue(flagName: String): Boolean? = flagByName[flagName]?.let { booleanFlagMap[it] }
 }

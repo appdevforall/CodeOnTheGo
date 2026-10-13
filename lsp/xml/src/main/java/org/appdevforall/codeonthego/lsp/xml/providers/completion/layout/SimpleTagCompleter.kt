@@ -18,6 +18,7 @@
 package org.appdevforall.codeonthego.lsp.xml.providers.completion.layout
 
 import com.android.aaptcompiler.ResourcePathData
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.lsp.api.ICompletionProvider
 import org.appdevforall.codeonthego.lsp.models.CompletionItem
@@ -27,7 +28,6 @@ import org.appdevforall.codeonthego.lsp.xml.utils.XmlUtils.NodeType
 import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.appdevforall.codeonthego.utils.ClassTrie
 import org.appdevforall.codeonthego.xml.widgets.WidgetTable
-import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup
 import org.eclipse.lemminx.dom.DOMDocument
 
 /**

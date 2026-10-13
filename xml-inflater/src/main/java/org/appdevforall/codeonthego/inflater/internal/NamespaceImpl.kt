@@ -18,8 +18,12 @@
 package org.appdevforall.codeonthego.inflater.internal
 
 import android.os.Parcelable
-import org.appdevforall.codeonthego.inflater.INamespace
 import kotlinx.parcelize.Parcelize
+import org.appdevforall.codeonthego.inflater.INamespace
 
 @Parcelize
-data class NamespaceImpl(override val prefix: String, override val uri: String) : INamespace, Parcelable
+data class NamespaceImpl(
+	override val prefix: String,
+	override val uri: String,
+) : INamespace,
+	Parcelable

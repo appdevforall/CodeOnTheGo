@@ -17,12 +17,12 @@
 
 package org.appdevforall.codeonthego.lsp.java.edits
 
+import io.github.rosemoe.sora.text.Content
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.lsp.java.JavaCompilerProvider
 import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
 import org.appdevforall.codeonthego.lsp.models.CompletionItem
 import org.appdevforall.codeonthego.projects.IProjectManager
-import io.github.rosemoe.sora.text.Content
-import io.github.rosemoe.sora.widget.CodeEditor
 import java.nio.file.Path
 
 /**
@@ -30,19 +30,21 @@ import java.nio.file.Path
  *
  * @author Akash Yadav
  */
-abstract class AdvancedJavaEditHandler(protected val file: Path) : BaseJavaEditHandler() {
-
+abstract class AdvancedJavaEditHandler(
+	protected val file: Path,
+) : BaseJavaEditHandler() {
 	override fun performEdits(
 		item: CompletionItem,
 		editor: CodeEditor,
 		text: Content,
 		line: Int,
 		column: Int,
-		index: Int
+		index: Int,
 	) {
-		val compiler = JavaCompilerProvider.get(
-			IProjectManager.getInstance().findModuleForFile(file, false) ?: return
-		)
+		val compiler =
+			JavaCompilerProvider.get(
+				IProjectManager.getInstance().findModuleForFile(file, false) ?: return,
+			)
 		performEdits(compiler, editor, item)
 
 		executeCommand(editor, item.command)
@@ -59,6 +61,6 @@ abstract class AdvancedJavaEditHandler(protected val file: Path) : BaseJavaEditH
 	abstract fun performEdits(
 		compiler: JavaCompilerService,
 		editor: CodeEditor,
-		completionItem: CompletionItem
+		completionItem: CompletionItem,
 	)
 }

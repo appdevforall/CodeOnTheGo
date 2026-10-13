@@ -1,13 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.debug
 
-import org.appdevforall.codeonthego.lsp.debug.model.ArrayLikeValue
-import org.appdevforall.codeonthego.lsp.debug.model.PrimitiveKind
-import org.appdevforall.codeonthego.lsp.debug.model.PrimitiveVariable
-import org.appdevforall.codeonthego.lsp.debug.model.Variable
-import org.appdevforall.codeonthego.lsp.debug.model.VariableDescriptor
-import org.appdevforall.codeonthego.lsp.debug.model.VariableKind
-import org.appdevforall.codeonthego.lsp.java.debug.utils.VariableValues
-import org.appdevforall.codeonthego.lsp.java.debug.utils.mirrorOf
 import com.sun.jdi.ArrayReference
 import com.sun.jdi.ArrayType
 import com.sun.jdi.BooleanType
@@ -33,6 +25,14 @@ import com.sun.jdi.Type
 import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.Value
 import com.sun.jdi.VoidValue
+import org.appdevforall.codeonthego.lsp.debug.model.ArrayLikeValue
+import org.appdevforall.codeonthego.lsp.debug.model.PrimitiveKind
+import org.appdevforall.codeonthego.lsp.debug.model.PrimitiveVariable
+import org.appdevforall.codeonthego.lsp.debug.model.Variable
+import org.appdevforall.codeonthego.lsp.debug.model.VariableDescriptor
+import org.appdevforall.codeonthego.lsp.debug.model.VariableKind
+import org.appdevforall.codeonthego.lsp.java.debug.utils.VariableValues
+import org.appdevforall.codeonthego.lsp.java.debug.utils.mirrorOf
 import org.slf4j.LoggerFactory
 import org.appdevforall.codeonthego.lsp.debug.model.PrimitiveValue as LspPrimitiveValue
 import org.appdevforall.codeonthego.lsp.debug.model.ReferenceValue as LspReferenceValue

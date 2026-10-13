@@ -1,17 +1,17 @@
 package org.appdevforall.codeonthego.lsp.java.debug
 
 import android.net.TrafficStats
-import org.appdevforall.codeonthego.lsp.debug.IDebugClient
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.connect.Connector
 import com.sun.tools.jdi.SocketListeningConnector
 import com.sun.tools.jdi.isListening
+import org.appdevforall.codeonthego.lsp.debug.IDebugClient
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal data class ListenerState(
 	val client: IDebugClient,
 	val connector: SocketListeningConnector,
-	val args: Map<String, Connector.Argument>
+	val args: Map<String, Connector.Argument>,
 ) {
 	private val invalidated = AtomicBoolean(false)
 
@@ -48,11 +48,12 @@ internal data class ListenerState(
 	fun startListening(): String {
 		val previousTag = TrafficStats.getThreadStatsTag()
 		TrafficStats.setThreadStatsTag(JDWP_LISTENER_SOCKET_TAG)
-		val address = try {
-			connector.startListening(args)
-		} finally {
-			TrafficStats.setThreadStatsTag(previousTag)
-		}
+		val address =
+			try {
+				connector.startListening(args)
+			} finally {
+				TrafficStats.setThreadStatsTag(previousTag)
+			}
 		listenAddress = address
 		return address
 	}

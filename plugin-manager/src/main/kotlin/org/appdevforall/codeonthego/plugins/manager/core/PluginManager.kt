@@ -4,6 +4,17 @@ package org.appdevforall.codeonthego.plugins.manager.core
 
 import android.app.Activity
 import android.content.Context
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.appdevforall.codeonthego.actions.SidebarSlotManager
 import org.appdevforall.codeonthego.plugins.IPlugin
 import org.appdevforall.codeonthego.plugins.PluginContext
@@ -80,17 +91,6 @@ import org.appdevforall.codeonthego.plugins.services.IdeTerminalService
 import org.appdevforall.codeonthego.plugins.services.IdeThemeService
 import org.appdevforall.codeonthego.plugins.services.IdeTooltipService
 import org.appdevforall.codeonthego.plugins.services.IdeUIService
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 

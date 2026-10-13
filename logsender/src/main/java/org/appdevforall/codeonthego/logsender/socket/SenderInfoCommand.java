@@ -24,22 +24,22 @@ package org.appdevforall.codeonthego.logsender.socket;
  */
 public class SenderInfoCommand extends AbstractSocketCommand {
 
-  public static final String NAME = "sender";
+	public static final String NAME = "sender";
 
-  public final String senderId, packageName;
+	public final String senderId, packageName;
 
-  public SenderInfoCommand(String senderId, String packageName) {
-    this.senderId = senderId;
-    this.packageName = packageName;
-  }
+	public SenderInfoCommand(String senderId, String packageName) {
+		this.senderId = senderId;
+		this.packageName = packageName;
+	}
 
-  @Override
-  public String getName() {
-    return NAME;
-  }
+	@Override
+	public String getName() {
+		return NAME;
+	}
 
-  @Override
-  protected String[] getParams() {
-    return new String[]{this.senderId, this.packageName};
-  }
+	@Override
+	protected String[] getParams() {
+		return new String[]{this.senderId, this.packageName};
+	}
 }

@@ -21,9 +21,9 @@ import android.os.Looper
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.activities.editor.ProjectHandlerActivity
 import io.mockk.every
 import io.mockk.mockk
+import org.appdevforall.codeonthego.activities.editor.ProjectHandlerActivity
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

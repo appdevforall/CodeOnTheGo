@@ -18,11 +18,6 @@
 package org.appdevforall.codeonthego.editor.floating
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
-import org.appdevforall.codeonthego.app.BaseApplication
-import org.appdevforall.codeonthego.floating.model.DockingEvent
-import org.appdevforall.codeonthego.floating.model.DockingManager
-import org.appdevforall.codeonthego.floating.window.WindowBounds
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -33,6 +28,11 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
+import org.appdevforall.codeonthego.app.BaseApplication
+import org.appdevforall.codeonthego.floating.model.DockingEvent
+import org.appdevforall.codeonthego.floating.model.DockingManager
+import org.appdevforall.codeonthego.floating.window.WindowBounds
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

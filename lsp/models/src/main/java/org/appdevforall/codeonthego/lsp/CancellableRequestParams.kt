@@ -25,9 +25,8 @@ import org.appdevforall.codeonthego.progress.ICancelChecker
  * @author Akash Yadav
  */
 interface CancellableRequestParams {
-
-  /**
-   * The cancel checker.
-   */
-  val cancelChecker: ICancelChecker
+	/**
+	 * The cancel checker.
+	 */
+	val cancelChecker: ICancelChecker
 }

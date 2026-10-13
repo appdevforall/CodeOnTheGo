@@ -21,21 +21,19 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Base class for Events. Additional properties that may be required by the event subscribers can be
- * specified using the {@link #put(Class, Object)} method and can be retrieved using {@link
- * #get(Class)} method.
+ * Base class for Events. Additional properties that may be required by the event subscribers can be specified using the {@link #put(Class, Object)} method and can be retrieved using {@link #get(Class)} method.
  *
  * @author Akash Yadav
  */
 public abstract class Event {
 
-  private Map<Class<?>, Object> data = new HashMap<>();
+	private Map<Class<?>, Object> data = new HashMap<>();
 
-  public <T> void put(Class<T> klass, T value) {
-    data.put(klass, value);
-  }
+	public <T> T get(Class<T> klass) {
+		return (T) data.get(klass);
+	}
 
-  public <T> T get(Class<T> klass) {
-    return (T) data.get(klass);
-  }
+	public <T> void put(Class<T> klass, T value) {
+		data.put(klass, value);
+	}
 }

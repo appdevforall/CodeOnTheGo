@@ -24,8 +24,8 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.utils.MetricsAnnotationStore
 import org.appdevforall.codeonthego.utils.resolveAttr
 import org.junit.Test

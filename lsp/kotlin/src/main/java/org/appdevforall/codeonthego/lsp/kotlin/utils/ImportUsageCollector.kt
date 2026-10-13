@@ -99,7 +99,10 @@ private fun KaSymbol.importableFqNameString(): String? =
 		// that's actually imported. Covers `Foo()` calls and `@Foo` annotations (both resolve to the
 		// constructor). Must precede the KaCallableSymbol branch, which a constructor also matches.
 		is KaConstructorSymbol -> containingClassId?.asSingleFqName()?.asString()
+
 		is KaClassLikeSymbol -> classId?.asSingleFqName()?.asString()
+
 		is KaCallableSymbol -> callableId?.asSingleFqName()?.asString()
+
 		else -> null
 	}

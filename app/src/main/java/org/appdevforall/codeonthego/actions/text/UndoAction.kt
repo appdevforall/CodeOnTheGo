@@ -19,45 +19,48 @@ package org.appdevforall.codeonthego.actions.text
 
 import android.content.Context
 import androidx.core.content.ContextCompat
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.EditorRelatedAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
-class UndoAction(context: Context, override val order: Int) : EditorRelatedAction() {
+class UndoAction(
+	context: Context,
+	override val order: Int,
+) : EditorRelatedAction() {
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_UNDO
 
-  override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_UNDO
-  override val id: String = ID
+	override val id: String = ID
 
-  companion object {
-    const val ID = "ide.editor.code.text.undo"
-  }
+	companion object {
+		const val ID = "ide.editor.code.text.undo"
+	}
 
-  init {
-    label = context.getString(R.string.undo)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_undo)
-  }
+	init {
+		label = context.getString(R.string.undo)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_undo)
+	}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    if (!visible) {
-      return
-    }
+		if (!visible) {
+			return
+		}
 
-    val editor = data.getEditor()!!
-    enabled = editor.canUndo()
-  }
+		val editor = data.getEditor()!!
+		enabled = editor.canUndo()
+	}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val editor = data.getEditor()
-    return if (editor != null) {
-      editor.undo()
-      data.getActivity()?.invalidateOptionsMenu()
-      true
-    } else {
-      false
-    }
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		val editor = data.getEditor()
+		return if (editor != null) {
+			editor.undo()
+			data.getActivity()?.invalidateOptionsMenu()
+			true
+		} else {
+			false
+		}
+	}
 }

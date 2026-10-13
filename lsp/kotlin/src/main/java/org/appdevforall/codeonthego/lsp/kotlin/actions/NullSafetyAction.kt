@@ -3,6 +3,10 @@ package org.appdevforall.codeonthego.lsp.kotlin.actions
 import android.content.Context
 import android.view.View
 import android.widget.ListView
+import com.itsaky.androidide.resources.R
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.actions.newDialogBuilder
@@ -21,11 +25,7 @@ import org.appdevforall.codeonthego.lsp.models.CodeActionItem
 import org.appdevforall.codeonthego.lsp.models.CodeActionKind
 import org.appdevforall.codeonthego.lsp.models.Command
 import org.appdevforall.codeonthego.lsp.models.DocumentChange
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.nio.file.Path
 
 /**

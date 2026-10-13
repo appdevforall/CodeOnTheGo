@@ -23,7 +23,6 @@ import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.api.ModuleProject
 import org.appdevforall.codeonthego.projects.api.Workspace
 import org.appdevforall.codeonthego.tooling.api.models.BuildVariantInfo
-
 import org.appdevforall.codeonthego.utils.ServiceLoader
 import java.io.File
 import java.nio.file.Path
@@ -174,6 +173,4 @@ interface IProjectManager {
 	fun destroy()
 }
 
-fun IProjectManager.isPluginProject(): Boolean {
-    return (this as? ProjectManagerImpl)?.pluginProjectCached ?: false
-}
+fun IProjectManager.isPluginProject(): Boolean = (this as? ProjectManagerImpl)?.pluginProjectCached ?: false

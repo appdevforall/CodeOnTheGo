@@ -25,7 +25,11 @@ import java.io.Serializable
  *
  * @author Akash Yadav
  */
-abstract class JavaModuleDependency(val jarFile: File?, val scope: String, val exported: Boolean) : Serializable {
-  private val serialVersionUID = 1L
-  private val gsonType = javaClass.name
+abstract class JavaModuleDependency(
+	val jarFile: File?,
+	val scope: String,
+	val exported: Boolean,
+) : Serializable {
+	private val serialVersionUID = 1L
+	private val gsonType = javaClass.name
 }

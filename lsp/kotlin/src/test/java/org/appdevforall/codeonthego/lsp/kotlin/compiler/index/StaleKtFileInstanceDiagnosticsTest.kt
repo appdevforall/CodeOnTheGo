@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.eventbus.events.editor.ChangeType
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentCloseEvent
@@ -9,7 +10,6 @@ import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
 import org.appdevforall.codeonthego.lsp.kotlin.fixtures.KtLspTest
 import org.appdevforall.codeonthego.models.Range
 import org.appdevforall.codeonthego.projects.FileManager
-import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.junit.After
 import org.junit.Test

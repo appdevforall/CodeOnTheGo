@@ -19,15 +19,15 @@ package org.appdevforall.codeonthego.editor.schemes
 
 import android.content.Context
 import android.content.res.AssetManager
+import com.itsaky.androidide.treesitter.TSLanguage
+import io.github.rosemoe.sora.editor.ts.LocalsCaptureSpec
+import io.github.rosemoe.sora.editor.ts.TsLanguageSpec
 import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguageSpec
 import org.appdevforall.codeonthego.editor.language.treesitter.predicates.AnyOfPredicate
 import org.appdevforall.codeonthego.editor.language.treesitter.predicates.EqualPredicate
 import org.appdevforall.codeonthego.editor.language.treesitter.predicates.MatchPredicate
 import org.appdevforall.codeonthego.editor.language.treesitter.predicates.NotEqualPredicate
 import org.appdevforall.codeonthego.editor.language.treesitter.predicates.NotMatchPredicate
-import com.itsaky.androidide.treesitter.TSLanguage
-import io.github.rosemoe.sora.editor.ts.LocalsCaptureSpec
-import io.github.rosemoe.sora.editor.ts.TsLanguageSpec
 import org.slf4j.LoggerFactory
 import java.io.FileNotFoundException
 

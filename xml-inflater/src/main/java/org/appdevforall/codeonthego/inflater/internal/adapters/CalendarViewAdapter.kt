@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.CalendarView
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [CalendarView].
@@ -34,34 +34,32 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(CalendarView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class CalendarViewAdapter<T : CalendarView> : FrameLayoutAdapter<T>() {
+	@Suppress("DEPRECATION")
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		// TODO (theme): create("dateTextAppearance")
+		create("firstDayOfWeek") { view.firstDayOfWeek = parseInteger(value) }
+		create("focusedMonthDateColor") { view.focusedMonthDateColor = parseColor(context, value) }
+		create("maxDate") { view.maxDate = parseDate(value) }
+		create("minDate") { view.minDate = parseDate(value) }
+		// TODO (theme): create("selectedDateVerticalBar")
+		create("selectedWeekBackgroundColor") {
+			view.selectedWeekBackgroundColor = parseColor(context, value)
+		}
+		create("showWeekNumber") { view.showWeekNumber = parseBoolean(value) }
+		create("shownWeekCount") { view.shownWeekCount = parseInteger(value) }
+		create("unfocusedMonthDateColor") { view.unfocusedMonthDateColor = parseColor(context, value) }
+		// TODO (theme): create("weekDayTextAppearance")
+		create("weekNumberColor") { view.weekNumberColor = parseColor(context, value) }
+		create("weekSeparatorLineColor") { view.weekSeparatorLineColor = parseColor(context, value) }
+	}
 
-  @Suppress("DEPRECATION")
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    // TODO (theme): create("dateTextAppearance")
-    create("firstDayOfWeek") { view.firstDayOfWeek = parseInteger(value) }
-    create("focusedMonthDateColor") { view.focusedMonthDateColor = parseColor(context, value) }
-    create("maxDate") { view.maxDate = parseDate(value) }
-    create("minDate") { view.minDate = parseDate(value) }
-    // TODO (theme): create("selectedDateVerticalBar")
-    create("selectedWeekBackgroundColor") {
-      view.selectedWeekBackgroundColor = parseColor(context, value)
-    }
-    create("showWeekNumber") { view.showWeekNumber = parseBoolean(value) }
-    create("shownWeekCount") { view.shownWeekCount = parseInteger(value) }
-    create("unfocusedMonthDateColor") { view.unfocusedMonthDateColor = parseColor(context, value) }
-    // TODO (theme): create("weekDayTextAppearance")
-    create("weekNumberColor") { view.weekNumberColor = parseColor(context, value) }
-    create("weekSeparatorLineColor") { view.weekSeparatorLineColor = parseColor(context, value) }
-  }
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        CalendarView::class.java,
-        string.widget_calendar_view,
-        drawable.ic_widget_calendar_view
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				CalendarView::class.java,
+				string.widget_calendar_view,
+				drawable.ic_widget_calendar_view,
+			),
+		)
 }

@@ -24,12 +24,13 @@ package org.appdevforall.codeonthego.tooling.impl.sync;
  */
 public class NotAnAndroidProjectException extends ModelBuilderException {
 
-  /**
-   * Creates a new {@link NotAnAndroidProjectException} for the given project name.
-   *
-   * @param projectName The name of the project which is not an Android project.
-   */
-  public NotAnAndroidProjectException(String projectName) {
-    super("Project " + projectName + " is not an Android project");
-  }
+	/**
+	 * Creates a new {@link NotAnAndroidProjectException} for the given project name.
+	 *
+	 * @param projectName
+	 *            The name of the project which is not an Android project.
+	 */
+	public NotAnAndroidProjectException(String projectName) {
+		super("Project " + projectName + " is not an Android project");
+	}
 }

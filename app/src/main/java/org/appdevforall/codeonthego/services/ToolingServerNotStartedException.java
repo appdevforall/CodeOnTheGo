@@ -24,11 +24,11 @@ package org.appdevforall.codeonthego.services;
  */
 public class ToolingServerNotStartedException extends IllegalStateException {
 
-  public ToolingServerNotStartedException() {
-    this("Tooling API server has not been started");
-  }
+	public ToolingServerNotStartedException() {
+		this("Tooling API server has not been started");
+	}
 
-  public ToolingServerNotStartedException(final String s) {
-    super(s);
-  }
+	public ToolingServerNotStartedException(final String s) {
+		super(s);
+	}
 }

@@ -2,6 +2,8 @@
 
 package org.appdevforall.codeonthego.plugins.manager.services
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.plugins.PluginPermission
 import org.appdevforall.codeonthego.plugins.services.CursorPosition
 import org.appdevforall.codeonthego.plugins.services.EditorContentChangeListener
@@ -9,8 +11,6 @@ import org.appdevforall.codeonthego.plugins.services.FileChangeListener
 import org.appdevforall.codeonthego.plugins.services.IdeEditorService
 import org.appdevforall.codeonthego.plugins.services.SelectionRange
 import org.appdevforall.codeonthego.utils.Environment
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList

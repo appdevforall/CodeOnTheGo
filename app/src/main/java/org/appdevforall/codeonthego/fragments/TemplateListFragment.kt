@@ -17,15 +17,18 @@
 
 package org.appdevforall.codeonthego.fragments
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
-import android.content.res.Configuration
 import androidx.lifecycle.lifecycleScope
-import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import androidx.recyclerview.widget.GridLayoutManager
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.adapters.TemplateListAdapter
 import com.itsaky.androidide.databinding.FragmentTemplateListBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.adapters.TemplateListAdapter
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.EXIT_TO_MAIN
 import org.appdevforall.codeonthego.templates.ITemplateProvider
@@ -34,10 +37,7 @@ import org.appdevforall.codeonthego.templates.ProjectTemplate
 import org.appdevforall.codeonthego.templates.impl.TemplateProviderImpl
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.viewmodel.MainViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import org.slf4j.LoggerFactory
 
 /**
@@ -125,46 +125,48 @@ class TemplateListFragment :
 		log.debug("Reloading templates...")
 
 		reloadJob?.cancel()
-		reloadJob = viewLifecycleOwner.lifecycleScope.launch {
-			val (templates, warnings) = withContext(Dispatchers.IO) {
-				val provider = ITemplateProvider.getInstance(reload = true)
-				// Pre-warm the widget view provider so per-bind getInstance() in
-				// TemplateWidgetsListAdapter doesn't trigger a disk read on the UI thread.
-				ITemplateWidgetViewProvider.getInstance()
-				val templates = provider.getTemplates().filterIsInstance<ProjectTemplate>()
-				val warnings = (provider as? TemplateProviderImpl)?.warnings.orEmpty()
-				templates to warnings
-			}
-
-			_binding ?: return@launch
-
-			adapter =
-				TemplateListAdapter(
-					templates = templates,
-					onClick = { template, _ ->
-						viewModel.template.value = template
-						viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_DETAILS)
-					},
-					onLongClick = { template, itemView ->
-						template.tooltipTag?.let { tag ->
-							TooltipManager.showIdeCategoryTooltip(
-								context = requireContext(),
-								anchorView = itemView,
-								tag = tag
-							)
-						}
-					},
-				)
-			binding.list.adapter = adapter
-			updateSpanCount()
-
-			if (warnings.isNotEmpty()) {
-				requireActivity().flashError(
-					warnings.joinToString(System.lineSeparator()) { w ->
-						requireContext().getString(w.resId, *w.args.toTypedArray())
+		reloadJob =
+			viewLifecycleOwner.lifecycleScope.launch {
+				val (templates, warnings) =
+					withContext(Dispatchers.IO) {
+						val provider = ITemplateProvider.getInstance(reload = true)
+						// Pre-warm the widget view provider so per-bind getInstance() in
+						// TemplateWidgetsListAdapter doesn't trigger a disk read on the UI thread.
+						ITemplateWidgetViewProvider.getInstance()
+						val templates = provider.getTemplates().filterIsInstance<ProjectTemplate>()
+						val warnings = (provider as? TemplateProviderImpl)?.warnings.orEmpty()
+						templates to warnings
 					}
-				)
+
+				_binding ?: return@launch
+
+				adapter =
+					TemplateListAdapter(
+						templates = templates,
+						onClick = { template, _ ->
+							viewModel.template.value = template
+							viewModel.setScreen(MainViewModel.SCREEN_TEMPLATE_DETAILS)
+						},
+						onLongClick = { template, itemView ->
+							template.tooltipTag?.let { tag ->
+								TooltipManager.showIdeCategoryTooltip(
+									context = requireContext(),
+									anchorView = itemView,
+									tag = tag,
+								)
+							}
+						},
+					)
+				binding.list.adapter = adapter
+				updateSpanCount()
+
+				if (warnings.isNotEmpty()) {
+					requireActivity().flashError(
+						warnings.joinToString(System.lineSeparator()) { w ->
+							requireContext().getString(w.resId, *w.args.toTypedArray())
+						},
+					)
+				}
 			}
-		}
 	}
 }

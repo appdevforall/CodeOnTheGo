@@ -21,7 +21,7 @@ import org.appdevforall.codeonthego.tooling.events.ProgressEvent
 
 /** @author Akash Yadav */
 open class WorkItemProgressEvent(
-  override val displayName: String,
-  override val eventTime: Long,
-  override val descriptor: WorkItemOperationDescriptor
+	override val displayName: String,
+	override val eventTime: Long,
+	override val descriptor: WorkItemOperationDescriptor,
 ) : ProgressEvent()

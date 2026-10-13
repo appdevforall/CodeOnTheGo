@@ -1,14 +1,6 @@
 package org.appdevforall.codeonthego.viewmodel
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.editor.language.outline.OutlineProvider
-import org.appdevforall.codeonthego.editor.language.outline.OutlineSymbol
-import org.appdevforall.codeonthego.editor.language.outline.OutlineSymbolKind
-import org.appdevforall.codeonthego.models.Position
-import org.appdevforall.codeonthego.models.Range
-import org.appdevforall.codeonthego.ui.models.OutlineUiEffect
-import org.appdevforall.codeonthego.ui.models.OutlineUiEvent
-import org.appdevforall.codeonthego.ui.models.OutlineUiState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -17,6 +9,14 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.editor.language.outline.OutlineProvider
+import org.appdevforall.codeonthego.editor.language.outline.OutlineSymbol
+import org.appdevforall.codeonthego.editor.language.outline.OutlineSymbolKind
+import org.appdevforall.codeonthego.models.Position
+import org.appdevforall.codeonthego.models.Range
+import org.appdevforall.codeonthego.ui.models.OutlineUiEffect
+import org.appdevforall.codeonthego.ui.models.OutlineUiEvent
+import org.appdevforall.codeonthego.ui.models.OutlineUiState
 import org.junit.Rule
 import org.junit.Test
 

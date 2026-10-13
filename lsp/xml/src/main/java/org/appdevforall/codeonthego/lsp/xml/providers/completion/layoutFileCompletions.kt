@@ -26,5 +26,5 @@ import org.appdevforall.codeonthego.lsp.xml.utils.XmlUtils.NodeType
  */
 
 fun canCompleteLayout(pathData: ResourcePathData, type: NodeType) : Boolean {
-  return pathData.type == LAYOUT
+return pathData.type == LAYOUT
 }

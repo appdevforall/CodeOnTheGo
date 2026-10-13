@@ -18,6 +18,13 @@
 package org.appdevforall.codeonthego.editor.language.treesitter
 
 import android.content.Context
+import com.itsaky.androidide.treesitter.TSLanguage
+import com.itsaky.androidide.treesitter.TreeSitter
+import io.github.rosemoe.sora.editor.ts.TsTheme
+import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_STRONG
+import io.github.rosemoe.sora.lang.analysis.AnalyzeManager
+import io.github.rosemoe.sora.text.ContentReference
+import io.github.rosemoe.sora.widget.SymbolPairMatch
 import org.appdevforall.codeonthego.editor.language.IDELanguage
 import org.appdevforall.codeonthego.editor.language.newline.TSBracketsHandler
 import org.appdevforall.codeonthego.editor.language.utils.CommonSymbolPairs
@@ -25,14 +32,7 @@ import org.appdevforall.codeonthego.editor.schemes.IDEColorScheme
 import org.appdevforall.codeonthego.editor.schemes.LanguageScheme
 import org.appdevforall.codeonthego.editor.schemes.LanguageSpecProvider.getLanguageSpec
 import org.appdevforall.codeonthego.editor.schemes.LocalCaptureSpecProvider.newLocalCaptureSpec
-import com.itsaky.androidide.treesitter.TSLanguage
-import com.itsaky.androidide.treesitter.TreeSitter
 import org.appdevforall.codeonthego.utils.IntPair
-import io.github.rosemoe.sora.editor.ts.TsTheme
-import io.github.rosemoe.sora.lang.Language.INTERRUPTION_LEVEL_STRONG
-import io.github.rosemoe.sora.lang.analysis.AnalyzeManager
-import io.github.rosemoe.sora.text.ContentReference
-import io.github.rosemoe.sora.widget.SymbolPairMatch
 import org.slf4j.LoggerFactory
 import java.io.File
 

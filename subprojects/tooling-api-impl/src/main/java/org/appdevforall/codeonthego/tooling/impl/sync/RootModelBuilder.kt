@@ -18,6 +18,7 @@
 package org.appdevforall.codeonthego.tooling.impl.sync
 
 import com.android.builder.model.v2.ide.SyncIssue
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.builder.model.shouldBeIgnored
 import org.appdevforall.codeonthego.project.GradleBuild
 import org.appdevforall.codeonthego.project.GradleModels
@@ -30,7 +31,6 @@ import org.appdevforall.codeonthego.tooling.api.sync.ProjectSyncHelper
 import org.appdevforall.codeonthego.tooling.impl.Main
 import org.appdevforall.codeonthego.tooling.impl.util.configureFrom
 import org.appdevforall.codeonthego.utils.sha256
-import kotlinx.coroutines.runBlocking
 import org.gradle.tooling.ConfigurableLauncher
 import org.gradle.tooling.model.idea.IdeaProject
 import org.slf4j.LoggerFactory

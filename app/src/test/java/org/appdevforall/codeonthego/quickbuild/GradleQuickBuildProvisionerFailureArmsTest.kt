@@ -3,12 +3,12 @@ package org.appdevforall.codeonthego.quickbuild
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.projects.IProjectManager
-import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import io.mockk.coVerify
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.service.provision.InstallOutcome
 import org.appdevforall.cotg.quickbuild.service.provision.ProvisionOutcome

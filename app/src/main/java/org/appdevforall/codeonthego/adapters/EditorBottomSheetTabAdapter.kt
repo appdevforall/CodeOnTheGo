@@ -20,6 +20,7 @@ import androidx.collection.LongSparseArray
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.app.IDEApplication.Companion.getPluginManager
 import org.appdevforall.codeonthego.fragments.DiagnosticsListFragment
 import org.appdevforall.codeonthego.fragments.SearchResultFragment
@@ -35,7 +36,6 @@ import org.appdevforall.codeonthego.plugins.extensions.UIExtension
 import org.appdevforall.codeonthego.plugins.manager.fragment.PluginFragmentFactory
 import org.appdevforall.codeonthego.plugins.manager.pluginCategory
 import org.appdevforall.codeonthego.plugins.manager.pluginTooltipTag
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.utils.FeatureFlags
 import org.appdevforall.cotg.profiler.ProfilerFragment
 import org.slf4j.LoggerFactory

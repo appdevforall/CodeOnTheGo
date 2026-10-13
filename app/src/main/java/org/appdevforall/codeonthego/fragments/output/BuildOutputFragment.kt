@@ -27,15 +27,6 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
-import org.appdevforall.codeonthego.editor.ui.EditorSearchLayout
-import org.appdevforall.codeonthego.editor.ui.IDEEditor
-import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import org.appdevforall.codeonthego.models.LogFilter
-import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
-import org.appdevforall.codeonthego.utils.BasicBuildInfo
-import org.appdevforall.codeonthego.utils.dpToPx
-import org.appdevforall.codeonthego.utils.flashInfo
-import org.appdevforall.codeonthego.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -48,6 +39,15 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
+import org.appdevforall.codeonthego.editor.ui.EditorSearchLayout
+import org.appdevforall.codeonthego.editor.ui.IDEEditor
+import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.models.LogFilter
+import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
+import org.appdevforall.codeonthego.utils.BasicBuildInfo
+import org.appdevforall.codeonthego.utils.dpToPx
+import org.appdevforall.codeonthego.utils.flashInfo
+import org.appdevforall.codeonthego.viewmodel.BuildOutputViewModel
 
 class BuildOutputFragment :
 	NonEditableEditorFragment(),

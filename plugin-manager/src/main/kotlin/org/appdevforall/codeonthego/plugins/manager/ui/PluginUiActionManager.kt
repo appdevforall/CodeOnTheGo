@@ -14,20 +14,19 @@ import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
  * misbehaving plugin cannot break the toolbar.
  */
 object PluginUiActionManager {
+	private const val TAG = "PluginUiActionManager"
 
-    private const val TAG = "PluginUiActionManager"
+	fun getHiddenActionIds(): Set<String> {
+		val extensions = PluginManager.getInstance()?.getEnabledUIExtensions() ?: return emptySet()
 
-    fun getHiddenActionIds(): Set<String> {
-        val extensions = PluginManager.getInstance()?.getEnabledUIExtensions() ?: return emptySet()
-
-        val hidden = mutableSetOf<String>()
-        for (extension in extensions) {
-            runCatching { extension.getHiddenToolbarActionIds() }
-                .onSuccess { hidden.addAll(it) }
-                .onFailure { e ->
-                    Log.w(TAG, "Failed to get hidden toolbar action ids from ${extension.javaClass.simpleName}", e)
-                }
-        }
-        return hidden
-    }
+		val hidden = mutableSetOf<String>()
+		for (extension in extensions) {
+			runCatching { extension.getHiddenToolbarActionIds() }
+				.onSuccess { hidden.addAll(it) }
+				.onFailure { e ->
+					Log.w(TAG, "Failed to get hidden toolbar action ids from ${extension.javaClass.simpleName}", e)
+				}
+		}
+		return hidden
+	}
 }

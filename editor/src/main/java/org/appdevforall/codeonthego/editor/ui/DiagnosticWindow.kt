@@ -23,21 +23,23 @@ import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
  *
  * @author Akash Yadav
  */
-class DiagnosticWindow(editor: IDEEditor) : BaseEditorWindow(editor) {
-  /**
-   * Show the given diagnostic item.
-   *
-   * @param diagnostic The diagnostic item to show.
-   */
-  fun showDiagnostic(diagnostic: DiagnosticItem?) {
-    if (diagnostic == null) {
-      if (isShowing) {
-        dismiss()
-      }
-      return
-    }
-    val message = diagnostic.message
-    text.text = message
-    displayWindow()
-  }
+class DiagnosticWindow(
+	editor: IDEEditor,
+) : BaseEditorWindow(editor) {
+	/**
+	 * Show the given diagnostic item.
+	 *
+	 * @param diagnostic The diagnostic item to show.
+	 */
+	fun showDiagnostic(diagnostic: DiagnosticItem?) {
+		if (diagnostic == null) {
+			if (isShowing) {
+				dismiss()
+			}
+			return
+		}
+		val message = diagnostic.message
+		text.text = message
+		displayWindow()
+	}
 }

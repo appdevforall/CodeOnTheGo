@@ -25,26 +25,24 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
  * @author Akash Yadav
  */
 class TreeSitterQueryCursor(
-  pointer: Long = 0
-) : TSQueryCursor(pointer), RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+	pointer: Long = 0,
+) : TSQueryCursor(pointer),
+	RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+	companion object {
+		@JvmStatic
+		fun obtain(pointer: Long): TreeSitterQueryCursor =
+			obtainFromPool<TreeSitterQueryCursor>().apply {
+				this.nativeObject = pointer
+			}
+	}
 
-  companion object {
+	override fun close() {
+		super.close()
+		recycle()
+	}
 
-    @JvmStatic
-    fun obtain(pointer: Long): TreeSitterQueryCursor {
-      return obtainFromPool<TreeSitterQueryCursor>().apply {
-        this.nativeObject = pointer
-      }
-    }
-  }
-
-  override fun close() {
-    super.close()
-    recycle()
-  }
-
-  override fun recycle() {
-    this.nativeObject = 0
-    returnToPool()
-  }
+	override fun recycle() {
+		this.nativeObject = 0
+		returnToPool()
+	}
 }

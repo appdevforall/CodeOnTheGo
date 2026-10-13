@@ -35,43 +35,44 @@ package org.appdevforall.codeonthego.lsp.xml.providers.format;
  */
 public class XMLFormattingConstraints {
 
-  private FormatElementCategory formatElementCategory;
+	private FormatElementCategory formatElementCategory;
 
-  private int availableLineWidth = 0;
-  private int indentLevel = 0;
+	private int availableLineWidth = 0;
+	private int indentLevel = 0;
 
-  /**
-   * Initializes the values in this formatting constraint with values from constraints
-   *
-   * @param constraints cannot be null
-   */
-  public void copyConstraints(XMLFormattingConstraints constraints) {
-    setFormatElementCategory(constraints.getFormatElementCategory());
-    setAvailableLineWidth(constraints.getAvailableLineWidth());
-    setIndentLevel(constraints.getIndentLevel());
-  }
+	/**
+	 * Initializes the values in this formatting constraint with values from constraints
+	 *
+	 * @param constraints
+	 *            cannot be null
+	 */
+	public void copyConstraints(XMLFormattingConstraints constraints) {
+		setFormatElementCategory(constraints.getFormatElementCategory());
+		setAvailableLineWidth(constraints.getAvailableLineWidth());
+		setIndentLevel(constraints.getIndentLevel());
+	}
 
-  public FormatElementCategory getFormatElementCategory() {
-    return formatElementCategory;
-  }
+	public int getAvailableLineWidth() {
+		return availableLineWidth;
+	}
 
-  public void setFormatElementCategory(FormatElementCategory formatElementCategory) {
-    this.formatElementCategory = formatElementCategory;
-  }
+	public FormatElementCategory getFormatElementCategory() {
+		return formatElementCategory;
+	}
 
-  public int getAvailableLineWidth() {
-    return availableLineWidth;
-  }
+	public int getIndentLevel() {
+		return indentLevel;
+	}
 
-  public void setAvailableLineWidth(int availableLineWidth) {
-    this.availableLineWidth = availableLineWidth;
-  }
+	public void setAvailableLineWidth(int availableLineWidth) {
+		this.availableLineWidth = availableLineWidth;
+	}
 
-  public int getIndentLevel() {
-    return indentLevel;
-  }
+	public void setFormatElementCategory(FormatElementCategory formatElementCategory) {
+		this.formatElementCategory = formatElementCategory;
+	}
 
-  public void setIndentLevel(int indentLevel) {
-    this.indentLevel = indentLevel;
-  }
+	public void setIndentLevel(int indentLevel) {
+		this.indentLevel = indentLevel;
+	}
 }

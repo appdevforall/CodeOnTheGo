@@ -25,7 +25,7 @@ import android.graphics.drawable.Drawable
  * @author Akash Yadav
  */
 interface IconTitleDescriptionItem {
-  val icon: Drawable?
-  val title: CharSequence
-  val description: CharSequence
+	val icon: Drawable?
+	val title: CharSequence
+	val description: CharSequence
 }

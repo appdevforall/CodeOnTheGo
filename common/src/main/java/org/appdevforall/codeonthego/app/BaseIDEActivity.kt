@@ -22,74 +22,76 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.common.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.appdevforall.codeonthego.tasks.cancelIfActive
 import org.appdevforall.codeonthego.ui.themes.IThemeManager
 import org.appdevforall.codeonthego.utils.OrientationUtilities
 import org.appdevforall.codeonthego.utils.resolveAttr
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import org.greenrobot.eventbus.EventBus
 
 abstract class BaseIDEActivity : AppCompatActivity() {
+	open val subscribeToEvents: Boolean = false
 
-  open val subscribeToEvents: Boolean = false
+	open var enableSystemBarTheming: Boolean = true
 
-  open var enableSystemBarTheming: Boolean = true
+	open val navigationBarColor: Int
+		get() = resolveAttr(R.attr.colorSurface)
 
-  open val navigationBarColor: Int
-    get() = resolveAttr(R.attr.colorSurface)
+	open val statusBarColor: Int
+		get() = resolveAttr(R.attr.colorSurface)
 
-  open val statusBarColor: Int
-    get() = resolveAttr(R.attr.colorSurface)
+	/**
+	 * [CoroutineScope] for executing tasks with the [Default][Dispatchers.Default] dispatcher.
+	 */
+	val activityScope = CoroutineScope(Dispatchers.Default)
 
-  /**
-   * [CoroutineScope] for executing tasks with the [Default][Dispatchers.Default] dispatcher.
-   */
-  val activityScope = CoroutineScope(Dispatchers.Default)
+	@SuppressLint("SourceLockedOrientationActivity")
+	override fun onCreate(savedInstanceState: Bundle?) {
+		if (enableSystemBarTheming) {
+			window?.apply {
+				navigationBarColor = this@BaseIDEActivity.navigationBarColor
+				statusBarColor = this@BaseIDEActivity.statusBarColor
+			}
+		}
+		IThemeManager.getInstance().applyTheme(this)
+		super.onCreate(savedInstanceState)
+		preSetContentLayout()
+		setContentView(bindLayout())
+		OrientationUtilities.setOrientation {
+			OrientationUtilities.setAdaptiveOrientation { requestedOrientation = it }
+		}
+	}
 
-  @SuppressLint("SourceLockedOrientationActivity")
-  override fun onCreate(savedInstanceState: Bundle?) {
-    if (enableSystemBarTheming) {
-      window?.apply {
-        navigationBarColor = this@BaseIDEActivity.navigationBarColor
-        statusBarColor = this@BaseIDEActivity.statusBarColor
-      }
-    }
-    IThemeManager.getInstance().applyTheme(this)
-    super.onCreate(savedInstanceState)
-    preSetContentLayout()
-    setContentView(bindLayout())
-    OrientationUtilities.setOrientation {
-        OrientationUtilities.setAdaptiveOrientation { requestedOrientation = it }
-    }
-  }
+	override fun onDestroy() {
+		super.onDestroy()
+		activityScope.cancelIfActive("Activity is being destroyed")
+	}
 
-  override fun onDestroy() {
-    super.onDestroy()
-    activityScope.cancelIfActive("Activity is being destroyed")
-  }
+	override fun onStart() {
+		super.onStart()
+		if (!EventBus.getDefault().isRegistered(this) && subscribeToEvents) {
+			EventBus.getDefault().register(this)
+		}
+	}
 
-  override fun onStart() {
-    super.onStart()
-    if (!EventBus.getDefault().isRegistered(this) && subscribeToEvents) {
-      EventBus.getDefault().register(this)
-    }
-  }
+	override fun onStop() {
+		super.onStop()
+		if (EventBus.getDefault().isRegistered(this)) {
+			EventBus.getDefault().unregister(this)
+		}
+	}
 
-  override fun onStop() {
-    super.onStop()
-    if (EventBus.getDefault().isRegistered(this)) {
-      EventBus.getDefault().unregister(this)
-    }
-  }
+	fun loadFragment(
+		fragment: Fragment,
+		id: Int,
+	) {
+		val transaction = supportFragmentManager.beginTransaction()
+		transaction.replace(id, fragment)
+		transaction.commit()
+	}
 
-  fun loadFragment(fragment: Fragment, id: Int) {
-    val transaction = supportFragmentManager.beginTransaction()
-    transaction.replace(id, fragment)
-    transaction.commit()
-  }
+	protected open fun preSetContentLayout() {}
 
-  protected open fun preSetContentLayout() {}
-
-  protected abstract fun bindLayout(): View
+	protected abstract fun bindLayout(): View
 }

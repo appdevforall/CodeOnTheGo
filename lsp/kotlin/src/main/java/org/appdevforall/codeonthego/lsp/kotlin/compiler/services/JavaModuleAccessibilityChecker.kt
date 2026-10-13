@@ -9,11 +9,11 @@ import org.jetbrains.kotlin.resolve.jvm.modules.JavaModuleResolver
 
 class JavaModuleAccessibilityChecker(
 	private val javaModuleResolver: CliJavaModuleResolver,
-): KotlinJavaModuleAccessibilityChecker {
+) : KotlinJavaModuleAccessibilityChecker {
 	override fun checkAccessibility(
 		useSiteFile: VirtualFile?,
 		referencedFile: VirtualFile,
-		referencedPackage: FqName?
+		referencedPackage: FqName?,
 	): KotlinJavaModuleAccessibilityError? {
 		val accessError = javaModuleResolver.checkAccessibility(useSiteFile, referencedFile, referencedPackage)
 		return accessError?.let(::convertAccessError)
@@ -21,13 +21,16 @@ class JavaModuleAccessibilityChecker(
 
 	private fun convertAccessError(accessError: JavaModuleResolver.AccessError): KotlinJavaModuleAccessibilityError =
 		when (accessError) {
-			is JavaModuleResolver.AccessError.ModuleDoesNotReadUnnamedModule ->
+			is JavaModuleResolver.AccessError.ModuleDoesNotReadUnnamedModule -> {
 				KotlinJavaModuleAccessibilityError.ModuleDoesNotReadUnnamedModule
+			}
 
-			is JavaModuleResolver.AccessError.ModuleDoesNotReadModule ->
+			is JavaModuleResolver.AccessError.ModuleDoesNotReadModule -> {
 				KotlinJavaModuleAccessibilityError.ModuleDoesNotReadModule(accessError.dependencyModuleName)
+			}
 
-			is JavaModuleResolver.AccessError.ModuleDoesNotExportPackage ->
+			is JavaModuleResolver.AccessError.ModuleDoesNotExportPackage -> {
 				KotlinJavaModuleAccessibilityError.ModuleDoesNotExportPackage(accessError.dependencyModuleName)
+			}
 		}
 }

@@ -23,50 +23,54 @@ package org.appdevforall.codeonthego.inflater
  * @author Akash Yadav
  */
 interface IViewGroupAdapter {
+	/**
+	 * Get the layout strategy for the given view group and the view. Implementations must take the
+	 * attributes of the view group into account.
+	 *
+	 * @param group The view group whose layout strategy should be returned.
+	 * @return The layout strategy.
+	 */
+	fun getLayoutStrategy(group: IViewGroup): LayoutStrategy
 
-  /**
-   * Get the layout strategy for the given view group and the view. Implementations must take the
-   * attributes of the view group into account.
-   *
-   * @param group The view group whose layout strategy should be returned.
-   * @return The layout strategy.
-   */
-  fun getLayoutStrategy(group: IViewGroup): LayoutStrategy
+	/**
+	 * Compute the index of the child based on the given [x] and [y] coordinates
+	 * of the drag event.
+	 *
+	 * @param parent The [IViewGroup] in which the child will be added.
+	 *   This is guaranteed to have at least one child view.
+	 * @param x The X coordinate of the drag event.
+	 * @param y The Y coordinate of the drag event.
+	 * @return The index at which the new child must be added
+	 */
+	fun computeChildIndex(
+		parent: IViewGroup,
+		x: Float,
+		y: Float,
+	): Int = getLayoutStrategy(parent).computeChildIndex(parent, x, y)
 
-  /**
-   * Compute the index of the child based on the given [x] and [y] coordinates
-   * of the drag event.
-   *
-   * @param parent The [IViewGroup] in which the child will be added.
-   *   This is guaranteed to have at least one child view.
-   * @param x The X coordinate of the drag event.
-   * @param y The Y coordinate of the drag event.
-   * @return The index at which the new child must be added
-   */
-  fun computeChildIndex(parent: IViewGroup, x: Float, y: Float): Int {
-    return getLayoutStrategy(parent).computeChildIndex(parent, x, y)
-  }
+	/**
+	 * Called by the UI Designer to check if the given view group (which this adpater handles) can
+	 * accept the child view with the given qualified name.
+	 *
+	 * @param view The parent in which the child will be added.
+	 * @param name The fully qualified name of the child view.
+	 */
+	fun canAcceptChild(
+		view: IViewGroup,
+		name: String,
+	): Boolean = canAcceptChild(view, null, name)
 
-  /**
-   * Called by the UI Designer to check if the given view group (which this adpater handles) can
-   * accept the child view with the given qualified name.
-   *
-   * @param view The parent in which the child will be added.
-   * @param name The fully qualified name of the child view.
-   */
-  fun canAcceptChild(view: IViewGroup, name: String): Boolean {
-    return canAcceptChild(view, null, name)
-  }
-
-  /**
-   * Called by the UI Designer to check if the given view group (which this adpater handles) can
-   * accept the child view with the given qualified name.
-   *
-   * @param view The parent in which the child will be added.
-   * @param child The child view which will be added. May be `null`.
-   * @param name The fully qualified name of the child view.
-   */
-  fun canAcceptChild(view: IViewGroup, child: IView?, name: String): Boolean {
-    return true
-  }
+	/**
+	 * Called by the UI Designer to check if the given view group (which this adpater handles) can
+	 * accept the child view with the given qualified name.
+	 *
+	 * @param view The parent in which the child will be added.
+	 * @param child The child view which will be added. May be `null`.
+	 * @param name The fully qualified name of the child view.
+	 */
+	fun canAcceptChild(
+		view: IViewGroup,
+		child: IView?,
+		name: String,
+	): Boolean = true
 }

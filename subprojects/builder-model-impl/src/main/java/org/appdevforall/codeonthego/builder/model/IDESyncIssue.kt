@@ -27,18 +27,17 @@ import com.android.builder.model.v2.ide.SyncIssue
  * @author Akash Yadav
  */
 interface IDESyncIssue : SyncIssue {
-  companion object {
+	companion object {
+		/**
+		 * Indicates that the Android Gradle Plugin that is being used by the project
+		 * is too new for AndroidIDE. Data is `projectAgpVersion:maxAgpVersion`.
+		 */
+		const val TYPE_AGP_VERSION_TOO_NEW = -1
 
-    /**
-     * Indicates that the Android Gradle Plugin that is being used by the project
-     * is too new for AndroidIDE. Data is `projectAgpVersion:maxAgpVersion`.
-     */
-    const val TYPE_AGP_VERSION_TOO_NEW = -1
-
-    // Note: When adding new types, decrement the version by 1
-    // The types that are defined in SyncIssue class have their values starting at 0 and incremented
-    // by 1 when new types are added. So, we could never know what is the latest type's value
-  }
+		// Note: When adding new types, decrement the version by 1
+		// The types that are defined in SyncIssue class have their values starting at 0 and incremented
+		// by 1 when new types are added. So, we could never know what is the latest type's value
+	}
 }
 
 /**
@@ -46,12 +45,12 @@ interface IDESyncIssue : SyncIssue {
  *
  * @return Whether the issue can be ignored.
  */
-fun SyncIssue.shouldBeIgnored() : Boolean {
-  if (this.type != SyncIssue.TYPE_UNSUPPORTED_PROJECT_OPTION_USE) {
-    return false
-  }
+fun SyncIssue.shouldBeIgnored(): Boolean {
+	if (this.type != SyncIssue.TYPE_UNSUPPORTED_PROJECT_OPTION_USE) {
+		return false
+	}
 
-  // AndroidIDE sets android.aapt2FromMavenOverride in order to use a custom AAPT2 that is
-  // compatible with Android
-  return AAPT2_FROM_MAVEN_OVERRIDE.propertyName == this.data
+	// AndroidIDE sets android.aapt2FromMavenOverride in order to use a custom AAPT2 that is
+	// compatible with Android
+	return AAPT2_FROM_MAVEN_OVERRIDE.propertyName == this.data
 }

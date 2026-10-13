@@ -13,7 +13,7 @@ val HTML_HYPERLINK_TEXT_COLOR = "#233490".toColorInt()
 
 fun SpannableStringBuilder.appendHtmlWithLinks(
 	html: String,
-	onLinkClick: (url: String) -> Unit
+	onLinkClick: (url: String) -> Unit,
 ) {
 	val spanned = HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY)
 	val spannable = SpannableStringBuilder(spanned)
@@ -24,17 +24,18 @@ fun SpannableStringBuilder.appendHtmlWithLinks(
 		val end = spannable.getSpanEnd(urlSpan)
 		spannable.removeSpan(urlSpan)
 
-		val clickableSpan = object : ClickableSpan() {
-			override fun onClick(widget: View) {
-				onLinkClick(urlSpan.url)
-			}
+		val clickableSpan =
+			object : ClickableSpan() {
+				override fun onClick(widget: View) {
+					onLinkClick(urlSpan.url)
+				}
 
-			override fun updateDrawState(ds: TextPaint) {
-				super.updateDrawState(ds)
-				ds.isUnderlineText = true
-				ds.color = HTML_HYPERLINK_TEXT_COLOR
+				override fun updateDrawState(ds: TextPaint) {
+					super.updateDrawState(ds)
+					ds.isUnderlineText = true
+					ds.color = HTML_HYPERLINK_TEXT_COLOR
+				}
 			}
-		}
 
 		spannable.setSpan(clickableSpan, start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 	}

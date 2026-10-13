@@ -29,56 +29,56 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 object DocumentationReferenceProvider {
+	/**
+	 * Package names whose documentation is most likely to be available on the Android Developers
+	 * website.
+	 */
+	private val availablePackages =
+		setOf(
+			"android", // Android APIs
+			"androidx", // AndroidX libraries
+			"com.google.android.material", // Material Components
+			"java", // Java APIs
+		)
 
-  /**
-   * Package names whose documentation is most likely to be available on the Android Developers
-   * website.
-   */
-  private val availablePackages =
-    setOf(
-      "android", // Android APIs
-      "androidx", // AndroidX libraries
-      "com.google.android.material", // Material Components
-      "java" // Java APIs
-    )
+	@JvmStatic
+	fun getTag(data: ICompletionData): String? {
+		val klass =
+			when (data) {
+				is ClassCompletionData -> data
+				is MemberCompletionData -> data.classInfo
+				else -> return null
+			}
+		val baseName =
+			if (klass.isNested) {
+				klass.topLevelClass
+			} else {
+				klass.className
+			}
 
+		if (availablePackages.find { baseName.startsWith("$it.") } == null) {
+			// This package is probably not listed on Android Developers documentation
+			return null
+		}
 
-  @JvmStatic
-  fun getTag(data: ICompletionData): String? {
-    val klass =
-      when (data) {
-        is ClassCompletionData -> data
-        is MemberCompletionData -> data.classInfo
-        else -> return null
-      }
-    val baseName =
-      if (klass.isNested) {
-        klass.topLevelClass
-      } else klass.className
+		val name = StringBuilder(baseName)
 
-    if (availablePackages.find { baseName.startsWith("$it.") } == null) {
-      // This package is probably not listed on Android Developers documentation
-      return null
-    }
+		if (klass.isNested) {
+			name.append('.')
+			name.append(klass.nameWithoutTopLevel)
+		}
 
-    val name = StringBuilder(baseName)
+		if (data is MemberCompletionData) {
+			name.append('#')
+			name.append(data.memberName)
+		}
 
-    if (klass.isNested) {
-      name.append('.')
-      name.append(klass.nameWithoutTopLevel)
-    }
+		if (data is MethodCompletionData) {
+			name.append('(')
+			name.append(data.parameterTypes.joinToString(separator = ", "))
+			name.append(')')
+		}
 
-    if (data is MemberCompletionData) {
-      name.append('#')
-      name.append(data.memberName)
-    }
-
-    if (data is MethodCompletionData) {
-      name.append('(')
-      name.append(data.parameterTypes.joinToString(separator = ", "))
-      name.append(')')
-    }
-
-    return name.toString()
-  }
+		return name.toString()
+	}
 }

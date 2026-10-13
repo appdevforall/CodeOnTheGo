@@ -18,16 +18,13 @@
 package org.appdevforall.codeonthego.lookup.internal;
 
 import androidx.annotation.VisibleForTesting;
-
 import com.google.auto.service.AutoService;
-import org.appdevforall.codeonthego.lookup.Lookup;
-import org.appdevforall.codeonthego.lookup.ServiceRegisteredException;
-
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.appdevforall.codeonthego.lookup.Lookup;
+import org.appdevforall.codeonthego.lookup.ServiceRegisteredException;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Default implementation of {@link Lookup}.
@@ -42,35 +39,10 @@ public final class DefaultLookup implements Lookup {
 
 	private final Map<Key<?>, Object> services = new ConcurrentHashMap<>();
 
-	@Override
-	public <T> void register(final Class<T> klass, final T instance) {
-		register(key(klass), instance);
-	}
-
-	@Override
-	public <T> void update(final Class<T> klass, final T instance) {
-		update(key(klass), instance);
-	}
-
-	@Override
-	public <T> void unregister(final Class<T> klass) {
-		unregister(key(klass));
-	}
-
 	@Nullable
 	@Override
 	public <T> T lookup(final Class<T> klass) {
 		return lookup(key(klass));
-	}
-
-	@Override
-	public <T> void register(final Key<T> key, final T instance) {
-		registerOrUpdate(key, instance, false);
-	}
-
-	@Override
-	public <T> void unregister(final Key<T> key) {
-		services.remove(key);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -81,13 +53,44 @@ public final class DefaultLookup implements Lookup {
 	}
 
 	@Override
-	public <T> void update(final Key<T> key, final T instance) {
-		registerOrUpdate(key, instance, true);
+	public <T> void register(final Class<T> klass, final T instance) {
+		register(key(klass), instance);
+	}
+
+	@Override
+	public <T> void register(final Key<T> key, final T instance) {
+		registerOrUpdate(key, instance, false);
+	}
+
+	@Override
+	public <T> void unregister(final Class<T> klass) {
+		unregister(key(klass));
+	}
+
+	@Override
+	public <T> void unregister(final Key<T> key) {
+		services.remove(key);
 	}
 
 	@Override
 	public void unregisterAll() {
 		services.clear();
+	}
+
+	@Override
+	public <T> void update(final Class<T> klass, final T instance) {
+		update(key(klass), instance);
+	}
+
+	@Override
+	public <T> void update(final Key<T> key, final T instance) {
+		registerOrUpdate(key, instance, true);
+	}
+
+	@SuppressWarnings("unchecked")
+	@NotNull
+	private <T> Key<T> key(Class<T> klass) {
+		return (Key<T>) keyTable.computeIfAbsent(klass, k -> new Key<T>());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -97,11 +100,5 @@ public final class DefaultLookup implements Lookup {
 			services.put(key, existing);
 			throw new ServiceRegisteredException();
 		}
-	}
-
-	@SuppressWarnings("unchecked")
-	@NotNull
-	private <T> Key<T> key(Class<T> klass) {
-		return (Key<T>) keyTable.computeIfAbsent(klass, k -> new Key<T>());
 	}
 }

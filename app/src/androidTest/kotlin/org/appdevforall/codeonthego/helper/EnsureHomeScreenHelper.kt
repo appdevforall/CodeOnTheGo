@@ -9,10 +9,10 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.R
+import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.appdevforall.codeonthego.activities.MainActivity
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
 import org.appdevforall.codeonthego.screens.HomeScreen
-import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.hamcrest.Matchers
 
 private const val TAG = "EnsureHomeScreen"
@@ -65,16 +65,20 @@ fun TestContext<Unit>.ensureOnHomeScreenBeforeCreateProject() {
 			testLog("Post-onboarding screen=$state (package=$pkg)")
 
 			when (state) {
-				PostOnboardingScreen.EDITOR ->
+				PostOnboardingScreen.EDITOR -> {
 					runCatching {
 						testLog("Attempting drawer → close project → close without saving")
 						closeProjectViaDrawerThenCloseWithoutSaving(device.uiDevice, targetContext)
 					}.onFailure { testLog("Drawer close failed: ${it.message}") }
+				}
 
-				PostOnboardingScreen.UNKNOWN ->
+				PostOnboardingScreen.UNKNOWN -> {
 					testLog("Screen UNKNOWN — will try relaunch if home not visible")
+				}
 
-				PostOnboardingScreen.HOME -> testLog("Screen looks like HOME already")
+				PostOnboardingScreen.HOME -> {
+					testLog("Screen looks like HOME already")
+				}
 			}
 
 			device.uiDevice.waitForIdle(3000)

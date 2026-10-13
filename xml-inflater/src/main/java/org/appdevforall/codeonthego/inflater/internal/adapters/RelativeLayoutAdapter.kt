@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.RelativeLayout
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [RelativeLayout].
@@ -34,20 +34,18 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(RelativeLayout::class)
 @IncludeInDesigner(group = LAYOUTS)
 open class RelativeLayoutAdapter<T : RelativeLayout> : ViewGroupAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
+		create("gravity") { view.gravity = parseGravity(value) }
+		create("ignoreGravity") { view.ignoreGravity = parseId(file.resName, value) }
+	}
 
-  override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-    super.createAttrHandlers(create)
-    create("gravity") { view.gravity = parseGravity(value) }
-    create("ignoreGravity") { view.ignoreGravity = parseId(file.resName, value) }
-  }
-
-  override fun createUiWidgets(): List<UiWidget> {
-    return listOf(
-      UiWidget(
-        RelativeLayout::class.java,
-        string.widget_relative_layout,
-        drawable.ic_widget_relative_layout
-      )
-    )
-  }
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(
+			UiWidget(
+				RelativeLayout::class.java,
+				string.widget_relative_layout,
+				drawable.ic_widget_relative_layout,
+			),
+		)
 }

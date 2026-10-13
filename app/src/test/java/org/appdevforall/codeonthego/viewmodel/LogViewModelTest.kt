@@ -17,15 +17,15 @@
 
 package org.appdevforall.codeonthego.viewmodel
 
-import org.appdevforall.codeonthego.models.LogFilter
-import org.appdevforall.codeonthego.models.LogLine
-import org.appdevforall.codeonthego.utils.ILogger
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.appdevforall.codeonthego.models.LogFilter
+import org.appdevforall.codeonthego.models.LogLine
+import org.appdevforall.codeonthego.utils.ILogger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

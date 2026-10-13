@@ -30,59 +30,56 @@ import org.junit.Ignore
 /** @author Akash Yadav */
 @Ignore("Base class for XML tests")
 object XMLLSPTest : LSPTest() {
+	@Before
+	override fun initProjectIfNeeded() {
+		super.initProjectIfNeeded()
+		try {
+			val module = findAppModule()!!
+			val lookup = Lookup.getDefault()
 
-  @Before
-  override fun initProjectIfNeeded() {
-    super.initProjectIfNeeded()
-    try {
-      val module = findAppModule()!!
-      val lookup = Lookup.getDefault()
+			lookup.update(ModuleProject.COMPLETION_MODULE_KEY, module)
 
-      lookup.update(ModuleProject.COMPLETION_MODULE_KEY, module)
+			val versions = module.getApiVersions()
+			if (versions != null) {
+				lookup.update(ApiVersions.COMPLETION_LOOKUP_KEY, versions)
+			}
 
-      val versions = module.getApiVersions()
-      if (versions != null) {
-        lookup.update(ApiVersions.COMPLETION_LOOKUP_KEY, versions)
-      }
+			val widgets = module.getWidgetTable()
+			if (widgets != null) {
+				lookup.update(WidgetTable.COMPLETION_LOOKUP_KEY, widgets)
+			}
 
-      val widgets = module.getWidgetTable()
-      if (widgets != null) {
-        lookup.update(WidgetTable.COMPLETION_LOOKUP_KEY, widgets)
-      }
+			val frameworkResources = module.getFrameworkResourceTable()
+			if (frameworkResources != null) {
+				lookup.update(ResourceTableRegistry.COMPLETION_FRAMEWORK_RES, frameworkResources)
+			}
 
-      val frameworkResources = module.getFrameworkResourceTable()
-      if (frameworkResources != null) {
-        lookup.update(ResourceTableRegistry.COMPLETION_FRAMEWORK_RES, frameworkResources)
-      }
+			val moduleResources = module.getSourceResourceTables()
+			if (moduleResources.isNotEmpty()) {
+				lookup.update(ResourceTableRegistry.COMPLETION_MODULE_RES, moduleResources)
+			}
 
-      val moduleResources = module.getSourceResourceTables()
-      if (moduleResources.isNotEmpty()) {
-        lookup.update(ResourceTableRegistry.COMPLETION_MODULE_RES, moduleResources)
-      }
+			val depResTables = module.getDependencyResourceTables()
+			if (depResTables.isNotEmpty()) {
+				lookup.update(ResourceTableRegistry.COMPLETION_DEP_RES, depResTables)
+			}
 
-      val depResTables = module.getDependencyResourceTables()
-      if (depResTables.isNotEmpty()) {
-        lookup.update(ResourceTableRegistry.COMPLETION_DEP_RES, depResTables)
-      }
+			val manifestAttrTable = module.getManifestAttrTable()
+			if (manifestAttrTable != null) {
+				lookup.update(ResourceTableRegistry.COMPLETION_MANIFEST_ATTR_RES, manifestAttrTable)
+			}
+		} catch (e: Throwable) {
+			throw RuntimeException(e)
+		}
+	}
 
-      val manifestAttrTable = module.getManifestAttrTable()
-      if (manifestAttrTable != null) {
-        lookup.update(ResourceTableRegistry.COMPLETION_MANIFEST_ATTR_RES, manifestAttrTable)
-      }
-    } catch (e: Throwable) {
-      throw RuntimeException(e)
-    }
-  }
+	override fun registerServer() {
+		ILanguageServerRegistry.default.register(server)
+	}
 
-  override fun registerServer() {
-    ILanguageServerRegistry.default.register(server)
-  }
+	override fun getServerId(): String = XMLLanguageServer.SERVER_ID
 
-  override fun getServerId(): String {
-    return XMLLanguageServer.SERVER_ID
-  }
+	override fun test() {}
 
-  override fun test() {}
-
-  val server = XMLLanguageServer()
+	val server = XMLLanguageServer()
 }

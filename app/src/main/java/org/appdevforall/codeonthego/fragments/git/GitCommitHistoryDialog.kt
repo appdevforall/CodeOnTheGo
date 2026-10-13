@@ -11,6 +11,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.fragments.git.adapter.GitCommitHistoryAdapter
 import org.appdevforall.codeonthego.git.core.GitCredentialsManager
 import org.appdevforall.codeonthego.git.core.models.CommitHistoryUiState
@@ -21,8 +23,6 @@ import org.appdevforall.codeonthego.utils.applyLongPressRecursively
 import org.appdevforall.codeonthego.utils.flashSuccess
 import org.appdevforall.codeonthego.utils.onLongPress
 import org.appdevforall.codeonthego.viewmodel.GitBottomSheetViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 

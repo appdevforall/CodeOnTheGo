@@ -5,5 +5,7 @@ package org.appdevforall.codeonthego.lsp.debug.utils
  *
  * @author Akash Yadav
  */
-class BreakpointNotFoundException(message: String? = null, cause: Throwable? = null) :
-    RuntimeException(message, cause)
+class BreakpointNotFoundException(
+	message: String? = null,
+	cause: Throwable? = null,
+) : RuntimeException(message, cause)

@@ -47,30 +47,31 @@ import openjdk.tools.javac.util.Names;
  */
 public class NBTreeMaker extends TreeMaker {
 
-  private final Names names;
-  private final Types types;
-  private final Symtab syms;
+	public static void preRegister(Context context) {
+		context.put(treeMakerKey, (Context.Factory<TreeMaker>) NBTreeMaker::new);
+	}
 
-  protected NBTreeMaker(JCCompilationUnit toplevel, Names names, Types types, Symtab syms) {
-    super(toplevel, names, types, syms);
-    this.names = names;
-    this.types = types;
-    this.syms = syms;
-  }
+	private final Names names;
+	private final Types types;
 
-  public static void preRegister(Context context) {
-    context.put(treeMakerKey, (Context.Factory<TreeMaker>) NBTreeMaker::new);
-  }
+	private final Symtab syms;
 
-  protected NBTreeMaker(Context context) {
-    super(context);
-    this.names = Names.instance(context);
-    this.types = Types.instance(context);
-    this.syms = Symtab.instance(context);
-  }
+	protected NBTreeMaker(Context context) {
+		super(context);
+		this.names = Names.instance(context);
+		this.types = Types.instance(context);
+		this.syms = Symtab.instance(context);
+	}
 
-  @Override
-  public TreeMaker forToplevel(JCCompilationUnit toplevel) {
-    return new NBTreeMaker(toplevel, names, types, syms);
-  }
+	protected NBTreeMaker(JCCompilationUnit toplevel, Names names, Types types, Symtab syms) {
+		super(toplevel, names, types, syms);
+		this.names = names;
+		this.types = types;
+		this.syms = syms;
+	}
+
+	@Override
+	public TreeMaker forToplevel(JCCompilationUnit toplevel) {
+		return new NBTreeMaker(toplevel, names, types, syms);
+	}
 }

@@ -9,12 +9,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import kotlinx.parcelize.IgnoredOnParcel
+import kotlinx.parcelize.Parcelize
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_TOP
 import org.appdevforall.codeonthego.preferences.IPreference
 import org.appdevforall.codeonthego.preferences.IPreferenceGroup
 import org.appdevforall.codeonthego.preferences.IPreferenceScreen
-import kotlinx.parcelize.IgnoredOnParcel
-import kotlinx.parcelize.Parcelize
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith

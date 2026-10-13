@@ -20,5 +20,7 @@ package org.appdevforall.codeonthego.tooling.events.internal
 import org.appdevforall.codeonthego.tooling.events.OperationResult
 
 /** @author Akash Yadav */
-class DefaultOperationResult(override val startTime: Long, override val endTime: Long) :
-  OperationResult()
+class DefaultOperationResult(
+	override val startTime: Long,
+	override val endTime: Long,
+) : OperationResult()

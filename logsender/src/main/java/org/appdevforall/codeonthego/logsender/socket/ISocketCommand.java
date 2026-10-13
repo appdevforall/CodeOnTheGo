@@ -26,13 +26,13 @@ import java.io.File;
  */
 public interface ISocketCommand {
 
-  String PARAM_DELIMITER = File.pathSeparator;
+	String PARAM_DELIMITER = File.pathSeparator;
 
-  /**
-   * Get the name of the command.
-   *
-   * @return The name of the command.
-   */
-  String getName();
+	/**
+	 * Get the name of the command.
+	 *
+	 * @return The name of the command.
+	 */
+	String getName();
 
 }

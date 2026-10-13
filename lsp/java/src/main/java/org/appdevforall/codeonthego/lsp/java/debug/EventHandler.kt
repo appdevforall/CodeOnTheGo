@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.debug
 
-import org.appdevforall.codeonthego.lsp.java.debug.spec.EventRequestSpecList
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
 import com.sun.jdi.VirtualMachine
@@ -29,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
+import org.appdevforall.codeonthego.lsp.java.debug.spec.EventRequestSpecList
 import org.slf4j.LoggerFactory
 
 /**

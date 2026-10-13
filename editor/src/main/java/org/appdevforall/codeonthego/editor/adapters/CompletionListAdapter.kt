@@ -28,6 +28,10 @@ import android.widget.TextView
 import androidx.core.view.isVisible
 import com.itsaky.androidide.editor.R
 import com.itsaky.androidide.editor.databinding.LayoutCompletionItemBinding
+import com.itsaky.androidide.resources.R.string.msg_api_info_deprecated
+import com.itsaky.androidide.resources.R.string.msg_api_info_removed
+import com.itsaky.androidide.resources.R.string.msg_api_info_since
+import io.github.rosemoe.sora.widget.component.EditorCompletionAdapter
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.lsp.models.ClassCompletionData
 import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.CLASS
@@ -39,9 +43,6 @@ import org.appdevforall.codeonthego.lsp.models.CompletionItemKind.METHOD
 import org.appdevforall.codeonthego.lsp.models.MemberCompletionData
 import org.appdevforall.codeonthego.lsp.models.MethodCompletionData
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
-import com.itsaky.androidide.resources.R.string.msg_api_info_deprecated
-import com.itsaky.androidide.resources.R.string.msg_api_info_removed
-import com.itsaky.androidide.resources.R.string.msg_api_info_since
 import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
 import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND_TEXT_API
 import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.COMPLETION_WND_TEXT_DETAIL
@@ -52,7 +53,6 @@ import org.appdevforall.codeonthego.utils.customOrJBMono
 import org.appdevforall.codeonthego.xml.versions.ApiVersion
 import org.appdevforall.codeonthego.xml.versions.ApiVersions
 import org.appdevforall.codeonthego.xml.versions.Info
-import io.github.rosemoe.sora.widget.component.EditorCompletionAdapter
 import org.appdevforall.codeonthego.lsp.models.CompletionItem as LspCompletionItem
 
 class CompletionListAdapter : EditorCompletionAdapter() {

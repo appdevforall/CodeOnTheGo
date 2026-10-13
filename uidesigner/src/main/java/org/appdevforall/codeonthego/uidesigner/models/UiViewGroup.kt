@@ -29,46 +29,55 @@ import org.appdevforall.codeonthego.inflater.viewAdapter
  *
  * @author Akash Yadav
  */
-internal open class UiViewGroup(file: LayoutFile, name: String, view: ViewGroup) :
-  ViewGroupImpl(file, name, view), CommonUiView by CommonUiViewImpl() {
+internal open class UiViewGroup(
+	file: LayoutFile,
+	name: String,
+	view: ViewGroup,
+) : ViewGroupImpl(file, name, view),
+	CommonUiView by CommonUiViewImpl() {
+	/**
+	 * Finds the index of the view based on the touch location.
+	 *
+	 * @param x The x coordinate.
+	 * @param y The y coordinate.
+	 * @return The index where the new child should be added. This index must be valid.
+	 */
+	fun computeViewIndex(
+		x: Float,
+		y: Float,
+	): Int {
+		if (childCount == 0) {
+			return 0
+		}
+		val adapter = viewAdapter
 
-  /**
-   * Finds the index of the view based on the touch location.
-   *
-   * @param x The x coordinate.
-   * @param y The y coordinate.
-   * @return The index where the new child should be added. This index must be valid.
-   */
-  fun computeViewIndex(x: Float, y: Float): Int {
-    if (childCount == 0) {
-      return 0
-    }
-    val adapter = viewAdapter
+		if (adapter !is IViewGroupAdapter) {
+			return childCount
+		}
 
-    if (adapter !is IViewGroupAdapter) {
-      return childCount
-    }
+		return adapter.computeChildIndex(this, x, y)
+	}
 
-    return adapter.computeChildIndex(this, x, y)
-  }
+	override fun findNearestChild(
+		x: Float,
+		y: Float,
+		vertical: Boolean,
+	): Pair<IView, Int>? {
+		for (i in 0 until childCount) {
+			val child = get(i)
+			if (child is CommonUiView && !child.includeInIndexComputation) {
+				continue
+			}
+			val rect = child.getViewRect()
+			if (vertical && (y > rect.top && y < rect.bottom)) {
+				return child to i
+			}
 
-  override fun findNearestChild(x: Float, y: Float, vertical: Boolean
-  ): Pair<IView, Int>? {
-    for (i in 0 until childCount) {
-      val child = get(i)
-      if (child is CommonUiView && !child.includeInIndexComputation) {
-        continue
-      }
-      val rect = child.getViewRect()
-      if (vertical && (y > rect.top && y < rect.bottom)) {
-        return child to i
-      }
+			if (!vertical && (x > rect.left && x < rect.right)) {
+				return child to i
+			}
+		}
 
-      if (!vertical && (x > rect.left && x < rect.right)) {
-        return child to i
-      }
-    }
-
-    return null
-  }
+		return null
+	}
 }

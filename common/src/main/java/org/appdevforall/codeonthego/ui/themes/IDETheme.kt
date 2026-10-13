@@ -27,33 +27,38 @@ import com.itsaky.androidide.resources.R
  * @author Akash Yadav
  */
 enum class IDETheme(
-  @StyleRes val styleLight: Int,
-  @StyleRes val styleDark: Int,
-  @StringRes val title: Int
+	@StyleRes val styleLight: Int,
+	@StyleRes val styleDark: Int,
+	@StringRes val title: Int,
 ) {
+	/**
+	 * Blue Wave theme.
+	 */
+	BLUE_WAVE(
+		R.style.Theme_AndroidIDE_BlueWave,
+		R.style.Theme_AndroidIDE_BlueWave_Dark,
+		R.string.theme_blue_wave,
+	),
 
-  /**
-   * Blue Wave theme.
-   */
-  BLUE_WAVE(R.style.Theme_AndroidIDE_BlueWave, R.style.Theme_AndroidIDE_BlueWave_Dark,
-    R.string.theme_blue_wave),
+	/**
+	 * Sunny Glow theme.
+	 */
+	SUNNY_GLOW(
+		R.style.Theme_AndroidIDE_SunnyGlow,
+		R.style.Theme_AndroidIDE_SunnyGlow_Dark,
+		R.string.theme_sunny_glow,
+	),
 
-  /**
-   * Sunny Glow theme.
-   */
-  SUNNY_GLOW(R.style.Theme_AndroidIDE_SunnyGlow, R.style.Theme_AndroidIDE_SunnyGlow_Dark,
-    R.string.theme_sunny_glow),
+	/**
+	 * Material You theme.
+	 */
+	MATERIAL_YOU(-1, -1, R.string.theme_material_you),
+	;
 
-  /**
-   * Material You theme.
-   */
-  MATERIAL_YOU(-1, -1, R.string.theme_material_you);
-
-  companion object {
-
-    /**
-     * The default theme.
-     */
-    val DEFAULT = BLUE_WAVE
-  }
+	companion object {
+		/**
+		 * The default theme.
+		 */
+		val DEFAULT = BLUE_WAVE
+	}
 }

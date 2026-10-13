@@ -2,6 +2,12 @@ package org.appdevforall.codeonthego.services.builder
 
 import android.content.Context
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.appdevforall.codeonthego.managers.ToolsManager
 import org.appdevforall.codeonthego.tooling.api.IToolingApiClient
 import org.appdevforall.codeonthego.tooling.api.IToolingApiServer
@@ -12,12 +18,6 @@ import org.appdevforall.codeonthego.tooling.api.messages.result.BuildResult
 import org.appdevforall.codeonthego.tooling.api.messages.result.GradleWrapperCheckResult
 import org.appdevforall.codeonthego.tooling.events.ProgressEvent
 import org.appdevforall.codeonthego.utils.Environment
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

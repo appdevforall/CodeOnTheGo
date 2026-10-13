@@ -11,15 +11,7 @@ import androidx.core.text.PrecomputedTextCompat
 import androidx.core.widget.TextViewCompat
 import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
 import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
-import org.appdevforall.codeonthego.idetooltips.TooltipManager
-import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
-import org.appdevforall.codeonthego.lsp.debug.model.VariableDescriptor
-import org.appdevforall.codeonthego.lsp.debug.model.VariableKind
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.utils.DialogUtils
-import org.appdevforall.codeonthego.utils.flashError
-import org.appdevforall.codeonthego.utils.isSystemInDarkMode
-import org.appdevforall.codeonthego.viewmodel.DebuggerViewModel
 import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
 import io.github.dingyi222666.view.treeview.TreeView
@@ -30,6 +22,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.idetooltips.TooltipManager
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
+import org.appdevforall.codeonthego.lsp.debug.model.VariableDescriptor
+import org.appdevforall.codeonthego.lsp.debug.model.VariableKind
+import org.appdevforall.codeonthego.utils.DialogUtils
+import org.appdevforall.codeonthego.utils.flashError
+import org.appdevforall.codeonthego.utils.isSystemInDarkMode
+import org.appdevforall.codeonthego.viewmodel.DebuggerViewModel
 import org.slf4j.LoggerFactory
 
 class VariableListBinder(
@@ -357,12 +357,22 @@ class VariableListBinder(
 
 private fun VariableDescriptor.icon(context: Context): Int? =
 	when (kind) {
-		VariableKind.PRIMITIVE -> R.drawable.ic_db_primitive
-		VariableKind.REFERENCE -> R.drawable.ic_dbg_value
-		VariableKind.ARRAYLIKE ->
+		VariableKind.PRIMITIVE -> {
+			R.drawable.ic_db_primitive
+		}
+
+		VariableKind.REFERENCE -> {
+			R.drawable.ic_dbg_value
+		}
+
+		VariableKind.ARRAYLIKE -> {
 			when (context.isSystemInDarkMode()) {
 				true -> R.drawable.ic_db_array_dark
 				false -> R.drawable.ic_db_array
 			}
-		else -> null
+		}
+
+		else -> {
+			null
+		}
 	}

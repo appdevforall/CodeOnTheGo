@@ -17,4 +17,6 @@
 package org.appdevforall.codeonthego.tooling.model
 
 /** @author Akash Yadav */
-data class PluginIdentifier(val displayName: String)
+data class PluginIdentifier(
+	val displayName: String,
+)

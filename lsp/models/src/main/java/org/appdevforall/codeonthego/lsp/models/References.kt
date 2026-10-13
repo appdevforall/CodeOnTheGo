@@ -25,13 +25,15 @@ import java.nio.file.Path
 
 /** @author Akash Yadav */
 data class ReferenceParams(
-  var file: Path,
-  var position: Position,
-  var includeDeclaration: Boolean,
-  override val cancelChecker: ICancelChecker
+	var file: Path,
+	var position: Position,
+	var includeDeclaration: Boolean,
+	override val cancelChecker: ICancelChecker,
 ) : CancellableRequestParams
 
-data class ReferenceResult(var locations: List<Location>) {
+data class ReferenceResult(
+	var locations: List<Location>,
+) {
 	companion object {
 		fun empty() = ReferenceResult(locations = emptyList())
 	}

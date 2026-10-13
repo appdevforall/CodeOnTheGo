@@ -27,24 +27,26 @@ import org.xmlpull.v1.XmlPullParser
  *
  * @author Akash Yadav
  */
-open class InsetDrawableParser protected constructor(parser: XmlPullParser?, minDepth: Int) :
-  IDrawableParser(parser, minDepth) {
-  @Throws(Exception::class)
-  public override fun parseDrawable(context: Context): Drawable {
-    var index = attrIndex("drawable")
-    if (index == -1) {
-      throw InflateException("No drawable specified for <inset> drawable")
-    }
-    val value = value(index)
-    val drawable = parseDrawable(context, value)
-    index = attrIndex("insetLeft")
-    val left = if (index == -1) 0 else parseDimension(context, value(index))
-    index = attrIndex("insetTop")
-    val top = if (index == -1) 0 else parseDimension(context, value(index))
-    index = attrIndex("insetRight")
-    val right = if (index == -1) 0 else parseDimension(context, value(index))
-    index = attrIndex("insetBottom")
-    val bottom = if (index == -1) 0 else parseDimension(context, value(index))
-    return InsetDrawable(drawable, left, top, right, bottom)
-  }
+open class InsetDrawableParser protected constructor(
+	parser: XmlPullParser?,
+	minDepth: Int,
+) : IDrawableParser(parser, minDepth) {
+	@Throws(Exception::class)
+	public override fun parseDrawable(context: Context): Drawable {
+		var index = attrIndex("drawable")
+		if (index == -1) {
+			throw InflateException("No drawable specified for <inset> drawable")
+		}
+		val value = value(index)
+		val drawable = parseDrawable(context, value)
+		index = attrIndex("insetLeft")
+		val left = if (index == -1) 0 else parseDimension(context, value(index))
+		index = attrIndex("insetTop")
+		val top = if (index == -1) 0 else parseDimension(context, value(index))
+		index = attrIndex("insetRight")
+		val right = if (index == -1) 0 else parseDimension(context, value(index))
+		index = attrIndex("insetBottom")
+		val bottom = if (index == -1) 0 else parseDimension(context, value(index))
+		return InsetDrawable(drawable, left, top, right, bottom)
+	}
 }

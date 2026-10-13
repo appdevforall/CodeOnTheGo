@@ -20,7 +20,7 @@ abstract class BuildEvent(
  */
 class BuildStartedEvent(
 	val buildInfo: BuildInfo,
-): BuildEvent(buildInfo.buildId)
+) : BuildEvent(buildInfo.buildId)
 
 /**
  * Event dispatched when a Gradle build is completed in the IDE.
@@ -29,4 +29,4 @@ class BuildStartedEvent(
  */
 class BuildCompletedEvent(
 	val result: BuildResult,
-): BuildEvent(result.buildId)
+) : BuildEvent(result.buildId)

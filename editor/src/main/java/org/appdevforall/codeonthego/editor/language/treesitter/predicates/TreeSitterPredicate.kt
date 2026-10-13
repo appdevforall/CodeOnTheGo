@@ -30,52 +30,50 @@ import io.github.rosemoe.sora.editor.ts.predicate.TsSyntheticCaptureContainer
  * @author Akash Yadav
  */
 abstract class TreeSitterPredicate : TsPredicate {
+	/** The name of the predicate that will be used to match. */
+	abstract val name: String
 
-  /** The name of the predicate that will be used to match. */
-  abstract val name: String
+	/**
+	 * Whether the implmentation can handle the given predicate steps.
+	 *
+	 * @param steps The predicate steps.
+	 * @return `true` if and only if the implementatin can handle the given predicate steps, `false`
+	 *   otherwise.
+	 */
+	abstract fun canHandle(steps: List<TsClientPredicateStep>): Boolean
 
-  /**
-   * Whether the implmentation can handle the given predicate steps.
-   *
-   * @param steps The predicate steps.
-   * @return `true` if and only if the implementatin can handle the given predicate steps, `false`
-   *   otherwise.
-   */
-  abstract fun canHandle(steps: List<TsClientPredicateStep>): Boolean
+	/**
+	 * Performs the predicate check.
+	 *
+	 * @param tsQuery The [TSQuery] for the predicate.
+	 * @param text The editor text.
+	 * @param match The [TSQueryMatch] object.
+	 * @param predicateSteps The predicate steps.
+	 * @return The result of the predicate check.
+	 */
+	internal abstract fun doPredicateInternal(
+		tsQuery: TSQuery,
+		text: CharSequence,
+		match: TSQueryMatch,
+		predicateSteps: List<TsClientPredicateStep>,
+		syntheticCaptures: TsSyntheticCaptureContainer,
+	): PredicateResult
 
-  /**
-   * Performs the predicate check.
-   *
-   * @param tsQuery The [TSQuery] for the predicate.
-   * @param text The editor text.
-   * @param match The [TSQueryMatch] object.
-   * @param predicateSteps The predicate steps.
-   * @return The result of the predicate check.
-   */
-  internal abstract fun doPredicateInternal(
-    tsQuery: TSQuery,
-    text: CharSequence,
-    match: TSQueryMatch,
-    predicateSteps: List<TsClientPredicateStep>,
-    syntheticCaptures: TsSyntheticCaptureContainer
-  ): PredicateResult
+	override fun doPredicate(
+		tsQuery: TSQuery,
+		text: CharSequence,
+		match: TSQueryMatch,
+		predicateSteps: List<TsClientPredicateStep>,
+		syntheticCaptures: TsSyntheticCaptureContainer,
+	): PredicateResult {
+		if (
+			predicateSteps.isEmpty() ||
+			predicateSteps[0].content != "$name?" ||
+			!canHandle(predicateSteps)
+		) {
+			return PredicateResult.UNHANDLED
+		}
 
-  override fun doPredicate(
-    tsQuery: TSQuery,
-    text: CharSequence,
-    match: TSQueryMatch,
-    predicateSteps: List<TsClientPredicateStep>,
-    syntheticCaptures: TsSyntheticCaptureContainer
-  ): PredicateResult {
-
-    if (
-      predicateSteps.isEmpty() ||
-      predicateSteps[0].content != "${name}?" ||
-      !canHandle(predicateSteps)
-    ) {
-      return PredicateResult.UNHANDLED
-    }
-
-    return doPredicateInternal(tsQuery, text, match, predicateSteps, syntheticCaptures)
-  }
+		return doPredicateInternal(tsQuery, text, match, predicateSteps, syntheticCaptures)
+	}
 }

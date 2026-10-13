@@ -29,86 +29,85 @@ import java.nio.file.Paths
  * @author Akash Yadav
  */
 class CachedCompletion
-private constructor(
-  val params: CompletionParams,
-  val result: org.appdevforall.codeonthego.lsp.models.CompletionResult
-) {
+	private constructor(
+		val params: CompletionParams,
+		val result: org.appdevforall.codeonthego.lsp.models.CompletionResult,
+	) {
+		companion object {
+			private val log = LoggerFactory.getLogger(CachedCompletion::class.java)
 
-  companion object {
+			/** Empty cached completion. Could be used to represent "no cache available". */
+			@JvmField
+			val EMPTY =
+				cache(
+					CompletionParams(
+						org.appdevforall.codeonthego.models.Position.NONE,
+						Paths.get(""),
+						ICancelChecker.CANCELLED,
+					),
+					org.appdevforall.codeonthego.lsp.models.CompletionResult.EMPTY,
+				)
 
-    private val log = LoggerFactory.getLogger(CachedCompletion::class.java)
+			/**
+			 * Creates cached version of the result from the given params and result.
+			 *
+			 * @param _params The [CompletionParams] used to trigger the completion request. A shallow copy
+			 * of this request is created.
+			 * @param result The result of the completion to cache.
+			 */
+			@JvmStatic
+			fun cache(
+				_params: CompletionParams,
+				result: org.appdevforall.codeonthego.lsp.models.CompletionResult,
+			): CachedCompletion {
+				val params =
+					CompletionParams(_params.position, _params.file, ICancelChecker.CANCELLED).apply {
+						prefix = _params.prefix ?: ""
+						content = ""
+					}
 
-    /** Empty cached completion. Could be used to represent "no cache available". */
-    @JvmField
-    val EMPTY =
-      cache(
-        CompletionParams(
-          org.appdevforall.codeonthego.models.Position.NONE,
-          Paths.get(""), ICancelChecker.CANCELLED
-        ),
-        org.appdevforall.codeonthego.lsp.models.CompletionResult.EMPTY
-      )
+				return CachedCompletion(params, result)
+			}
+		}
 
-    /**
-     * Creates cached version of the result from the given params and result.
-     *
-     * @param _params The [CompletionParams] used to trigger the completion request. A shallow copy
-     * of this request is created.
-     * @param result The result of the completion to cache.
-     */
-    @JvmStatic
-    fun cache(
-      _params: CompletionParams,
-      result: org.appdevforall.codeonthego.lsp.models.CompletionResult
-    ): CachedCompletion {
-      val params =
-        CompletionParams(_params.position, _params.file, ICancelChecker.CANCELLED).apply {
-          prefix = _params.prefix ?: ""
-          content = ""
-        }
+		fun canUseCache(params: CompletionParams): Boolean {
+			val partial = params.requirePrefix()
+			val position = this.params.position
+			val file = this.params.file
+			val prefix = this.params.requirePrefix()
 
-      return CachedCompletion(params, result)
-    }
-  }
+			// The change in the length of the prefix
+			val deltaPrefix = prefix.length - params.prefix!!.length
 
-  fun canUseCache(params: CompletionParams): Boolean {
-    val partial = params.requirePrefix()
-    val position = this.params.position
-    val file = this.params.file
-    val prefix = this.params.requirePrefix()
+			// The change in the column index
+			val deltaColumn = position.column - params.position.column
 
-    // The change in the length of the prefix
-    val deltaPrefix = prefix.length - params.prefix!!.length
+			// The changes must be of same length
+			if (deltaPrefix != deltaColumn) {
+				log.info("...unequal change in prefix and column")
+				return false
+			}
 
-    // The change in the column index
-    val deltaColumn = position.column - params.position.column
+			if (position.line == -1 || position.column == -1) {
+				log.info("...invalid cached completion position")
+				return false
+			}
 
-    // The changes must be of same length
-    if (deltaPrefix != deltaColumn) {
-      log.info("...unequal change in prefix and column")
-      return false
-    }
+			if (position.line != params.position.line || position.column > params.position.column) {
+				log.info("...cursor line changed")
+				return false
+			}
 
-    if (position.line == -1 || position.column == -1) {
-      log.info("...invalid cached completion position")
-      return false
-    }
+			if (!DocumentUtils.isSameFile(file, params.file)) {
+				log.info("...no cache available for current file")
+				return false
+			}
 
-    if (position.line != params.position.line || position.column > params.position.column) {
-      log.info("...cursor line changed")
-      return false
-    }
+			if (!partial.startsWith(prefix) || partial.endsWith(".")) {
+				log.info("...incompatible partial identifier")
+				return false
+			}
 
-    if (!DocumentUtils.isSameFile(file, params.file)) {
-      log.info("...no cache available for current file")
-      return false
-    }
-
-    if (!partial.startsWith(prefix) || partial.endsWith(".")) {
-      log.info("...incompatible partial identifier")
-      return false
-    }
-
-    return true
-  }
-}
+			return true
+		}
+	}

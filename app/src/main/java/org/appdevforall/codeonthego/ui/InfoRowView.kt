@@ -17,41 +17,45 @@ import com.itsaky.androidide.R
  * @param context The context the view is running in, through which it can access the current theme, resources, etc.
  * @param attrs The attributes of the XML tag that is inflating the view.
  */
-class InfoRowView @JvmOverloads constructor(
-	context: Context,
-	attrs: AttributeSet? = null
-) : LinearLayout(context, attrs) {
+class InfoRowView
+	@JvmOverloads
+	constructor(
+		context: Context,
+		attrs: AttributeSet? = null,
+	) : LinearLayout(context, attrs) {
+		private val labelView: TextView
+		private val valueView: TextView
 
-    private val labelView: TextView
-    private val valueView: TextView
+		init {
+			orientation = VERTICAL
+			LayoutInflater.from(context).inflate(R.layout.layout_project_info_item, this, true)
+			labelView = findViewById(R.id.label)
+			valueView = findViewById(R.id.value)
+		}
 
-    init {
-        orientation = VERTICAL
-        LayoutInflater.from(context).inflate(R.layout.layout_project_info_item, this, true)
-        labelView = findViewById(R.id.label)
-        valueView = findViewById(R.id.value)
-    }
+		/**
+		 * Sets the text for the label TextView.
+		 *
+		 * @param text The string to be displayed as the label.
+		 */
+		fun setLabel(text: String) {
+			labelView.text = text
+		}
 
-    /**
-     * Sets the text for the label TextView.
-     *
-     * @param text The string to be displayed as the label.
-     */
-    fun setLabel(text: String) {
-        labelView.text = text
-    }
+		/**
+		 * Sets the text for the value TextView.
+		 *
+		 * @param text The string to be displayed as the value.
+		 */
+		fun setValue(text: String) {
+			valueView.text = text
+		}
 
-    /**
-     * Sets the text for the value TextView.
-     *
-     * @param text The string to be displayed as the value.
-     */
-    fun setValue(text: String) {
-        valueView.text = text
-    }
-
-    fun setLabelAndValue(label: String, value: String) {
-        setLabel(label)
-        setValue(value)
-    }
-}
+		fun setLabelAndValue(
+			label: String,
+			value: String,
+		) {
+			setLabel(label)
+			setValue(value)
+		}
+	}

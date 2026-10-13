@@ -17,11 +17,6 @@
 
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
-import org.appdevforall.codeonthego.lsp.api.IServerSettings
-import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
-import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
-import org.appdevforall.codeonthego.lsp.models.CompletionResult
-import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
 import jdkx.lang.model.element.ElementKind.ENUM
 import jdkx.lang.model.element.ElementKind.ENUM_CONSTANT
 import jdkx.lang.model.element.TypeElement
@@ -29,6 +24,11 @@ import jdkx.lang.model.type.DeclaredType
 import openjdk.source.tree.SwitchTree
 import openjdk.source.util.TreePath
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.api.IServerSettings
+import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
+import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
+import org.appdevforall.codeonthego.lsp.models.CompletionResult
+import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
 import java.nio.file.Path
 
 /**
@@ -37,69 +37,68 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class SwitchConstantCompletionProvider(
-  completingFile: Path,
-  cursor: Long,
-  compiler: JavaCompilerService,
-  settings: IServerSettings,
+	completingFile: Path,
+	cursor: Long,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
+	override fun doComplete(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		val switchTree = path.leaf as SwitchTree
+		val exprPath = TreePath(path, switchTree.expression)
+		val type = Trees.instance(task.task).getTypeMirror(exprPath)
 
-  override fun doComplete(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean,
-  ): CompletionResult {
-    val switchTree = path.leaf as SwitchTree
-    val exprPath = TreePath(path, switchTree.expression)
-    val type = Trees.instance(task.task).getTypeMirror(exprPath)
+		if (type.kind.isPrimitive || type !is DeclaredType) {
+			// primitive types do not have any members
+			return completeIdentifier(task, exprPath, partial, endsWithParen)
+		}
 
-    if (type.kind.isPrimitive || type !is DeclaredType) {
-      // primitive types do not have any members
-      return completeIdentifier(task, exprPath, partial, endsWithParen)
-    }
+		val element = type.asElement() as TypeElement
 
-    val element = type.asElement() as TypeElement
+		if (element.kind != ENUM) {
+			// If the switch's expression is not an enum type
+			// we will not get any constants to complete
+			// In this case, we fall back to completing identifiers
+			// At this point, we are sure that the case expression will definitely be an identifier
+			// tree
+			// see visitCase (CaseTree, Long) in FindCompletionsAt.java
+			return completeIdentifier(task, exprPath, partial, endsWithParen)
+		}
 
-    if (element.kind != ENUM) {
-      // If the switch's expression is not an enum type
-      // we will not get any constants to complete
-      // In this case, we fall back to completing identifiers
-      // At this point, we are sure that the case expression will definitely be an identifier
-      // tree
-      // see visitCase (CaseTree, Long) in FindCompletionsAt.java
-      return completeIdentifier(task, exprPath, partial, endsWithParen)
-    }
+		log.info("...complete constants of type {}", type)
 
-    log.info("...complete constants of type {}", type)
+		val list: MutableList<org.appdevforall.codeonthego.lsp.models.CompletionItem> = ArrayList()
 
-    val list: MutableList<org.appdevforall.codeonthego.lsp.models.CompletionItem> = ArrayList()
+		abortCompletionIfCancelled()
 
-    abortCompletionIfCancelled()
+		for (member in task.task.elements.getAllMembers(element)) {
+			if (member.kind != ENUM_CONSTANT) {
+				continue
+			}
 
-    for (member in task.task.elements.getAllMembers(element)) {
-      if (member.kind != ENUM_CONSTANT) {
-        continue
-      }
+			val matchLevel = matchLevel(member.simpleName, partial)
+			if (matchLevel == NO_MATCH) {
+				continue
+			}
 
-      val matchLevel = matchLevel(member.simpleName, partial)
-      if (matchLevel == NO_MATCH) {
-        continue
-      }
+			list.add(item(task, member, matchLevel))
+		}
 
-      list.add(item(task, member, matchLevel))
-    }
+		return CompletionResult(list)
+	}
 
-    return CompletionResult(list)
-  }
-
-  private fun completeIdentifier(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean
-  ): CompletionResult {
-    abortCompletionIfCancelled()
-    return IdentifierCompletionProvider(file, cursor, compiler, settings)
-      .complete(task, path, partial, endsWithParen)
-  }
+	private fun completeIdentifier(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		abortCompletionIfCancelled()
+		return IdentifierCompletionProvider(file, cursor, compiler, settings)
+			.complete(task, path, partial, endsWithParen)
+	}
 }

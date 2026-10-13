@@ -17,13 +17,13 @@
 
 package org.appdevforall.codeonthego.lsp.java.providers.definition
 
+import jdkx.lang.model.element.Element
+import jdkx.tools.JavaFileObject
 import org.appdevforall.codeonthego.lsp.api.IServerSettings
 import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
 import org.appdevforall.codeonthego.models.Location
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.progress.ICancelChecker
-import jdkx.lang.model.element.Element
-import jdkx.tools.JavaFileObject
 import java.nio.file.Path
 
 /**
@@ -32,24 +32,24 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class RemoteDefinitionProvider(
-  position: Position,
-  completingFile: Path,
-  compiler: JavaCompilerService,
-  settings: IServerSettings, cancelChecker: ICancelChecker,
+	position: Position,
+	completingFile: Path,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
+	cancelChecker: ICancelChecker,
 ) : IJavaDefinitionProvider(position, completingFile, compiler, settings, cancelChecker) {
+	private lateinit var otherFile: JavaFileObject
 
-  private lateinit var otherFile: JavaFileObject
+	fun setOtherFile(jfo: JavaFileObject): RemoteDefinitionProvider {
+		this.otherFile = jfo
+		return this
+	}
 
-  fun setOtherFile(jfo: JavaFileObject): RemoteDefinitionProvider {
-    this.otherFile = jfo
-    return this
-  }
-
-  override fun doFindDefinition(element: Element): List<Location> {
+	override fun doFindDefinition(element: Element): List<Location> {
 //    val task = compiler.compile(listOf(SourceFileObject(file), otherFile))
-    val provider = LocalDefinitionProvider(position, file, compiler, settings, this)
-    return provider.findDefinition(element)
+		val provider = LocalDefinitionProvider(position, file, compiler, settings, this)
+		return provider.findDefinition(element)
 //    return provider
 //      .findDefinition(task.get { NavigationHelper.findElement(it, file, line, column) })
-  }
+	}
 }

@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.itsaky.androidide.R
+import kotlinx.parcelize.Parcelize
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
@@ -47,7 +48,6 @@ import org.appdevforall.codeonthego.utils.flashSuccess
 import org.appdevforall.codeonthego.utils.flashbarBuilder
 import org.appdevforall.codeonthego.utils.showOnUiThread
 import org.appdevforall.codeonthego.viewmodels.TemplateManagerViewModel
-import kotlinx.parcelize.Parcelize
 
 /**
  * Keyed on the backing file's absolute path rather than holding a [CgtFileItem] directly: the

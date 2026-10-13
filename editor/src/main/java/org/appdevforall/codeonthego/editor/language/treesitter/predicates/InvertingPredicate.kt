@@ -28,26 +28,31 @@ import io.github.rosemoe.sora.editor.ts.predicate.TsSyntheticCaptureContainer
  *
  * @author Akash Yadav
  */
-open class InvertingPredicate(override val name: String,
-  private val predicate: TreeSitterPredicate) :
-  TreeSitterPredicate() {
+open class InvertingPredicate(
+	override val name: String,
+	private val predicate: TreeSitterPredicate,
+) : TreeSitterPredicate() {
+	override fun canHandle(steps: List<TsClientPredicateStep>): Boolean = predicate.canHandle(steps)
 
-  override fun canHandle(steps: List<TsClientPredicateStep>): Boolean {
-    return predicate.canHandle(steps)
-  }
-
-  override fun doPredicateInternal(
-    tsQuery: TSQuery,
-    text: CharSequence,
-    match: TSQueryMatch,
-    predicateSteps: List<TsClientPredicateStep>,
-    syntheticCaptures: TsSyntheticCaptureContainer
-  ): PredicateResult {
-    return when (val result = this.predicate.doPredicateInternal(tsQuery, text, match,
-      predicateSteps, syntheticCaptures)) {
-      PredicateResult.ACCEPT -> PredicateResult.REJECT
-      PredicateResult.REJECT -> PredicateResult.ACCEPT
-      else -> result
-    }
-  }
+	override fun doPredicateInternal(
+		tsQuery: TSQuery,
+		text: CharSequence,
+		match: TSQueryMatch,
+		predicateSteps: List<TsClientPredicateStep>,
+		syntheticCaptures: TsSyntheticCaptureContainer,
+	): PredicateResult =
+		when (
+			val result =
+				this.predicate.doPredicateInternal(
+					tsQuery,
+					text,
+					match,
+					predicateSteps,
+					syntheticCaptures,
+				)
+		) {
+			PredicateResult.ACCEPT -> PredicateResult.REJECT
+			PredicateResult.REJECT -> PredicateResult.ACCEPT
+			else -> result
+		}
 }

@@ -4,6 +4,11 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.analytics.quickbuild.AnalyticsQuickBuildMetricsSink
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
@@ -20,11 +25,6 @@ import org.appdevforall.codeonthego.quickbuild.QuickBuildBenchHooks
 import org.appdevforall.codeonthego.quickbuild.QuickBuildOutputMetricsSink
 import org.appdevforall.codeonthego.quickbuild.QuickBuildOutputNarrator
 import org.appdevforall.codeonthego.utils.ApkInstaller
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.data.DaemonProcessClient
 import org.appdevforall.cotg.quickbuild.data.QuickBuildDaemon
 import org.appdevforall.cotg.quickbuild.domain.telemetry.QuickBuildMetricsSink

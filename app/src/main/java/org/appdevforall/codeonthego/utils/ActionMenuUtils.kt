@@ -25,12 +25,12 @@ import android.view.View.OnLongClickListener
 import android.widget.FrameLayout.LayoutParams
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
+import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionsRegistry
 import org.appdevforall.codeonthego.actions.internal.DefaultActionsRegistry
-import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
-import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.plugins.extensions.FileTabMenuItem

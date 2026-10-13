@@ -19,4 +19,6 @@ package org.appdevforall.codeonthego.tooling.model
 import java.io.File
 
 /** @author Akash Yadav */
-data class BuildIdentifier(val rootDir: File)
+data class BuildIdentifier(
+	val rootDir: File,
+)

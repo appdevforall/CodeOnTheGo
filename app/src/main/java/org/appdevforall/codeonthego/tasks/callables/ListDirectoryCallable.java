@@ -21,9 +21,9 @@
 package org.appdevforall.codeonthego.tasks.callables;
 
 import android.text.TextUtils;
-import org.appdevforall.codeonthego.utils.FileUtils;
 import java.io.File;
 import java.io.FileFilter;
+import org.appdevforall.codeonthego.utils.FileUtils;
 
 public class ListDirectoryCallable implements java.util.concurrent.Callable<String> {
 

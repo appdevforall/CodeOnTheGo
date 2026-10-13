@@ -35,79 +35,80 @@ import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 
 /** @author Akash Yadav */
 class ViewInfoSheet : BottomSheetDialogFragment() {
+	private var binding: LayoutViewInfoSheetBinding? = null
+	private val viewModel by viewModels<WorkspaceViewModel>(ownerProducer = { requireActivity() })
 
-  private var binding: LayoutViewInfoSheetBinding? = null
-  private val viewModel by viewModels<WorkspaceViewModel>(ownerProducer = { requireActivity() })
+	companion object {
+		const val TAG = "ide.uidesigner.viewinfo"
+	}
 
-  companion object {
+	private val viewInfoBackPressedCallback =
+		object : OnBackPressedCallback(true) {
+			override fun handleOnBackPressed() {
+				val containerView = this@ViewInfoSheet.binding?.navHost ?: return
+				val navController = containerView.findNavController()
+				navController.navigateUp()
+			}
+		}
 
-    const val TAG = "ide.uidesigner.viewinfo"
-  }
+	override fun onDismiss(dialog: DialogInterface) {
+		viewModel.undoManager.enable()
+		viewModel.notifyAttrUpdated()
+		super.onDismiss(dialog)
+	}
 
-  private val viewInfoBackPressedCallback =
-    object : OnBackPressedCallback(true) {
-      override fun handleOnBackPressed() {
-        val containerView = this@ViewInfoSheet.binding?.navHost ?: return
-        val navController = containerView.findNavController()
-        navController.navigateUp()
-      }
-    }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View =
+		LayoutViewInfoSheetBinding
+			.inflate(inflater, container, false)
+			.also { this.binding = it }
+			.root
 
-  override fun onDismiss(dialog: DialogInterface) {
-    viewModel.undoManager.enable()
-    viewModel.notifyAttrUpdated()
-    super.onDismiss(dialog)
-  }
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?
-  ): View {
-    return LayoutViewInfoSheetBinding.inflate(inflater, container, false)
-      .also { this.binding = it }
-      .root
-  }
+		// Set navigation graph programmatically
+		val navController = findNavControllerFromFragment()
+		navController.setGraph(R.navigation.nav_viewinfo)
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
+		navController.addOnDestinationChangedListener { _, destination, _ ->
+			viewInfoBackPressedCallback.isEnabled = destination.id != R.id.viewInfoFragment
 
-    // Set navigation graph programmatically
-    val navController = findNavControllerFromFragment()
-    navController.setGraph(R.navigation.nav_viewinfo)
+			// not disabling the undo manager when going into 'edit mode' will result in a lot
+			// AttrUpdatedAction being pushed to UndoManager's undo stack.
+			viewModel.undoManager.enabled = destination.id != R.id.attrValueEditorFragment
 
-    navController.addOnDestinationChangedListener { _, destination, _ ->
-      viewInfoBackPressedCallback.isEnabled = destination.id != R.id.viewInfoFragment
+			if (viewModel.currentDestination == R.id.attrValueEditorFragment) {
+				// if we are returning from value editor, then
+				// 1 - if we were updating the value of an existing attribute, then the updated value must
+				//     be updated in the view
+				// 2 - if we were adding a new attribute, then that attribute should be added to the view.
+				viewModel.notifyAttrUpdated()
+				viewModel.selectedAttr = null
+				viewModel.addAttrMode = false
+			}
 
-      // not disabling the undo manager when going into 'edit mode' will result in a lot
-      // AttrUpdatedAction being pushed to UndoManager's undo stack.
-      viewModel.undoManager.enabled = destination.id != R.id.attrValueEditorFragment
+			viewModel.currentDestination = destination.id
+		}
 
-      if (viewModel.currentDestination == R.id.attrValueEditorFragment) {
-        // if we are returning from value editor, then
-        // 1 - if we were updating the value of an existing attribute, then the updated value must
-        //     be updated in the view
-        // 2 - if we were adding a new attribute, then that attribute should be added to the view.
-        viewModel.notifyAttrUpdated()
-        viewModel.selectedAttr = null
-        viewModel.addAttrMode = false
-      }
+		(requireDialog() as ComponentDialog)
+			.onBackPressedDispatcher
+			.addCallback(viewLifecycleOwner, viewInfoBackPressedCallback)
+	}
 
-      viewModel.currentDestination = destination.id
-    }
+	private fun findNavControllerFromFragment(): NavController {
+		val framgent = childFragmentManager.findFragmentById(R.id.nav_host) as NavHostFragment
+		return framgent.navController
+	}
 
-    (requireDialog() as ComponentDialog)
-      .onBackPressedDispatcher
-      .addCallback(viewLifecycleOwner, viewInfoBackPressedCallback)
-  }
-
-  private fun findNavControllerFromFragment(): NavController {
-    val framgent = childFragmentManager.findFragmentById(R.id.nav_host) as NavHostFragment
-    return framgent.navController
-  }
-
-  override fun onDestroyView() {
-    super.onDestroyView()
-    this.binding = null
-  }
+	override fun onDestroyView() {
+		super.onDestroyView()
+		this.binding = null
+	}
 }

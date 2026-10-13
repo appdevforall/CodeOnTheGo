@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.search.replace
 
+import io.github.rosemoe.sora.text.Content
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
 import org.appdevforall.codeonthego.eventbus.events.file.FileContentChangedEvent
 import org.appdevforall.codeonthego.models.SearchResult
-import io.github.rosemoe.sora.text.Content
 import org.greenrobot.eventbus.EventBus
 import java.io.File
 

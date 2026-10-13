@@ -16,11 +16,11 @@
  */
 package org.appdevforall.codeonthego.javac.services.visitors
 
-import org.appdevforall.codeonthego.utils.ReflectUtils
 import openjdk.tools.javac.code.Symbol.ModuleSymbol
 import openjdk.tools.javac.comp.Enter
 import openjdk.tools.javac.tree.JCTree.JCClassDecl
 import openjdk.tools.javac.tree.TreeScanner
+import org.appdevforall.codeonthego.utils.ReflectUtils
 
 /**
  * `Enter.unenter` method is not available in JDK 11. This visitor does the same thing as calling

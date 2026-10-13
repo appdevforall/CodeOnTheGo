@@ -30,11 +30,11 @@ import com.google.common.truth.Truth.assertThat
  * @see UiDevice.waitForWindowUpdate
  */
 fun UiObject2?.clickAndWaitForWindowUpdate(device: UiDevice, timeout: Long = 500L) =
-  run {
-    assertThat(this).isNotNull()
-    this!!.click()
-    device.waitForWindowUpdate(timeout)
-  }
+run {
+	assertThat(this).isNotNull()
+	this!!.click()
+	device.waitForWindowUpdate(timeout)
+}
 
 /**
  * Click this object and wait for a new window to appear within the given timeout duration.
@@ -42,40 +42,40 @@ fun UiObject2?.clickAndWaitForWindowUpdate(device: UiDevice, timeout: Long = 500
  * @see UiObject2.clickAndWait
  */
 fun UiObject2?.clickAndWaitForNewWindow(timeout: Long = LAUNCH_TIMEOUT) =
-  run {
-    assertThat(this).isNotNull()
-    this!!.clickAndWait(Until.newWindow(), timeout)
-  }
+run {
+	assertThat(this).isNotNull()
+	this!!.clickAndWait(Until.newWindow(), timeout)
+}
 
 /**
  * @see UiDevice.hasObject
  */
 fun UiObject2.hasObjectWithText(text: String) =
-  hasObject(By.text(text))
+hasObject(By.text(text))
 
 /**
  * @see UiObject2.hasObject
  */
 fun UiObject2.hasObjectWithText(@StringRes text: Int) =
-  hasObjectWithText(stringRes(text))
+hasObjectWithText(stringRes(text))
 
 /**
  * @see UiObject2.findObject
  */
 fun UiObject2.findObjectWithText(text: String): UiObject2? =
-  findObject(By.text(text))
+findObject(By.text(text))
 
 /**
  * @see UiObject2.findObjectWithText
  */
 fun UiObject2.findObjectWithText(@StringRes text: Int): UiObject2? =
-  findObjectWithText(stringRes(text))
+findObjectWithText(stringRes(text))
 
 
 fun UiObject2.getObjectWithText(text: String): UiObject2 {
-  val obj = findObjectWithText(text)
-  assertThat(obj).isNotNull()
-  return obj!!
+val obj = findObjectWithText(text)
+assertThat(obj).isNotNull()
+return obj!!
 }
 
 fun UiObject2.getObjectWithText(@StringRes text: Int): UiObject2 = getObjectWithText(stringRes(text))

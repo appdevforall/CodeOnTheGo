@@ -1,14 +1,5 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.ScheduledCancelChecker
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.UnpinnedAnalysis
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.analyzeMaybeDangling
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.backingFilePath
-import org.appdevforall.codeonthego.lsp.kotlin.compiler.read
-import org.appdevforall.codeonthego.lsp.kotlin.utils.toNioPathOrNull
-import org.appdevforall.codeonthego.progress.ICancelChecker
-import org.appdevforall.codeonthego.projects.FileManager
 import io.sentry.Attachment
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
@@ -28,6 +19,15 @@ import org.appdevforall.codeonthego.indexing.jvm.KotlinPropertyInfo
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.indexing.jvm.jvmCallableKey
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.AnalysisPriority
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.UnpinnedAnalysis
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.analyzeMaybeDangling
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.backingFilePath
+import org.appdevforall.codeonthego.lsp.kotlin.compiler.read
+import org.appdevforall.codeonthego.lsp.kotlin.utils.toNioPathOrNull
+import org.appdevforall.codeonthego.progress.ICancelChecker
+import org.appdevforall.codeonthego.projects.FileManager
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.KaSession

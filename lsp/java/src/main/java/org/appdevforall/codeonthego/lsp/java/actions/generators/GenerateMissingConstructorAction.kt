@@ -16,6 +16,7 @@
  */
 package org.appdevforall.codeonthego.lsp.java.actions.generators
 
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
@@ -28,60 +29,59 @@ import org.appdevforall.codeonthego.lsp.java.models.DiagnosticCode
 import org.appdevforall.codeonthego.lsp.java.rewrite.GenerateRecordConstructor
 import org.appdevforall.codeonthego.lsp.java.utils.CodeActionUtils
 import org.appdevforall.codeonthego.projects.IProjectManager
-import com.itsaky.androidide.resources.R
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class GenerateMissingConstructorAction : BaseJavaCodeAction() {
+	override val id = "ide.editor.lsp.java.generator.missingConstructor"
+	override var label: String = ""
+	private val diagnosticCode = DiagnosticCode.MISSING_CONSTRUCTOR.id
+	override val titleTextRes: Int = R.string.action_generate_missing_constructor
+	override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR
 
-  override val id = "ide.editor.lsp.java.generator.missingConstructor"
-  override var label: String = ""
-  private val diagnosticCode = DiagnosticCode.MISSING_CONSTRUCTOR.id
-  override val titleTextRes: Int = R.string.action_generate_missing_constructor
-  override var tooltipTag: String = TooltipTag.EDITOR_CODE_ACTIONS_GEN_CONSTRUCTOR
+	companion object {
+		private val log = LoggerFactory.getLogger(GenerateMissingConstructorAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    private val log = LoggerFactory.getLogger(GenerateMissingConstructorAction::class.java)
-  }
+		if (
+			!visible ||
+			!data.hasRequiredData(org.appdevforall.codeonthego.lsp.models.DiagnosticItem::class.java)
+		) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		val diagnostic = data[org.appdevforall.codeonthego.lsp.models.DiagnosticItem::class.java]!!
+		if (diagnosticCode != diagnostic.code) {
+			markInvisible()
+			return
+		}
+	}
 
-    if (
-      !visible ||
-      !data.hasRequiredData(org.appdevforall.codeonthego.lsp.models.DiagnosticItem::class.java)
-    ) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val diagnostic = data[org.appdevforall.codeonthego.lsp.models.DiagnosticItem::class.java]!!
+		val compiler =
+			JavaCompilerProvider.get(IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
+		val file = data.requirePath()
+		return compiler.compile(file).get { task ->
+			val needsConstructor =
+				CodeActionUtils.findClassNeedingConstructor(task, diagnostic.range) ?: return@get false
+			return@get GenerateRecordConstructor(needsConstructor)
+		}
+	}
 
-    val diagnostic = data[org.appdevforall.codeonthego.lsp.models.DiagnosticItem::class.java]!!
-    if (diagnosticCode != diagnostic.code) {
-      markInvisible()
-      return
-    }
-  }
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is GenerateRecordConstructor) {
+			log.warn("Unable to generate constructor")
+			return
+		}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val diagnostic = data[org.appdevforall.codeonthego.lsp.models.DiagnosticItem::class.java]!!
-    val compiler =
-      JavaCompilerProvider.get(
-        IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
-    val file = data.requirePath()
-    return compiler.compile(file).get { task ->
-      val needsConstructor =
-        CodeActionUtils.findClassNeedingConstructor(task, diagnostic.range) ?: return@get false
-      return@get GenerateRecordConstructor(needsConstructor)
-    }
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is GenerateRecordConstructor) {
-      log.warn("Unable to generate constructor")
-      return
-    }
-
-    performCodeAction(data, result)
-  }
+		performCodeAction(data, result)
+	}
 }

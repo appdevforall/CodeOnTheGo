@@ -17,8 +17,6 @@
 
 package org.appdevforall.codeonthego.logsender.utils;
 
-import org.appdevforall.codeonthego.logsender.socket.ISocketCommand;
-import org.appdevforall.codeonthego.logsender.socket.SenderInfoCommand;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -26,6 +24,8 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.appdevforall.codeonthego.logsender.socket.ISocketCommand;
+import org.appdevforall.codeonthego.logsender.socket.SenderInfoCommand;
 
 /**
  * Reads application logs with `logcat`.
@@ -34,66 +34,67 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class LogReader extends Thread {
 
-  private final String senderId;
-  private final String packageName;
-  private final int port;
-  private final ProcessBuilder processBuilder;
-  private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
+	private static String[] defaultCmd() {
+		return new String[]{"logcat", "-v", "threadtime"};
+	}
 
-  public LogReader(String senderId, String packageName, int port) {
-    this(senderId, packageName, port, defaultCmd());
-  }
+	private final String senderId;
+	private final String packageName;
+	private final int port;
+	private final ProcessBuilder processBuilder;
 
-  public LogReader(String senderId, String packageName, int port, String[] cmd) {
-    super("CodeOnTheGo-LogReader");
-    this.senderId = senderId;
-    this.packageName = packageName;
-    this.port = port;
+	private final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
-    this.processBuilder = new ProcessBuilder(cmd);
-    this.processBuilder.redirectErrorStream(true);
-  }
+	public LogReader(String senderId, String packageName, int port) {
+		this(senderId, packageName, port, defaultCmd());
+	}
 
-  private static String[] defaultCmd() {
-    return new String[]{"logcat", "-v", "threadtime"};
-  }
+	public LogReader(String senderId, String packageName, int port, String[] cmd) {
+		super("CodeOnTheGo-LogReader");
+		this.senderId = senderId;
+		this.packageName = packageName;
+		this.port = port;
 
-  @Override
-  public void run() {
-    Logger.info("Starting to read logs...");
-    try (final Socket socket = new Socket(InetAddress.getLocalHost(), port)) {
-      final Process process = processBuilder.start();
+		this.processBuilder = new ProcessBuilder(cmd);
+		this.processBuilder.redirectErrorStream(true);
+	}
 
-      try (final BufferedReader reader = new BufferedReader(
-          new InputStreamReader(process.getInputStream()))) {
+	public void cancel() {
+		this.isInterrupted.set(true);
+		this.interrupt();
+	}
 
-        final OutputStream outputStream = socket.getOutputStream();
+	@Override
+	public void run() {
+		Logger.info("Starting to read logs...");
+		try (final Socket socket = new Socket(InetAddress.getLocalHost(), port)) {
+			final Process process = processBuilder.start();
 
-        // Send the sender info
-        writeCommand(new SenderInfoCommand(this.senderId, this.packageName), outputStream);
+			try (final BufferedReader reader = new BufferedReader(
+					new InputStreamReader(process.getInputStream()))) {
 
-        String line;
-        while (!isInterrupted.get() && (line = reader.readLine()) != null) {
-          line += "\n";
-          outputStream.write(line.getBytes());
-        }
+				final OutputStream outputStream = socket.getOutputStream();
 
-      } catch (IOException ioError) {
-        Logger.error("Error reading from the logcat process or writing to the socket", ioError);
-      } finally {
-        socket.close();
-      }
-    } catch (IOException ioError) {
-      Logger.error("Error creating the socket or starting the process", ioError);
-    }
-  }
+				// Send the sender info
+				writeCommand(new SenderInfoCommand(this.senderId, this.packageName), outputStream);
 
-  private void writeCommand(ISocketCommand command, OutputStream outputStream) throws IOException {
-    outputStream.write(command.toString().getBytes());
-  }
+				String line;
+				while (!isInterrupted.get() && (line = reader.readLine()) != null) {
+					line += "\n";
+					outputStream.write(line.getBytes());
+				}
 
-  public void cancel() {
-    this.isInterrupted.set(true);
-    this.interrupt();
-  }
+			} catch (IOException ioError) {
+				Logger.error("Error reading from the logcat process or writing to the socket", ioError);
+			} finally {
+				socket.close();
+			}
+		} catch (IOException ioError) {
+			Logger.error("Error creating the socket or starting the process", ioError);
+		}
+	}
+
+	private void writeCommand(ISocketCommand command, OutputStream outputStream) throws IOException {
+		outputStream.write(command.toString().getBytes());
+	}
 }

@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
 import com.google.common.truth.Truth.assertThat
+import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.appdevforall.codeonthego.lsp.java.compiler.ClasspathPackages
 import org.appdevforall.codeonthego.lsp.java.providers.completion.ImportCompletionProvider.RequireMemberCompletionException
 import org.appdevforall.codeonthego.utils.ClassTrie
-import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith

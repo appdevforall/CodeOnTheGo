@@ -23,15 +23,15 @@ package org.appdevforall.codeonthego.xml.widgets
  * @author Akash Yadav
  */
 interface Widget {
-  /** The simple name of the widget. For example, `TextView`. */
-  val simpleName: String
+	/** The simple name of the widget. For example, `TextView`. */
+	val simpleName: String
 
-  /** The qualified name of the widget. For example, `android.widget.TextView`. */
-  val qualifiedName: String
+	/** The qualified name of the widget. For example, `android.widget.TextView`. */
+	val qualifiedName: String
 
-  /** The type of widget. */
-  val type: WidgetType
+	/** The type of widget. */
+	val type: WidgetType
 
-  /** The fully qualified names of the superclasses of this widget. */
-  val superclasses: List<String>
+	/** The fully qualified names of the superclasses of this widget. */
+	val superclasses: List<String>
 }

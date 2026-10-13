@@ -23,13 +23,12 @@ package org.appdevforall.codeonthego.builder.model
  * @author Akash Yadav
  */
 abstract class IJavaCompilerSettings {
-  
-  private val gsonType: String = javaClass.name
-  private val serialVersionUID = 1L
+	private val gsonType: String = javaClass.name
+	private val serialVersionUID = 1L
 
-  /** Source java version. */
-  abstract val javaSourceVersion: String
+	/** Source java version. */
+	abstract val javaSourceVersion: String
 
-  /** Target java version. */
-  abstract val javaBytecodeVersion: String
+	/** Target java version. */
+	abstract val javaBytecodeVersion: String
 }

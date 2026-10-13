@@ -18,12 +18,12 @@
 package org.appdevforall.codeonthego.lsp.util;
 
 import androidx.annotation.NonNull;
-import org.appdevforall.codeonthego.lsp.models.DiagnosticItem;
-import org.appdevforall.codeonthego.models.Position;
-import org.appdevforall.codeonthego.models.Range;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.appdevforall.codeonthego.lsp.models.DiagnosticItem;
+import org.appdevforall.codeonthego.models.Position;
+import org.appdevforall.codeonthego.models.Range;
 
 /**
  * Utility class for working with diagnostic items.

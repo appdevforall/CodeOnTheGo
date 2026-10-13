@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.lsp.kotlin.completion
 
+import io.github.rosemoe.sora.text.Content
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.index.UnpinnedKtFileAccess
 import org.appdevforall.codeonthego.lsp.kotlin.utils.AnalysisContext
 import org.appdevforall.codeonthego.lsp.models.CompletionItem
-import io.github.rosemoe.sora.text.Content
-import io.github.rosemoe.sora.widget.CodeEditor
 import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 

@@ -29,43 +29,46 @@ import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 /**
  * @author Akash Yadav
  */
-class OnboardingInfoFragment :
-  FragmentWithBinding<FragmentOnboardingInfoBinding>(FragmentOnboardingInfoBinding::inflate) {
+class OnboardingInfoFragment : FragmentWithBinding<FragmentOnboardingInfoBinding>(FragmentOnboardingInfoBinding::inflate) {
+	companion object {
+		const val KEY_INFO_TEXT = "ide.onboarding.infoFragment.info"
+		const val KEY_INFO_ICON = "ide.onboarding.infoFragment.icon"
+		const val KEY_INFO_ICON_TINT = "ide.onboarding.infoFragment.icon.tint"
 
-  companion object {
+		@JvmStatic
+		fun newInstance(
+			title: CharSequence,
+			info: CharSequence,
+			@DrawableRes icon: Int,
+			@ColorInt iconTint: Int,
+		): OnboardingInfoFragment =
+			OnboardingInfoFragment().apply {
+				arguments =
+					Bundle().apply {
+						putCharSequence(OnboardingFragment.KEY_ONBOARDING_TITLE, title)
+						putCharSequence(KEY_INFO_TEXT, info)
+						putInt(KEY_INFO_ICON, icon)
+						putInt(KEY_INFO_ICON_TINT, iconTint)
+					}
+			}
+	}
 
-    const val KEY_INFO_TEXT = "ide.onboarding.infoFragment.info"
-    const val KEY_INFO_ICON = "ide.onboarding.infoFragment.icon"
-    const val KEY_INFO_ICON_TINT = "ide.onboarding.infoFragment.icon.tint"
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
 
-    @JvmStatic
-    fun newInstance(
-      title: CharSequence,
-      info: CharSequence,
-      @DrawableRes icon: Int,
-      @ColorInt iconTint: Int
-    ): OnboardingInfoFragment {
-      return OnboardingInfoFragment().apply {
-        arguments = Bundle().apply {
-          putCharSequence(OnboardingFragment.KEY_ONBOARDING_TITLE, title)
-          putCharSequence(KEY_INFO_TEXT, info)
-          putInt(KEY_INFO_ICON, icon)
-          putInt(KEY_INFO_ICON_TINT, iconTint)
-        }
-      }
-    }
-  }
+		binding.infoTitle.text =
+			requireArguments().getCharSequence(OnboardingFragment.KEY_ONBOARDING_TITLE)
 
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
-
-    binding.infoTitle.text = requireArguments().getCharSequence(
-      OnboardingFragment.KEY_ONBOARDING_TITLE)
-
-    binding.infoMessage.text = requireArguments().getCharSequence(KEY_INFO_TEXT)
-    binding.image.setImageResource(requireArguments().getInt(KEY_INFO_ICON))
-    ImageViewCompat.setImageTintList(binding.image,
-      ColorStateList.valueOf(requireArguments().getInt(
-        KEY_INFO_ICON_TINT)))
-  }
+		binding.infoMessage.text = requireArguments().getCharSequence(KEY_INFO_TEXT)
+		binding.image.setImageResource(requireArguments().getInt(KEY_INFO_ICON))
+		ImageViewCompat.setImageTintList(
+			binding.image,
+			ColorStateList.valueOf(
+				requireArguments().getInt(KEY_INFO_ICON_TINT),
+			),
+		)
+	}
 }

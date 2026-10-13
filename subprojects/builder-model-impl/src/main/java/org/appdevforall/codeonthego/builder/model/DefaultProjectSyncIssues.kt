@@ -20,7 +20,9 @@ import com.android.builder.model.v2.models.ProjectSyncIssues
 import java.io.Serializable
 
 /** @author Akash Yadav */
-data class DefaultProjectSyncIssues(override val syncIssues: Collection<DefaultSyncIssue>) :
-  ProjectSyncIssues, Serializable {
-  private val serialVersionUID = 1L
+data class DefaultProjectSyncIssues(
+	override val syncIssues: Collection<DefaultSyncIssue>,
+) : ProjectSyncIssues,
+	Serializable {
+	private val serialVersionUID = 1L
 }

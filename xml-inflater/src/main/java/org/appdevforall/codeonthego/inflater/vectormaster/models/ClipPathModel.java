@@ -26,84 +26,83 @@ import android.graphics.RectF;
 import org.appdevforall.codeonthego.inflater.vectormaster.utilities.parser.PathParser;
 
 public class ClipPathModel {
-  private String name;
-  private String pathData;
+	private String name;
+	private String pathData;
 
-  private Path originalPath;
-  private Path path;
+	private Path originalPath;
+	private Path path;
 
-  private Paint clipPaint;
+	private Paint clipPaint;
 
-  public ClipPathModel() {
-    path = new Path();
+	public ClipPathModel() {
+		path = new Path();
 
-    clipPaint = new Paint();
-    clipPaint.setAntiAlias(true);
-    clipPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
-  }
+		clipPaint = new Paint();
+		clipPaint.setAntiAlias(true);
+		clipPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+	}
 
-  public void buildPath(boolean useLegacyParser) {
-    if (useLegacyParser) {
-      originalPath =
-          org.appdevforall.codeonthego.inflater.vectormaster.utilities.legacyparser.PathParser.createPathFromPathData(
-              pathData);
-    } else {
-      originalPath = PathParser.doPath(pathData);
-    }
+	public void buildPath(boolean useLegacyParser) {
+		if (useLegacyParser) {
+			originalPath = org.appdevforall.codeonthego.inflater.vectormaster.utilities.legacyparser.PathParser.createPathFromPathData(
+					pathData);
+		} else {
+			originalPath = PathParser.doPath(pathData);
+		}
 
-    path = new Path(originalPath);
-  }
+		path = new Path(originalPath);
+	}
 
-  public void transform(Matrix matrix) {
-    path = new Path(originalPath);
+	public Paint getClipPaint() {
+		return clipPaint;
+	}
 
-    path.transform(matrix);
-  }
+	public String getName() {
+		return name;
+	}
 
-  public Paint getClipPaint() {
-    return clipPaint;
-  }
+	public Path getPath() {
+		return path;
+	}
 
-  public void setClipPaint(Paint clipPaint) {
-    this.clipPaint = clipPaint;
-  }
+	public String getPathData() {
+		return pathData;
+	}
 
-  public String getName() {
-    return name;
-  }
+	public Path getScaledAndOffsetPath(float offsetX, float offsetY, float scaleX, float scaleY) {
+		Path newPath = new Path(path);
+		newPath.offset(offsetX, offsetY);
+		newPath.transform(getScaleMatrix(newPath, scaleX, scaleY));
+		return newPath;
+	}
 
-  public void setName(String name) {
-    this.name = name;
-  }
+	public Matrix getScaleMatrix(Path srcPath, float scaleX, float scaleY) {
+		Matrix scaleMatrix = new Matrix();
+		RectF rectF = new RectF();
+		srcPath.computeBounds(rectF, true);
+		scaleMatrix.setScale(scaleX, scaleY, rectF.left, rectF.top);
+		return scaleMatrix;
+	}
 
-  public String getPathData() {
-    return pathData;
-  }
+	public void setClipPaint(Paint clipPaint) {
+		this.clipPaint = clipPaint;
+	}
 
-  public void setPathData(String pathData) {
-    this.pathData = pathData;
-  }
+	public void setName(String name) {
+		this.name = name;
+	}
 
-  public Path getPath() {
-    return path;
-  }
+	public void setPath(Path path) {
+		this.path = path;
+	}
 
-  public void setPath(Path path) {
-    this.path = path;
-  }
+	public void setPathData(String pathData) {
+		this.pathData = pathData;
+	}
 
-  public Path getScaledAndOffsetPath(float offsetX, float offsetY, float scaleX, float scaleY) {
-    Path newPath = new Path(path);
-    newPath.offset(offsetX, offsetY);
-    newPath.transform(getScaleMatrix(newPath, scaleX, scaleY));
-    return newPath;
-  }
+	public void transform(Matrix matrix) {
+		path = new Path(originalPath);
 
-  public Matrix getScaleMatrix(Path srcPath, float scaleX, float scaleY) {
-    Matrix scaleMatrix = new Matrix();
-    RectF rectF = new RectF();
-    srcPath.computeBounds(rectF, true);
-    scaleMatrix.setScale(scaleX, scaleY, rectF.left, rectF.top);
-    return scaleMatrix;
-  }
+		path.transform(matrix);
+	}
 }

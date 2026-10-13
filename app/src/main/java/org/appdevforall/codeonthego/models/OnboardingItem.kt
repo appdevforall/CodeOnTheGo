@@ -27,41 +27,40 @@ import androidx.annotation.DrawableRes
  * @author Akash Yadav
  */
 interface OnboardingItem : Parcelable {
+	/**
+	 * The key for the item.
+	 */
+	val key: String
 
-  /**
-   * The key for the item.
-   */
-  val key: String
+	/**
+	 * Title for the item.
+	 */
+	val title: CharSequence
 
-  /**
-   * Title for the item.
-   */
-  val title: CharSequence
+	/**
+	 * Short description (or subtitle) for the item.
+	 */
+	val description: CharSequence
 
-  /**
-   * Short description (or subtitle) for the item.
-   */
-  val description: CharSequence
+	/**
+	 * Icon for the item.
+	 */
+	@get:DrawableRes
+	val icon: Int
 
-  /**
-   * Icon for the item.
-   */
-  @get:DrawableRes
-  val icon: Int
+	/**
+	 * Icon tint for the item.
+	 */
+	@get:ColorInt
+	val iconTint: Int
 
-  /**
-   * Icon tint for the item.
-   */
-  @get:ColorInt
-  val iconTint: Int
+	/**
+	 * Whether is item is clickable.
+	 */
+	val isClickable: Boolean
 
-  /**
-   * Whether is item is clickable.
-   */
-  val isClickable: Boolean
-
-  /**
-   * Whether the item is long clickable.
-   */
-  val isLongClickable: Boolean
+	/**
+	 * Whether the item is long clickable.
+	 */
+	val isLongClickable: Boolean
 }

@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.utils
 
 import android.content.Context
+import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
+import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.appdevforall.codeonthego.app.IDEApplication
 import org.appdevforall.codeonthego.managers.ToolsManager
 import org.appdevforall.codeonthego.templates.RecipeExecutor
-import org.adfa.constants.LOCAL_MAVEN_CACHES_DEST
-import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import java.io.File
 import java.io.IOException
 import java.io.InputStream

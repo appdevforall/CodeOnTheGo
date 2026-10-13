@@ -4,10 +4,6 @@ import android.app.Application
 import android.content.Context
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.git.core.GitCredentialsManager
-import org.appdevforall.codeonthego.git.core.GitRepositoryManager
-import org.appdevforall.codeonthego.git.core.models.CloneRepoUiState
-import org.appdevforall.codeonthego.utils.isNetworkConnected
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -18,6 +14,10 @@ import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.git.core.GitCredentialsManager
+import org.appdevforall.codeonthego.git.core.GitRepositoryManager
+import org.appdevforall.codeonthego.git.core.models.CloneRepoUiState
+import org.appdevforall.codeonthego.utils.isNetworkConnected
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import org.junit.After
 import org.junit.Assert

@@ -13,6 +13,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.common.compose.IdeTheme
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
@@ -23,7 +24,6 @@ import org.appdevforall.codeonthego.ui.models.OutlineUiEffect
 import org.appdevforall.codeonthego.ui.outline.OutlinePanel
 import org.appdevforall.codeonthego.viewmodel.EditorViewModel
 import org.appdevforall.codeonthego.viewmodel.OutlineViewModel
-import kotlinx.coroutines.launch
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN

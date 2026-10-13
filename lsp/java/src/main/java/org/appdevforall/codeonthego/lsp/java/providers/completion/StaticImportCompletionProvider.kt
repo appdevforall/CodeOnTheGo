@@ -17,14 +17,6 @@
 
 package org.appdevforall.codeonthego.lsp.java.providers.completion
 
-import org.appdevforall.codeonthego.lsp.api.IServerSettings
-import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
-import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
-import org.appdevforall.codeonthego.lsp.java.providers.CompletionProvider
-import org.appdevforall.codeonthego.lsp.models.CompletionItem
-import org.appdevforall.codeonthego.lsp.models.CompletionResult
-import org.appdevforall.codeonthego.lsp.models.MatchLevel
-import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind.METHOD
 import jdkx.lang.model.element.ExecutableElement
@@ -35,6 +27,14 @@ import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.tree.MemberSelectTree
 import openjdk.source.util.TreePath
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.api.IServerSettings
+import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
+import org.appdevforall.codeonthego.lsp.java.compiler.JavaCompilerService
+import org.appdevforall.codeonthego.lsp.java.providers.CompletionProvider
+import org.appdevforall.codeonthego.lsp.models.CompletionItem
+import org.appdevforall.codeonthego.lsp.models.CompletionResult
+import org.appdevforall.codeonthego.lsp.models.MatchLevel
+import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
 import java.nio.file.Path
 
 /**
@@ -43,84 +43,85 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class StaticImportCompletionProvider(
-  completingFile: Path,
-  cursor: Long,
-  compiler: JavaCompilerService,
-  settings: IServerSettings,
-  val root: CompilationUnitTree,
+	completingFile: Path,
+	cursor: Long,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
+	val root: CompilationUnitTree,
 ) : IJavaCompletionProvider(cursor, completingFile, compiler, settings) {
+	override fun doComplete(
+		task: CompileTask,
+		path: TreePath,
+		partial: String,
+		endsWithParen: Boolean,
+	): CompletionResult {
+		val list = mutableListOf<CompletionItem>()
+		val trees = Trees.instance(task.task)
+		val methods = mutableMapOf<String, MutableList<ExecutableElement>>()
+		val matchRatios: MutableMap<String, MatchLevel> = mutableMapOf()
 
-  override fun doComplete(
-    task: CompileTask,
-    path: TreePath,
-    partial: String,
-    endsWithParen: Boolean,
-  ): CompletionResult {
-    val list = mutableListOf<CompletionItem>()
-    val trees = Trees.instance(task.task)
-    val methods = mutableMapOf<String, MutableList<ExecutableElement>>()
-    val matchRatios: MutableMap<String, MatchLevel> = mutableMapOf()
+		abortCompletionIfCancelled()
 
-    abortCompletionIfCancelled()
+		outer@ for (i in root.imports) {
+			if (!i.isStatic) {
+				continue
+			}
 
-    outer@ for (i in root.imports) {
-      if (!i.isStatic) {
-        continue
-      }
+			val id = i.qualifiedIdentifier as MemberSelectTree
+			if (!importMatchesPartial(id.identifier, partial)) {
+				continue
+			}
 
-      val id = i.qualifiedIdentifier as MemberSelectTree
-      if (!importMatchesPartial(id.identifier, partial)) {
-        continue
-      }
+			val exprPath = trees.getPath(root, id.expression)
+			val type = trees.getElement(exprPath) as TypeElement
 
-      val exprPath = trees.getPath(root, id.expression)
-      val type = trees.getElement(exprPath) as TypeElement
+			for (member in type.enclosedElements) {
+				if (!member.modifiers.contains(STATIC)) {
+					continue
+				}
 
-      for (member in type.enclosedElements) {
-        if (!member.modifiers.contains(STATIC)) {
-          continue
-        }
+				if (!memberMatchesImport(id.identifier, member)) {
+					continue
+				}
 
-        if (!memberMatchesImport(id.identifier, member)) {
-          continue
-        }
+				val matchLevel = matchLevel(member.simpleName, partial)
+				if (matchLevel == NO_MATCH) {
+					continue
+				}
 
-        val matchLevel = matchLevel(member.simpleName, partial)
-        if (matchLevel == NO_MATCH) {
-          continue
-        }
+				if (member.kind == METHOD) {
+					putMethod(member as ExecutableElement, methods)
+					matchRatios.putIfAbsent(member.simpleName.toString(), matchLevel)
+				} else {
+					list.add(item(task, member, matchLevel))
+				}
+				if (list.size + methods.size > CompletionProvider.MAX_COMPLETION_ITEMS) {
+					break@outer
+				}
+			}
+		}
 
-        if (member.kind == METHOD) {
-          putMethod(member as ExecutableElement, methods)
-          matchRatios.putIfAbsent(member.simpleName.toString(), matchLevel)
-        } else {
-          list.add(item(task, member, matchLevel))
-        }
-        if (list.size + methods.size > CompletionProvider.MAX_COMPLETION_ITEMS) {
-          break@outer
-        }
-      }
-    }
+		for ((key, value) in methods) {
+			val matchLevel = matchRatios.getOrDefault(key, NO_MATCH)
+			if (matchLevel == NO_MATCH) {
+				continue
+			}
 
-    for ((key, value) in methods) {
-      val matchLevel = matchRatios.getOrDefault(key, NO_MATCH)
-      if (matchLevel == NO_MATCH) {
-        continue
-      }
+			list.add(method(task, value, !endsWithParen, matchLevel, partial))
+		}
 
-      list.add(method(task, value, !endsWithParen, matchLevel, partial))
-    }
+		log.info("...found {} static imports", list.size)
 
-    log.info("...found {} static imports", list.size)
+		return CompletionResult(list)
+	}
 
-    return CompletionResult(list)
-  }
+	private fun importMatchesPartial(
+		staticImport: Name,
+		partial: String,
+	): Boolean = (staticImport.contentEquals("*") || matchLevel(staticImport, partial) != NO_MATCH)
 
-  private fun importMatchesPartial(staticImport: Name, partial: String): Boolean {
-    return (staticImport.contentEquals("*") || matchLevel(staticImport, partial) != NO_MATCH)
-  }
-
-  private fun memberMatchesImport(staticImport: Name, member: Element): Boolean {
-    return staticImport.contentEquals("*") || staticImport.contentEquals(member.simpleName)
-  }
+	private fun memberMatchesImport(
+		staticImport: Name,
+		member: Element,
+	): Boolean = staticImport.contentEquals("*") || staticImport.contentEquals(member.simpleName)
 }

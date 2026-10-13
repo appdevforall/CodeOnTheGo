@@ -26,16 +26,6 @@ import static org.appdevforall.codeonthego.utils.Environment.JAVA_HOME;
 
 import androidx.annotation.NonNull;
 import androidx.core.util.Pair;
-import org.appdevforall.codeonthego.javac.services.compiler.ReusableBorrow;
-import org.appdevforall.codeonthego.javac.services.partial.DiagnosticListenerImpl;
-import org.appdevforall.codeonthego.lsp.java.models.CompilationRequest;
-import org.appdevforall.codeonthego.lsp.java.visitors.MethodRangeScanner;
-import org.appdevforall.codeonthego.models.Range;
-import org.appdevforall.codeonthego.projects.api.ModuleProject;
-import org.appdevforall.codeonthego.projects.util.StringSearch;
-import org.appdevforall.codeonthego.utils.ClassTrie;
-import org.appdevforall.codeonthego.utils.SourceClassTrie;
-import org.appdevforall.codeonthego.utils.StopWatch;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -58,6 +48,16 @@ import openjdk.tools.javac.api.ClientCodeWrapper;
 import openjdk.tools.javac.api.JavacTaskImpl;
 import openjdk.tools.javac.code.Kinds;
 import openjdk.tools.javac.util.JCDiagnostic;
+import org.appdevforall.codeonthego.javac.services.compiler.ReusableBorrow;
+import org.appdevforall.codeonthego.javac.services.partial.DiagnosticListenerImpl;
+import org.appdevforall.codeonthego.lsp.java.models.CompilationRequest;
+import org.appdevforall.codeonthego.lsp.java.visitors.MethodRangeScanner;
+import org.appdevforall.codeonthego.models.Range;
+import org.appdevforall.codeonthego.projects.api.ModuleProject;
+import org.appdevforall.codeonthego.projects.util.StringSearch;
+import org.appdevforall.codeonthego.utils.ClassTrie;
+import org.appdevforall.codeonthego.utils.SourceClassTrie;
+import org.appdevforall.codeonthego.utils.StopWatch;
 
 public class CompileBatch implements AutoCloseable {
 

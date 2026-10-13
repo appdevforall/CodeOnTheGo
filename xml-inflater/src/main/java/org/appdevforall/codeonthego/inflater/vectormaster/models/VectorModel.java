@@ -21,212 +21,212 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Path;
-import org.appdevforall.codeonthego.inflater.vectormaster.enums.TintMode;
 import java.util.ArrayList;
+import org.appdevforall.codeonthego.inflater.vectormaster.enums.TintMode;
 
 public class VectorModel {
 
-  private String name;
+	private String name;
 
-  private float width, height;
+	private float width, height;
 
-  private float alpha = 1.0f;
+	private float alpha = 1.0f;
 
-  private boolean autoMirrored = false;
+	private boolean autoMirrored = false;
 
-  private int tint = Color.TRANSPARENT;
-  private TintMode tintMode = TintMode.SCR_IN;
+	private int tint = Color.TRANSPARENT;
+	private TintMode tintMode = TintMode.SCR_IN;
 
-  private float viewportWidth, viewportHeight;
+	private float viewportWidth, viewportHeight;
 
-  private ArrayList<GroupModel> groupModels;
-  private ArrayList<PathModel> pathModels;
-  private ArrayList<ClipPathModel> clipPathModels;
+	private ArrayList<GroupModel> groupModels;
+	private ArrayList<PathModel> pathModels;
+	private ArrayList<ClipPathModel> clipPathModels;
 
-  private Path fullpath;
+	private Path fullpath;
 
-  private Matrix scaleMatrix;
+	private Matrix scaleMatrix;
 
-  public VectorModel() {
-    groupModels = new ArrayList<>();
-    pathModels = new ArrayList<>();
-    clipPathModels = new ArrayList<>();
-    fullpath = new Path();
-  }
+	public VectorModel() {
+		groupModels = new ArrayList<>();
+		pathModels = new ArrayList<>();
+		clipPathModels = new ArrayList<>();
+		fullpath = new Path();
+	}
 
-  public void drawPaths(Canvas canvas, float offsetX, float offsetY, float scaleX, float scaleY) {
-    for (ClipPathModel clipPathModel : clipPathModels) {
-      canvas.clipPath(clipPathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY));
-    }
-    for (GroupModel groupModel : groupModels) {
-      groupModel.drawPaths(canvas, offsetX, offsetY, scaleX, scaleY);
-    }
-    for (PathModel pathModel : pathModels) {
-      if (pathModel.isFillAndStroke()) {
-        pathModel.makeFillPaint();
-        canvas.drawPath(
-            pathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY),
-            pathModel.getPathPaint());
-        pathModel.makeStrokePaint();
-        canvas.drawPath(
-            pathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY),
-            pathModel.getPathPaint());
-      } else {
-        canvas.drawPath(
-            pathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY),
-            pathModel.getPathPaint());
-      }
-    }
-  }
+	public void addClipPathModel(ClipPathModel clipPathModel) {
+		clipPathModels.add(clipPathModel);
+	}
 
-  public void drawPaths(Canvas canvas) {
-    for (ClipPathModel clipPathModel : clipPathModels) {
-      canvas.clipPath(clipPathModel.getPath());
-    }
-    for (GroupModel groupModel : groupModels) {
-      groupModel.drawPaths(canvas);
-    }
-    for (PathModel pathModel : pathModels) {
-      if (pathModel.isFillAndStroke()) {
-        pathModel.makeFillPaint();
-        canvas.drawPath(pathModel.getPath(), pathModel.getPathPaint());
-        pathModel.makeStrokePaint();
-        canvas.drawPath(pathModel.getPath(), pathModel.getPathPaint());
-      } else {
-        canvas.drawPath(pathModel.getPath(), pathModel.getPathPaint());
-      }
-    }
-  }
+	public void addGroupModel(GroupModel groupModel) {
+		groupModels.add(groupModel);
+	}
 
-  public void scaleAllPaths(Matrix scaleMatrix) {
-    this.scaleMatrix = scaleMatrix;
-    for (GroupModel groupModel : groupModels) {
-      groupModel.scaleAllPaths(scaleMatrix);
-    }
-    for (PathModel pathModel : pathModels) {
-      pathModel.transform(scaleMatrix);
-    }
-    for (ClipPathModel clipPathModel : clipPathModels) {
-      clipPathModel.transform(scaleMatrix);
-    }
-  }
+	public void addPathModel(PathModel pathModel) {
+		pathModels.add(pathModel);
+	}
 
-  public void scaleAllStrokeWidth(float ratio) {
-    for (GroupModel groupModel : groupModels) {
-      groupModel.scaleAllStrokeWidth(ratio);
-    }
-    for (PathModel pathModel : pathModels) {
-      pathModel.setStrokeRatio(ratio);
-    }
-  }
+	public void buildTransformMatrices() {
+		for (GroupModel groupModel : groupModels) {
+			groupModel.buildTransformMatrix();
+		}
+	}
 
-  public void buildTransformMatrices() {
-    for (GroupModel groupModel : groupModels) {
-      groupModel.buildTransformMatrix();
-    }
-  }
+	public void drawPaths(Canvas canvas) {
+		for (ClipPathModel clipPathModel : clipPathModels) {
+			canvas.clipPath(clipPathModel.getPath());
+		}
+		for (GroupModel groupModel : groupModels) {
+			groupModel.drawPaths(canvas);
+		}
+		for (PathModel pathModel : pathModels) {
+			if (pathModel.isFillAndStroke()) {
+				pathModel.makeFillPaint();
+				canvas.drawPath(pathModel.getPath(), pathModel.getPathPaint());
+				pathModel.makeStrokePaint();
+				canvas.drawPath(pathModel.getPath(), pathModel.getPathPaint());
+			} else {
+				canvas.drawPath(pathModel.getPath(), pathModel.getPathPaint());
+			}
+		}
+	}
 
-  public void addGroupModel(GroupModel groupModel) {
-    groupModels.add(groupModel);
-  }
+	public void drawPaths(Canvas canvas, float offsetX, float offsetY, float scaleX, float scaleY) {
+		for (ClipPathModel clipPathModel : clipPathModels) {
+			canvas.clipPath(clipPathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY));
+		}
+		for (GroupModel groupModel : groupModels) {
+			groupModel.drawPaths(canvas, offsetX, offsetY, scaleX, scaleY);
+		}
+		for (PathModel pathModel : pathModels) {
+			if (pathModel.isFillAndStroke()) {
+				pathModel.makeFillPaint();
+				canvas.drawPath(
+						pathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY),
+						pathModel.getPathPaint());
+				pathModel.makeStrokePaint();
+				canvas.drawPath(
+						pathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY),
+						pathModel.getPathPaint());
+			} else {
+				canvas.drawPath(
+						pathModel.getScaledAndOffsetPath(offsetX, offsetY, scaleX, scaleY),
+						pathModel.getPathPaint());
+			}
+		}
+	}
 
-  public ArrayList<GroupModel> getGroupModels() {
-    return groupModels;
-  }
+	public float getAlpha() {
+		return alpha;
+	}
 
-  public void addPathModel(PathModel pathModel) {
-    pathModels.add(pathModel);
-  }
+	public ArrayList<ClipPathModel> getClipPathModels() {
+		return clipPathModels;
+	}
 
-  public ArrayList<PathModel> getPathModels() {
-    return pathModels;
-  }
+	public Path getFullpath() {
+		return fullpath;
+	}
 
-  public void addClipPathModel(ClipPathModel clipPathModel) {
-    clipPathModels.add(clipPathModel);
-  }
+	public ArrayList<GroupModel> getGroupModels() {
+		return groupModels;
+	}
 
-  public ArrayList<ClipPathModel> getClipPathModels() {
-    return clipPathModels;
-  }
+	public float getHeight() {
+		return height;
+	}
 
-  public Path getFullpath() {
-    return fullpath;
-  }
+	public String getName() {
+		return name;
+	}
 
-  public void setFullpath(Path fullpath) {
-    this.fullpath = fullpath;
-  }
+	public ArrayList<PathModel> getPathModels() {
+		return pathModels;
+	}
 
-  public String getName() {
-    return name;
-  }
+	public int getTint() {
+		return tint;
+	}
 
-  public void setName(String name) {
-    this.name = name;
-  }
+	public TintMode getTintMode() {
+		return tintMode;
+	}
 
-  public float getWidth() {
-    return width;
-  }
+	public float getViewportHeight() {
+		return viewportHeight;
+	}
 
-  public void setWidth(float width) {
-    this.width = width;
-  }
+	public float getViewportWidth() {
+		return viewportWidth;
+	}
 
-  public float getHeight() {
-    return height;
-  }
+	public float getWidth() {
+		return width;
+	}
 
-  public void setHeight(float height) {
-    this.height = height;
-  }
+	public boolean isAutoMirrored() {
+		return autoMirrored;
+	}
 
-  public float getAlpha() {
-    return alpha;
-  }
+	public void scaleAllPaths(Matrix scaleMatrix) {
+		this.scaleMatrix = scaleMatrix;
+		for (GroupModel groupModel : groupModels) {
+			groupModel.scaleAllPaths(scaleMatrix);
+		}
+		for (PathModel pathModel : pathModels) {
+			pathModel.transform(scaleMatrix);
+		}
+		for (ClipPathModel clipPathModel : clipPathModels) {
+			clipPathModel.transform(scaleMatrix);
+		}
+	}
 
-  public void setAlpha(float alpha) {
-    this.alpha = alpha;
-  }
+	public void scaleAllStrokeWidth(float ratio) {
+		for (GroupModel groupModel : groupModels) {
+			groupModel.scaleAllStrokeWidth(ratio);
+		}
+		for (PathModel pathModel : pathModels) {
+			pathModel.setStrokeRatio(ratio);
+		}
+	}
 
-  public boolean isAutoMirrored() {
-    return autoMirrored;
-  }
+	public void setAlpha(float alpha) {
+		this.alpha = alpha;
+	}
 
-  public void setAutoMirrored(boolean autoMirrored) {
-    this.autoMirrored = autoMirrored;
-  }
+	public void setAutoMirrored(boolean autoMirrored) {
+		this.autoMirrored = autoMirrored;
+	}
 
-  public int getTint() {
-    return tint;
-  }
+	public void setFullpath(Path fullpath) {
+		this.fullpath = fullpath;
+	}
 
-  public void setTint(int tint) {
-    this.tint = tint;
-  }
+	public void setHeight(float height) {
+		this.height = height;
+	}
 
-  public TintMode getTintMode() {
-    return tintMode;
-  }
+	public void setName(String name) {
+		this.name = name;
+	}
 
-  public void setTintMode(TintMode tintMode) {
-    this.tintMode = tintMode;
-  }
+	public void setTint(int tint) {
+		this.tint = tint;
+	}
 
-  public float getViewportWidth() {
-    return viewportWidth;
-  }
+	public void setTintMode(TintMode tintMode) {
+		this.tintMode = tintMode;
+	}
 
-  public void setViewportWidth(float viewportWidth) {
-    this.viewportWidth = viewportWidth;
-  }
+	public void setViewportHeight(float viewportHeight) {
+		this.viewportHeight = viewportHeight;
+	}
 
-  public float getViewportHeight() {
-    return viewportHeight;
-  }
+	public void setViewportWidth(float viewportWidth) {
+		this.viewportWidth = viewportWidth;
+	}
 
-  public void setViewportHeight(float viewportHeight) {
-    this.viewportHeight = viewportHeight;
-  }
+	public void setWidth(float width) {
+		this.width = width;
+	}
 }

@@ -23,10 +23,10 @@ import android.util.SparseIntArray
  * Get the value associated with the given key or `null`.
  */
 fun SparseIntArray.getOrNull(key: Int): Int? {
-  val keyIdx = indexOfKey(key)
-  if (keyIdx >= 0) {
-    return valueAt(keyIdx)
-  }
+	val keyIdx = indexOfKey(key)
+	if (keyIdx >= 0) {
+		return valueAt(keyIdx)
+	}
 
-  return null
+	return null
 }

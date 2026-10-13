@@ -24,7 +24,7 @@ package org.appdevforall.codeonthego.utils;
  */
 class ServiceNotFoundException extends IllegalStateException {
 
-  public ServiceNotFoundException(Class<?> service) {
-    super("Cannot find service " + service);
-  }
+	public ServiceNotFoundException(Class<?> service) {
+		super("Cannot find service " + service);
+	}
 }

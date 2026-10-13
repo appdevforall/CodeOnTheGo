@@ -23,15 +23,17 @@ package org.appdevforall.codeonthego.uidesigner.undo
  * @author Akash Yadav
  */
 class ViewAddedAction
-@JvmOverloads
-constructor(view: org.appdevforall.codeonthego.inflater.IView, parent: org.appdevforall.codeonthego.inflater.IViewGroup, index: Int = parent.indexOfChild(view)) :
-  ViewAction(view, parent, index) {
+	@JvmOverloads
+	constructor(
+		view: org.appdevforall.codeonthego.inflater.IView,
+		parent: org.appdevforall.codeonthego.inflater.IViewGroup,
+		index: Int = parent.indexOfChild(view),
+	) : ViewAction(view, parent, index) {
+		override fun undo() {
+			child.removeFromParent()
+		}
 
-  override fun undo() {
-    child.removeFromParent()
-  }
-
-  override fun redo() {
-    parent.addChild(index, child)
-  }
-}
+		override fun redo() {
+			parent.addChild(index, child)
+		}
+	}

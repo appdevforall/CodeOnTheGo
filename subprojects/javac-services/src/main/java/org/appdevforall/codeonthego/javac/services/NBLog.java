@@ -55,75 +55,75 @@ import openjdk.tools.javac.util.Log;
  */
 public class NBLog extends Log {
 
-  private static final String ERR_NOT_IN_PROFILE = "not.in.profile"; // NOI18N
+	private static final String ERR_NOT_IN_PROFILE = "not.in.profile"; // NOI18N
 
-  private final Map<URI, Collection<Symbol.ClassSymbol>> notInProfiles = new HashMap<>();
+	public static NBLog instance(Context context) {
+		final Log log = Log.instance(context);
+		if (!(log instanceof NBLog)) {
+			throw new InternalError("No NBLog instance!"); // NOI18N
+		}
+		return (NBLog) log;
+	}
 
-  private JavaFileObject partialReparseFile;
-  private final Set<Integer> seenPartialReparsePositions = new HashSet<>();
+	public static void preRegister(Context context, final PrintWriter output) {
+		context.put(logKey, (Context.Factory<Log>) c -> new NBLog(c, output));
+	}
 
-  protected NBLog(final Context context, final PrintWriter output) {
-    super(context, output);
-  }
+	private final Map<URI, Collection<Symbol.ClassSymbol>> notInProfiles = new HashMap<>();
 
-  public static NBLog instance(Context context) {
-    final Log log = Log.instance(context);
-    if (!(log instanceof NBLog)) {
-      throw new InternalError("No NBLog instance!"); // NOI18N
-    }
-    return (NBLog) log;
-  }
+	private JavaFileObject partialReparseFile;
 
-  public static void preRegister(Context context, final PrintWriter output) {
-    context.put(logKey, (Context.Factory<Log>) c -> new NBLog(c, output));
-  }
+	private final Set<Integer> seenPartialReparsePositions = new HashSet<>();
 
-  public void startPartialReparse(JavaFileObject inFile) {
-    partialReparseFile = inFile;
-  }
+	protected NBLog(final Context context, final PrintWriter output) {
+		super(context, output);
+	}
 
-  public void endPartialReparse(JavaFileObject inFile) {
-    partialReparseFile = null;
-    seenPartialReparsePositions.clear(); // TODO: not tested
-  }
+	public void endPartialReparse(JavaFileObject inFile) {
+		partialReparseFile = null;
+		seenPartialReparsePositions.clear(); // TODO: not tested
+	}
 
-  @Override
-  protected int getDefaultMaxErrors() {
-    return Integer.MAX_VALUE;
-  }
+	@Override
+	public void report(JCDiagnostic diagnostic) {
+		// XXX: needs testing!
+		if (diagnostic.getKind() == Diagnostic.Kind.ERROR
+				&& ERR_NOT_IN_PROFILE.equals(diagnostic.getCode())) {
+			final JavaFileObject currentFile = currentSourceFile();
+			if (currentFile != null) {
+				final URI uri = currentFile.toUri();
+				Symbol.ClassSymbol type = (Symbol.ClassSymbol) diagnostic.getArgs()[0];
+				Collection<Symbol.ClassSymbol> types = notInProfiles.computeIfAbsent(uri, k -> new ArrayList<>());
+				types.add(type);
+			}
+		}
+		super.report(diagnostic);
+	}
 
-  @Override
-  protected int getDefaultMaxWarnings() {
-    return Integer.MAX_VALUE;
-  }
+	public void startPartialReparse(JavaFileObject inFile) {
+		partialReparseFile = inFile;
+	}
 
-  @Override
-  protected boolean shouldReport(JavaFileObject file, int pos) {
-    if (partialReparseFile != null) {
-      return file == partialReparseFile && seenPartialReparsePositions.add(pos);
-    } else {
-      return super.shouldReport(file, pos);
-    }
-  }
+	@Override
+	protected int getDefaultMaxErrors() {
+		return Integer.MAX_VALUE;
+	}
 
-  @Override
-  public void report(JCDiagnostic diagnostic) {
-    // XXX: needs testing!
-    if (diagnostic.getKind() == Diagnostic.Kind.ERROR
-        && ERR_NOT_IN_PROFILE.equals(diagnostic.getCode())) {
-      final JavaFileObject currentFile = currentSourceFile();
-      if (currentFile != null) {
-        final URI uri = currentFile.toUri();
-        Symbol.ClassSymbol type = (Symbol.ClassSymbol) diagnostic.getArgs()[0];
-        Collection<Symbol.ClassSymbol> types =
-            notInProfiles.computeIfAbsent(uri, k -> new ArrayList<>());
-        types.add(type);
-      }
-    }
-    super.report(diagnostic);
-  }
+	@Override
+	protected int getDefaultMaxWarnings() {
+		return Integer.MAX_VALUE;
+	}
 
-  Collection<? extends Symbol.ClassSymbol> removeNotInProfile(final URI uri) {
-    return uri == null ? null : notInProfiles.remove(uri);
-  }
+	@Override
+	protected boolean shouldReport(JavaFileObject file, int pos) {
+		if (partialReparseFile != null) {
+			return file == partialReparseFile && seenPartialReparsePositions.add(pos);
+		} else {
+			return super.shouldReport(file, pos);
+		}
+	}
+
+	Collection<? extends Symbol.ClassSymbol> removeNotInProfile(final URI uri) {
+		return uri == null ? null : notInProfiles.remove(uri);
+	}
 }

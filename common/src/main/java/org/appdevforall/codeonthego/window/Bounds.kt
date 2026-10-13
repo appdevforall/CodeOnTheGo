@@ -28,60 +28,57 @@ import android.graphics.Rect
  * not contain any behavior or calculations.
  */
 internal class Bounds(
-  val left: Int,
-  val top: Int,
-  val right: Int,
-  val bottom: Int
+	val left: Int,
+	val top: Int,
+	val right: Int,
+	val bottom: Int,
 ) {
+	constructor(rect: Rect) : this(rect.left, rect.top, rect.right, rect.bottom)
 
-  constructor(rect: Rect) : this(rect.left, rect.top, rect.right, rect.bottom)
+	/**
+	 * Return the [Rect] representation of the bounds
+	 */
+	fun toRect(): Rect = Rect(left, top, right, bottom)
 
-  /**
-   * Return the [Rect] representation of the bounds
-   */
-  fun toRect(): Rect = Rect(left, top, right, bottom)
+	/**
+	 * The width of the bounds, may be negative.
+	 */
+	val width: Int
+		get() = right - left
 
-  /**
-   * The width of the bounds, may be negative.
-   */
-  val width: Int
-    get() = right - left
+	/**
+	 * The height of the bounds, may be negative.
+	 */
+	val height: Int
+		get() = bottom - top
 
-  /**
-   * The height of the bounds, may be negative.
-   */
-  val height: Int
-    get() = bottom - top
+	/**
+	 * Determines if the bounds has empty area.
+	 */
+	val isEmpty: Boolean
+		get() = height == 0 || width == 0
 
-  /**
-   * Determines if the bounds has empty area.
-   */
-  val isEmpty: Boolean
-    get() = height == 0 || width == 0
+	override fun toString(): String = "${Bounds::class.java.simpleName} { [$left,$top,$right,$bottom] }"
 
-  override fun toString(): String {
-    return "${Bounds::class.java.simpleName} { [$left,$top,$right,$bottom] }"
-  }
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
 
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (javaClass != other?.javaClass) return false
+		other as Bounds
 
-    other as Bounds
+		if (left != other.left) return false
+		if (top != other.top) return false
+		if (right != other.right) return false
+		if (bottom != other.bottom) return false
 
-    if (left != other.left) return false
-    if (top != other.top) return false
-    if (right != other.right) return false
-    if (bottom != other.bottom) return false
+		return true
+	}
 
-    return true
-  }
-
-  override fun hashCode(): Int {
-    var result = left
-    result = 31 * result + top
-    result = 31 * result + right
-    result = 31 * result + bottom
-    return result
-  }
+	override fun hashCode(): Int {
+		var result = left
+		result = 31 * result + top
+		result = 31 * result + right
+		result = 31 * result + bottom
+		return result
+	}
 }

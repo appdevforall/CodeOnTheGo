@@ -25,9 +25,9 @@ import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE;
 /**
  * A highlighter is used to highlight a small piece of code
  *
- * <p>Implementations of these class shouldn't be used in CodeEditor For CodeEditor usage, implement
- * an EditorLanguage instead
+ * <p>
+ * Implementations of these class shouldn't be used in CodeEditor For CodeEditor usage, implement an EditorLanguage instead
  */
 public interface Highlighter {
-  SpannableStringBuilder highlight(SchemeAndroidIDE scheme, String code, String match) throws Exception;
+	SpannableStringBuilder highlight(SchemeAndroidIDE scheme, String code, String match) throws Exception;
 }

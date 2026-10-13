@@ -27,15 +27,14 @@ import org.appdevforall.codeonthego.inflater.internal.NamespaceImpl
  * @author Akash Yadav
  */
 interface INamespace {
+	/** The prefix of the namespace. */
+	val prefix: String
 
-  /** The prefix of the namespace. */
-  val prefix: String
+	/** The namespace URI. */
+	val uri: String
 
-  /** The namespace URI. */
-  val uri: String
-
-  companion object {
-    /** The Android namespace. */
-    @JvmField val ANDROID: INamespace = NamespaceImpl(ANDROID_NS_NAME, ANDROID_URI)
-  }
+	companion object {
+		/** The Android namespace. */
+		@JvmField val ANDROID: INamespace = NamespaceImpl(ANDROID_NS_NAME, ANDROID_URI)
+	}
 }

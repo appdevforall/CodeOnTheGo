@@ -1,10 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.debug.spec
 
-import org.appdevforall.codeonthego.lsp.debug.model.BreakpointDefinition
-import org.appdevforall.codeonthego.lsp.debug.model.MethodBreakpoint
-import org.appdevforall.codeonthego.lsp.debug.model.PositionalBreakpoint
-import org.appdevforall.codeonthego.lsp.java.debug.utils.locationsOfLineInSource
-import org.appdevforall.codeonthego.utils.StringUtil.isJavaIdentifier
 import com.sun.jdi.AbsentInformationException
 import com.sun.jdi.InvalidTypeException
 import com.sun.jdi.Location
@@ -14,6 +9,11 @@ import com.sun.jdi.ThreadReference
 import com.sun.jdi.VirtualMachine
 import com.sun.jdi.request.EventRequest
 import com.sun.jdi.request.EventRequestManager
+import org.appdevforall.codeonthego.lsp.debug.model.BreakpointDefinition
+import org.appdevforall.codeonthego.lsp.debug.model.MethodBreakpoint
+import org.appdevforall.codeonthego.lsp.debug.model.PositionalBreakpoint
+import org.appdevforall.codeonthego.lsp.java.debug.utils.locationsOfLineInSource
+import org.appdevforall.codeonthego.utils.StringUtil.isJavaIdentifier
 
 sealed interface BreakpointData {
 	val threadFilter: ThreadReference?

@@ -21,8 +21,9 @@ import org.appdevforall.codeonthego.tooling.events.FinishEvent
 
 /** @author Akash Yadav */
 class FileDownloadFinishEvent(
-  displayName: String,
-  eventTime: Long,
-  descriptor: FileDownloadOperationDescriptor,
-  override val result: FileDownloadResult
-) : FileDownloadProgressEvent(displayName, eventTime, descriptor), FinishEvent
+	displayName: String,
+	eventTime: Long,
+	descriptor: FileDownloadOperationDescriptor,
+	override val result: FileDownloadResult,
+) : FileDownloadProgressEvent(displayName, eventTime, descriptor),
+	FinishEvent

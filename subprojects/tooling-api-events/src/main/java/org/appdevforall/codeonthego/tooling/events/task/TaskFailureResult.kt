@@ -18,4 +18,7 @@
 package org.appdevforall.codeonthego.tooling.events.task
 
 /** @author Akash Yadav */
-class TaskFailureResult(startTime: Long, endTime: Long) : TaskOperationResult(startTime, endTime) {}
+class TaskFailureResult(
+	startTime: Long,
+	endTime: Long,
+) : TaskOperationResult(startTime, endTime)

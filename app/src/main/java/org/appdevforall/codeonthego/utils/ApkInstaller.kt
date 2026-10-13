@@ -8,11 +8,11 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Process
 import androidx.core.app.PendingIntentCompat
-import org.appdevforall.codeonthego.actions.build.DebugAction
 import com.itsaky.androidide.buildinfo.BuildInfo
-import org.appdevforall.codeonthego.services.InstallationResultReceiver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.actions.build.DebugAction
+import org.appdevforall.codeonthego.services.InstallationResultReceiver
 import org.slf4j.LoggerFactory
 import java.io.File
 

@@ -17,29 +17,30 @@
 
 package org.appdevforall.codeonthego.javac.services.compiler
 
-import org.appdevforall.codeonthego.javac.services.NBJavaCompiler
 import openjdk.tools.javac.main.JavaCompiler
 import openjdk.tools.javac.util.Context
+import org.appdevforall.codeonthego.javac.services.NBJavaCompiler
 
 /**
  * Reusable JavaCompiler; exposes a method to clean up the component from leftovers associated
  * with previous compilations.
  */
-open class ReusableJavaCompiler(context: Context?) : NBJavaCompiler(context) {
-  
-  companion object {
-    val factory = Context.Factory<JavaCompiler> { ReusableJavaCompiler(it) }
-  }
-  
-  override fun checkReusable() {
-    // Do nothing
-  }
-  
-  override fun close() {
-    // Do nothing
-  }
-  
-  fun clear()   {
-    newRound()
-  }
+open class ReusableJavaCompiler(
+	context: Context?,
+) : NBJavaCompiler(context) {
+	companion object {
+		val factory = Context.Factory<JavaCompiler> { ReusableJavaCompiler(it) }
+	}
+
+	override fun checkReusable() {
+		// Do nothing
+	}
+
+	override fun close() {
+		// Do nothing
+	}
+
+	fun clear() {
+		newRound()
+	}
 }

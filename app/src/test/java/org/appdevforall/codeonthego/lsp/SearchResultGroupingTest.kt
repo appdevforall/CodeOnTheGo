@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.lsp
 
 import com.google.common.truth.Truth.assertThat
+import io.github.rosemoe.sora.text.Content
 import org.appdevforall.codeonthego.models.Location
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.models.Range
-import io.github.rosemoe.sora.text.Content
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

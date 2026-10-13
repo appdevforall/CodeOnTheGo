@@ -12,25 +12,24 @@ import org.appdevforall.codeonthego.lsp.debug.RemoteClient
  * @author Akash Yadav
  */
 data class StoppedEvent(
-    override val remoteClient: RemoteClient,
-    val reason: StopReason,
-    val threadId: Int,
-    val frameId: Int,
-    val allThreadsStopped: Boolean,
-): DebugEvent
+	override val remoteClient: RemoteClient,
+	val reason: StopReason,
+	val threadId: Int,
+	val frameId: Int,
+	val allThreadsStopped: Boolean,
+) : DebugEvent
 
 /**
  * The reason why the execution of the program has been stopped.
  */
 enum class StopReason {
+	/**
+	 * A break point was hit.
+	 */
+	Breakpoint,
 
-    /**
-     * A break point was hit.
-     */
-    Breakpoint,
-
-    /**
-     * A step action was completed.
-     */
-    Step,
+	/**
+	 * A step action was completed.
+	 */
+	Step,
 }

@@ -2,10 +2,6 @@ package org.appdevforall.codeonthego.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.projects.IProjectManager
-import org.appdevforall.codeonthego.utils.FileQuery
-import org.appdevforall.codeonthego.utils.ProjectSearchOptions
-import org.appdevforall.codeonthego.utils.walkProjectFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -18,6 +14,10 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.utils.FileQuery
+import org.appdevforall.codeonthego.utils.ProjectSearchOptions
+import org.appdevforall.codeonthego.utils.walkProjectFiles
 import java.io.File
 import java.util.regex.PatternSyntaxException
 

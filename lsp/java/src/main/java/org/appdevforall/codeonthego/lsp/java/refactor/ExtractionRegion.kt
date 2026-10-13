@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import openjdk.source.tree.BlockTree
 import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.tree.ExpressionStatementTree
@@ -13,6 +12,7 @@ import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 
 /**
  * What a selection resolved to. Exactly two kinds, which is the whole reason the hard cases never

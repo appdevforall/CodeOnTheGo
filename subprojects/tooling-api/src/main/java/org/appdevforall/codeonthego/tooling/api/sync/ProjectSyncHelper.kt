@@ -1,16 +1,16 @@
 package org.appdevforall.codeonthego.tooling.api.sync
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.project.FileInfo
 import org.appdevforall.codeonthego.project.GradleModels
 import org.appdevforall.codeonthego.project.SyncMeta
 import org.appdevforall.codeonthego.project.SyncMetaModels
 import org.appdevforall.codeonthego.utils.SharedEnvironment
 import org.appdevforall.codeonthego.utils.sha256
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File

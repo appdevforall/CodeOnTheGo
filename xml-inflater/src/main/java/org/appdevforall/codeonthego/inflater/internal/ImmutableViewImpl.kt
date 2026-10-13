@@ -27,28 +27,28 @@ import org.appdevforall.codeonthego.inflater.IView.AttributeChangeListener
  * @author Akash Yadav
  */
 class ImmutableViewImpl(private val src: ViewImpl) : IView by src {
-  
-  override fun addAttribute(attribute: IAttribute, apply: Boolean, update: Boolean) {
-    throw UnsupportedOperationException("Immutable!")
-  }
-  
-  override fun removeAttribute(attribute: IAttribute) {
-    throw UnsupportedOperationException("Immutable!")
-  }
-  
-  override fun updateAttribute(attribute: IAttribute) {
-    throw UnsupportedOperationException("Immutable!")
-  }
-  
-  override fun onHighlightStateUpdated(highlight: Boolean) {
-    throw UnsupportedOperationException("Immutable!")
-  }
-  
-  override fun registerAttributeChangeListener(listener: AttributeChangeListener) {
-    throw UnsupportedOperationException("Immutable!")
-  }
-  
-  override fun unregisterAttributeChangeListener(listener: AttributeChangeListener) {
-    throw UnsupportedOperationException("Immutable!")
-  }
+
+override fun addAttribute(attribute: IAttribute, apply: Boolean, update: Boolean) {
+	throw UnsupportedOperationException("Immutable!")
+}
+
+override fun removeAttribute(attribute: IAttribute) {
+	throw UnsupportedOperationException("Immutable!")
+}
+
+override fun updateAttribute(attribute: IAttribute) {
+	throw UnsupportedOperationException("Immutable!")
+}
+
+override fun onHighlightStateUpdated(highlight: Boolean) {
+	throw UnsupportedOperationException("Immutable!")
+}
+
+override fun registerAttributeChangeListener(listener: AttributeChangeListener) {
+	throw UnsupportedOperationException("Immutable!")
+}
+
+override fun unregisterAttributeChangeListener(listener: AttributeChangeListener) {
+	throw UnsupportedOperationException("Immutable!")
+}
 }

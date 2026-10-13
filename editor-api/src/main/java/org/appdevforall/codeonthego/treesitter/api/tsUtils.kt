@@ -35,53 +35,53 @@ internal val log = LoggerFactory.getLogger("TsUtilsKt")
  * This method does not close the [TSQueryCursor] instance.
  */
 inline fun <ResultT> TSQueryCursor.safeExecQueryCursor(
-  query: TSQuery,
-  tree: TSTree?,
-  recycleNodeAfterUse: Boolean = true,
-  crossinline matchCondition: (TSQueryMatch?) -> Boolean = { true },
-  crossinline whileTrue: (TSQueryMatch?) -> Boolean = { true },
-  crossinline onClosedOrEdited: () -> Unit = {},
-  debugName: String = "",
-  debugLogging: Boolean = false,
-  crossinline action: (TSQueryMatch) -> ResultT
+query: TSQuery,
+tree: TSTree?,
+recycleNodeAfterUse: Boolean = true,
+crossinline matchCondition: (TSQueryMatch?) -> Boolean = { true },
+crossinline whileTrue: (TSQueryMatch?) -> Boolean = { true },
+crossinline onClosedOrEdited: () -> Unit = {},
+debugName: String = "",
+debugLogging: Boolean = false,
+crossinline action: (TSQueryMatch) -> ResultT
 ): ResultT? {
 
-  if (tree == null || !tree.canAccess()) {
-    if (debugLogging) {
-      log.debug("$debugName: Cannot execute query, tree is null or not accessible", "tree=$tree",
-        "tree.canAccess=${tree?.canAccess()}")
-    }
-    return null
-  }
+if (tree == null || !tree.canAccess()) {
+	if (debugLogging) {
+	log.debug("$debugName: Cannot execute query, tree is null or not accessible", "tree=$tree",
+		"tree.canAccess=${tree?.canAccess()}")
+	}
+	return null
+}
 
-  val rootNode = tree.rootNode
-  if (!rootNode.canAccess() || rootNode.hasChanges()) {
-    if (debugLogging) {
-      log.debug(
-        "$debugName, Cannot execute query, tree's root node is not accessible or has been edited",
-        "rootNode=$rootNode", "rootNode.canAccess=${rootNode.canAccess()}",
-        "rootNode.hasChanges=${rootNode.canAccess() && rootNode.hasChanges()}")
-    }
-    return null
-  }
+val rootNode = tree.rootNode
+if (!rootNode.canAccess() || rootNode.hasChanges()) {
+	if (debugLogging) {
+	log.debug(
+		"$debugName, Cannot execute query, tree's root node is not accessible or has been edited",
+		"rootNode=$rootNode", "rootNode.canAccess=${rootNode.canAccess()}",
+		"rootNode.hasChanges=${rootNode.canAccess() && rootNode.hasChanges()}")
+	}
+	return null
+}
 
-  return safeExecQueryCursor(
-    query = query,
-    node = rootNode,
-    recycleNodeAfterUse = recycleNodeAfterUse,
-    matchCondition = {
-      val result = tree.canAccess() && matchCondition(it)
-      if (!result && debugLogging) {
-        log.debug("$debugName: tree.canAccess=${tree.canAccess()}")
-      }
-      result
-    },
-    whileTrue = whileTrue,
-    onClosedOrEdited = onClosedOrEdited,
-    debugName = debugName,
-    debugLogging = debugLogging,
-    action = action
-  )
+return safeExecQueryCursor(
+	query = query,
+	node = rootNode,
+	recycleNodeAfterUse = recycleNodeAfterUse,
+	matchCondition = {
+	val result = tree.canAccess() && matchCondition(it)
+	if (!result && debugLogging) {
+		log.debug("$debugName: tree.canAccess=${tree.canAccess()}")
+	}
+	result
+	},
+	whileTrue = whileTrue,
+	onClosedOrEdited = onClosedOrEdited,
+	debugName = debugName,
+	debugLogging = debugLogging,
+	action = action
+)
 }
 
 /**
@@ -92,95 +92,95 @@ inline fun <ResultT> TSQueryCursor.safeExecQueryCursor(
  * This method does not close the [TSQueryCursor] instance.
  */
 inline fun <ResultT> TSQueryCursor.safeExecQueryCursor(
-  query: TSQuery,
-  node: TSNode,
-  recycleNodeAfterUse: Boolean = true,
-  crossinline matchCondition: (TSQueryMatch?) -> Boolean = { true },
-  crossinline whileTrue: (TSQueryMatch?) -> Boolean = { true },
-  crossinline onClosedOrEdited: () -> Unit = {},
-  debugName: String = "",
-  debugLogging: Boolean = false,
-  crossinline action: (TSQueryMatch) -> ResultT
+query: TSQuery,
+node: TSNode,
+recycleNodeAfterUse: Boolean = true,
+crossinline matchCondition: (TSQueryMatch?) -> Boolean = { true },
+crossinline whileTrue: (TSQueryMatch?) -> Boolean = { true },
+crossinline onClosedOrEdited: () -> Unit = {},
+debugName: String = "",
+debugLogging: Boolean = false,
+crossinline action: (TSQueryMatch) -> ResultT
 ): ResultT? {
 
-  return doSafeExecQueryCursor(
-    query = query,
-    node = node,
-    recycleNodeAfterUse = recycleNodeAfterUse,
-    matchCondition = { match ->
-      match != null && canAccess() && node.canAccess() && !node.hasChanges() && matchCondition(
-        match)
-    },
-    whileTrue = whileTrue,
-    onClosedOrEdited = onClosedOrEdited,
-    debugName = debugName,
-    debugLogging = debugLogging,
-    action = action)
+return doSafeExecQueryCursor(
+	query = query,
+	node = node,
+	recycleNodeAfterUse = recycleNodeAfterUse,
+	matchCondition = { match ->
+	match != null && canAccess() && node.canAccess() && !node.hasChanges() && matchCondition(
+		match)
+	},
+	whileTrue = whileTrue,
+	onClosedOrEdited = onClosedOrEdited,
+	debugName = debugName,
+	debugLogging = debugLogging,
+	action = action)
 }
 
 @PublishedApi
 internal inline fun <ResultT> TSQueryCursor.doSafeExecQueryCursor(
-  query: TSQuery,
-  node: TSNode,
-  recycleNodeAfterUse: Boolean = true,
-  crossinline matchCondition: (TSQueryMatch?) -> Boolean,
-  crossinline whileTrue: (TSQueryMatch?) -> Boolean,
-  crossinline onClosedOrEdited: () -> Unit,
-  debugName: String = "",
-  debugLogging: Boolean = false,
-  crossinline action: (TSQueryMatch) -> ResultT
+query: TSQuery,
+node: TSNode,
+recycleNodeAfterUse: Boolean = true,
+crossinline matchCondition: (TSQueryMatch?) -> Boolean,
+crossinline whileTrue: (TSQueryMatch?) -> Boolean,
+crossinline onClosedOrEdited: () -> Unit,
+debugName: String = "",
+debugLogging: Boolean = false,
+crossinline action: (TSQueryMatch) -> ResultT
 ): ResultT? {
 
-  if (!query.canAccess()) {
-    if (debugLogging) {
-      log.debug("$debugName: Cannot execute query, query is not accessible")
-    }
-    return null
-  }
+if (!query.canAccess()) {
+	if (debugLogging) {
+	log.debug("$debugName: Cannot execute query, query is not accessible")
+	}
+	return null
+}
 
-  if (!node.canAccess() || node.hasChanges()) {
-    if (debugLogging) {
-      log.debug("$debugName: Cannot execute query, node is not accessible or has been edited",
-        "node.canAccess=${node.canAccess()}",
-        "node.hasChanges=${node.canAccess() && node.hasChanges()}")
-    }
-    return null
-  }
+if (!node.canAccess() || node.hasChanges()) {
+	if (debugLogging) {
+	log.debug("$debugName: Cannot execute query, node is not accessible or has been edited",
+		"node.canAccess=${node.canAccess()}",
+		"node.hasChanges=${node.canAccess() && node.hasChanges()}")
+	}
+	return null
+}
 
-  exec(query, node)
-  var match = nextMatch()
-  while (matchCondition(match) && whileTrue(match)) {
+exec(query, node)
+var match = nextMatch()
+while (matchCondition(match) && whileTrue(match)) {
 
-    val result = action(match)
+	val result = action(match)
 
-    if (!matchCondition(match)) {
-      if (debugLogging) {
-        log.debug(
-          "$debugName: Cannot proceed with query operation.",
-          "cursor.canAccess=${canAccess()}",
-          "query.canAccess=${query.canAccess()}",
-          "node.canAccess=${node.canAccess()}",
-          "node.hasChanges=${node.canAccess() && node.hasErrors()}"
-        )
-      }
-      onClosedOrEdited()
-      break
-    }
+	if (!matchCondition(match)) {
+	if (debugLogging) {
+		log.debug(
+		"$debugName: Cannot proceed with query operation.",
+		"cursor.canAccess=${canAccess()}",
+		"query.canAccess=${query.canAccess()}",
+		"node.canAccess=${node.canAccess()}",
+		"node.hasChanges=${node.canAccess() && node.hasErrors()}"
+		)
+	}
+	onClosedOrEdited()
+	break
+	}
 
-    (match as? TreeSitterQueryMatch?)?.recycle()
+	(match as? TreeSitterQueryMatch?)?.recycle()
 
-    // if the action does not produce any output and simply returns Unit (void)
-    // then ignore the result and continue with the capture
-    if (result != Unit && result != null) {
-      return result
-    }
+	// if the action does not produce any output and simply returns Unit (void)
+	// then ignore the result and continue with the capture
+	if (result != Unit && result != null) {
+	return result
+	}
 
-    match = nextMatch()
-  }
+	match = nextMatch()
+}
 
-  if (recycleNodeAfterUse && node is TreeSitterNode && !node.isRecycled) {
-    node.recycle()
-  }
+if (recycleNodeAfterUse && node is TreeSitterNode && !node.isRecycled) {
+	node.recycle()
+}
 
-  return null
+return null
 }

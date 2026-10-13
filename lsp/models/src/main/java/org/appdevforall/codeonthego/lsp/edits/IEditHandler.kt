@@ -17,9 +17,9 @@
 
 package org.appdevforall.codeonthego.lsp.edits
 
-import org.appdevforall.codeonthego.lsp.models.CompletionItem
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.widget.CodeEditor
+import org.appdevforall.codeonthego.lsp.models.CompletionItem
 
 /**
  * Handles additional edits for [CompletionItem]s.
@@ -27,10 +27,16 @@ import io.github.rosemoe.sora.widget.CodeEditor
  * @author Akash Yadav
  */
 interface IEditHandler {
-
-  /**
-   * Performs the edits on the given [editor].
-   * @param editor The editor to perform edits on.
-   */
-  fun performEdits(item: CompletionItem, editor: CodeEditor, text: Content, line: Int, column: Int, index: Int)
+	/**
+	 * Performs the edits on the given [editor].
+	 * @param editor The editor to perform edits on.
+	 */
+	fun performEdits(
+		item: CompletionItem,
+		editor: CodeEditor,
+		text: Content,
+		line: Int,
+		column: Int,
+		index: Int,
+	)
 }

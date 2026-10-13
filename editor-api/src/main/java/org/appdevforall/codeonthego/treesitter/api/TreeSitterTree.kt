@@ -24,33 +24,33 @@ import org.appdevforall.codeonthego.utils.RecyclableObjectPool
 /**
  * @author Akash Yadav
  */
-class TreeSitterTree @JvmOverloads internal constructor(
-  pointer: Long = 0
-) : TSTree(pointer), RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+class TreeSitterTree
+	@JvmOverloads
+	internal constructor(
+		pointer: Long = 0,
+	) : TSTree(pointer),
+		RecyclableObjectPool.Recyclable by DefaultRecyclable() {
+		private var ownerThread: Thread? = null
 
-  private var ownerThread: Thread? = null
+		companion object {
+			@JvmStatic
+			fun obtain(pointer: Long): TreeSitterTree =
+				obtainFromPool<TreeSitterTree>().apply {
+					this.nativeObject = pointer
+					this.ownerThread = Thread.currentThread()
+				}
+		}
 
-  companion object {
+		override fun close() {
+			super.close()
+			this.nativeObject = 0
+			recycle()
+		}
 
-    @JvmStatic
-    fun obtain(pointer: Long): TreeSitterTree {
-      return obtainFromPool<TreeSitterTree>().apply {
-        this.nativeObject = pointer
-        this.ownerThread = Thread.currentThread()
-      }
-    }
-  }
-
-  override fun close() {
-    super.close()
-    this.nativeObject = 0
-    recycle()
-  }
-
-  override fun recycle() {
-    this.ownerThread = null
-    if (!canAccess()) {
-      returnToPool()
-    }
-  }
-}
+		override fun recycle() {
+			this.ownerThread = null
+			if (!canAccess()) {
+				returnToPool()
+			}
+		}
+	}

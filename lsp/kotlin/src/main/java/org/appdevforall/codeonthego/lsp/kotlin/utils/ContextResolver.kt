@@ -64,7 +64,7 @@ internal fun KaSession.resolveAnalysisContext(
 	file: Path,
 	ktFile: KtFile,
 	offset: Int,
-	partial: String
+	partial: String,
 ): AnalysisContext? {
 	val psiElement = ktFile.findElementAt(offset)
 	if (psiElement == null) {
@@ -84,11 +84,13 @@ internal fun KaSession.resolveAnalysisContext(
 	// The element is typically a KtModifierList, an error node,
 	// or the incomplete declaration itself.
 	val modifierList = ktElement.getParentOfType<KtModifierList>(strict = false)
-	val existingModifiers = modifierList
-		?.node?.getChildren(MODIFIER_KEYWORDS)
-		?.mapNotNull { it.elementType as? KtModifierKeywordToken }
-		?.toSet()
-		?: emptySet()
+	val existingModifiers =
+		modifierList
+			?.node
+			?.getChildren(MODIFIER_KEYWORDS)
+			?.mapNotNull { it.elementType as? KtModifierKeywordToken }
+			?.toSet()
+			?: emptySet()
 
 	val declarationKind = resolveDeclarationKind(ktElement)
 	val declarationContext = resolveDeclarationContext(ktElement)
@@ -114,23 +116,36 @@ private fun resolveDeclarationContext(element: KtElement): DeclarationContext {
 		when (ancestor) {
 			is KtClassBody -> {
 				return when (val owner = ancestor.parent) {
-					is KtClass -> when {
-						owner.isInterface() -> DeclarationContext.INTERFACE_BODY
-						owner.isEnum() -> DeclarationContext.ENUM_BODY
-						owner.isAnnotation() -> DeclarationContext.ANNOTATION_BODY
-						else -> DeclarationContext.CLASS_BODY
+					is KtClass -> {
+						when {
+							owner.isInterface() -> DeclarationContext.INTERFACE_BODY
+							owner.isEnum() -> DeclarationContext.ENUM_BODY
+							owner.isAnnotation() -> DeclarationContext.ANNOTATION_BODY
+							else -> DeclarationContext.CLASS_BODY
+						}
 					}
 
-					is KtObjectDeclaration -> DeclarationContext.OBJECT_BODY
-					else -> DeclarationContext.CLASS_BODY
+					is KtObjectDeclaration -> {
+						DeclarationContext.OBJECT_BODY
+					}
+
+					else -> {
+						DeclarationContext.CLASS_BODY
+					}
 				}
 			}
 
-			is KtBlockExpression -> return DeclarationContext.FUNCTION_BODY
-			is KtFile -> return if (ancestor.isScript())
-				DeclarationContext.SCRIPT_TOP_LEVEL
-			else
-				DeclarationContext.TOP_LEVEL
+			is KtBlockExpression -> {
+				return DeclarationContext.FUNCTION_BODY
+			}
+
+			is KtFile -> {
+				return if (ancestor.isScript()) {
+					DeclarationContext.SCRIPT_TOP_LEVEL
+				} else {
+					DeclarationContext.TOP_LEVEL
+				}
+			}
 		}
 	}
 	return DeclarationContext.TOP_LEVEL
@@ -139,21 +154,46 @@ private fun resolveDeclarationContext(element: KtElement): DeclarationContext {
 private fun resolveDeclarationKind(element: KtElement): DeclarationKind {
 	// Walk up to the nearest declaration owning this modifier list / position
 	return when (val declaration = element.getNonStrictParentOfType<KtDeclaration>()) {
-		is KtClass -> when {
-			declaration.isInterface() -> DeclarationKind.INTERFACE
-			declaration.isEnum() -> DeclarationKind.ENUM_CLASS
-			declaration.isAnnotation() -> DeclarationKind.ANNOTATION_CLASS
-			else -> DeclarationKind.CLASS
+		is KtClass -> {
+			when {
+				declaration.isInterface() -> DeclarationKind.INTERFACE
+				declaration.isEnum() -> DeclarationKind.ENUM_CLASS
+				declaration.isAnnotation() -> DeclarationKind.ANNOTATION_CLASS
+				else -> DeclarationKind.CLASS
+			}
 		}
 
-		is KtObjectDeclaration -> DeclarationKind.OBJECT
-		is KtNamedFunction -> DeclarationKind.FUN
-		is KtProperty -> if (declaration.isVar) DeclarationKind.PROPERTY_VAR
-		else DeclarationKind.PROPERTY_VAL
+		is KtObjectDeclaration -> {
+			DeclarationKind.OBJECT
+		}
 
-		is KtTypeAlias -> DeclarationKind.TYPEALIAS
-		is KtConstructor<*> -> DeclarationKind.CONSTRUCTOR
-		null -> DeclarationKind.UNKNOWN  // pure modifier list, no keyword yet
-		else -> DeclarationKind.UNKNOWN
+		is KtNamedFunction -> {
+			DeclarationKind.FUN
+		}
+
+		is KtProperty -> {
+			if (declaration.isVar) {
+				DeclarationKind.PROPERTY_VAR
+			} else {
+				DeclarationKind.PROPERTY_VAL
+			}
+		}
+
+		is KtTypeAlias -> {
+			DeclarationKind.TYPEALIAS
+		}
+
+		is KtConstructor<*> -> {
+			DeclarationKind.CONSTRUCTOR
+		}
+
+		null -> {
+			DeclarationKind.UNKNOWN
+		}
+
+		// pure modifier list, no keyword yet
+		else -> {
+			DeclarationKind.UNKNOWN
+		}
 	}
 }

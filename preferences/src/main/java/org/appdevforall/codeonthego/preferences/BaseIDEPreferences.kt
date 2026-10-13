@@ -21,16 +21,14 @@ import android.content.Context
 import androidx.preference.Preference
 
 sealed class BaseIDEPreferences : IPreferenceScreen() {
-  override val key: String
-    get() = throw UnsupportedOperationException()
-  override val title: Int
-    get() = throw UnsupportedOperationException()
-  override val summary: Int
-    get() = throw UnsupportedOperationException()
-  override val icon: Int
-    get() = throw UnsupportedOperationException()
+	override val key: String
+		get() = throw UnsupportedOperationException()
+	override val title: Int
+		get() = throw UnsupportedOperationException()
+	override val summary: Int
+		get() = throw UnsupportedOperationException()
+	override val icon: Int
+		get() = throw UnsupportedOperationException()
 
-  override fun onCreateView(context: Context): Preference {
-    throw UnsupportedOperationException()
-  }
+	override fun onCreateView(context: Context): Preference = throw UnsupportedOperationException()
 }

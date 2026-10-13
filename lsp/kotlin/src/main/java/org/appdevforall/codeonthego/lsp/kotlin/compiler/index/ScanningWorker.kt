@@ -1,13 +1,13 @@
 package org.appdevforall.codeonthego.lsp.kotlin.compiler.index
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.CompilationKind
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.KtModule
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.asFlatSequence
 import org.appdevforall.codeonthego.lsp.kotlin.compiler.modules.isSourceModule
 import org.appdevforall.codeonthego.lsp.kotlin.utils.toNioPathOrNull
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.isActive
-import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
 

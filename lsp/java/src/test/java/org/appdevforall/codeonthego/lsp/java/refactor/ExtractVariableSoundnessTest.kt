@@ -2,10 +2,10 @@ package org.appdevforall.codeonthego.lsp.java.refactor
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.lsp.refactor.RewriteSpan
 import org.appdevforall.codeonthego.lsp.ui.NameProblem
 import org.appdevforall.codeonthego.lsp.ui.validateVariableName
-import com.itsaky.androidide.resources.R
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith

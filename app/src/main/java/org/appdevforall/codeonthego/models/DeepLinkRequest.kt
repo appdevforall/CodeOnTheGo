@@ -19,8 +19,8 @@ package org.appdevforall.codeonthego.models
 
 import android.net.Uri
 import android.os.Parcelable
-import org.appdevforall.codeonthego.utils.ContainedPathResolver
 import kotlinx.parcelize.Parcelize
+import org.appdevforall.codeonthego.utils.ContainedPathResolver
 import java.nio.file.Paths
 
 /**

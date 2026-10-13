@@ -36,110 +36,108 @@ import org.jetbrains.annotations.Contract;
  * @author Akash Yadav
  */
 public class ASTFixer {
-  public static final String IDENT = "I_N_J_E_C_T_E_D";
+	public static final String IDENT = "I_N_J_E_C_T_E_D";
 
-  private static final Set<TokenKind> MEMBER_SELECTION_TOKENS =
-      ImmutableSet.of(
-          Tokens.TokenKind.IDENTIFIER,
-          Tokens.TokenKind.LT,
-          TokenKind.NEW,
-          TokenKind.THIS,
-          TokenKind.SUPER,
-          TokenKind.CLASS,
-          TokenKind.STAR);
-  private static final Set<TokenKind> INVALID_SELECTION_SUFFIXES =
-      ImmutableSet.of(TokenKind.RBRACE);
+	private static final Set<TokenKind> MEMBER_SELECTION_TOKENS = ImmutableSet.of(
+			Tokens.TokenKind.IDENTIFIER,
+			Tokens.TokenKind.LT,
+			TokenKind.NEW,
+			TokenKind.THIS,
+			TokenKind.SUPER,
+			TokenKind.CLASS,
+			TokenKind.STAR);
+	private static final Set<TokenKind> INVALID_SELECTION_SUFFIXES = ImmutableSet.of(TokenKind.RBRACE);
 
-  private final Context context;
+	private final Context context;
 
-  public ASTFixer(Context context) {
-    this.context = context;
-  }
+	public ASTFixer(Context context) {
+		this.context = context;
+	}
 
-  public StringBuilder fix(CharSequence content) {
-    Scanner scanner = ScannerFactory.instance(context).newScanner(content, true);
-    List<Edit> edits = new ArrayList<>();
-    for (; ; scanner.nextToken()) {
-      Tokens.Token token = scanner.token();
-      if (token.kind == TokenKind.EOF) {
-        break;
-      } else if (token.kind == TokenKind.DOT || token.kind == TokenKind.COLCOL) {
-        fixMemberSelection(scanner, edits);
-      } else if (token.kind == TokenKind.ERROR) {
-        int errPos = scanner.errPos();
-        if (errPos >= 0 && errPos < content.length()) {
-          fixError(scanner, content, edits);
-        }
-      }
-    }
-    return Edit.applyInsertions(content, edits);
-  }
+	public StringBuilder fix(CharSequence content) {
+		Scanner scanner = ScannerFactory.instance(context).newScanner(content, true);
+		List<Edit> edits = new ArrayList<>();
+		for (;; scanner.nextToken()) {
+			Tokens.Token token = scanner.token();
+			if (token.kind == TokenKind.EOF) {
+				break;
+			} else if (token.kind == TokenKind.DOT || token.kind == TokenKind.COLCOL) {
+				fixMemberSelection(scanner, edits);
+			} else if (token.kind == TokenKind.ERROR) {
+				int errPos = scanner.errPos();
+				if (errPos >= 0 && errPos < content.length()) {
+					fixError(scanner, content, edits);
+				}
+			}
+		}
+		return Edit.applyInsertions(content, edits);
+	}
 
-  private void fixMemberSelection(@NonNull Scanner scanner, List<Edit> edits) {
-    Tokens.Token token = scanner.token();
-    Tokens.Token nextToken = scanner.token(1);
+	private void fixError(@NonNull Scanner scanner, @NonNull CharSequence content, List<Edit> edits) {
+		int errPos = scanner.errPos();
+		if (content.charAt(errPos) == '.' && errPos > 0 && content.charAt(errPos) == '.') {
+			if (errPos < content.length() - 1
+					&& Character.isJavaIdentifierStart(content.charAt(errPos + 1))) {
+				edits.add(Edit.create(errPos, IDENT));
+			}
+		}
+	}
 
-    LineMap lineMap = scanner.getLineMap();
-    int tokenLine = (int) lineMap.getLineNumber(token.pos);
-    int nextLine = (int) lineMap.getLineNumber(nextToken.pos);
+	private void fixMemberSelection(@NonNull Scanner scanner, List<Edit> edits) {
+		Tokens.Token token = scanner.token();
+		Tokens.Token nextToken = scanner.token(1);
 
-    if (nextLine > tokenLine) {
-      edits.add(Edit.create(token.endPos, IDENT + ";"));
-    } else if (!MEMBER_SELECTION_TOKENS.contains(nextToken.kind)) {
-      String toInsert = IDENT;
-      if (INVALID_SELECTION_SUFFIXES.contains(nextToken.kind)) {
-        toInsert = IDENT + ";";
-      }
-      edits.add(Edit.create(token.endPos, toInsert));
-    }
-  }
+		LineMap lineMap = scanner.getLineMap();
+		int tokenLine = (int) lineMap.getLineNumber(token.pos);
+		int nextLine = (int) lineMap.getLineNumber(nextToken.pos);
 
-  private void fixError(@NonNull Scanner scanner, @NonNull CharSequence content, List<Edit> edits) {
-    int errPos = scanner.errPos();
-    if (content.charAt(errPos) == '.' && errPos > 0 && content.charAt(errPos) == '.') {
-      if (errPos < content.length() - 1
-          && Character.isJavaIdentifierStart(content.charAt(errPos + 1))) {
-        edits.add(Edit.create(errPos, IDENT));
-      }
-    }
-  }
+		if (nextLine > tokenLine) {
+			edits.add(Edit.create(token.endPos, IDENT + ";"));
+		} else if (!MEMBER_SELECTION_TOKENS.contains(nextToken.kind)) {
+			String toInsert = IDENT;
+			if (INVALID_SELECTION_SUFFIXES.contains(nextToken.kind)) {
+				toInsert = IDENT + ";";
+			}
+			edits.add(Edit.create(token.endPos, toInsert));
+		}
+	}
 
-  public static class Edit {
-    private static final Ordering<Edit> REVERSE_INSERTION =
-        Ordering.natural().onResultOf(Edit::getPos).reverse();
+	public static class Edit {
+		private static final Ordering<Edit> REVERSE_INSERTION = Ordering.natural().onResultOf(Edit::getPos).reverse();
 
-    private final int pos;
-    private final String text;
+		@NonNull
+		public static StringBuilder applyInsertions(CharSequence content, List<Edit> edits) {
+			ImmutableList<Edit> reverseEdits = REVERSE_INSERTION.immutableSortedCopy(edits);
 
-    public Edit(int pos, String text) {
-      this.pos = pos;
-      this.text = text;
-    }
+			StringBuilder sb = new StringBuilder(content);
 
-    public int getPos() {
-      return pos;
-    }
+			for (Edit edit : reverseEdits) {
+				sb.insert(edit.getPos(), edit.getText());
+			}
+			return sb;
+		}
 
-    public String getText() {
-      return text;
-    }
+		@NonNull
+		@Contract(value = "_, _ -> new", pure = true)
+		public static Edit create(int pos, String text) {
+			return new Edit(pos, text);
+		}
 
-    @NonNull
-    @Contract(value = "_, _ -> new", pure = true)
-    public static Edit create(int pos, String text) {
-      return new Edit(pos, text);
-    }
+		private final int pos;
 
-    @NonNull
-    public static StringBuilder applyInsertions(CharSequence content, List<Edit> edits) {
-      ImmutableList<Edit> reverseEdits = REVERSE_INSERTION.immutableSortedCopy(edits);
+		private final String text;
 
-      StringBuilder sb = new StringBuilder(content);
+		public Edit(int pos, String text) {
+			this.pos = pos;
+			this.text = text;
+		}
 
-      for (Edit edit : reverseEdits) {
-        sb.insert(edit.getPos(), edit.getText());
-      }
-      return sb;
-    }
-  }
+		public int getPos() {
+			return pos;
+		}
+
+		public String getText() {
+			return text;
+		}
+	}
 }

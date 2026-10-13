@@ -23,9 +23,22 @@ import android.content.pm.PackageInstaller
  * @author Akash Yadav
  */
 open class SingleSessionCallback : PackageInstaller.SessionCallback() {
-  override fun onCreated(sessionId: Int) {}
-  override fun onBadgingChanged(sessionId: Int) {}
-  override fun onActiveChanged(sessionId: Int, active: Boolean) {}
-  override fun onProgressChanged(sessionId: Int, progress: Float) {}
-  override fun onFinished(sessionId: Int, success: Boolean) {}
+	override fun onCreated(sessionId: Int) {}
+
+	override fun onBadgingChanged(sessionId: Int) {}
+
+	override fun onActiveChanged(
+		sessionId: Int,
+		active: Boolean,
+	) {}
+
+	override fun onProgressChanged(
+		sessionId: Int,
+		progress: Float,
+	) {}
+
+	override fun onFinished(
+		sessionId: Int,
+		success: Boolean,
+	) {}
 }

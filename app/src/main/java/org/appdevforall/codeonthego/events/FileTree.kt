@@ -17,14 +17,25 @@
 
 package org.appdevforall.codeonthego.events
 
+import com.unnamed.b.atv.model.TreeNode
 import org.appdevforall.codeonthego.eventbus.events.Event
 import org.appdevforall.codeonthego.models.SheetOption
-import com.unnamed.b.atv.model.TreeNode
 
-internal data class FileContextMenuItemClickEvent(val option: SheetOption) : Event()
-internal data class FileContextMenuItemLongClickEvent(val option: SheetOption) : Event()
+internal data class FileContextMenuItemClickEvent(
+	val option: SheetOption,
+) : Event()
 
-data class ExpandTreeNodeRequestEvent(val node: TreeNode) : Event()
-data class CollapseTreeNodeRequestEvent(val node: TreeNode, val includeSubnodes: Boolean) : Event()
+internal data class FileContextMenuItemLongClickEvent(
+	val option: SheetOption,
+) : Event()
+
+data class ExpandTreeNodeRequestEvent(
+	val node: TreeNode,
+) : Event()
+
+data class CollapseTreeNodeRequestEvent(
+	val node: TreeNode,
+	val includeSubnodes: Boolean,
+) : Event()
 
 class ListProjectFilesRequestEvent : Event()

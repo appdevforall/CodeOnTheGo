@@ -27,17 +27,17 @@ import org.appdevforall.codeonthego.xml.registry.XmlRegistry
  * @author Akash Yadav
  */
 interface WidgetTableRegistry : XmlRegistry<WidgetTable> {
+	companion object {
+		private var sInstance: WidgetTableRegistry? = null
 
-  companion object {
-
-    private var sInstance: WidgetTableRegistry? = null
-
-    /** Get the default instance of [WidgetTableRegistry]. */
-    @JvmStatic
-    fun getInstance(): WidgetTableRegistry {
-      val klass = WidgetTableRegistry::class.java
-      return sInstance ?: ServiceLoader.load(klass, klass.classLoader).findFirstOrThrow()
-        .also { sInstance = it }
-    }
-  }
+		/** Get the default instance of [WidgetTableRegistry]. */
+		@JvmStatic
+		fun getInstance(): WidgetTableRegistry {
+			val klass = WidgetTableRegistry::class.java
+			return sInstance ?: ServiceLoader
+				.load(klass, klass.classLoader)
+				.findFirstOrThrow()
+				.also { sInstance = it }
+		}
+	}
 }

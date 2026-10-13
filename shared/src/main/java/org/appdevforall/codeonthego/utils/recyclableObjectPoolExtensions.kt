@@ -21,30 +21,30 @@ package org.appdevforall.codeonthego.utils
  * Create a new [RecyclableObjectPool] with the given [capacity] and the object [factory].
  */
 inline fun <reified T : RecyclableObjectPool.Recyclable> newRecyclableObjectPool(
-  capacity: Int = RecyclableObjectPool.CAPACITY_DEFAULT,
-  fillFirst: Int = 0,
-  metricsEnabled: Boolean = true,
-  factory: RecyclableObjectPool.Factory<T>
+capacity: Int = RecyclableObjectPool.CAPACITY_DEFAULT,
+fillFirst: Int = 0,
+metricsEnabled: Boolean = true,
+factory: RecyclableObjectPool.Factory<T>
 ): RecyclableObjectPool<T> {
-  return RecyclableObjectPool(
-    capacity = capacity,
-    fillFirst = fillFirst,
-    metricsEnabled = metricsEnabled,
-    klass = T::class.java,
-    objFactory = factory
-  )
+return RecyclableObjectPool(
+	capacity = capacity,
+	fillFirst = fillFirst,
+	metricsEnabled = metricsEnabled,
+	klass = T::class.java,
+	objFactory = factory
+)
 }
 
 /**
  * Recycle all the recyclable objects in this iterable.
  */
 fun <T : RecyclableObjectPool.Recyclable> Iterable<T>.recycleAll() {
-  forEach { it.recycle() }
+forEach { it.recycle() }
 }
 
 /**
  * Recycle all the recyclable objects in this array.
  */
 fun <T : RecyclableObjectPool.Recyclable> Array<T>.recycleAll() {
-  forEach { it.recycle() }
+forEach { it.recycle() }
 }

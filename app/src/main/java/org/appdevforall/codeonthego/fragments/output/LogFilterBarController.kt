@@ -20,12 +20,12 @@ package org.appdevforall.codeonthego.fragments.output
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
-import org.appdevforall.codeonthego.utils.ILogger
-import org.appdevforall.codeonthego.utils.KeyboardUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.utils.ILogger
+import org.appdevforall.codeonthego.utils.KeyboardUtils
 import java.util.EnumSet
 
 /**

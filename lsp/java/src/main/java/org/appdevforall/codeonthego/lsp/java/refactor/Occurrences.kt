@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.Modifier
@@ -28,6 +27,7 @@ import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
 import openjdk.source.util.TreeScanner
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import java.util.Collections
 import java.util.IdentityHashMap
 

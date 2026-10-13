@@ -21,77 +21,77 @@ import org.appdevforall.codeonthego.lsp.xml.providers.completion.transformToEntr
 
 /** Transforms tag names to styleable entry names. */
 interface ITagTransformer {
-  /** Returns the styleable entry name for the given tag name and its parent's tag name. */
-  fun transform(tag: String, parent: String = ""): String
+/** Returns the styleable entry name for the given tag name and its parent's tag name. */
+fun transform(tag: String, parent: String = ""): String
 }
 
 internal object NoOpTagTransformer : ITagTransformer {
-  override fun transform(tag: String, parent: String): String {
-    return ""
-  }
+override fun transform(tag: String, parent: String): String {
+	return ""
+}
 }
 
 internal open class SimpleTagTransformer : ITagTransformer {
-  override fun transform(tag: String, parent: String): String {
-    return transformToEntryName(tag)
-  }
+override fun transform(tag: String, parent: String): String {
+	return transformToEntryName(tag)
+}
 }
 
 internal object DrawableTagTransformer : ITagTransformer {
-  override fun transform(tag: String, parent: String): String {
-    if (tag == "corners") {
-      return "DrawableCorners"
-    }
+override fun transform(tag: String, parent: String): String {
+	if (tag == "corners") {
+	return "DrawableCorners"
+	}
 
-    val prefix =
-      if (parent == "item" || parent.isNotEmpty()) {
-        toEntry(parent).run { if (startsWith('#')) toEntry(tag) else this }
-      } else tag
-    val suffix =
-      if (parent.isNotEmpty() && !parent.startsWith('#')) transformToEntryName(tag) else ""
+	val prefix =
+	if (parent == "item" || parent.isNotEmpty()) {
+		toEntry(parent).run { if (startsWith('#')) toEntry(tag) else this }
+	} else tag
+	val suffix =
+	if (parent.isNotEmpty() && !parent.startsWith('#')) transformToEntryName(tag) else ""
 
-    return "${prefix}Drawable${suffix}"
-  }
+	return "${prefix}Drawable${suffix}"
+}
 }
 
 internal object AnimTagTransformer : ITagTransformer {
-  override fun transform(tag: String, parent: String): String {
-    if (tag == "set") {
-      return "AnimationSet"
-    }
+override fun transform(tag: String, parent: String): String {
+	if (tag == "set") {
+	return "AnimationSet"
+	}
 
-    return "${toEntry(tag)}${animEntrySuffix(tag)}"
-  }
+	return "${toEntry(tag)}${animEntrySuffix(tag)}"
+}
 
-  /** Returns the suffix that is required to get the styleable entry for an anim resource. */
-  private fun animEntrySuffix(tag: String): String {
-    return when {
-      tag.endsWith("Animation") -> ""
-      tag.endsWith("Interpolator") -> ""
-      else -> "Animation"
-    }
-  }
+/** Returns the suffix that is required to get the styleable entry for an anim resource. */
+private fun animEntrySuffix(tag: String): String {
+	return when {
+	tag.endsWith("Animation") -> ""
+	tag.endsWith("Interpolator") -> ""
+	else -> "Animation"
+	}
+}
 }
 
 internal object AnimatorTagTransformer : SimpleTagTransformer() {
-  override fun transform(tag: String, parent: String): String {
-    return toEntry(tag)
-  }
+override fun transform(tag: String, parent: String): String {
+	return toEntry(tag)
+}
 }
 
 internal object TransitionTagTransformer : SimpleTagTransformer() {
-  override fun transform(tag: String, parent: String): String {
-    if (tag == "target") {
-      return TRANSITION_TARGET
-    }
-    return super.transform(tag, parent)
-  }
+override fun transform(tag: String, parent: String): String {
+	if (tag == "target") {
+	return TRANSITION_TARGET
+	}
+	return super.transform(tag, parent)
+}
 }
 
 internal object MenuTagTransformer : ITagTransformer {
-  override fun transform(tag: String, parent: String): String {
-    return transformToEntryName(tag, "Menu")
-  }
+override fun transform(tag: String, parent: String): String {
+	return transformToEntryName(tag, "Menu")
+}
 }
 
 /**
@@ -100,18 +100,18 @@ internal object MenuTagTransformer : ITagTransformer {
  * @param tag The tag name.
  */
 private fun toEntry(tag: String): String {
-  if (tag.startsWith('#')) {
-    return tag
-  }
+if (tag.startsWith('#')) {
+	return tag
+}
 
-  when (tag) {
-    "selector" -> return "StateList"
-    "animated-selector" -> return "AnimatedStateList"
-    "shape" -> return "Gradient"
-    "set" -> return "AnimatorSet"
-    "keyframe" -> return "KeyFrame"
-    "objectAnimator" -> return "PropertyAnimator"
-  }
+when (tag) {
+	"selector" -> return "StateList"
+	"animated-selector" -> return "AnimatedStateList"
+	"shape" -> return "Gradient"
+	"set" -> return "AnimatorSet"
+	"keyframe" -> return "KeyFrame"
+	"objectAnimator" -> return "PropertyAnimator"
+}
 
-  return transformToEntryName(tag)
+return transformToEntryName(tag)
 }

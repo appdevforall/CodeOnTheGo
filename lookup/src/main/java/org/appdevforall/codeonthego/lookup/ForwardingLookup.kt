@@ -22,4 +22,6 @@ package org.appdevforall.codeonthego.lookup
  *
  * @author Akash Yadav
  */
-open class ForwardingLookup(lookup: Lookup) : Lookup by lookup
+open class ForwardingLookup(
+	lookup: Lookup,
+) : Lookup by lookup

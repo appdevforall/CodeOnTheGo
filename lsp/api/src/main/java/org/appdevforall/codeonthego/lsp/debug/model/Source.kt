@@ -9,6 +9,6 @@ package org.appdevforall.codeonthego.lsp.debug.model
  * @author Akash Yadav
  */
 data class Source(
-    val name: String,
-    val path: String,
+	val name: String,
+	val path: String,
 )

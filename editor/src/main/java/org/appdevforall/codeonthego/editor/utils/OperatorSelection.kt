@@ -24,67 +24,67 @@ import io.github.rosemoe.sora.text.Content
  * so longer matches are tried first (e.g. `>>>=` before `>>>` before `>>` before `>`).
  */
 private val OPERATORS: List<String> =
-    listOf(
-        // 4-char (`>>>=` must precede `>>>` — the latter is a prefix)
-        ">>>=",
-        // 3-char (=== and !== before 2-char == and !=)
-        "===",
-        "!==",
-        ">>>",
-        "<<=",
-        ">>=",
-        // 2-char
-        "==",
-        "!=",
-        "<=",
-        ">=",
-        "+=",
-        "-=",
-        "*=",
-        "/=",
-        "%=",
-        "&=",
-        "|=",
-        "^=",
-        "++",
-        "--",
-        "&&",
-        "||",
-        "<<",
-        ">>",
-        "->",
-        "?.",
-        "?:",
-        "..",
-        "!!",
-        "::",
-        // 1-char
-        "+",
-        "-",
-        "*",
-        "/",
-        "%",
-        "=",
-        "<",
-        ">",
-        "!",
-        "&",
-        "|",
-        "^",
-        "~",
-        "?",
-        ":",
-        ";",
-        ",",
-        ".",
-        "@",
-        "(",
-        ")",
-        "[",
-        "]",
-        "{",
-        "}",
-    )
+	listOf(
+		// 4-char (`>>>=` must precede `>>>` — the latter is a prefix)
+		">>>=",
+		// 3-char (=== and !== before 2-char == and !=)
+		"===",
+		"!==",
+		">>>",
+		"<<=",
+		">>=",
+		// 2-char
+		"==",
+		"!=",
+		"<=",
+		">=",
+		"+=",
+		"-=",
+		"*=",
+		"/=",
+		"%=",
+		"&=",
+		"|=",
+		"^=",
+		"++",
+		"--",
+		"&&",
+		"||",
+		"<<",
+		">>",
+		"->",
+		"?.",
+		"?:",
+		"..",
+		"!!",
+		"::",
+		// 1-char
+		"+",
+		"-",
+		"*",
+		"/",
+		"%",
+		"=",
+		"<",
+		">",
+		"!",
+		"&",
+		"|",
+		"^",
+		"~",
+		"?",
+		":",
+		";",
+		",",
+		".",
+		"@",
+		"(",
+		")",
+		"[",
+		"]",
+		"{",
+		"}",
+	)
 
 private val OPERATOR_SET: Set<String> = OPERATORS.toSet()
 
@@ -93,14 +93,14 @@ private val OPERATOR_SET: Set<String> = OPERATORS.toSet()
  * Used so [isJavaOperatorToken] does not emit `java.operator.*` tags for these.
  */
 private val KOTLIN_ONLY_OPERATOR_TOKENS: Set<String> =
-    setOf(
-        "?.",
-        "?:",
-        "..",
-        "!!",
-        "===",
-        "!==",
-    )
+	setOf(
+		"?.",
+		"?:",
+		"..",
+		"!!",
+		"===",
+		"!==",
+	)
 
 private val JAVA_OPERATOR_SET: Set<String> = OPERATOR_SET - KOTLIN_ONLY_OPERATOR_TOKENS
 
@@ -109,8 +109,8 @@ private val JAVA_OPERATOR_SET: Set<String> = OPERATOR_SET - KOTLIN_ONLY_OPERATOR
  * (same token set as the long-press operator list).
  */
 fun isKotlinOperatorToken(text: CharSequence): Boolean {
-    if (text.isEmpty()) return false
-    return OPERATOR_SET.contains(text.toString())
+	if (text.isEmpty()) return false
+	return OPERATOR_SET.contains(text.toString())
 }
 
 /**
@@ -118,8 +118,8 @@ fun isKotlinOperatorToken(text: CharSequence): Boolean {
  * Excludes Kotlin-only tokens such as `?.`, `..`, `===`, and `!==`.
  */
 fun isJavaOperatorToken(text: CharSequence): Boolean {
-    if (text.isEmpty()) return false
-    return JAVA_OPERATOR_SET.contains(text.toString())
+	if (text.isEmpty()) return false
+	return JAVA_OPERATOR_SET.contains(text.toString())
 }
 
 /**
@@ -130,28 +130,34 @@ fun isJavaOperatorToken(text: CharSequence): Boolean {
  * @param column Cursor column (0-based).
  * @return (startColumn, endColumnExclusive) or null if no operator at this position.
  */
-fun getOperatorRangeAt(lineContent: CharSequence, column: Int): Pair<Int, Int>? {
-    if (column < 0 || column >= lineContent.length) return null
-    val suffix = lineContent.subSequence(column, lineContent.length)
-    for (op in OPERATORS) {
-        if (op.length <= suffix.length && suffix.subSequence(0, op.length) == op) {
-            return column to (column + op.length)
-        }
-    }
-    return null
+fun getOperatorRangeAt(
+	lineContent: CharSequence,
+	column: Int,
+): Pair<Int, Int>? {
+	if (column < 0 || column >= lineContent.length) return null
+	val suffix = lineContent.subSequence(column, lineContent.length)
+	for (op in OPERATORS) {
+		if (op.length <= suffix.length && suffix.subSequence(0, op.length) == op) {
+			return column to (column + op.length)
+		}
+	}
+	return null
 }
 
 /**
  * Returns the column range of the operator at (line, column) in [content], if any.
  * Columns are 0-based; endColumn is exclusive.
  */
-fun Content.getOperatorRangeAt(line: Int, column: Int): Pair<Int, Int>? {
-    if (line < 0 || line >= lineCount) return null
-    val lineContent = getLine(line)
-    val maxColumn = lineContent.length
-    if (column < 0 || column > maxColumn) return null
-    val range = getOperatorRangeAt(lineContent, column) ?: return null
-    val (start, end) = range
-    if (end > maxColumn) return null
-    return range
+fun Content.getOperatorRangeAt(
+	line: Int,
+	column: Int,
+): Pair<Int, Int>? {
+	if (line < 0 || line >= lineCount) return null
+	val lineContent = getLine(line)
+	val maxColumn = lineContent.length
+	if (column < 0 || column > maxColumn) return null
+	val range = getOperatorRangeAt(lineContent, column) ?: return null
+	val (start, end) = range
+	if (end > maxColumn) return null
+	return range
 }

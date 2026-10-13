@@ -19,32 +19,33 @@ package org.appdevforall.codeonthego.uidesigner.actions
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import org.appdevforall.codeonthego.actions.ActionData
 import com.itsaky.androidide.uidesigner.R
+import org.appdevforall.codeonthego.actions.ActionData
 
 /**
  * Redo action for UI Designer.
  *
  * @author Akash Yadav
  */
-class RedoAction(context: Context) : UiDesignerAction() {
-  
-  override val id: String = "ide.uidesigner.redo"
-  
-  init {
-    label = context.getString(R.string.redo)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_redo)
-  }
-  
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    visible = true
-    enabled = data.requireWorkspace().undoManager.canRedo()
-  }
-  
-  override suspend fun execAction(data: ActionData): Any {
-    data.requireWorkspace().undoManager.redo()
-    data.requireActivity().invalidateOptionsMenu()
-    return true
-  }
+class RedoAction(
+	context: Context,
+) : UiDesignerAction() {
+	override val id: String = "ide.uidesigner.redo"
+
+	init {
+		label = context.getString(R.string.redo)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_redo)
+	}
+
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		visible = true
+		enabled = data.requireWorkspace().undoManager.canRedo()
+	}
+
+	override suspend fun execAction(data: ActionData): Any {
+		data.requireWorkspace().undoManager.redo()
+		data.requireActivity().invalidateOptionsMenu()
+		return true
+	}
 }

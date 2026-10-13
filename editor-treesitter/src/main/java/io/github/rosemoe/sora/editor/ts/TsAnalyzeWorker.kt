@@ -19,7 +19,6 @@ package io.github.rosemoe.sora.editor.ts
 
 import android.os.Handler
 import android.os.Looper
-import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.treesitter.TSInputEdit
 import com.itsaky.androidide.treesitter.TSQueryCursor
 import com.itsaky.androidide.treesitter.TSTree
@@ -43,6 +42,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
+import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException
 import java.util.concurrent.LinkedBlockingQueue

@@ -31,82 +31,79 @@ const val PROJECT_ROOT_FILE = ".androidide_root"
  * @author Akash Yadav
  */
 class FileProvider {
+	companion object {
+		private val projectRoot by lazy {
+			currentDir().findProjectRoot()?.absolute()?.normalize()
+		}
 
-  companion object {
+		@JvmField
+		val extension =
+			run {
+				val file = File(".").canonicalFile
+				when (file.name) {
+					"xml" -> "xml"
 
-    private val projectRoot by lazy {
-      currentDir().findProjectRoot()?.absolute()?.normalize()
-    }
+					// Testing in ':lsp:xml' module
+					else -> "java" // Testing in ':lsp:java' or ':lsp:testing' module
+				}
+			}
 
-    @JvmField
-    val extension = run {
-      val file = File(".").canonicalFile
-      when (file.name) {
-        "xml" -> "xml" // Testing in ':lsp:xml' module
-        else -> "java" // Testing in ':lsp:java' or ':lsp:testing' module
-      }
-    }
+		@JvmStatic
+		fun currentDir(): Path = Paths.get(System.getProperty("user.dir")!!)
 
-    @JvmStatic
-    fun currentDir(): Path = Paths.get(System.getProperty("user.dir")!!)
+		@JvmStatic
+		fun implModule(): Path = projectRoot().resolve("subprojects/tooling-api-impl")
 
-    @JvmStatic
-    fun implModule(): Path = projectRoot().resolve("subprojects/tooling-api-impl")
+		@JvmStatic
+		fun projectRoot(): Path =
+			checkNotNull(projectRoot) {
+				"Unable to file project root. Check if '${PROJECT_ROOT_FILE}' file exists in the project root directory."
+			}
 
-    @JvmStatic
-    fun projectRoot(): Path =
-      checkNotNull(projectRoot) {
-        "Unable to file project root. Check if '${PROJECT_ROOT_FILE}' file exists in the project root directory."
-      }
+		@JvmStatic
+		private fun testingDir() = projectRoot().resolve("testing")
 
-    @JvmStatic
-    private fun testingDir() = projectRoot().resolve("testing")
+		@JvmStatic
+		private fun testResourcesDir(): Path = testingDir().resolve("resources")
 
-    @JvmStatic
-    private fun testResourcesDir(): Path = testingDir().resolve("resources")
+		@JvmStatic
+		fun testHomeDir(): Path = testResourcesDir().resolve("test-home")
 
-    @JvmStatic
-    fun testHomeDir(): Path = testResourcesDir().resolve("test-home")
+		@JvmStatic
+		fun testProjectRoot(): Path = testResourcesDir().resolve("test-project")
 
-    @JvmStatic
-    fun testProjectRoot(): Path = testResourcesDir().resolve("test-project")
+		@JvmStatic
+		fun sampleProjectRoot(): Path = testResourcesDir().resolve("sample-project")
 
-    @JvmStatic
-    fun sampleProjectRoot(): Path = testResourcesDir().resolve("sample-project")
+		/**
+		 * Get the path to the 'resources' directory.
+		 *
+		 * @return The the resources directory.
+		 */
+		@JvmStatic
+		fun resources(): Path = testProjectRoot().resolve("app/src/main/resources")
 
-    /**
-     * Get the path to the 'resources' directory.
-     *
-     * @return The the resources directory.
-     */
-    @JvmStatic
-    fun resources(): Path {
-      return testProjectRoot().resolve("app/src/main/resources")
-    }
+		/**
+		 * Get the path to the file in resources.
+		 *
+		 * @param name The name of the file. Nested file paths can be separated using '/'.
+		 * @return The path to the file.
+		 */
+		@JvmStatic
+		fun sourceFile(name: String): Path = resources().resolve("${name}_template.$extension").normalize()
 
-    /**
-     * Get the path to the file in resources.
-     *
-     * @param name The name of the file. Nested file paths can be separated using '/'.
-     * @return The path to the file.
-     */
-    @JvmStatic
-    fun sourceFile(name: String): Path {
-      return resources().resolve("${name}_template.$extension").normalize()
-    }
-
-    @JvmStatic
-    fun contents(file: Path): StringBuilder = StringBuilder(file.readText())
-  }
+		@JvmStatic
+		fun contents(file: Path): StringBuilder = StringBuilder(file.readText())
+	}
 }
 
 private fun Path.findProjectRoot(): Path? {
-  // Walk UP from `this` looking for the marker in each ancestor. The previous
-  // implementation walked the whole subtree at every level, which is both wildly
-  // expensive and racy against concurrent Gradle tasks that mutate `build/`
-  // (e.g. NoSuchFileException on transient kotlin-classes during parallel tasks).
-  if (resolve(PROJECT_ROOT_FILE).exists()) {
-    return this
-  }
-  return parent?.findProjectRoot()
+	// Walk UP from `this` looking for the marker in each ancestor. The previous
+	// implementation walked the whole subtree at every level, which is both wildly
+	// expensive and racy against concurrent Gradle tasks that mutate `build/`
+	// (e.g. NoSuchFileException on transient kotlin-classes during parallel tasks).
+	if (resolve(PROJECT_ROOT_FILE).exists()) {
+		return this
+	}
+	return parent?.findProjectRoot()
 }

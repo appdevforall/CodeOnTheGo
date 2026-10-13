@@ -20,5 +20,9 @@ package org.appdevforall.codeonthego.tooling.events.task
 import org.appdevforall.codeonthego.tooling.events.StartEvent
 
 /** @author Akash Yadav */
-class TaskStartEvent(displayName: String, eventTime: Long, descriptor: TaskOperationDescriptor) :
-  TaskProgressEvent(displayName, eventTime, descriptor), StartEvent
+class TaskStartEvent(
+	displayName: String,
+	eventTime: Long,
+	descriptor: TaskOperationDescriptor,
+) : TaskProgressEvent(displayName, eventTime, descriptor),
+	StartEvent

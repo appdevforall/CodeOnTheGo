@@ -19,11 +19,8 @@ package org.appdevforall.codeonthego.editor.language.treesitter
 
 import android.graphics.Color
 import androidx.core.graphics.ColorUtils
-import org.appdevforall.codeonthego.editor.schemes.LanguageScheme
 import com.itsaky.androidide.treesitter.TSQuery
 import com.itsaky.androidide.treesitter.TSQueryCapture
-import org.appdevforall.codeonthego.utils.StackFrameLocator
-import org.appdevforall.codeonthego.utils.parseHexColor
 import io.github.rosemoe.sora.editor.ts.spans.DefaultSpanFactory
 import io.github.rosemoe.sora.editor.ts.spans.TsSpanFactory
 import io.github.rosemoe.sora.lang.styling.Span
@@ -34,6 +31,9 @@ import io.github.rosemoe.sora.lang.styling.color.ResolvableColor
 import io.github.rosemoe.sora.lang.styling.span.SpanConstColorResolver
 import io.github.rosemoe.sora.lang.styling.span.SpanExtAttrs
 import io.github.rosemoe.sora.text.ContentReference
+import org.appdevforall.codeonthego.editor.schemes.LanguageScheme
+import org.appdevforall.codeonthego.utils.StackFrameLocator
+import org.appdevforall.codeonthego.utils.parseHexColor
 import org.slf4j.LoggerFactory
 
 /**

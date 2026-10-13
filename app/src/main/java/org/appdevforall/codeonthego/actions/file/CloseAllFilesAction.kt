@@ -28,19 +28,21 @@ import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
  *
  * @author Akash Yadav
  */
-class CloseAllFilesAction(context: Context, override val order: Int) : FileTabAction() {
+class CloseAllFilesAction(
+	context: Context,
+	override val order: Int,
+) : FileTabAction() {
+	override val id: String = "ide.editor.fileTab.close.all"
 
-  override val id: String = "ide.editor.fileTab.close.all"
+	init {
+		label = context.getString(R.string.action_closeAll)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_close_all)
+	}
 
-  init {
-    label = context.getString(R.string.action_closeAll)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_close_all)
-  }
-
-  override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
-    closeAll {
-      invalidateOptionsMenu()
-    }
-    return true
-  }
+	override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
+		closeAll {
+			invalidateOptionsMenu()
+		}
+		return true
+	}
 }

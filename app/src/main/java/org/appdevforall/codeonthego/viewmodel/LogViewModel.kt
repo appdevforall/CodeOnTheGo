@@ -1,14 +1,6 @@
 package org.appdevforall.codeonthego.viewmodel
 
 import androidx.lifecycle.ViewModel
-import org.appdevforall.codeonthego.logs.LogBuffer
-import org.appdevforall.codeonthego.models.LogFilter
-import org.appdevforall.codeonthego.models.LogLine
-import org.appdevforall.codeonthego.utils.ILogger
-import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.LOG_FREQUENCY
-import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.MAX_CHUNK_SIZE
-import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.MAX_LINE_COUNT
-import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.TRIM_ON_LINE_COUNT
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
@@ -30,6 +22,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.appdevforall.codeonthego.logs.LogBuffer
+import org.appdevforall.codeonthego.models.LogFilter
+import org.appdevforall.codeonthego.models.LogLine
+import org.appdevforall.codeonthego.utils.ILogger
+import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.LOG_FREQUENCY
+import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.MAX_CHUNK_SIZE
+import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.MAX_LINE_COUNT
+import org.appdevforall.codeonthego.viewmodel.LogViewModel.Companion.TRIM_ON_LINE_COUNT
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 

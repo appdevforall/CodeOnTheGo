@@ -28,13 +28,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.updatePaddingRelative
 import com.itsaky.androidide.BuildConfig
-import org.appdevforall.codeonthego.FeedbackButtonManager
 import com.itsaky.androidide.R
+import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.databinding.ActivityAboutBinding
+import org.appdevforall.codeonthego.FeedbackButtonManager
 import org.appdevforall.codeonthego.adapters.SimpleIconTitleDescriptionAdapter
 import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
 import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
-import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.databinding.ActivityAboutBinding
 import org.appdevforall.codeonthego.models.IconTitleDescriptionItem
 import org.appdevforall.codeonthego.models.SimpleIconTitleDescriptionItem
 import org.appdevforall.codeonthego.utils.BasicBuildInfo

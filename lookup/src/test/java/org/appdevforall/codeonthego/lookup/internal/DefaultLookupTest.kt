@@ -14,7 +14,6 @@ import org.junit.runners.JUnit4
  */
 @RunWith(JUnit4::class)
 class DefaultLookupTest {
-
 	@Test
 	fun `test key registration when service registered with update func`() {
 		val lookup = DefaultLookup()

@@ -26,15 +26,13 @@ import java.io.Serializable
  * @author Akash Yadav
  */
 class JavaModuleProjectDependency(
-  /** The name of the module project. */
-  val moduleName: String,
-
-  /** The path of the project. */
-  val projectPath: String,
-
-  /** Scope of this dependency. */
-  scope: String,
-
-  /** Whether the dependency is exported. */
-  exported: Boolean
-) : JavaModuleDependency(null, scope, exported), Serializable
+	/** The name of the module project. */
+	val moduleName: String,
+	/** The path of the project. */
+	val projectPath: String,
+	/** Scope of this dependency. */
+	scope: String,
+	/** Whether the dependency is exported. */
+	exported: Boolean,
+) : JavaModuleDependency(null, scope, exported),
+	Serializable

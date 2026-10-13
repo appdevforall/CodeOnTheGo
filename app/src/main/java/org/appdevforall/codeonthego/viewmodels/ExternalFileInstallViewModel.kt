@@ -5,14 +5,7 @@ import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import org.appdevforall.codeonthego.repositories.PluginRepository
-import org.appdevforall.codeonthego.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.resources.R
-import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEffect
-import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEvent
-import org.appdevforall.codeonthego.utils.InstallTempFiles
-import org.appdevforall.codeonthego.utils.LastValueGate
-import org.appdevforall.codeonthego.utils.UriFileImporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -26,6 +19,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
+import org.appdevforall.codeonthego.repositories.PluginRepository
+import org.appdevforall.codeonthego.repositories.TemplateCollectionRepository
+import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEffect
+import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEvent
+import org.appdevforall.codeonthego.utils.InstallTempFiles
+import org.appdevforall.codeonthego.utils.LastValueGate
+import org.appdevforall.codeonthego.utils.UriFileImporter
 import org.slf4j.LoggerFactory
 import java.io.File
 

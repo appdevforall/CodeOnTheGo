@@ -18,9 +18,6 @@
 package org.appdevforall.codeonthego.handlers
 
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.analytics.AttachedDevicesCollector
-import org.appdevforall.codeonthego.analytics.AttachedDevicesSnapshot
-import org.appdevforall.codeonthego.app.IDEApplication
 import com.itsaky.androidide.buildinfo.BuildInfo
 import io.mockk.every
 import io.mockk.mockk
@@ -29,6 +26,9 @@ import io.mockk.unmockkAll
 import io.sentry.Hint
 import io.sentry.SentryEvent
 import io.sentry.SentryOptions
+import org.appdevforall.codeonthego.analytics.AttachedDevicesCollector
+import org.appdevforall.codeonthego.analytics.AttachedDevicesSnapshot
+import org.appdevforall.codeonthego.app.IDEApplication
 import org.junit.After
 import org.junit.Before
 import org.junit.Test

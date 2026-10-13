@@ -1,7 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.MAX_CANDIDATES
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.Modifier
 import openjdk.source.tree.AnnotatedTypeTree
@@ -41,6 +39,8 @@ import openjdk.source.util.SourcePositions
 import openjdk.source.util.TreePath
 import openjdk.source.util.TreePathScanner
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.MAX_CANDIDATES
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 
 /**
  * [paths] is innermost-first, at most [MAX_CANDIDATES] long. Paths rather than bare trees, because every

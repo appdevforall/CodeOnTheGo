@@ -26,7 +26,9 @@ import java.io.File
  * @param file The clicked file.
  * @author Akash Yadav
  */
-data class FileClickEvent(val file: File) : Event()
+data class FileClickEvent(
+	val file: File,
+) : Event()
 
 /**
  * Event dispatched when a file is long clicked in the file tree.
@@ -34,7 +36,9 @@ data class FileClickEvent(val file: File) : Event()
  * @param file The file that was long clicked.
  * @author Akash Yadav
  */
-class FileLongClickEvent(val file: File) : Event()
+class FileLongClickEvent(
+	val file: File,
+) : Event()
 
 /**
  * Event dispatched when a plugin creates or deletes a file via the IDE file service,
@@ -42,4 +46,6 @@ class FileLongClickEvent(val file: File) : Event()
  *
  * @param file The file that was created or deleted.
  */
-class PluginFilesChangedEvent(val file: File) : Event()
+class PluginFilesChangedEvent(
+	val file: File,
+) : Event()

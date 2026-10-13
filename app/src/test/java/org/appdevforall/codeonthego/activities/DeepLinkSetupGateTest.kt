@@ -22,13 +22,13 @@ import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
-import org.appdevforall.codeonthego.utils.Environment
-import org.appdevforall.codeonthego.utils.PermissionsHelper
 import io.mockk.every
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
+import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
+import org.appdevforall.codeonthego.utils.Environment
+import org.appdevforall.codeonthego.utils.PermissionsHelper
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

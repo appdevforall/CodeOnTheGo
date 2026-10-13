@@ -17,13 +17,13 @@
 package org.appdevforall.codeonthego.tooling.impl
 
 import androidx.annotation.VisibleForTesting
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.logging.provider.IdeLogRouter
 import org.appdevforall.codeonthego.tooling.api.IToolingApiClient
 import org.appdevforall.codeonthego.tooling.api.util.ToolingApiLauncher.newServerLauncher
 import org.appdevforall.codeonthego.tooling.api.util.ToolingProps
 import org.appdevforall.codeonthego.tooling.impl.logging.ToolingApiAppender
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import org.gradle.tooling.events.OperationType
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CancellationException

@@ -25,12 +25,14 @@ import java.nio.file.Path
 
 /** @author Akash Yadav */
 data class DefinitionParams(
-  var file: Path,
-  var position: Position,
-  override val cancelChecker: ICancelChecker
+	var file: Path,
+	var position: Position,
+	override val cancelChecker: ICancelChecker,
 ) : CancellableRequestParams
 
-data class DefinitionResult(var locations: List<Location>) {
+data class DefinitionResult(
+	var locations: List<Location>,
+) {
 	companion object {
 		fun empty() = DefinitionResult(locations = emptyList())
 	}

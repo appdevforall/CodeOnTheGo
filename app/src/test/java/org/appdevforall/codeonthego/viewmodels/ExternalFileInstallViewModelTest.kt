@@ -5,11 +5,6 @@ import android.net.Uri
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import org.appdevforall.codeonthego.repositories.PluginRepository
-import org.appdevforall.codeonthego.repositories.TemplateCollectionRepository
-import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEffect
-import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEvent
-import org.appdevforall.codeonthego.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -19,6 +14,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.repositories.PluginRepository
+import org.appdevforall.codeonthego.repositories.TemplateCollectionRepository
+import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEffect
+import org.appdevforall.codeonthego.ui.models.ExternalFileInstallUiEvent
+import org.appdevforall.codeonthego.viewmodel.MainDispatcherRule
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test

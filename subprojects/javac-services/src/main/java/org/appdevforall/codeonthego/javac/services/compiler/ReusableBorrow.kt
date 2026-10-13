@@ -20,22 +20,21 @@ import openjdk.tools.javac.api.JavacTaskImpl
 
 /** @author Akash Yadav */
 class ReusableBorrow
-internal constructor(
-  private val reusableCompiler: ReusableCompiler,
-  @JvmField val task: JavacTaskImpl
-) : AutoCloseable {
+	internal constructor(
+		private val reusableCompiler: ReusableCompiler,
+		@JvmField val task: JavacTaskImpl,
+	) : AutoCloseable {
+		private var closed = false
 
-  private var closed = false
-
-  override fun close() {
-    if (closed) {
-      return
-    }
-    // not returning the context to the pool if task crashes with an exception
-    // the task/context may be in a broken state
-    reusableCompiler.currentContext!!.clear()
-    task.cleanup()
-    reusableCompiler.checkedOut = false
-    closed = true
-  }
-}
+		override fun close() {
+			if (closed) {
+				return
+			}
+			// not returning the context to the pool if task crashes with an exception
+			// the task/context may be in a broken state
+			reusableCompiler.currentContext!!.clear()
+			task.cleanup()
+			reusableCompiler.checkedOut = false
+			closed = true
+		}
+	}

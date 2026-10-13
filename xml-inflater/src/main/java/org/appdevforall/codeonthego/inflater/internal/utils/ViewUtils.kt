@@ -22,18 +22,19 @@ import com.android.SdkConstants.ANDROID_PKG
 // android.$it.$widget
 val androidPackages = listOf("view", "widget", "gesture")
 
-fun String.simpleName(): String {
-  return if (contains('.')) {
-    substringAfterLast(delimiter = '.')
-  } else this
-}
+fun String.simpleName(): String =
+	if (contains('.')) {
+		substringAfterLast(delimiter = '.')
+	} else {
+		this
+	}
 
 fun String.tagName(): String {
-  val split = split('.')
-  if (split.size == 3) {
-    if (ANDROID_PKG == split[0] && androidPackages.find { it == split[1] } != null) {
-      return split[2]
-    }
-  }
-  return this
+	val split = split('.')
+	if (split.size == 3) {
+		if (ANDROID_PKG == split[0] && androidPackages.find { it == split[1] } != null) {
+			return split[2]
+		}
+	}
+	return this
 }

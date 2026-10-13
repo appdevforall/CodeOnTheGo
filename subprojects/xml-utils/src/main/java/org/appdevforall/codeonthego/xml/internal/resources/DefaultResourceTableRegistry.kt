@@ -33,8 +33,8 @@ import com.android.aaptcompiler.TableExtractor
 import com.android.aaptcompiler.TableExtractorOptions
 import com.android.aaptcompiler.extractPathData
 import com.google.auto.service.AutoService
-import org.appdevforall.codeonthego.aapt.logging.IDELogger
 import com.itsaky.androidide.layoutlib.resources.ResourceVisibility.PUBLIC
+import org.appdevforall.codeonthego.aapt.logging.IDELogger
 import org.appdevforall.codeonthego.xml.internal.resources.DefaultResourceTableRegistry.SingleLineValueEntryType.ACTIVITY_ACTIONS
 import org.appdevforall.codeonthego.xml.internal.resources.DefaultResourceTableRegistry.SingleLineValueEntryType.BROADCAST_ACTIONS
 import org.appdevforall.codeonthego.xml.internal.resources.DefaultResourceTableRegistry.SingleLineValueEntryType.CATEGORIES

@@ -1,5 +1,7 @@
 package org.appdevforall.codeonthego.lsp.external
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentChangeEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentCloseEvent
 import org.appdevforall.codeonthego.eventbus.events.editor.DocumentOpenEvent
@@ -25,8 +27,6 @@ import org.appdevforall.codeonthego.progress.ICancelChecker
 import org.appdevforall.codeonthego.projects.FileManager
 import org.appdevforall.codeonthego.projects.api.Workspace
 import org.appdevforall.codeonthego.projects.models.projectDir
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.eclipse.lsp4j.ClientCapabilities
 import org.eclipse.lsp4j.CompletionCapabilities
 import org.eclipse.lsp4j.CompletionItemCapabilities

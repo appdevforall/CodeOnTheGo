@@ -30,65 +30,68 @@ import java.io.File
  * @author Akash Yadav
  */
 interface ResourceTableRegistry : XmlRegistry<ResourceTable> {
+	companion object {
+		const val PCK_ANDROID = "android"
 
-  companion object {
+		@JvmStatic
+		val COMPLETION_MODULE_RES = Lookup.Key<Set<ResourceTable>>()
 
-    const val PCK_ANDROID = "android"
-    @JvmStatic
-    val COMPLETION_MODULE_RES = Lookup.Key<Set<ResourceTable>>()
-    @JvmStatic
-    val COMPLETION_DEP_RES = Lookup.Key<Set<ResourceTable>>()
-    @JvmStatic
-    val COMPLETION_FRAMEWORK_RES = Lookup.Key<ResourceTable>()
-    @JvmStatic
-    val COMPLETION_MANIFEST_ATTR_RES = Lookup.Key<ResourceTable>()
+		@JvmStatic
+		val COMPLETION_DEP_RES = Lookup.Key<Set<ResourceTable>>()
 
-    private var sInstance: ResourceTableRegistry? = null
+		@JvmStatic
+		val COMPLETION_FRAMEWORK_RES = Lookup.Key<ResourceTable>()
 
-    @JvmStatic
-    fun getInstance(): ResourceTableRegistry {
-      val klass = ResourceTableRegistry::class.java
-      return sInstance ?: ServiceLoader.load(klass, klass.classLoader).findFirstOrThrow().also { sInstance = it }
-    }
-  }
+		@JvmStatic
+		val COMPLETION_MANIFEST_ATTR_RES = Lookup.Key<ResourceTable>()
 
-  /**
-   * Find the resource table by package name. Should not be used for platform resource tables.
-   *
-   * @param name The package name for the resource table.
-   */
-  fun forPackage(name: String, vararg resDirs: File): ResourceTable?
+		private var sInstance: ResourceTableRegistry? = null
 
-  /**
-   * Remove the resource table entry for the given package name.
-   *
-   * @param packageName The package name to remove the resource table entry for.
-   */
-  fun removeTable(packageName: String)
+		@JvmStatic
+		fun getInstance(): ResourceTableRegistry {
+			val klass = ResourceTableRegistry::class.java
+			return sInstance ?: ServiceLoader.load(klass, klass.classLoader).findFirstOrThrow().also { sInstance = it }
+		}
+	}
 
-  /**
-   * Get the resource group which corresponds to the attributes for `AndroidManifest.xml`.
-   *
-   * @return The [ResourceGroup] or null if not found or not available.
-   */
-  fun getManifestAttrTable(platform: File): ResourceTable?
+	/**
+	 * Find the resource table by package name. Should not be used for platform resource tables.
+	 *
+	 * @param name The package name for the resource table.
+	 */
+	fun forPackage(
+		name: String,
+		vararg resDirs: File,
+	): ResourceTable?
 
-  /** Get the list of all activity actions for the given [platform] directory. */
-  fun getActivityActions(platform: File): List<String>
+	/**
+	 * Remove the resource table entry for the given package name.
+	 *
+	 * @param packageName The package name to remove the resource table entry for.
+	 */
+	fun removeTable(packageName: String)
 
-  /** Get the list of all broadcast actions for the given [platform] directory. */
-  fun getBroadcastActions(platform: File): List<String>
+	/**
+	 * Get the resource group which corresponds to the attributes for `AndroidManifest.xml`.
+	 *
+	 * @return The [ResourceGroup] or null if not found or not available.
+	 */
+	fun getManifestAttrTable(platform: File): ResourceTable?
 
-  /** Get the list of all service actions for the given [platform] directory. */
-  fun getServiceActions(platform: File): List<String>
+	/** Get the list of all activity actions for the given [platform] directory. */
+	fun getActivityActions(platform: File): List<String>
 
-  /** Get the list of all categories for the given [platform] directory. */
-  fun getCategories(platform: File): List<String>
+	/** Get the list of all broadcast actions for the given [platform] directory. */
+	fun getBroadcastActions(platform: File): List<String>
 
-  /** Get the list of all features for the given [platform] directory. */
-  fun getFeatures(platform: File): List<String>
+	/** Get the list of all service actions for the given [platform] directory. */
+	fun getServiceActions(platform: File): List<String>
 
-  override fun forPlatformDir(platform: File): ResourceTable? {
-    return forPackage(PCK_ANDROID, File(platform, "data/res"))
-  }
+	/** Get the list of all categories for the given [platform] directory. */
+	fun getCategories(platform: File): List<String>
+
+	/** Get the list of all features for the given [platform] directory. */
+	fun getFeatures(platform: File): List<String>
+
+	override fun forPlatformDir(platform: File): ResourceTable? = forPackage(PCK_ANDROID, File(platform, "data/res"))
 }

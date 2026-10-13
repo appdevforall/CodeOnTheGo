@@ -39,13 +39,19 @@ import com.github.appintro.SlidePolicy
 import com.github.appintro.SlideSelectionListener
 import com.google.android.material.button.MaterialButton
 import com.itsaky.androidide.R
+import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.databinding.LayoutDialogPrivacyConsentBinding
+import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
+import io.sentry.Sentry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.activities.OnboardingActivity
 import org.appdevforall.codeonthego.adapters.onboarding.OnboardingPermissionsAdapter
 import org.appdevforall.codeonthego.app.DeviceProtectedApplicationLoader
 import org.appdevforall.codeonthego.app.IDEApplication
-import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.databinding.LayoutDialogPrivacyConsentBinding
-import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
 import org.appdevforall.codeonthego.events.InstallationEvent
 import org.appdevforall.codeonthego.preferences.internal.StatPreferences
 import org.appdevforall.codeonthego.preferences.internal.TelemetryConsent
@@ -61,12 +67,6 @@ import org.appdevforall.codeonthego.utils.viewLifecycleScope
 import org.appdevforall.codeonthego.utils.viewLifecycleScopeOrNull
 import org.appdevforall.codeonthego.viewmodel.InstallationState
 import org.appdevforall.codeonthego.viewmodel.InstallationViewModel
-import io.sentry.Sentry
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
 /**

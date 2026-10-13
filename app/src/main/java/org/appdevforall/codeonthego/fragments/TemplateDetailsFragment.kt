@@ -30,9 +30,13 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.transition.TransitionManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.R.string
+import com.itsaky.androidide.databinding.FragmentTemplateDetailsBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.activities.MainActivity
 import org.appdevforall.codeonthego.adapters.TemplateWidgetsListAdapter
-import com.itsaky.androidide.databinding.FragmentTemplateDetailsBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.SETUP_CREATE_PROJECT
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.SETUP_OVERVIEW
@@ -44,10 +48,6 @@ import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashSuccess
 import org.appdevforall.codeonthego.utils.ui.TemplateScrollGateKeeper
 import org.appdevforall.codeonthego.viewmodel.MainViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
 /**

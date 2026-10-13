@@ -24,4 +24,6 @@ package org.appdevforall.codeonthego.tooling.api.models.result
  *      because the project with the provided path was not found.
  * @author Akash Yadav
  */
-data class SelectProjectResult(val isSuccessful: Boolean)
+data class SelectProjectResult(
+	val isSuccessful: Boolean,
+)

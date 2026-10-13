@@ -18,8 +18,8 @@
 package org.appdevforall.codeonthego.adapters;
 
 import androidx.annotation.NonNull;
-import org.appdevforall.codeonthego.models.IconTextListItem;
 import java.util.List;
+import org.appdevforall.codeonthego.models.IconTextListItem;
 
 /**
  * A simple implementation of {@link IconTextAdapter}.
@@ -28,31 +28,31 @@ import java.util.List;
  */
 public class SimpleIconTextAdapter extends IconTextAdapter<IconTextListItem> {
 
-  private final List<? extends IconTextListItem> items;
+	private final List<? extends IconTextListItem> items;
 
-  public SimpleIconTextAdapter(List<? extends IconTextListItem> items) {
-    this.items = items;
-  }
+	public SimpleIconTextAdapter(List<? extends IconTextListItem> items) {
+		this.items = items;
+	}
 
-  @Override
-  public int getItemCount() {
-    return items.size();
-  }
+	@Override
+	public int getIconResource(int index) {
+		return getItemAt(index).getIconResource();
+	}
 
-  @NonNull
-  @Override
-  public IconTextListItem getItemAt(int index) {
-    return items.get(index);
-  }
+	@NonNull
+	@Override
+	public IconTextListItem getItemAt(int index) {
+		return items.get(index);
+	}
 
-  @Override
-  public int getIconResource(int index) {
-    return getItemAt(index).getIconResource();
-  }
+	@Override
+	public int getItemCount() {
+		return items.size();
+	}
 
-  @NonNull
-  @Override
-  public String getItemText(int index) {
-    return getItemAt(index).getText();
-  }
+	@NonNull
+	@Override
+	public String getItemText(int index) {
+		return getItemAt(index).getText();
+	}
 }

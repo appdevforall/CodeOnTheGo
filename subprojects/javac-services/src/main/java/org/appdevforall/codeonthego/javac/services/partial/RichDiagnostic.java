@@ -27,73 +27,74 @@ import openjdk.tools.javac.util.JCDiagnostic;
  */
 public class RichDiagnostic implements Diagnostic {
 
-  private final JCDiagnostic delegate;
-  private final DiagnosticFormatter<JCDiagnostic> formatter;
+	public static Diagnostic wrap(Diagnostic d, DiagnosticFormatter<JCDiagnostic> df) {
+		if (d instanceof JCDiagnostic) {
+			return new RichDiagnostic((JCDiagnostic) d, df);
+		} else {
+			return d;
+		}
+	}
 
-  public RichDiagnostic(JCDiagnostic delegate, DiagnosticFormatter<JCDiagnostic> formatter) {
-    this.delegate = delegate;
-    this.formatter = formatter;
-  }
+	private final JCDiagnostic delegate;
 
-  @Override
-  public Diagnostic.Kind getKind() {
-    return delegate.getKind();
-  }
+	private final DiagnosticFormatter<JCDiagnostic> formatter;
 
-  @Override
-  public Object getSource() {
-    return delegate.getSource();
-  }
+	public RichDiagnostic(JCDiagnostic delegate, DiagnosticFormatter<JCDiagnostic> formatter) {
+		this.delegate = delegate;
+		this.formatter = formatter;
+	}
 
-  @Override
-  public long getPosition() {
-    return delegate.getPosition();
-  }
+	@Override
+	public String getCode() {
+		return delegate.getCode();
+	}
 
-  @Override
-  public long getStartPosition() {
-    return delegate.getStartPosition();
-  }
+	@Override
+	public long getColumnNumber() {
+		return delegate.getColumnNumber();
+	}
 
-  @Override
-  public long getEndPosition() {
-    return delegate.getEndPosition();
-  }
+	@Override
+	public long getEndPosition() {
+		return delegate.getEndPosition();
+	}
 
-  @Override
-  public long getLineNumber() {
-    return delegate.getLineNumber();
-  }
+	@Override
+	public Diagnostic.Kind getKind() {
+		return delegate.getKind();
+	}
 
-  @Override
-  public long getColumnNumber() {
-    return delegate.getColumnNumber();
-  }
+	@Override
+	public long getLineNumber() {
+		return delegate.getLineNumber();
+	}
 
-  @Override
-  public String getCode() {
-    return delegate.getCode();
-  }
+	@Override
+	public String getMessage(Locale locale) {
+		return formatter.format(delegate, locale);
+	}
 
-  @Override
-  public String getMessage(Locale locale) {
-    return formatter.format(delegate, locale);
-  }
+	@Override
+	public long getPosition() {
+		return delegate.getPosition();
+	}
 
-  @Override
-  public String toString() {
-    return delegate.toString();
-  }
+	@Override
+	public Object getSource() {
+		return delegate.getSource();
+	}
 
-  JCDiagnostic getDelegate() {
-    return delegate;
-  }
+	@Override
+	public long getStartPosition() {
+		return delegate.getStartPosition();
+	}
 
-  public static Diagnostic wrap(Diagnostic d, DiagnosticFormatter<JCDiagnostic> df) {
-    if (d instanceof JCDiagnostic) {
-      return new RichDiagnostic((JCDiagnostic) d, df);
-    } else {
-      return d;
-    }
-  }
+	@Override
+	public String toString() {
+		return delegate.toString();
+	}
+
+	JCDiagnostic getDelegate() {
+		return delegate;
+	}
 }

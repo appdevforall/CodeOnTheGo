@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
-import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import jdkx.lang.model.element.Element
 import jdkx.lang.model.element.NestingKind
 import jdkx.lang.model.element.TypeElement
@@ -14,6 +13,7 @@ import jdkx.lang.model.type.WildcardType
 import openjdk.source.tree.CompilationUnitTree
 import openjdk.source.util.SourcePositions
 import openjdk.source.util.Trees
+import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 
 /** Whether [element] is a type parameter declared on the anchor method itself (R10). */
 internal fun isAnchorTypeParameter(

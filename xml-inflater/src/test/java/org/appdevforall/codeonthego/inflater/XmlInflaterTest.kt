@@ -19,6 +19,7 @@ package org.appdevforall.codeonthego.inflater
 
 import androidx.appcompat.app.AppCompatActivity
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.inflater.utils.endParse
 import org.appdevforall.codeonthego.inflater.utils.startParse
 import org.appdevforall.codeonthego.projects.IProjectManager
@@ -26,7 +27,6 @@ import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.util.findAppModule
 import org.appdevforall.codeonthego.testing.tooling.ToolingApiTestLauncher
 import org.appdevforall.codeonthego.tooling.api.messages.result.InitializeResult
-import kotlinx.coroutines.runBlocking
 import org.junit.Ignore
 import org.robolectric.Robolectric
 
@@ -35,6 +35,7 @@ object XmlInflaterTest {
 	private enum class State { UNINITIALIZED, READY, FAILED }
 
 	@Volatile private var state: State = State.UNINITIALIZED
+
 	@Volatile private var initError: Throwable? = null
 
 	internal val activity by lazy { Robolectric.buildActivity(AppCompatActivity::class.java).get() }
@@ -42,11 +43,17 @@ object XmlInflaterTest {
 	fun initIfNeeded() {
 		// Fast path: once we've reached a terminal state, no synchronization needed.
 		when (state) {
-			State.READY -> return
-			State.FAILED -> throw IllegalStateException(
-				"XmlInflaterTest init previously failed; refusing to retry.",
-				initError,
-			)
+			State.READY -> {
+				return
+			}
+
+			State.FAILED -> {
+				throw IllegalStateException(
+					"XmlInflaterTest init previously failed; refusing to retry.",
+					initError,
+				)
+			}
+
 			State.UNINITIALIZED -> {} // fall through to slow path
 		}
 
@@ -55,11 +62,17 @@ object XmlInflaterTest {
 		// proceed (READY) or throw (FAILED).
 		synchronized(this) {
 			when (state) {
-				State.READY -> return
-				State.FAILED -> throw IllegalStateException(
-					"XmlInflaterTest init previously failed; refusing to retry.",
-					initError,
-				)
+				State.READY -> {
+					return
+				}
+
+				State.FAILED -> {
+					throw IllegalStateException(
+						"XmlInflaterTest init previously failed; refusing to retry.",
+						initError,
+					)
+				}
+
 				State.UNINITIALIZED -> {
 					try {
 						ToolingApiTestLauncher.launchServer {

@@ -33,8 +33,13 @@ import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
-import org.appdevforall.codeonthego.FeedbackButtonManager
 import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.ActivityMainBinding
+import com.itsaky.androidide.resources.R.string
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.FeedbackButtonManager
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.activities.editor.EditorActivityKt
 import org.appdevforall.codeonthego.analytics.DeepLinkMetric
@@ -42,7 +47,6 @@ import org.appdevforall.codeonthego.analytics.DeepLinkOutcome
 import org.appdevforall.codeonthego.analytics.IAnalyticsManager
 import org.appdevforall.codeonthego.analytics.depth
 import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
-import com.itsaky.androidide.databinding.ActivityMainBinding
 import org.appdevforall.codeonthego.deeplink.ConsumedRequests
 import org.appdevforall.codeonthego.fragments.MainFragment
 import org.appdevforall.codeonthego.fragments.RecentProjectsFragment
@@ -57,7 +61,6 @@ import org.appdevforall.codeonthego.models.PendingFileRequest
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.repositories.RecentProjectRepository
-import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.shortcuts.IdeShortcutActions
 import org.appdevforall.codeonthego.shortcuts.ShortcutContext
@@ -85,9 +88,6 @@ import org.appdevforall.codeonthego.viewmodel.MainViewModel.Companion.SCREEN_SAV
 import org.appdevforall.codeonthego.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_DETAILS
 import org.appdevforall.codeonthego.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import org.appdevforall.codeonthego.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.slf4j.LoggerFactory

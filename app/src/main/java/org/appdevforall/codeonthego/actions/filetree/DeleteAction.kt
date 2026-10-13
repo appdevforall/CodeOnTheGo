@@ -19,13 +19,13 @@ package org.appdevforall.codeonthego.actions.filetree
 
 import android.app.ProgressDialog
 import android.content.Context
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.eventbus.events.file.FileDeletionEvent
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.idetooltips.attachTooltip
 import org.appdevforall.codeonthego.projects.FileManager
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.tasks.executeAsync
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.FileUtils
