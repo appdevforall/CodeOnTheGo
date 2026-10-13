@@ -23,6 +23,11 @@
 		understand the risk.</string>
 	<string name="instant_wipe_arm_confirm">Enable</string>
 
+	<!-- Safe gesture rehearsal shown when arming Instant Hide; nothing is actually hidden. -->
+	<string name="practice_hide_instructions">Practice Instant Hide: tap the screen with three fingers at once to disguise the app.</string>
+	<string name="practice_hide_exit_instructions">Now the exit gesture: two three-finger taps in a row (a slow double tap) returns to the
+		IDE.</string>
+
 	<!-- Safe gesture rehearsal shown right after arming Instant Wipe; nothing is deleted. -->
 	<string name="practice_wipe_instructions">Practice Instant Wipe: with one finger, draw a single continuous circle spanning at least %1$d%%
 		of the screen width. This is a safe rehearsal -- nothing is deleted.</string>

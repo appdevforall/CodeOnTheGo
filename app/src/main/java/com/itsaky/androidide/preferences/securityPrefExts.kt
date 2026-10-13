@@ -26,6 +26,7 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_SECURITY
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
+import com.itsaky.androidide.security.HidePracticeActivity
 import com.itsaky.androidide.security.WipePracticeActivity
 import kotlinx.parcelize.Parcelize
 
@@ -77,6 +78,10 @@ class InstantHide(
 		// applyScreenSecurity() otherwise only runs on the next onResume, leaving a gap right after
 		// arming. Also clears the flag immediately when the user turns it back off.
 		preference.context.findIDEActivity()?.applyInstantHideScreenSecurity()
+		if (newValue == true) {
+			// Offer a safe rehearsal of the eyes-free hide and exit gestures (nothing is hidden there).
+			preference.context.startActivity(Intent(preference.context, HidePracticeActivity::class.java))
+		}
 		return true
 	}
 }
