@@ -27,12 +27,15 @@ import java.io.File
  *   Recents DB files). See [SecureShredder] for why "secure" is best-effort only.
  * @property fastDeleteTargets bulk, regenerable trees to plain-delete fast (Gradle/build/`cacheDir`);
  *   overwriting these would defeat "instant" and buys nothing (they hold no user secrets).
+ * @property secureTargetSkipDirs directory names within [secureTargets] to fast plain-delete instead of
+ *   shredding (regenerable caches like `build` / `.gradle` -- keeps the shred fast).
  * @property markerFiles tripwire files to create after a real wipe (e.g. `.pip` / `.pip2`).
  */
 data class WipePlan(
 	val secureTargets: List<File>,
 	val fastDeleteTargets: List<File>,
 	val markerFiles: List<File>,
+	val secureTargetSkipDirs: Set<String> = emptySet(),
 )
 
 /**
@@ -99,7 +102,7 @@ object WipeManager {
 		}
 
 		var shredded = 0
-		plan.secureTargets.forEach { shredded += SecureShredder.shredTree(it) }
+		plan.secureTargets.forEach { shredded += SecureShredder.shredTree(it, skipDirNames = plan.secureTargetSkipDirs) }
 
 		var deleted = 0
 		plan.fastDeleteTargets.forEach { target ->

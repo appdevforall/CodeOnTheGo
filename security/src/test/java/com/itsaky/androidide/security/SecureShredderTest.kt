@@ -85,4 +85,21 @@ class SecureShredderTest {
 	fun `shredTree on a missing path is a no-op`() {
 		assertThat(SecureShredder.shredTree(File(tmp.root, "nope"), random)).isEqualTo(0)
 	}
+
+	@Test
+	fun `shredTree fast-deletes skipped cache dirs but still removes them, and shreds the rest`() {
+		val project = tmp.newFolder("MyApp")
+		File(project, "Main.kt").writeText("secret source")
+		val build = File(project, "build").apply { mkdirs() }
+		File(build, "classes.bin").writeBytes(ByteArray(2048))
+		val gradle = File(project, ".gradle").apply { mkdirs() }
+		File(gradle, "cache.lock").writeText("lock")
+
+		val count = SecureShredder.shredTree(project, random, skipDirNames = setOf("build", ".gradle"))
+
+		// Only the source file is shredded (counted); the cache dirs are fast-deleted (not counted).
+		assertThat(count).isEqualTo(1)
+		// Everything is gone either way.
+		assertThat(project.exists()).isFalse()
+	}
 }

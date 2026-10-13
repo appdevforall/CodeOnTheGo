@@ -68,15 +68,24 @@ object SecureShredder {
 	/**
 	 * Depth-first shred of a file or directory tree: shreds every file, then removes the emptied
 	 * directories. Returns the number of files shredded (directories are not counted).
+	 *
+	 * A directory whose name is in [skipDirNames] is **fast plain-deleted** instead of shredded -- for
+	 * regenerable caches (build output, Gradle caches) that hold no user secrets, so overwriting them
+	 * would only cost time and defeat an "instant" wipe.
 	 */
 	fun shredTree(
 		root: File,
 		random: Random = SecureRandom(),
+		skipDirNames: Set<String> = emptySet(),
 	): Int {
 		if (!root.exists()) return 0
 		var count = 0
 		if (root.isDirectory) {
-			root.listFiles()?.forEach { count += shredTree(it, random) }
+			if (root.name in skipDirNames) {
+				root.deleteRecursively()
+				return 0
+			}
+			root.listFiles()?.forEach { count += shredTree(it, random, skipDirNames) }
 			root.delete()
 		} else {
 			if (shredFile(root, random)) count++
