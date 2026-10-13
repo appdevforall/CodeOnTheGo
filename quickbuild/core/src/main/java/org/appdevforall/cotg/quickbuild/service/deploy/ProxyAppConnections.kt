@@ -1,11 +1,11 @@
 package org.appdevforall.cotg.quickbuild.service.deploy
 
 import android.os.IBinder
-import com.itsaky.androidide.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import org.slf4j.LoggerFactory
 
 /**

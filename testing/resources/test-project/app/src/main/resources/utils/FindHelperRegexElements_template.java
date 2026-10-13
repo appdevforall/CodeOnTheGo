@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.java.test;
+package org.appdevforall.codeonthego.lsp.java.test;
 
 import java.util.*;
 

@@ -1,4 +1,4 @@
-package com.itsaky.androidide.lsp.java.partial;
+package org.appdevforall.codeonthego.lsp.java.partial;
 
 public class PartialReparserTest_template {
   public static void main(String[] args) {

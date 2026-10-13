@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.projects.ProjectManagerImpl
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test

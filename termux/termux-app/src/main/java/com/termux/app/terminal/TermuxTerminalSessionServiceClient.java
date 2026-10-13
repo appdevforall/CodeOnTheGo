@@ -1,6 +1,6 @@
 package com.termux.app.terminal;
 
-import com.itsaky.androidide.terminal.TerminalCommandRequests;
+import org.appdevforall.codeonthego.terminal.TerminalCommandRequests;
 import android.app.Service;
 import androidx.annotation.NonNull;
 import com.termux.app.TermuxService;

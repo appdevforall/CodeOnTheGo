@@ -15,7 +15,7 @@ android {
 
 kotlin {
 	compilerOptions {
-		optIn.add("com.itsaky.androidide.plugins.base.InternalPluginApi")
+		optIn.add("org.appdevforall.codeonthego.plugins.base.InternalPluginApi")
 	}
 }
 

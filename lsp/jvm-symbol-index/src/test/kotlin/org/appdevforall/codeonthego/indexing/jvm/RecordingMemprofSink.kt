@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
-import com.itsaky.androidide.memprof.MemprofSink
-import com.itsaky.androidide.memprof.MemprofSpan
+import org.appdevforall.codeonthego.memprof.MemprofSink
+import org.appdevforall.codeonthego.memprof.MemprofSpan
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** A [MemprofSink] that keeps every phase it was asked to begin. */

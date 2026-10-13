@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
-import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.projects.api.Workspace
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
+import org.appdevforall.codeonthego.projects.api.ModuleProject
+import org.appdevforall.codeonthego.projects.api.Workspace
 import kotlin.io.path.extension
 
 /**

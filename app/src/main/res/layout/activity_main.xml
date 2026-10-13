@@ -1,95 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:animateLayoutChanges="true"
-    android:orientation="vertical"
-    tools:ignore="RtlCompat">
+<androidx.constraintlayout.widget.ConstraintLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:animateLayoutChanges="true"
+	android:orientation="vertical"
+	tools:ignore="RtlCompat">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fitsSystemWindows="true"
-        app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+	<com.google.android.material.appbar.AppBarLayout
+		android:id="@+id/appbar"
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content"
+		android:fitsSystemWindows="true"
+		app:layout_behavior="com.google.android.material.appbar.AppBarLayout$Behavior"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toTopOf="parent">
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:layout_width="match_parent"
-            android:id="@+id/codeOnTheGoLabel"
-            android:layout_height="match_parent"
-            android:background="?attr/colorSurface"
-            app:title="@string/app_name"
-            app:titleCentered="true"
-            app:titleTextAppearance="@style/TextAppearance.AndroidIDE.TitleLarge.Bold" />
+		<com.google.android.material.appbar.MaterialToolbar
+			android:layout_width="match_parent"
+			android:id="@+id/codeOnTheGoLabel"
+			android:layout_height="match_parent"
+			android:background="?attr/colorSurface"
+			app:title="@string/app_name"
+			app:titleCentered="true"
+			app:titleTextAppearance="@style/TextAppearance.AndroidIDE.TitleLarge.Bold" />
 
-    </com.google.android.material.appbar.AppBarLayout>
+	</com.google.android.material.appbar.AppBarLayout>
 
-    <FrameLayout
-        android:id="@+id/fragment_containers_parent"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="?attr/colorSurface"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/appbar">
+	<FrameLayout
+		android:id="@+id/fragment_containers_parent"
+		android:layout_width="0dp"
+		android:layout_height="0dp"
+		android:background="?attr/colorSurface"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintEnd_toEndOf="parent"
+		app:layout_constraintStart_toStartOf="parent"
+		app:layout_constraintTop_toBottomOf="@id/appbar">
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/main"
-            android:name="com.itsaky.androidide.fragments.MainFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/main"
+			android:name="org.appdevforall.codeonthego.fragments.MainFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/template_list"
-            android:name="com.itsaky.androidide.fragments.TemplateListFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/template_list"
+			android:name="org.appdevforall.codeonthego.fragments.TemplateListFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/template_details"
-            android:name="com.itsaky.androidide.fragments.TemplateDetailsFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/template_details"
+			android:name="org.appdevforall.codeonthego.fragments.TemplateDetailsFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/tooltip_web_view"
-            android:name="com.itsaky.androidide.fragments.IDETooltipWebviewFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/tooltip_web_view"
+			android:name="org.appdevforall.codeonthego.fragments.IDETooltipWebviewFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/saved_projects_view"
-            android:name="com.itsaky.androidide.fragments.RecentProjectsFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/saved_projects_view"
+			android:name="org.appdevforall.codeonthego.fragments.RecentProjectsFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/delete_projects_view"
-            android:name="com.itsaky.androidide.fragments.DeleteProjectFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/delete_projects_view"
+			android:name="org.appdevforall.codeonthego.fragments.DeleteProjectFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent" />
 
-        <androidx.fragment.app.FragmentContainerView
-            android:id="@+id/clone_repository_view"
-            android:name="com.itsaky.androidide.fragments.CloneRepositoryFragment"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" 
-            android:visibility="gone" />
-    </FrameLayout>
+		<androidx.fragment.app.FragmentContainerView
+			android:id="@+id/clone_repository_view"
+			android:name="org.appdevforall.codeonthego.fragments.CloneRepositoryFragment"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent"
+			android:visibility="gone" />
+	</FrameLayout>
 
-    <include
-        android:id="@+id/fab_feedback"
-        layout="@layout/feedback_fab"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="@dimen/feedback_fab_margin"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+	<include
+		android:id="@+id/fab_feedback"
+		layout="@layout/feedback_fab"
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:layout_margin="@dimen/feedback_fab_margin"
+		app:layout_constraintBottom_toBottomOf="parent"
+		app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -4,14 +4,14 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
-import com.itsaky.androidide.projects.classpath.JarFsClasspathReader
-import com.itsaky.androidide.utils.ClassTrie
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.jvm.ModuleClasspathLookup.Child
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
+import org.appdevforall.codeonthego.projects.classpath.JarFsClasspathReader
+import org.appdevforall.codeonthego.utils.ClassTrie
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith

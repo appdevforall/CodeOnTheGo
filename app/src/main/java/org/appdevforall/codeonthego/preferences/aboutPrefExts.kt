@@ -1,0 +1,37 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.preferences
+
+import android.content.Intent
+import org.appdevforall.codeonthego.activities.AboutActivity
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_ABOUT
+import com.itsaky.androidide.resources.R
+
+private const val KEY_ABOUT = "idepref_about"
+
+val about =
+	SimpleClickablePreference(
+		key = KEY_ABOUT,
+		title = R.string.idepref_about_title,
+		summary = R.string.idepref_about_summary,
+		onClick = {
+			it.context.startActivity(Intent(it.context, AboutActivity::class.java))
+			true
+		},
+		tooltipTag = PREFS_ABOUT,
+	)

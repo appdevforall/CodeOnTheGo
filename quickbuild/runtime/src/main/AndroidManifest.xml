@@ -28,7 +28,7 @@
 			manifest transform leaves this name intact.
 		-->
 		<service
-			android:name="com.itsaky.androidide.quickbuild.runtime.QuickBuildKeepAliveService"
+			android:name="org.appdevforall.codeonthego.quickbuild.runtime.QuickBuildKeepAliveService"
 			android:exported="true" />
 	</application>
 

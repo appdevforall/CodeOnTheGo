@@ -1,0 +1,414 @@
+package org.appdevforall.codeonthego.tooling.impl.serial
+
+import com.android.builder.model.v2.dsl.BuildType
+import com.android.builder.model.v2.ide.AndroidArtifact
+import com.android.builder.model.v2.ide.AndroidLibraryData
+import com.android.builder.model.v2.ide.ArtifactDependencies
+import com.android.builder.model.v2.ide.GraphItem
+import com.android.builder.model.v2.ide.JavaCompileOptions
+import com.android.builder.model.v2.ide.Library
+import com.android.builder.model.v2.ide.LibraryInfo
+import com.android.builder.model.v2.ide.LibraryType
+import com.android.builder.model.v2.ide.ProjectInfo
+import com.android.builder.model.v2.ide.ProjectType
+import com.android.builder.model.v2.ide.SourceProvider
+import com.android.builder.model.v2.ide.SourceSetContainer
+import com.android.builder.model.v2.ide.UnresolvedDependency
+import com.android.builder.model.v2.ide.Variant
+import com.android.builder.model.v2.ide.ViewBindingOptions
+import com.android.builder.model.v2.models.AndroidDsl
+import com.android.builder.model.v2.models.AndroidProject
+import com.android.builder.model.v2.models.BasicAndroidProject
+import com.android.builder.model.v2.models.VariantDependencies
+import com.android.builder.model.v2.models.Versions
+import org.appdevforall.codeonthego.project.AndroidArtifact
+import org.appdevforall.codeonthego.project.AndroidLibraryData
+import org.appdevforall.codeonthego.project.AndroidModels
+import org.appdevforall.codeonthego.project.AndroidProject
+import org.appdevforall.codeonthego.project.AndroidVariant
+import org.appdevforall.codeonthego.project.ArtifactDependencies
+import org.appdevforall.codeonthego.project.DependencyGraph
+import org.appdevforall.codeonthego.project.GraphNode
+import org.appdevforall.codeonthego.project.JavaCompilerSettings
+import org.appdevforall.codeonthego.project.Library
+import org.appdevforall.codeonthego.project.LibraryInfo
+import org.appdevforall.codeonthego.project.ProjectInfo
+import org.appdevforall.codeonthego.project.SourceProvider
+import org.appdevforall.codeonthego.project.SourceSetContainer
+import org.appdevforall.codeonthego.project.UnresolvedDependency
+import org.appdevforall.codeonthego.project.VariantDependencies
+import org.appdevforall.codeonthego.project.ViewBindingOptions
+import org.appdevforall.codeonthego.utils.AndroidPluginVersion
+import org.appdevforall.codeonthego.utils.capitalizeString
+import java.io.File
+
+fun createAndroidProjectProtoModel(
+	basicAndroidProject: BasicAndroidProject,
+	androidProject: AndroidProject,
+	androidDsl: AndroidDsl,
+	versions: Versions,
+	variantDependencies: VariantDependencies,
+	configuredVariantName: String?,
+	classesJar: File,
+) = AndroidProject(
+	namespace = androidProject.namespace,
+	projectType =
+		when (basicAndroidProject.projectType) {
+			ProjectType.APPLICATION -> AndroidModels.ProjectType.ApplicationProject
+			ProjectType.LIBRARY -> AndroidModels.ProjectType.LibraryProject
+			ProjectType.DYNAMIC_FEATURE -> AndroidModels.ProjectType.DynamicFeature
+			ProjectType.TEST -> AndroidModels.ProjectType.Test
+			ProjectType.FUSED_LIBRARY -> AndroidModels.ProjectType.FusedLibrary
+		},
+	mainSourceSet = basicAndroidProject.mainSourceSet?.asProtoModel(),
+	javaCompilerSettings = androidProject.javaCompileOptions?.asProtoModel(),
+	kotlinCompilerSettings = null, // TODO: Read kotlin compiler settings
+	viewBindingOptions = androidProject.viewBindingOptions?.asProtoModel(),
+	bootClassPathsList = basicAndroidProject.bootClasspath.map { file -> file.absolutePath },
+	variantList =
+		androidProject.variants.map {
+			it.asProtoModel(
+				basicAndroidProject,
+				androidProject,
+				androidDsl,
+				versions,
+			)
+		},
+	configuredVariantName = configuredVariantName,
+	classesJarPath = classesJar.absolutePath,
+	variantDependencies = variantDependencies.asProtoModel(),
+)
+
+fun VariantDependencies.asProtoModel() =
+	VariantDependencies(
+		name = this.name,
+		mainArtifact = this.mainArtifact.asProtoModel(),
+		librariesMap = this.libraries.mapValues { entry -> entry.value.asProtoModel() },
+	)
+
+fun Library.asProtoModel() =
+	Library(
+		key = this.key,
+		type =
+			when (this.type) {
+				LibraryType.PROJECT -> AndroidModels.LibraryType.Project
+				LibraryType.ANDROID_LIBRARY -> AndroidModels.LibraryType.ExternalAndroidLibrary
+				LibraryType.JAVA_LIBRARY -> AndroidModels.LibraryType.ExternalJavaLibrary
+				LibraryType.RELOCATED -> AndroidModels.LibraryType.Relocated
+				LibraryType.NO_ARTIFACT_FILE -> AndroidModels.LibraryType.NoArtifactFile
+			},
+		projectInfo = this.projectInfo?.asProtoModel(),
+		libraryInfo = this.libraryInfo?.asProtoModel(),
+		androidLibraryData = this.androidLibraryData?.asProtoModel(),
+		artifactPath = this.artifact?.absolutePath,
+	)
+
+fun AndroidLibraryData.asProtoModel() =
+	AndroidLibraryData(
+		compileJarFilePathsList = this.compileJarFiles.map { it.absolutePath },
+		manifestFilePath = this.manifest.absolutePath,
+		resFolderPath = this.resFolder.absolutePath,
+	)
+
+fun ProjectInfo.asProtoModel() =
+	ProjectInfo(
+		buildId = this.buildId,
+		projectPath = projectPath,
+	)
+
+fun LibraryInfo.asProtoModel() =
+	LibraryInfo(
+		group = this.group,
+		name = this.name,
+		version = this.version,
+	)
+
+fun ArtifactDependencies.asProtoModel() =
+	ArtifactDependencies(
+		compileGraph = DependencyGraphBuilder().build(this.compileDependencies),
+		unresolvedDependencyList = this.unresolvedDependencies.map { it.asProtoModel() },
+	)
+
+/**
+ * Flattens AGP's nested [GraphItem] tree into a [AndroidModels.DependencyGraph].
+ *
+ * AGP hands the dependency graph back as a tree: a node shared by several dependents is repeated
+ * once per path, and each copy carries its own key string. On an 86-module project that expanded to
+ * 786,554 nodes and 1,011,910 key strings covering 57,517 distinct values. Deduplicating by key
+ * keeps the first occurrence of each key and the edges recorded on it. The compile-classpath
+ * consumer expands each key at most once over the same pre-order walk, so it sees the same graph;
+ * the module-dependency consumer reads only the roots, whose order and multiplicity are unchanged.
+ * What a later occurrence carried -- its requested coordinates -- is not represented; see
+ * [AndroidModels.GraphNode].
+ *
+ * Differing children per occurrence would matter, because the classpath consumer prunes a subtree
+ * whose key has no Library entry while this builder walks it regardless. AGP does not produce that:
+ * FullDependencyGraphBuilder.handleDependency memoises on a Map<ResolvedVariantResult, GraphItem>
+ * and hands back the same instance for every occurrence. The key is derived from that same variant,
+ * so one key resolves to one instance, and therefore to one child list.
+ */
+private class DependencyGraphBuilder {
+	/*
+	 * Node index per key, in insertion order. Nodes are deduplicated by key and each new node
+	 * contributes exactly one key, so a node's index into `nodes` is also its index into the
+	 * emitted key table -- these keys are the key table.
+	 *
+	 * [AndroidModels.GraphNode.getKeyId] is still written, rather than dropped in favour of that
+	 * identity, so the schema stays independent of this builder's ordering.
+	 */
+	private val nodeIds = LinkedHashMap<String, Int>()
+	private val requestedCoordinates = LinkedHashMap<String, Int>()
+	private val nodes = mutableListOf<AndroidModels.GraphNode>()
+
+	fun build(roots: Collection<GraphItem>): AndroidModels.DependencyGraph {
+		val rootIds = roots.map(::nodeIdOf)
+		return DependencyGraph(
+			keyList = nodeIds.keys.toList(),
+			requestedCoordinatesList = requestedCoordinates.keys.toList(),
+			nodeList = nodes.toList(),
+			rootList = rootIds,
+		)
+	}
+
+	/**
+	 * The index of [item]'s node, adding it and its dependencies if this key is new.
+	 *
+	 * The index is reserved before the children are walked, so a cyclic graph terminates.
+	 */
+	private fun nodeIdOf(item: GraphItem): Int {
+		/*
+		 * Empty requested coordinates are treated as absent: AGP's own default is an empty string,
+		 * and interning it would report the field as present against the proto's presence contract.
+		 */
+		nodeIds[item.key]?.let { return it }
+
+		val id = nodes.size
+		nodeIds[item.key] = id
+		nodes += AndroidModels.GraphNode.getDefaultInstance()
+
+		val node =
+			GraphNode(
+				keyId = id,
+				requestedCoordinatesId =
+					item.requestedCoordinates?.takeIf { it.isNotEmpty() }?.let { coordinates ->
+						requestedCoordinates.getOrPut(coordinates) { requestedCoordinates.size }
+					},
+				dependencyList = item.dependencies.map(::nodeIdOf),
+			)
+		nodes[id] = node
+		return id
+	}
+}
+
+fun UnresolvedDependency.asProtoModel() =
+	UnresolvedDependency(
+		name = this.name,
+		cause = this.cause,
+	)
+
+fun SourceSetContainer.asProtoModel() = SourceSetContainer(sourceProvider = this.sourceProvider?.asProtoModel())
+
+fun SourceProvider.asProtoModel() =
+	SourceProvider(
+		javaDirsList = this.javaDirectories.map { dir -> dir.absolutePath },
+		kotlinDirsList = this.kotlinDirectories.map { dir -> dir.absolutePath },
+		resDirsList = this.resDirectories?.map { dir -> dir.absolutePath } ?: emptyList(),
+	)
+
+fun JavaCompileOptions.asProtoModel() =
+	JavaCompilerSettings(
+		sourceCompatibility = this.sourceCompatibility,
+		targetCompatibility = this.targetCompatibility,
+	)
+
+fun ViewBindingOptions.asProtoModel() =
+	ViewBindingOptions(
+		isEnabled = this.isEnabled,
+	)
+
+fun Variant.asProtoModel(
+	basicAndroidProject: BasicAndroidProject,
+	androidProject: AndroidProject,
+	androidDsl: AndroidDsl,
+	versions: Versions,
+) = AndroidVariant(
+	name = this.name,
+	mainArtifact =
+		this.mainArtifact.asProtoModel(
+			artifactName = "main",
+			variantName = this.name,
+			basicAndroidProject = basicAndroidProject,
+			androidProject = androidProject,
+			androidDsl = androidDsl,
+			versions = versions,
+		),
+	variantSourceProvidersList =
+		basicAndroidProject.variantSourceProviders(this.name).map { provider -> provider.asProtoModel() },
+)
+
+/**
+ * The source providers AGP layers over `main` for the variant named [variantName], in the order
+ * AGP applies them: the build type, each product flavor, the multi-flavor provider and the
+ * variant's own provider. Empty when the basic model does not list the variant.
+ */
+fun BasicAndroidProject.variantSourceProviders(variantName: String): List<SourceProvider> {
+	val variant = variants.firstOrNull { it.name == variantName } ?: return emptyList()
+	val providers = mutableListOf<SourceProvider>()
+	buildTypeSourceSets
+		.mapNotNull { it.sourceProvider }
+		.firstOrNull { it.name == variant.buildType }
+		?.let(providers::add)
+	for (flavor in variant.productFlavors) {
+		productFlavorSourceSets
+			.mapNotNull { it.sourceProvider }
+			.firstOrNull { it.name == flavor }
+			?.let(providers::add)
+	}
+	variant.mainArtifact.multiFlavorSourceProvider?.let(providers::add)
+	variant.mainArtifact.variantSourceProvider?.let(providers::add)
+	return providers
+}
+
+fun AndroidArtifact.asProtoModel(
+	artifactName: String,
+	variantName: String,
+	basicAndroidProject: BasicAndroidProject,
+	androidProject: AndroidProject,
+	androidDsl: AndroidDsl,
+	versions: Versions,
+) = AndroidArtifact(
+	name = artifactName,
+	applicationId =
+		computeApplicationId(
+			variantName,
+			basicAndroidProject,
+			androidProject,
+			androidDsl,
+			versions,
+		),
+	resGenTaskName = this.resGenTaskName,
+	sourceGenTaskName = this.sourceGenTaskName,
+	compileTaskName = this.compileTaskName,
+	assembleTaskName = this.assembleTaskName,
+	assembleTaskOutputListingFilePath = this.assembleTaskOutputListingFile?.absolutePath,
+	generatedResourceFolderPathsList = this.generatedResourceFolders.map { it.absolutePath },
+	generatedSourceFolderPathsList = this.generatedSourceFolders.map { it.absolutePath },
+	maxSdkVersion = this.maxSdkVersion,
+	minSdkVersion = this.minSdkVersion.apiLevel,
+	classJarPathsList =
+		this.classesFolders.mapNotNull { classesFolder ->
+			classesFolder.absolutePath.takeIf { path ->
+				path.endsWith(
+					".jar",
+				)
+			}
+		},
+	targetSdkVersionOverride = this.targetSdkVersionOverride?.apiLevel ?: 1,
+)
+
+private fun AndroidArtifact.computeApplicationId(
+	variantName: String,
+	basicAndroidProject: BasicAndroidProject,
+	androidProject: AndroidProject,
+	androidDsl: AndroidDsl,
+	versions: Versions,
+): String? {
+	val minAgpForAppId = AndroidPluginVersion(7, 4, 0)
+	return if (minAgpForAppId <= AndroidPluginVersion.parse(versions.agp)) {
+		applicationId
+	} else {
+		computeApplicationIdLegacy(variantName, basicAndroidProject, androidProject, androidDsl)
+	}
+}
+
+// Adapted from the following :
+// https://cs.android.com/android-studio/platform/tools/base/+/mirror-goog-studio-main:build-system/gradle-core/src/main/java/com/android/build/gradle/internal/core/dsl/impl/ComponentDslInfoImpl.kt;drc=6a5551bdea55c0c991f1ccf1e3f8f6f3d2cd2cb7;l=107
+// https://cs.android.com/android-studio/platform/tools/base/+/mirror-goog-studio-main:build-system/gradle-core/src/main/java/com/android/build/gradle/internal/core/dsl/impl/VariantDslInfoImpl.kt;drc=d44f5b98cd5530eceb230e0d151ad96c4277f78d;l=109
+
+private fun computeApplicationIdLegacy(
+	variantName: String,
+	basicAndroidProject: BasicAndroidProject,
+	androidProject: AndroidProject,
+	androidDsl: AndroidDsl,
+): String {
+	val basicVariant = basicAndroidProject.variants.firstOrNull { it.name == variantName }
+	val buildType =
+		basicVariant?.buildType?.let { buildTypeName ->
+			androidDsl.buildTypes.find { buildType -> buildType.name == buildTypeName }
+		}!!
+
+	val appIdFromFlavor =
+		if (basicAndroidProject.projectType == ProjectType.APPLICATION) {
+			androidDsl.productFlavors
+				.find { flavor ->
+					"${flavor.name}${buildType.name.capitalizeString()}" == variantName
+				}?.applicationId
+		} else {
+			androidDsl.defaultConfig.applicationId
+		}
+
+	return if (appIdFromFlavor == null) {
+		// No appId value set from DSL; use the namespace value from the DSL.
+		"${androidProject.namespace}${
+			computeApplicationIdSuffix(
+				variantName,
+				buildType,
+				basicAndroidProject,
+				androidDsl,
+			)
+		}"
+	} else {
+		// use value from flavors/defaultConfig
+		// needed to make nullability work in kotlinc
+		val finalAppIdFromFlavors: String = appIdFromFlavor
+		"$finalAppIdFromFlavors${
+			computeApplicationIdSuffix(
+				variantName,
+				buildType,
+				basicAndroidProject,
+				androidDsl,
+			)
+		}"
+	}
+}
+
+/**
+ * Combines all the appId suffixes into a single one.
+ *
+ * The suffixes are separated by '.' whether their first char is a '.' or not.
+ */
+private fun computeApplicationIdSuffix(
+	variantName: String,
+	buildType: BuildType,
+	basicAndroidProject: BasicAndroidProject,
+	androidDsl: AndroidDsl,
+): String {
+	// for the suffix we combine the suffix from all the flavors. However, we're going to
+	// want the higher priority one to be last.
+	val suffixes = mutableListOf<String>()
+	androidDsl.defaultConfig.applicationIdSuffix?.let {
+		suffixes.add(it)
+	}
+
+	if (basicAndroidProject.projectType == ProjectType.APPLICATION) {
+		val flavorSuffix =
+			androidDsl.productFlavors
+				.find { flavor ->
+					"${flavor.name}${buildType.name.capitalizeString()}" == variantName
+				}?.applicationIdSuffix
+
+		flavorSuffix?.also { suffixes.add(flavorSuffix) }
+
+		// then we add the build type after.
+		buildType.applicationIdSuffix?.also {
+			suffixes.add(it)
+		}
+	}
+
+	val nonEmptySuffixes = suffixes.filter { it.isNotEmpty() }
+	return if (nonEmptySuffixes.isNotEmpty()) {
+		".${nonEmptySuffixes.joinToString(separator = ".", transform = { it.removePrefix(".") })}"
+	} else {
+		""
+	}
+}

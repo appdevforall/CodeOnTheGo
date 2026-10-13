@@ -3,8 +3,6 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.memprof.Memprof
-import com.itsaky.androidide.projects.api.Workspace
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -19,6 +17,8 @@ import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
+import org.appdevforall.codeonthego.memprof.Memprof
+import org.appdevforall.codeonthego.projects.api.Workspace
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test

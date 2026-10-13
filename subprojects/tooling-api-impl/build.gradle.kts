@@ -27,7 +27,7 @@ plugins {
 }
 
 tasks.withType<Jar> {
-	manifest { attributes("Main-Class" to "${BuildConfig.PACKAGE_NAME}.tooling.impl.Main") }
+	manifest { attributes("Main-Class" to "org.appdevforall.codeonthego.tooling.impl.Main") }
 }
 
 tasks.register("deleteExistingJarFiles") {

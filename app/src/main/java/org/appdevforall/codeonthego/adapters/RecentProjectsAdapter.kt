@@ -1,0 +1,378 @@
+package org.appdevforall.codeonthego.adapters
+
+import android.content.Context
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.view.animation.AnimationUtils
+import android.widget.PopupWindow
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.TooltipCompat
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputLayout
+import com.itsaky.androidide.R
+import com.itsaky.androidide.databinding.RenameProjectTextinputBinding
+import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
+import org.appdevforall.codeonthego.idetooltips.TooltipManager
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.PROJECT_INFO_TOOLTIP
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.PROJECT_RECENT_RENAME
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import org.appdevforall.codeonthego.idetooltips.TooltipTag.PROJECT_RENAME_DIALOG
+import org.appdevforall.codeonthego.models.ProjectFile
+import org.appdevforall.codeonthego.tasks.executeAsync
+import org.appdevforall.codeonthego.tasks.executeAsyncProvideError
+import org.appdevforall.codeonthego.utils.FileUtils
+import org.appdevforall.codeonthego.utils.applyLongPressRecursively
+import org.appdevforall.codeonthego.utils.flashError
+import org.appdevforall.codeonthego.utils.flashSuccess
+import org.slf4j.LoggerFactory
+import java.io.File
+import java.io.IOException
+
+class RecentProjectsAdapter(
+	private var projects: List<ProjectFile>,
+	private val onProjectClick: (File) -> Unit,
+	private val onRemoveProjectClick: (ProjectFile) -> Unit,
+	private val onFileRenamed: (RenamedFile) -> Unit,
+	private val onInfoClick: (ProjectFile) -> Unit,
+	private val renameTargetExists: (ProjectFile, String) -> Boolean,
+) : RecyclerView.Adapter<RecentProjectsAdapter.ProjectViewHolder>() {
+	private var projectOptionsPopup: PopupWindow? = null
+
+	private companion object {
+		private val logger = LoggerFactory.getLogger(RecentProjectsAdapter::class.java)
+		const val VIEW_TYPE_PROJECT = 0
+		const val VIEW_TYPE_OPEN_FOLDER = 1
+	}
+
+	override fun getItemCount(): Int = projects.size
+
+	override fun onCreateViewHolder(
+		parent: ViewGroup,
+		viewType: Int,
+	): ProjectViewHolder {
+		val inflater = LayoutInflater.from(parent.context)
+		val binding = SavedRecentProjectItemBinding.inflate(inflater, parent, false)
+		return ProjectViewHolder(binding)
+	}
+
+	override fun onBindViewHolder(
+		holder: ProjectViewHolder,
+		position: Int,
+	) {
+		holder.bind(projects[position], position)
+	}
+
+	fun updateProjects(newProjects: List<ProjectFile>) {
+		projects = newProjects
+
+		// noinspection NotifyDataSetChanged
+		notifyDataSetChanged()
+	}
+
+	fun renderDate(
+		binding: SavedRecentProjectItemBinding,
+		project: ProjectFile,
+	) {
+		binding.projectDate.text = project.renderDateText(binding.root.context)
+	}
+
+	inner class ProjectViewHolder(
+		private val binding: SavedRecentProjectItemBinding,
+	) : RecyclerView.ViewHolder(binding.root) {
+		fun bind(
+			project: ProjectFile,
+			position: Int,
+		) {
+			binding.projectName.text = project.name
+
+			renderDate(binding, project)
+
+			binding.icon.text =
+				project.name
+					.split(" ")
+					.mapNotNull { it.firstOrNull()?.uppercaseChar() }
+					.take(2)
+					.joinToString("")
+
+			TooltipCompat.setTooltipText(
+				binding.menu,
+				binding.root.context.getString(R.string.options),
+			)
+			TooltipCompat.setTooltipText(binding.root, project.name)
+			binding.root.animation =
+				AnimationUtils.loadAnimation(binding.root.context, R.anim.project_list_animation)
+
+			binding.root.setOnClickListener {
+				onProjectClick(File(project.path))
+			}
+			binding.root.setOnLongClickListener {
+				TooltipManager.showIdeCategoryTooltip(
+					binding.root.context,
+					binding.root,
+					PROJECT_RECENT_TOP,
+				)
+				true
+			}
+			binding.menu.setOnClickListener { view ->
+				showPopupMenu(view, project, position)
+			}
+		}
+	}
+
+	private fun showPopupMenu(
+		view: View,
+		project: ProjectFile,
+		position: Int,
+	) {
+		val inflater = LayoutInflater.from(view.context)
+
+		// noinspection InflateParams
+		val popupView = inflater.inflate(R.layout.custom_popup_menu, null)
+
+		projectOptionsPopup?.dismiss()
+		projectOptionsPopup =
+			PopupWindow(
+				popupView,
+				ViewGroup.LayoutParams.WRAP_CONTENT,
+				ViewGroup.LayoutParams.WRAP_CONTENT,
+				true,
+			)
+
+		val popupWindow = projectOptionsPopup!!
+
+		val infoItem = popupView.findViewById<View>(R.id.menu_info)
+		val renameItem = popupView.findViewById<View>(R.id.menu_rename)
+		val deleteItem = popupView.findViewById<View>(R.id.menu_delete)
+
+		infoItem.setOnClickListener {
+			popupWindow.dismiss()
+			onInfoClick(project)
+		}
+
+		infoItem.setOnLongClickListener {
+			popupWindow.dismiss()
+			TooltipManager.showIdeCategoryTooltip(
+				context = view.context,
+				anchorView = view,
+				tag = PROJECT_INFO_TOOLTIP,
+			)
+			true
+		}
+
+		renameItem.setOnClickListener {
+			promptRenameProject(view, project, position)
+			popupWindow.dismiss()
+		}
+
+		renameItem.setOnLongClickListener {
+			popupWindow.dismiss()
+			TooltipManager.showIdeCategoryTooltip(
+				context = view.context,
+				anchorView = view,
+				tag = PROJECT_RECENT_RENAME,
+			)
+			true
+		}
+
+		deleteItem.setOnClickListener {
+			showDeleteDialog(view.context, project)
+			popupWindow.dismiss()
+		}
+
+		deleteItem.setOnLongClickListener {
+			popupWindow.dismiss()
+			TooltipManager.showIdeCategoryTooltip(
+				context = view.context,
+				anchorView = view,
+				tag = DELETE_PROJECT,
+			)
+			true
+		}
+
+		popupWindow.showAsDropDown(view, 0, 0)
+	}
+
+	private fun showDeleteDialog(
+		context: Context,
+		project: ProjectFile,
+	) {
+		val dialog =
+			MaterialAlertDialogBuilder(context)
+				.setTitle(R.string.delete_project)
+				.setMessage(R.string.msg_delete_project)
+				.setNegativeButton(R.string.no) { dialog, _ -> dialog.dismiss() }
+				.setPositiveButton(R.string.yes) { _, _ ->
+					onRemoveProjectClick(project)
+					executeAsync { FileUtils.delete(project.path) }
+				}.create()
+
+		val contentView = dialog.window?.decorView
+
+		dialog.setOnShowListener {
+			contentView?.applyLongPressRecursively {
+				TooltipManager.showIdeCategoryTooltip(
+					context = context,
+					anchorView = contentView,
+					tag = DELETE_PROJECT_DIALOG,
+				)
+				true
+			}
+		}
+
+		dialog.show()
+	}
+
+	private fun promptRenameProject(
+		view: View,
+		project: ProjectFile,
+		position: Int,
+	) {
+		val context = view.context
+		val oldName = project.name
+		val builder = MaterialAlertDialogBuilder(context).setTitle(R.string.rename_project)
+
+		val binding = RenameProjectTextinputBinding.inflate(LayoutInflater.from(context))
+		binding.textinputEdittext.setText(project.name)
+		binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
+		val padding = (16 * context.resources.displayMetrics.density).toInt()
+		builder.setView(binding.root, padding, padding, padding, padding)
+
+		builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
+		builder.setPositiveButton(R.string.rename) { _, _ ->
+			val newName =
+				binding.textinputEdittext.text
+					.toString()
+					.trim()
+			val oldPath = project.path
+			val newPath = oldPath.substringBeforeLast("/") + "/" + newName
+			executeAsyncProvideError({
+				val source = File(oldPath)
+				val target = File(newPath)
+				val sameLocation =
+					project.isCaseOnlyRenameTo(newPath) ||
+						runCatching { source.canonicalPath == target.canonicalPath }
+							.getOrElse { source.absolutePath == target.absolutePath }
+				if (target.exists() && !sameLocation) {
+					throw IOException("A project already exists at $newPath")
+				}
+				if (!project.rename(newPath)) {
+					throw IOException("Could not rename project to $newPath")
+				}
+			}) { _, error ->
+				if (error != null) {
+					logger.error("Failed to rename project", error)
+					flashError(R.string.rename_failed)
+					return@executeAsyncProvideError
+				}
+				flashSuccess(R.string.renamed)
+				onFileRenamed(RenamedFile(oldName, newName, oldPath, newPath))
+				notifyItemChanged(position)
+			}
+		}
+
+		val dialog = builder.create()
+		dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+
+		val contentView = dialog.window?.decorView
+
+		dialog.setOnShowListener {
+			contentView?.applyLongPressRecursively {
+				TooltipManager.showIdeCategoryTooltip(
+					context = context,
+					anchorView = contentView,
+					tag = PROJECT_RENAME_DIALOG,
+				)
+				true
+			}
+		}
+
+		dialog.show()
+
+		binding.textinputEdittext.addTextChangedListener(
+			object : TextWatcher {
+				override fun beforeTextChanged(
+					s: CharSequence?,
+					start: Int,
+					count: Int,
+					after: Int,
+				) {}
+
+				override fun onTextChanged(
+					s: CharSequence?,
+					start: Int,
+					before: Int,
+					count: Int,
+				) {}
+
+				override fun afterTextChanged(s: Editable?) {
+					validateProjectName(binding.textinputLayout, project, s.toString().trim(), oldName, dialog)
+				}
+			},
+		)
+
+		validateProjectName(
+			binding.textinputLayout,
+			project,
+			binding.textinputEdittext.text
+				.toString()
+				.trim(),
+			oldName,
+			dialog,
+		)
+	}
+
+	private fun validateProjectName(
+		inputLayout: TextInputLayout,
+		project: ProjectFile,
+		newName: String,
+		oldName: String,
+		dialog: AlertDialog,
+	) {
+		val positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+		when {
+			newName == oldName -> {
+				positiveButton.isEnabled = false
+				inputLayout.error = null
+			}
+
+			newName.isEmpty() -> {
+				inputLayout.error = dialog.context.getString(R.string.msg_cannnot_empty)
+				positiveButton.isEnabled = false
+			}
+
+			newName.contains('/') ||
+				newName.contains('\\') ||
+				newName.contains(File.separatorChar) ||
+				newName == "." ||
+				newName == ".." -> {
+				inputLayout.error = dialog.context.getString(R.string.msg_invalid_name)
+				positiveButton.isEnabled = false
+			}
+
+			newName != oldName && renameTargetExists(project, newName) -> {
+				inputLayout.error =
+					dialog.context.getString(R.string.msg_current_name_unavailable)
+				positiveButton.isEnabled = false
+			}
+
+			else -> {
+				inputLayout.error = null
+				positiveButton.isEnabled = true
+			}
+		}
+	}
+
+	data class RenamedFile(
+		val oldName: String,
+		val newName: String,
+		val oldPath: String,
+		val newPath: String,
+	)
+}

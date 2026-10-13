@@ -19,11 +19,11 @@
 
   <application android:theme="@style/Theme.AndroidIDE" android:supportsRtl="true">
     <activity
-      android:name=".UIDesignerActivity"
+      android:name="org.appdevforall.codeonthego.uidesigner.UIDesignerActivity"
       android:configChanges="orientation|screenSize"
       android:windowSoftInputMode="adjustResize" />
     <activity
-      android:name=".ShowXmlActivity"
+      android:name="org.appdevforall.codeonthego.uidesigner.ShowXmlActivity"
       android:windowSoftInputMode="stateAlwaysHidden" />
   </application>
 </manifest>

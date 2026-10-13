@@ -20,7 +20,7 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
--keep class com.itsaky.androidide.templates.impl.zip.** { *; }
+-keep class org.appdevforall.codeonthego.templates.impl.zip.** { *; }
 
 -keepattributes Signature
 -keepattributes *Annotation*

@@ -1,0 +1,168 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.utils;
+
+import static java.lang.Character.isUpperCase;
+import static java.lang.Character.toLowerCase;
+
+import androidx.annotation.NonNull;
+import java.io.File;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import kotlin.text.StringsKt;
+import org.appdevforall.codeonthego.utils.ClassBuilder.SourceLanguage;
+
+public class ProjectWriter {
+
+	private static final String XML_TEMPLATE_PATH = "templates/xml";
+	private static final String SOURCE_PATH_REGEX = "/.*/src/.*?/(java|kotlin)(?:/|$)";
+
+	public static String createActivity(String packageName, String className, boolean appCompatActivity, SourceLanguage language) {
+		return ClassBuilder.createActivity(packageName, className, appCompatActivity, language);
+	}
+
+	public static String createClass(String packageName, String className, SourceLanguage language) {
+		return ClassBuilder.createClass(packageName, className, language);
+	}
+
+	@NonNull
+	public static String createDrawable() {
+		return ResourceUtils.readAssets2String(XML_TEMPLATE_PATH + "/drawable.xml");
+	}
+
+	public static String createEnum(String packageName, String className, SourceLanguage language) {
+		return ClassBuilder.createEnum(packageName, className, language);
+	}
+
+	public static String createInterface(String packageName, String className, SourceLanguage language) {
+		return ClassBuilder.createInterface(packageName, className, language);
+	}
+
+	@NonNull
+	public static String createLayout() {
+		return ResourceUtils.readAssets2String(XML_TEMPLATE_PATH + "/layout.xml");
+	}
+
+	@NonNull
+	public static String createLayoutName(String name) {
+		final var nameWithoutExtension = StringsKt.substringBeforeLast(name, '.', name);
+		var baseName = nameWithoutExtension;
+		if (baseName.endsWith("Activity")) {
+			baseName = StringsKt.substringBeforeLast(baseName, "Activity", baseName);
+			baseName = "activity" + baseName;
+		} else if (baseName.endsWith("Fragment")) {
+			baseName = StringsKt.substringBeforeLast(baseName, "Fragment", baseName);
+			baseName = "fragment" + baseName;
+		} else {
+			baseName = "layout" + baseName;
+		}
+
+		final var sb = new StringBuilder();
+		var hasUpper = false;
+		for (int i = 0; i < baseName.length(); i++) {
+			final char c = baseName.charAt(i);
+			if (isUpperCase(c)) {
+				hasUpper = true;
+				sb.append("_");
+				sb.append(toLowerCase(c));
+				continue;
+			}
+
+			sb.append(c);
+		}
+
+		if (!hasUpper) {
+			sb.delete(0, sb.length());
+			sb.append("layout_");
+			sb.append(nameWithoutExtension);
+		}
+
+		sb.append(".xml");
+
+		return sb.toString();
+	}
+
+	@NonNull
+	public static String createMenu() {
+		return ResourceUtils.readAssets2String(XML_TEMPLATE_PATH + "/menu.xml");
+	}
+
+	public static String getPackageName(File parentPath) {
+		// Returns the package for a directory under a java/kotlin source root, or null outside one
+		Matcher pkgMatcher = Pattern.compile(SOURCE_PATH_REGEX).matcher(parentPath.getAbsolutePath());
+
+		if (pkgMatcher.find()) {
+			int end = pkgMatcher.end();
+			if (end <= 0)
+				return "";
+
+			String name = parentPath.getAbsolutePath().substring(end);
+			if (name.startsWith(File.separator)) {
+				name = name.substring(1);
+			}
+
+			if (!name.isEmpty()) {
+				return name.replace(File.separator, ".");
+			}
+
+			// At a source root: follow the chain of lone package directories (org/example)
+			// and stop at one holding sources or several packages. Other files (.gitkeep,
+			// .DS_Store) are ignored.
+			StringBuilder pkg = new StringBuilder();
+			File dir = parentPath;
+			File next;
+			while ((next = loneChildPackage(dir)) != null) {
+				dir = next;
+				if (pkg.length() > 0) {
+					pkg.append('.');
+				}
+				pkg.append(dir.getName());
+			}
+			return pkg.toString();
+		}
+
+		return null;
+	}
+
+	private static boolean isValidPackageName(String name) {
+		return name.matches("^[a-zA-Z_][a-zA-Z0-9_]*$");
+	}
+
+	// The only package directory in dir, or null if dir holds sources or not exactly one package
+	private static File loneChildPackage(File dir) {
+		File[] files = dir.listFiles();
+		if (files == null) {
+			return null;
+		}
+		File found = null;
+		for (File file : files) {
+			String name = file.getName();
+			if (file.isDirectory()) {
+				if (isValidPackageName(name)) {
+					if (found != null) {
+						return null;
+					}
+					found = file;
+				}
+			} else if (name.endsWith(".java") || name.endsWith(".kt")) {
+				return null;
+			}
+		}
+		return found;
+	}
+}

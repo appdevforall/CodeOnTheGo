@@ -1,6 +1,6 @@
 # 0008. Retain the `com.itsaky.androidide` namespace after rebrand
 
-- **Status:** Proposed
+- **Status:** Superseded by [ADR 0017](0017-rename-to-appdevforall-codeonthego-namespace.md)
 - **Date:** 2026-06-18
 - **Deciders:** Code On The Go team
 
@@ -35,3 +35,4 @@ The decisive constraint, though, is the **terminal bootstrap packages** (built s
 
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) — overview note on the namespace/product-name mismatch.
 - [ADR 0003](0003-vendored-forked-desktop-toolchain.md) — vendored coordinates that a rename would disrupt.
+- [ADR 0017](0017-rename-to-appdevforall-codeonthego-namespace.md) — supersedes this decision.

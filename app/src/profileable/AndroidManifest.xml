@@ -10,16 +10,16 @@
 	<application>
 
 		<receiver
-			android:name="com.itsaky.androidide.memprof.MemprofReceiver"
+			android:name="org.appdevforall.codeonthego.memprof.MemprofReceiver"
 			android:enabled="true"
 			android:exported="false">
 			<intent-filter>
-				<action android:name="com.itsaky.androidide.memprof.CMD" />
+				<action android:name="org.appdevforall.codeonthego.memprof.CMD" />
 			</intent-filter>
 		</receiver>
 
 		<provider
-			android:name="com.itsaky.androidide.memprof.MemprofInitProvider"
+			android:name="org.appdevforall.codeonthego.memprof.MemprofInitProvider"
 			android:authorities="${applicationId}.memprof"
 			android:enabled="true"
 			android:exported="false"

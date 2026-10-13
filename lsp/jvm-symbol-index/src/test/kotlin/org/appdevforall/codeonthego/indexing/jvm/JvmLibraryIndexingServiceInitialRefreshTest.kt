@@ -3,9 +3,6 @@ package org.appdevforall.codeonthego.indexing.jvm
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.projects.api.GradleProject
-import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.projects.api.Workspace
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.delay
@@ -13,6 +10,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
+import org.appdevforall.codeonthego.projects.api.GradleProject
+import org.appdevforall.codeonthego.projects.api.ModuleProject
+import org.appdevforall.codeonthego.projects.api.Workspace
 import org.jetbrains.org.objectweb.asm.ClassWriter
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.junit.After

@@ -1,4 +1,4 @@
-package com.itsaky.androidide.test;
+package org.appdevforall.codeonthego.test;
 
 public class GenerateSettersAndGettersTest_template {
 

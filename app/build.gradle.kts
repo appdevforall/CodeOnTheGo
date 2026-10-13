@@ -72,7 +72,7 @@ android {
 	defaultConfig {
 		applicationId = BuildConfig.PACKAGE_NAME
 		vectorDrawables.useSupportLibrary = true
-		testInstrumentationRunnerArguments["class"] = "com.itsaky.androidide.OrderedTestSuite"
+		testInstrumentationRunnerArguments["class"] = "org.appdevforall.codeonthego.OrderedTestSuite"
 	}
 
 	signingConfigs {
@@ -633,7 +633,7 @@ tasks.register<Zip>("createPluginArtifactsZip") {
 	destinationDirectory.set(rootProject.file("assets"))
 }
 
-// Fat compile-only jar published as com.itsaky.androidide:plugin-api:1.0.0.
+// Fat compile-only jar published as org.appdevforall.codeonthego:plugin-api:1.0.0.
 // Merges the API surface plugins already compile against (plugin-api + common +
 // eventbus-events + idetooltips) into one coordinate. The three add-ons are
 // v7/v8-flavored (unlike plugin-api); their classes are ABI-neutral so v8 is used.
@@ -757,10 +757,10 @@ val pluginApiKeepRules =
 		fatJar.set(pluginApiFatJar.flatMap { it.archiveFile })
 		sentinelClasses.set(
 			mapOf(
-				":plugin-api" to "com.itsaky.androidide.plugins.IPlugin",
-				":common" to "com.itsaky.androidide.utils.Environment",
-				":eventbus-events" to "com.itsaky.androidide.eventbus.events.Event",
-				":idetooltips" to "com.itsaky.androidide.idetooltips.IDETooltipItem",
+				":plugin-api" to "org.appdevforall.codeonthego.plugins.IPlugin",
+				":common" to "org.appdevforall.codeonthego.utils.Environment",
+				":eventbus-events" to "org.appdevforall.codeonthego.eventbus.events.Event",
+				":idetooltips" to "org.appdevforall.codeonthego.idetooltips.IDETooltipItem",
 			),
 		)
 		keepRules.set(layout.buildDirectory.file("generated/proguard/plugin-api-keep.pro"))
@@ -787,7 +787,7 @@ tasks.register("writePluginApiPom") {
 		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<groupId>com.itsaky.androidide</groupId>
+	<groupId>org.appdevforall.codeonthego</groupId>
 	<artifactId>plugin-api</artifactId>
 	<version>1.0.0</version>
 	<packaging>jar</packaging>
@@ -810,11 +810,11 @@ tasks.register<Zip>("createPluginMavenRepoZip") {
 	archiveFileName.set("plugin-maven-repo.zip")
 	destinationDirectory.set(rootProject.file("assets"))
 
-	into("com/itsaky/androidide/plugin-api/1.0.0") {
+	into("org/appdevforall/codeonthego/plugin-api/1.0.0") {
 		from(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.jar"))
 		from(layout.buildDirectory.file("plugin-maven-repo-staging/plugin-api-1.0.0.pom"))
 	}
-	// Builder tree is already in Maven layout (com/itsaky/androidide/plugins/...).
+	// Builder tree is already in Maven layout (org/appdevforall/codeonthego/plugins/...).
 	from(rootProject.file("plugin-api/plugin-builder/build/plugin-maven-repo"))
 }
 

@@ -2447,7 +2447,7 @@ class QuickBuildSessionManagerTest {
 	private fun connectedAt(generation: Long): ConnectedTarget =
 		ConnectedTarget(
 			target =
-				object : com.itsaky.androidide.quickbuild.IQuickBuildTarget {
+				object : org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget {
 					override fun onBuildStatus(statusJson: String?) = Unit
 
 					override fun onPayload(
@@ -4256,9 +4256,9 @@ class QuickBuildSessionManagerTest {
 	private val syncService = ComponentInfo(ComponentKind.SERVICE, "com.example.SyncService")
 
 	private val logSenderService =
-		ComponentInfo(ComponentKind.SERVICE, "com.itsaky.androidide.logsender.LogSenderService")
+		ComponentInfo(ComponentKind.SERVICE, "org.appdevforall.codeonthego.logsender.LogSenderService")
 	private val logSenderInstaller =
-		ComponentInfo(ComponentKind.PROVIDER, "com.itsaky.androidide.logsender.utils.LogSenderInstaller")
+		ComponentInfo(ComponentKind.PROVIDER, "org.appdevforall.codeonthego.logsender.utils.LogSenderInstaller")
 
 	@Test
 	fun `a hot swap warns nothing when the only components are the ones CoGo injected`() =

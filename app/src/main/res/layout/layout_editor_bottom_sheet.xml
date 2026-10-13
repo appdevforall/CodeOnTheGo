@@ -38,7 +38,7 @@
 			android:layout_width="match_parent"
 			android:layout_height="match_parent" />
 
-		<com.itsaky.androidide.ui.SymbolInputView
+		<org.appdevforall.codeonthego.ui.SymbolInputView
 			android:id="@+id/symbol_input"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"

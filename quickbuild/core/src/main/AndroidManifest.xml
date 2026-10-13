@@ -9,7 +9,7 @@
 			android:name="org.appdevforall.cotg.quickbuild.service.deploy.QuickBuildHostService"
 			android:exported="true">
 			<intent-filter>
-				<action android:name="com.itsaky.androidide.QUICK_BUILD_ACTION" />
+				<action android:name="org.appdevforall.codeonthego.QUICK_BUILD_ACTION" />
 			</intent-filter>
 		</service>
 	</application>

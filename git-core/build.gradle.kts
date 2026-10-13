@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-	namespace = "com.itsaky.androidide.git.core"
+	namespace = "org.appdevforall.codeonthego.git.core"
 }
 
 dependencies {

@@ -1,16 +1,16 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
-import com.itsaky.androidide.project.AndroidModels
-import com.itsaky.androidide.project.GradleModels
-import com.itsaky.androidide.project.JavaModels
-import com.itsaky.androidide.projects.ProjectManagerImpl
-import com.itsaky.androidide.projects.api.AndroidModule
-import com.itsaky.androidide.projects.api.GradleProject
-import com.itsaky.androidide.projects.api.JavaModule
-import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.projects.api.Workspace
 import io.mockk.every
 import io.mockk.spyk
+import org.appdevforall.codeonthego.project.AndroidModels
+import org.appdevforall.codeonthego.project.GradleModels
+import org.appdevforall.codeonthego.project.JavaModels
+import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.projects.api.AndroidModule
+import org.appdevforall.codeonthego.projects.api.GradleProject
+import org.appdevforall.codeonthego.projects.api.JavaModule
+import org.appdevforall.codeonthego.projects.api.ModuleProject
+import org.appdevforall.codeonthego.projects.api.Workspace
 import org.junit.rules.TemporaryFolder
 import java.io.File
 

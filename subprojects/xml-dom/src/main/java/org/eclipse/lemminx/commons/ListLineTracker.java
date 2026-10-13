@@ -13,7 +13,7 @@
  *******************************************************************************/
 package org.eclipse.lemminx.commons;
 
-import com.itsaky.androidide.models.Position;
+import org.appdevforall.codeonthego.models.Position;
 
 import java.util.ArrayList;
 import java.util.List;

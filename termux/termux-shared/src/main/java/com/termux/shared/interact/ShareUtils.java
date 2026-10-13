@@ -20,7 +20,7 @@ import com.termux.shared.file.FileUtils;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.errors.Error;
 import com.termux.shared.android.PermissionUtils;
-import com.itsaky.androidide.utils.UrlManager;
+import org.appdevforall.codeonthego.utils.UrlManager;
 
 import java.nio.charset.Charset;
 

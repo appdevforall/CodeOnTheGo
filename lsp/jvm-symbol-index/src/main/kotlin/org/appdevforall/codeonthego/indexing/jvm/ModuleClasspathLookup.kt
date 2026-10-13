@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
-import com.itsaky.androidide.projects.api.ModuleProject
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.projects.api.ModuleProject
 
 /**
  * Class and package lookups over one module's compile classpath, answered from the JVM symbol indexes.

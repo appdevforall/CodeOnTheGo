@@ -6,7 +6,7 @@
 	<application>
 
 		<service
-			android:name=".service.FloatingTabService"
+			android:name="org.appdevforall.codeonthego.floating.service.FloatingTabService"
 			android:exported="false"
 			android:foregroundServiceType="specialUse" />
 

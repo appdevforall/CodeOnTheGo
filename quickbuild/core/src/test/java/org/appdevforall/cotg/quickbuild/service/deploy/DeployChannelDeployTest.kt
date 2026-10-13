@@ -6,10 +6,10 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.RemoteException
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.quickbuild.IQuickBuildTarget
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.codeonthego.quickbuild.IQuickBuildTarget
 import org.appdevforall.cotg.quickbuild.service.telemetry.report
 import org.junit.jupiter.api.Test
 

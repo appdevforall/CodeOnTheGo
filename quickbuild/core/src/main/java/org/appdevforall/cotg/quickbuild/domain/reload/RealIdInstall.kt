@@ -19,7 +19,7 @@ object RealIdInstall {
 	 * plugin writes into the manifest (`QuickBuildPlugin.APP_COMPONENT_FACTORY`).
 	 */
 	const val QUICK_BUILD_APP_COMPONENT_FACTORY =
-		"com.itsaky.androidide.quickbuild.runtime.QuickBuildAppComponentFactory"
+		"org.appdevforall.codeonthego.quickbuild.runtime.QuickBuildAppComponentFactory"
 
 	/**
 	 * True when the package installed under the real id is a Quick Build proxy app.

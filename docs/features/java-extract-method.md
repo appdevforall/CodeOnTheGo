@@ -297,10 +297,10 @@ Unit tests in `:lsp:java` and `:lsp:ui`, mirroring the extract-variable split so
 ```bash
 flox activate -d flox/local -- ./gradlew \
   :lsp:java:testV7DebugUnitTest \
-    --tests "com.itsaky.androidide.lsp.java.refactor.*" \
-    --tests "com.itsaky.androidide.lsp.java.actions.*" \
+    --tests "org.appdevforall.codeonthego.lsp.java.refactor.*" \
+    --tests "org.appdevforall.codeonthego.lsp.java.actions.*" \
   :lsp:ui:testV7DebugUnitTest :lsp:refactor-core:testV7DebugUnitTest \
-  :lsp:kotlin:testV7DebugUnitTest --tests "com.itsaky.androidide.lsp.kotlin.utils.refactor.*"
+  :lsp:kotlin:testV7DebugUnitTest --tests "org.appdevforall.codeonthego.lsp.kotlin.utils.refactor.*"
 ```
 
 Both packages are needed. `JavaCodeActionTooltipTagTest` lives in `...lsp.java.actions` and asserts

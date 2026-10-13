@@ -16,13 +16,13 @@
              opens only a directory inside the app's own projects dir, and only while the
              experiments AND qbbench flags are on. -->
         <activity
-            android:name=".quickbuild.QuickBuildBenchActivity"
+            android:name="org.appdevforall.codeonthego.quickbuild.QuickBuildBenchActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:permission="android.permission.DUMP"
             android:theme="@android:style/Theme.NoDisplay">
             <intent-filter>
-                <action android:name="com.itsaky.androidide.quickbuild.action.BENCH_OPEN_PROJECT" />
+                <action android:name="org.appdevforall.codeonthego.quickbuild.action.BENCH_OPEN_PROJECT" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

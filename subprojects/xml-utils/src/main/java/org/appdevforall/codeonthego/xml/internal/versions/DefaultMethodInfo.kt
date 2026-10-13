@@ -1,0 +1,49 @@
+/*
+ *  This file is part of AndroidIDE.
+ *
+ *  AndroidIDE is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  AndroidIDE is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package org.appdevforall.codeonthego.xml.internal.versions
+
+import org.appdevforall.codeonthego.xml.versions.ApiVersion
+import org.appdevforall.codeonthego.xml.versions.MethodInfo
+
+/** @author Akash Yadav */
+internal class DefaultMethodInfo(
+	override val simpleName: String,
+	name: String,
+	since: ApiVersion,
+	removed: ApiVersion,
+	deprecated: ApiVersion,
+) : DefaultInfo(name, since, removed, deprecated),
+	MethodInfo {
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is DefaultMethodInfo) return false
+		if (!super.equals(other)) return false
+
+		if (simpleName != other.simpleName) return false
+
+		return true
+	}
+
+	override fun hashCode(): Int {
+		var result = super.hashCode()
+		result = 31 * result + simpleName.hashCode()
+		return result
+	}
+
+	override fun toString(): String = "DefaultMethodInfo(simpleName='$simpleName')"
+}
