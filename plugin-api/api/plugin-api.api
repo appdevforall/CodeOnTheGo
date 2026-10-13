@@ -1980,6 +1980,11 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun setEmbeddingModelId (Ljava/lang/String;)V
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ErrorCallback {
+	public abstract fun onError (Ljava/lang/String;)V
+	public fun onError (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;)V
+}
+
 public final class com/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind : java/lang/Enum {
 	public static final field CONTEXT_TOO_LONG Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
 	public static final field OTHER Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
@@ -2032,10 +2037,8 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getStatusMessage ()Ljava/lang/String;
 }
 
-public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback {
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback : com/itsaky/androidide/plugins/services/LlmInferenceService$ErrorCallback {
 	public abstract fun onComplete (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;)V
-	public abstract fun onError (Ljava/lang/String;)V
-	public fun onError (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;)V
 	public abstract fun onToken (Ljava/lang/String;)V
 }
 
@@ -2065,10 +2068,8 @@ public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolDefi
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
 }
 
-public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback {
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback : com/itsaky/androidide/plugins/services/LlmInferenceService$ErrorCallback {
 	public abstract fun onComplete (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;)V
-	public abstract fun onError (Ljava/lang/String;)V
-	public fun onError (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;)V
 	public abstract fun onToken (Ljava/lang/String;)V
 	public abstract fun onToolCall (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest;)V
 }

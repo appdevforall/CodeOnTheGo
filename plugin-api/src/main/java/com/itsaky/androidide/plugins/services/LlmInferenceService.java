@@ -464,6 +464,31 @@ public interface LlmInferenceService {
 	}
 
 	/**
+	 * The error half of {@link StreamCallback} and {@link ToolStreamCallback}. Shared so a class implementing both inherits one default {@link #onError(String, FailureKind)} rather than two unrelated ones, which would not compile.
+	 */
+	interface ErrorCallback {
+		/**
+		 * Called when an error occurs.
+		 *
+		 * @param error
+		 *            the error message
+		 */
+		void onError(String error);
+
+		/**
+		 * Called when an error of a known kind occurs. Defaults to {@link #onError(String)}, so a consumer built before this method still hears every failure; one that overrides it receives this call instead, not both.
+		 *
+		 * @param error
+		 *            the error message
+		 * @param kind
+		 *            why generation failed (never null)
+		 */
+		default void onError(@NonNull String error, @NonNull FailureKind kind) {
+			onError(error);
+		}
+	}
+
+	/**
 	 * Why a generation failed, as far as the backend can tell. Lets a consumer react to a failure by its kind rather than by matching the wording of {@link LlmResponse#error}, which is written for the user and may be translated.
 	 */
 	enum FailureKind {
@@ -761,7 +786,7 @@ public interface LlmInferenceService {
 	/**
 	 * Callback for streaming responses
 	 */
-	interface StreamCallback {
+	interface StreamCallback extends ErrorCallback {
 		/**
 		 * Called when generation is complete.
 		 *
@@ -769,26 +794,6 @@ public interface LlmInferenceService {
 		 *            the complete response
 		 */
 		void onComplete(LlmResponse response);
-
-		/**
-		 * Called when an error occurs.
-		 *
-		 * @param error
-		 *            the error message
-		 */
-		void onError(String error);
-
-		/**
-		 * Called when an error of a known kind occurs. Defaults to {@link #onError(String)}, so a consumer built before this method still hears every failure; one that overrides it receives this call instead, not both.
-		 *
-		 * @param error
-		 *            the error message
-		 * @param kind
-		 *            why generation failed (never null)
-		 */
-		default void onError(@NonNull String error, @NonNull FailureKind kind) {
-			onError(error);
-		}
 
 		/**
 		 * Called when a token is received.
@@ -955,7 +960,7 @@ public interface LlmInferenceService {
 	/**
 	 * Callback for streaming responses with tool calling support. Handles tokens, tool calls, completion, and errors.
 	 */
-	interface ToolStreamCallback {
+	interface ToolStreamCallback extends ErrorCallback {
 		/**
 		 * Called when generation is complete.
 		 *
@@ -963,26 +968,6 @@ public interface LlmInferenceService {
 		 *            the complete response
 		 */
 		void onComplete(LlmResponse response);
-
-		/**
-		 * Called when an error occurs.
-		 *
-		 * @param error
-		 *            the error message
-		 */
-		void onError(String error);
-
-		/**
-		 * Called when an error of a known kind occurs. Defaults to {@link #onError(String)}, so a consumer built before this method still hears every failure; one that overrides it receives this call instead, not both.
-		 *
-		 * @param error
-		 *            the error message
-		 * @param kind
-		 *            why generation failed (never null)
-		 */
-		default void onError(@NonNull String error, @NonNull FailureKind kind) {
-			onError(error);
-		}
 
 		/**
 		 * Called when a text token is received.

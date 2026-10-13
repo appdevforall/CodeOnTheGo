@@ -57,8 +57,9 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   generation failed without matching its user-facing wording: `LlmResponse.failure(error, kind)`, a
   constructor taking `failureKind` for a failure that keeps its partial text and token count, and
   `LlmResponse.failureKind` (null on success, `OTHER` when the backend did not say), and a default
-  `onError(error, kind)` on `StreamCallback` and `ToolStreamCallback` that falls back to
-  `onError(error)`, so consumers built before it still hear every failure. Floor
+  `onError(error, kind)` that falls back to `onError(error)`, so consumers built before it still hear
+  every failure. It lives on a new `ErrorCallback` that `StreamCallback` and `ToolStreamCallback`
+  both extend, so one class can still implement both. Floor
   `plugin.min_ide_version` at `26.42` to call or implement any of them.
 
 ### 26.41 — unreleased

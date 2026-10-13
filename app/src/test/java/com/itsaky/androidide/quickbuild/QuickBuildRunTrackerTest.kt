@@ -176,6 +176,37 @@ class QuickBuildRunTrackerTest {
 	}
 
 	@Test
+	fun `a stopped full build parks as cancelled, not as broken build files`() {
+		val reason = InvalidationReason.MANIFEST_CHANGED
+		val tracker = tracker(QuickBuildStatus.NeedsFullBuild(reason, 3L))
+		tracker.onCancelRequested()
+
+		val result =
+			tracker.run(
+				QuickBuildStatus.Provisioning(reason),
+				QuickBuildStatus.NeedsFullBuild(reason, 3L, awaitingRetry = true),
+			)
+
+		assertThat(result).isEqualTo(QuickBuildResult.Cancelled)
+	}
+
+	@Test
+	fun `a build the daemon took down is not cancelled by the respawn that re-runs it`() {
+		val tracker = tracker(upToDate)
+
+		val respawned =
+			tracker.run(
+				QuickBuildStatus.Building(3L),
+				QuickBuildStatus.Reconnecting(3L),
+				QuickBuildStatus.UpToDate(3L, null),
+			)
+
+		assertThat(respawned).isNull()
+		assertThat(tracker.run(QuickBuildStatus.Building(3L), QuickBuildStatus.UpToDate(4L, 1_200L)))
+			.isEqualTo(QuickBuildResult.Reloaded(durationMillis = 3_000L, restarted = false))
+	}
+
+	@Test
 	fun `a full build that lands reports a restart`() {
 		val tracker = tracker(upToDate)
 		val reason = InvalidationReason.MANIFEST_CHANGED

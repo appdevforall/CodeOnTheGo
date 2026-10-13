@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.services.QuickBuildResult
 import com.itsaky.androidide.plugins.services.QuickBuildState
 import com.itsaky.androidide.plugins.services.QuickBuildUnavailableReason
 import com.itsaky.androidide.quickbuild.QuickBuildRunTracker
+import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +26,16 @@ class PluginQuickBuildCoordinatorTest {
 		pluginProject: Boolean = false,
 		hasAppModule: Boolean = true,
 		variantName: String? = "debug",
-	) = PluginQuickBuildCoordinator.availabilityOf(experimentsEnabled, projectOpen, synced, pluginProject, hasAppModule, variantName)
+	) = PluginQuickBuildCoordinator.availabilityOf(
+		experimentsEnabled,
+		projectOpen,
+		synced,
+		pluginProject,
+		hasAppModule,
+		variantName,
+	) { id, args ->
+		"$id${args.toList()}"
+	}
 
 	private fun reasonOf(availability: QuickBuildAvailability) = (availability as QuickBuildAvailability.Unavailable).reason
 
@@ -44,6 +54,15 @@ class PluginQuickBuildCoordinatorTest {
 		assertThat(reasonOf(availability(hasAppModule = false))).isEqualTo(QuickBuildUnavailableReason.NO_APP_MODULE)
 		assertThat(reasonOf(availability(variantName = "release"))).isEqualTo(QuickBuildUnavailableReason.RELEASE_VARIANT)
 		assertThat(reasonOf(availability(variantName = "freeRelease"))).isEqualTo(QuickBuildUnavailableReason.RELEASE_VARIANT)
+	}
+
+	@Test
+	fun `a plugin hears the same refusal the toolbar shows`() {
+		val pluginProject = availability(pluginProject = true) as QuickBuildAvailability.Unavailable
+		val release = availability(variantName = "freeRelease") as QuickBuildAvailability.Unavailable
+
+		assertThat(pluginProject.message).isEqualTo("${R.string.quick_build_unsupported_plugin_project}[]")
+		assertThat(release.message).isEqualTo("${R.string.quick_build_non_debuggable_variant}[freeRelease]")
 	}
 
 	@Test
@@ -131,4 +150,40 @@ class PluginQuickBuildCoordinatorTest {
 		handoff.cancel()
 		assertThat(sent).isEqualTo(1)
 	}
+
+	@Test
+	fun `a build that starts with no stop asked is left alone`() {
+		var sent = 0
+		val handoff = PluginQuickBuildCoordinator.TapHandoff { sent++ }
+
+		handoff.onTapQueued()
+		handoff.onBuildStarted()
+
+		assertThat(sent).isEqualTo(0)
+	}
+
+	@Test
+	fun `a stop between a live tap and its build stops the build`() =
+		runTest {
+			val status = MutableStateFlow<QuickBuildStatus>(upToDate)
+			val tracker = QuickBuildRunTracker(upToDate, 0L) { null }
+			// A live session's stop cancels only a build already running, as the reducer's does.
+			val handoff =
+				PluginQuickBuildCoordinator.TapHandoff {
+					if (status.value is QuickBuildStatus.Building) status.value = QuickBuildStatus.UpToDate(3L, null)
+				}
+			handoff.onTapQueued()
+
+			val result = async { PluginQuickBuildCoordinator.track(status, tracker, handoff::onBuildStarted) { testScheduler.currentTime } }
+			runCurrent()
+			tracker.onCancelRequested()
+			handoff.cancel()
+			advanceTimeBy(250)
+			status.value = QuickBuildStatus.Building(3L)
+			runCurrent()
+			status.value = QuickBuildStatus.UpToDate(4L, 1_200L)
+			runCurrent()
+
+			assertThat(result.await()).isEqualTo(QuickBuildResult.Cancelled)
+		}
 }

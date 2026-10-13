@@ -38,6 +38,16 @@ public class LlmInferenceServiceTest {
 	}
 
 	@Test
+	public void callbackImplementingBothStreamsHearsAKindedErrorOnce() {
+		// Compiles only while the two callbacks share one default for the kinded onError.
+		BothCallbacks callback = new BothCallbacks();
+
+		callback.onError("too long", LlmInferenceService.FailureKind.CONTEXT_TOO_LONG);
+
+		assertEquals(Collections.singletonList("too long"), callback.errors);
+	}
+
+	@Test
 	public void chatMessageCarriesNoCorrelatorsForAConversationTurn() {
 		LlmInferenceService.ChatMessage message = new LlmInferenceService.ChatMessage(LlmInferenceService.ChatMessage.Role.USER, "hello");
 
@@ -391,6 +401,27 @@ public class LlmInferenceServiceTest {
 		callback.onError("too long", LlmInferenceService.FailureKind.CONTEXT_TOO_LONG);
 
 		assertEquals(Collections.singletonList("CONTEXT_TOO_LONG:too long"), calls);
+	}
+
+	/**
+	 * An adapter serving both streaming paths, as a consumer that handles plain and tool-calling generations alike would write.
+	 */
+	private static final class BothCallbacks implements LlmInferenceService.StreamCallback, LlmInferenceService.ToolStreamCallback {
+		final List<String> errors = new ArrayList<>();
+
+		@Override
+		public void onComplete(LlmInferenceService.LlmResponse response) {}
+
+		@Override
+		public void onError(String error) {
+			errors.add(error);
+		}
+
+		@Override
+		public void onToken(String token) {}
+
+		@Override
+		public void onToolCall(LlmInferenceService.ToolCallRequest request) {}
 	}
 
 	/**

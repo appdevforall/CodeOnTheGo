@@ -20,6 +20,7 @@ import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.resolveAttr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +62,7 @@ class QuickBuildAction(
 		// Behaviour 5: while the button shows the stop icon, a tap stops. Keyed off exactly the
 		// tone that drew that icon, so the two cannot drift apart.
 		if (currentTone() == QuickBuildTone.BUILDING) {
+			onStopTapped?.invoke()
 			sessionManager.onCancelRequested()
 			return true
 		}
@@ -70,7 +72,11 @@ class QuickBuildAction(
 		// the user never agreed to give up. No caller reaches this today - getActivity() is
 		// non-null on every toolbar path - so refusing is cheaper than defending the branch.
 		val activity = data.getActivity() ?: return false
-		launchTap(activity, sessionManager)
+		if (launchTap(activity, sessionManager) == null) {
+			// A plugin's tap is still saving, and it builds the same thing; say so, or the press
+			// reads as a broken button.
+			activity.flashInfo(R.string.quick_build_tap_in_flight)
+		}
 		return true
 	}
 
@@ -127,6 +133,10 @@ class QuickBuildAction(
 			/** The user declined to replace the app installed under the project's application ID. */
 			DECLINED,
 		}
+
+		/** Told of a stop tapped here, for a plugin-started run to report as cancelled (ADFA-6493). */
+		@Volatile
+		internal var onStopTapped: (() -> Unit)? = null
 
 		/**
 		 * Set while a tap is saving or asking about the installed app. The toolbar and a plugin

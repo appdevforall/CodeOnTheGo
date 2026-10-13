@@ -79,7 +79,8 @@ internal class QuickBuildRunTracker(
 				if (status.awaitingRetry) {
 					// A park ends this tap's rebuild, even though a later return to Code On The Go
 					// may retry it: that retry is not this tap, and waiting on it could never end.
-					if (moved) return parked(status)
+					// A stopped rebaseline parks here too, and is no sign of broken build files.
+					if (moved) return if (cancelRequested) QuickBuildResult.Cancelled else parked(status)
 				} else {
 					// A rebaseline is in flight; it ends in Provisioning.
 					sawWork = true
@@ -88,6 +89,9 @@ internal class QuickBuildRunTracker(
 			}
 
 			is QuickBuildStatus.Reconnecting -> {
+				// The respawn re-runs a build the daemon took down with it and lands with no
+				// build time, which would otherwise read as that build being stopped.
+				buildingFrom = null
 				if (!status.restartFailed) {
 					// The respawn lands in an idle status and may then build; wait for it.
 					return null

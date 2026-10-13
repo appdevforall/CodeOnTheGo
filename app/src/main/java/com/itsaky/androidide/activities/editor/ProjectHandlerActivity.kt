@@ -903,23 +903,12 @@ abstract class ProjectHandlerActivity :
 	/**
 	 * Quick Build install gate (ADFA-4128): the proxy app installs under the project's real
 	 * applicationId. When a different build (the Standard Run app) currently occupies that
-	 * id, installing the proxy app replaces it, so confirm first and run [onConfirmed] only on
-	 * accept; otherwise [onConfirmed] runs immediately. A third-party occupant (different
-	 * signing cert) is caught authoritatively by the provisioner's signature check, which
-	 * refuses rather than clobbers.
-	 */
-	fun ensureQuickBuildClobberConfirmed(onConfirmed: () -> Unit) {
-		// The check reads the PackageManager, which is IO and suspends. Callers of this gate
-		// are ordinary click handlers, so the coroutine is owned here rather than pushed onto
-		// them; Main.immediate keeps the common case (nothing to confirm) in the same frame.
-		lifecycleScope.launch(Dispatchers.Main.immediate) {
-			if (awaitQuickBuildClobberConfirmed()) onConfirmed()
-		}
-	}
-
-	/**
-	 * [ensureQuickBuildClobberConfirmed] for a caller already in a coroutine on the main thread:
-	 * true when the build may proceed, false when the user declined to replace the installed app.
+	 * id, installing the proxy app replaces it, so confirm first. A third-party occupant
+	 * (different signing cert) is caught authoritatively by the provisioner's signature check,
+	 * which refuses rather than clobbers.
+	 *
+	 * Call on the main thread: true when the build may proceed, false when the user declined to
+	 * replace the installed app.
 	 */
 	suspend fun awaitQuickBuildClobberConfirmed(): Boolean {
 		// No check means the feature is off, and with it off no proxy app can exist to be

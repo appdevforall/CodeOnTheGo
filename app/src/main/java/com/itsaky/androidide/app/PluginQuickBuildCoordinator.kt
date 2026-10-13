@@ -20,6 +20,7 @@ import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.quickbuild.QuickBuildProjectSupport
 import com.itsaky.androidide.quickbuild.QuickBuildRunTracker
+import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +69,12 @@ internal class PluginQuickBuildCoordinator(
 	/** The plugin-started run in flight, so a second start is refused and a cancel reaches it. */
 	private val running = AtomicReference<Run?>(null)
 
+	init {
+		// A stop on the toolbar ends a plugin's run as much as cancel() does; its tracker has to
+		// know, or a stopped rebaseline would read as broken build files.
+		QuickBuildAction.onStopTapped = { running.get()?.tracker?.onCancelRequested() }
+	}
+
 	override fun availability(): QuickBuildAvailability {
 		val projectManager = IProjectManager.getInstance()
 		val module = projectManager.getAndroidAppModules().firstOrNull()
@@ -78,6 +85,7 @@ internal class PluginQuickBuildCoordinator(
 			pluginProject = projectManager.isPluginProject(),
 			hasAppModule = module != null,
 			variantName = module?.getSelectedVariant()?.name,
+			getString = { id, args -> IDEApplication.instance.getString(id, *args) },
 		)
 	}
 
@@ -138,7 +146,7 @@ internal class PluginQuickBuildCoordinator(
 				when (outcome) {
 					TapOutcome.STARTED -> {
 						run.handoff.onTapQueued()
-						scope.launch { result.complete(track(sessionManager.status, tracker)) }
+						scope.launch { result.complete(track(sessionManager.status, tracker, run.handoff::onBuildStarted)) }
 					}
 
 					TapOutcome.SAVE_FAILED -> {
@@ -178,30 +186,38 @@ internal class PluginQuickBuildCoordinator(
 	private fun buildOutput(): String? = runCatching { BuildOutputProvider.getBuildOutputContent() }.getOrNull()
 
 	/**
-	 * Orders a stop after the tap it stops. A stop sent before the tap reaches the session is
+	 * Orders a stop after what it stops. A stop sent before the tap reaches the session is
 	 * reduced against Idle, which drops it, and the tap then builds anyway; so a stop that
 	 * arrives first waits for [onTapQueued]. The session reduces its events in the order sent.
+	 *
+	 * From a live session the tap only records its ask, and the build follows on the save's
+	 * watcher batch; a stop in between withdraws the ask but has no build to cancel. So a stop
+	 * is sent again each time a build starts, until the run settles.
 	 */
 	internal class TapHandoff(
 		private val sendCancel: () -> Unit,
 	) {
 		private var queued = false
-		private var cancelPending = false
+		private var stopRequested = false
 
 		/** Sends the stop now, or holds it until the tap is queued. */
 		@Synchronized
 		fun cancel() {
-			if (queued) sendCancel() else cancelPending = true
+			stopRequested = true
+			if (queued) sendCancel()
 		}
 
 		/** The tap was handed to the session; a held stop follows it. */
 		@Synchronized
 		fun onTapQueued() {
 			queued = true
-			if (cancelPending) {
-				cancelPending = false
-				sendCancel()
-			}
+			if (stopRequested) sendCancel()
+		}
+
+		/** A build started after the tap; a stop already asked for reaches it. */
+		@Synchronized
+		fun onBuildStarted() {
+			if (queued && stopRequested) sendCancel()
 		}
 	}
 
@@ -212,14 +228,20 @@ internal class PluginQuickBuildCoordinator(
 
 		private const val ALREADY_RUNNING = "a Quick Build is already running"
 
-		/** Follows [status] until [tracker] settles a result, giving an idle tap its quiet window. */
+		/**
+		 * Follows [status] until [tracker] settles a result, giving an idle tap its quiet window.
+		 *
+		 * @param onBuildStarted told of each build seen starting, before [tracker] reads it.
+		 */
 		internal suspend fun track(
 			status: StateFlow<QuickBuildStatus>,
 			tracker: QuickBuildRunTracker,
+			onBuildStarted: () -> Unit = {},
 			nowMillis: () -> Long = SystemClock::elapsedRealtime,
 		): QuickBuildResult =
 			channelFlow {
 				status.collectLatest { current ->
+					if (current is QuickBuildStatus.Building) onBuildStarted()
 					val settled = tracker.onStatus(current, nowMillis())
 					when {
 						settled != null -> {
@@ -243,6 +265,7 @@ internal class PluginQuickBuildCoordinator(
 			pluginProject: Boolean,
 			hasAppModule: Boolean,
 			variantName: String?,
+			getString: (id: Int, args: Array<Any>) -> String,
 		): QuickBuildAvailability {
 			fun unavailable(
 				reason: QuickBuildUnavailableReason,
@@ -269,7 +292,7 @@ internal class PluginQuickBuildCoordinator(
 				pluginProject -> {
 					unavailable(
 						QuickBuildUnavailableReason.PLUGIN_PROJECT,
-						"Quick Build runs apps, and this project builds a plugin. Use Run instead.",
+						getString(R.string.quick_build_unsupported_plugin_project, emptyArray()),
 					)
 				}
 
@@ -280,7 +303,7 @@ internal class PluginQuickBuildCoordinator(
 				variantName != null && QuickBuildProjectSupport.nonDebuggableVariantMessage(variantName) != null -> {
 					unavailable(
 						QuickBuildUnavailableReason.RELEASE_VARIANT,
-						"Quick Build needs a debug variant, and '$variantName' is selected. Pick a debug variant in Build Variants.",
+						getString(R.string.quick_build_non_debuggable_variant, arrayOf(variantName)),
 					)
 				}
 
