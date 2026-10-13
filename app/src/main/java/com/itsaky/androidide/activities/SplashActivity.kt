@@ -45,6 +45,8 @@ class SplashActivity : Activity() {
 		// that flag). Tamper deliberately does NOT re-run the wipe: the signature cannot tell a prior
 		// Instant Wipe from a plain Instant Hide whose data was cleared, so re-wiping could destroy work
 		// the user never meant to wipe. Neutralizing (staying the disguise) still defeats the tamper.
+		// The checks run on the main thread by design: two File.exists() stats plus one PackageManager
+		// label lookup, all cheap, and they MUST complete before any IDE UI could be shown (F08).
 		if (NeutralizationMarker.isWiped(this) ||
 			NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))
 		) {

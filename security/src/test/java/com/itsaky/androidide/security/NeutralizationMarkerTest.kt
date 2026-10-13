@@ -43,8 +43,8 @@ class NeutralizationMarkerTest {
 	}
 
 	@Test
-	fun `mark makes the install read as wiped`() {
-		NeutralizationMarker.mark(context)
+	fun `isWiped is true once the pip marker exists`() {
+		NeutralizationMarker.pipFile(context).apply { parentFile?.mkdirs() }.createNewFile()
 		assertThat(NeutralizationMarker.isWiped(context)).isTrue()
 	}
 

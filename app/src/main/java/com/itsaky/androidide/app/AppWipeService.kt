@@ -20,8 +20,6 @@ package com.itsaky.androidide.app
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import com.itsaky.androidide.BuildConfig
@@ -42,23 +40,31 @@ import com.itsaky.androidide.security.WipeTeardown
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxService
 import com.termux.shared.termux.TermuxConstants
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * The `:app` implementation of [WipeService] (ADFA-6510). It resolves the real on-device paths, tears
- * down the IDE's runtime holds, presents the disguise, and runs [WipeManager] off the main thread.
- * Honours the `/sdcard/Download/CodeOnTheGo.nowipe` dry-run override (dev/QA scaffold; remove before GA).
+ * down the IDE's runtime holds, presents the disguise, and runs [WipeManager] on the app-scoped
+ * coroutine with [Dispatchers.IO] (which outlives the activity it finishes). Honours the
+ * `/sdcard/Download/CodeOnTheGo.nowipe` dry-run override (debug-only dev/QA scaffold; remove before GA).
  */
 class AppWipeService(
 	private val app: Context,
 ) : WipeService {
-	private val mainHandler = Handler(Looper.getMainLooper())
+	// Guards against a second circle (on the just-shown disguise) starting a concurrent wipe before the
+	// first finishes blanking the prefs. Never reset: a wipe is terminal (a fresh process re-creates it).
+	private val wipeStarted = AtomicBoolean(false)
 
 	override fun trigger(activity: Activity) {
 		// The /sdcard/Download/CodeOnTheGo.nowipe override is honoured only in debug builds, so a
 		// dropped file can never silently no-op a real wipe in a release build (F02).
 		val dryRun = BuildConfig.DEBUG && SecurityOverride.isWipeDryRun()
+		if (!wipeStarted.compareAndSet(false, true)) return
 
 		// Present the disguise immediately (reuse Instant Hide's presentation): the Code Breaker game
 		// covers the screen while the destroy pass runs behind it. Shown in dry-run too, so the whole
@@ -72,14 +78,14 @@ class AppWipeService(
 		)
 		activity.finish()
 
-		// File IO + build cancel: never on the main thread.
-		Thread {
+		// File IO + build cancel: off the main thread, on the app scope so it survives the finished activity.
+		(app as IDEApplication).coroutineScope.launch(Dispatchers.IO) {
 			runCatching { Environment.init(app) }
 			val result = WipeManager.wipe(buildPlan(), teardown(dryRun), dryRun) { line -> Log.w(TAG, line) }
 			if (dryRun) {
 				// Advisory in dry-run only (QA). A real wipe shows nothing user-visible: a toast would
 				// pop over the disguise and announce the wipe to anyone watching the seized device (F01).
-				mainHandler.post {
+				withContext(Dispatchers.Main) {
 					Toast
 						.makeText(
 							app,
@@ -90,7 +96,7 @@ class AppWipeService(
 			} else {
 				Log.w(TAG, "Instant Wipe complete")
 			}
-		}.start()
+		}
 	}
 
 	private fun buildPlan(): WipePlan {

@@ -44,12 +44,6 @@ object NeutralizationMarker {
 	/** True once Instant Wipe has neutralized this install (either marker present). */
 	fun isWiped(context: Context): Boolean = runCatching { pipFile(context).exists() || pip2File(context).exists() }.getOrDefault(false)
 
-	/** Writes both markers (idempotent). */
-	fun mark(context: Context) {
-		runCatching { pipFile(context).apply { parentFile?.mkdirs() }.createNewFile() }
-		runCatching { pip2File(context).apply { parentFile?.mkdirs() }.createNewFile() }
-	}
-
 	/**
 	 * True when the markers are gone but the install still looks wiped: no marker, security prefs
 	 * blank, yet the stealth launcher alias ([stealthLabel]) is still the enabled one. See the class
