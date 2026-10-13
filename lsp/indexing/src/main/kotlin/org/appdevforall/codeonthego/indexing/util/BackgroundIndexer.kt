@@ -2,6 +2,7 @@ package org.appdevforall.codeonthego.indexing.util
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -60,8 +61,9 @@ class BackgroundIndexer<T : Indexable>(
 	private val index: Index<T>,
 	parentScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
 ) : Closeable {
-	private val job = SupervisorJob(parentScope.coroutineContext[Job])
-	private val scope = CoroutineScope(parentScope.coroutineContext + job)
+	/** Named apart from any per-source [Job] a call to [indexSource] launches, so it can't be shadowed. */
+	private val supervisor = SupervisorJob(parentScope.coroutineContext[Job])
+	private val scope = CoroutineScope(parentScope.coroutineContext + supervisor)
 
 	companion object {
 		private val log = LoggerFactory.getLogger(BackgroundIndexer::class.java)
@@ -70,34 +72,72 @@ class BackgroundIndexer<T : Indexable>(
 
 	var progressListener: IndexingProgressListener? = null
 
-	private val activeJobs = ConcurrentHashMap<String, Job>()
+	/** The job currently indexing a source, and the fingerprint it was submitted with. */
+	private data class ActiveJob(
+		val job: Job,
+		val fingerprint: String?,
+	)
+
+	private val activeJobs = ConcurrentHashMap<String, ActiveJob>()
 
 	/**
 	 * Index a single source. The [provider] returns a [Flow] that is
 	 * collected on [Dispatchers.IO] and inserted in batches through
-	 * [Index.insertAll].
+	 * [Index.insertAll]; with a [fingerprint], the last batch goes through
+	 * [Index.insertSource] so the fingerprint is recorded only on success.
 	 *
-	 * If [skipIfExists] is true and the source is already indexed,
-	 * this is a no-op.
+	 * If [skipIfExists] is true and the source is already indexed, this is a
+	 * no-op. With a [fingerprint], "already indexed" means the index holds
+	 * that same fingerprint for the source, so a source whose content changed
+	 * at the same id is re-indexed; without one, it means the index holds any
+	 * entry from the source.
+	 *
+	 * A source already being indexed by a still-running job submitted with the same
+	 * [fingerprint] is left alone rather than restarted: that job will produce the same
+	 * result, so cancelling and resubmitting it would only throw away its progress. A
+	 * source being indexed under a different fingerprint (its content changed again before
+	 * the previous pass finished) is handled by cancelling and joining that job before this
+	 * one deletes its rows, so the two passes' writes can never interleave.
+	 *
+	 * The check for an existing job and the recording of this call's own job in [activeJobs] are
+	 * not atomic with each other, so two overlapping calls for the same [sourceId] could each
+	 * decide independently to proceed. That's safe only because every caller of [indexSource] for
+	 * a given index submits through its own single-submitter mutex (see the indexing services'
+	 * `indexingMutex`), never concurrently with itself.
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
+	 * @param fingerprint  Identifies the source's current content, or `null` to not track it.
 	 * @param provider     Lambda returning a [Flow] of entries. Resources the flow opens
 	 *                     are released when collection completes, fails or is cancelled.
-	 * @return The launched job.
+	 * @return The launched job, or the already-running one this call was folded into.
 	 */
 	fun indexSource(
 		sourceId: String,
 		skipIfExists: Boolean = true,
+		fingerprint: String? = null,
 		provider: (sourceId: String) -> Flow<T>,
 	): Job {
-		// Cancel any in-flight job for this source
-		activeJobs[sourceId]?.cancel()
+		val existing = activeJobs[sourceId]
+		if (existing != null && fingerprint != null && fingerprint == existing.fingerprint && existing.job.isActive) {
+			log.debug("Skipping resubmit of already-running: {}", sourceId)
+			progressListener?.onProgress(sourceId, IndexingEvent.Skipped)
+			return existing.job
+		}
+
+		val previousJob = existing?.job
+		// Signalled as soon as this call supersedes it, rather than only once this job's own
+		// coroutine gets scheduled, so a superseded pass starts winding down immediately.
+		previousJob?.cancel()
 
 		val job =
-			scope.launch {
+			scope.launch(start = CoroutineStart.LAZY) {
 				try {
-					if (skipIfExists && index.containsSource(sourceId)) {
+					// Let a superseded pass for this source finish (or actually stop) before
+					// this one touches its rows, so the two passes' writes never interleave.
+					previousJob?.join()
+
+					if (skipIfExists && isIndexed(sourceId, fingerprint)) {
 						log.debug("Skipping already-indexed: {}", sourceId)
 						progressListener?.onProgress(sourceId, IndexingEvent.Skipped)
 						return@launch
@@ -139,7 +179,11 @@ class BackgroundIndexer<T : Indexable>(
 							// also leaves a partial source that containsSource() treats as indexed.
 							error = e
 						}
-						if (batch.isNotEmpty()) index.insertAll(batch.asSequence())
+						if (fingerprint != null && error == null) {
+							index.insertSource(sourceId, fingerprint, batch.asSequence())
+						} else if (batch.isNotEmpty()) {
+							index.insertAll(batch.asSequence())
+						}
 						error?.let { throw it }
 					}
 
@@ -154,13 +198,27 @@ class BackgroundIndexer<T : Indexable>(
 				}
 			}
 
-		activeJobs[sourceId] = job
+		val active = ActiveJob(job, fingerprint)
+		// Recorded before the job starts, so a concurrent call for the same source always sees
+		// this job rather than racing to observe it mid-launch.
+		activeJobs[sourceId] = active
 		// Untrack on completion, not in the body: a job cancelled before it runs never reaches a
 		// finally, and a handler added after completion runs at once. Remove only this job: a
 		// replacement for the same source may already be registered.
-		job.invokeOnCompletion { activeJobs.remove(sourceId, job) }
+		job.invokeOnCompletion { activeJobs.remove(sourceId, active) }
+		job.start()
 		return job
 	}
+
+	private suspend fun isIndexed(
+		sourceId: String,
+		fingerprint: String?,
+	): Boolean =
+		if (fingerprint != null) {
+			index.sourceFingerprint(sourceId) == fingerprint
+		} else {
+			index.containsSource(sourceId)
+		}
 
 	/**
 	 * Index multiple sources sequentially in the background.
@@ -185,14 +243,14 @@ class BackgroundIndexer<T : Indexable>(
 	 * Cancel all in-flight indexing and wait for completion.
 	 */
 	suspend fun cancelAll() {
-		activeJobs.values.toList().forEach { it.cancelAndJoin() }
+		activeJobs.values.toList().forEach { it.job.cancelAndJoin() }
 	}
 
 	/**
 	 * Wait for all in-flight indexing to complete.
 	 */
 	suspend fun awaitAll() {
-		activeJobs.values.toList().joinAll()
+		activeJobs.values.map { it.job }.joinAll()
 	}
 
 	/**
@@ -209,7 +267,7 @@ class BackgroundIndexer<T : Indexable>(
 			)
 		}
 		runBlocking {
-			job.cancelAndJoin()
+			supervisor.cancelAndJoin()
 		}
 		activeJobs.clear()
 	}

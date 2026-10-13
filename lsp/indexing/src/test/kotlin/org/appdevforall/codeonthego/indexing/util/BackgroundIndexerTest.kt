@@ -26,6 +26,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(JUnit4::class)
@@ -188,6 +190,19 @@ class BackgroundIndexerTest {
 	fun `activeJobCount reflects in-flight jobs`() =
 		runTest {
 			val (_, indexer) = makeIndexAndIndexer()
+			assertThat(indexer.activeJobCount).isEqualTo(0)
+		}
+
+	@Test
+	fun `activeJobCount drops to zero once a completed job's entry is removed`() =
+		runTest {
+			val (_, indexer) = makeIndexAndIndexer()
+
+			indexer
+				.indexSource("src1", skipIfExists = false) { sourceId ->
+					flowOf(Entry("k1", sourceId, "v1"))
+				}.join()
+
 			assertThat(indexer.activeJobCount).isEqualTo(0)
 		}
 
@@ -364,5 +379,159 @@ class BackgroundIndexerTest {
 			indexer.indexSource("src1", skipIfExists = false) { flowOf(Entry("k1", it, "v1")) }.join()
 
 			assertThat(indexer.activeJobCount).isEqualTo(0)
+		}
+
+	@Test
+	fun `an unchanged fingerprint skips re-indexing`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "original")) }.join()
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "updated")) }.join()
+
+			assertThat(index.get("k1")!!.value).isEqualTo("original")
+		}
+
+	@Test
+	fun `a changed fingerprint re-indexes the source`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "original")) }.join()
+			indexer.indexSource("src1", fingerprint = "120:2") { flowOf(Entry("k1", it, "rebuilt")) }.join()
+
+			assertThat(index.get("k1")!!.value).isEqualTo("rebuilt")
+			assertThat(index.sourceFingerprint("src1")).isEqualTo("120:2")
+		}
+
+	@Test
+	fun `a fingerprint re-indexes a source that was indexed without one`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			indexer.indexSource("src1") { flowOf(Entry("k1", it, "original")) }.join()
+			indexer.indexSource("src1", fingerprint = "100:1") { flowOf(Entry("k1", it, "fingerprinted")) }.join()
+
+			assertThat(index.get("k1")!!.value).isEqualTo("fingerprinted")
+		}
+
+	/** Waits for the latch, failing the test (rather than silently proceeding) on timeout. */
+	private fun CountDownLatch.awaitOrFail() {
+		assertThat(await(5, TimeUnit.SECONDS)).isTrue()
+	}
+
+	@Test
+	fun `a new job waits for the previous job to finish before deleting its rows`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			val job1Started = CountDownLatch(1)
+			val releaseJob1 = CountDownLatch(1)
+
+			val job1 =
+				indexer.indexSource("src1", fingerprint = "100:1") { sourceId ->
+					job1Started.countDown()
+					releaseJob1.awaitOrFail()
+					// Long enough that, without cancelAndJoin, job2's in-memory write below finishes first.
+					Thread.sleep(50)
+					flowOf(Entry("k1", sourceId, "old1"), Entry("k2", sourceId, "old2"))
+				}
+
+			job1Started.awaitOrFail()
+
+			val job2 =
+				indexer.indexSource("src1", fingerprint = "200:2") { sourceId ->
+					flowOf(Entry("k3", sourceId, "new1"))
+				}
+
+			releaseJob1.countDown()
+			job2.join()
+			job1.join()
+
+			assertThat(index.get("k1")).isNull()
+			assertThat(index.get("k2")).isNull()
+			assertThat(index.get("k3")!!.value).isEqualTo("new1")
+			assertThat(index.sourceFingerprint("src1")).isEqualTo("200:2")
+		}
+
+	@Test
+	fun `indexSource skips resubmitting a source with an active job at the same fingerprint`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			val job1Started = CountDownLatch(1)
+			val releaseJob1 = CountDownLatch(1)
+			var providerInvocations = 0
+
+			val job1 =
+				indexer.indexSource("src1", fingerprint = "100:1") { sourceId ->
+					providerInvocations++
+					job1Started.countDown()
+					releaseJob1.awaitOrFail()
+					flowOf(Entry("k1", sourceId, "v1"))
+				}
+
+			job1Started.awaitOrFail()
+
+			val job2 =
+				indexer.indexSource("src1", fingerprint = "100:1") { sourceId ->
+					providerInvocations++
+					flowOf(Entry("k1", sourceId, "should-not-run"))
+				}
+
+			assertThat(job2).isSameInstanceAs(job1)
+
+			releaseJob1.countDown()
+			job1.join()
+
+			assertThat(providerInvocations).isEqualTo(1)
+			assertThat(index.get("k1")!!.value).isEqualTo("v1")
+		}
+
+	@Test
+	fun `a superseded job finishing does not clear the new job's active-job entry`() =
+		runTest {
+			val (index, indexer) = makeIndexAndIndexer()
+
+			val releaseJob1 = CountDownLatch(1)
+			val job2ProviderStarted = CountDownLatch(1)
+			val releaseJob2 = CountDownLatch(1)
+
+			val job1 =
+				indexer.indexSource("src1", fingerprint = "100:1") { sourceId ->
+					releaseJob1.awaitOrFail()
+					flowOf(Entry("k1", sourceId, "old"))
+				}
+
+			var job2ProviderInvocations = 0
+			val job2 =
+				indexer.indexSource("src1", fingerprint = "200:2") { sourceId ->
+					job2ProviderInvocations++
+					job2ProviderStarted.countDown()
+					releaseJob2.awaitOrFail()
+					flowOf(Entry("k2", sourceId, "new"))
+				}
+
+			// Let the superseded job1 finish (its cancellation is cooperative-only here, since
+			// InMemoryIndex never checks it) while job2 is still mid-flight.
+			releaseJob1.countDown()
+			job1.join()
+			job2ProviderStarted.awaitOrFail()
+
+			var job3ProviderInvocations = 0
+			val job3 =
+				indexer.indexSource("src1", fingerprint = "200:2") { sourceId ->
+					job3ProviderInvocations++
+					flowOf(Entry("k2", sourceId, "should-not-run"))
+				}
+
+			assertThat(job3).isSameInstanceAs(job2)
+			assertThat(job3ProviderInvocations).isEqualTo(0)
+
+			releaseJob2.countDown()
+			job2.join()
+
+			assertThat(job2ProviderInvocations).isEqualTo(1)
+			assertThat(index.get("k2")!!.value).isEqualTo("new")
 		}
 }

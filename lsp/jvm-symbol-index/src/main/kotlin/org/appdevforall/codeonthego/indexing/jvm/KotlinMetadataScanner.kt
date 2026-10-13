@@ -34,10 +34,10 @@ import kotlin.metadata.modality
 import kotlin.metadata.visibility
 
 /**
- * Parses Kotlin metadata from class files into [JvmSymbol]s
- * with full Kotlin semantics (extensions, suspend, inline, etc.).
+ * Parses a Kotlin class file's `@Metadata` into [JvmSymbol]s with full Kotlin semantics
+ * (extensions, suspend, inline, etc.).
  *
- * Skips non-Kotlin class files (no `@Metadata` annotation).
+ * Returns nothing for a class file without `@Metadata`.
  */
 object KotlinMetadataScanner {
 	private val log = LoggerFactory.getLogger(KotlinMetadataScanner::class.java)
@@ -55,25 +55,34 @@ object KotlinMetadataScanner {
 
 		val header = collector.metadataHeader ?: return null
 
-		val metadata =
-			try {
-				KotlinClassMetadata.readStrict(header)
-			} catch (e: Exception) {
-				log.debug("Failed to read Kotlin metadata: {}", e.message)
-				return null
-			}
+		val metadata = readMetadata(header) ?: return null
 
 		return when (metadata) {
 			is KotlinClassMetadata.Class -> {
-				extractFromClass(metadata.kmClass, sourceId)
+				extractFromClass(metadata.kmClass, collector.internalName, sourceId)
 			}
 
 			is KotlinClassMetadata.FileFacade -> {
+				facadeSymbol(collector, sourceId) +
+					extractFromPackage(metadata.kmPackage, collector.packageName, sourceId)
+			}
+
+			/*
+			 * A part class is a compiler-generated fragment of a facade ("FooKt__Part"). Its
+			 * declarations belong to the facade, so they are extracted, but neither language ever names
+			 * the part class itself, so it is deliberately left out.
+			 */
+			is KotlinClassMetadata.MultiFileClassPart -> {
 				extractFromPackage(metadata.kmPackage, collector.packageName, sourceId)
 			}
 
-			is KotlinClassMetadata.MultiFileClassPart -> {
-				extractFromPackage(metadata.kmPackage, collector.packageName, sourceId)
+			/*
+			 * The facade of a @JvmMultifileClass. It declares nothing of its own -- the parts hold the
+			 * declarations -- but Java calls the top-level functions through it, so the class still has
+			 * to be findable.
+			 */
+			is KotlinClassMetadata.MultiFileClassFacade -> {
+				facadeSymbol(collector, sourceId)
 			}
 
 			else -> {
@@ -82,20 +91,94 @@ object KotlinMetadataScanner {
 		}
 	}
 
+	/**
+	 * Reads [header] strictly, falling back to a lenient read.
+	 *
+	 * A strict read rejects metadata written by a newer Kotlin than the bundled reader supports, which
+	 * a dependency or the project's own output can carry. Dropping those classes would hide them from
+	 * every lookup, while a lenient read still yields their declarations.
+	 */
+	private fun readMetadata(header: Metadata): KotlinClassMetadata? {
+		try {
+			return KotlinClassMetadata.readStrict(header)
+		} catch (e: Exception) {
+			log.debug("Reading Kotlin metadata leniently after a strict read failed: {}", e.message)
+		}
+		return try {
+			KotlinClassMetadata.readLenient(header)
+		} catch (e: Exception) {
+			log.debug("Failed to read Kotlin metadata: {}", e.message)
+			null
+		}
+	}
+
+	/**
+	 * The symbol for a facade class itself, as opposed to the declarations it carries.
+	 *
+	 * Metadata for a facade describes a package rather than a class, so without this the class is
+	 * absent from the index entirely and a Java file importing `FooKt` has nothing to resolve
+	 * against.
+	 */
+	private fun facadeSymbol(
+		collector: MetadataCollector,
+		sourceId: String,
+	): List<JvmSymbol> {
+		val internalName = collector.internalName.ifEmpty { return emptyList() }
+		return listOf(
+			JvmSymbol(
+				key = internalName,
+				sourceId = sourceId,
+				name = internalName,
+				shortName = internalName.substringAfterLast('/'),
+				packageName = collector.packageName,
+				kind = JvmSymbolKind.FILE_FACADE,
+				language = JvmSourceLanguage.KOTLIN,
+				data = JvmClassInfo(internalName = internalName),
+			),
+		)
+	}
+
+	/**
+	 * Symbols for [klass] and its members.
+	 *
+	 * [className] is the class file's internal name (`kotlin/text/Regex$Companion`), not the metadata
+	 * name (`kotlin/text/Regex.Companion`): JarSymbolScanner and SourceFileIndexer key and nest by the
+	 * former, and a containing-class lookup only matches when every scanner spells it the same way.
+	 */
 	private fun extractFromClass(
 		klass: KmClass,
+		className: String,
 		sourceId: String,
 	): List<JvmSymbol> {
 		val symbols = mutableListOf<JvmSymbol>()
-		val className = klass.name
+		val metadataName = klass.name
 		val packageName =
-			className
-				.substringBeforeLast('/')
+			metadataName
+				.substringBeforeLast('/', "")
 				.replace('/', '.')
-		val shortName =
-			className
-				.substringAfterLast('/')
-				.substringAfterLast('$')
+		/*
+		 * A leading '.' marks a local or anonymous class. The classpath trie never held these -- it
+		 * treated any name containing '$' as not top level -- and neither language names them, so
+		 * offering one as a completion would be noise. JarSymbolScanner drops its equivalents too.
+		 */
+		if (metadataName.startsWith('.')) {
+			return symbols
+		}
+
+		/*
+		 * Metadata nests with '.', so here a '$' can only be part of a declared name. It is still split
+		 * on because the classpath trie treated every '$' as nesting, and the index should hold the
+		 * same top-level classes.
+		 */
+		val simpleNames = metadataName.substringAfterLast('/')
+		val lastSeparator = maxOf(simpleNames.lastIndexOf('.'), simpleNames.lastIndexOf('$'))
+		val shortName = if (lastSeparator >= 0) simpleNames.substring(lastSeparator + 1) else simpleNames
+		val containingClassName =
+			if (lastSeparator >= 0) {
+				className.substring(0, className.length - shortName.length - 1)
+			} else {
+				""
+			}
 
 		val kind =
 			when (klass.kind) {
@@ -128,6 +211,8 @@ object KotlinMetadataScanner {
 				visibility = kmVisibility(klass.visibility),
 				data =
 					JvmClassInfo(
+						internalName = className,
+						containingClassName = containingClassName,
 						supertypeNames = supertypes,
 						typeParameters = klass.typeParameters.map { it.name },
 						isAbstract = klass.modality == Modality.ABSTRACT,
@@ -244,7 +329,7 @@ object KotlinMetadataScanner {
 			} else {
 				"$packageName#${fn.name}"
 			}
-		val key = "$name(${parameters.joinToString(",") { it.typeFqName }})"
+		val key = jvmCallableKey(name, receiverType?.let { kmTypeToName(it) }, parameters.map { it.typeFqName })
 
 		val signatureDisplay =
 			buildString {
@@ -315,7 +400,7 @@ object KotlinMetadataScanner {
 			}
 
 		return JvmSymbol(
-			key = name,
+			key = jvmCallableKey(name, receiverType?.let { kmTypeToName(it) }, parameterTypeNames = null),
 			sourceId = sourceId,
 			name = name,
 			shortName = prop.name,
@@ -375,6 +460,9 @@ object KotlinMetadataScanner {
 		var metadataHeader: Metadata? = null
 		var packageName = ""
 
+		/** The visited class's internal name, e.g. `com/example/FooKt`. */
+		var internalName = ""
+
 		private var metadataKind: Int? = null
 		private var metadataVersion: IntArray? = null
 		private var data1: Array<String>? = null
@@ -391,6 +479,7 @@ object KotlinMetadataScanner {
 			superName: String?,
 			interfaces: Array<out String>?,
 		) {
+			internalName = name
 			val lastSlash = name.lastIndexOf('/')
 			packageName = if (lastSlash >= 0) name.substring(0, lastSlash).replace('/', '.') else ""
 		}

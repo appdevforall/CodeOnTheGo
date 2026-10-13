@@ -10,14 +10,15 @@ import org.jetbrains.org.objectweb.asm.Type
 import java.io.InputStream
 
 /**
- * Parses class files with ASM into [JvmSymbol]s.
+ * Parses a Java class file with ASM into [JvmSymbol]s.
  *
- * For Java class files, this gives complete information.
- * For Kotlin class files, use [KotlinMetadataScanner] or
- * [CombinedJarScanner] instead — ASM cannot see Kotlin-specific
- * semantics like extensions, suspend, or nullable types.
+ * [CombinedJarScanner] routes Kotlin class files to [KotlinMetadataScanner] instead: ASM cannot see
+ * Kotlin-specific semantics like extensions, suspend, or nullable types.
  */
 object JarSymbolScanner {
+	private const val VISIBILITY_AND_STATIC_FLAGS =
+		Opcodes.ACC_PUBLIC or Opcodes.ACC_PRIVATE or Opcodes.ACC_PROTECTED or Opcodes.ACC_STATIC
+
 	internal fun parseClassFile(
 		input: InputStream,
 		sourceId: String,
@@ -45,6 +46,7 @@ object JarSymbolScanner {
 		private var superName: String? = null
 		private var interfaces: Array<out String>? = null
 		private var isInnerClass = false
+		private var outerClassName: String? = null
 		private var classDeprecated = false
 
 		override fun visit(
@@ -56,7 +58,7 @@ object JarSymbolScanner {
 			interfaces: Array<out String>?,
 		) {
 			className = name
-			classFqName = name.replace('/', '.').replace('$', '.')
+			classFqName = name.replace('/', '.')
 			classAccess = access
 			this.superName = superName
 			this.interfaces = interfaces
@@ -66,9 +68,30 @@ object JarSymbolScanner {
 			packageName = if (lastSlash >= 0) name.substring(0, lastSlash).replace('/', '.') else ""
 
 			val afterPackage = if (lastSlash >= 0) name.substring(lastSlash + 1) else name
-			shortClassName = afterPackage.replace('$', '.')
+			shortClassName = afterPackage
+			isInnerClass = false
+			outerClassName = null
+		}
 
-			isInnerClass = name.contains('$')
+		/*
+		 * JVMS 4.7.6 gives every nested class an InnerClasses entry for itself, and a top-level class
+		 * none, so that entry, not a '$' in the name, decides nesting: `Foo$$ViewBinder` is top-level.
+		 * JVMS 4.1 also forbids ACC_PRIVATE, ACC_PROTECTED and ACC_STATIC in a class file header, so
+		 * the entry is the only record of a nested class's declared visibility and staticness. ASM
+		 * visits it before any member, so the member gates below see the real flags.
+		 */
+		override fun visitInnerClass(
+			name: String,
+			outerName: String?,
+			innerName: String?,
+			access: Int,
+		) {
+			if (name != className) return
+			isInnerClass = true
+			outerClassName = outerName
+			classFqName = className.replace('/', '.').replace('$', '.')
+			shortClassName = shortClassName.replace('$', '.')
+			classAccess = (classAccess and VISIBILITY_AND_STATIC_FLAGS.inv()) or (access and VISIBILITY_AND_STATIC_FLAGS)
 		}
 
 		override fun visitAnnotation(
@@ -81,7 +104,14 @@ object JarSymbolScanner {
 		}
 
 		override fun visitEnd() {
-			if (!isPublicOrProtected(classAccess)) return
+			/*
+			 * Package-private classes are indexed, not dropped: they are real classpath entries and
+			 * same-package code may legitimately reference them, so the caller decides by visibility
+			 * whether to offer one. Private classes stay out - nothing outside the declaring class can
+			 * name them. Members remain gated on the class being public or protected, so a
+			 * package-private class contributes its own name and nothing else.
+			 */
+			if (hasFlag(classAccess, Opcodes.ACC_PRIVATE)) return
 
 			val isAnonymous =
 				isInnerClass &&
@@ -105,7 +135,7 @@ object JarSymbolScanner {
 
 			val containingClass =
 				if (isInnerClass) {
-					className.substringBeforeLast('$')
+					outerClassName ?: className.substringBeforeLast('$')
 				} else {
 					""
 				}

@@ -6,6 +6,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.tasks.cancelIfActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -13,6 +14,7 @@ import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingService
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.nio.file.Paths
 import kotlin.io.path.extension
 
@@ -29,14 +31,15 @@ val JVM_GENERATED_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-generated-symbols
  * [IndexingService] that scans build-generated JARs (R.jar, etc.) and
  * maintains a dedicated [JvmSymbolIndex] for them.
  *
- * Generated JARs are re-indexed unconditionally on every build completion
- * because their contents change (new R-field values, new resource IDs) even
- * when the set of JARs doesn't change.
+ * A build completion re-scans every generated JAR's size and modification time (see
+ * [jarFingerprint]) and only re-indexes those whose fingerprint changed, the same check
+ * [JvmLibraryIndexingService] uses. This also catches a generated JAR rewritten outside an
+ * in-app build, or left half-indexed by a killed process, which staying cached by path alone
+ * would otherwise miss until some later build happened to touch it again.
  */
 class JvmGeneratedIndexingService(
 	private val context: Context,
 ) : IndexingService {
-
 	companion object {
 		const val ID = "jvm-generated-indexing-service"
 		private const val DB_NAME = "jvm_generated_symbol_index.db"
@@ -53,11 +56,12 @@ class JvmGeneratedIndexingService(
 	private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val index = JvmSymbolIndex.createSqliteIndex(
-			context = context,
-			dbName = DB_NAME,
-			indexName = INDEX_NAME,
-		)
+		val index =
+			JvmSymbolIndex.createSqliteIndex(
+				context = context,
+				dbName = DB_NAME,
+				indexName = INDEX_NAME,
+			)
 
 		this.generatedIndex = index
 		registry.register(JVM_GENERATED_SYMBOL_INDEX, index)
@@ -65,32 +69,31 @@ class JvmGeneratedIndexingService(
 
 		// Kick off an initial index pass for any already-built JARs.
 		coroutineScope.launch {
-			indexingMutex.withLock {
-				reindexGeneratedJars(forceReindex = false)
-			}
+			val jobs = indexingMutex.withLock { reindexGeneratedJars() }
+			generatedIndex?.optimizeAfter(jobs)
 		}
 	}
 
 	override suspend fun onBuildCompleted() {
-		// Generated JARs (especially R.jar) always change after a build —
-		// their field values are regenerated. Force a full re-index.
 		coroutineScope.launch {
-			indexingMutex.withLock {
-				reindexGeneratedJars(forceReindex = true)
-			}
+			val jobs = indexingMutex.withLock { reindexGeneratedJars() }
+			generatedIndex?.optimizeAfter(jobs)
 		}
 	}
 
-	private suspend fun reindexGeneratedJars(forceReindex: Boolean) {
-		val index = this.generatedIndex ?: run {
-			log.warn("Not indexing generated JARs — index not initialized.")
-			return
-		}
+	/** Submits every generated JAR whose fingerprint changed and returns the submitted jobs. */
+	private suspend fun reindexGeneratedJars(): List<Job> {
+		val index =
+			this.generatedIndex ?: run {
+				log.warn("Not indexing generated JARs - index not initialized.")
+				return emptyList()
+			}
 
-		val workspace = ProjectManagerImpl.getInstance().workspace ?: run {
-			log.warn("Not indexing generated JARs — workspace model not available.")
-			return
-		}
+		val workspace =
+			ProjectManagerImpl.getInstance().workspace ?: run {
+				log.warn("Not indexing generated JARs - workspace model not available.")
+				return emptyList()
+			}
 
 		val generatedJars =
 			workspace.subProjects
@@ -107,21 +110,23 @@ class JvmGeneratedIndexingService(
 		// Make exactly these JARs visible; remove stale ones from scope.
 		index.setActiveSources(generatedJars)
 
-		var submitted = 0
+		val jobs = mutableListOf<Job>()
 		for (jarPath in generatedJars) {
-			if (forceReindex || !index.isCached(jarPath)) {
-				submitted++
-				index.indexSource(jarPath, skipIfExists = false) { sourceId ->
-					CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
-				}
+			val fingerprint = jarFingerprint(File(jarPath))
+			if (index.sourceFingerprint(jarPath) != fingerprint) {
+				jobs +=
+					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
+						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
+					}
 			}
 		}
 
-		if (submitted > 0) {
-			log.info("{} generated JARs submitted for background indexing (force={})", submitted, forceReindex)
+		if (jobs.isNotEmpty()) {
+			log.info("{} generated JARs submitted for background indexing", jobs.size)
 		} else {
 			log.info("All generated JARs already cached, nothing to index")
 		}
+		return jobs
 	}
 
 	override fun close() {

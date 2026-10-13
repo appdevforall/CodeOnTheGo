@@ -4,12 +4,14 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.joinAll
 import org.appdevforall.codeonthego.indexing.FilteredIndex
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.WritableIndex
 import org.appdevforall.codeonthego.indexing.api.indexQuery
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_CONTAINING_CLASS
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_KIND
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_NAME
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_PACKAGE
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor.KEY_RECEIVER_TYPE
@@ -28,8 +30,26 @@ open class JvmSymbolIndex(
 	WritableIndex<JvmSymbol> by backing,
 	Closeable {
 	companion object {
+		/** Kind names as the descriptor stores them, for set-membership predicates. */
+		private val CLASSIFIER_KIND_NAMES = JvmSymbolKind.CLASSIFIER_KINDS.map { it.name }
+		private val CALLABLE_KIND_NAMES = JvmSymbolKind.CALLABLE_KINDS.map { it.name }
+
 		const val DB_NAME_DEFAULT = "jvm_symbol_index.db"
 		const val INDEX_NAME_LIBRARY = "jvm-library-cache"
+
+		/**
+		 * Storage format version of the SQLite-backed JVM symbol and Kotlin file metadata indexes.
+		 *
+		 * Bump it whenever the index schema or any scanner's output changes: an install holding a
+		 * different version drops its rows and re-indexes every source, which is the only way rows
+		 * produced by an older scanner get replaced. [KtFileMetadataIndex] shares it because a
+		 * source file's symbols are re-indexed only when its metadata row says so; dropping the
+		 * symbols alone would leave files recorded as indexed with no symbols.
+		 *
+		 * Version 3 keys extension callables by their receiver, stores the key in the payload, and
+		 * stops treating a top-level class with '$' in its name as nested.
+		 */
+		const val FORMAT_VERSION = 3
 
 		/**
 		 * Create (or get) a JVM symbol index backed by SQLite.
@@ -48,6 +68,7 @@ open class JvmSymbolIndex(
 					descriptor = JvmSymbolDescriptor,
 					context = context,
 					dbName = dbName,
+					formatVersion = FORMAT_VERSION,
 					name = indexName,
 				)
 
@@ -59,38 +80,51 @@ open class JvmSymbolIndex(
 	/**
 	 * Index a single source. The [provider] returns a [Flow] that is
 	 * collected on [Dispatchers.IO] and inserted in batches through
-	 * [Index.insertAll].
+	 * [Index.insertAll], or [Index.insertSource] when a [fingerprint] is given.
 	 *
-	 * If [skipIfExists] is true and the source is already indexed,
-	 * this is a no-op.
+	 * If [skipIfExists] is true and the source is already indexed (with the
+	 * same [fingerprint], when one is given), this is a no-op.
 	 *
 	 * @param sourceId     Identifies the source.
 	 * @param skipIfExists Skip if already indexed.
+	 * @param fingerprint  Identifies the source's current content, or `null` to not track it.
 	 * @param provider     Lambda returning a [Flow] of entries. Resources the flow opens
 	 *                     (e.g. a JAR) are released when collection completes, fails or is
 	 *                     cancelled, so Flow operators such as `.filter {}` are safe.
-	 * @return The launched job.
+	 * @return The launched job, or the already-running job for the same fingerprint if one exists.
+	 * @see BackgroundIndexer.indexSource
 	 */
 	fun indexSource(
 		sourceId: String,
 		skipIfExists: Boolean = true,
+		fingerprint: String? = null,
 		provider: (sourceId: String) -> Flow<JvmSymbol>,
-	): Job = indexer.indexSource(sourceId, skipIfExists, provider)
+	): Job = indexer.indexSource(sourceId, skipIfExists, fingerprint, provider)
+
+	/** Returns the fingerprint [sourceId] was last indexed with, or `null` if it has none. */
+	suspend fun sourceFingerprint(sourceId: String): String? = backing.sourceFingerprint(sourceId)
 
 	/**
 	 * Find symbols matching the given prefix.
 	 *
 	 * @param prefix The prefix to search for.
 	 * @param limit The result limit.
+	 * @param kinds When non-null, only symbols of these kinds, filtered in the query so that the
+	 * limit is not spent on rows the caller would discard.
+	 * @param topLevelOnly Whether to leave out symbols declared inside a class.
 	 * @see query
 	 */
 	fun findByPrefix(
 		prefix: String,
 		limit: Int = 200,
+		kinds: Set<JvmSymbolKind>? = null,
+		topLevelOnly: Boolean = false,
 	): Sequence<JvmSymbol> =
 		query(
 			indexQuery {
 				prefix(KEY_NAME, prefix)
+				if (kinds != null) anyOf(KEY_KIND, kinds.map { it.name })
+				if (topLevelOnly) notExists(KEY_CONTAINING_CLASS)
 				this.limit = limit
 			},
 		)
@@ -111,6 +145,14 @@ open class JvmSymbolIndex(
 			},
 		)
 
+	/**
+	 * Top-level callables declared in [packageName].
+	 *
+	 * The kind and top-level conditions are part of the query rather than a filter over its result:
+	 * a package holds far more members than top-level callables, so filtering afterwards meant
+	 * fetching every symbol in the package to keep a handful. Top-level is expressible because the
+	 * descriptor stores a null containing class for it.
+	 */
 	fun findTopLevelCallablesInPackage(
 		packageName: String,
 		namePrefix: String = "",
@@ -119,11 +161,14 @@ open class JvmSymbolIndex(
 		query(
 			indexQuery {
 				eq(KEY_PACKAGE, packageName)
+				anyOf(KEY_KIND, CALLABLE_KIND_NAMES)
+				notExists(KEY_CONTAINING_CLASS)
 				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-				this.limit = 0
+				this.limit = limit
 			},
-		).filter { it.kind.isCallable && it.isTopLevel }.take(limit)
+		)
 
+	/** Classifiers declared in [packageName], filtered by kind in the query for the same reason. */
 	fun findClassifiersInPackage(
 		packageName: String,
 		namePrefix: String = "",
@@ -132,10 +177,11 @@ open class JvmSymbolIndex(
 		query(
 			indexQuery {
 				eq(KEY_PACKAGE, packageName)
+				anyOf(KEY_KIND, CLASSIFIER_KIND_NAMES)
 				if (namePrefix.isNotEmpty()) prefix(KEY_NAME, namePrefix)
-				this.limit = 0
+				this.limit = limit
 			},
-		).filter { it.kind.isClassifier }.take(limit)
+		)
 
 	fun findMembersOf(
 		classFqName: String,
@@ -150,12 +196,23 @@ open class JvmSymbolIndex(
 			},
 		)
 
+	/**
+	 * Symbols whose simple name is exactly [name], optionally restricted to [kinds].
+	 *
+	 * Restricting by kind matters more than it looks: without it an exact-name lookup still returns
+	 * every method and field sharing that name, and a caller wanting only classifiers pays for all
+	 * of them. [topLevelOnly] likewise leaves out symbols declared inside a class.
+	 */
 	fun findBySimpleName(
 		name: String,
 		limit: Int = 200,
+		kinds: Set<JvmSymbolKind>? = null,
+		topLevelOnly: Boolean = false,
 	) = query(
 		indexQuery {
 			eq(KEY_NAME, name)
+			if (kinds != null) anyOf(KEY_KIND, kinds.map { it.name })
+			if (topLevelOnly) notExists(KEY_CONTAINING_CLASS)
 			this.limit = limit
 		},
 	)
@@ -165,6 +222,20 @@ open class JvmSymbolIndex(
 	fun allPackages(): Sequence<String> = distinctValues(KEY_PACKAGE)
 
 	suspend fun awaitIndexing() = indexer.awaitAll()
+
+	/**
+	 * Optimizes the backing index once every job in [jobs] has finished, or does nothing if [jobs]
+	 * is empty.
+	 *
+	 * Whoever submits a pass of sources calls this with the jobs it submitted, because only it knows
+	 * when the pass is over: the indexer can sit idle between two submissions while the submitter
+	 * works out what to submit next, so an idle indexer is not a finished pass.
+	 */
+	suspend fun optimizeAfter(jobs: Collection<Job>) {
+		if (jobs.isEmpty()) return
+		jobs.joinAll()
+		backing.optimize()
+	}
 
 	override fun close() {
 		indexer.close()
