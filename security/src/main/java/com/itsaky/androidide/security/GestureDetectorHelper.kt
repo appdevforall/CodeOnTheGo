@@ -20,6 +20,8 @@ package com.itsaky.androidide.security
 import android.content.Context
 import android.graphics.PointF
 import android.view.MotionEvent
+import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.sqrt
 
 /**
@@ -30,8 +32,8 @@ import kotlin.math.sqrt
  * clock, so a gesture's duration is the input system's own measurement (and so the detectors are
  * deterministically testable from synthesised events).
  *
- * The self-destruct circle detector from the original mockup is deliberately not ported here;
- * self-destruct is out of scope for this change.
+ * [CircleGestureDetector] drives Instant Wipe (ADFA-6510): a deliberate single-finger circular sweep,
+ * shaped to be hard to perform by accident while scrolling an editor or the terminal.
  */
 object GestureDetectorHelper {
 	// Three-finger tap (enter disguise).
@@ -42,6 +44,13 @@ object GestureDetectorHelper {
 	// Slow double three-finger tap (exit disguise): the gap between the two taps.
 	const val MIN_DOUBLE_TAP_GAP_MS = 150L
 	const val MAX_DOUBLE_TAP_GAP_MS = 1600L
+
+	// Single-finger circular sweep (Instant Wipe). A near-full rotation spanning most of the screen
+	// width: deliberately awkward so an editor/terminal scroll or a scribble cannot accumulate it.
+	const val MIN_STROKE_POINTS = 10
+	const val MIN_CIRCLE_DURATION_MS = 400L
+	const val MIN_CIRCLE_WIDTH_FRACTION = 0.70f
+	const val MIN_CIRCLE_SWEEP_DEGREES = 330.0
 
 	/**
 	 * Fires [onDetected] with the tap's up-event time when a single three-finger tap completes
@@ -129,5 +138,82 @@ object GestureDetectorHelper {
 			}
 
 		fun onTouchEvent(event: MotionEvent): Boolean = singleDetector.onTouchEvent(event)
+	}
+
+	/**
+	 * Fires [onDetected] when a single-finger stroke traces a near-complete circle: one pointer for
+	 * the whole stroke, at least [MIN_STROKE_POINTS] move samples lasting at least
+	 * [MIN_CIRCLE_DURATION_MS], a bounding box at least [MIN_CIRCLE_WIDTH_FRACTION] of the screen wide,
+	 * and a cumulative signed sweep around the box centre of at least [MIN_CIRCLE_SWEEP_DEGREES]. A
+	 * second pointer disqualifies the stroke, so it never collides with the tap gestures.
+	 */
+	class CircleGestureDetector(
+		context: Context,
+		private val onDetected: () -> Unit,
+	) {
+		private val screenWidthPx = context.resources.displayMetrics.widthPixels
+		private val points = mutableListOf<PointF>()
+		private var singleFinger = true
+
+		fun onTouchEvent(event: MotionEvent): Boolean {
+			when (event.actionMasked) {
+				MotionEvent.ACTION_DOWN -> {
+					points.clear()
+					singleFinger = true
+				}
+
+				// A second finger means this is one of the tap gestures, not a wipe circle.
+				MotionEvent.ACTION_POINTER_DOWN -> {
+					singleFinger = false
+				}
+
+				MotionEvent.ACTION_MOVE -> {
+					if (singleFinger) points.add(PointF(event.getX(0), event.getY(0)))
+				}
+
+				MotionEvent.ACTION_UP -> {
+					val duration = event.eventTime - event.downTime
+					if (singleFinger &&
+						points.size >= MIN_STROKE_POINTS &&
+						duration >= MIN_CIRCLE_DURATION_MS &&
+						isCircle()
+					) {
+						onDetected()
+						return true
+					}
+				}
+
+				MotionEvent.ACTION_CANCEL -> {
+					points.clear()
+				}
+			}
+			return false
+		}
+
+		/**
+		 * True when the stroke spans enough width and sweeps a near-full turn around its bounding-box
+		 * centre. Each step's angle delta is normalised to [-PI, PI] so the running sum measures *net*
+		 * rotation -- a back-and-forth scribble cancels out instead of accumulating arc length.
+		 */
+		private fun isCircle(): Boolean {
+			val minX = points.minOf { it.x }
+			val maxX = points.maxOf { it.x }
+			val minY = points.minOf { it.y }
+			val maxY = points.maxOf { it.y }
+			if (maxX - minX < screenWidthPx * MIN_CIRCLE_WIDTH_FRACTION) return false
+
+			val centerX = (minX + maxX) / 2f
+			val centerY = (minY + maxY) / 2f
+			var sweep = 0.0
+			for (i in 1 until points.size) {
+				val a1 = atan2((points[i - 1].y - centerY).toDouble(), (points[i - 1].x - centerX).toDouble())
+				val a2 = atan2((points[i].y - centerY).toDouble(), (points[i].x - centerX).toDouble())
+				var delta = a2 - a1
+				while (delta > Math.PI) delta -= 2 * Math.PI
+				while (delta < -Math.PI) delta += 2 * Math.PI
+				sweep += delta
+			}
+			return abs(Math.toDegrees(sweep)) >= MIN_CIRCLE_SWEEP_DEGREES
+		}
 	}
 }
