@@ -25,9 +25,7 @@ import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.preferences.internal.SecurityPreferences
-import com.itsaky.androidide.security.GestureDetectorHelper
-import com.itsaky.androidide.security.WipeServiceProvider
+import com.itsaky.androidide.security.SecurityController
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxActivity
 import com.termux.app.TermuxService
@@ -48,29 +46,40 @@ class TerminalActivity : TermuxActivity() {
     override val statusBarColor: Int
         get() = ContextCompat.getColor(this, android.R.color.black)
 
-    // Instant Wipe (ADFA-6510): the terminal is a separate activity, outside the EdgeToEdgeIDEActivity
-    // hierarchy that SecurityController hooks, so the wipe circle-sweep is wired here directly.
-    private val wipeDetector by lazy {
-        GestureDetectorHelper.CircleGestureDetector(this) { triggerInstantWipe() }
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        if (ev != null && SecurityPreferences.instantWipeEnabled) {
-            wipeDetector.onTouchEvent(ev)
-        }
-        return super.dispatchTouchEvent(ev)
-    }
-
-    private fun triggerInstantWipe() {
-        if (!SecurityPreferences.instantWipeEnabled || isFinishing) return
-        (applicationContext as? WipeServiceProvider)?.wipeService?.trigger(this)
-    }
+    // Instant Hide + Instant Wipe (ADFA-40 / ADFA-6510): the terminal is a separate activity, outside
+    // the EdgeToEdgeIDEActivity hierarchy that mounts SecurityController, so it is mounted here directly.
+    // This brings the hide triggers (three-finger tap, screen off, face-down, inactivity), FLAG_SECURE
+    // masking, and the Instant Wipe circle-sweep to the terminal, matching every other IDE screen.
+    private val securityController by lazy { SecurityController(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.isAppearanceLightNavigationBars = false
         controller.isAppearanceLightStatusBars = false
         super.onCreate(savedInstanceState)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        securityController.applyScreenSecurity()
+        securityController.onResume()
+    }
+
+    override fun onPause() {
+        securityController.onPause()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        securityController.onDestroy()
+        super.onDestroy()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev != null) {
+            securityController.onTouchEvent(ev)
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onServiceConnected(componentName: ComponentName?, service: IBinder?) {
