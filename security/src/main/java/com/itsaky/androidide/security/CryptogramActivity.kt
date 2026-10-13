@@ -346,6 +346,10 @@ class CryptogramActivity : AppCompatActivity() {
 
 	/** Leaves the disguise and returns to the IDE via its launcher entry point. */
 	private fun exitDisguiseMode() {
+		// After an Instant Wipe (ADFA-6510) the install is permanently neutralized: the exit gesture
+		// must not bring back the torn-down, data-less IDE (its Recents DB connection is already closed).
+		if (NeutralizationMarker.isWiped(this)) return
+
 		SecurityPreferences.isHiddenStateActive = false
 		LauncherAliasManager.setStealthMode(this, false)
 

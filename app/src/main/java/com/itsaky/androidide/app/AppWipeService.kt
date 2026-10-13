@@ -32,6 +32,7 @@ import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.security.CryptogramActivity
 import com.itsaky.androidide.security.LauncherAliasManager
+import com.itsaky.androidide.security.NeutralizationMarker
 import com.itsaky.androidide.security.SecurityOverride
 import com.itsaky.androidide.security.WipeManager
 import com.itsaky.androidide.security.WipePlan
@@ -96,7 +97,7 @@ class AppWipeService(
 			secureTargetSkipDirs = setOf("build", ".gradle", ".cg"),
 			// Bulk regenerable caches.
 			fastDeleteTargets = listOfNotNull(Environment.ANDROIDIDE_HOME, Environment.GRADLE_USER_HOME),
-			markerFiles = listOf(File(app.filesDir, PIP), File(app.noBackupFilesDir, PIP2)),
+			markerFiles = listOf(NeutralizationMarker.pipFile(app), NeutralizationMarker.pip2File(app)),
 		)
 	}
 
@@ -142,7 +143,5 @@ class AppWipeService(
 	companion object {
 		private const val TAG = "AppWipeService"
 		private const val RECENTS_DB = "RecentProject_database"
-		private const val PIP = ".pip"
-		private const val PIP2 = ".pip2"
 	}
 }

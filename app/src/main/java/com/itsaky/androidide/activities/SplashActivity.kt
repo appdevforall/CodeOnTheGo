@@ -25,10 +25,13 @@ import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.security.CryptogramActivity
+import com.itsaky.androidide.security.NeutralizationMarker
+import com.itsaky.androidide.security.WipeServiceProvider
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.hasEnoughStorageAvailable
 import kotlin.system.exitProcess
+import com.itsaky.androidide.resources.R as ResR
 
 /**
  * @author Akash Yadav
@@ -36,6 +39,25 @@ import kotlin.system.exitProcess
 class SplashActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// Instant Wipe neutralization (ADFA-6510): a wiped install is permanently the disguise, before
+		// any IDE UI. Checked before the hidden-state redirect because a wipe blanks that flag.
+		if (NeutralizationMarker.isWiped(this)) {
+			startActivity(
+				Intent(this, CryptogramActivity::class.java).apply {
+					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+				},
+			)
+			finish()
+			return
+		}
+		// Tamper: markers stripped by clearing app data, but the stealth alias remains and prefs are
+		// blank. The /sdcard workspace survives a data clear, so re-engage the wipe (which also shows
+		// the disguise and finishes this activity).
+		if (NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))) {
+			(applicationContext as? WipeServiceProvider)?.wipeService?.trigger(this)
+			return
+		}
 
 		// Instant Hide (ADFA-40): if the disguise is engaged, go straight to it before any IDE UI
 		// is shown. The state persists across restarts/reboots until the user performs the exit gesture.
