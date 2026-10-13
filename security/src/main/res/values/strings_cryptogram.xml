@@ -18,4 +18,8 @@
 	<string name="cipher_letter_label">Cipher Letter: </string>
 	<string name="replace_with_label">→ Replace with: </string>
 	<string name="apply_substitution">Apply</string>
+
+	<!-- Shown when the testing override file disables Instant Hide screenshot blocking. -->
+	<string name="instant_hide_screenshot_override">Screenshot protection is off because the override file /sdcard/Download/CodeOnTheGo.mfs is
+		present.</string>
 </resources>

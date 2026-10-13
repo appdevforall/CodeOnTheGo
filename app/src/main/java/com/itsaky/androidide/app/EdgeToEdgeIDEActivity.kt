@@ -25,6 +25,7 @@ import android.os.Build
 import android.os.Build.VERSION_CODES
 import android.os.Bundle
 import android.os.PersistableBundle
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -35,6 +36,7 @@ import androidx.core.view.OnApplyWindowInsetsListener
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnAttach
+import com.itsaky.androidide.security.SecurityController
 import com.itsaky.androidide.utils.EdgeToEdgeUtils
 import com.itsaky.androidide.utils.getSystemBarInsets
 import org.slf4j.LoggerFactory
@@ -194,5 +196,46 @@ abstract class EdgeToEdgeIDEActivity : IDEActivity() {
 		val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 		// Request to hide the keyboard from the window
 		inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+	}
+
+	/**
+	 * Instant Hide (ADFA-40) trigger controller. Mounted on every edge-to-edge IDE screen so the
+	 * three-finger tap / screen-off / face-down / inactivity triggers and the FLAG_SECURE policy are
+	 * available wherever the user is working.
+	 */
+	private val securityController by lazy { SecurityController(this) }
+
+	/**
+	 * Whether Instant Hide gesture/sensor triggers fire on this screen. The security Settings screen
+	 * overrides this to false so arming or practising the feature does not immediately hide it;
+	 * FLAG_SECURE masking still applies regardless.
+	 */
+	protected open fun isInstantHideGesturesEnabled(): Boolean = true
+
+	override fun onResume() {
+		super.onResume()
+		securityController.applyScreenSecurity()
+		if (isInstantHideGesturesEnabled()) {
+			securityController.onResume()
+		}
+	}
+
+	override fun onPause() {
+		if (isInstantHideGesturesEnabled()) {
+			securityController.onPause()
+		}
+		super.onPause()
+	}
+
+	override fun onDestroy() {
+		securityController.onDestroy()
+		super.onDestroy()
+	}
+
+	override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+		if (ev != null && isInstantHideGesturesEnabled()) {
+			securityController.onTouchEvent(ev)
+		}
+		return super.dispatchTouchEvent(ev)
 	}
 }
