@@ -16,7 +16,7 @@
              opens only a directory inside the app's own projects dir, and only while the
              experiments AND qbbench flags are on. -->
         <activity
-            android:name=".quickbuild.QuickBuildBenchActivity"
+            android:name="org.appdevforall.codeonthego.quickbuild.QuickBuildBenchActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:permission="android.permission.DUMP"

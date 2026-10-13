@@ -50,7 +50,7 @@
     <uses-permission android:name="${applicationId}.debug.RECEIVE_WADB_PAIR_RESULT" />
     
     <application
-        android:name=".app.IDEApplication"
+        android:name="org.appdevforall.codeonthego.app.IDEApplication"
         android:allowBackup="false"
         android:allowNativeHeapPointerTagging="false"
         android:enableOnBackInvokedCallback="true"
@@ -69,7 +69,7 @@
         tools:ignore="DiscouragedApi,MediaCapabilities,UnusedAttribute"
         tools:replace="android:supportsRtl,android:theme">
         <activity
-            android:name=".activities.CrashHandlerActivity"
+            android:name="org.appdevforall.codeonthego.activities.CrashHandlerActivity"
             android:exported="true"
             android:windowSoftInputMode="stateAlwaysHidden">
             <intent-filter>
@@ -79,7 +79,7 @@
         </activity>
 
         <activity
-            android:name=".activities.SplashActivity"
+            android:name="org.appdevforall.codeonthego.activities.SplashActivity"
             android:exported="true"
             android:theme="@style/AppTheme.Splash">
             <intent-filter>
@@ -88,7 +88,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".activities.OnboardingActivity"
+            android:name="org.appdevforall.codeonthego.activities.OnboardingActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="false" />
         <!--
@@ -98,7 +98,7 @@
             validation, to force an arbitrary project open and navigate to a file inside it.
         -->
         <activity
-            android:name=".activities.MainActivity"
+            android:name="org.appdevforall.codeonthego.activities.MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="false"
             android:theme="@style/Theme.AndroidIDE" />
@@ -112,7 +112,7 @@
             never root the real one, which is what makes excludeFromRecents mean what it says here.
         -->
         <activity
-            android:name=".activities.DeepLinkActivity"
+            android:name="org.appdevforall.codeonthego.activities.DeepLinkActivity"
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
@@ -133,12 +133,12 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".activities.editor.EditorActivityKt"
+            android:name="org.appdevforall.codeonthego.activities.editor.EditorActivityKt"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|fontScale"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize" />
         <activity
-            android:name=".activities.PreferencesActivity"
+            android:name="org.appdevforall.codeonthego.activities.PreferencesActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
         <!-- uiMode/locale/fontScale/density/keyboard/keyboardHidden/navigation are handled here
              (not just orientation etc.) because a recreation mid-dialog (e.g. a system dark/light
@@ -151,10 +151,10 @@
              until the user backs out and re-enters - dialog continuity was judged more important
              than instant re-theming for this one screen. -->
         <activity
-            android:name=".activities.PluginManagerActivity"
+            android:name="org.appdevforall.codeonthego.activities.PluginManagerActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation" />
         <activity
-            android:name=".activities.PluginScreenActivity"
+            android:name="org.appdevforall.codeonthego.activities.PluginScreenActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="false">
             <intent-filter>
@@ -217,7 +217,7 @@
              without an Activity recreation, so the same "stale until back-and-return" tradeoff is
              narrower here than on the View-based screen. -->
         <activity
-            android:name=".activities.ExternalFileInstallActivity"
+            android:name="org.appdevforall.codeonthego.activities.ExternalFileInstallActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|locale|fontScale|density|keyboard|keyboardHidden|navigation"
             android:excludeFromRecents="true"
             android:exported="true"
@@ -263,15 +263,15 @@
                 <data android:scheme="content" android:host="*" android:mimeType="application/x-zip-compressed" />
             </intent-filter>
         </activity>
-        <activity android:name=".activities.AboutActivity" />
+        <activity android:name="org.appdevforall.codeonthego.activities.AboutActivity" />
         <activity
-            android:name=".activities.editor.FAQActivity"
+            android:name="org.appdevforall.codeonthego.activities.editor.FAQActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
         <activity
-            android:name=".activities.editor.HelpActivity"
+            android:name="org.appdevforall.codeonthego.activities.editor.HelpActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
         <activity
-            android:name=".activities.TerminalActivity"
+            android:name="org.appdevforall.codeonthego.activities.TerminalActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:windowSoftInputMode="adjustResize" />
 
@@ -317,7 +317,7 @@
             android:name="firebase_data_collection_default_enabled"
             android:value="false" />
         <provider
-            android:name=".provider.IDEDocumentsProvider"
+            android:name="org.appdevforall.codeonthego.provider.IDEDocumentsProvider"
             android:authorities="org.appdevforall.codeonthego.documents"
             android:exported="true"
             android:grantUriPermissions="true"
@@ -328,7 +328,7 @@
         </provider>
 
         <provider
-            android:name=".provider.IDEFileProvider"
+            android:name="org.appdevforall.codeonthego.provider.IDEFileProvider"
             android:authorities="${applicationId}.providers.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
@@ -350,7 +350,7 @@
         </provider>
 
         <receiver
-            android:name=".services.InstallationResultReceiver"
+            android:name="org.appdevforall.codeonthego.services.InstallationResultReceiver"
             android:enabled="true"
             android:exported="true"
             tools:ignore="ExportedReceiver">
@@ -366,7 +366,7 @@
          broadcasts to this receiver.
          -->
         <receiver
-            android:name=".services.debug.ForegroundAppReceiver"
+            android:name="org.appdevforall.codeonthego.services.debug.ForegroundAppReceiver"
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
@@ -379,15 +379,15 @@
         </receiver>
 
         <service
-            android:name=".services.builder.GradleBuildService"
+            android:name="org.appdevforall.codeonthego.services.builder.GradleBuildService"
             android:exported="false" />
 
         <service
-            android:name=".services.debug.DebuggerService"
+            android:name="org.appdevforall.codeonthego.services.debug.DebuggerService"
             android:exported="false" />
 
         <service
-            android:name=".services.log.LogReceiverService"
+            android:name="org.appdevforall.codeonthego.services.log.LogReceiverService"
             android:exported="true"
             android:permission="org.appdevforall.codeonthego.permission.BIND_LOG_SERVICE">
             <intent-filter>

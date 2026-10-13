@@ -28,12 +28,12 @@
 
   <application>
         <provider
-          android:name=".utils.LogSenderInstaller"
+          android:name="org.appdevforall.codeonthego.logsender.utils.LogSenderInstaller"
           android:authorities="${applicationId}.logsender-installer"
           android:enabled="@bool/logsender_enabled"
           android:exported="false" />
         <service
-          android:name=".LogSenderService"
+          android:name="org.appdevforall.codeonthego.logsender.LogSenderService"
           android:foregroundServiceType="dataSync"
           android:exported="false" />
   </application>
