@@ -477,7 +477,8 @@ interface IdeBuildService {
 	 * The future completes once, with a [QuickBuildResult]. It completes with
 	 * [QuickBuildResult.Refused] at once when Quick Build is unavailable
 	 * ([getQuickBuildAvailability]), another build or Quick Build is running, or no editor is in
-	 * the foreground. Needs no permission, like [runApp].
+	 * the foreground. A run that has not settled after 30 minutes completes with
+	 * [QuickBuildResult.Failed]. Needs no permission, like [runApp].
 	 */
 	fun startQuickBuild(): CompletableFuture<QuickBuildResult> =
 		CompletableFuture.completedFuture(QuickBuildResult.Refused("Quick Build is not supported"))

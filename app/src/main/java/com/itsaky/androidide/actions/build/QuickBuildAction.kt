@@ -20,7 +20,7 @@ import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.flashInfoLong
 import com.itsaky.androidide.utils.resolveAttr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -75,7 +75,7 @@ class QuickBuildAction(
 		if (launchTap(activity, sessionManager) == null) {
 			// A plugin's tap is still saving, and it builds the same thing; say so, or the press
 			// reads as a broken button.
-			activity.flashInfo(R.string.quick_build_tap_in_flight)
+			activity.flashInfoLong(activity.getString(R.string.quick_build_tap_in_flight))
 		}
 		return true
 	}

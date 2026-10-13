@@ -17,7 +17,8 @@ import org.appdevforall.cotg.quickbuild.domain.session.SessionFailure
  *
  * Feed it from one coroutine; only [onCancelRequested] may be called from another thread.
  *
- * @param start the status as of the tap, before the tap is dispatched.
+ * @param start the status when the plugin asked, before the tap saves: a build the save itself
+ *   starts carries the plugin's changes, so it is this tap's result.
  * @param startedAtMillis when the plugin asked, for [QuickBuildResult.Reloaded.durationMillis].
  * @param buildOutput the Build Output pane's text, attached to a failure.
  */
@@ -158,6 +159,10 @@ internal class QuickBuildRunTracker(
 			is QuickBuildStatus.Reconnecting -> runningGeneration
 			is QuickBuildStatus.Hidden, is QuickBuildStatus.Provisioning -> null
 		}
+
+	/** The result when the run did not settle within [ceilingMillis]; the session may still be busy. */
+	fun onGaveUp(ceilingMillis: Long): QuickBuildResult =
+		failed("Quick Build did not finish within ${ceilingMillis / 60_000} minutes; this run was given up on.")
 
 	private fun SessionFailure.toResult(): QuickBuildResult =
 		when (this) {

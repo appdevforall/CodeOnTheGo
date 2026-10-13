@@ -7,7 +7,6 @@ import com.itsaky.androidide.actions.build.QuickBuildAction
 import com.itsaky.androidide.actions.build.QuickBuildAction.Companion.TapOutcome
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.api.BuildOutputProvider
-import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.QuickBuildProvider
 import com.itsaky.androidide.plugins.services.QuickBuildAvailability
@@ -15,7 +14,6 @@ import com.itsaky.androidide.plugins.services.QuickBuildResult
 import com.itsaky.androidide.plugins.services.QuickBuildState
 import com.itsaky.androidide.plugins.services.QuickBuildUnavailableReason
 import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.quickbuild.QuickBuildProjectSupport
@@ -32,6 +30,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildTone
 import org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager
@@ -123,8 +122,7 @@ internal class PluginQuickBuildCoordinator(
 			foregroundActivity() as? EditorHandlerActivity
 				?: return refused("No editor is open. Open the project in the editor first.")
 		val sessionManager = sessionManager() ?: return refused("Quick Build is still starting. Try again in a moment.")
-		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-		if (buildService?.isUserVisibleBuildInProgress == true) return refused(IdeBuildServiceImpl.BUILD_IN_PROGRESS_REASON)
+		if (QuickBuildAction.isBlockedByStandardBuild()) return refused(IdeBuildServiceImpl.BUILD_IN_PROGRESS_REASON)
 		if (QuickBuildAction.currentTone() == QuickBuildTone.BUILDING) return refused(ALREADY_RUNNING)
 
 		val tracker =
@@ -191,8 +189,9 @@ internal class PluginQuickBuildCoordinator(
 	 * arrives first waits for [onTapQueued]. The session reduces its events in the order sent.
 	 *
 	 * From a live session the tap only records its ask, and the build follows on the save's
-	 * watcher batch; a stop in between withdraws the ask but has no build to cancel. So a stop
-	 * is sent again each time a build starts, until the run settles.
+	 * watcher batch; a stop in between withdraws the ask but has no build to cancel. A queued
+	 * rebaseline is the same: only its Provisioning stops it. So a stop is sent again each
+	 * time a build or rebaseline starts, until the run settles.
 	 */
 	internal class TapHandoff(
 		private val sendCancel: () -> Unit,
@@ -214,7 +213,7 @@ internal class PluginQuickBuildCoordinator(
 			if (stopRequested) sendCancel()
 		}
 
-		/** A build started after the tap; a stop already asked for reaches it. */
+		/** A build or rebaseline started after the tap; a stop already asked for reaches it. */
 		@Synchronized
 		fun onBuildStarted() {
 			if (queued && stopRequested) sendCancel()
@@ -228,10 +227,14 @@ internal class PluginQuickBuildCoordinator(
 
 		private const val ALREADY_RUNNING = "a Quick Build is already running"
 
+		/** How long [track] follows a run before giving up, so a stuck session cannot hold the plugin slot. */
+		internal const val TRACK_CEILING_MILLIS = 30 * 60_000L
+
 		/**
-		 * Follows [status] until [tracker] settles a result, giving an idle tap its quiet window.
+		 * Follows [status] until [tracker] settles a result, giving an idle tap its quiet window,
+		 * or fails the run after [TRACK_CEILING_MILLIS].
 		 *
-		 * @param onBuildStarted told of each build seen starting, before [tracker] reads it.
+		 * @param onBuildStarted told of each build or rebaseline seen starting, before [tracker] reads it.
 		 */
 		internal suspend fun track(
 			status: StateFlow<QuickBuildStatus>,
@@ -239,9 +242,18 @@ internal class PluginQuickBuildCoordinator(
 			onBuildStarted: () -> Unit = {},
 			nowMillis: () -> Long = SystemClock::elapsedRealtime,
 		): QuickBuildResult =
+			withTimeoutOrNull(TRACK_CEILING_MILLIS) { settle(status, tracker, onBuildStarted, nowMillis) }
+				?: tracker.onGaveUp(TRACK_CEILING_MILLIS)
+
+		private suspend fun settle(
+			status: StateFlow<QuickBuildStatus>,
+			tracker: QuickBuildRunTracker,
+			onBuildStarted: () -> Unit,
+			nowMillis: () -> Long,
+		): QuickBuildResult =
 			channelFlow {
 				status.collectLatest { current ->
-					if (current is QuickBuildStatus.Building) onBuildStarted()
+					if (current is QuickBuildStatus.Building || current is QuickBuildStatus.Provisioning) onBuildStarted()
 					val settled = tracker.onStatus(current, nowMillis())
 					when {
 						settled != null -> {
@@ -286,7 +298,7 @@ internal class PluginQuickBuildCoordinator(
 
 				// The plugin-project and module checks read the synced model, so this comes first.
 				!synced -> {
-					unavailable(QuickBuildUnavailableReason.PROJECT_SYNCING, "The project is still syncing. Try again when it finishes.")
+					unavailable(QuickBuildUnavailableReason.PROJECT_SYNCING, getString(R.string.quick_build_waiting_for_sync, emptyArray()))
 				}
 
 				pluginProject -> {
@@ -297,7 +309,7 @@ internal class PluginQuickBuildCoordinator(
 				}
 
 				!hasAppModule -> {
-					unavailable(QuickBuildUnavailableReason.NO_APP_MODULE, "The project has no Android app module.")
+					unavailable(QuickBuildUnavailableReason.NO_APP_MODULE, getString(R.string.quick_build_no_app_module, emptyArray()))
 				}
 
 				variantName != null && QuickBuildProjectSupport.nonDebuggableVariantMessage(variantName) != null -> {

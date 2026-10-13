@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildTone
 import org.junit.Test
@@ -63,6 +64,10 @@ class PluginQuickBuildCoordinatorTest {
 
 		assertThat(pluginProject.message).isEqualTo("${R.string.quick_build_unsupported_plugin_project}[]")
 		assertThat(release.message).isEqualTo("${R.string.quick_build_non_debuggable_variant}[freeRelease]")
+		assertThat(availability(synced = false).let { (it as QuickBuildAvailability.Unavailable).message })
+			.isEqualTo("${R.string.quick_build_waiting_for_sync}[]")
+		assertThat(availability(hasAppModule = false).let { (it as QuickBuildAvailability.Unavailable).message })
+			.isEqualTo("${R.string.quick_build_no_app_module}[]")
 	}
 
 	@Test
@@ -185,5 +190,55 @@ class PluginQuickBuildCoordinatorTest {
 			runCurrent()
 
 			assertThat(result.await()).isEqualTo(QuickBuildResult.Cancelled)
+		}
+
+	@Test
+	fun `a stop before a queued rebaseline starts stops the rebaseline`() =
+		runTest {
+			val reason = InvalidationReason.MANIFEST_CHANGED
+			val queued = QuickBuildStatus.NeedsFullBuild(reason, 3L)
+			val status = MutableStateFlow<QuickBuildStatus>(queued)
+			val tracker = QuickBuildRunTracker(queued, 0L) { null }
+			// A queued rebaseline's stop only withdraws the ask; its Provisioning is what a stop cancels.
+			val handoff =
+				PluginQuickBuildCoordinator.TapHandoff {
+					if (status.value is QuickBuildStatus.Provisioning) {
+						status.value = QuickBuildStatus.NeedsFullBuild(reason, 3L, awaitingRetry = true)
+					}
+				}
+			handoff.onTapQueued()
+
+			val result = async { PluginQuickBuildCoordinator.track(status, tracker, handoff::onBuildStarted) { testScheduler.currentTime } }
+			runCurrent()
+			tracker.onCancelRequested()
+			handoff.cancel()
+			status.value = QuickBuildStatus.Provisioning(reason)
+			runCurrent()
+			if (!result.isCompleted) {
+				// Unstopped, the rebaseline lands and reloads.
+				status.value = QuickBuildStatus.UpToDate(1L, null)
+				runCurrent()
+			}
+
+			assertThat(result.await()).isEqualTo(QuickBuildResult.Cancelled)
+		}
+
+	@Test
+	fun `a run whose session stops moving fails at the ceiling instead of holding the slot`() =
+		runTest {
+			val status = MutableStateFlow<QuickBuildStatus>(upToDate)
+			val tracker = QuickBuildRunTracker(upToDate, 0L) { "the log" }
+
+			val result = async { PluginQuickBuildCoordinator.track(status, tracker) { testScheduler.currentTime } }
+			runCurrent()
+			status.value = QuickBuildStatus.Building(3L)
+			advanceTimeBy(PluginQuickBuildCoordinator.TRACK_CEILING_MILLIS - 1)
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			advanceTimeBy(2)
+			runCurrent()
+			val giveUp = "Quick Build did not finish within 30 minutes; this run was given up on."
+			assertThat(result.await()).isEqualTo(QuickBuildResult.Failed(giveUp, "the log"))
 		}
 }
