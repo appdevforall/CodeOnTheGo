@@ -62,9 +62,7 @@ class SecurityController(
 	private val gravitySensor =
 		sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
 			?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-	private val proximitySensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
 	private var isFaceDown = false
-	private var isNear = false
 
 	private val inactivityHandler = Handler(Looper.getMainLooper())
 	private val inactivityRunnable = Runnable { triggerInstantHide() }
@@ -75,17 +73,11 @@ class SecurityController(
 		object : SensorEventListener {
 			override fun onSensorChanged(event: SensorEvent?) {
 				if (event == null || !enabled) return
-				when (event.sensor.type) {
-					Sensor.TYPE_GRAVITY, Sensor.TYPE_ACCELEROMETER -> {
-						isFaceDown = event.values[2] <= FACE_DOWN_Z_THRESHOLD
-					}
-
-					Sensor.TYPE_PROXIMITY -> {
-						isNear = event.values[0] < event.sensor.maximumRange
-					}
-				}
-				// Face-down on a surface: tilted past the threshold AND something close to the screen.
-				if (isFaceDown && isNear) triggerInstantHide()
+				if (event.sensor.type != Sensor.TYPE_GRAVITY && event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+				val faceDownNow = event.values[2] <= FACE_DOWN_Z_THRESHOLD
+				// Fire once on the flip into face-down, not repeatedly while it stays inverted.
+				if (faceDownNow && !isFaceDown) triggerInstantHide()
+				isFaceDown = faceDownNow
 			}
 
 			override fun onAccuracyChanged(
@@ -127,7 +119,6 @@ class SecurityController(
 		if (enabled) {
 			hideDetector = GestureDetectorHelper.ThreeFingerTapDetector(activity) { triggerInstantHide() }
 			gravitySensor?.let { sensorManager?.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI) }
-			proximitySensor?.let { sensorManager?.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI) }
 			resetInactivityTimer()
 		} else {
 			hideDetector = null
