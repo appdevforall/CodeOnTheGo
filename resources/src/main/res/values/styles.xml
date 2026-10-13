@@ -95,6 +95,17 @@
 		XZ
 	</style>
 
+	<!-- Splash theme for the stealth launcher entry (StealthSplashActivity). Identical timing to AppTheme.Splash but with
+		NO Code On The Go logo: the icon is a blank splash_bg fill, so launching the "Code Breaker" disguise never flashes the IDE's
+		branding (ADFA-40 / ADFA-6510). -->
+	<style
+		name="AppTheme.Splash.Stealth"
+		parent="Theme.SplashScreen">
+		<item name="windowSplashScreenBackground">@color/splash_bg</item>
+		<item name="windowSplashScreenAnimatedIcon">@drawable/splash_stealth_blank</item>
+		<item name="windowSplashScreenAnimationDuration">200</item>
+	</style>
+
 	<style
 		name="AppTheme.SwitchPreference"
 		parent="Preference.SwitchPreference.Material">
