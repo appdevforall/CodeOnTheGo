@@ -241,4 +241,23 @@ class PluginQuickBuildCoordinatorTest {
 			val giveUp = "Quick Build did not finish within 30 minutes; this run was given up on."
 			assertThat(result.await()).isEqualTo(QuickBuildResult.Failed(giveUp, "the log"))
 		}
+
+	@Test
+	fun `a stopped run that never settles is cancelled at the ceiling, not failed`() =
+		runTest {
+			val reason = InvalidationReason.MANIFEST_CHANGED
+			val status = MutableStateFlow<QuickBuildStatus>(upToDate)
+			val tracker = QuickBuildRunTracker(upToDate, 0L) { "the log" }
+
+			val result = async { PluginQuickBuildCoordinator.track(status, tracker) { testScheduler.currentTime } }
+			runCurrent()
+			// The stop was accepted, but the rebaseline it cancelled never leaves Provisioning.
+			status.value = QuickBuildStatus.Provisioning(reason)
+			runCurrent()
+			tracker.onCancelRequested()
+			advanceTimeBy(PluginQuickBuildCoordinator.TRACK_CEILING_MILLIS + 1)
+			runCurrent()
+
+			assertThat(result.await()).isEqualTo(QuickBuildResult.Cancelled)
+		}
 }

@@ -232,7 +232,7 @@ internal class PluginQuickBuildCoordinator(
 
 		/**
 		 * Follows [status] until [tracker] settles a result, giving an idle tap its quiet window,
-		 * or fails the run after [TRACK_CEILING_MILLIS].
+		 * or gives up after [TRACK_CEILING_MILLIS] ([QuickBuildRunTracker.onGaveUp]).
 		 *
 		 * @param onBuildStarted told of each build or rebaseline seen starting, before [tracker] reads it.
 		 */

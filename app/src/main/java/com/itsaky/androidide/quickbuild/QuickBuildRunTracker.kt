@@ -160,9 +160,16 @@ internal class QuickBuildRunTracker(
 			is QuickBuildStatus.Hidden, is QuickBuildStatus.Provisioning -> null
 		}
 
-	/** The result when the run did not settle within [ceilingMillis]; the session may still be busy. */
+	/**
+	 * The result when the run did not settle within [ceilingMillis]; the session may still be busy.
+	 * A stopped rebaseline can stay in Provisioning, and its accepted stop still reads as cancelled.
+	 */
 	fun onGaveUp(ceilingMillis: Long): QuickBuildResult =
-		failed("Quick Build did not finish within ${ceilingMillis / 60_000} minutes; this run was given up on.")
+		if (cancelRequested) {
+			QuickBuildResult.Cancelled
+		} else {
+			failed("Quick Build did not finish within ${ceilingMillis / 60_000} minutes; this run was given up on.")
+		}
 
 	private fun SessionFailure.toResult(): QuickBuildResult =
 		when (this) {
