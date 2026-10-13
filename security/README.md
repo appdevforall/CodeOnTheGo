@@ -13,7 +13,7 @@ Owned by `SecurityController`, mounted on `EdgeToEdgeIDEActivity` so they are li
 - **Three-finger tap** (`GestureDetectorHelper.ThreeFingerTapDetector`, fed from `dispatchTouchEvent`).
 - **Screen off** (`ACTION_SCREEN_OFF` broadcast; registered once and kept across `onPause`, since the
   pause races the broadcast).
-- **Face-down** — gravity past a threshold **and** proximity near, to cut false positives.
+- **Face-down** — gravity Z past a threshold (orientation only); fires once per transition into face-down.
 - **60s inactivity** (a `Handler` reset on every touch).
 
 Any trigger calls `triggerInstantHide()`: set the hidden-state flag, swap to the stealth launcher
