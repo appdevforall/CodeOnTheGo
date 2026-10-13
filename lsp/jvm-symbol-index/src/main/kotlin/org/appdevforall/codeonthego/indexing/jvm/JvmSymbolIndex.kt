@@ -116,6 +116,9 @@ open class JvmSymbolIndex(
 	/** Returns the fingerprint [sourceId] was last indexed with, or `null` if it has none. */
 	suspend fun sourceFingerprint(sourceId: String): String? = backing.sourceFingerprint(sourceId)
 
+	/** Returns every source's last-indexed fingerprint, keyed by source id. */
+	suspend fun sourceFingerprints(): Map<String, String> = backing.sourceFingerprints()
+
 	/**
 	 * Find symbols matching the given prefix.
 	 *

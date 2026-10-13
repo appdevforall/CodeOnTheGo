@@ -9,11 +9,16 @@ import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.indexing.InMemoryIndex
+import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import org.appdevforall.codeonthego.indexing.service.IndexingState
+import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -44,6 +49,33 @@ class JarIndexingServiceProgressTest {
 		service.refreshAndAwait()
 
 		assertThat((service.stateWhileCompleting as? IndexingState.Indexing)?.total).isEqualTo(2)
+	}
+
+	@Test
+	fun `a refresh counts every changed JAR without waiting on a per-JAR fingerprint read`() {
+		val backing = GatedFingerprintIndex(InMemoryIndex(JvmSymbolDescriptor))
+		val service =
+			TestService(
+				jars = setOf(jar("a.jar"), jar("b.jar"), jar("c.jar")),
+				indexFactory = { _, _, _ -> JvmSymbolIndex(backing, BackgroundIndexer(backing)) },
+			)
+
+		val counted =
+			service.use {
+				runBlocking {
+					it.initialize(IndexRegistry())
+					val pass = it.refresh()
+					val counted =
+						withTimeoutOrNull(5_000) {
+							tracker.state.first { state -> (state as? IndexingState.Indexing)?.total == 3 }
+						}
+					backing.gate.complete(Unit)
+					pass.join()
+					counted
+				}
+			}
+
+		assertThat(counted).isNotNull()
 	}
 
 	@Test
@@ -111,10 +143,26 @@ class JarIndexingServiceProgressTest {
 			.apply { writeBytes(ByteArray(1)) }
 			.absolutePath
 
+	/**
+	 * Holds every single-source fingerprint read until [gate] completes, as the SQLite index's lock
+	 * does while indexing jobs write.
+	 */
+	private class GatedFingerprintIndex(
+		private val backing: Index<JvmSymbol>,
+	) : Index<JvmSymbol> by backing {
+		val gate = CompletableDeferred<Unit>()
+
+		override suspend fun sourceFingerprint(sourceId: String): String? {
+			gate.await()
+			return backing.sourceFingerprint(sourceId)
+		}
+	}
+
 	private inner class TestService(
 		private val jars: Set<String>,
 		private val onComplete: suspend () -> Unit = {},
-	) : JarIndexingService(context, tracker, workspaceSupplier = { mockk<Workspace>() }) {
+		indexFactory: (Context, String, String) -> JvmSymbolIndex = JvmSymbolIndex::createSqliteIndex,
+	) : JarIndexingService(context, tracker, workspaceSupplier = { mockk<Workspace>() }, indexFactory = indexFactory) {
 		var stateWhileCompleting: IndexingState? = null
 
 		override val id = "jar-indexing-service-progress-test"

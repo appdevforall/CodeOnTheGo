@@ -58,6 +58,7 @@ abstract class JarIndexingService(
 	private val workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
 	private val unreadableJarReporter: (List<String>) -> Unit = ::reportUnreadableClasspathJars,
 	private val unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
+	private val indexFactory: (Context, String, String) -> JvmSymbolIndex = JvmSymbolIndex::createSqliteIndex,
 ) : IndexingService {
 	companion object {
 		private val log = LoggerFactory.getLogger(JarIndexingService::class.java)
@@ -89,12 +90,7 @@ abstract class JarIndexingService(
 		)
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val jvmIndex =
-			JvmSymbolIndex.createSqliteIndex(
-				context = context,
-				dbName = dbName,
-				indexName = indexName,
-			)
+		val jvmIndex = indexFactory(context, dbName, indexName)
 
 		this.jarIndex = jvmIndex
 		registry.register(indexKey, jvmIndex)
@@ -168,11 +164,16 @@ abstract class JarIndexingService(
 		 * Step 2: Index any JAR that is not cached, or was cached with a different fingerprint:
 		 * a JAR rebuilt at the same path (a snapshot, a local file dependency) is re-scanned.
 		 * Newly cached JARs are automatically visible because they're already in the active set.
+		 *
+		 * The fingerprints are read once, before this pass starts any job: a per-JAR read waits on
+		 * the index lock behind every batch the jobs submitted so far are writing, which stretched
+		 * the submission of 404 JARs to minutes and grew the progress total one JAR at a time.
 		 */
+		val indexedFingerprints = index.sourceFingerprints()
 		val jobs = mutableListOf<Job>()
 		for (jarPath in jars) {
 			val fingerprint = jarFingerprint(File(jarPath))
-			if (index.sourceFingerprint(jarPath) != fingerprint) {
+			if (indexedFingerprints[jarPath] != fingerprint) {
 				val job =
 					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
 						scanTrackingUnreadable(jarPath, sourceId, unreadableJars)

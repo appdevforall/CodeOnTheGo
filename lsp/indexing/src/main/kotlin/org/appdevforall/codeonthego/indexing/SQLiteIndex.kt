@@ -354,6 +354,19 @@ class SQLiteIndex<T : Indexable>(
 			}
 		}
 
+	override suspend fun sourceFingerprints(): Map<String, String> =
+		withContext(Dispatchers.IO) {
+			ifOpen(emptyMap()) {
+				db.query("SELECT _source_id, _fingerprint FROM $sourcesTableName").use { cursor ->
+					buildMap {
+						while (cursor.moveToNext()) {
+							put(cursor.getString(0), cursor.getString(1))
+						}
+					}
+				}
+			}
+		}
+
 	override fun subpackages(
 		parent: String,
 		sourceIds: Collection<String>?,

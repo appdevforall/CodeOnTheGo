@@ -155,6 +155,8 @@ class InMemoryIndex<T : Indexable>(
 
 	override suspend fun sourceFingerprint(sourceId: String): String? = fingerprints[sourceId]
 
+	override suspend fun sourceFingerprints(): Map<String, String> = HashMap(fingerprints)
+
 	override fun subpackages(
 		parent: String,
 		sourceIds: Collection<String>?,
