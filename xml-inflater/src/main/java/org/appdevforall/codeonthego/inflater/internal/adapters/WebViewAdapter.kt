@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 /*
  *  This file is part of AndroidIDE.
  *
@@ -18,12 +20,12 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.webkit.WebView
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [WebView].
@@ -33,7 +35,6 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(WebView::class)
 @IncludeInDesigner(group = WIDGETS)
 open class WebViewAdapter<T : WebView> : AbsoluteLayoutAdapter<T>() {
-override fun createUiWidgets(): List<UiWidget> {
-	return listOf(UiWidget(WebView::class.java, string.widget_webview, drawable.ic_widget_webview))
-}
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(UiWidget(WebView::class.java, string.widget_webview, drawable.ic_widget_webview))
 }

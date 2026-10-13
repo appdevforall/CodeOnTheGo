@@ -12,10 +12,14 @@ import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
 internal abstract class AbstractKtModule(
 	override val project: Project,
 	override val directRegularDependencies: List<KtModule>,
-) : KtModule, KaModuleBase() {
-
+) : KaModuleBase(),
+	KtModule {
 	private val searchScopeLock = Any()
+
+	@Suppress("ktlint:standard:backing-property-naming")
 	private var _baseSearchScope: GlobalSearchScope? = null
+
+	@Suppress("ktlint:standard:backing-property-naming")
 	private var _contentScope: GlobalSearchScope? = null
 
 	private fun maybeCreateScopesLocked() {
@@ -51,16 +55,18 @@ internal abstract class AbstractKtModule(
 	}
 
 	override val baseContentScope: GlobalSearchScope
-		get() = synchronized(searchScopeLock) {
-			maybeCreateScopesLocked()
-			checkNotNull(_baseSearchScope) { "failed to create base content scope" }
-		}
+		get() =
+			synchronized(searchScopeLock) {
+				maybeCreateScopesLocked()
+				checkNotNull(_baseSearchScope) { "failed to create base content scope" }
+			}
 
 	override val contentScope: GlobalSearchScope
-		get() = synchronized(searchScopeLock) {
-			maybeCreateScopesLocked()
-			checkNotNull(_contentScope) { "failed to create content refined scope" }
-		}
+		get() =
+			synchronized(searchScopeLock) {
+				maybeCreateScopesLocked()
+				checkNotNull(_contentScope) { "failed to create content refined scope" }
+			}
 
 	override val directDependsOnDependencies: List<KtModule>
 		get() = emptyList()
@@ -70,9 +76,11 @@ internal abstract class AbstractKtModule(
 
 	@OptIn(KaExperimentalApi::class)
 	override val moduleDescription: String
-		get() = "module '$id' (ref=${hashCode()}, baseScope=${_baseSearchScope?.hashCode()}, contentScope=${_contentScope?.hashCode()}, deps=${directRegularDependencies.joinToString { it.id }})"
+		get() {
+			val deps = directRegularDependencies.joinToString { it.id }
+			return "module '$id' (ref=${hashCode()}, baseScope=${_baseSearchScope?.hashCode()}, " +
+				"contentScope=${_contentScope?.hashCode()}, deps=$deps)"
+		}
 
-	override fun toString(): String {
-		return id
-	}
+	override fun toString(): String = id
 }

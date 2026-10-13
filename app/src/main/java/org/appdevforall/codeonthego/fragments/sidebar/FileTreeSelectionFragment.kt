@@ -9,9 +9,7 @@ import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.itsaky.androidide.R
-import org.appdevforall.codeonthego.adapters.viewholders.MultiSelectFileTreeViewHolder
 import com.itsaky.androidide.databinding.FragmentFileTreeSelectionBinding
-import org.appdevforall.codeonthego.projects.IProjectManager
 import com.unnamed.b.atv.model.TreeNode
 import com.unnamed.b.atv.view.AndroidTreeView
 import kotlinx.coroutines.Dispatchers
@@ -19,17 +17,22 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.adapters.viewholders.MultiSelectFileTreeViewHolder
+import org.appdevforall.codeonthego.projects.IProjectManager
 import java.io.File
 
 class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection) {
-
+	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: FragmentFileTreeSelectionBinding? = null
 	private val binding get() = _binding!!
 
 	private val selectedFiles = mutableSetOf<File>()
 	private var treeView: AndroidTreeView? = null
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		_binding = FragmentFileTreeSelectionBinding.bind(view)
 		loadTreeData()
@@ -46,11 +49,12 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 				return@launch
 			}
 
-			val rootNode = withContext(Dispatchers.IO) {
-				val node = TreeNode.root()
-				buildTreeNodes(node, projectRootFile, safeContext)
-				node
-			}
+			val rootNode =
+				withContext(Dispatchers.IO) {
+					val node = TreeNode.root()
+					buildTreeNodes(node, projectRootFile, safeContext)
+					node
+				}
 			if (isAdded) {
 				setupTreeView(rootNode)
 			}
@@ -64,26 +68,31 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 		rootNode.children?.forEach { treeView?.expandNode(it) }
 	}
 
-	private suspend fun buildTreeNodes(parentNode: TreeNode, dir: File, context: Context) {
-		dir.listFiles()
+	private suspend fun buildTreeNodes(
+		parentNode: TreeNode,
+		dir: File,
+		context: Context,
+	) {
+		dir
+			.listFiles()
 			?.sortedWith(compareBy({ !it.isDirectory }, { it.name }))
 			?.forEach { file ->
 				currentCoroutineContext().ensureActive()
-				val node = TreeNode(file).apply {
-					viewHolder = MultiSelectFileTreeViewHolder(context, selectedFiles)
-				}
+				val node =
+					TreeNode(file).apply {
+						viewHolder = MultiSelectFileTreeViewHolder(context, selectedFiles)
+					}
 				parentNode.addChild(node)
 				if (file.isDirectory) {
 					buildTreeNodes(node, file, context)
 				}
-		}
+			}
 	}
 
 	private fun setupListeners() {
 		binding.fileTreeToolbar.setNavigationOnClickListener { findNavController().popBackStack() }
 		binding.btnCancelSelection.setOnClickListener { findNavController().popBackStack() }
 		binding.btnConfirmSelection.setOnClickListener {
-
 			val finalContextList = mutableListOf<String>()
 
 			val baseDir = IProjectManager.getInstance().projectDir
@@ -95,7 +104,8 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 
 				if (target.exists() && target.isDirectory) {
 					// It's a valid directory, so walk through it and add all readable files
-					target.walkTopDown()
+					target
+						.walkTopDown()
 						.filter { walkedFile -> walkedFile.isFile && walkedFile.canRead() }
 						.forEach { walkedFile ->
 							finalContextList.add(walkedFile.relativeTo(baseDir).path)
@@ -106,9 +116,12 @@ class FileTreeSelectionFragment : Fragment(R.layout.fragment_file_tree_selection
 				}
 			}
 
-			setFragmentResult("file_selection_request", Bundle().apply {
-				putStringArrayList("selected_paths", ArrayList(finalContextList.distinct()))
-			})
+			setFragmentResult(
+				"file_selection_request",
+				Bundle().apply {
+					putStringArrayList("selected_paths", ArrayList(finalContextList.distinct()))
+				},
+			)
 			findNavController().popBackStack()
 		}
 	}

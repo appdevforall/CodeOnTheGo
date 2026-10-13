@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 /*
  * This file is part of AndroidIDE.
  *
@@ -14,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package org.appdevforall.codeonthego.actions.internal
 
 import android.view.Menu

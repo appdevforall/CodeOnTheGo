@@ -18,6 +18,10 @@
 package org.appdevforall.codeonthego.lsp.models
 
 import com.itsaky.androidide.fuzzysearch.FuzzySearch
+import io.github.rosemoe.sora.lang.completion.snippet.CodeSnippet
+import io.github.rosemoe.sora.text.CharPosition
+import io.github.rosemoe.sora.text.Content
+import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.lsp.CancellableRequestParams
 import org.appdevforall.codeonthego.lsp.edits.DefaultEditHandler
 import org.appdevforall.codeonthego.lsp.edits.IEditHandler
@@ -31,10 +35,6 @@ import org.appdevforall.codeonthego.lsp.models.MatchLevel.NO_MATCH
 import org.appdevforall.codeonthego.lsp.models.MatchLevel.PARTIAL_MATCH
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.progress.ICancelChecker
-import io.github.rosemoe.sora.lang.completion.snippet.CodeSnippet
-import io.github.rosemoe.sora.text.CharPosition
-import io.github.rosemoe.sora.text.Content
-import io.github.rosemoe.sora.widget.CodeEditor
 import java.nio.file.Path
 import java.util.function.Consumer
 
@@ -43,7 +43,7 @@ const val DEFAULT_MIN_MATCH_RATIO = 59
 data class CompletionParams(
 	var position: Position,
 	var file: Path,
-	override val cancelChecker: ICancelChecker
+	override val cancelChecker: ICancelChecker,
 ) : CancellableRequestParams {
 	var content: CharSequence? = null
 	var prefix: String? = null
@@ -64,24 +64,29 @@ data class CompletionParams(
 	}
 }
 
-open class CompletionResult(items: Collection<CompletionItem>) {
-	val items: List<CompletionItem> = run {
-		var temp = items.toMutableList()
-		temp.sort()
-		if (TRIM_TO_MAX && temp.size > MAX_ITEMS) {
-			temp = temp.subList(0, MAX_ITEMS)
+open class CompletionResult(
+	items: Collection<CompletionItem>,
+) {
+	val items: List<CompletionItem> =
+		run {
+			var temp = items.toMutableList()
+			temp.sort()
+			if (TRIM_TO_MAX && temp.size > MAX_ITEMS) {
+				temp = temp.subList(0, MAX_ITEMS)
+			}
+			return@run temp
 		}
-		return@run temp
-	}
 
 	var isIncomplete = this.items.size < items.size
 	var isCached = false
 
 	companion object {
 		const val MAX_ITEMS = 50
+
 		@JvmField
 		val EMPTY = CompletionResult(listOf())
 
+		@Suppress("ktlint:standard:property-naming")
 		var TRIM_TO_MAX = true
 
 		@JvmStatic
@@ -89,7 +94,7 @@ open class CompletionResult(items: Collection<CompletionItem>) {
 		fun mapAndFilter(
 			src: CompletionResult,
 			partial: String,
-			map: Consumer<CompletionItem> = Consumer {}
+			map: Consumer<CompletionItem> = Consumer {},
 		): CompletionResult {
 			val newItems = src.items.toMutableList()
 			newItems.forEach(map)
@@ -116,9 +121,7 @@ open class CompletionResult(items: Collection<CompletionItem>) {
 		this.isCached = true
 	}
 
-	override fun toString(): String {
-		return android.text.TextUtils.join("\n", items)
-	}
+	override fun toString(): String = android.text.TextUtils.join("\n", items)
 }
 
 open class CompletionItem(
@@ -132,11 +135,9 @@ open class CompletionItem(
 	var matchLevel: MatchLevel,
 	var additionalTextEdits: List<TextEdit>?,
 	var data: ICompletionData?,
-	var editHandler: IEditHandler = DefaultEditHandler()
-) :
-	io.github.rosemoe.sora.lang.completion.CompletionItem(ideLabel, detail),
+	var editHandler: IEditHandler = DefaultEditHandler(),
+) : io.github.rosemoe.sora.lang.completion.CompletionItem(ideLabel, detail),
 	Comparable<CompletionItem> {
-
 	var ideSortText: String? = sortText
 		get() {
 			if (field == null) {
@@ -161,27 +162,26 @@ open class CompletionItem(
 	var overrideTypeText: String? = null
 
 	constructor() :
-			this(
-				"", // label
-				"", // detail
-				null, // insertText
-				null, // insertTextFormat
-				null, // sortText
-				null, // command
-				NONE, // kind
-				NO_MATCH, // match level
-				ArrayList(), // additionalEdits
-				null // data
-			)
+		this(
+			"", // label
+			"", // detail
+			null, // insertText
+			null, // insertTextFormat
+			null, // sortText
+			null, // command
+			NONE, // kind
+			NO_MATCH, // match level
+			ArrayList(), // additionalEdits
+			null, // data
+		)
 
 	companion object {
-
 		@JvmStatic
 		@JvmOverloads
 		fun matchLevel(
 			candidate: String,
 			partial: String,
-			minMatchRatio: Int = DEFAULT_MIN_MATCH_RATIO
+			minMatchRatio: Int = DEFAULT_MIN_MATCH_RATIO,
 		): MatchLevel {
 			if (candidate.startsWith(partial)) {
 				return if (candidate.length == partial.length) {
@@ -210,17 +210,22 @@ open class CompletionItem(
 		}
 	}
 
-	override fun performCompletion(editor: CodeEditor, text: Content, position: CharPosition) {
+	override fun performCompletion(
+		editor: CodeEditor,
+		text: Content,
+		position: CharPosition,
+	) {
 		editHandler.performEdits(this, editor, text, position.line, position.column, position.index)
 	}
 
-	override fun performCompletion(editor: CodeEditor, text: Content, line: Int, column: Int) {
-		throw UnsupportedOperationException()
-	}
+	override fun performCompletion(
+		editor: CodeEditor,
+		text: Content,
+		line: Int,
+		column: Int,
+	): Unit = throw UnsupportedOperationException()
 
-	override fun compareTo(other: CompletionItem): Int {
-		return CompletionItemComparator.compare(this, other)
-	}
+	override fun compareTo(other: CompletionItem): Int = CompletionItemComparator.compare(this, other)
 
 	override fun equals(other: Any?): Boolean {
 		if (this === other) return true
@@ -260,23 +265,24 @@ open class CompletionItem(
 		return result
 	}
 
-	override fun toString(): String {
-		return "CompletionItem(label='$ideLabel', detail='$detail', command=$command, kind=$completionKind, matchLevel=$matchLevel, additionalTextEdits=$additionalTextEdits, data=$data, sortText=$ideSortText, insertText='$insertText', insertTextFormat=$insertTextFormat, editHandler=$editHandler, additionalEditHandler=$additionalEditHandler, overrideTypeText=$overrideTypeText)"
-	}
+	override fun toString(): String =
+		"CompletionItem(label='$ideLabel', detail='$detail', command=$command, kind=$completionKind, matchLevel=$matchLevel, additionalTextEdits=$additionalTextEdits, data=$data, sortText=$ideSortText, insertText='$insertText', insertTextFormat=$insertTextFormat, editHandler=$editHandler, additionalEditHandler=$additionalEditHandler, overrideTypeText=$overrideTypeText)"
 }
 
 data class SnippetDescription
-@JvmOverloads
-constructor(
-	val selectedLength: Int,
-	val deleteSelected: Boolean = true,
-	val snippet: CodeSnippet? = null,
-	val allowCommandExecution: Boolean = false
-)
+	@JvmOverloads
+	constructor(
+		val selectedLength: Int,
+		val deleteSelected: Boolean = true,
+		val snippet: CodeSnippet? = null,
+		val allowCommandExecution: Boolean = false,
+	)
 
-data class Command(var title: String, var command: String) {
+data class Command(
+	var title: String,
+	var command: String,
+) {
 	companion object {
-
 		/** Action for triggering a signature help request to the language server. */
 		const val TRIGGER_PARAMETER_HINTS = "editor.action.triggerParameterHints"
 		val CMD_TRIGGER_PARAMETER_HINTS = Command("Trigger parameter hints", TRIGGER_PARAMETER_HINTS)
@@ -308,7 +314,7 @@ enum class CompletionItemKind {
 	MODULE,
 	SNIPPET,
 	VALUE,
-	NONE
+	NONE,
 }
 
 enum class MatchLevel {
@@ -317,10 +323,10 @@ enum class MatchLevel {
 	CASE_SENSITIVE_PREFIX,
 	CASE_INSENSITIVE_PREFIX,
 	PARTIAL_MATCH,
-	NO_MATCH
+	NO_MATCH,
 }
 
 enum class InsertTextFormat {
 	PLAIN_TEXT,
-	SNIPPET
+	SNIPPET,
 }

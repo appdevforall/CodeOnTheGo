@@ -8,6 +8,12 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.work.WorkManager
 import com.google.android.material.color.DynamicColors
+import io.sentry.Sentry
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.activities.CrashHandlerActivity
 import org.appdevforall.codeonthego.activities.editor.IDELogcatReader
 import org.appdevforall.codeonthego.api.BuildOutputProvider
@@ -35,12 +41,6 @@ import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.FeatureFlags
 import org.appdevforall.codeonthego.utils.FileUtil
 import org.appdevforall.codeonthego.utils.VMUtils
-import io.sentry.Sentry
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -415,7 +415,10 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		buildServiceImpl.setGradleSyncProvider { callback ->
 			GlobalScope.launch(Dispatchers.IO) {
 				try {
-					val buildService = Lookup.getDefault().lookup(org.appdevforall.codeonthego.projects.builder.BuildService.KEY_BUILD_SERVICE)
+					val buildService =
+						Lookup.getDefault().lookup(
+							org.appdevforall.codeonthego.projects.builder.BuildService.KEY_BUILD_SERVICE,
+						)
 					if (buildService == null) {
 						callback.onComplete(false, "Build service not available")
 						return@launch

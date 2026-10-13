@@ -1,14 +1,20 @@
 package org.appdevforall.codeonthego.git.core
 
-import org.appdevforall.codeonthego.git.core.models.*
-import org.junit.Assert.*
+import org.appdevforall.codeonthego.git.core.models.ChangeType
+import org.appdevforall.codeonthego.git.core.models.FileChange
+import org.appdevforall.codeonthego.git.core.models.GitBranch
+import org.appdevforall.codeonthego.git.core.models.GitCommit
+import org.appdevforall.codeonthego.git.core.models.GitStatus
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Unit tests for Git models.
  */
 class GitModelsTest {
-
 	@Test
 	fun testGitStatusEmpty() {
 		val status = GitStatus.EMPTY
@@ -30,12 +36,13 @@ class GitModelsTest {
 
 	@Test
 	fun testGitBranch() {
-		val branch = GitBranch(
-			name = "main",
-			fullName = "refs/heads/main",
-			isCurrent = true,
-			isRemote = false
-		)
+		val branch =
+			GitBranch(
+				name = "main",
+				fullName = "refs/heads/main",
+				isCurrent = true,
+				isRemote = false,
+			)
 		assertEquals("main", branch.name)
 		assertTrue(branch.isCurrent)
 		assertFalse(branch.isRemote)
@@ -43,16 +50,17 @@ class GitModelsTest {
 
 	@Test
 	fun testGitCommit() {
-		val commit = GitCommit(
-			hash = "abcdef1234567890",
-			shortHash = "abcdef1",
-			authorName = "Author",
-			authorEmail = "author@example.com",
-			message = "Commit message",
-			timestamp = 1234567890L,
-			parentHashes = emptyList(),
-			hasBeenPushed = false
-		)
+		val commit =
+			GitCommit(
+				hash = "abcdef1234567890",
+				shortHash = "abcdef1",
+				authorName = "Author",
+				authorEmail = "author@example.com",
+				message = "Commit message",
+				timestamp = 1234567890L,
+				parentHashes = emptyList(),
+				hasBeenPushed = false,
+			)
 		assertEquals("abcdef1234567890", commit.hash)
 		assertEquals("abcdef1", commit.shortHash)
 		assertEquals("Commit message", commit.message)

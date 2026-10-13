@@ -14,15 +14,16 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 // Forked from JavacTaskImpl
 package org.appdevforall.codeonthego.javac.services.compiler
 
-import org.appdevforall.codeonthego.javac.services.CancelService
 import jdkx.tools.DiagnosticListener
 import jdkx.tools.JavaFileManager
 import jdkx.tools.JavaFileObject
 import openjdk.tools.javac.api.JavacTaskImpl
 import openjdk.tools.javac.api.JavacTool
+import org.appdevforall.codeonthego.javac.services.CancelService
 
 /**
  * A pool of reusable JavacTasks. When a task is no valid anymore, it is returned to the pool, and
@@ -49,76 +50,72 @@ import openjdk.tools.javac.api.JavacTool
  * notice.**
  */
 open class ReusableCompiler {
-private val systemProvider = JavacTool.create()
-private val currentOptions = mutableListOf<String>()
-@JvmField var currentContext: ReusableContext? = null
+	private val systemProvider = JavacTool.create()
+	private val currentOptions = mutableListOf<String>()
 
-internal var checkedOut = false
+	@JvmField var currentContext: ReusableContext? = null
 
-/**
-* Creates a new task as if by [jdkx.tools.JavaCompiler.getTask] and runs the provided worker with
-* it. The task is only valid while the worker is running. The internal structures may be reused
-* from some previous compilation.
-*
-* @param fileManager a file manager; if `null` use the compiler's standard filemanager
-* @param diagnosticListener a diagnostic listener; if `null` use the compiler's default method
-*   for reporting diagnostics
-* @param options compiler options, `null` means no options
-* @param classes names of classes to be processed by annotation processing, `null` means no class
-*   names
-* @param compilationUnits the compilation units to compile, `null` means no compilation units
-* @return an object representing the compilation
-* @throws RuntimeException if an unrecoverable error occurred in a user supplied component. The
-*   [cause][Throwable.cause] will be the error in user code.
-* @throws IllegalArgumentException if any of the options are invalid, or if any of the given
-*   compilation units are of other kind than [source][JavaFileObject.Kind.SOURCE]
-*/
-open fun getTask(
-	fileManager: JavaFileManager?,
-	diagnosticListener: DiagnosticListener<in JavaFileObject?>?,
-	options: Iterable<String>,
-	classes: Iterable<String>,
-	compilationUnits: Iterable<JavaFileObject?>?
-): ReusableBorrow {
+	internal var checkedOut = false
 
-	if (checkedOut) {
-	throw RuntimeException("Compiler is already in-use!")
+	/**
+	 * Creates a new task as if by [jdkx.tools.JavaCompiler.getTask] and runs the provided worker with
+	 * it. The task is only valid while the worker is running. The internal structures may be reused
+	 * from some previous compilation.
+	 *
+	 * @param fileManager a file manager; if `null` use the compiler's standard filemanager
+	 * @param diagnosticListener a diagnostic listener; if `null` use the compiler's default method
+	 *   for reporting diagnostics
+	 * @param options compiler options, `null` means no options
+	 * @param classes names of classes to be processed by annotation processing, `null` means no class
+	 *   names
+	 * @param compilationUnits the compilation units to compile, `null` means no compilation units
+	 * @return an object representing the compilation
+	 * @throws RuntimeException if an unrecoverable error occurred in a user supplied component. The
+	 *   [cause][Throwable.cause] will be the error in user code.
+	 * @throws IllegalArgumentException if any of the options are invalid, or if any of the given
+	 *   compilation units are of other kind than [source][JavaFileObject.Kind.SOURCE]
+	 */
+	open fun getTask(
+		fileManager: JavaFileManager?,
+		diagnosticListener: DiagnosticListener<in JavaFileObject?>?,
+		options: Iterable<String>,
+		classes: Iterable<String>,
+		compilationUnits: Iterable<JavaFileObject?>?,
+	): ReusableBorrow {
+		if (checkedOut) {
+			throw RuntimeException("Compiler is already in-use!")
+		}
+
+		checkedOut = true
+		val opts = options.toList()
+		if (opts != currentOptions) {
+			currentOptions.clear()
+			currentOptions.addAll(opts)
+			currentContext = onCreateContext()
+		}
+
+		val task =
+			systemProvider.getTask(
+				null,
+				fileManager,
+				diagnosticListener,
+				opts,
+				classes,
+				compilationUnits,
+				currentContext,
+			) as JavacTaskImpl
+
+		task.addTaskListener(currentContext)
+
+		return onCreateBorrow(task)
 	}
 
-	checkedOut = true
-	val opts = options.toList()
-	if (opts != currentOptions) {
-	currentOptions.clear()
-	currentOptions.addAll(opts)
-	currentContext = onCreateContext()
+	protected open fun onCreateContext(): ReusableContext = ReusableContext(cancelService)
+
+	protected open fun onCreateBorrow(task: JavacTaskImpl): ReusableBorrow = ReusableBorrow(this, task)
+
+	companion object {
+		@JvmStatic
+		private val cancelService: CancelService = CancelServiceImpl()
 	}
-
-	val task =
-	systemProvider.getTask(
-		null,
-		fileManager,
-		diagnosticListener,
-		opts,
-		classes,
-		compilationUnits,
-		currentContext
-	) as JavacTaskImpl
-
-	task.addTaskListener(currentContext)
-
-	return onCreateBorrow(task)
-}
-
-protected open fun onCreateContext(): ReusableContext {
-	return ReusableContext(cancelService)
-}
-
-protected open fun onCreateBorrow(task: JavacTaskImpl): ReusableBorrow {
-	return ReusableBorrow(this, task)
-}
-
-companion object {
-	@JvmStatic
-	private val cancelService: CancelService = CancelServiceImpl()
-}
 }

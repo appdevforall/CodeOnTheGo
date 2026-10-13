@@ -39,7 +39,7 @@ import org.appdevforall.codeonthego.utils.BasicBuildInfo
 import org.appdevforall.codeonthego.utils.resolveAttr
 
 class CrashReportFragment : Fragment() {
-
+	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: LayoutCrashReportBinding? = null
 	private val binding get() = _binding!!
 
@@ -49,18 +49,15 @@ class CrashReportFragment : Fragment() {
 		const val KEY_CLOSE_APP_ON_CLICK = "close_on_app_click"
 
 		@JvmStatic
-		fun newInstance(): CrashReportFragment {
-			return newInstance(true)
-		}
+		fun newInstance(): CrashReportFragment = newInstance(true)
 
 		@JvmStatic
-		fun newInstance(
-			closeAppOnClick: Boolean
-		): CrashReportFragment {
+		fun newInstance(closeAppOnClick: Boolean): CrashReportFragment {
 			val frag = CrashReportFragment()
-			val args = Bundle().apply {
-				putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
-			}
+			val args =
+				Bundle().apply {
+					putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
+				}
 			frag.arguments = args
 			return frag
 		}
@@ -69,13 +66,16 @@ class CrashReportFragment : Fragment() {
 	override fun onCreateView(
 		inflater: LayoutInflater,
 		container: ViewGroup?,
-		savedInstanceState: Bundle?
+		savedInstanceState: Bundle?,
 	): View {
 		_binding = LayoutCrashReportBinding.inflate(inflater, container, false)
 		return binding.root
 	}
 
-	override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
 		super.onViewCreated(view, savedInstanceState)
 		val args = requireArguments()
 		closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
@@ -99,9 +99,8 @@ class CrashReportFragment : Fragment() {
 					override fun handleOnBackPressed() {
 						finishActivity()
 					}
-				}
+				},
 			)
-
 		}
 	}
 
@@ -119,7 +118,6 @@ class CrashReportFragment : Fragment() {
 				object : ClickableSpan() {
 					override fun onClick(widget: View) {
 						sendEmail(context = context)
-
 					}
 
 					override fun updateDrawState(ds: TextPaint) {
@@ -130,7 +128,7 @@ class CrashReportFragment : Fragment() {
 				},
 				start,
 				start + supportText.length,
-				Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+				Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
 			)
 		}
 
@@ -141,12 +139,13 @@ class CrashReportFragment : Fragment() {
 	private fun sendEmail(context: Context) {
 		val email = "feedback@appdevforall.org"
 		val subject = Uri.encode(context.getString(R.string.crash_email_subject))
-		val body = Uri.encode(
-			context.getString(
-				R.string.crash_email_body,
-				BasicBuildInfo.formatVersion()
+		val body =
+			Uri.encode(
+				context.getString(
+					R.string.crash_email_body,
+					BasicBuildInfo.formatVersion(),
+				),
 			)
-		)
 
 		val uri = "mailto:$email?subject=$subject&body=$body".toUri()
 

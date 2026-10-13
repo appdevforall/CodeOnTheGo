@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 /*
  *  This file is part of AndroidIDE.
  *
@@ -18,13 +20,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.SeekBar
+import com.itsaky.androidide.resources.R.drawable
+import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 
 /**
  * Attribute adapter for [SeekBar].
@@ -34,14 +36,12 @@ import com.itsaky.androidide.resources.R.string
 @ViewAdapter(SeekBar::class)
 @IncludeInDesigner(group = WIDGETS)
 open class SeekBarAdapter<T : SeekBar> : AbsSeekBarAdapter<T>() {
+	override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
+		super.createAttrHandlers(create)
 
-override fun createAttrHandlers(create: (String, AttributeHandlerScope<T>.() -> Unit) -> Unit) {
-	super.createAttrHandlers(create)
+		create("thumb") { view.thumb = parseDrawable(context, value) }
+	}
 
-	create("thumb") { view.thumb = parseDrawable(context, value) }
-}
-
-override fun createUiWidgets(): List<UiWidget> {
-	return listOf(UiWidget(SeekBar::class.java, string.widget_seekbar, drawable.ic_widget_seek_bar))
-}
+	override fun createUiWidgets(): List<UiWidget> =
+		listOf(UiWidget(SeekBar::class.java, string.widget_seekbar, drawable.ic_widget_seek_bar))
 }

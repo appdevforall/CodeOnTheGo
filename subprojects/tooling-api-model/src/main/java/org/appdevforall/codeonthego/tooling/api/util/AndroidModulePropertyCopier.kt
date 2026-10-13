@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 /*
  *  This file is part of AndroidIDE.
  *
@@ -61,217 +63,211 @@ import org.appdevforall.codeonthego.builder.model.DefaultViewBindingOptions
  * @author Akash Yadav
  */
 object AndroidModulePropertyCopier {
+	fun copy(viewBindingOptions: ViewBindingOptions?): DefaultViewBindingOptions? =
+		when (viewBindingOptions) {
+			null -> null
+			else -> DefaultViewBindingOptions().apply { isEnabled = viewBindingOptions.isEnabled }
+		}
 
-fun copy(viewBindingOptions: ViewBindingOptions?): DefaultViewBindingOptions? {
-	return when (viewBindingOptions) {
-	null -> null
-	else -> DefaultViewBindingOptions().apply { isEnabled = viewBindingOptions.isEnabled }
+	fun copy(version: ApiVersion?): DefaultApiVersion? =
+		if (version == null) {
+			null
+		} else {
+			DefaultApiVersion().apply {
+				apiLevel = version.apiLevel
+				codename = version.codename
+			}
+		}
+
+	fun copy(javaCompileOptions: JavaCompileOptions?): DefaultJavaCompileOptions =
+		DefaultJavaCompileOptions().apply {
+			if (javaCompileOptions != null) {
+				encoding = javaCompileOptions.encoding
+				isCoreLibraryDesugaringEnabled = javaCompileOptions.isCoreLibraryDesugaringEnabled
+				sourceCompatibility = javaCompileOptions.sourceCompatibility
+				targetCompatibility = javaCompileOptions.targetCompatibility
+			}
+		}
+
+	fun copy(
+		@Suppress("UNUSED_PARAMETER") flags: AndroidGradlePluginProjectFlags,
+	): DefaultAndroidGradlePluginProjectFlags {
+		val flagMap: MutableMap<BooleanFlag, Boolean?> = mutableMapOf()
+		//        log.debug("Flags:", flags)
+		//
+		//        flagMap[APPLICATION_R_CLASS_CONSTANT_IDS] =
+		//            flags.getFlagValue(APPLICATION_R_CLASS_CONSTANT_IDS.name)
+		//        flagMap[JETPACK_COMPOSE] = flags.getFlagValue(JETPACK_COMPOSE.name)
+		//        flagMap[ML_MODEL_BINDING] = flags.getFlagValue(ML_MODEL_BINDING.name)
+		//        flagMap[TEST_R_CLASS_CONSTANT_IDS] =
+		// flags.getFlagValue(TEST_R_CLASS_CONSTANT_IDS.name)
+		//        flagMap[TRANSITIVE_R_CLASS] = flags.getFlagValue(TRANSITIVE_R_CLASS.name)
+		//        flagMap[UNIFIED_TEST_PLATFORM] = flags.getFlagValue(UNIFIED_TEST_PLATFORM.name)
+		//
+		//        log.debug("Flag map:", flagMap)
+		return DefaultAndroidGradlePluginProjectFlags(flagMap)
 	}
-}
 
-fun copy(version: ApiVersion?): DefaultApiVersion? =
-	if (version == null) null
-	else
-	DefaultApiVersion().apply {
-		apiLevel = version.apiLevel
-		codename = version.codename
+	fun copy(containers: Collection<SourceSetContainer>): Collection<DefaultSourceSetContainer> {
+		val new = mutableListOf<DefaultSourceSetContainer>()
+
+		for (container in containers) {
+			new.add(copy(container))
+		}
+
+		return new
 	}
 
-fun copy(javaCompileOptions: JavaCompileOptions?): DefaultJavaCompileOptions {
-	return DefaultJavaCompileOptions().apply {
-		if (javaCompileOptions != null) {
-		encoding = javaCompileOptions.encoding
-		isCoreLibraryDesugaringEnabled = javaCompileOptions.isCoreLibraryDesugaringEnabled
-		sourceCompatibility = javaCompileOptions.sourceCompatibility
-		targetCompatibility = javaCompileOptions.targetCompatibility
+	fun copy(container: SourceSetContainer): DefaultSourceSetContainer =
+		DefaultSourceSetContainer().apply {
+			androidTestSourceProvider = copy(container.androidTestSourceProvider)
+			sourceProvider = copy(container.sourceProvider)!!
+			testFixturesSourceProvider = copy(container.testFixturesSourceProvider)
+			unitTestSourceProvider = copy(container.unitTestSourceProvider)
+		}
+
+	fun copy(provider: SourceProvider?): DefaultSourceProvider? {
+		if (provider == null) {
+			return null
+		}
+
+		return DefaultSourceProvider().apply {
+			aidlDirectories = provider.aidlDirectories
+			assetsDirectories = provider.assetsDirectories
+			customDirectories = copy(provider.customDirectories)
+			javaDirectories = provider.javaDirectories
+			jniLibsDirectories = provider.jniLibsDirectories
+			kotlinDirectories = provider.kotlinDirectories
+			manifestFile = provider.manifestFile
+			mlModelsDirectories = provider.mlModelsDirectories
+			name = provider.name
+			renderscriptDirectories = provider.renderscriptDirectories
+			resDirectories = provider.resDirectories
+			resourcesDirectories = provider.resourcesDirectories
+			shadersDirectories = provider.shadersDirectories
 		}
 	}
-}
 
-fun copy(
-	@Suppress("UNUSED_PARAMETER") flags: AndroidGradlePluginProjectFlags
-): DefaultAndroidGradlePluginProjectFlags {
-	val flagMap: MutableMap<BooleanFlag, Boolean?> = mutableMapOf()
-	//        log.debug("Flags:", flags)
-	//
-	//        flagMap[APPLICATION_R_CLASS_CONSTANT_IDS] =
-	//            flags.getFlagValue(APPLICATION_R_CLASS_CONSTANT_IDS.name)
-	//        flagMap[JETPACK_COMPOSE] = flags.getFlagValue(JETPACK_COMPOSE.name)
-	//        flagMap[ML_MODEL_BINDING] = flags.getFlagValue(ML_MODEL_BINDING.name)
-	//        flagMap[TEST_R_CLASS_CONSTANT_IDS] =
-	// flags.getFlagValue(TEST_R_CLASS_CONSTANT_IDS.name)
-	//        flagMap[TRANSITIVE_R_CLASS] = flags.getFlagValue(TRANSITIVE_R_CLASS.name)
-	//        flagMap[UNIFIED_TEST_PLATFORM] = flags.getFlagValue(UNIFIED_TEST_PLATFORM.name)
-	//
-	//        log.debug("Flag map:", flagMap)
-	return DefaultAndroidGradlePluginProjectFlags(flagMap)
-}
+	@JvmName("copyCustomSourceDirectories")
+	private fun copy(directories: Collection<CustomSourceDirectory>?): Collection<DefaultCustomSourceDirectory>? =
+		directories?.map { copy(it) }
 
-fun copy(containers: Collection<SourceSetContainer>): Collection<DefaultSourceSetContainer> {
-	val new = mutableListOf<DefaultSourceSetContainer>()
+	private fun copy(it: CustomSourceDirectory): DefaultCustomSourceDirectory =
+		DefaultCustomSourceDirectory(it.directory, it.sourceTypeName)
 
-	for (container in containers) {
-	new.add(copy(container))
+	private fun copy(libraries: Map<String, Library>): Map<String, DefaultLibrary> {
+		val new = mutableMapOf<String, DefaultLibrary>()
+		for ((key, value) in libraries) {
+			new[key] = copy(value)
+		}
+
+		return new
 	}
 
-	return new
-}
+	fun copy(value: Library): DefaultLibrary =
+		DefaultLibrary().apply {
+			this.androidLibraryData = copy(value.androidLibraryData)
+			this.artifact = value.artifact
+			this.key = value.key
+			this.libraryInfo = copy(value.libraryInfo)
+			this.lintJar = value.lintJar
+			this.projectInfo = copy(value.projectInfo)
+			this.type = value.type
+		}
 
-fun copy(container: SourceSetContainer): DefaultSourceSetContainer {
-	return DefaultSourceSetContainer().apply {
-	androidTestSourceProvider = copy(container.androidTestSourceProvider)
-	sourceProvider = copy(container.sourceProvider)!!
-	testFixturesSourceProvider = copy(container.testFixturesSourceProvider)
-	unitTestSourceProvider = copy(container.unitTestSourceProvider)
-	}
-}
+	private fun copy(info: ProjectInfo?): DefaultProjectInfo? =
+		if (info == null) {
+			null
+		} else {
+			DefaultProjectInfo(
+				info.attributes,
+				info.buildType,
+				info.capabilities,
+				info.isTestFixtures,
+				info.productFlavors,
+				info.buildId,
+				info.projectPath,
+			)
+		}
 
-fun copy(provider: SourceProvider?): DefaultSourceProvider? {
-	if (provider == null) {
-	return null
-	}
+	private fun copy(info: LibraryInfo?): DefaultLibraryInfo? =
+		if (info == null) {
+			null
+		} else {
+			DefaultLibraryInfo(
+				info.attributes,
+				info.buildType,
+				info.capabilities,
+				info.isTestFixtures,
+				info.productFlavors,
+				info.group,
+				info.name,
+				info.version,
+			)
+		}
 
-	return DefaultSourceProvider().apply {
-	aidlDirectories = provider.aidlDirectories
-	assetsDirectories = provider.assetsDirectories
-	customDirectories = copy(provider.customDirectories)
-	javaDirectories = provider.javaDirectories
-	jniLibsDirectories = provider.jniLibsDirectories
-	kotlinDirectories = provider.kotlinDirectories
-	manifestFile = provider.manifestFile
-	mlModelsDirectories = provider.mlModelsDirectories
-	name = provider.name
-	renderscriptDirectories = provider.renderscriptDirectories
-	resDirectories = provider.resDirectories
-	resourcesDirectories = provider.resourcesDirectories
-	shadersDirectories = provider.shadersDirectories
-	}
-}
+	private fun copy(data: AndroidLibraryData?): DefaultAndroidLibraryData? =
+		if (data == null) {
+			null
+		} else {
+			DefaultAndroidLibraryData(
+				data.aidlFolder,
+				data.assetsFolder,
+				data.compileJarFiles,
+				data.externalAnnotations,
+				data.jniFolder,
+				data.manifest,
+				data.proguardRules,
+				data.publicResources,
+				data.renderscriptFolder,
+				data.resFolder,
+				data.resStaticLibrary,
+				data.runtimeJarFiles,
+				data.symbolFile,
+			)
+		}
 
-@JvmName("copyCustomSourceDirectories")
-private fun copy(
-	directories: Collection<CustomSourceDirectory>?
-): Collection<DefaultCustomSourceDirectory>? {
-	return directories?.map { copy(it) }
-}
+	fun copy(artifact: ArtifactDependencies?): DefaultArtifactDependencies? =
+		DefaultArtifactDependencies().apply {
+			if (artifact == null) {
+				return null
+			}
 
-private fun copy(it: CustomSourceDirectory): DefaultCustomSourceDirectory {
-	return DefaultCustomSourceDirectory(it.directory, it.sourceTypeName)
-}
+			this.compileDependencies = copy(artifact.compileDependencies)
+			this.runtimeDependencies = copy(artifact.runtimeDependencies ?: emptyList())
+			this.unresolvedDependencies = copy(artifact.unresolvedDependencies)
+		}
 
-private fun copy(libraries: Map<String, Library>): Map<String, DefaultLibrary> {
-	val new = mutableMapOf<String, DefaultLibrary>()
-	for ((key, value) in libraries) {
-	new[key] = copy(value)
-	}
+	private fun copy(dependencies: List<UnresolvedDependency>): List<DefaultUnresolvedDependency> = dependencies.map { copy(it) }
 
-	return new
-}
+	private fun copy(it: UnresolvedDependency): DefaultUnresolvedDependency = DefaultUnresolvedDependency(it.cause, it.name)
 
-fun copy(value: Library): DefaultLibrary {
-	return DefaultLibrary().apply {
-	this.androidLibraryData = copy(value.androidLibraryData)
-	this.artifact = value.artifact
-	this.key = value.key
-	this.libraryInfo = copy(value.libraryInfo)
-	this.lintJar = value.lintJar
-	this.projectInfo = copy(value.projectInfo)
-	this.type = value.type
-	}
-}
-
-private fun copy(info: ProjectInfo?): DefaultProjectInfo? {
-	return if (info == null) null
-	else
-	DefaultProjectInfo(
-		info.attributes,
-		info.buildType,
-		info.capabilities,
-		info.isTestFixtures,
-		info.productFlavors,
-		info.buildId,
-		info.projectPath
-	)
-}
-
-private fun copy(info: LibraryInfo?): DefaultLibraryInfo? {
-	return if (info == null) null
-	else
-	DefaultLibraryInfo(
-		info.attributes,
-		info.buildType,
-		info.capabilities,
-		info.isTestFixtures,
-		info.productFlavors,
-		info.group,
-		info.name,
-		info.version
-	)
-}
-
-private fun copy(data: AndroidLibraryData?): DefaultAndroidLibraryData? {
-	return if (data == null) null
-	else
-	DefaultAndroidLibraryData(
-		data.aidlFolder,
-		data.assetsFolder,
-		data.compileJarFiles,
-		data.externalAnnotations,
-		data.jniFolder,
-		data.manifest,
-		data.proguardRules,
-		data.publicResources,
-		data.renderscriptFolder,
-		data.resFolder,
-		data.resStaticLibrary,
-		data.runtimeJarFiles,
-		data.symbolFile
-	)
-}
-
-fun copy(artifact: ArtifactDependencies?): DefaultArtifactDependencies? =
-	DefaultArtifactDependencies().apply {
-	if (artifact == null) {
-		return null
+	@JvmName("copyGraphItems")
+	fun copy(graphs: List<GraphItem>): List<DefaultGraphItem> {
+		if (graphs.isEmpty()) {
+			return emptyList()
+		}
+		return graphs.map { copy(it) }
 	}
 
-	this.compileDependencies = copy(artifact.compileDependencies)
-	this.runtimeDependencies = copy(artifact.runtimeDependencies ?: emptyList())
-	this.unresolvedDependencies = copy(artifact.unresolvedDependencies)
-	}
+	fun copy(graph: GraphItem): DefaultGraphItem =
+		DefaultGraphItem().apply {
+			this.key = graph.key
+			this.dependencies = copy(graph.dependencies)
+			this.requestedCoordinates = graph.requestedCoordinates
+		}
 
-private fun copy(dependencies: List<UnresolvedDependency>): List<DefaultUnresolvedDependency> {
-	return dependencies.map { copy(it) }
-}
+	fun copy(issues: ProjectSyncIssues): DefaultProjectSyncIssues = DefaultProjectSyncIssues(copy(issues.syncIssues))
 
-private fun copy(it: UnresolvedDependency): DefaultUnresolvedDependency {
-	return DefaultUnresolvedDependency(it.cause, it.name)
-}
+	@JvmName("copySyncIssue")
+	fun copy(syncIssues: Collection<SyncIssue>): Collection<DefaultSyncIssue> = syncIssues.map { copy(it) }
 
-@JvmName("copyGraphItems")
-fun copy(graphs: List<GraphItem>): List<DefaultGraphItem> {
-	if (graphs.isEmpty()) {
-	return emptyList()
-	}
-	return graphs.map { copy(it) }
-}
-
-fun copy(graph: GraphItem): DefaultGraphItem =
-	DefaultGraphItem().apply {
-	this.key = graph.key
-	this.dependencies = copy(graph.dependencies)
-	this.requestedCoordinates = graph.requestedCoordinates
-	}
-
-fun copy(issues: ProjectSyncIssues): DefaultProjectSyncIssues =
-	DefaultProjectSyncIssues(copy(issues.syncIssues))
-
-@JvmName("copySyncIssue")
-fun copy(syncIssues: Collection<SyncIssue>): Collection<DefaultSyncIssue> {
-	return syncIssues.map { copy(it) }
-}
-
-fun copy(issue: SyncIssue) =
-	DefaultSyncIssue(issue.data, issue.message,
-	issue.multiLineMessage?.toTypedArray()?.let { listOf(*it) }, issue.severity, issue.type)
+	fun copy(issue: SyncIssue) =
+		DefaultSyncIssue(
+			issue.data,
+			issue.message,
+			issue.multiLineMessage?.toTypedArray()?.let { listOf(*it) },
+			issue.severity,
+			issue.type,
+		)
 }

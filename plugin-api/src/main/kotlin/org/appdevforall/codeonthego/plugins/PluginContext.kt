@@ -4,10 +4,10 @@ package org.appdevforall.codeonthego.plugins
 
 import android.content.Context
 import android.content.SharedPreferences
-// Note: EventBus and ILogger are referenced but not directly imported to avoid Android dependencies
 import java.io.File
 import java.io.InputStream
 
+// Note: EventBus and ILogger are referenced but not directly imported to avoid Android dependencies
 interface PluginContext {
 	val androidContext: Context
 	val services: ServiceRegistry
@@ -23,7 +23,10 @@ interface PluginContext {
 	 * @param serviceClass Service interface class
 	 * @return Service instance or null if plugin not found or service not available
 	 */
-	fun <T> getPluginService(pluginId: String, serviceClass: Class<T>): T?
+	fun <T> getPluginService(
+		pluginId: String,
+		serviceClass: Class<T>,
+	): T?
 
 	/**
 	 * Check if a plugin is installed and active
@@ -47,7 +50,10 @@ interface PluginContext {
 	 * @param serviceClass Service interface class
 	 * @param serviceImpl Service implementation instance
 	 */
-	fun <T> registerService(serviceClass: Class<T>, serviceImpl: T)
+	fun <T> registerService(
+		serviceClass: Class<T>,
+		serviceImpl: T,
+	)
 
 	/**
 	 * Unregister a previously registered service
@@ -120,9 +126,15 @@ interface PluginContext {
 }
 
 interface ServiceRegistry {
-	fun <T> register(serviceClass: Class<T>, implementation: T)
+	fun <T> register(
+		serviceClass: Class<T>,
+		implementation: T,
+	)
+
 	fun <T> get(serviceClass: Class<T>): T?
+
 	fun <T> getAll(serviceClass: Class<T>): List<T>
+
 	fun unregister(serviceClass: Class<*>)
 }
 
@@ -130,17 +142,15 @@ inline fun <reified T> ServiceRegistry.register(implementation: T) {
 	register(T::class.java, implementation)
 }
 
-inline fun <reified T> ServiceRegistry.get(): T? {
-	return get(T::class.java)
-}
+inline fun <reified T> ServiceRegistry.get(): T? = get(T::class.java)
 
-inline fun <reified T> ServiceRegistry.getAll(): List<T> {
-	return getAll(T::class.java)
-}
+inline fun <reified T> ServiceRegistry.getAll(): List<T> = getAll(T::class.java)
 
 interface ResourceManager {
 	fun getPluginDirectory(): File
+
 	fun getPluginFile(path: String): File
+
 	fun getPluginResource(name: String): ByteArray?
 
 	/**
@@ -171,14 +181,34 @@ interface ResourceManager {
 
 interface PluginLogger {
 	val pluginId: String
+
 	fun debug(message: String)
-	fun debug(message: String, error: Throwable)
+
+	fun debug(
+		message: String,
+		error: Throwable,
+	)
+
 	fun info(message: String)
-	fun info(message: String, error: Throwable)
+
+	fun info(
+		message: String,
+		error: Throwable,
+	)
+
 	fun warn(message: String)
-	fun warn(message: String, error: Throwable)
+
+	fun warn(
+		message: String,
+		error: Throwable,
+	)
+
 	fun error(message: String)
-	fun error(message: String, error: Throwable)
+
+	fun error(
+		message: String,
+		error: Throwable,
+	)
 }
 
 /**
@@ -186,6 +216,8 @@ interface PluginLogger {
  */
 interface PluginLifecycleListener {
 	fun onPluginActivated(pluginId: String)
+
 	fun onPluginDeactivated(pluginId: String)
+
 	fun onPluginUninstalled(pluginId: String)
 }

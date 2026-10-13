@@ -27,8 +27,10 @@ import org.appdevforall.codeonthego.tooling.api.models.BuildVariantInfo
  * @author Akash Yadav
  */
 class BuildVariantsViewModel : ViewModel() {
-
+	@Suppress("ktlint:standard:backing-property-naming")
 	internal val _buildVariants = MutableLiveData<Map<String, BuildVariantInfo>>(null)
+
+	@Suppress("ktlint:standard:backing-property-naming")
 	internal val _updatedBuildVariants = MutableLiveData<MutableMap<String, BuildVariantInfo>>(null)
 
 	var buildVariants: Map<String, BuildVariantInfo>

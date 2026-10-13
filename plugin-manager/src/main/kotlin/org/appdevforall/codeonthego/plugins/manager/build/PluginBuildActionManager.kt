@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.plugins.manager.build
 
+import android.util.Log
 import org.appdevforall.codeonthego.plugins.extensions.BuildActionCategory
 import org.appdevforall.codeonthego.plugins.extensions.BuildActionExtension
 import org.appdevforall.codeonthego.plugins.extensions.CommandResult
@@ -10,11 +11,9 @@ import org.appdevforall.codeonthego.plugins.manager.loaders.ManifestBuildAction
 import org.appdevforall.codeonthego.plugins.manager.loaders.PluginManifest
 import org.appdevforall.codeonthego.plugins.services.CommandExecution
 import org.appdevforall.codeonthego.plugins.services.IdeCommandService
-import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 
 class PluginBuildActionManager private constructor() {
-
 	private val pluginExtensions = ConcurrentHashMap<String, BuildActionExtension>()
 	private val manifestActions = ConcurrentHashMap<String, List<PluginBuildAction>>()
 	private val pluginNames = ConcurrentHashMap<String, String>()
@@ -24,21 +23,29 @@ class PluginBuildActionManager private constructor() {
 		private const val TAG = "PluginBuildActionManager"
 
 		@Volatile
+		@Suppress("ktlint:standard:property-naming")
 		private var INSTANCE: PluginBuildActionManager? = null
 
-		fun getInstance(): PluginBuildActionManager {
-			return INSTANCE ?: synchronized(this) {
+		fun getInstance(): PluginBuildActionManager =
+			INSTANCE ?: synchronized(this) {
 				INSTANCE ?: PluginBuildActionManager().also { INSTANCE = it }
 			}
-		}
 	}
 
-	fun registerPlugin(pluginId: String, pluginName: String, extension: BuildActionExtension) {
+	fun registerPlugin(
+		pluginId: String,
+		pluginName: String,
+		extension: BuildActionExtension,
+	) {
 		pluginExtensions[pluginId] = extension
 		pluginNames[pluginId] = pluginName
 	}
 
-	fun registerManifestActions(pluginId: String, pluginName: String, manifest: PluginManifest) {
+	fun registerManifestActions(
+		pluginId: String,
+		pluginName: String,
+		manifest: PluginManifest,
+	) {
 		if (manifest.buildActions.isEmpty()) return
 
 		pluginNames[pluginId] = pluginName
@@ -84,7 +91,7 @@ class PluginBuildActionManager private constructor() {
 					Log.w(
 						TAG,
 						"Plugin $pluginId requested to hide non-build toolbar actions " +
-							"$rejected; ignored. Only ${ToolbarActionIds.BUILD_HIDEABLE} are hideable."
+							"$rejected; ignored. Only ${ToolbarActionIds.BUILD_HIDEABLE} are hideable.",
 					)
 				}
 			}.onFailure { e ->
@@ -98,7 +105,7 @@ class PluginBuildActionManager private constructor() {
 	fun executeAction(
 		pluginId: String,
 		actionId: String,
-		commandService: IdeCommandService
+		commandService: IdeCommandService,
 	): CommandExecution? {
 		val action = findAction(pluginId, actionId) ?: return null
 		val extension = pluginExtensions[pluginId]
@@ -114,18 +121,26 @@ class PluginBuildActionManager private constructor() {
 		}.getOrThrow()
 	}
 
-	fun notifyActionCompleted(pluginId: String, actionId: String, result: CommandResult) {
+	fun notifyActionCompleted(
+		pluginId: String,
+		actionId: String,
+		result: CommandResult,
+	) {
 		activeExecutions.remove(executionKey(pluginId, actionId))
 		pluginExtensions[pluginId]?.onActionCompleted(actionId, result)
 	}
 
-	fun isActionRunning(pluginId: String, actionId: String): Boolean {
-		return activeExecutions.containsKey(executionKey(pluginId, actionId))
-	}
+	fun isActionRunning(
+		pluginId: String,
+		actionId: String,
+	): Boolean = activeExecutions.containsKey(executionKey(pluginId, actionId))
 
 	fun hasActiveExecutions(): Boolean = activeExecutions.isNotEmpty()
 
-	fun cancelAction(pluginId: String, actionId: String): Boolean {
+	fun cancelAction(
+		pluginId: String,
+		actionId: String,
+	): Boolean {
 		val key = executionKey(pluginId, actionId)
 		return activeExecutions.remove(key)?.let {
 			it.cancel()
@@ -138,23 +153,32 @@ class PluginBuildActionManager private constructor() {
 			if (key.startsWith("$pluginId:")) {
 				execution.cancel()
 				true
-			} else false
+			} else {
+				false
+			}
 		}
 		pluginExtensions.remove(pluginId)
 		manifestActions.remove(pluginId)
 		pluginNames.remove(pluginId)
 	}
 
-	private fun executionKey(pluginId: String, actionId: String) = "$pluginId:$actionId"
+	private fun executionKey(
+		pluginId: String,
+		actionId: String,
+	) = "$pluginId:$actionId"
 
-	private fun findAction(pluginId: String, actionId: String): PluginBuildAction? {
-		val fromExtension = pluginExtensions[pluginId]?.let { ext ->
-			runCatching {
-				ext.getBuildActions().find { it.id == actionId }
-			}.onFailure { e ->
-				Log.w(TAG, "Failed to find action $actionId in plugin $pluginId", e)
-			}.getOrNull()
-		}
+	private fun findAction(
+		pluginId: String,
+		actionId: String,
+	): PluginBuildAction? {
+		val fromExtension =
+			pluginExtensions[pluginId]?.let { ext ->
+				runCatching {
+					ext.getBuildActions().find { it.id == actionId }
+				}.onFailure { e ->
+					Log.w(TAG, "Failed to find action $actionId in plugin $pluginId", e)
+				}.getOrNull()
+			}
 		return fromExtension ?: manifestActions[pluginId]?.find { it.id == actionId }
 	}
 }
@@ -162,26 +186,36 @@ class PluginBuildActionManager private constructor() {
 data class RegisteredBuildAction(
 	val pluginId: String,
 	val pluginName: String,
-	val action: PluginBuildAction
+	val action: PluginBuildAction,
 )
 
 private fun ManifestBuildAction.toPluginBuildAction(): PluginBuildAction {
-	val spec = when {
-		gradleTask != null -> CommandSpec.GradleTask(gradleTask, arguments)
-		command != null -> CommandSpec.ShellCommand(
-			executable = command,
-			arguments = arguments,
-			workingDirectory = workingDirectory,
-			environment = environment
-		)
-		else -> throw IllegalArgumentException("ManifestBuildAction must have either 'command' or 'gradle_task'")
-	}
+	val spec =
+		when {
+			gradleTask != null -> {
+				CommandSpec.GradleTask(gradleTask, arguments)
+			}
 
-	val cat = try {
-		BuildActionCategory.valueOf(category.uppercase())
-	} catch (_: IllegalArgumentException) {
-		BuildActionCategory.CUSTOM
-	}
+			command != null -> {
+				CommandSpec.ShellCommand(
+					executable = command,
+					arguments = arguments,
+					workingDirectory = workingDirectory,
+					environment = environment,
+				)
+			}
+
+			else -> {
+				throw IllegalArgumentException("ManifestBuildAction must have either 'command' or 'gradle_task'")
+			}
+		}
+
+	val cat =
+		try {
+			BuildActionCategory.valueOf(category.uppercase())
+		} catch (_: IllegalArgumentException) {
+			BuildActionCategory.CUSTOM
+		}
 
 	return PluginBuildAction(
 		id = id,
@@ -189,6 +223,6 @@ private fun ManifestBuildAction.toPluginBuildAction(): PluginBuildAction {
 		description = description,
 		category = cat,
 		command = spec,
-		timeoutMs = timeoutMs
+		timeoutMs = timeoutMs,
 	)
 }

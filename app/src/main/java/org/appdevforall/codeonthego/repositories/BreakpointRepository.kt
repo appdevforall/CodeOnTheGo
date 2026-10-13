@@ -1,19 +1,20 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package org.appdevforall.codeonthego.repositories
 
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
-import org.appdevforall.codeonthego.lsp.debug.model.BreakpointDefinition
-import org.appdevforall.codeonthego.lsp.debug.model.PositionalBreakpoint
-import org.appdevforall.codeonthego.lsp.debug.model.MethodBreakpoint
-import org.appdevforall.codeonthego.tooling.api.util.RuntimeTypeAdapterFactory
-import org.appdevforall.codeonthego.utils.Environment
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.lsp.debug.model.BreakpointDefinition
+import org.appdevforall.codeonthego.lsp.debug.model.MethodBreakpoint
+import org.appdevforall.codeonthego.lsp.debug.model.PositionalBreakpoint
+import org.appdevforall.codeonthego.tooling.api.util.RuntimeTypeAdapterFactory
+import org.appdevforall.codeonthego.utils.Environment
 import java.io.File
-
 
 typealias StoredBreakpointsType = List<BreakpointDefinition>
 
@@ -28,13 +29,15 @@ object BreakpointRepository {
 	private const val BREAKPOINT_FILE_NAME = "breakpoints.json"
 
 	private val bpAdapter =
-		RuntimeTypeAdapterFactory.of(BreakpointDefinition::class.java, "kind")
+		RuntimeTypeAdapterFactory
+			.of(BreakpointDefinition::class.java, "kind")
 			.registerSubtype(PositionalBreakpoint::class.java, "positional")
 			.registerSubtype(MethodBreakpoint::class.java, "method")
 
-	private val gson: Gson = GsonBuilder()
-		.registerTypeAdapterFactory(bpAdapter)
-		.create()
+	private val gson: Gson =
+		GsonBuilder()
+			.registerTypeAdapterFactory(bpAdapter)
+			.create()
 
 	/**
 	 * Returns the file where breakpoints are stored for the given project.
@@ -42,9 +45,8 @@ object BreakpointRepository {
 	 * @param projectDir The project directory.
 	 * @return [File] representing the JSON file containing stored breakpoints.
 	 */
-	fun getBreakpointsStorageFile(projectDir: File): File {
-		return Environment.getProjectCacheDir(projectDir).resolve("editor/$BREAKPOINT_FILE_NAME")
-	}
+	fun getBreakpointsStorageFile(projectDir: File): File =
+		Environment.getProjectCacheDir(projectDir).resolve("editor/$BREAKPOINT_FILE_NAME")
 
 	/**
 	 * Reads and deserializes the list of breakpoints from disk.
@@ -65,7 +67,7 @@ object BreakpointRepository {
 
 				gson.fromJson(
 					jsonString,
-					StoredBreakpointsTypeToken.type
+					StoredBreakpointsTypeToken.type,
 				) ?: emptyList()
 			} catch (e: Exception) {
 				e.printStackTrace()
@@ -85,13 +87,14 @@ object BreakpointRepository {
 	 */
 	suspend fun saveBreakpoints(
 		projectDir: File,
-		breakpoints: StoredBreakpointsType
+		breakpoints: StoredBreakpointsType,
 	) {
 		val file = getBreakpointsStorageFile(projectDir)
 
-		val jsonOut = withContext(Dispatchers.Default) {
-			gson.toJson(breakpoints, StoredBreakpointsTypeToken.type)
-		}
+		val jsonOut =
+			withContext(Dispatchers.Default) {
+				gson.toJson(breakpoints, StoredBreakpointsTypeToken.type)
+			}
 
 		withContext(Dispatchers.IO) {
 			try {
@@ -103,7 +106,7 @@ object BreakpointRepository {
 				Log.e(
 					"BreakpointManager",
 					"Failed to save breakpoints to file: ${file.absolutePath}",
-					e
+					e,
 				)
 				Sentry.captureException(e)
 			}

@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 /*
  *  This file is part of AndroidIDE.
  *

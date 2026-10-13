@@ -6,7 +6,9 @@ import android.content.Context
 import android.view.View
 import android.widget.EditText
 
-class EditTextAdapter(private val view: EditText) : MutableTextTarget {
+class EditTextAdapter(
+	private val view: EditText,
+) : MutableTextTarget {
 	private val clipboard: ClipboardManager?
 		get() = view.context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
 
@@ -65,18 +67,23 @@ class EditTextAdapter(private val view: EditText) : MutableTextTarget {
 	}
 
 	override fun hasSelection() = view.hasSelection()
+
 	override fun isEditable() = view.isEnabled
 
 	override fun getSelectedText(): String? {
 		val start = view.selectionStart
 		val end = view.selectionEnd
 
-		if (start < 0 || end < 0 || start == end) { return null }
+		if (start < 0 || end < 0 || start == end) {
+			return null
+		}
 
 		val min = minOf(start, end)
 		val max = maxOf(start, end)
 
-		if (max > view.length()) { return null }
+		if (max > view.length()) {
+			return null
+		}
 		return view.text.subSequence(min, max).toString()
 	}
 

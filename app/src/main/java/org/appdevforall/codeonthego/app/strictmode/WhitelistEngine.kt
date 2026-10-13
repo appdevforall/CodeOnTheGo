@@ -100,17 +100,17 @@ object WhitelistEngine {
 						listOf(
 							classAndMethod(
 								"com.google.firebase.internal.DataCollectionConfigStorage",
-								"readAutoDataCollectionEnabled"
+								"readAutoDataCollectionEnabled",
 							),
 							classAndMethod(
 								"com.google.firebase.internal.DataCollectionConfigStorage",
-								"<init>"
+								"<init>",
 							),
 						),
 						listOf(
 							classAndMethod(
 								"com.google.firebase.FirebaseApp\$UserUnlockReceiver",
-								"onReceive"
+								"onReceive",
 							),
 						),
 					),
@@ -203,7 +203,10 @@ object WhitelistEngine {
 
 				matchFramesInOrder(
 					classAndMethod("org.appdevforall.codeonthego.utils.ServiceLoader", "parse"),
-					classAndMethod("org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider\$Companion", "_instance_delegate\$lambda\$0"),
+					classAndMethod(
+						"org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider\$Companion",
+						"_instance_delegate\$lambda\$0",
+					),
 				)
 			}
 

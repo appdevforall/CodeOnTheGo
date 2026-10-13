@@ -10,7 +10,6 @@ import org.appdevforall.codeonthego.plugins.services.IdeProjectManipulationServi
  * This is a singleton to ensure all plugins use the same project manipulation logic.
  */
 class IdeProjectManipulationServiceImpl private constructor() : IdeProjectManipulationService {
-
 	// Providers set by the app module
 	private var addDependencyProvider: ((String, String) -> Boolean)? = null
 	private var addStringResourceProvider: ((String, String) -> Boolean)? = null
@@ -18,26 +17,26 @@ class IdeProjectManipulationServiceImpl private constructor() : IdeProjectManipu
 
 	companion object {
 		@Volatile
+		@Suppress("ktlint:standard:property-naming")
 		private var INSTANCE: IdeProjectManipulationServiceImpl? = null
 
-		fun getInstance(): IdeProjectManipulationServiceImpl {
-			return INSTANCE ?: synchronized(this) {
+		fun getInstance(): IdeProjectManipulationServiceImpl =
+			INSTANCE ?: synchronized(this) {
 				INSTANCE ?: IdeProjectManipulationServiceImpl().also { INSTANCE = it }
 			}
-		}
 	}
 
-	override fun addDependency(dependencyString: String, buildFilePath: String): Boolean {
-		return addDependencyProvider?.invoke(dependencyString, buildFilePath) ?: false
-	}
+	override fun addDependency(
+		dependencyString: String,
+		buildFilePath: String,
+	): Boolean = addDependencyProvider?.invoke(dependencyString, buildFilePath) ?: false
 
-	override fun addStringResource(name: String, value: String): Boolean {
-		return addStringResourceProvider?.invoke(name, value) ?: false
-	}
+	override fun addStringResource(
+		name: String,
+		value: String,
+	): Boolean = addStringResourceProvider?.invoke(name, value) ?: false
 
-	override fun deleteFile(path: String): Boolean {
-		return deleteFileProvider?.invoke(path) ?: false
-	}
+	override fun deleteFile(path: String): Boolean = deleteFileProvider?.invoke(path) ?: false
 
 	/**
 	 * Set the add dependency provider (should be called by Code On the Go's app module during initialization)
