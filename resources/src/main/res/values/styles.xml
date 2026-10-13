@@ -55,6 +55,15 @@
 		<item name="shapeAppearanceLargeComponent">@style/AppTheme.ShapeOverlay.Large</item>
 		<item name="textAppearanceBodySmall">@style/TextAppearance.AndroidIDE.BodySmall</item>
 		<item name="colorSuccess">@color/green_500</item>
+		<item name="materialButtonOutlinedStyle">@style/Widget.AndroidIDE.Button.OutlinedButton</item>
+	</style>
+
+	<style
+		name="Widget.AndroidIDE.Button.OutlinedButton"
+		parent="Widget.Material3.Button.OutlinedButton">
+		<item name="backgroundTint">@color/button_outlined_background_selector</item>
+		<item name="android:textColor">@color/button_outlined_foreground_selector</item>
+		<item name="iconTint">@color/button_outlined_foreground_selector</item>
 	</style>
 
 	<style

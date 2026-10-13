@@ -23,6 +23,7 @@ import android.util.Log
 import android.view.View
 import androidx.annotation.IdRes
 import androidx.core.view.forEach
+import androidx.core.view.isVisible
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -50,6 +51,7 @@ import org.appdevforall.codeonthego.actions.sidebar.HelpSideBarAction
 import org.appdevforall.codeonthego.actions.sidebar.OutlineSidebarAction
 import org.appdevforall.codeonthego.actions.sidebar.PreferencesSidebarAction
 import org.appdevforall.codeonthego.actions.sidebar.TerminalSidebarAction
+import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
 import org.appdevforall.codeonthego.eventbus.events.plugin.PluginCrashedEvent
 import org.appdevforall.codeonthego.fragments.sidebar.EditorSidebarFragment
 import org.appdevforall.codeonthego.plugins.extensions.UIExtension
@@ -115,6 +117,10 @@ internal object EditorSidebarActions {
 
 		val data = ActionData.create(context)
 		val titleRef = WeakReference(binding.title)
+		val fileTreeSearchRef = WeakReference(binding.fileTreeSearch)
+		binding.fileTreeSearch.setOnClickListener {
+			(sidebarFragment.requireActivity() as BaseEditorActivity).getFileTreeFragment()?.toggleSearch()
+		}
 		val params =
 			FillMenuParams(
 				data,
@@ -211,6 +217,7 @@ internal object EditorSidebarActions {
 							titleRef.get()?.text = item.title
 						}
 					}
+					fileTreeSearchRef.get()?.isVisible = destination.matchDestination(FileTreeSidebarAction.ID)
 				}
 			}
 		controller.addOnDestinationChangedListener(destinationListener)

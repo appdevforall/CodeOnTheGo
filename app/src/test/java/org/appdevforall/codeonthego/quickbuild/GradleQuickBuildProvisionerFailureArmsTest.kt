@@ -86,6 +86,20 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 		}
 
 	@Test
+	fun `a slot taken after the late check is refused by executeTasks and still reads as a busy slot`() =
+		runTest {
+			// Free on both reads; the sync claims the slot inside executeTasks, which refuses
+			// with BUILD_IN_PROGRESS rather than a Gradle failure.
+			val gradle =
+				FakeBuildService(result = TaskExecutionResult(false, TaskExecutionResult.Failure.BUILD_IN_PROGRESS))
+
+			val outcome = testProvisioner(context, projectRoot, buildService = gradle).provision()
+
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_slot_busy))
+			assertThat(gradle.executedTasks).isEqualTo(listOf(":app:assembleDebug"))
+		}
+
+	@Test
 	fun `a tap during the Gradle sync is told the sync is still running, not that the build failed`() =
 		runTest {
 			val gradle = FakeBuildService()

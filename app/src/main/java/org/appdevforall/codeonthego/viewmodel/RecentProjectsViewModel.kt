@@ -19,6 +19,7 @@ import org.appdevforall.codeonthego.templates.Language
 import org.appdevforall.codeonthego.utils.canonicalProjectLocation
 import org.appdevforall.codeonthego.utils.getCreatedTime
 import org.appdevforall.codeonthego.utils.getLastModifiedTime
+import org.appdevforall.codeonthego.utils.isDeletedProjectDirectory
 import org.appdevforall.codeonthego.utils.readProjectLanguage
 import org.appdevforall.codeonthego.utils.reconcileRecentProjectLocations
 import kotlinx.coroutines.CancellationException
@@ -109,9 +110,22 @@ class RecentProjectsViewModel(
 						emptyList()
 					}
 				}
-			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
+			allProjects =
+				withoutDeletedProjects(projectsFromDb).map { ProjectFile(it.location, it.createdAt, it.lastModified) }
 			applyFilters()
 		}
+
+	private suspend fun withoutDeletedProjects(projects: List<RecentProject>): List<RecentProject> {
+		val (deleted, present) = projects.partition { File(it.location).isDeletedProjectDirectory() }
+		if (deleted.isNotEmpty()) {
+			try {
+				recentProjectDao.deleteByIds(deleted.map { it.id })
+			} catch (e: SQLException) {
+				logger.error("Failed to remove deleted projects from Recents", e)
+			}
+		}
+		return present
+	}
 
 	private suspend fun loadProjectsFromDatabase(): List<RecentProject> {
 		if (projectLocationsReconciled) {

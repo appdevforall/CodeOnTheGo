@@ -15,20 +15,22 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.appdevforall.codeonthego.services.builder;
+package org.appdevforall.codeonthego.memprof
 
-/**
- * Thrown when a build is requested but another build is already in progress.
- *
- * @author Akash Yadav
- */
-public class BuildInProgressException extends IllegalStateException {
+import android.os.Debug
 
-  public BuildInProgressException() {
-    this("A build is already running!");
-  }
+/** Reads [HeapCounters] from ART, with no GC side effect. */
+internal object RuntimeHeapCounters {
+	fun read(): HeapCounters {
+		val runtime = Runtime.getRuntime()
+		return HeapCounters(
+			allocatedBytes = stat("art.gc.bytes-allocated"),
+			freedBytes = stat("art.gc.bytes-freed"),
+			blockingGcCount = stat("art.gc.blocking-gc-count"),
+			usedBytes = runtime.totalMemory() - runtime.freeMemory(),
+		)
+	}
 
-  public BuildInProgressException(final String s) {
-    super(s);
-  }
+	/** -1 for a stat ART does not expose, matching [AllocationSampler]'s convention for the same counters. */
+	private fun stat(key: String): Long = Debug.getRuntimeStat(key)?.toLongOrNull() ?: -1L
 }

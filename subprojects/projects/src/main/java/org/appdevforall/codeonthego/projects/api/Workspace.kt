@@ -89,7 +89,7 @@ data class Workspace(
 		file: File,
 		checkExistence: Boolean = false,
 	): ModuleProject? {
-		if (!file.exists() && checkExistence) {
+		if (checkExistence && !file.exists()) {
 			return null
 		}
 

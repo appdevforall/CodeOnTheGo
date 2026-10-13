@@ -3,6 +3,7 @@ package org.appdevforall.codeonthego.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import org.appdevforall.codeonthego.activities.editor.QuickBuildClobberConfirmation
+import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.models.ApkMetadata
 import org.appdevforall.codeonthego.models.InstallTaskRequest
@@ -13,6 +14,7 @@ import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.projects.isPluginProject
 import org.appdevforall.codeonthego.projects.models.assembleTaskOutputListingFile
+import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.tooling.api.messages.BuildRunType
 import org.appdevforall.codeonthego.tooling.api.messages.GradleBuildParams
 import org.appdevforall.codeonthego.tooling.api.messages.TaskExecutionMessage
@@ -30,6 +32,9 @@ import kotlin.coroutines.cancellation.CancellationException
 
 class BuildViewModel(
 	private val projectManager: () -> IProjectManager = { IProjectManager.getInstance() },
+	private val buildInProgressMessage: () -> String = {
+		BaseApplication.baseInstance.getString(R.string.build_in_progress_warning)
+	},
 ) : ViewModel() {
 	private val log = LoggerFactory.getLogger(BuildViewModel::class.java)
 
@@ -134,6 +139,10 @@ class BuildViewModel(
 						reporter.finish(BuildState.Idle)
 						return@launch
 					}
+					// Another build claimed the slot after this action's isBuildInProgress check.
+					if (result?.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS) {
+						throw RuntimeException(buildInProgressMessage())
+					}
 					throw RuntimeException("Task execution failed: ${result?.failure}")
 				}
 
@@ -202,7 +211,7 @@ class BuildViewModel(
 			val current = _buildState.value
 			if (current is BuildState.InProgress) {
 				log.warn("Build is already in progress. Ignoring new request.")
-				onTerminalState?.invoke(BuildState.Error("A build is already in progress."))
+				onTerminalState?.invoke(BuildState.Error(buildInProgressMessage()))
 				return false
 			}
 			if (_buildState.compareAndSet(current, BuildState.InProgress)) return true
@@ -226,6 +235,9 @@ class BuildViewModel(
 			try {
 				val result = withContext(Dispatchers.IO) { buildService.executeTasks(tasks) }.await()
 				if (result == null || !result.isSuccessful) {
+					if (result?.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS) {
+						throw RuntimeException(buildInProgressMessage())
+					}
 					throw RuntimeException("Task execution failed: ${result?.failure}")
 				}
 				val apkFile = withContext(Dispatchers.IO) { apkForInstallRequests(tasks) }

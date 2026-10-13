@@ -23,11 +23,9 @@ import org.appdevforall.codeonthego.javac.services.fs.CacheFSInfoSingleton
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.project.Common
 import org.appdevforall.codeonthego.project.GradleModels
-import org.appdevforall.codeonthego.projects.classpath.JarFsClasspathReader
 import org.appdevforall.codeonthego.projects.models.DEFAULT_COMPILER_SETTINGS
 import org.appdevforall.codeonthego.projects.models.bootClassPaths
 import org.appdevforall.codeonthego.projects.util.BootClasspathProvider
-import org.appdevforall.codeonthego.utils.ClassTrie
 import org.appdevforall.codeonthego.utils.DocumentUtils
 import org.appdevforall.codeonthego.utils.SourceClassTrie
 import org.appdevforall.codeonthego.utils.SourceClassTrie.SourceNode
@@ -73,9 +71,6 @@ abstract class ModuleProject(
 
 	@JvmField
 	val compileJavaSourceClasses = SourceClassTrie()
-
-	@JvmField
-	val compileClasspathClasses = ClassTrie()
 
 	/**
 	 * Get the source directories of this module (non-transitive i.e for this module only).
@@ -217,7 +212,7 @@ abstract class ModuleProject(
 	 */
 	fun findSourceRoot(file: File): Path? = getCompileSourceDirectories().find { file.path.startsWith(it.path) }?.toPath()
 
-	/** Finds the source files and classes from source directories and classpaths and indexes them. */
+	/** Indexes the source files' classes and prepares the classpaths for the compiler. */
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexSourcesAndClasspaths() {
 		log.info("Indexing sources and classpaths for project: {}", path)
@@ -225,21 +220,8 @@ abstract class ModuleProject(
 		indexClasspaths()
 	}
 
-	/**
-	 * Classpath JARs skipped during the most recent [indexClasspaths] because they were
-	 * corrupt/unreadable (e.g. a truncated download / incomplete offline provisioning). Aggregated by
-	 * the project setup after indexing so the user can be told which dependency failed and offered a
-	 * recovery path (re-sync). Empty when everything indexed cleanly.
-	 */
-	@Volatile
-	var unreadableClasspathJars: List<File> = emptyList()
-		private set
-
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexClasspaths() {
-		this.compileClasspathClasses.clear()
-
-		val watch = StopWatch("Indexing classpaths")
 		val paths = getCompileClasspaths().filter { it.exists() }
 
 		for (path in paths) {
@@ -247,14 +229,6 @@ abstract class ModuleProject(
 			// See JavacFileManager.getContainer(Path) for more details
 			CacheFSInfoSingleton.cache(CacheFSInfoSingleton.getCanonicalFile(path.toPath()))
 		}
-
-		val reader = JarFsClasspathReader()
-		val topLevelClasses = reader.listClasses(paths).filter { it.isTopLevel }
-		topLevelClasses.forEach { this.compileClasspathClasses.append(it.name) }
-		unreadableClasspathJars = reader.unreadableJars.toList()
-
-		watch.log()
-		log.debug("Found {} classpaths.", topLevelClasses.size)
 
 		if (this is AndroidModule) {
 			BootClasspathProvider.update(bootClassPaths.map { it.path })

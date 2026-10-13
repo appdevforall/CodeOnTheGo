@@ -17,7 +17,7 @@ class SourceFileIndexerTest : KtLspTest() {
 	private fun buildSymbolIndex(): JvmSymbolIndex {
 		val backing = InMemoryIndex(JvmSymbolDescriptor)
 		return object : JvmSymbolIndex(backing, BackgroundIndexer(backing)) {
-			override fun isActive(sourceId: String): Boolean = true
+			override fun visibleSourceIds(): Collection<String>? = null
 		}
 	}
 

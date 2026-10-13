@@ -23,55 +23,49 @@ import java.util.concurrent.ConcurrentHashMap
  * @author Akash Yadav
  */
 internal class LogSendersRegistry {
+	private val senders = ConcurrentHashMap<String, CachingLogSender>()
+	private val idToPck = ConcurrentHashMap<String, String>()
 
-  private val senders = ConcurrentHashMap<String, CachingLogSender>()
-  private val idToPck = ConcurrentHashMap<String, String>()
+	val size: Int
+		get() = this.senders.size
 
-  val size: Int
-    get() = this.senders.size
+	fun getPendingSenders(): List<CachingLogSender> = this.senders.mapNotNull { (_, sender) -> if (sender.isStarted) null else sender }
 
-  fun getPendingSenders(): List<CachingLogSender> {
-    return this.senders.mapNotNull { (_, sender) -> if (sender.isStarted) null else sender }
-  }
+	fun getByPackage(packageName: String): CachingLogSender? = this.senders[packageName]
 
-  fun getByPackage(packageName: String): CachingLogSender? {
-    return this.senders[packageName]
-  }
+	fun containsKey(packageOrId: String): Boolean {
+		if (senders.containsKey(packageOrId)) {
+			return true
+		}
 
-  fun containsKey(packageOrId: String): Boolean {
-    if (senders.containsKey(packageOrId)) {
-      return true
-    }
+		return getById(packageOrId) != null
+	}
 
-    return getById(packageOrId) != null
-  }
+	fun getById(senderId: String): CachingLogSender? = this.idToPck[senderId]?.let(senders::get)
 
-  fun getById(senderId: String): CachingLogSender? {
-    return this.idToPck[senderId]?.let(senders::get)
-  }
+	fun put(sender: CachingLogSender) {
+		this.senders[sender.packageName] = sender
+		this.idToPck[sender.id] = sender.packageName
+	}
 
-  fun put(sender: CachingLogSender) {
-    this.senders[sender.packageName] = sender
-    this.idToPck[sender.id] = sender.packageName
-  }
+	fun remove(packageName: String) {
+		this.senders.remove(packageName)
 
-  fun remove(packageName: String) {
-    this.senders.remove(packageName)
+		val iterator = this.idToPck.iterator()
+		for (entry in iterator) {
+			if (entry.value == packageName) {
+				iterator.remove()
+			}
+		}
+	}
 
-    val iterator = this.idToPck.iterator()
-    for (entry in iterator) {
-      if (entry.value == packageName) {
-        iterator.remove()
-      }
-    }
-  }
+	fun clear() {
+		this.senders.clear()
+		this.idToPck.clear()
+	}
 
-  fun clear() {
-    this.senders.clear()
-    this.idToPck.clear()
-  }
-
-  fun forEach(action: (CachingLogSender) -> Unit) {
-    this.senders.forEachValue(1, action::invoke)
-  }
+	/** Runs [action] on the calling thread; forEachValue(1, ...) would fan out to the common pool. */
+	fun forEach(action: (CachingLogSender) -> Unit) {
+		this.senders.values.forEach(action)
+	}
 }

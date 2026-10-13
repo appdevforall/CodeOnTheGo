@@ -43,7 +43,6 @@ import org.appdevforall.codeonthego.plugins.manager.project.PluginProjectManager
 import org.appdevforall.codeonthego.plugins.manager.security.PluginSecurityManager
 import org.appdevforall.codeonthego.plugins.manager.services.CogoProjectProvider
 import org.appdevforall.codeonthego.plugins.manager.services.IdeArchiveServiceImpl
-import org.appdevforall.codeonthego.plugins.manager.services.IdeBuildServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeCommandServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeEditorServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeEditorTabServiceImpl
@@ -56,9 +55,11 @@ import org.appdevforall.codeonthego.plugins.manager.services.IdeProjectServiceIm
 import org.appdevforall.codeonthego.plugins.manager.services.IdeSidebarServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeSnippetServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeTemplateServiceImpl
+import org.appdevforall.codeonthego.plugins.manager.services.IdeTerminalServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeThemeServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeTooltipServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeUIServiceImpl
+import org.appdevforall.codeonthego.plugins.manager.services.PluginBuildService
 import org.appdevforall.codeonthego.plugins.manager.snippets.PluginSnippetManager
 import org.appdevforall.codeonthego.plugins.manager.ui.PluginEditorTabManager
 import org.appdevforall.codeonthego.plugins.services.IdeArchiveService
@@ -75,6 +76,7 @@ import org.appdevforall.codeonthego.plugins.services.IdeProjectService
 import org.appdevforall.codeonthego.plugins.services.IdeSidebarService
 import org.appdevforall.codeonthego.plugins.services.IdeSnippetService
 import org.appdevforall.codeonthego.plugins.services.IdeTemplateService
+import org.appdevforall.codeonthego.plugins.services.IdeTerminalService
 import org.appdevforall.codeonthego.plugins.services.IdeThemeService
 import org.appdevforall.codeonthego.plugins.services.IdeTooltipService
 import org.appdevforall.codeonthego.plugins.services.IdeUIService
@@ -646,7 +648,7 @@ class PluginManager private constructor(
 				return Result.failure(RuntimeException("Failed to create plugin context for: ${manifest.id}"))
 			}
 
-			val pluginContext = createPluginContextWithResources(manifest.id, classLoader, permissions, ctx)
+			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
 			val initResult =
@@ -806,6 +808,10 @@ class PluginManager private constructor(
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) {
 				commandService.cancelAllCommands()
+			}
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) {
+				terminalService.cancelAll()
 			}
 
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
@@ -1126,6 +1132,8 @@ class PluginManager private constructor(
 			return true
 		}
 
+		// The services outlive a disable, which closed the terminal service.
+		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
@@ -1194,6 +1202,10 @@ class PluginManager private constructor(
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
 		}.onFailure { logger.error("Failed to cancel commands for: $pluginId", it) }
+		runCatching {
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) terminalService.cancelAll()
+		}.onFailure { logger.error("Failed to cancel terminal commands for: $pluginId", it) }
 		runCatching {
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
@@ -1398,6 +1410,7 @@ class PluginManager private constructor(
 	 */
 	private fun createPluginContextWithResources(
 		pluginId: String,
+		pluginName: String,
 		classLoader: ClassLoader,
 		permissions: Set<PluginPermission>,
 		resourceContext: Context,
@@ -1446,7 +1459,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(
@@ -1627,6 +1640,21 @@ class PluginManager private constructor(
 			)
 		}
 
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
+			IdeTerminalService::class.java,
+			pluginId,
+			"terminal",
+		) {
+			IdeTerminalServiceImpl(
+				pluginId = pluginId,
+				sessionLabel = pluginName.ifBlank { pluginId },
+				permissions = permissions,
+				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+				appFilesDir = context.filesDir,
+			)
+		}
+
 		// Note: Phase 2 services (IdeFileService, IdeProjectService, IdeResourceService)
 		// have been removed. Use existing services instead:
 		// - IdeFileService for file operations (now includes listFiles)
@@ -1705,7 +1733,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(

@@ -232,10 +232,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
-		// Show warning dialog if today's date is after October 28 2026
+		// Show warning dialog if today's date is after April 28 2027
 		val targetDate =
 			java.util.Calendar.getInstance().apply {
-				set(2026, 9, 28) // Month is 0-indexed, so 9 = October
+				set(2027, 3, 28) // Month is 0-indexed, so 3 = April
 			}
 		val comparisonDate = java.util.Calendar.getInstance()
 		if (comparisonDate.after(targetDate)) {

@@ -64,6 +64,7 @@ import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.lsp.IDELanguageClientImpl
 import org.appdevforall.codeonthego.lsp.debug.DebugClientConnectionResult
 import org.appdevforall.codeonthego.lsp.java.utils.CancelChecker
+import org.appdevforall.codeonthego.memprof.Memprof
 import org.appdevforall.codeonthego.models.EditorIntentExtras
 import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.models.Range
@@ -106,6 +107,7 @@ import org.appdevforall.codeonthego.tooling.api.messages.InitializeProjectParams
 import org.appdevforall.codeonthego.tooling.api.messages.result.InitializeResult
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_CANCELLED
+import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_IN_PROGRESS
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
@@ -1621,9 +1623,26 @@ abstract class ProjectHandlerActivity :
 	}
 
 	protected open fun onProjectInitialized(result: InitializeResult.Success) {
+		Memprof.mark("sync_complete")
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()
-			val gradleBuildResult = ProjectSyncHelper.readGradleBuild(result.cacheFile)
+			val gradleBuildResult =
+				Memprof.phase("Parse project model", "cache_parsed") { span ->
+					val startMs = if (span.isRecording) System.currentTimeMillis() else 0L
+					val parsed = ProjectSyncHelper.readGradleBuild(result.cacheFile)
+					if (span.isRecording) {
+						span.put("bytes", result.cacheFile.length())
+						span.put("durationMs", System.currentTimeMillis() - startMs)
+						if (parsed.isFailure) {
+							span.put("failed", 1)
+						}
+					}
+					// readGradleBuild returns its failure rather than throwing, so the phase would end as finished.
+					if (parsed.isFailure) {
+						span.abandon()
+					}
+					parsed
+				}
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
@@ -1703,6 +1722,7 @@ abstract class ProjectHandlerActivity :
 					PROJECT_NOT_DIRECTORY -> string.msg_file_is_not_dir
 					PROJECT_NOT_FOUND -> string.msg_project_dir_doesnt_exist
 					CACHE_READ_ERROR -> string.msg_project_cache_read_failure
+					BUILD_IN_PROGRESS -> string.build_in_progress_warning
 					else -> null
 				}?.let {
 					"$initFailed: ${getString(it)}"

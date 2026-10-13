@@ -21,10 +21,13 @@ import org.appdevforall.codeonthego.managers.ToolsManager
 import org.appdevforall.codeonthego.plugins.PluginLogger
 import org.appdevforall.codeonthego.plugins.base.PluginFragmentHelper
 import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
+import org.appdevforall.codeonthego.plugins.manager.services.IdeBuildServiceImpl
 import org.appdevforall.codeonthego.plugins.manager.services.IdeLogServiceImpl
+import org.appdevforall.codeonthego.plugins.manager.services.IdeTerminalServiceImpl
 import org.appdevforall.codeonthego.preferences.internal.DevOpsPreferences
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
 import org.appdevforall.codeonthego.resources.localization.LocaleProvider
+import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.appdevforall.codeonthego.ui.themes.IDETheme
 import org.appdevforall.codeonthego.ui.themes.IThemeManager
 import org.appdevforall.codeonthego.utils.EditorDecorationBridge
@@ -393,15 +396,14 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
 			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
+			IdeTerminalServiceImpl.setSessionLauncher(PluginTerminalLauncher { application.foregroundActivity })
 			logger.info("Plugin services configured successfully")
 		}
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)
 	private fun setupBuildServiceProviders() {
-		val buildServiceImpl =
-			org.appdevforall.codeonthego.plugins.manager.services.IdeBuildServiceImpl
-				.getInstance()
+		val buildServiceImpl = IdeBuildServiceImpl.getInstance()
 
 		// Provide runApp functionality
 		buildServiceImpl.setRunAppProvider { callback ->
@@ -423,7 +425,12 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 					val result = buildService.executeTasks(listOf("generateDebugSources")).get()
 
 					if (result == null || !result.isSuccessful) {
-						val errorMsg = result?.failure?.toString() ?: "Unknown error"
+						val errorMsg =
+							when (val failure = result?.failure) {
+								null -> "Unknown error"
+								TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> IdeBuildServiceImpl.BUILD_IN_PROGRESS_REASON
+								else -> failure.toString()
+							}
 						logger.error("Gradle sync failed: {}", errorMsg)
 						callback.onComplete(false, "Gradle sync failed: $errorMsg")
 					} else {

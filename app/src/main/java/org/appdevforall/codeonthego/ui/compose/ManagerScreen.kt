@@ -135,7 +135,7 @@ private class LongPressAwareClick(
  * and Templates, defaulting to Plugins. Owns the one shared Scaffold/TopAppBar.
  *
  * The add FAB is shown on both tabs and accepts either archive type - this screen is the
- * Extensions Manager, and "add an extension" means the same thing whichever tab you happen to be
+ * Addons Manager, and "add an addon" means the same thing whichever tab you happen to be
  * looking at. The picked file is routed by extension and the matching tab is brought forward, so
  * the result is visible where it landed. The discover-plugins action stays Plugins-only: it opens
  * a plugin catalog, which has no meaning on the Templates tab.
