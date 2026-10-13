@@ -113,13 +113,16 @@ class CryptogramActivity : AppCompatActivity() {
 			GestureDetectorHelper.SlowDoubleThreeFingerTapDetector(this) { exitDisguiseMode() }
 		wipeDetector = GestureDetectorHelper.CircleGestureDetector(this) { triggerInstantWipe() }
 
-		// ADFA-6507 (wipe-aware reconcile): the disguise is on screen for a hidden or wiped reason, so
-		// the stealth alias must be the enabled launcher identity. Re-assert it only if a partial swap
-		// left it wrong, healing a leftover real "Code On The Go" icon without needless PackageManager
-		// churn. (It must stay stealth here -- never restore the default -- or the disguise/tamper signal
-		// would break.)
-		if ((SecurityPreferences.isHiddenStateActive || NeutralizationMarker.isWiped(this)) &&
-			!LauncherAliasManager.isStealthModeActive(this)
+		// ADFA-6507 (wipe-aware reconcile): CryptogramActivity is only ever the disguise (every launch
+		// site reaches it hidden, wiped, tampered, or via a stealth alias), so the stealth alias must be
+		// the enabled launcher identity. Re-assert it if a partial swap left it wrong, healing a leftover
+		// real "Code On The Go" icon without needless PackageManager churn. disguiseActive = true means
+		// the decision can only ENABLE_STEALTH here, never restore the default -- so this reconcile can't
+		// break the disguise or the tamper signal.
+		if (LauncherAliasManager.reconcileAliasAction(
+				disguiseActive = true,
+				stealthAliasActive = LauncherAliasManager.isStealthModeActive(this),
+			) == LauncherAliasManager.AliasReconcileAction.ENABLE_STEALTH
 		) {
 			LauncherAliasManager.setStealthMode(this, true)
 		}
