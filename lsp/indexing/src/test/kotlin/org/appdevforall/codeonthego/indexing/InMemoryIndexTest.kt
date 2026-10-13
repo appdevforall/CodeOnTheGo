@@ -1,6 +1,8 @@
 package org.appdevforall.codeonthego.indexing
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexField
@@ -419,8 +421,8 @@ class InMemoryIndexTest {
 	fun `insertSource records the fingerprint and removing the source drops it`() =
 		runTest {
 			val index = makeIndex()
-			index.insertSource("src1", "100:1", sequenceOf(entry("k1", "src1", "Foo")))
-			index.insertSource("src2", "200:2", emptySequence())
+			index.insertSource("src1", "100:1", flowOf(entry("k1", "src1", "Foo")))
+			index.insertSource("src2", "200:2", emptyFlow())
 
 			assertThat(index.sourceFingerprint("src1")).isEqualTo("100:1")
 			assertThat(index.sourceFingerprint("src2")).isEqualTo("200:2")

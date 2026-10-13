@@ -61,6 +61,14 @@ interface IndexDescriptor<T : Indexable> {
 	fun fieldValues(entry: T): Map<String, String?>
 
 	/**
+	 * Returns the package [entry] makes exist, or `null` if it contributes none.
+	 *
+	 * An index that is a [PackageTree] records the package and its ancestors for the entry's source.
+	 * The default package (`""`) contributes nothing, the same as `null`.
+	 */
+	fun packageOf(entry: T): String? = null
+
+	/**
 	 * Serialize an entry to bytes for persistent storage.
 	 *
 	 * Use whatever format is appropriate - protobuf, JSON,

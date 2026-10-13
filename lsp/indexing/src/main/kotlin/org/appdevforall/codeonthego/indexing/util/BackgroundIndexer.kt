@@ -8,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -83,8 +84,9 @@ class BackgroundIndexer<T : Indexable>(
 	/**
 	 * Index a single source. The [provider] returns a [Flow] that is
 	 * collected on [Dispatchers.IO] and inserted in batches through
-	 * [Index.insertAll]; with a [fingerprint], the last batch goes through
-	 * [Index.insertSource] so the fingerprint is recorded only on success.
+	 * [Index.insertAll]; with a [fingerprint], the whole flow goes through
+	 * [Index.insertSource] instead, which replaces the source's entries and
+	 * records the fingerprint only on success.
 	 *
 	 * If [skipIfExists] is true and the source is already indexed, this is a
 	 * no-op. With a [fingerprint], "already indexed" means the index holds
@@ -97,7 +99,7 @@ class BackgroundIndexer<T : Indexable>(
 	 * result, so cancelling and resubmitting it would only throw away its progress. A
 	 * source being indexed under a different fingerprint (its content changed again before
 	 * the previous pass finished) is handled by cancelling and joining that job before this
-	 * one deletes its rows, so the two passes' writes can never interleave.
+	 * one writes its rows, so the two passes' writes can never interleave.
 	 *
 	 * The check for an existing job and the recording of this call's own job in [activeJobs] are
 	 * not atomic with each other, so two overlapping calls for the same [sourceId] could each
@@ -145,46 +147,29 @@ class BackgroundIndexer<T : Indexable>(
 
 					log.info("Indexing: {}", sourceId)
 
-					// Remove stale entries first
-					index.removeBySource(sourceId)
+					// insertSource replaces the source's entries itself, without a window where it has none.
+					if (fingerprint == null) {
+						index.removeBySource(sourceId)
+					}
 
 					if (!isActive) return@launch
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Started)
 
 					var count = 0
-					withContext(Dispatchers.IO) {
-						val batch = ArrayList<T>(BATCH_SIZE)
-						var error: Exception? = null
-						try {
-							provider(sourceId).collect { entry ->
-								batch.add(entry)
-								count++
-								if (count % 1000 == 0) {
-									progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
-								}
-								if (batch.size == BATCH_SIZE) {
-									try {
-										index.insertAll(batch.asSequence())
-									} finally {
-										batch.clear()
-									}
-								}
+					val entries =
+						provider(sourceId).onEach {
+							count++
+							if (count % 1000 == 0) {
+								progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
 							}
-						} catch (e: CancellationException) {
-							throw e
-						} catch (e: Exception) {
-							// Keep the entries already collected on any failure, then report it. Meant for
-							// a failure after the last emit (e.g. EIO closing the JAR); a mid-stream failure
-							// also leaves a partial source that containsSource() treats as indexed.
-							error = e
 						}
-						if (fingerprint != null && error == null) {
-							index.insertSource(sourceId, fingerprint, batch.asSequence())
-						} else if (batch.isNotEmpty()) {
-							index.insertAll(batch.asSequence())
+					withContext(Dispatchers.IO) {
+						if (fingerprint != null) {
+							index.insertSource(sourceId, fingerprint, entries)
+						} else {
+							insertInBatches(entries)
 						}
-						error?.let { throw it }
 					}
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Completed(count))
@@ -208,6 +193,33 @@ class BackgroundIndexer<T : Indexable>(
 		job.invokeOnCompletion { activeJobs.remove(sourceId, active) }
 		job.start()
 		return job
+	}
+
+	/** Inserts [entries] through [Index.insertAll] in batches of [BATCH_SIZE]. */
+	private suspend fun insertInBatches(entries: Flow<T>) {
+		val batch = ArrayList<T>(BATCH_SIZE)
+		var error: Exception? = null
+		try {
+			entries.collect { entry ->
+				batch.add(entry)
+				if (batch.size == BATCH_SIZE) {
+					try {
+						index.insertAll(batch.asSequence())
+					} finally {
+						batch.clear()
+					}
+				}
+			}
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			// Keep the entries already collected on any failure, then report it. Meant for
+			// a failure after the last emit (e.g. EIO closing the JAR); a mid-stream failure
+			// also leaves a partial source that containsSource() treats as indexed.
+			error = e
+		}
+		if (batch.isNotEmpty()) index.insertAll(batch.asSequence())
+		error?.let { throw it }
 	}
 
 	private suspend fun isIndexed(

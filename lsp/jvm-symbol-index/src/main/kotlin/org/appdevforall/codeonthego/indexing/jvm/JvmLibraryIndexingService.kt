@@ -1,154 +1,97 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
+import com.itsaky.androidide.memprof.Memprof
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
+import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.bootClassPaths
-import com.itsaky.androidide.tasks.cancelIfActive
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
-import org.appdevforall.codeonthego.indexing.service.IndexingService
-import org.greenrobot.eventbus.Subscribe
-import org.greenrobot.eventbus.ThreadMode
-import org.slf4j.LoggerFactory
-import java.io.File
+import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
 import java.nio.file.Path
-import java.nio.file.Paths
 import kotlin.io.path.extension
 
 /**
  * Well-known key for the JVM library symbol index.
  *
  * Both the Kotlin and Java LSPs use this key to retrieve the
- * shared index from the [IndexRegistry].
+ * shared index from the [IndexRegistry][org.appdevforall.codeonthego.indexing.service.IndexRegistry].
  */
 val JVM_LIBRARY_SYMBOL_INDEX = IndexKey<JvmSymbolIndex>("jvm-library-symbols")
 
 /**
- * [IndexingService] that scans classpath JARs/AARs and builds
- * a [JvmSymbolIndex].
+ * [JarIndexingService] that scans classpath JARs/AARs and builds a [JvmSymbolIndex].
+ *
+ * A pass runs on initialization and whenever a language server calls [refresh] at project setup. The
+ * initialization pass is what indexes the libraries when those calls came before initialization,
+ * since a [refresh] before then finds no index and does nothing. Every pass sets the active source
+ * set and stats each JAR; one already indexed costs only that stat and fingerprint read and opens no
+ * "Index libraries" phase, but a JAR the earlier pass failed to index still has no fingerprint and is
+ * rescanned, opening a phase of its own.
+ *
+ * A pass that submits at least one JAR not already being indexed is profiled as the [Memprof] phase
+ * "Index libraries", which ends, emitting `library_index_complete`, once the pass's JARs are indexed
+ * and the index optimized.
  *
  * Thread safety: all methods are called from the
  * [IndexingServiceManager][org.appdevforall.codeonthego.indexing.service.IndexingServiceManager]'s
  * coroutine scope. The [JvmSymbolIndex] handles its own internal thread safety.
  */
 class JvmLibraryIndexingService(
-	private val context: Context,
-) : IndexingService {
+	context: Context,
+	progressTracker: IndexingProgressTracker,
+	workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
+	unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
+) : JarIndexingService(context, progressTracker, workspaceSupplier, unreadableJarFilter = unreadableJarFilter) {
 	companion object {
 		const val ID = "jvm-indexing-service"
-		private val log = LoggerFactory.getLogger(JvmLibraryIndexingService::class.java)
 	}
 
 	override val id = ID
-
-	override val providedKeys = listOf(JVM_LIBRARY_SYMBOL_INDEX)
-
-	private var libraryIndex: JvmSymbolIndex? = null
-	private var indexingMutex = Mutex()
-	private val coroutineScope = CoroutineScope(Dispatchers.Default)
+	override val indexKey = JVM_LIBRARY_SYMBOL_INDEX
+	override val dbName = JvmSymbolIndex.DB_NAME_DEFAULT
+	override val indexName = JvmSymbolIndex.INDEX_NAME_LIBRARY
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val jvmIndex =
-			JvmSymbolIndex.createSqliteIndex(
-				context = context,
-				dbName = JvmSymbolIndex.DB_NAME_DEFAULT,
-				indexName = JvmSymbolIndex.INDEX_NAME_LIBRARY,
-			)
-
-		this.libraryIndex = jvmIndex
-		registry.register(JVM_LIBRARY_SYMBOL_INDEX, jvmIndex)
-		log.info("JVM symbol index initialized")
-	}
-
-	@Subscribe(threadMode = ThreadMode.ASYNC)
-	@Suppress("UNUSED")
-	fun onProjectSynced() {
+		super.initialize(registry)
 		refresh()
 	}
 
-	fun refresh() {
-		coroutineScope.launch {
-			val jobs = indexingMutex.withLock { reindexLibraries() }
-			libraryIndex?.optimizeAfter(jobs)
-		}
-	}
-
-	/** Submits every library JAR that needs indexing and returns the submitted jobs. */
-	private suspend fun reindexLibraries(): List<Job> {
-		val index =
-			this.libraryIndex ?: run {
-				log.warn("Not indexing libraries. Index not initialized.")
-				return emptyList()
-			}
-
-		val workspace =
-			ProjectManagerImpl.getInstance().workspace ?: run {
-				log.warn("Not indexing libraries. Workspace model not available.")
-				return emptyList()
-			}
-
-		val currentJars =
-			workspace.subProjects
-				.asSequence()
-				.filterIsInstance<ModuleProject>()
-				.filter { it.path != workspace.rootProject.path }
-				.flatMap { project ->
-					buildList {
-						if (project is AndroidModule) {
-							addAll(project.bootClassPaths)
-						}
-
-						addAll(project.getCompileClasspaths(excludeSourceGeneratedClassPath = true))
-					}
-				}.filter { jar -> jar.exists() && isIndexableJar(jar.toPath()) }
-				.map { jar -> jar.absolutePath }
-				.toSet()
-
-		log.info("{} JARs on classpath", currentJars.size)
-
+	override suspend fun completePass(
+		jobs: List<Job>,
+		newlyCounted: Int,
+	) {
 		/*
-		 * Step 1: Set the active set - this is instant. JARs not in the set become invisible to
-		 * queries; JARs in the set that are already cached become visible immediately.
+		 * Both LSPs refresh this index at project open. A pass that only folded into the other
+		 * pass's running jobs must not open a second phase, or the report gets two rows and two
+		 * markers for one indexing run.
 		 */
-		index.setActiveSources(currentJars)
+		if (newlyCounted == 0) {
+			return super.completePass(jobs, newlyCounted)
+		}
 
-		/*
-		 * Step 2: Index any JAR that is not cached, or was cached with a different fingerprint:
-		 * a JAR rebuilt at the same path (a snapshot, a local file dependency) is re-scanned.
-		 * Newly cached JARs are automatically visible because they're already in the active set.
-		 */
-		val jobs = mutableListOf<Job>()
-		for (jarPath in currentJars) {
-			val fingerprint = jarFingerprint(File(jarPath))
-			if (index.sourceFingerprint(jarPath) != fingerprint) {
-				jobs +=
-					index.indexSource(jarPath, skipIfExists = true, fingerprint = fingerprint) { sourceId ->
-						CombinedJarScanner.scan(Paths.get(jarPath), sourceId)
+		indexLibrariesPhase(jobs.size) { super.completePass(jobs, newlyCounted) }
+	}
+
+	override fun jarsToIndex(workspace: Workspace): Set<String> =
+		workspace.subProjects
+			.asSequence()
+			.filterIsInstance<ModuleProject>()
+			.filter { it.path != workspace.rootProject.path }
+			.flatMap { project ->
+				buildList {
+					if (project is AndroidModule) {
+						addAll(project.bootClassPaths)
 					}
-			}
-		}
 
-		if (jobs.isNotEmpty()) {
-			log.info("{} new or changed JARs submitted for background indexing", jobs.size)
-		} else {
-			log.info("All JARs already cached, nothing to index")
-		}
-		return jobs
-	}
-
-	override fun close() {
-		coroutineScope.cancelIfActive("indexing service closed")
-		libraryIndex?.close()
-		libraryIndex = null
-	}
+					addAll(project.getCompileClasspaths(excludeSourceGeneratedClassPath = true))
+				}
+			}.filter { jar -> jar.exists() && isIndexableJar(jar.toPath()) }
+			.map { jar -> jar.absolutePath }
+			.toSet()
 
 	private fun isIndexableJar(path: Path): Boolean {
 		val ext = path.extension.lowercase()
@@ -157,11 +100,18 @@ class JvmLibraryIndexingService(
 }
 
 /**
- * Identifies the content of [jar] by its size and last-modified time, which a rewrite of the file
- * changes without the cost of reading it. Stats the file, so never call it on the main thread.
+ * Runs [action], a library pass over [jarCount] submitted JARs, as the "Index libraries" phase.
  *
- * Accepted limitation: a rewrite that keeps the exact same size and lands within the
- * filesystem's modification-time granularity (a second on some filesystems) produces the same
- * fingerprint as the original, so that rewrite goes undetected.
+ * The phase begins once the pass has submitted its JARs, so it leaves out the submit loop's own time
+ * (a stat and a fingerprint read per JAR) although the submitted scans are already running by then.
  */
-internal fun jarFingerprint(jar: File): String = "${jar.length()}:${jar.lastModified()}"
+internal inline fun <R> indexLibrariesPhase(
+	jarCount: Int,
+	action: () -> R,
+): R =
+	Memprof.phase("Index libraries", "library_index_complete") { span ->
+		if (span.isRecording) {
+			span.put("jars", jarCount.toLong())
+		}
+		action()
+	}
