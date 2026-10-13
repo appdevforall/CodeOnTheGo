@@ -1,6 +1,6 @@
 # Quick Build concurrency and contention
 
-One thread decides everything; every expensive thing runs in another process. That is the whole model. `[inferred from code]`
+One thread decides everything; every expensive thing runs in another process, bar the I/O the table below puts on `Dispatchers.IO`. That is the whole model. `[inferred from code]`
 
 | Runs on | What runs there | Wired in |
 | --- | --- | --- |
@@ -51,9 +51,9 @@ Every dotted edge is a result **hopping back onto the session thread**. Nothing 
 
 - **Effects are launched, not run inline.** `runEffect` launches each effect so a dispatch can never re-enter itself; the launches still land in order because there is one thread. Swap in `Dispatchers.IO` and ordering breaks with no crash and no failing test (README, invariant 3 of [Areas to Be Careful Of](../README.md#areas-to-be-careful-of)).
 - **The reducer is total.** An unhandled `(state, event)` pair keeps the state and produces no effects ([`SessionReducer`](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/session/SessionReducer.kt)), so a late, duplicate or out-of-order event is a no-op rather than a corrupt session. Every guard below can therefore be "drop it" instead of "unwind it".
-- **Nothing on that thread may block.** Every outward call is `suspend`; the daemon client hops its process I/O to `Dispatchers.IO` and the watcher runs its stat sweep there. A blocking call added here stalls the whole session.
+- **Nothing on that thread may block.** Every outward call is `suspend`; the daemon client hops its process I/O to `Dispatchers.IO`, the watcher runs its stat sweep there, and the file-touching helpers (`ProxyAppInstaller`, `QuickBuildClobberCheck`, `QuickBuildScratch`, `FileGenerationStore` and the `GenerationTracker` over it) take an injected I/O dispatcher for the same reason. A blocking call added here stalls the whole session.
 
-**What is farmed out, and how results come back.** The session thread never compiles anything. Each build is one suspending pass through [`LiveReloadExecutorImpl`](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/session/LiveReloadExecutorImpl.kt) - compile, dex, relink, deploy, strictly in order, each step one request to the daemon. The daemon holds **one request in flight** (`requestMutex`) and its own loop is single-threaded on purpose, so the pipeline is serial end to end; a request that exceeds `requestTimeoutMillis` (300 s) comes back as a failed reply rather than an exception. Results re-enter the model three ways, all of them hopping back onto the session thread: the executor's return value becomes an `OrchestratorEvent`, which the orchestrator delivers *outside* its own lock and the manager `launch`es into a dispatch; the proxy app's crash and reconnect reports arrive as flows collected on the session scope; the daemon's death arrives as a listener callback that dispatches `DaemonDied`.
+**What is farmed out, and how results come back.** The session thread never compiles anything. Each build is one suspending pass through [`LiveReloadExecutorImpl`](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/session/LiveReloadExecutorImpl.kt) - compile, dex, relink, deploy, strictly in order, each step one request to the daemon. The daemon holds **one request in flight** (`requestMutex`) and its own loop is single-threaded on purpose, so the pipeline is serial end to end; a request that exceeds `requestTimeoutMillis` (300 s, applied per phase - the write, then the response - so up to 600 s) comes back as a failed reply rather than an exception. Results re-enter the model three ways, all of them hopping back onto the session thread: the executor's return value becomes an `OrchestratorEvent`, which the orchestrator delivers *outside* its own lock and the manager `launch`es into a dispatch; the proxy app's crash and reconnect reports arrive as flows collected on the session scope; the daemon's death arrives as a listener callback that dispatches `DaemonDied`.
 
 **Quick Build vs Standard Run: two shared resources.** They contend for the device's one Gradle slot and the project's one package slot, and each has an explicit gate rather than a lock.
 
@@ -133,9 +133,11 @@ sequenceDiagram
 
 On failure the batch is unioned back into pending, so the only way a save leaves the set is a build that succeeded with it.
 
-**The Quick Build tap races its own save.** `[measured on a56, 2026-08-13 manual QA; redesign implemented 2026-08-13, unverified on device]`
+**The Quick Build tap raced its own save - before the 2026-08-13 redesign.** `[measured on a56, 2026-08-13 manual QA; redesign implemented 2026-08-13, unverified on device]`
 
-The tap awaits a save-all, then triggers ([`QuickBuildAction`](../../app/src/main/java/com/itsaky/androidide/actions/build/QuickBuildAction.kt)). The coalescer emits 150 ms after the last event - so at tap time the save is on disk but its batch is still inside the quiet window, and pending is empty. This is deterministic, not a race that sometimes wins: every tap with a dirty buffer sees an empty pending set. Four consequences, all observed in one QA run:
+Everything in this subsection down to "The redesign (implemented 2026-08-13)" describes the **superseded** behaviour. It is kept because the redesign below only makes sense against it - do not read it as a live defect.
+
+The tap awaited a save-all, then triggered ([`QuickBuildAction`](../../app/src/main/java/com/itsaky/androidide/actions/build/QuickBuildAction.kt)). The coalescer emits 150 ms after the last event - so at tap time the save is on disk but its batch is still inside the quiet window, and pending is empty. This is deterministic, not a race that sometimes wins: every tap with a dirty buffer sees an empty pending set. Four consequences, all observed in one QA run:
 
 - the tap routes as a forced `NoOp` - a whole-module blind recompile where an incremental would do;
 - the batch (the very files the tap saved) lands mid-build and rebuilds identical bytes behind it (7 echo pairs, 38.9 s of duplicated build time in a 20-minute session);

@@ -142,6 +142,36 @@ class ZipRecipeExecutorTest {
 	}
 
 	@Test
+	fun `a template that declares no package name finishes without warnings`() {
+		val zip = buildZip(mapOf("tpl/hello.txt.peb" to "Hello \${{ APP_NAME }}!"))
+
+		val result = executor(zip, metaJson = templateWithoutPackageName()).execute(recipeExecutor())
+
+		assertThat(File(projectDir, "hello.txt").readText()).isEqualTo("Hello TestApp!")
+		assertThat(result.hasErrorsWarnings).isFalse()
+	}
+
+	@Test
+	fun `a template that uses an undeclared package name in a file warns`() {
+		val zip = buildZip(mapOf("tpl/Main.kt.peb" to "package \${{ PACKAGE_NAME }}"))
+
+		val result = executor(zip, metaJson = templateWithoutPackageName()).execute(recipeExecutor())
+
+		assertThat(File(projectDir, "Main.kt").readText()).isEqualTo("package com.example.app")
+		assertThat(result.hasErrorsWarnings).isTrue()
+	}
+
+	@Test
+	fun `a template that uses an undeclared package name in a path warns`() {
+		val zip = buildZip(mapOf("tpl/src/PACKAGE_NAME/Main.txt" to "static"))
+
+		val result = executor(zip, metaJson = templateWithoutPackageName()).execute(recipeExecutor())
+
+		assertThat(File(projectDir, "src/com/example/app/Main.txt").readText()).isEqualTo("static")
+		assertThat(result.hasErrorsWarnings).isTrue()
+	}
+
+	@Test
 	fun `existing project dir is left untouched`() {
 		projectDir.mkdirs()
 		val marker = File(projectDir, "marker.txt").apply { writeText("keep") }
@@ -164,9 +194,36 @@ class ZipRecipeExecutorTest {
 		return file
 	}
 
+	private fun templateWithoutPackageName() =
+		TemplateJson(
+			name = "Test",
+			description = null,
+			version = null,
+			parameters =
+				ParametersJson(
+					required =
+						RequiredParametersJson(
+							appName = IdentifierJson("APP_NAME"),
+							saveLocation = IdentifierJson("SAVE_LOCATION"),
+						),
+				),
+			system =
+				SystemParametersJson(
+					agpVersion = IdentifierJson("AGP_VERSION"),
+					kotlinVersion = IdentifierJson("KOTLIN_VERSION"),
+					gradleVersion = IdentifierJson("GRADLE_VERSION"),
+					compileSdk = IdentifierJson("COMPILE_SDK"),
+					targetSdk = IdentifierJson("TARGET_SDK"),
+					javaSourceCompat = IdentifierJson("JAVA_SOURCE_COMPAT"),
+					javaTargetCompat = IdentifierJson("JAVA_TARGET_COMPAT"),
+					javaTarget = IdentifierJson("JAVA_TARGET"),
+				),
+		)
+
 	private fun executor(
 		zip: File,
 		basePath: String = "tpl",
+		metaJson: TemplateJson = TemplateJson(name = "Test", description = null, version = null),
 	): ZipRecipeExecutor {
 		val data =
 			ProjectTemplateData(
@@ -186,7 +243,6 @@ class ZipRecipeExecutorTest {
 				language = Language.Kotlin,
 				minSdk = Sdk.Lollipop,
 			)
-		val metaJson = TemplateJson(name = "Test", description = null, version = null)
 		return ZipRecipeExecutor({ ZipFile(zip) }, metaJson, mutableMapOf(), basePath, data, module)
 	}
 

@@ -252,6 +252,8 @@ public final class TerminalEmulator {
      */
     private int mScrollCounter = 0;
 
+    private OutputTap mOutputTap;
+
     /** If automatic scrolling of terminal is disabled */
     private boolean mAutoScrollDisabled;
 
@@ -396,6 +398,9 @@ public final class TerminalEmulator {
         }
 
         resizeScreen();
+
+        OutputTap tap = mOutputTap;
+        if (tap != null) tap.onResize(columns, rows);
     }
 
     private void resizeScreen() {
@@ -483,8 +488,30 @@ public final class TerminalEmulator {
      * @param length the number of bytes in the array to process
      */
     public void append(byte[] buffer, int length) {
-        for (int i = 0; i < length; i++)
+        for (int i = 0; i < length; i++) {
+            // Read per byte: processing a byte can set or clear the tap.
+            OutputTap tap = mOutputTap;
+            if (tap != null) tap.onByte(buffer[i]);
             processByte(buffer[i]);
+        }
+    }
+
+    /** Receives the bytes fed to an emulator while it is set; see {@link #setOutputTap(OutputTap)}. */
+    public interface OutputTap {
+        void onByte(byte b);
+
+        /** The emulator was resized to {@code columns} by {@code rows}. */
+        default void onResize(int columns, int rows) {
+        }
+    }
+
+    /**
+     * Sets the tap that receives each byte before this emulator processes it, or clears it with
+     * null. A tap set while a byte is processed receives the bytes after it; a tap cleared while a
+     * byte is processed has already received that byte.
+     */
+    public void setOutputTap(OutputTap tap) {
+        mOutputTap = tap;
     }
 
     private void processByte(byte byteToProcess) {
@@ -2035,6 +2062,11 @@ public final class TerminalEmulator {
                 break;
             case 119: // Reset highlight color.
                 break;
+            case 133: { // Shell integration: "133;C" output starts, "133;D;$exit" command finished.
+                ShellIntegrationMark mark = ShellIntegrationMark.parse(textParameter);
+                if (mark != null) mSession.onShellIntegrationMark(mark);
+                break;
+            }
             default:
                 unknownParameter(value);
                 break;

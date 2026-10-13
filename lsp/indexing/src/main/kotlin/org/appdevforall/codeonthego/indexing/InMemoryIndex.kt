@@ -1,9 +1,15 @@
 package org.appdevforall.codeonthego.indexing
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexDescriptor
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.PackageTree
+import org.appdevforall.codeonthego.indexing.api.packageWithAncestors
+import org.appdevforall.codeonthego.indexing.api.parentPackage
+import org.appdevforall.codeonthego.indexing.api.requireDeclaredFields
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.collections.iterator
@@ -16,12 +22,19 @@ import kotlin.concurrent.write
  * Optimized for small-to-medium datasets (source files, typically
  * hundreds to low thousands of entries) that change frequently.
  *
+ * An entry is identified by its source and key together, matching [SQLiteIndex]: the same key in
+ * two sources is two entries, and a key lookup matching several returns the smallest source id.
+ *
  * Data layout:
- * - [primaryMap]: key → entry (O(1) point lookup)
- * - [sourceMap]: sourceId → set of keys (O(1) bulk removal)
- * - [fieldMaps]: fieldName → (fieldValue → set of keys) (equality filter)
- * - [prefixBuckets]: fieldName → (lowercased first char → list of (value, key))
+ * - [rows]: (sourceId, key) -> entry
+ * - [sourceMap]: sourceId -> rows (O(1) bulk removal)
+ * - [keyMap]: key -> rows (key lookup)
+ * - [fieldMaps]: fieldName -> (fieldValue -> rows) (equality filter)
+ * - [prefixBuckets]: fieldName -> (lowercased first char -> list of (value, row))
  *                    Provides a ~36-way partition for prefix search.
+ * - [fingerprints]: sourceId -> fingerprint recorded by [insertSource]
+ * - [packages]: sourceId -> (parent package -> full names of its subpackages), the [PackageTree].
+ *               Like [SQLiteIndex], a source's packages are only removed with the source.
  *
  * All mutations go through [lock] in write mode for consistency
  * across the multiple maps. Reads use read mode.
@@ -30,216 +43,354 @@ import kotlin.concurrent.write
  * @param descriptor Defines queryable fields and serialization.
  */
 class InMemoryIndex<T : Indexable>(
-    override val descriptor: IndexDescriptor<T>,
-    override val name: String = "memory:${descriptor.name}",
-) : Index<T> {
+	override val descriptor: IndexDescriptor<T>,
+	override val name: String = "memory:${descriptor.name}",
+) : Index<T>,
+	PackageTree {
+	private val rows = ConcurrentHashMap<RowId, T>(256)
+	private val sourceMap = ConcurrentHashMap<String, MutableSet<RowId>>(32)
+	private val keyMap = ConcurrentHashMap<String, MutableSet<RowId>>(256)
+	private val fieldMaps = ConcurrentHashMap<String, ConcurrentHashMap<String, MutableSet<RowId>>>()
+	private val prefixBuckets = ConcurrentHashMap<String, ConcurrentHashMap<Char, MutableList<PrefixEntry>>>()
+	private val fingerprints = ConcurrentHashMap<String, String>()
+	private val packages = HashMap<String, HashMap<String, MutableSet<String>>>()
 
-    private val primaryMap = ConcurrentHashMap<String, T>(256)
-    private val sourceMap = ConcurrentHashMap<String, MutableSet<String>>(32)
-    private val fieldMaps = ConcurrentHashMap<String, ConcurrentHashMap<String, MutableSet<String>>>()
-    private val prefixBuckets = ConcurrentHashMap<String, ConcurrentHashMap<Char, MutableList<PrefixEntry>>>()
+	private val lock = ReentrantReadWriteLock()
 
-    private val lock = ReentrantReadWriteLock()
+	private data class RowId(
+		val sourceId: String,
+		val key: String,
+	)
 
-    private data class PrefixEntry(val lowerValue: String, val key: String)
+	private data class PrefixEntry(
+		val lowerValue: String,
+		val row: RowId,
+	)
 
-    init {
-        for (field in descriptor.fields) {
-            fieldMaps[field.name] = ConcurrentHashMap()
-            if (field.prefixSearchable) {
-                prefixBuckets[field.name] = ConcurrentHashMap()
-            }
-        }
-    }
+	init {
+		for (field in descriptor.fields) {
+			fieldMaps[field.name] = ConcurrentHashMap()
+			if (field.prefixSearchable) {
+				prefixBuckets[field.name] = ConcurrentHashMap()
+			}
+		}
+	}
 
-    override fun query(query: IndexQuery): Sequence<T> {
-        val keys = resolveMatchingKeys(query)
-        val limit = if (query.limit <= 0) Int.MAX_VALUE else query.limit
-        return keys
-            .mapNotNull { primaryMap[it] }
-            .take(limit)
-    }
+	override fun query(query: IndexQuery): Sequence<T> {
+		val matching = resolveMatchingRows(query)
+		val ordered = if (query.key != null) matching.sortedBy { it.sourceId } else matching
+		val limit = if (query.limit <= 0) Int.MAX_VALUE else query.limit
+		return ordered
+			.asSequence()
+			.mapNotNull { rows[it] }
+			.take(limit)
+	}
 
-    override suspend fun get(key: String): T? = primaryMap[key]
+	override suspend fun get(key: String): T? =
+		lock.read {
+			keyMap[key]?.minByOrNull { it.sourceId }?.let { rows[it] }
+		}
 
-    override suspend fun containsSource(sourceId: String): Boolean =
-        sourceMap.containsKey(sourceId)
+	override suspend fun containsSource(sourceId: String): Boolean = sourceMap.containsKey(sourceId)
 
-    override fun distinctValues(fieldName: String): Sequence<String> {
-        val fieldMap = fieldMaps[fieldName] ?: return emptySequence()
-        return lock.read { fieldMap.keys.toList() }.asSequence()
-    }
+	/**
+	 * Projects [fieldName] out of the matching entries.
+	 *
+	 * Unlike the SQLite index there is no column to scan, so this reduces over the matched entries.
+	 * That is acceptable at the sizes this index is built for (hundreds to low thousands of entries);
+	 * it is not a general substitute for a column projection.
+	 */
+	override fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String> {
+		if (!fieldMaps.containsKey(fieldName)) {
+			return emptySequence()
+		}
 
-    override suspend fun insertAll(entries: Sequence<T>) {
-        lock.write {
-            for (entry in entries) {
-                insertSingleLocked(entry)
-            }
-        }
-    }
+		val limit = if (query.limit <= 0) Int.MAX_VALUE else query.limit
+		return lock
+			.read {
+				val values = LinkedHashSet<String>()
+				for (row in resolveMatchingRows(query)) {
+					if (values.size >= limit) {
+						break
+					}
+					val entry = rows[row] ?: continue
+					descriptor.fieldValues(entry)[fieldName]?.let { values.add(it) }
+				}
+				values.toList()
+			}.asSequence()
+	}
 
-    override suspend fun insert(entry: T) = lock.write { insertSingleLocked(entry) }
+	override suspend fun insertAll(entries: Sequence<T>) {
+		lock.write {
+			for (entry in entries) {
+				insertSingleLocked(entry)
+			}
+		}
+	}
 
-    override suspend fun removeBySource(sourceId: String) = lock.write {
-        removeBySourceLocked(sourceId)
-    }
+	override suspend fun insert(entry: T) = lock.write { insertSingleLocked(entry) }
 
-    /**
-     * Remove every entry belonging to any of [sourceIds].
-     *
-     * Acquires the write lock once and removes each source under it, so the whole
-     * batch is atomic with respect to concurrent readers and writers — there is no
-     * intermediate state in which only some of the sources have been removed.
-     */
-    override suspend fun removeBySources(sourceIds: Collection<String>) = lock.write {
-        for (sourceId in sourceIds) {
-            removeBySourceLocked(sourceId)
-        }
-    }
+	/**
+	 * Replaces [sourceId]'s entries under one write lock, so readers see the old entries or the new
+	 * ones and never the fingerprint without every entry. [entries] is read before the lock is taken,
+	 * so one that fails part-way leaves the old entries untouched.
+	 */
+	override suspend fun insertSource(
+		sourceId: String,
+		fingerprint: String,
+		entries: Flow<T>,
+	) {
+		val replacement = entries.toList()
+		lock.write {
+			removeBySourceLocked(sourceId)
+			for (entry in replacement) {
+				insertSingleLocked(entry)
+			}
+			fingerprints[sourceId] = fingerprint
+		}
+	}
 
-    /**
-     * Remove all entries for [sourceId] from the primary, source, and secondary
-     * indexes. Caller MUST already hold the write lock; this method does not lock.
-     */
-    private fun removeBySourceLocked(sourceId: String) {
-        val keys = sourceMap.remove(sourceId) ?: return
-        for (key in keys) {
-            val entry = primaryMap.remove(key) ?: continue
-            removeFromSecondaryIndexes(entry)
-        }
-    }
+	override suspend fun sourceFingerprint(sourceId: String): String? = fingerprints[sourceId]
 
-    override suspend fun clear() = lock.write {
-        primaryMap.clear()
-        sourceMap.clear()
-        fieldMaps.values.forEach { it.clear() }
-        prefixBuckets.values.forEach { it.clear() }
-    }
+	override suspend fun sourceFingerprints(): Map<String, String> = HashMap(fingerprints)
 
-    val size: Int get() = primaryMap.size
-    val sourceCount: Int get() = sourceMap.size
+	override fun subpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): Set<String> =
+		lock.read {
+			packagesIn(sourceIds).flatMapTo(HashSet()) { it[parent].orEmpty() }
+		}
 
-    /**
-     * Resolves the set of keys matching the query by intersecting
-     * the results of each predicate.
-     *
-     * Starts with the most selective predicate to minimize the
-     * intersection set.
-     */
-    private fun resolveMatchingKeys(query: IndexQuery): Sequence<String> = lock.read {
-        var candidates: Set<String>? = null
+	override fun containsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): Boolean =
+		lock.read {
+			val parent = parentPackage(name)
+			packagesIn(sourceIds).any { it[parent]?.contains(name) == true }
+		}
 
-        if (query.key != null) {
-            return@read if (primaryMap.containsKey(query.key)) {
-                sequenceOf(query.key)
-            } else {
-                emptySequence()
-            }
-        }
+	/** The package trees of [sourceIds], or of every source when it is `null`. Caller holds the lock. */
+	private fun packagesIn(sourceIds: Collection<String>?): List<Map<String, Set<String>>> =
+		if (sourceIds == null) {
+			packages.values.toList()
+		} else {
+			sourceIds.mapNotNull { packages[it] }
+		}
 
-        if (query.sourceId != null) {
-            candidates = intersect(candidates, sourceMap[query.sourceId])
-        }
+	override suspend fun removeBySource(sourceId: String) =
+		lock.write {
+			removeBySourceLocked(sourceId)
+		}
 
-        for ((field, value) in query.exactMatch) {
-            val fieldMap = fieldMaps[field] ?: return@read emptySequence()
-            candidates = intersect(candidates, fieldMap[value])
-        }
+	/**
+	 * Remove every entry belonging to any of [sourceIds].
+	 *
+	 * Acquires the write lock once and removes each source under it, so the whole
+	 * batch is atomic with respect to concurrent readers and writers - there is no
+	 * intermediate state in which only some of the sources have been removed.
+	 */
+	override suspend fun removeBySources(sourceIds: Collection<String>) =
+		lock.write {
+			for (sourceId in sourceIds) {
+				removeBySourceLocked(sourceId)
+			}
+		}
 
-        for ((field, prefix) in query.prefixMatch) {
-            val buckets = prefixBuckets[field]
-            val matching: Set<String> = if (buckets != null) {
-                // Prefix-searchable: case-insensitive match via the lowercased buckets,
-                // mirroring SQLite's `lowerCol LIKE 'prefix%'`.
-                val lowerPrefix = prefix.lowercase()
-                val firstChar = lowerPrefix.firstOrNull()
-                if (firstChar == null) {
-                    // Empty prefix == "field present", matching SQLite's `LIKE '%'`
-                    // (which excludes rows where the column IS NULL).
-                    buckets.values.flatMapTo(mutableSetOf()) { entries -> entries.map { it.key } }
-                } else {
-                    val bucket = buckets[firstChar] ?: return@read emptySequence()
-                    bucket.asSequence()
-                        .filter { it.lowerValue.startsWith(lowerPrefix) }
-                        .map { it.key }
-                        .toSet()
-                }
-            } else {
-                // Not prefix-searchable: fall back to a case-sensitive prefix scan of the
-                // regular field map, mirroring SQLite's `col LIKE 'prefix%'` fallback.
-                val fieldMap = fieldMaps[field] ?: return@read emptySequence()
-                fieldMap.entries.asSequence()
-                    .filter { (value, _) -> value.startsWith(prefix) }
-                    .flatMap { (_, keys) -> keys.asSequence() }
-                    .toSet()
-            }
+	/**
+	 * Remove all entries and the fingerprint for [sourceId] from every map.
+	 * Caller MUST already hold the write lock; this method does not lock.
+	 */
+	private fun removeBySourceLocked(sourceId: String) {
+		fingerprints.remove(sourceId)
+		packages.remove(sourceId)
+		val sourceRows = sourceMap.remove(sourceId) ?: return
+		for (row in sourceRows) {
+			val entry = rows.remove(row) ?: continue
+			keyMap[row.key]?.let { keyRows ->
+				keyRows.remove(row)
+				if (keyRows.isEmpty()) keyMap.remove(row.key)
+			}
+			removeFromSecondaryIndexes(row, entry)
+		}
+	}
 
-            candidates = intersect(candidates, matching)
-        }
+	override suspend fun clear() =
+		lock.write {
+			rows.clear()
+			sourceMap.clear()
+			keyMap.clear()
+			fingerprints.clear()
+			packages.clear()
+			fieldMaps.values.forEach { it.clear() }
+			prefixBuckets.values.forEach { it.clear() }
+		}
 
-        for ((field, mustExist) in query.presence) {
-            val fieldMap = fieldMaps[field] ?: return@read emptySequence()
-            val allKeysWithField = fieldMap.values.flatMapTo(mutableSetOf()) { it }
-            candidates = if (mustExist) {
-                intersect(candidates, allKeysWithField)
-            } else {
-                // Keys that DON'T have this field
-                val allKeys = primaryMap.keys.toMutableSet()
-                allKeys.removeAll(allKeysWithField)
-                intersect(candidates, allKeys)
-            }
-        }
+	val size: Int get() = rows.size
+	val sourceCount: Int get() = sourceMap.size
 
-        candidates?.asSequence() ?: primaryMap.keys.asSequence()
-    }
+	/**
+	 * Resolves the rows matching the query by intersecting the results of each predicate.
+	 *
+	 * Every predicate is ANDed, the key included, as SQLite does. A predicate naming a value no row
+	 * has matches nothing rather than being ignored. The result is materialized under the read lock
+	 * so callers never iterate a set a concurrent writer is mutating.
+	 */
+	private fun resolveMatchingRows(query: IndexQuery): List<RowId> {
+		query.requireDeclaredFields(descriptor)
+		return lock.read {
+			var candidates: Set<RowId>? = null
 
-    private fun intersect(current: Set<String>?, other: Set<String>?): Set<String>? {
-        if (other == null) return current
-        if (current == null) return other
-        return current.intersect(other)
-    }
+			if (query.key != null) {
+				candidates = intersect(candidates, keyMap[query.key].orEmpty())
+			}
 
-    private fun insertSingleLocked(entry: T) {
-        val existing = primaryMap[entry.key]
-        if (existing != null) {
-            removeFromSecondaryIndexes(existing)
-        }
+			if (query.sourceId != null) {
+				candidates = intersect(candidates, sourceMap[query.sourceId].orEmpty())
+			}
 
-        primaryMap[entry.key] = entry
-        sourceMap.getOrPut(entry.sourceId) { mutableSetOf() }.add(entry.key)
+			val sourceIds = query.sourceIds
+			if (sourceIds != null) {
+				// An empty scope matches nothing, as distinct from an absent scope matching anything.
+				val scoped = sourceIds.flatMapTo(mutableSetOf()) { sourceMap[it].orEmpty() }
+				candidates = intersect(candidates, scoped)
+			}
 
-        val fields = descriptor.fieldValues(entry)
-        for ((fieldName, value) in fields) {
-            if (value == null) continue
+			for ((field, value) in query.exactMatch) {
+				val fieldMap = fieldMaps[field] ?: return@read emptyList()
+				candidates = intersect(candidates, fieldMap[value].orEmpty())
+			}
 
-            fieldMaps[fieldName]
-                ?.getOrPut(value) { mutableSetOf() }
-                ?.add(entry.key)
+			for ((field, values) in query.anyOf) {
+				val fieldMap = fieldMaps[field] ?: return@read emptyList()
+				val matching = values.flatMapTo(mutableSetOf()) { fieldMap[it].orEmpty() }
+				candidates = intersect(candidates, matching)
+			}
 
-            val buckets = prefixBuckets[fieldName]
-            if (buckets != null) {
-                val lower = value.lowercase()
-                val firstChar = lower.firstOrNull() ?: continue
-                buckets.getOrPut(firstChar) { mutableListOf() }
-                    .add(PrefixEntry(lower, entry.key))
-            }
-        }
-    }
+			for ((field, prefix) in query.prefixMatch) {
+				val matching = rowsWithPrefix(field, prefix) ?: return@read emptyList()
+				candidates = intersect(candidates, matching)
+			}
 
-    private fun removeFromSecondaryIndexes(entry: T) {
-        val fields = descriptor.fieldValues(entry)
-        for ((fieldName, value) in fields) {
-            if (value == null) continue
+			for ((field, mustExist) in query.presence) {
+				val fieldMap = fieldMaps[field] ?: return@read emptyList()
+				val rowsWithField = fieldMap.values.flatMapTo(mutableSetOf()) { it }
+				candidates =
+					if (mustExist) {
+						intersect(candidates, rowsWithField)
+					} else {
+						intersect(candidates, rows.keys - rowsWithField)
+					}
+			}
 
-            fieldMaps[fieldName]?.get(value)?.remove(entry.key)
+			(candidates ?: rows.keys).toList()
+		}
+	}
 
-            val buckets = prefixBuckets[fieldName]
-            if (buckets != null) {
-                val lower = value.lowercase()
-                val firstChar = lower.firstOrNull() ?: continue
-                buckets[firstChar]?.removeAll { it.key == entry.key }
-            }
-        }
-        // Note: sourceMap is handled by the caller
-    }
+	/**
+	 * Rows whose [field] starts with [prefix], or `null` when [field] is not declared.
+	 *
+	 * Prefix-searchable fields match case-insensitively via the lowercased buckets, mirroring
+	 * SQLite's lowercased column; any other field falls back to a case-sensitive scan of its values.
+	 * An empty prefix means "field present", which excludes rows where the field is null.
+	 */
+	private fun rowsWithPrefix(
+		field: String,
+		prefix: String,
+	): Set<RowId>? {
+		val buckets = prefixBuckets[field]
+		if (buckets == null) {
+			val fieldMap = fieldMaps[field] ?: return null
+			return fieldMap.entries
+				.asSequence()
+				.filter { (value, _) -> value.startsWith(prefix) }
+				.flatMap { (_, valueRows) -> valueRows.asSequence() }
+				.toSet()
+		}
+
+		val lowerPrefix = prefix.lowercase()
+		val firstChar = lowerPrefix.firstOrNull()
+		if (firstChar == null) {
+			return buckets.values.flatMapTo(mutableSetOf()) { entries -> entries.map { it.row } }
+		}
+		return buckets[firstChar]
+			.orEmpty()
+			.asSequence()
+			.filter { it.lowerValue.startsWith(lowerPrefix) }
+			.map { it.row }
+			.toSet()
+	}
+
+	private fun intersect(
+		current: Set<RowId>?,
+		other: Set<RowId>,
+	): Set<RowId> {
+		if (current == null) return other
+		return current.intersect(other)
+	}
+
+	private fun insertSingleLocked(entry: T) {
+		val row = RowId(entry.sourceId, entry.key)
+		val existing = rows[row]
+		if (existing != null) {
+			removeFromSecondaryIndexes(row, existing)
+		}
+
+		rows[row] = entry
+		sourceMap.getOrPut(entry.sourceId) { mutableSetOf() }.add(row)
+		keyMap.getOrPut(entry.key) { mutableSetOf() }.add(row)
+		insertPackagesLocked(entry)
+
+		val fields = descriptor.fieldValues(entry)
+		for ((fieldName, value) in fields) {
+			if (value == null) continue
+
+			fieldMaps[fieldName]
+				?.getOrPut(value) { mutableSetOf() }
+				?.add(row)
+
+			val buckets = prefixBuckets[fieldName]
+			if (buckets != null) {
+				val lower = value.lowercase()
+				val firstChar = lower.firstOrNull() ?: continue
+				buckets
+					.getOrPut(firstChar) { mutableListOf() }
+					.add(PrefixEntry(lower, row))
+			}
+		}
+	}
+
+	private fun insertPackagesLocked(entry: T) {
+		val name = descriptor.packageOf(entry) ?: return
+		val sourcePackages = packages.getOrPut(entry.sourceId) { HashMap() }
+		for (pkg in packageWithAncestors(name)) {
+			if (!sourcePackages.getOrPut(parentPackage(pkg)) { HashSet() }.add(pkg)) {
+				break
+			}
+		}
+	}
+
+	/** Drops [row] from the field and prefix maps; [sourceMap] and [keyMap] are the caller's job. */
+	private fun removeFromSecondaryIndexes(
+		row: RowId,
+		entry: T,
+	) {
+		val fields = descriptor.fieldValues(entry)
+		for ((fieldName, value) in fields) {
+			if (value == null) continue
+
+			fieldMaps[fieldName]?.get(value)?.remove(row)
+
+			val buckets = prefixBuckets[fieldName]
+			if (buckets != null) {
+				val lower = value.lowercase()
+				val firstChar = lower.firstOrNull() ?: continue
+				buckets[firstChar]?.removeAll { it.row == row }
+			}
+		}
+	}
 }

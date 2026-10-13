@@ -24,6 +24,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
+import com.itsaky.androidide.eventbus.events.file.FileContentChangedEvent
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
@@ -36,15 +37,18 @@ import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
+import com.itsaky.androidide.lsp.kotlin.format.KotlinCodeFormatter
 import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
 import com.itsaky.androidide.lsp.kotlin.navigation.findUsagesAt
 import com.itsaky.androidide.lsp.kotlin.signaturehelp.doSignatureHelp
+import com.itsaky.androidide.lsp.models.CodeFormatResult
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.CompletionResult
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.lsp.models.DefinitionResult
 import com.itsaky.androidide.lsp.models.DiagnosticResult
 import com.itsaky.androidide.lsp.models.ExpandSelectionParams
+import com.itsaky.androidide.lsp.models.FormatCodeParams
 import com.itsaky.androidide.lsp.models.ReferenceParams
 import com.itsaky.androidide.lsp.models.ReferenceResult
 import com.itsaky.androidide.lsp.models.SignatureHelp
@@ -64,11 +68,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.jvm.JvmLibraryIndexingService
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
@@ -78,6 +84,10 @@ import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import kotlin.io.path.extension
 
 class KotlinLanguageServer : ILanguageServer {
@@ -109,6 +119,38 @@ class KotlinLanguageServer : ILanguageServer {
 		const val SERVER_ID = "ide.lsp.kotlin"
 		const val KOTLIN_SOURCE_EXTENSION = "kt"
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
+
+		// Compiler.close() drains its workers with runBlocking and is reached from
+		// ProjectHandlerActivity.onDestroy on the main thread, so it runs here instead. One
+		// thread serializes closes; setupWithProject waits so a new compiler never starts
+		// while the previous one is still disposing.
+		private val closeExecutor =
+			Executors.newSingleThreadExecutor { Thread(it, "KotlinLspClose").apply { isDaemon = true } }
+
+		@Volatile
+		private var pendingClose: Future<*>? = null
+
+		/** A blocking close cannot be interrupted, so the next setup waits at most this long. */
+		private const val PENDING_CLOSE_WAIT_SECONDS = 30L
+
+		/** Returns false if the previous compiler is still disposing after the wait. */
+		private fun awaitPendingClose(): Boolean {
+			try {
+				pendingClose?.get(PENDING_CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)
+			} catch (e: TimeoutException) {
+				logger.error("Previous Kotlin compiler close still running after {}s", PENDING_CLOSE_WAIT_SECONDS)
+				return false
+			} catch (e: InterruptedException) {
+				// The close may still be running; skip setup so a later sync retries.
+				Thread.currentThread().interrupt()
+				logger.warn("Interrupted while waiting for the previous Kotlin compiler close")
+				return false
+			} catch (e: Exception) {
+				// The close task catches Throwable, so this is cancellation only.
+				logger.warn("Previous Kotlin compiler close failed", e)
+			}
+			return true
+		}
 	}
 
 	init {
@@ -122,7 +164,19 @@ class KotlinLanguageServer : ILanguageServer {
 	override fun shutdown() {
 		EventBus.getDefault().unregister(this)
 		scope.cancel("LSP is being shut down")
-		compiler?.close()
+		compiler?.let { closing ->
+			pendingClose =
+				closeExecutor.submit {
+					try {
+						closing.close()
+					} catch (e: Throwable) {
+						// Throwable: an Error (e.g. "Project is already disposed") left in the Future
+						// would otherwise be rethrown by every later setupWithProject.
+						logger.error("Failed to close the Kotlin compiler", e)
+					}
+				}
+		}
+		compiler = null
 		initialized = false
 	}
 
@@ -140,6 +194,15 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override fun setupWithProject(workspace: Workspace) {
 		logger.info("setupWithProject called, initialized={}", initialized)
+
+		// Runs on an EventBus background thread. Wait out the previous project's teardown:
+		// its compiler and the SQLite indexes it registered must be closed before we reopen them.
+		// If they are still closing, skip setup rather than share them; initialized stays false,
+		// so the next ProjectInitializedEvent (sync) retries.
+		if (!awaitPendingClose() || !runBlocking { IndexingServiceManager.awaitPendingClose() }) {
+			logger.error("Skipping Kotlin setup: the previous project is still closing")
+			return
+		}
 
 		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
 
@@ -271,6 +334,8 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override suspend fun expandSelection(params: ExpandSelectionParams): Range = params.selection
 
+	override fun formatCode(params: FormatCodeParams?): CodeFormatResult = KotlinCodeFormatter.format(requireNotNull(params).content)
+
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
 		if (!settings.signatureHelpEnabled()) {
 			return SignatureHelp.empty()
@@ -377,6 +442,21 @@ class KotlinLanguageServer : ILanguageServer {
 			runCatching { compiler?.compilationEnvironmentFor(path) }
 				.getOrNull()
 				?.onFileCreated(path)
+		}
+	}
+
+	@Subscribe
+	@Suppress("unused")
+	fun onFileContentChanged(event: FileContentChangedEvent) {
+		val path = event.file.toPath()
+		if (!DocumentUtils.isKotlinFile(path)) {
+			return
+		}
+
+		scope.launch {
+			runCatching { compiler?.compilationEnvironmentFor(path) }
+				.getOrNull()
+				?.onFileChangedOnDisk(path)
 		}
 	}
 
