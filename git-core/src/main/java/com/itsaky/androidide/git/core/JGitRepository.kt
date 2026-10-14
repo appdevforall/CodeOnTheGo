@@ -207,22 +207,28 @@ class JGitRepository(
 	override suspend fun stageFiles(files: List<File>) =
 		withContext(Dispatchers.IO) {
 			val addCommand = git.add()
-			val rmCommand = git.rm()
+			val rmCommand = git.rm().setCached(true)
 			var hasAdds = false
 			var hasRms = false
 
+			val status = git.status().call()
+			val missingFiles = status.missing
+
 			files.forEach { file ->
 				val relativePath = file.toRelativeString(rootDir).replace('\\', '/')
-				if (file.exists()) {
-					addCommand.addFilepattern(relativePath)
-					hasAdds = true
-				} else {
+				val isMissing =
+					missingFiles.contains(relativePath) ||
+						missingFiles.any { it.startsWith("$relativePath/") }
+				if (isMissing || !file.exists()) {
 					rmCommand.addFilepattern(relativePath)
 					hasRms = true
+				} else {
+					addCommand.addFilepattern(relativePath)
+					hasAdds = true
 				}
 			}
-			if (hasAdds) addCommand.call()
 			if (hasRms) rmCommand.call()
+			if (hasAdds) addCommand.call()
 			Unit
 		}
 

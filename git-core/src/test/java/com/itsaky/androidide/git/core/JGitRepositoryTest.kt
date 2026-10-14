@@ -1,5 +1,6 @@
 package com.itsaky.androidide.git.core
 
+import com.itsaky.androidide.git.core.models.ChangeType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -313,5 +314,98 @@ class JGitRepositoryTest {
 			configFile.writeText("[unclosed_section\nkey = value")
 			jgitRepo.isCommitWatermarkEnabled()
 			Unit
+		}
+
+	@Test
+	fun testStageFilesHandlesCaseOnlyFolderRename() =
+		runBlocking {
+			val subDir = File(repoDir, "myFolder")
+			subDir.mkdir()
+			val file = File(subDir, "test.txt")
+			file.writeText("content")
+			jgitRepo.stageFiles(listOf(file))
+			jgitRepo.commit("Initial commit with myFolder", "User", "user@test.com")
+
+			// Perform case-only rename: myFolder -> MyFolder
+			val tempDir = File(repoDir, "myFolder_temp")
+			val newDir = File(repoDir, "MyFolder")
+			assertTrue(subDir.renameTo(tempDir))
+			assertTrue(tempDir.renameTo(newDir))
+
+			val statusBefore = jgitRepo.getStatus()
+			assertTrue(statusBefore.unstaged.any { it.path == "myFolder/test.txt" && it.type == ChangeType.DELETED })
+			assertTrue(statusBefore.untracked.any { it.path == "MyFolder/test.txt" && it.type == ChangeType.UNTRACKED })
+
+			// Stage both old and new paths
+			val oldFile = File(repoDir, "myFolder/test.txt")
+			val newFile = File(repoDir, "MyFolder/test.txt")
+			jgitRepo.stageFiles(listOf(oldFile, newFile))
+
+			jgitRepo.commit("Rename myFolder to MyFolder", "User", "user@test.com")
+
+			val statusAfter = jgitRepo.getStatus()
+			assertTrue(statusAfter.isClean)
+			assertTrue(statusAfter.unstaged.isEmpty())
+			assertTrue(statusAfter.untracked.isEmpty())
+			assertTrue(File(repoDir, "MyFolder/test.txt").exists())
+		}
+
+	@Test
+	fun testStageFilesCleansUpOrphanedDeletedCaseWhenNewCaseAlreadyCommitted() =
+		runBlocking {
+			val subDir = File(repoDir, "myFolder")
+			subDir.mkdir()
+			val file = File(subDir, "test.txt")
+			file.writeText("content")
+			jgitRepo.stageFiles(listOf(file))
+			jgitRepo.commit("Initial commit with myFolder", "User", "user@test.com")
+
+			// Perform case-only rename: myFolder -> MyFolder
+			val tempDir = File(repoDir, "myFolder_temp")
+			val newDir = File(repoDir, "MyFolder")
+			assertTrue(subDir.renameTo(tempDir))
+			assertTrue(tempDir.renameTo(newDir))
+
+			// Simulate terminal commit that only staged the new case
+			Git.open(repoDir).use { git ->
+				git.add().addFilepattern("MyFolder/test.txt").call()
+				git.commit().setMessage("terminal commit only new case").call()
+			}
+
+			// Verify old case remains as deleted unstaged change
+			val statusBefore = jgitRepo.getStatus()
+			assertTrue(statusBefore.unstaged.any { it.path == "myFolder/test.txt" && it.type == ChangeType.DELETED })
+
+			// Stage old deleted file through stageFiles
+			val oldFile = File(repoDir, "myFolder/test.txt")
+			jgitRepo.stageFiles(listOf(oldFile))
+
+			jgitRepo.commit("Remove orphaned old casing", "User", "user@test.com")
+
+			val statusAfter = jgitRepo.getStatus()
+			assertTrue(statusAfter.isClean)
+			assertTrue(statusAfter.unstaged.isEmpty())
+			assertTrue(File(repoDir, "MyFolder/test.txt").exists())
+		}
+
+	@Test
+	fun testStageFilesStandardDeletion() =
+		runBlocking {
+			val deleteFile = File(repoDir, "delete_me.txt")
+			deleteFile.writeText("to be deleted")
+			jgitRepo.stageFiles(listOf(deleteFile))
+			jgitRepo.commit("Add delete_me.txt", "User", "user@test.com")
+
+			assertTrue(deleteFile.delete())
+
+			val statusBefore = jgitRepo.getStatus()
+			assertTrue(statusBefore.unstaged.any { it.path == "delete_me.txt" && it.type == ChangeType.DELETED })
+
+			jgitRepo.stageFiles(listOf(deleteFile))
+			jgitRepo.commit("Remove delete_me.txt", "User", "user@test.com")
+
+			val statusAfter = jgitRepo.getStatus()
+			assertTrue(statusAfter.isClean)
+			assertTrue(statusAfter.unstaged.isEmpty())
 		}
 }
