@@ -52,7 +52,6 @@ import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.localWebServer.ServerConfig
 import com.itsaky.androidide.localWebServer.WebServer
@@ -112,6 +111,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	// Whether the current touch on the title began on the app name; null outside a touch
 	// (e.g. a TalkBack long-press), which counts as the app name.
 	private var titleDownOnAppName: Boolean? = null
+
+	// Screens whose toolbar title long-press shows MAIN_GET_STARTED.
+	private val getStartedTitleScreens =
+		setOf(SCREEN_MAIN, SCREEN_TEMPLATE_LIST, SCREEN_SAVED_PROJECTS, SCREEN_CLONE_REPO, SCREEN_DELETE_PROJECTS)
 	private var webServer: WebServer? = null
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
@@ -424,8 +427,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		binding.codeOnTheGoLabel.setOnLongClickListener {
 			when (screen) {
-				SCREEN_MAIN -> if (titleDownOnAppName != false) showToolTip(MAIN_GET_STARTED)
-				SCREEN_SAVED_PROJECTS -> showToolTip(PROJECT_RECENT_TOP)
+				in getStartedTitleScreens -> if (titleDownOnAppName != false) showToolTip(MAIN_GET_STARTED)
 				SCREEN_TEMPLATE_DETAILS -> showToolTip(SETUP_OVERVIEW)
 			}
 			true
@@ -448,7 +450,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		binding.codeOnTheGoLabel.setOnTouchListener { _, event ->
 			when (event.actionMasked) {
 				MotionEvent.ACTION_DOWN -> {
-					if (viewModel.currentScreen.value == SCREEN_MAIN) titleDownOnAppName = isOnAppName(event)
+					if (viewModel.currentScreen.value in getStartedTitleScreens) titleDownOnAppName = isOnAppName(event)
 				}
 
 				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
