@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.activities
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
@@ -212,13 +213,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
 		}
 
-		binding.codeOnTheGoLabel.setOnTouchListener { _, event ->
-			when (event.actionMasked) {
-				MotionEvent.ACTION_DOWN -> titleDownOnAppName = isOnAppName(event)
-				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> titleDownOnAppName = null
-			}
-			false
-		}
+		trackTitleTouches()
 
 		feedbackButtonManager =
 			FeedbackButtonManager(
@@ -445,6 +440,19 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	private fun showToolTip(tag: String) {
 		TooltipManager.showIdeCategoryTooltip(this, binding.root, tag)
+	}
+
+	// Observes only (returns false), so the toolbar's own click handling is unaffected.
+	@SuppressLint("ClickableViewAccessibility")
+	private fun trackTitleTouches() {
+		binding.codeOnTheGoLabel.setOnTouchListener { _, event ->
+			when (event.actionMasked) {
+				MotionEvent.ACTION_DOWN ->
+					if (viewModel.currentScreen.value == SCREEN_MAIN) titleDownOnAppName = isOnAppName(event)
+				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> titleDownOnAppName = null
+			}
+			false
+		}
 	}
 
 	// The experiments dot shares the title TextView but is reserved for ADFA-6388, so only
