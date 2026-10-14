@@ -89,6 +89,7 @@ class CryptogramActivity : AppCompatActivity() {
 	private val userReplacements = mutableMapOf<Char, Char>() // cipher -> user-entered letter
 
 	private lateinit var exitGestureDetector: GestureDetectorHelper.SlowDoubleThreeFingerTapDetector
+	private lateinit var wipeDetector: GestureDetectorHelper.CircleGestureDetector
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -110,6 +111,21 @@ class CryptogramActivity : AppCompatActivity() {
 
 		exitGestureDetector =
 			GestureDetectorHelper.SlowDoubleThreeFingerTapDetector(this) { exitDisguiseMode() }
+		wipeDetector = GestureDetectorHelper.CircleGestureDetector(this) { triggerInstantWipe() }
+
+		// ADFA-6507 (wipe-aware reconcile): CryptogramActivity is only ever the disguise (every launch
+		// site reaches it hidden, wiped, tampered, or via a stealth alias), so the stealth alias must be
+		// the enabled launcher identity. Re-assert it if a partial swap left it wrong, healing a leftover
+		// real "Code On The Go" icon without needless PackageManager churn. disguiseActive = true means
+		// the decision can only ENABLE_STEALTH here, never restore the default -- so this reconcile can't
+		// break the disguise or the tamper signal.
+		if (LauncherAliasManager.reconcileAliasAction(
+				disguiseActive = true,
+				stealthAliasActive = LauncherAliasManager.isStealthModeActive(this),
+			) == LauncherAliasManager.AliasReconcileAction.ENABLE_STEALTH
+		) {
+			LauncherAliasManager.setStealthMode(this, true)
+		}
 
 		binding.btnCheckSolution.setOnClickListener { checkSolution() }
 		binding.btnNextPuzzle.setOnClickListener {
@@ -344,6 +360,18 @@ class CryptogramActivity : AppCompatActivity() {
 
 	/** Leaves the disguise and returns to the IDE via its launcher entry point. */
 	private fun exitDisguiseMode() {
+		// A neutralized install must not be exitable (ADFA-6510 review F01): isWiped covers the
+		// marker-intact case; isTampered covers the markerless signature (app data cleared to strip the
+		// markers while the stealth alias survived) that SplashActivity also routes here. Either way the
+		// exit gesture must not bring back the torn-down, data-less IDE. This only affects a data-cleared
+		// install -- a normally hidden, still-armed user has non-blank prefs, so isTampered is false and
+		// the exit gesture works as before.
+		if (NeutralizationMarker.isWiped(this) ||
+			NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))
+		) {
+			return
+		}
+
 		SecurityPreferences.isHiddenStateActive = false
 		LauncherAliasManager.setStealthMode(this, false)
 
@@ -359,6 +387,14 @@ class CryptogramActivity : AppCompatActivity() {
 
 	override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
 		exitGestureDetector.onTouchEvent(ev)
+		if (SecurityPreferences.instantWipeEnabled) {
+			wipeDetector.onTouchEvent(ev)
+		}
 		return super.dispatchTouchEvent(ev)
+	}
+
+	private fun triggerInstantWipe() {
+		if (!SecurityPreferences.instantWipeEnabled || isFinishing) return
+		(applicationContext as? WipeServiceProvider)?.wipeService?.trigger(this)
 	}
 }

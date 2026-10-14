@@ -46,6 +46,7 @@ dependencies {
     implementation(projects.commonUi)
     implementation(projects.preferences)
     implementation(projects.resources)
+    implementation(projects.security)
     implementation(projects.termux.termuxView)
     implementation(projects.termux.termuxShared)
 

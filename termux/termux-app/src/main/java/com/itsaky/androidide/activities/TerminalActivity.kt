@@ -21,9 +21,11 @@ import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
 import android.os.IBinder
+import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import com.itsaky.androidide.security.SecurityController
 import com.itsaky.androidide.terminal.CommandIntentRouter
 import com.itsaky.androidide.terminal.TerminalSessionFactory
 import com.itsaky.androidide.utils.Environment
@@ -53,6 +55,12 @@ class TerminalActivity : TermuxActivity() {
     override val statusBarColor: Int
         get() = ContextCompat.getColor(this, android.R.color.black)
 
+    // Instant Hide + Instant Wipe (ADFA-40 / ADFA-6510): the terminal is a separate activity, outside
+    // the EdgeToEdgeIDEActivity hierarchy that mounts SecurityController, so it is mounted here directly.
+    // This brings the hide triggers (three-finger tap, screen off, face-down, inactivity), FLAG_SECURE
+    // masking, and the Instant Wipe circle-sweep to the terminal, matching every other IDE screen.
+    private val securityController by lazy { SecurityController(this) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.isAppearanceLightNavigationBars = false
@@ -61,6 +69,29 @@ class TerminalActivity : TermuxActivity() {
         CommandIntentRouter.shared.requestId(intent)?.let(pendingCommandRequestIds::add)
         launchedForCommand = savedInstanceState == null && pendingCommandRequestIds.isNotEmpty()
         super.onCreate(savedInstanceState)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        securityController.applyScreenSecurity()
+        securityController.onResume()
+    }
+
+    override fun onPause() {
+        securityController.onPause()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        securityController.onDestroy()
+        super.onDestroy()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev != null) {
+            securityController.onTouchEvent(ev)
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onServiceConnected(componentName: ComponentName?, service: IBinder?) {

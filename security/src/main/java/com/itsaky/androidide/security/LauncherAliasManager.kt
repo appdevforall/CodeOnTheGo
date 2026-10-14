@@ -98,44 +98,70 @@ object LauncherAliasManager {
 		return ""
 	}
 
+	/** Outcome of [reconcileAliasAction]: the alias swap (if any) that heals a partial or stuck swap. */
+	enum class AliasReconcileAction { ENABLE_STEALTH, RESTORE_DEFAULT, NONE }
+
+	/**
+	 * Decides the launcher-alias swap (if any) needed to make the enabled alias match whether the app
+	 * is presenting the disguise, healing a partial or stuck swap (ADFA-6507). Pure and exhaustively
+	 * unit-testable.
+	 *
+	 * Safety invariant callers rely on: when [disguiseActive] is true this never returns
+	 * [AliasReconcileAction.RESTORE_DEFAULT], so a reconcile can never expose the real icon while the
+	 * disguise (Instant Hide, or a post-wipe neutralized install) is on screen.
+	 */
+	fun reconcileAliasAction(
+		disguiseActive: Boolean,
+		stealthAliasActive: Boolean,
+	): AliasReconcileAction =
+		when {
+			disguiseActive && !stealthAliasActive -> AliasReconcileAction.ENABLE_STEALTH
+			!disguiseActive && stealthAliasActive -> AliasReconcileAction.RESTORE_DEFAULT
+			else -> AliasReconcileAction.NONE
+		}
+
+	/** A single launcher-alias component toggle: enable or disable [aliasName]. */
+	internal data class AliasOp(
+		val aliasName: String,
+		val enabled: Boolean,
+	)
+
+	/**
+	 * The ordered component toggles that make up a launcher-alias swap. On the enable path the FIRST
+	 * op always DISABLES the real [DEFAULT_ALIAS] (ADFA-6507): [setStealthMode] applies these in order,
+	 * and a `PackageManager` call can throw mid-sequence on some OEM ROMs, so leading with the disable
+	 * makes a partial failure fail HIDDEN (at worst briefly no icon) instead of leaving the real icon
+	 * visible over the disguise. Pure, so the ordering invariant is unit-testable.
+	 */
+	internal fun stealthSwapOps(
+		activeStealthAlias: String,
+		enableStealth: Boolean,
+	): List<AliasOp> =
+		buildList {
+			add(AliasOp(DEFAULT_ALIAS, enabled = !enableStealth))
+			for (aliasName in STEALTH_ALIASES) {
+				add(AliasOp(aliasName, enabled = enableStealth && aliasName == activeStealthAlias))
+			}
+		}
+
 	/** Enables the per-device stealth alias (and disables the default), or restores the default. */
 	fun setStealthMode(
 		context: Context,
 		enableStealth: Boolean,
 	) {
 		val pm = context.packageManager
-		val defaultComponent = ComponentName(context, DEFAULT_ALIAS)
 		val activeStealthAlias = STEALTH_ALIASES[getStealthVariationIndex(context)]
-
 		try {
-			if (enableStealth) {
-				for (aliasName in STEALTH_ALIASES) {
-					val state =
-						if (aliasName == activeStealthAlias) {
-							PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-						} else {
-							PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-						}
-					pm.setComponentEnabledSetting(ComponentName(context, aliasName), state, PackageManager.DONT_KILL_APP)
-				}
+			for (op in stealthSwapOps(activeStealthAlias, enableStealth)) {
 				pm.setComponentEnabledSetting(
-					defaultComponent,
-					PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+					ComponentName(context, op.aliasName),
+					if (op.enabled) {
+						PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+					} else {
+						PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+					},
 					PackageManager.DONT_KILL_APP,
 				)
-			} else {
-				pm.setComponentEnabledSetting(
-					defaultComponent,
-					PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-					PackageManager.DONT_KILL_APP,
-				)
-				for (aliasName in STEALTH_ALIASES) {
-					pm.setComponentEnabledSetting(
-						ComponentName(context, aliasName),
-						PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-						PackageManager.DONT_KILL_APP,
-					)
-				}
 			}
 		} catch (e: Exception) {
 			Log.e(TAG, "Failed to update launcher aliases", e)

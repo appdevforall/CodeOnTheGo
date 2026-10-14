@@ -25,10 +25,13 @@ import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.security.CryptogramActivity
+import com.itsaky.androidide.security.LauncherAliasManager
+import com.itsaky.androidide.security.NeutralizationMarker
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.hasEnoughStorageAvailable
 import kotlin.system.exitProcess
+import com.itsaky.androidide.resources.R as ResR
 
 /**
  * @author Akash Yadav
@@ -36,6 +39,26 @@ import kotlin.system.exitProcess
 class SplashActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// Instant Wipe neutralization (ADFA-6510): a wiped install -- or one whose markers were stripped
+		// by clearing app data while the stealth alias persists (the tamper fingerprint) -- is permanently
+		// the disguise, shown before any IDE UI (and before the hidden-state redirect, since a wipe blanks
+		// that flag). Tamper deliberately does NOT re-run the wipe: the signature cannot tell a prior
+		// Instant Wipe from a plain Instant Hide whose data was cleared, so re-wiping could destroy work
+		// the user never meant to wipe. Neutralizing (staying the disguise) still defeats the tamper.
+		// The checks run on the main thread by design: two File.exists() stats plus one PackageManager
+		// label lookup, all cheap, and they MUST complete before any IDE UI could be shown (F08).
+		if (NeutralizationMarker.isWiped(this) ||
+			NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))
+		) {
+			startActivity(
+				Intent(this, CryptogramActivity::class.java).apply {
+					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+				},
+			)
+			finish()
+			return
+		}
 
 		// Instant Hide (ADFA-40): if the disguise is engaged, go straight to it before any IDE UI
 		// is shown. The state persists across restarts/reboots until the user performs the exit gesture.
@@ -59,6 +82,18 @@ class SplashActivity : Activity() {
 		if (isX86 && (!IDEBuildConfigProvider.getInstance().supportsCpuAbi() || !FeatureFlags.isEmulatorUseEnabled)) {
 			finishAffinity()
 			exitProcess(0)
+		}
+
+		// ADFA-6507 (wipe-aware reconcile): launching the real IDE -- not hidden, wiped, or tampered (all
+		// early-returned above), so disguiseActive = false and the default launcher identity must be the
+		// enabled one. Heal a stealth alias left stuck by a partial swap, before it could later read as
+		// the tamper fingerprint.
+		if (LauncherAliasManager.reconcileAliasAction(
+				disguiseActive = false,
+				stealthAliasActive = LauncherAliasManager.isStealthModeActive(this),
+			) == LauncherAliasManager.AliasReconcileAction.RESTORE_DEFAULT
+		) {
+			LauncherAliasManager.setStealthMode(this, false)
 		}
 
 		startActivity(Intent(this, OnboardingActivity::class.java))

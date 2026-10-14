@@ -33,6 +33,8 @@ import com.itsaky.androidide.di.quickBuildModule
 import com.itsaky.androidide.di.templateModule
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.security.WipeService
+import com.itsaky.androidide.security.WipeServiceProvider
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
@@ -64,8 +66,12 @@ const val EXIT_CODE_CRASH = 1
 class IDEApplication :
 	BaseApplication(),
 	Configuration.Provider,
+	WipeServiceProvider,
 	Application.ActivityLifecycleCallbacks by ActivityLifecycleCallbacksDelegate() {
 	val coroutineScope = MainScope() + CoroutineName("ApplicationScope")
+
+	/** Instant Wipe (ADFA-6510) entry point; resolved from `:security` surfaces via this Application. */
+	override val wipeService: WipeService by lazy { AppWipeService(this) }
 
 	internal var uncaughtExceptionHandler: UncaughtExceptionHandler? = null
 	private var _foregroundActivity = MutableStateFlow<Activity?>(null)

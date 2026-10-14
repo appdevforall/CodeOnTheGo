@@ -19,11 +19,15 @@ package com.itsaky.androidide.preferences
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import androidx.preference.Preference
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_SECURITY
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
+import com.itsaky.androidide.security.HidePracticeActivity
+import com.itsaky.androidide.security.WipePracticeActivity
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -49,6 +53,7 @@ class EmergencyHidingConfig(
 
 	init {
 		addPreference(InstantHide())
+		addPreference(InstantWipe())
 	}
 }
 
@@ -73,7 +78,50 @@ class InstantHide(
 		// applyScreenSecurity() otherwise only runs on the next onResume, leaving a gap right after
 		// arming. Also clears the flag immediately when the user turns it back off.
 		preference.context.findIDEActivity()?.applyInstantHideScreenSecurity()
+		if (newValue == true) {
+			// Offer a safe rehearsal of the eyes-free hide and exit gestures (nothing is hidden there).
+			preference.context.startActivity(Intent(preference.context, HidePracticeActivity::class.java))
+		}
 		return true
+	}
+}
+
+@Parcelize
+class InstantWipe(
+	override val key: String = SecurityPreferences.INSTANT_WIPE,
+	override val title: Int = R.string.idepref_security_instantWipe_title,
+	override val summary: Int? = R.string.idepref_security_instantWipe_summary,
+) : SwitchPreference() {
+
+	override fun onCreatePreference(context: Context): Preference {
+		val pref = super.onCreatePreference(context) as androidx.preference.SwitchPreference
+		pref.isChecked = SecurityPreferences.instantWipeEnabled
+		return pref
+	}
+
+	override fun onPreferenceChanged(preference: Preference, newValue: Any?): Boolean {
+		val switch = preference as? androidx.preference.SwitchPreference
+		if (newValue != true) {
+			// Disarming is immediate and needs no confirmation.
+			SecurityPreferences.instantWipeEnabled = false
+			return true
+		}
+		// Arming is destructive and has no per-trigger confirmation, so gate it behind an explicit,
+		// non-dismissable warning. Reject the toggle now; only the dialog's positive button actually
+		// arms and re-checks the switch.
+		MaterialAlertDialogBuilder(preference.context)
+			.setTitle(R.string.instant_wipe_arm_title)
+			.setMessage(R.string.instant_wipe_arm_message)
+			.setCancelable(false)
+			.setNegativeButton(android.R.string.cancel) { _, _ -> switch?.isChecked = false }
+			.setPositiveButton(R.string.instant_wipe_arm_confirm) { _, _ ->
+				SecurityPreferences.instantWipeEnabled = true
+				switch?.isChecked = true
+				// Immediately offer a safe rehearsal of the irreversible gesture (nothing is wiped there).
+				preference.context.startActivity(Intent(preference.context, WipePracticeActivity::class.java))
+			}
+			.show()
+		return false
 	}
 }
 
