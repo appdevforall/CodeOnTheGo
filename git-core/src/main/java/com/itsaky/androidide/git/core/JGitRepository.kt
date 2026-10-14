@@ -60,6 +60,9 @@ class JGitRepository(
 
 	private val git: Git = Git(repository)
 
+	override val gitDir: File
+		get() = repository.directory ?: File(rootDir, ".git")
+
 	private fun getHeadTree(repository: Repository): AbstractTreeIterator {
 		val head = repository.resolve(Constants.HEAD) ?: return EmptyTreeIterator()
 		val treeParser = CanonicalTreeParser()
