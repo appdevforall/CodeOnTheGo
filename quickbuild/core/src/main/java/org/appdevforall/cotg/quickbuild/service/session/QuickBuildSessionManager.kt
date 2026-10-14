@@ -345,6 +345,13 @@ class QuickBuildSessionManager(
 	 */
 	private val ask = PendingAsk(nowMillis)
 
+	/**
+	 * Whether a Quick Build tap is still owed its answer. The status cannot say so: a tap queued
+	 * behind the background warm compile reads "up to date" until its own build starts.
+	 */
+	val askOutstanding: Boolean
+		get() = ask.isOutstanding
+
 	/** Owns the daemon lifecycle protocol; see [QuickBuildDaemonController]. */
 	private val daemonController = QuickBuildDaemonController(daemon, scratch, paths)
 
