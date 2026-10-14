@@ -50,4 +50,5 @@ Data a plugin bundles - IntelliJ live templates, `.icls` colour schemes - can be
 ## Related
 
 - [`docs/plugin-api.md`](../plugin-api.md) - the plugin API contract a port targets.
-- ADFA-428 - survey of the plugins Android Studio bundles. ADFA-96 - the same question for VS Code extensions.
+- [ADR 0019](0019-vscode-extensions-are-ported-not-hosted.md) - the same decision for VS Code extensions (ADFA-96).
+- ADFA-428 - survey of the plugins Android Studio bundles.
