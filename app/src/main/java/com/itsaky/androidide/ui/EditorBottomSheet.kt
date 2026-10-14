@@ -77,11 +77,13 @@ import com.itsaky.androidide.utils.isSoftInputVisible
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
 import com.itsaky.androidide.viewmodel.BottomSheetViewModel
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
+import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
@@ -178,6 +180,7 @@ class EditorBottomSheet
 		private val viewModel by (context as FragmentActivity).viewModels<BottomSheetViewModel>()
 		private val apkViewModel by (context as FragmentActivity).viewModels<ApkInstallationViewModel>()
 		private val buildOutputViewModel by (context as FragmentActivity).viewModels<BuildOutputViewModel>()
+		private val gitViewModel by (context as FragmentActivity).viewModel<GitBottomSheetViewModel>()
 		private lateinit var mediator: TabLayoutMediator
 		private var shareJob: Job? = null
 		private var fragmentEmptyStateJob: Job? = null
@@ -260,11 +263,19 @@ class EditorBottomSheet
 						// by user input; the sheetState collector refreshes the FABs.
 						viewModel.setSheetState(currentTab = tab.position)
 						updateWordWrapButtonState(EditorPreferences.outputWordWrap)
+
+						if (pagerAdapter.isGitTab(tab.position)) {
+							gitViewModel.refreshStatus()
+						}
 					}
 
 					override fun onTabUnselected(tab: Tab) {}
 
-					override fun onTabReselected(tab: Tab) {}
+					override fun onTabReselected(tab: Tab) {
+						if (pagerAdapter.isGitTab(tab.position)) {
+							gitViewModel.refreshStatus()
+						}
+					}
 				},
 			)
 
@@ -821,6 +832,10 @@ class EditorBottomSheet
 			val isExpanded =
 				state.sheetState == BottomSheetBehavior.STATE_EXPANDED ||
 					state.sheetState == BottomSheetBehavior.STATE_HALF_EXPANDED
+
+			if (isExpanded && pagerAdapter.isGitTab(state.currentTab)) {
+				gitViewModel.refreshStatus()
+			}
 
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
 			val showSearchAndFilter = isExpanded && currentFragment is SearchableOutputFragment

@@ -384,6 +384,11 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		super.onResume()
 		updateAuthorUI()
 		updateWatermarkUI()
+		viewModel.refreshStatus()
+	}
+
+	fun refreshStatus() {
+		viewModel.refreshStatus()
 	}
 
 	private fun updateAuthorUI() {
