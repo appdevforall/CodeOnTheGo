@@ -21,13 +21,16 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.core.os.BundleCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
@@ -47,6 +50,7 @@ import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
 import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.localWebServer.ServerConfig
@@ -103,6 +107,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val analyticsManager: IAnalyticsManager by inject()
 	private val recentProjectRepository: RecentProjectRepository by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+
+	// Whether the current touch on the title began on the app name; null outside a touch
+	// (e.g. a TalkBack long-press), which counts as the app name.
+	private var titleDownOnAppName: Boolean? = null
 	private var webServer: WebServer? = null
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
@@ -202,6 +210,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		if (FeatureFlags.isExperimentsEnabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+		}
+
+		binding.codeOnTheGoLabel.setOnTouchListener { _, event ->
+			when (event.actionMasked) {
+				MotionEvent.ACTION_DOWN -> titleDownOnAppName = isOnAppName(event)
+				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> titleDownOnAppName = null
+			}
+			false
 		}
 
 		feedbackButtonManager =
@@ -413,6 +429,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		binding.codeOnTheGoLabel.setOnLongClickListener {
 			when (screen) {
+				SCREEN_MAIN -> if (titleDownOnAppName != false) showToolTip(MAIN_GET_STARTED)
 				SCREEN_SAVED_PROJECTS -> showToolTip(PROJECT_RECENT_TOP)
 				SCREEN_TEMPLATE_DETAILS -> showToolTip(SETUP_OVERVIEW)
 			}
@@ -428,6 +445,18 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	private fun showToolTip(tag: String) {
 		TooltipManager.showIdeCategoryTooltip(this, binding.root, tag)
+	}
+
+	// The experiments dot shares the title TextView but is reserved for ADFA-6388, so only
+	// the app-name glyphs count -- not the dot, and not empty toolbar space.
+	private fun isOnAppName(event: MotionEvent): Boolean {
+		val toolbar = binding.codeOnTheGoLabel
+		val titleText = toolbar.title?.toString() ?: return false
+		val title = toolbar.children.filterIsInstance<TextView>().firstOrNull { it.text.toString() == titleText }
+		val layout = title?.layout ?: return false
+		if (event.y < title.top || event.y >= title.bottom) return false
+		val x = event.x - title.left - title.totalPaddingLeft
+		return x >= layout.getLineLeft(0) && x < layout.getPrimaryHorizontal(getString(R.string.app_name).length)
 	}
 
 	private fun openLastProject() {
