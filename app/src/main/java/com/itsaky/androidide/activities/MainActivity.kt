@@ -108,13 +108,20 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val recentProjectRepository: RecentProjectRepository by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
 
-	// Whether the current touch on the title began on the app name; null outside a touch
-	// (e.g. a TalkBack long-press), which counts as the app name.
-	private var titleDownOnAppName: Boolean? = null
+	// Where the current touch on the toolbar began; null outside a touch (e.g. a TalkBack
+	// long-press), which counts as the app name.
+	private var titleTouchRegion: TitleRegion? = null
 
 	// Screens whose toolbar title long-press shows MAIN_GET_STARTED.
 	private val getStartedTitleScreens =
-		setOf(SCREEN_MAIN, SCREEN_TEMPLATE_LIST, SCREEN_SAVED_PROJECTS, SCREEN_CLONE_REPO, SCREEN_DELETE_PROJECTS)
+		setOf(
+			SCREEN_MAIN,
+			SCREEN_TEMPLATE_LIST,
+			SCREEN_TEMPLATE_DETAILS,
+			SCREEN_SAVED_PROJECTS,
+			SCREEN_CLONE_REPO,
+			SCREEN_DELETE_PROJECTS,
+		)
 	private var webServer: WebServer? = null
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
@@ -426,9 +433,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		}
 
 		binding.codeOnTheGoLabel.setOnLongClickListener {
-			when (screen) {
-				in getStartedTitleScreens -> if (titleDownOnAppName != false) showToolTip(MAIN_GET_STARTED)
-				SCREEN_TEMPLATE_DETAILS -> showToolTip(SETUP_OVERVIEW)
+			when (titleTouchRegion ?: TitleRegion.APP_NAME) {
+				TitleRegion.APP_NAME -> if (screen in getStartedTitleScreens) showToolTip(MAIN_GET_STARTED)
+				TitleRegion.ELSEWHERE -> if (screen == SCREEN_TEMPLATE_DETAILS) showToolTip(SETUP_OVERVIEW)
+				TitleRegion.DOT -> Unit
 			}
 			true
 		}
@@ -450,28 +458,35 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		binding.codeOnTheGoLabel.setOnTouchListener { _, event ->
 			when (event.actionMasked) {
 				MotionEvent.ACTION_DOWN -> {
-					if (viewModel.currentScreen.value in getStartedTitleScreens) titleDownOnAppName = isOnAppName(event)
+					if (viewModel.currentScreen.value in getStartedTitleScreens) titleTouchRegion = titleRegionAt(event)
 				}
 
 				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-					titleDownOnAppName = null
+					titleTouchRegion = null
 				}
 			}
 			false
 		}
 	}
 
-	// The experiments dot shares the title TextView but is reserved for ADFA-6388, so only
-	// the app-name glyphs count -- not the dot, and not empty toolbar space.
-	private fun isOnAppName(event: MotionEvent): Boolean {
+	// The experiments dot shares the title TextView but is reserved for ADFA-6388, so the
+	// app-name glyphs, the dot, and the rest of the toolbar are told apart.
+	private fun titleRegionAt(event: MotionEvent): TitleRegion {
 		val toolbar = binding.codeOnTheGoLabel
-		val titleText = toolbar.title?.toString() ?: return false
+		val titleText = toolbar.title?.toString() ?: return TitleRegion.ELSEWHERE
 		val title = toolbar.children.filterIsInstance<TextView>().firstOrNull { it.text.toString() == titleText }
-		val layout = title?.layout ?: return false
-		if (event.y < title.top || event.y >= title.bottom) return false
+		val layout = title?.layout ?: return TitleRegion.ELSEWHERE
+		if (event.y < title.top || event.y >= title.bottom) return TitleRegion.ELSEWHERE
 		val x = event.x - title.left - title.totalPaddingLeft
-		return x >= layout.getLineLeft(0) && x < layout.getPrimaryHorizontal(getString(R.string.app_name).length)
+		return when {
+			x < layout.getLineLeft(0) -> TitleRegion.ELSEWHERE
+			x < layout.getPrimaryHorizontal(getString(R.string.app_name).length) -> TitleRegion.APP_NAME
+			x < layout.getLineRight(0) -> TitleRegion.DOT
+			else -> TitleRegion.ELSEWHERE
+		}
 	}
+
+	private enum class TitleRegion { APP_NAME, DOT, ELSEWHERE }
 
 	private fun openLastProject() {
 		// bindLayout() is called by super.onCreate() before this method runs
