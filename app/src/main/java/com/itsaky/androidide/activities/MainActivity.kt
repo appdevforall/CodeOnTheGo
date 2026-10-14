@@ -283,7 +283,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		DialogUtils
 			.newMaterialDialogBuilder(this)
 			.setTitle(string.title_experiments_on)
-			.setItems(Experiment.entries.map { "${it.label} (${it.jiraKey})" }.toTypedArray(), null)
+			.setItems(Experiment.entries.map { "${it.label} (${it.jiraKey.removePrefix("ADFA-")})" }.toTypedArray(), null)
 			.setPositiveButton(android.R.string.ok, null)
 			.show()
 	}
