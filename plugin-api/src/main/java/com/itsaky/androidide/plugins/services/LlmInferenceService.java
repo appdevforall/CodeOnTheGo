@@ -492,10 +492,12 @@ public interface LlmInferenceService {
 	 * Why a generation failed, as far as the backend can tell. Lets a consumer react to a failure by its kind rather than by matching the wording of {@link LlmResponse#error}, which is written for the user and may be translated.
 	 */
 	enum FailureKind {
-		/** Any failure without a kind of its own: network, authentication, rate limits, server errors. */
+		/** Any failure without a kind of its own: network, rate limits, server errors. */
 		OTHER,
 		/** The request did not fit the model's context window. Resending it unchanged fails the same way; the consumer has to shorten it. */
-		CONTEXT_TOO_LONG
+		CONTEXT_TOO_LONG,
+		/** The backend's settings are wrong: a missing or refused credential, billing, or a model the account cannot use. Resending fails the same way until the user changes them. */
+		CONFIGURATION
 	}
 
 	/**
