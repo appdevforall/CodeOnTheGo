@@ -2,7 +2,6 @@ package com.itsaky.androidide.assets
 
 import android.content.Context
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeatureFlags
 import com.termux.shared.termux.TermuxConstants
 import org.slf4j.LoggerFactory
 import java.io.File

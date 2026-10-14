@@ -9,7 +9,6 @@ import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.MainActivity
 import com.itsaky.androidide.idetooltips.TooltipTag
-import com.itsaky.androidide.utils.FeatureFlags
 
 class CloneRepositoryAction(
 	context: Context,

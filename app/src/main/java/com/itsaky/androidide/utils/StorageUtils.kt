@@ -17,7 +17,7 @@ fun getMinimumStorageNeeded(): Long {
 	val minimumStorageStableGB = 4L
 	val minimumStorageExperimentalGB = 6L
 
-	if (FeatureFlags.isExperimentsEnabled) {
+	if (Experiments.isOn(Experiment.RAISED_STORAGE_MINIMUM)) {
 		return minimumStorageExperimentalGB
 	}
 	return minimumStorageStableGB

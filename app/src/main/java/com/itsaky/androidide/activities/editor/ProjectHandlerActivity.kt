@@ -122,7 +122,8 @@ import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
@@ -451,7 +452,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	private fun quickBuildOutputNarrator(): QuickBuildOutputNarrator? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildOutputNarrator>() }
@@ -892,7 +893,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	protected fun quickBuildClobberCheck(): QuickBuildClobberCheck? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildClobberCheck>() }

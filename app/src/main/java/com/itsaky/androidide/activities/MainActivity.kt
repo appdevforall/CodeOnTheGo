@@ -67,7 +67,7 @@ import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
@@ -200,7 +200,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			openLastProject()
 		}
 
-		if (FeatureFlags.isExperimentsEnabled) {
+		if (Experiments.enabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
 		}
 
