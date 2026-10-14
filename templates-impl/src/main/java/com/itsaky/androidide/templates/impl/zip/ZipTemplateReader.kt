@@ -16,7 +16,6 @@ import com.itsaky.androidide.templates.booleanParameter
 import com.itsaky.androidide.templates.impl.TemplateWarning
 import com.itsaky.androidide.templates.projectNameParameter
 import com.itsaky.androidide.templates.stringParameter
-import com.itsaky.androidide.utils.Experiment
 import com.itsaky.androidide.utils.Experiments
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -64,7 +63,7 @@ object ZipTemplateReader {
 						val basePath = templateRef.path
 						log.debug("basePath: $basePath")
 
-						if (templateRef.experimental && !Experiments.isOn(Experiment.EXPERIMENTAL_ZIP_TEMPLATES)) {
+						if (templateRef.experimental && !Experiments.enabled) {
 							log.debug("Skipping experimental template: $basePath")
 							continue
 						}

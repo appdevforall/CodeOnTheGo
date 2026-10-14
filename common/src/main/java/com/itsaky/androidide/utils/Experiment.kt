@@ -18,13 +18,13 @@ enum class Experiment(
 	ERROR_BAR_TOUCH_DISMISS("Error bars close on tap or swipe", "ADFA-6516"),
 	PROFILER("CPU and RAM profiler", "ADFA-6517"),
 	GRADLE_AUTO_TUNE("Gradle build auto-tune", "ADFA-6518"),
-	EXPERIMENTAL_ZIP_TEMPLATES("Experimental zip templates", "ADFA-6519"),
 }
 
 object Experiments {
 	/**
-	 * The overall switch (`CodeOnTheGo.exp` in Downloads). Only for the title marker and the
-	 * plugin API's IdeFeatureFlagService; gate a feature with [isOn] instead.
+	 * The overall switch (`CodeOnTheGo.exp` in Downloads). Only for permanent consumers of the
+	 * switch itself - the title marker, the plugin API's IdeFeatureFlagService, and zip
+	 * templates that mark themselves experimental. Gate a feature with [isOn] instead.
 	 */
 	val enabled: Boolean
 		get() = FeatureFlags.isExperimentsEnabled
