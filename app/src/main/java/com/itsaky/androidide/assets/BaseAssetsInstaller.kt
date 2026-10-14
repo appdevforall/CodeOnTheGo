@@ -22,13 +22,13 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
 			"aapt",
 			"aapt2",
 			"aidl",
-            "apksigner",
-            "d8",
+			"apksigner",
+			"d8",
 			"dexdump",
 			"split-select",
 			"zipalign",
 		)) {
 			Environment.setExecutable(Environment.BUILD_TOOLS_DIR.resolve(bin))
 		}
-    }
+	}
 }
