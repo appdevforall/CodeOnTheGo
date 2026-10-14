@@ -24,8 +24,12 @@
 ## Android system SQLite
 - Don't assume the JSON1 extension. On a Samsung Android 13 device, `JSON_OBJECT`/`JSON_GROUP_ARRAY` fail at runtime with `no such function: JSON_OBJECT` even though the same query runs fine against the same database file under a desktop sqlite3. Any query using JSON functions needs either a fallback or a documented minimum, and a JSON-based endpoint can be dead on real hardware while passing every desktop test.
 
+## Searching the codebase
+- **`grep -r --exclude-dir=build` also skips source.** It drops every directory named `build`, and this repo has source packages with that name: `plugin-manager/.../plugins/manager/build/PluginBuildActionManager.kt` holds every caller of `BuildActionExtension`, so a "who calls this" sweep with that flag reported the whole interface as dead (ADFA-95). Search the source roots instead: `grep -rn ... $(find . -type d -name src -not -path '*/build/*')`.
+
 ## Reverse-engineering a library before porting it
 - When writing a same-name drop-in for a third-party utility (to remove the dependency without changing call-site behavior), don't guess its semantics from memory/docs — extract the AAR's `classes.jar` and run `javap -c` against the actual bytecode to confirm exact chaining/wrapping behavior, especially for fluent/reflection-style APIs where a subtle mismatch (e.g., wrapping a field's *declared* type vs. its *runtime* class) changes behavior at existing call sites.
+- **A name in a DEX file is not a class in it.** Grepping an APK's `classes*.dex` for `Lcom/intellij/...;` counts every *reference*: the v8 debug APK mentions 277 `com.intellij.*` types and defines none of them; the IntelliJ classes it ships are relocated to `org.jetbrains.kotlin.com.intellij.*` (ADFA-95). To list what an APK defines, use `dexdump <dex> | grep "Class descriptor"` (`dexdump` is in the SDK's `build-tools`).
 
 ## MockK
 - To unit-test code that touches WebView plumbing without Robolectric: `mockkStatic(android.os.Environment::class)` for `getExternalStorageDirectory()`, and a plain `mockk<Uri>` stubbing only `host`/`port`/`path`. Keep the framework *construction* out of the unit under test — a `WebResourceResponse` constructor throws `Stub!` in a JVM test, so split the decision (which content answers this request) from the wrapping, and test the decision.
