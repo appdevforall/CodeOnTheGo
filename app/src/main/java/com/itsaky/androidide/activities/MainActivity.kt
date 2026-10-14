@@ -67,6 +67,7 @@ import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.Experiment
 import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.utils.UrlManager
@@ -202,6 +203,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		if (Experiments.enabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+			// Whole toolbar, not just the ".": the Toolbar's title view has no LinkMovementMethod.
+			binding.codeOnTheGoLabel.setOnClickListener { showExperiments() }
 		}
 
 		feedbackButtonManager =
@@ -274,6 +277,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	fun showCloneRepository(): Boolean {
 		viewModel.setScreen(SCREEN_CLONE_REPO)
 		return true
+	}
+
+	private fun showExperiments() {
+		DialogUtils
+			.newMaterialDialogBuilder(this)
+			.setTitle(string.title_experiments_on)
+			.setItems(Experiment.entries.map { "${it.label} (${it.jiraKey})" }.toTypedArray(), null)
+			.setPositiveButton(android.R.string.ok, null)
+			.show()
 	}
 
 	private fun showWarningDialog() {
