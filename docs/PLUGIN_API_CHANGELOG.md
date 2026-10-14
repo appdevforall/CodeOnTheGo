@@ -46,8 +46,9 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   with a `QuickBuildResult`: `Reloaded(durationMillis, restarted)`, `UpToDate` (nothing to build),
   `AppNotRunning(message)`, `Failed(reason, output)`, `Refused(reason)` (unavailable, another build
   or Quick Build running, no editor in the foreground), `Declined` (the user kept the installed app),
-  or `Cancelled`. `cancelQuickBuild()` stops a running Quick Build like the stop icon, or drops a
-  plugin's start still saving or asking the user; it needs `system.commands`. `getQuickBuildStatus()` returns a `QuickBuildState`: `READY`, `BUILDING`,
+  or `Cancelled`. `cancelQuickBuild()` asks a running Quick Build to stop like the stop icon, or
+  drops a plugin's start still saving or asking the user; the start's future reports what actually
+  happened, usually `Cancelled`. It needs `system.commands`. `getQuickBuildStatus()` returns a `QuickBuildState`: `READY`, `BUILDING`,
   `FULL_BUILD_NEXT`, `RECONNECTING`, `ERROR`, or `UNAVAILABLE`. Floor `plugin.min_ide_version` at
   `26.42`: an older IDE has none of these methods or classes.
 - **added — Context window and typed failures for LLM backends** _(ADFA-6493)_ **[verified]**

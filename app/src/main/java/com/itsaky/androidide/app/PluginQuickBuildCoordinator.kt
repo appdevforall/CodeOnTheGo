@@ -15,11 +15,13 @@ import com.itsaky.androidide.plugins.services.QuickBuildState
 import com.itsaky.androidide.plugins.services.QuickBuildUnavailableReason
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.isPluginProject
+import com.itsaky.androidide.quickbuild.GradleQuickBuildProvisioner
 import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.quickbuild.QuickBuildProjectSupport
 import com.itsaky.androidide.quickbuild.QuickBuildRunTracker
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FeatureFlags
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -74,33 +76,49 @@ internal class PluginQuickBuildCoordinator(
 		QuickBuildAction.onStopTapped = { running.get()?.tracker?.onCancelRequested() }
 	}
 
-	override fun availability(): QuickBuildAvailability {
-		val projectManager = IProjectManager.getInstance()
-		val module = projectManager.getAndroidAppModules().firstOrNull()
-		return availabilityOf(
-			experimentsEnabled = FeatureFlags.isExperimentsEnabled,
-			projectOpen = projectManager.projectDirPath.isNotEmpty(),
-			synced = projectManager.workspace != null,
-			pluginProject = projectManager.isPluginProject(),
-			hasAppModule = module != null,
-			variantName = module?.getSelectedVariant()?.name,
-			getString = { id, args -> IDEApplication.instance.getString(id, *args) },
-		)
-	}
+	override fun availability(): QuickBuildAvailability =
+		unavailableReason { reason, variantName ->
+			QuickBuildAvailability.Unavailable(
+				reason,
+				messageOf(reason, variantName) { id, args -> IDEApplication.instance.getString(id, *args) },
+			)
+		} ?: QuickBuildAvailability.Available
 
 	override fun status(): QuickBuildState {
-		if (availability() is QuickBuildAvailability.Unavailable) return QuickBuildState.UNAVAILABLE
+		// No refusal message: an agent may poll this, and only availability() reports why.
+		if (unavailableReason { reason, _ -> reason } != null) return QuickBuildState.UNAVAILABLE
 		return stateOf(QuickBuildAction.currentTone())
+	}
+
+	/**
+	 * Why Quick Build cannot run now, passed to [onUnavailable] with the selected variant; null
+	 * when it can. The module is the one a tap would provision, by the provisioner's own rule.
+	 */
+	private inline fun <T> unavailableReason(onUnavailable: (QuickBuildUnavailableReason, String?) -> T): T? {
+		val projectManager = IProjectManager.getInstance()
+		val module = GradleQuickBuildProvisioner.quickBuildModule(projectManager)
+		val variantName = module?.getSelectedVariant()?.name
+		val reason =
+			unavailableReasonOf(
+				experimentsEnabled = FeatureFlags.isExperimentsEnabled,
+				projectOpen = projectManager.projectDirPath.isNotEmpty(),
+				synced = projectManager.workspace != null,
+				pluginProject = projectManager.isPluginProject(),
+				hasAppModule = module != null,
+				variantName = variantName,
+			) ?: return null
+		return onUnavailable(reason, variantName)
 	}
 
 	override fun cancel(): Boolean {
 		val run = running.get()
 		if (run != null && run.claimed.compareAndSet(false, true)) {
 			// The tap is still saving or asking about the installed app, so nothing has reached
-			// the session to stop: drop the tap, which also closes its dialog.
-			run.result.complete(QuickBuildResult.Cancelled)
+			// the session to stop: drop the tap, which also closes its dialog. A tap that ended
+			// unclaimed (save failed, declined) has already completed, and was not running.
+			val cancelled = run.result.complete(QuickBuildResult.Cancelled)
 			run.tap?.cancel()
-			return true
+			return cancelled
 		}
 		if (run != null && !run.result.isDone) {
 			// The tap is ours and past its gate, though the tone may not show BUILDING yet.
@@ -144,7 +162,8 @@ internal class PluginQuickBuildCoordinator(
 				when (outcome) {
 					TapOutcome.STARTED -> {
 						run.handoff.onTapQueued()
-						scope.launch { result.complete(track(sessionManager.status, tracker, run.handoff::onBuildStarted)) }
+						val askOutstanding = { sessionManager.askOutstanding }
+						scope.launch { result.complete(track(sessionManager.status, tracker, run.handoff::onBuildStarted, askOutstanding)) }
 					}
 
 					TapOutcome.SAVE_FAILED -> {
@@ -234,21 +253,35 @@ internal class PluginQuickBuildCoordinator(
 		 * Follows [status] until [tracker] settles a result, giving an idle tap its quiet window,
 		 * or gives up after [TRACK_CEILING_MILLIS] ([QuickBuildRunTracker.onGaveUp]).
 		 *
+		 * Never throws but for cancellation: it is the only thing that completes the plugin's
+		 * future once the tap started, so a throw would hold the plugin slot for good.
+		 *
 		 * @param onBuildStarted told of each build or rebaseline seen starting, before [tracker] reads it.
+		 * @param askOutstanding whether the session still owes a tap its answer; holds the quiet
+		 *   window open where [QuickBuildRunTracker.waitsOnAsk] allows.
 		 */
 		internal suspend fun track(
 			status: StateFlow<QuickBuildStatus>,
 			tracker: QuickBuildRunTracker,
 			onBuildStarted: () -> Unit = {},
+			askOutstanding: () -> Boolean = { false },
 			nowMillis: () -> Long = SystemClock::elapsedRealtime,
 		): QuickBuildResult =
-			withTimeoutOrNull(TRACK_CEILING_MILLIS) { settle(status, tracker, onBuildStarted, nowMillis) }
-				?: tracker.onGaveUp(TRACK_CEILING_MILLIS)
+			try {
+				withTimeoutOrNull(TRACK_CEILING_MILLIS) { settle(status, tracker, onBuildStarted, askOutstanding, nowMillis) }
+					?: tracker.onGaveUp(TRACK_CEILING_MILLIS)
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Throwable) {
+				log.error("Lost track of a plugin's Quick Build", e)
+				QuickBuildResult.Failed("Quick Build lost track of this run: ${e.message ?: e.javaClass.simpleName}", null)
+			}
 
 		private suspend fun settle(
 			status: StateFlow<QuickBuildStatus>,
 			tracker: QuickBuildRunTracker,
 			onBuildStarted: () -> Unit,
+			askOutstanding: () -> Boolean,
 			nowMillis: () -> Long,
 		): QuickBuildResult =
 			channelFlow {
@@ -263,13 +296,15 @@ internal class PluginQuickBuildCoordinator(
 						tracker.awaitingQuiet -> {
 							// Cancelled by the next status, which collectLatest delivers instead.
 							delay(QuickBuildRunTracker.QUIET_MILLIS)
+							// A build still owed to the tap moves no status until it starts.
+							while (tracker.waitsOnAsk(current) && askOutstanding()) delay(QuickBuildRunTracker.ASK_POLL_MILLIS)
 							send(tracker.onQuiet(current))
 						}
 					}
 				}
 			}.first()
 
-		/** Why Quick Build cannot run, checked in the order the user would fix them. */
+		/** [unavailableReasonOf] with its [messageOf]. */
 		internal fun availabilityOf(
 			experimentsEnabled: Boolean,
 			projectOpen: Boolean,
@@ -279,51 +314,87 @@ internal class PluginQuickBuildCoordinator(
 			variantName: String?,
 			getString: (id: Int, args: Array<Any>) -> String,
 		): QuickBuildAvailability {
-			fun unavailable(
-				reason: QuickBuildUnavailableReason,
-				message: String,
-			) = QuickBuildAvailability.Unavailable(reason, message)
+			val reason =
+				unavailableReasonOf(experimentsEnabled, projectOpen, synced, pluginProject, hasAppModule, variantName)
+					?: return QuickBuildAvailability.Available
+			return QuickBuildAvailability.Unavailable(reason, messageOf(reason, variantName, getString))
+		}
 
-			return when {
+		/** Why Quick Build cannot run, checked in the order the user would fix them; null when it can. */
+		internal fun unavailableReasonOf(
+			experimentsEnabled: Boolean,
+			projectOpen: Boolean,
+			synced: Boolean,
+			pluginProject: Boolean,
+			hasAppModule: Boolean,
+			variantName: String?,
+		): QuickBuildUnavailableReason? =
+			when {
 				!experimentsEnabled -> {
-					unavailable(
-						QuickBuildUnavailableReason.EXPERIMENTS_DISABLED,
-						"Quick Build is experimental. Turn on experiments in Preferences to use it.",
-					)
+					QuickBuildUnavailableReason.EXPERIMENTS_DISABLED
 				}
 
 				!projectOpen -> {
-					unavailable(QuickBuildUnavailableReason.NO_PROJECT, "No project is open.")
+					QuickBuildUnavailableReason.NO_PROJECT
 				}
 
 				// The plugin-project and module checks read the synced model, so this comes first.
 				!synced -> {
-					unavailable(QuickBuildUnavailableReason.PROJECT_SYNCING, getString(R.string.quick_build_waiting_for_sync, emptyArray()))
+					QuickBuildUnavailableReason.PROJECT_SYNCING
 				}
 
 				pluginProject -> {
-					unavailable(
-						QuickBuildUnavailableReason.PLUGIN_PROJECT,
-						getString(R.string.quick_build_unsupported_plugin_project, emptyArray()),
-					)
+					QuickBuildUnavailableReason.PLUGIN_PROJECT
 				}
 
 				!hasAppModule -> {
-					unavailable(QuickBuildUnavailableReason.NO_APP_MODULE, getString(R.string.quick_build_no_app_module, emptyArray()))
+					QuickBuildUnavailableReason.NO_APP_MODULE
 				}
 
 				variantName != null && QuickBuildProjectSupport.nonDebuggableVariantMessage(variantName) != null -> {
-					unavailable(
-						QuickBuildUnavailableReason.RELEASE_VARIANT,
-						getString(R.string.quick_build_non_debuggable_variant, arrayOf(variantName)),
-					)
+					QuickBuildUnavailableReason.RELEASE_VARIANT
 				}
 
 				else -> {
-					QuickBuildAvailability.Available
+					null
 				}
 			}
-		}
+
+		/** What a plugin is told for [reason]: the toolbar's own text wherever the toolbar has one. */
+		internal fun messageOf(
+			reason: QuickBuildUnavailableReason,
+			variantName: String?,
+			getString: (id: Int, args: Array<Any>) -> String,
+		): String =
+			when (reason) {
+				QuickBuildUnavailableReason.EXPERIMENTS_DISABLED -> {
+					"Quick Build is experimental. Turn on experiments in Preferences to use it."
+				}
+
+				QuickBuildUnavailableReason.NO_PROJECT -> {
+					"No project is open."
+				}
+
+				QuickBuildUnavailableReason.PROJECT_SYNCING -> {
+					getString(R.string.quick_build_waiting_for_sync, emptyArray())
+				}
+
+				QuickBuildUnavailableReason.PLUGIN_PROJECT -> {
+					getString(R.string.quick_build_unsupported_plugin_project, emptyArray())
+				}
+
+				QuickBuildUnavailableReason.NO_APP_MODULE -> {
+					getString(R.string.quick_build_no_app_module, emptyArray())
+				}
+
+				QuickBuildUnavailableReason.RELEASE_VARIANT -> {
+					getString(R.string.quick_build_non_debuggable_variant, arrayOf(variantName.orEmpty()))
+				}
+
+				QuickBuildUnavailableReason.NOT_SUPPORTED -> {
+					"Quick Build is not supported"
+				}
+			}
 
 		/** What the toolbar button shows, in the plugin API's terms. */
 		internal fun stateOf(tone: QuickBuildTone): QuickBuildState =

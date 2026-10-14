@@ -485,11 +485,12 @@ interface IdeBuildService {
 		CompletableFuture.completedFuture(QuickBuildResult.Refused("Quick Build is not supported"))
 
 	/**
-	 * Stops the running Quick Build, whoever started it, as a tap on its stop icon does, or drops a
-	 * [startQuickBuild] still saving the open files or asking the user. Completes with true if one
-	 * was running and was asked to stop; its [startQuickBuild] future, if any, then completes with
-	 * [QuickBuildResult.Cancelled]. Needs the `system.commands` permission, like
-	 * [cancelBuild]; without it this throws [SecurityException].
+	 * Asks the running Quick Build to stop, whoever started it, as a tap on its stop icon does, or
+	 * drops a [startQuickBuild] still saving the open files or asking the user. Completes with true
+	 * if one was running and was asked to stop. Its [startQuickBuild] future, if any, reports what
+	 * actually happened: usually [QuickBuildResult.Cancelled], but a stop that comes too late
+	 * to stop the build lets it finish, as [QuickBuildResult.Reloaded] for example. Needs the
+	 * `system.commands` permission, like [cancelBuild]; without it this throws [SecurityException].
 	 */
 	fun cancelQuickBuild(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
 

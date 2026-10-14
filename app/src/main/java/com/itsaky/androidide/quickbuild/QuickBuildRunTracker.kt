@@ -132,6 +132,15 @@ internal class QuickBuildRunTracker(
 		return null
 	}
 
+	/**
+	 * Whether the quiet window after [current] should go on waiting while the session still owes
+	 * the tap an answer. A tap queued behind the background warm compile reads as [start] until
+	 * its build starts. Only a live status always answers or withdraws the ask; a compiler that
+	 * could not restart keeps it recorded indefinitely.
+	 */
+	fun waitsOnAsk(current: QuickBuildStatus): Boolean =
+		!cancelRequested && (current is QuickBuildStatus.UpToDate || current is QuickBuildStatus.Failed)
+
 	/** The result when [QUIET_MILLIS] passed after [current] with nothing starting. */
 	fun onQuiet(current: QuickBuildStatus): QuickBuildResult =
 		when {
@@ -190,6 +199,9 @@ internal class QuickBuildRunTracker(
 	companion object {
 		/** How long a tap may take to start a build before it counts as having had nothing to build. */
 		const val QUIET_MILLIS = 5_000L
+
+		/** How often a quiet window held open by an outstanding ask checks it again. */
+		const val ASK_POLL_MILLIS = 250L
 
 		private const val COMPILER_DOWN =
 			"The Quick Build compiler stopped and could not restart. Start Quick Build again to retry."

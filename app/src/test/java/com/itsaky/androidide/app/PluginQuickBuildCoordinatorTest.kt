@@ -10,6 +10,8 @@ import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -97,6 +99,13 @@ class PluginQuickBuildCoordinatorTest {
 
 	private val upToDate = QuickBuildStatus.UpToDate(3L, 900L)
 
+	private fun TestScope.trackAsync(
+		status: StateFlow<QuickBuildStatus>,
+		tracker: QuickBuildRunTracker,
+		onBuildStarted: () -> Unit = {},
+		askOutstanding: () -> Boolean = { false },
+	) = async { PluginQuickBuildCoordinator.track(status, tracker, onBuildStarted, askOutstanding) { testScheduler.currentTime } }
+
 	@Test
 	fun `a tap with nothing to build is up to date after the quiet window`() =
 		runTest {
@@ -130,6 +139,73 @@ class PluginQuickBuildCoordinatorTest {
 			status.value = QuickBuildStatus.UpToDate(4L, 20_000L)
 			runCurrent()
 			assertThat(result.await()).isEqualTo(QuickBuildResult.Reloaded(durationMillis = 21_000L, restarted = false))
+		}
+
+	@Test
+	fun `a tap queued behind the warm compile is followed to its build, not settled up to date`() =
+		runTest {
+			// The warm compile projects as the deployed generation, so the status shows nothing.
+			val status = MutableStateFlow<QuickBuildStatus>(upToDate)
+			val tracker = QuickBuildRunTracker(upToDate, 0L) { null }
+			var askOutstanding = true
+
+			val result = trackAsync(status, tracker, askOutstanding = { askOutstanding })
+			advanceTimeBy(QuickBuildRunTracker.QUIET_MILLIS * 3)
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			status.value = QuickBuildStatus.Building(3L)
+			runCurrent()
+			status.value = QuickBuildStatus.UpToDate(4L, 2_000L)
+			askOutstanding = false
+			runCurrent()
+			assertThat(result.await()).isInstanceOf(QuickBuildResult.Reloaded::class.java)
+		}
+
+	@Test
+	fun `a tap the session answers without building is up to date once answered`() =
+		runTest {
+			val status = MutableStateFlow<QuickBuildStatus>(upToDate)
+			val tracker = QuickBuildRunTracker(upToDate, 0L) { null }
+			var askOutstanding = true
+
+			val result = trackAsync(status, tracker, askOutstanding = { askOutstanding })
+			advanceTimeBy(QuickBuildRunTracker.QUIET_MILLIS + 1_000)
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			askOutstanding = false
+			advanceTimeBy(QuickBuildRunTracker.ASK_POLL_MILLIS)
+			runCurrent()
+			assertThat(result.await()).isEqualTo(QuickBuildResult.UpToDate)
+		}
+
+	@Test
+	fun `an ask a dead compiler keeps recorded does not hold the run open`() =
+		runTest {
+			val down = QuickBuildStatus.Reconnecting(3L, restartFailed = true)
+			val status = MutableStateFlow<QuickBuildStatus>(down)
+			val tracker = QuickBuildRunTracker(down, 0L) { null }
+
+			val result = trackAsync(status, tracker, askOutstanding = { true })
+			advanceTimeBy(QuickBuildRunTracker.QUIET_MILLIS + 1)
+			runCurrent()
+
+			assertThat(result.await()).isInstanceOf(QuickBuildResult.Failed::class.java)
+		}
+
+	@Test
+	fun `a throw while following the run fails it instead of escaping`() =
+		runTest {
+			val status = MutableStateFlow<QuickBuildStatus>(upToDate)
+			val tracker = QuickBuildRunTracker(upToDate, 0L) { null }
+
+			val result = trackAsync(status, tracker, onBuildStarted = { error("boom") })
+			runCurrent()
+			status.value = QuickBuildStatus.Building(3L)
+			runCurrent()
+
+			assertThat(result.await()).isEqualTo(QuickBuildResult.Failed("Quick Build lost track of this run: boom", null))
 		}
 
 	@Test

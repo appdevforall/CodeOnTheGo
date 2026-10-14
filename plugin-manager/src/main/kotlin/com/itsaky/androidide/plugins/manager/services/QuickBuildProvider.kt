@@ -11,12 +11,15 @@ import java.util.concurrent.CompletableFuture
  * module cannot depend on.
  */
 interface QuickBuildProvider {
+	/** Backs [com.itsaky.androidide.plugins.services.IdeBuildService.getQuickBuildAvailability]. */
 	fun availability(): QuickBuildAvailability
 
+	/** Backs [com.itsaky.androidide.plugins.services.IdeBuildService.startQuickBuild]. */
 	fun start(): CompletableFuture<QuickBuildResult>
 
-	/** Stops a running Quick Build; false when none is running. */
+	/** Asks a running Quick Build to stop; false when none is running. */
 	fun cancel(): Boolean
 
+	/** Backs [com.itsaky.androidide.plugins.services.IdeBuildService.getQuickBuildStatus]. */
 	fun status(): QuickBuildState
 }
