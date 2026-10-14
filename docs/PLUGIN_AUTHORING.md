@@ -366,6 +366,35 @@ override fun getLanguages() = listOf(
 - Files that are already open switch to the language when the plugin is loaded, enabled or disabled; the user does not need to reopen them.
 - File extensions the IDE already handles cannot be claimed. Set `plugin.min_ide_version` to `26.41` or later.
 
+## Porting an Android Studio plugin
+
+Code on the Go cannot load Android Studio or IntelliJ plugins ([ADR 0018](adr/0018-android-studio-plugins-are-ported-not-run.md)): they are built on Swing and on IntelliJ's IDE layer, neither of which exists here. A port keeps the plugin's logic and replaces what touches the platform. Swing UI becomes Android `Fragment`s, and each `plugin.xml` extension maps to an extension interface or service:
+
+| Android Studio (`plugin.xml`) | Code on the Go |
+|---|---|
+| `<action>` in a main-menu group | `UIExtension.getMainMenuItems()` returning `MenuItem`s |
+| `<action>` in a toolbar group | `UIExtension.getToolbarActions()` returning `ToolbarAction`s |
+| `<action>` in the editor-tab popup menu | `FileOpenExtension.getFileTabMenuItems()` |
+| `toolWindow` (`ToolWindowFactory`) | `UIExtension.getEditorTabs()` for a tab in the editor's bottom sheet, or `getSideMenuItems()` for a sidebar entry |
+| `fileEditorProvider` | `FileOpenExtension.canHandleFileOpen`/`handleFileOpen`, showing the file in an `EditorTabExtension` tab selected with `IdeEditorTabService.selectPluginTab` - `apk-viewer-plugin` does this |
+| `applicationConfigurable` / `projectConfigurable` | `SettingsExtension` returning a `PluginSettingsEntry` that names your settings `Fragment` |
+| `DialogWrapper` or another full-screen Swing UI | A `Fragment` opened with `IdeUIService.openPluginScreen` |
+| `defaultLiveTemplates` | `SnippetExtension` returning `SnippetContribution`s. Bodies use TextMate syntax: rewrite `$NAME$` variables as `${1:NAME}` and `$END$` as `$0` |
+| `fileType`, `lang.parserDefinition`, `lang.syntaxHighlighterFactory` | `LanguageExtension` with a `TreeSitterGrammar` - see [Contributing a language](#contributing-a-language) |
+| `completion.contributor`, `annotator`, `localInspection`, `gotoDeclarationHandler`, `lang.formatter` | A language server in `LanguageServerDefinition`. The IDE uses its completion, diagnostics, go-to-definition, references, signature help, selection expansion and formatting |
+| Highlighting layered over a language (e.g. rainbow brackets) | `EditorDecorationProvider`, which adds foreground colours only |
+| `searchEverywhereContributor` | `ProjectSearchExtension`, which appends sections to Search Results |
+| `runConfigurationType`, external tools | `BuildActionExtension` returning `PluginBuildAction`s that run a `CommandSpec` |
+| Project or module wizard | A `.cgt` template, built with `IdeTemplateService.createTemplateBuilder` and added with `registerTemplate` |
+| `applicationService` / `projectService` | Objects your plugin owns. Offer one to other plugins with `PluginContext.registerService`; reach IDE services with `PluginContext.services.get(...)` |
+
+No equivalent yet:
+
+- **Editor context-menu actions.** `UIExtension.getContextMenuItems()` exists, but the IDE does not call it.
+- **Quick fixes, intention actions and hover documentation.** The language-server bridge does not request code actions or hover.
+- **Message-bus listeners** (`applicationListeners`, `projectListeners`). `PluginContext.eventBus` is the IDE's EventBus, typed `Any`; its events are not part of the [plugin API contract](plugin-api.md), so a subscriber can break on any release.
+- **Anything that depends on the Android plugin** bundled with Android Studio (`org.jetbrains.android`).
+
 ## Troubleshooting
 
 **Install fails with "Missing icon_day and icon_night for debug plugin"**
