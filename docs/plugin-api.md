@@ -66,6 +66,6 @@ These look source-compatible but break already-built `.cgp` plugins:
 
 - [PLUGIN_AUTHORING.md](PLUGIN_AUTHORING.md) — the author-facing how-to (layout, manifest, icons, building/installing).
 - [PLUGIN_API_CHANGELOG.md](PLUGIN_API_CHANGELOG.md) — which `YY.WW` release first shipped each capability (for choosing `plugin.min_ide_version`).
-- [ADR 0018](adr/0018-android-studio-plugins-are-ported-not-run.md) — why Android Studio plugins are ported to this API rather than run.
+- [ADR 0018](adr/0018-android-studio-plugins-are-ported-not-run.md) and [ADR 0019](adr/0019-vscode-extensions-are-ported-not-hosted.md) — why Android Studio plugins and VS Code extensions are ported to this API rather than run.
 - [REVIEW.md](../REVIEW.md) §13 — reviewing a change's impact on plugins.
 - [ARCHITECTURE.md](../ARCHITECTURE.md) — where `:plugin-api` / `:plugin-manager` sit in the module map.

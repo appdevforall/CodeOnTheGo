@@ -31,3 +31,4 @@ Format is lightweight **MADR / Nygard**: Context → Decision → Consequences �
 | [0015](0015-one-pinned-ktfile-per-analysis.md) | One pinned live KtFile per analysis, enforced by the type system | Proposed |
 | [0016](0016-quick-build-compiles-outside-gradle.md) | Quick Build's per-save path compiles incrementally outside Gradle | Proposed |
 | [0018](0018-android-studio-plugins-are-ported-not-run.md) | Android Studio plugins are ported to the CoGo plugin API, not run | Proposed |
+| [0019](0019-vscode-extensions-are-ported-not-hosted.md) | VS Code extensions are ported to the CoGo plugin API; the `vscode` API is not hosted | Proposed |
