@@ -4,23 +4,19 @@
 
 Branch `feature/ADFA-6388-experiment-enum`, worktree `.claude/worktrees/ADFA-6388`, base `origin/stage` @ 98e577ddf.
 
-## Decision needed before step 1: which Jira key each entry carries
+## Entries and keys (decision A, 2026-10-13)
 
-Every gate's originating ticket is already **Done** (checked via REST, 2026-10-13):
+Every originating ticket is Done, so each entry points at an open "Graduate or remove experiment" ticket instead (all linked to ADFA-6388):
 
-| Entry | Gates | Originating key | Status |
+| Entry | Gates | Key | Originally |
 |---|---|---|---|
-| `CRASH_ON_ICON_LONG_PRESS` | GreetingFragment.kt:37 | ADFA-1219 | Done |
-| `RAISED_STORAGE_MINIMUM` | StorageUtils.kt:19 | ADFA-3007 | Done |
-| `QUICK_BUILD` | EditorActivityActions.kt:95, ProjectHandlerActivity.kt:454, :895, QuickBuildGraphWarmUp.kt:69, QuickBuildBenchActivity.kt:54 (debug) | ADFA-4128 | Done |
-| `ERROR_BAR_TOUCH_DISMISS` | FlashbarDismissGate.kt:30 | ADFA-4128 | Done |
-| `PROFILER` | EditorActivityActions.kt:142, EditorBottomSheetTabAdapter.kt:128 | ADFA-4333 | Done |
-| `GRADLE_AUTO_TUNE` | GradleBuildService.kt:564 | ADFA-2784 | Done |
-| `EXPERIMENTAL_ZIP_TEMPLATES` | ZipTemplateReader.kt:56 | ADFA-2737 | Done |
-
-With these keys the nightly job reports all seven on night one. Options:
-- **A (recommended):** `jiraKey` = an open "graduate or remove X" ticket per experiment. You open them; I fill in the keys. The job then means "this experiment's decision was made but the gate is still here".
-- **B:** use the originating keys. The first report is the full list of stale gates - a useful one-off audit, then noise until each is graduated.
+| `CRASH_ON_ICON_LONG_PRESS` | GreetingFragment.kt:37 | ADFA-6513 | ADFA-1219 |
+| `RAISED_STORAGE_MINIMUM` | StorageUtils.kt:19 | ADFA-6514 | ADFA-3007 |
+| `QUICK_BUILD` | EditorActivityActions.kt:95, ProjectHandlerActivity.kt:454, :895, QuickBuildGraphWarmUp.kt:69, QuickBuildBenchActivity.kt:54 (debug) | ADFA-6515 | ADFA-4128 |
+| `ERROR_BAR_TOUCH_DISMISS` | FlashbarDismissGate.kt:30 | ADFA-6516 | ADFA-4128 |
+| `PROFILER` | EditorActivityActions.kt:142, EditorBottomSheetTabAdapter.kt:128 | ADFA-6517 | ADFA-4333 |
+| `GRADLE_AUTO_TUNE` | GradleBuildService.kt:564 | ADFA-6518 | ADFA-2784 |
+| `EXPERIMENTAL_ZIP_TEMPLATES` | ZipTemplateReader.kt:56 | ADFA-6519 | ADFA-2737 |
 
 Line numbers corrected from the ticket: ProjectHandlerActivity 454/895 (not 452/893), GradleBuildService 564 (not 555).
 
@@ -66,10 +62,11 @@ Line numbers corrected from the ticket: ProjectHandlerActivity 454/895 (not 452/
 
 ## Commit 5 - docs
 
-- ARCHITECTURE.md: short "Experiments" section - the enum, `isOn`, graduating = delete the entry, keep the "on" branch, delete the "off" branch; nightly job.
-- quickbuild/README.md:280, docs/manual-qa.md:20/307/310, docs/debugging.md:16-22: name `Experiment.QUICK_BUILD`, mention tapping the title to see what's on. Fix debugging.md's "never re-reads disk" (`refresh()` exists).
-- docs/plugin-api.md:14 and PLUGIN_API_CHANGELOG.md:541: `IdeFeatureFlagService` is the overall switch, no per-experiment access.
-- CLAUDE.md (Project-specific constraints): new experimental code adds an `Experiment` entry; never read the flag directly.
+- New `EXPERIMENTS.md` at the repo root - the one place for experiments: turning them on (`CodeOnTheGo.exp`, restart or `refresh()`), seeing what's on (tap the title), adding one (new entry + open graduation ticket, gate with `Experiments.isOn`), graduating (delete the entry, keep the "on" branch, delete the "off" branch), the nightly report, and the plugin API's single switch. Other docs link here instead of repeating it.
+- ARCHITECTURE.md: one line pointing at EXPERIMENTS.md.
+- CLAUDE.md (Project-specific constraints): new experimental code adds an `Experiment` entry, never reads the flag directly; see EXPERIMENTS.md.
+- quickbuild/README.md:280, docs/manual-qa.md:20/307/310, docs/debugging.md:16-22: name `Experiment.QUICK_BUILD`, link EXPERIMENTS.md. Fix debugging.md's "never re-reads disk" (`refresh()` exists).
+- docs/plugin-api.md:14 and PLUGIN_API_CHANGELOG.md:541: `IdeFeatureFlagService` is the overall switch, no per-experiment access; link EXPERIMENTS.md.
 
 ## Out of scope (per ticket)
 
