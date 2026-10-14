@@ -447,9 +447,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private fun trackTitleTouches() {
 		binding.codeOnTheGoLabel.setOnTouchListener { _, event ->
 			when (event.actionMasked) {
-				MotionEvent.ACTION_DOWN ->
+				MotionEvent.ACTION_DOWN -> {
 					if (viewModel.currentScreen.value == SCREEN_MAIN) titleDownOnAppName = isOnAppName(event)
-				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> titleDownOnAppName = null
+				}
+
+				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+					titleDownOnAppName = null
+				}
 			}
 			false
 		}
