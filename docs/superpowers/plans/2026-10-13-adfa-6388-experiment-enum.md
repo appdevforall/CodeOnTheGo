@@ -16,7 +16,9 @@ Every originating ticket is Done, so each entry points at an open "Graduate or r
 | `ERROR_BAR_TOUCH_DISMISS` | FlashbarDismissGate.kt:30 | ADFA-6516 | ADFA-4128 |
 | `PROFILER` | EditorActivityActions.kt:142, EditorBottomSheetTabAdapter.kt:128 | ADFA-6517 | ADFA-4333 |
 | `GRADLE_AUTO_TUNE` | GradleBuildService.kt:564 | ADFA-6518 | ADFA-2784 |
-| `EXPERIMENTAL_ZIP_TEMPLATES` | ZipTemplateReader.kt:56 | ADFA-6519 | ADFA-2737 |
+| ~~`EXPERIMENTAL_ZIP_TEMPLATES`~~ | ZipTemplateReader.kt:56 | ~~ADFA-6519~~ | ADFA-2737 |
+
+Zip templates dropped from the enum: filtering templates that mark themselves experimental is a permanent use of the switch, not a feature that graduates. ZipTemplateReader reads `Experiments.enabled`.
 
 Line numbers corrected from the ticket: ProjectHandlerActivity 454/895 (not 452/893), GradleBuildService 564 (not 555).
 

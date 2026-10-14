@@ -538,7 +538,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   Contribute new-project templates in the `.cgt` format.
   `IdeTemplateService`, `CgtTemplateBuilder`.
 - **added — Feature-flag access** _(ADFA-2808, `d924652`)_ **[reconstructed]**
-  `IdeFeatureFlagService.isExperimentsEnabled()`.
+  `IdeFeatureFlagService.isExperimentsEnabled()` - the overall experiments switch; individual experiments are not exposed ([EXPERIMENTS.md](../EXPERIMENTS.md#plugins)).
 
 ### 26.12 — 2026-03-12
 - **added — File-open handling** _(ADFA-3162, `0681d66`)_ **[reconstructed]**
