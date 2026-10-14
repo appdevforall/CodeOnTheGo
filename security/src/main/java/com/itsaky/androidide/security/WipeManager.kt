@@ -101,6 +101,20 @@ object WipeManager {
 			return WipeResult(dryRun = true, 0, 0, 0, enumerated)
 		}
 
+		// Drop the durable wipe markers FIRST, before any destruction or pref-clearing. If the process
+		// dies mid-wipe (user swipes the app away, OS kill), the next launch must still read isWiped and
+		// stay the disguise -- independent of the now-blank prefs and of whether the alias swap succeeded
+		// (ADFA-6510 review F02). Safe to write before the shred: the markers live in filesDir /
+		// noBackupFilesDir, outside every secure-shred and fast-delete target.
+		var markers = 0
+		plan.markerFiles.forEach { marker ->
+			runCatching {
+				marker.parentFile?.mkdirs()
+				marker.createNewFile()
+				if (marker.exists()) markers++
+			}
+		}
+
 		var shredded = 0
 		plan.secureTargets.forEach { shredded += SecureShredder.shredTree(it, skipDirNames = plan.secureTargetSkipDirs) }
 
@@ -111,15 +125,6 @@ object WipeManager {
 
 		teardown.resetBookkeeping()
 		teardown.clearPreferences()
-
-		var markers = 0
-		plan.markerFiles.forEach { marker ->
-			runCatching {
-				marker.parentFile?.mkdirs()
-				marker.createNewFile()
-				if (marker.exists()) markers++
-			}
-		}
 
 		log("Instant Wipe complete: shredded=$shredded deleted=$deleted markers=$markers")
 		return WipeResult(dryRun = false, shredded, deleted, markers, enumerated)

@@ -30,13 +30,17 @@ class WipeManagerTest {
 	/**
 	 * Records the teardown calls and the order relative to deletion. [sourceStillPresentAtStop]
 	 * captures whether a known target still existed when [stopEverything] ran, which proves teardown
-	 * happens before any deletion.
+	 * happens before any deletion. [markerPresentAtClear] captures whether [markerWitness] already
+	 * existed when [clearPreferences] ran, which proves the durable marker is written before prefs are
+	 * blanked (ADFA-6510 review F02).
 	 */
 	private class FakeTeardown(
 		private val witness: File,
+		private val markerWitness: File? = null,
 	) : WipeTeardown {
 		val calls = mutableListOf<String>()
 		var sourceStillPresentAtStop: Boolean? = null
+		var markerPresentAtClear: Boolean? = null
 
 		override fun stopEverything() {
 			sourceStillPresentAtStop = witness.exists()
@@ -48,6 +52,7 @@ class WipeManagerTest {
 		}
 
 		override fun clearPreferences() {
+			markerPresentAtClear = markerWitness?.exists()
 			calls += "clear"
 		}
 	}
@@ -84,6 +89,23 @@ class WipeManagerTest {
 		assertThat(teardown.calls).containsExactly("stop", "reset", "clear").inOrder()
 		// Teardown must run before anything is deleted.
 		assertThat(teardown.sourceStillPresentAtStop).isTrue()
+	}
+
+	@Test
+	fun `the durable marker is written before preferences are cleared (crash-window safety)`() {
+		val source = tmp.newFolder("CodeOnTheGoProjects").also { File(it, "App.kt").writeText("secret") }
+		val marker = File(tmp.root, "markers/.pip")
+		val teardown = FakeTeardown(witness = source, markerWitness = marker)
+
+		WipeManager.wipe(
+			plan(secure = listOf(source), fast = emptyList(), markers = listOf(marker)),
+			teardown,
+			dryRun = false,
+		)
+
+		// If the process dies between clearPreferences() and the marker write, the install would look
+		// un-wiped on next launch. The marker must already exist by the time prefs are blanked.
+		assertThat(teardown.markerPresentAtClear).isTrue()
 	}
 
 	@Test

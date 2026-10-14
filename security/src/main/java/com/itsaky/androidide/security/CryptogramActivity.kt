@@ -360,9 +360,17 @@ class CryptogramActivity : AppCompatActivity() {
 
 	/** Leaves the disguise and returns to the IDE via its launcher entry point. */
 	private fun exitDisguiseMode() {
-		// After an Instant Wipe (ADFA-6510) the install is permanently neutralized: the exit gesture
-		// must not bring back the torn-down, data-less IDE (its Recents DB connection is already closed).
-		if (NeutralizationMarker.isWiped(this)) return
+		// A neutralized install must not be exitable (ADFA-6510 review F01): isWiped covers the
+		// marker-intact case; isTampered covers the markerless signature (app data cleared to strip the
+		// markers while the stealth alias survived) that SplashActivity also routes here. Either way the
+		// exit gesture must not bring back the torn-down, data-less IDE. This only affects a data-cleared
+		// install -- a normally hidden, still-armed user has non-blank prefs, so isTampered is false and
+		// the exit gesture works as before.
+		if (NeutralizationMarker.isWiped(this) ||
+			NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))
+		) {
+			return
+		}
 
 		SecurityPreferences.isHiddenStateActive = false
 		LauncherAliasManager.setStealthMode(this, false)
