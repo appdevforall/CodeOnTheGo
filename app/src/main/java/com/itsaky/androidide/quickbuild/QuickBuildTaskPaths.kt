@@ -36,10 +36,11 @@ object QuickBuildTaskPaths {
 	}
 
 	/**
-	 * Where the Gradle plugin writes that variant's proxy app report, relative to the
-	 * directory owning the `build/` dir - the other half of the same contract, kept next to
-	 * the task name so the two cannot drift apart. Variant-scoped like every other Quick
-	 * Build output: a flavored project has one report per debuggable variant.
+	 * Where the Gradle plugin writes that variant's proxy app report, relative to the module's
+	 * build directory - the other half of the same contract, kept next to the task name so the
+	 * two cannot drift apart. Variant-scoped like every other Quick Build output: a flavored
+	 * project has one report per debuggable variant. Resolve it against the build directory in
+	 * the project model: relocated build output (ADFA-4930) is not under `<module>/build`.
 	 */
-	fun setupJson(variantName: String = DEFAULT_VARIANT): String = "build/quickbuild/${variantName.ifBlank { DEFAULT_VARIANT }}/setup.json"
+	fun setupJson(variantName: String = DEFAULT_VARIANT): String = "quickbuild/${variantName.ifBlank { DEFAULT_VARIANT }}/setup.json"
 }

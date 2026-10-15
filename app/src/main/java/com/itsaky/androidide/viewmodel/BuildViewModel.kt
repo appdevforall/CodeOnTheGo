@@ -14,6 +14,7 @@ import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
+import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
@@ -147,15 +148,22 @@ class BuildViewModel(
 				}
 
 				if (isPluginProject) {
-					val projectRoot = IProjectManager.getInstance().projectDirPath
+					// The root project's build directory as the synced model has it, which
+					// relocated build output (ADFA-4930) moves out of the project folder.
+					val rootBuildDir =
+						IProjectManager
+							.getInstance()
+							.workspace
+							?.rootProject
+							?.buildDir
 					val cgpFile =
-						withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
+						rootBuildDir?.let { withContext(Dispatchers.IO) { findPluginCgpFile(it, variant) } }
 					if (cgpFile != null) {
 						reporter.finish(BuildState.AwaitingPluginInstall(cgpFile))
 					} else {
-						log.warn("Plugin built successfully but .cgp file not found")
+						log.warn("Plugin built successfully but no .cgp file under {}/plugin", rootBuildDir)
 						reporter.finish(
-							BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin"),
+							BuildState.Error("Plugin built but output file (.cgp) not found"),
 						)
 					}
 					return@launch
@@ -321,10 +329,10 @@ class BuildViewModel(
 	}
 
 	private fun findPluginCgpFile(
-		projectRoot: String,
+		rootBuildDir: File,
 		variant: AndroidModels.AndroidVariant,
 	): File? {
-		val pluginDir = File(projectRoot, "build/plugin")
+		val pluginDir = File(rootBuildDir, "plugin")
 		if (!pluginDir.exists()) return null
 
 		val isDebug = variant.name.contains("debug", ignoreCase = true)

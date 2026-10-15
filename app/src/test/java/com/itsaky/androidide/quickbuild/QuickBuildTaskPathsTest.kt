@@ -73,18 +73,18 @@ class QuickBuildTaskPathsTest {
 
 	@Test
 	fun `the report path is variant-scoped, matching where the Gradle plugin writes it`() {
-		// Both halves of the plugin contract: `build/quickbuild/<variant>/setup.json`. A
+		// Both halves of the plugin contract: `<buildDir>/quickbuild/<variant>/setup.json`. A
 		// flavor-agnostic path here would read another flavor's report - the wrong APK and
 		// the wrong applicationId.
 		assertThat(QuickBuildTaskPaths.setupJson("debug"))
-			.isEqualTo("build/quickbuild/debug/setup.json")
+			.isEqualTo("quickbuild/debug/setup.json")
 		assertThat(QuickBuildTaskPaths.setupJson("demoDebug"))
-			.isEqualTo("build/quickbuild/demoDebug/setup.json")
+			.isEqualTo("quickbuild/demoDebug/setup.json")
 	}
 
 	@Test
 	fun `a blank variant reads the default variant's report`() {
-		assertThat(QuickBuildTaskPaths.setupJson("")).isEqualTo("build/quickbuild/debug/setup.json")
-		assertThat(QuickBuildTaskPaths.setupJson()).isEqualTo("build/quickbuild/debug/setup.json")
+		assertThat(QuickBuildTaskPaths.setupJson("")).isEqualTo("quickbuild/debug/setup.json")
+		assertThat(QuickBuildTaskPaths.setupJson()).isEqualTo("quickbuild/debug/setup.json")
 	}
 }
