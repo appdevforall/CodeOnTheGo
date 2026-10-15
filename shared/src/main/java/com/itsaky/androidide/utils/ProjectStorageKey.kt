@@ -9,6 +9,8 @@ import java.security.MessageDigest
  * function so a project maps to the same key in each.
  */
 object ProjectStorageKey {
+	// gradle-plugin's BuildOutputRedirect keys build directories with its own copy of this
+	// derivation, because its jar stays off the IDE's modules; change the two together.
 	private const val HASH_CHARS = 16
 	private const val MAX_BASENAME_CHARS = 40
 
