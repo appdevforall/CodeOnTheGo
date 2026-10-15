@@ -153,8 +153,14 @@ class TemplateRepositoryImpl(
 
 				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
 				// throws, the store copy below is never touched, so the user's only copy survives.
-				val restored = File(downloadDir, item.file.name)
-				val hadExistingDownload = restored.exists()
+				// The existing-file lookup ignores case, like scanTemplates: a twin differing only in
+				// case is hidden from the list, so it must still raise the Replace prompt.
+				val existingDownload =
+					downloadDir.listFiles()?.firstOrNull { file ->
+						file.isFile && file.name.equals(item.file.name, ignoreCase = true)
+					}
+				val restored = existingDownload ?: File(downloadDir, item.file.name)
+				val hadExistingDownload = existingDownload != null
 				if (hadExistingDownload && !overwrite) {
 					// Not thrown, so it skips the catch blocks below - log it here instead, or a
 					// repeated replace-conflict leaves no trace for support to find.
@@ -164,7 +170,7 @@ class TemplateRepositoryImpl(
 					)
 					return@withContext Result.failure(TemplateReplaceConflictException(restored.name))
 				}
-				item.file.copyTo(restored, overwrite = overwrite)
+				copyThroughTempFile(item.file, restored)
 				if (!item.file.delete()) {
 					// Only roll back a copy this call created itself. When `overwrite` replaced a
 					// pre-existing Downloads file, that original content is already gone - deleting
@@ -192,6 +198,27 @@ class TemplateRepositoryImpl(
 				Result.failure(e)
 			}
 		}
+
+	/**
+	 * Copies [source] to [target] via a temp file renamed into place, so a copy that fails partway
+	 * (storage full, I/O error) leaves an existing [target] intact and no truncated file behind.
+	 * `copyTo(overwrite = true)` deletes the target before copying, which would lose it.
+	 */
+	private fun copyThroughTempFile(
+		source: File,
+		target: File,
+	) {
+		// Not a .cgt name, so a leftover is never listed as a template.
+		val temp = File(target.parentFile, ".${target.name}.part")
+		try {
+			source.copyTo(temp, overwrite = true)
+			if (!temp.renameTo(target)) {
+				throw IOException("Failed to move ${temp.absolutePath} into place as ${target.absolutePath}")
+			}
+		} finally {
+			temp.delete()
+		}
+	}
 
 	override suspend fun deleteDownloadFile(item: CgtFileItem): Result<Unit> =
 		withContext(Dispatchers.IO) {

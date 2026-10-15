@@ -162,7 +162,7 @@ class TemplateManagerViewModelTest {
 		runTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 			coEvery { repository.uninstallTemplate(installedItem, false) } returns
-				Result.failure(TemplateReplaceConflictException(installedItem.name))
+				Result.failure(TemplateReplaceConflictException("Existing.CGT"))
 
 			val viewModel = TemplateManagerViewModel(repository)
 			advanceUntilIdle()
@@ -175,6 +175,8 @@ class TemplateManagerViewModelTest {
 			val effect = viewModel.uiEffect.first()
 			assertThat(effect).isInstanceOf(TemplateManagerUiEffect.ShowReplaceConfirmation::class.java)
 			assertThat((effect as TemplateManagerUiEffect.ShowReplaceConfirmation).item).isEqualTo(installedItem)
+			// The dialog names the file on disk, not the item's extension-less display name.
+			assertThat(effect.fileName).isEqualTo("Existing.CGT")
 		}
 
 	@Test

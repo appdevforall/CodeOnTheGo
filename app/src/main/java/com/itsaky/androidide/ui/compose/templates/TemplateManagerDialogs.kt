@@ -64,17 +64,20 @@ fun UninstallTemplateConfirmationDialog(
 	)
 }
 
-/** Shown when uninstalling [item] would silently overwrite an existing Downloads file of the same name. */
+/**
+ * Shown when an uninstall would overwrite [fileName] in Downloads. [fileName] is the exact name on
+ * disk, extension included, so the user can find the file they are about to replace.
+ */
 @Composable
 fun ReplaceTemplateInDownloadsDialog(
-	item: CgtFileItem,
+	fileName: String,
 	onConfirm: () -> Unit,
 	onDismiss: () -> Unit,
 ) {
 	AlertDialog(
 		onDismissRequest = onDismiss,
 		title = { Text(stringResource(R.string.title_replace_template)) },
-		text = { Text(stringResource(R.string.msg_replace_template_confirm, item.displayName)) },
+		text = { Text(stringResource(R.string.msg_replace_template_confirm, fileName)) },
 		confirmButton = {
 			TextButton(onClick = onConfirm) { Text(stringResource(R.string.replace)) }
 		},

@@ -130,7 +130,7 @@ class TemplateManagerViewModel(
 					Log.e(TAG, "Failed to uninstall template: ${item.name}", exception)
 					_uiState.update { it.copy(isLoading = false) }
 					if (exception is TemplateReplaceConflictException) {
-						_uiEffect.send(TemplateManagerUiEffect.ShowReplaceConfirmation(item))
+						_uiEffect.send(TemplateManagerUiEffect.ShowReplaceConfirmation(item, exception.fileName))
 					} else {
 						_uiEffect.send(
 							TemplateManagerUiEffect.ShowError(

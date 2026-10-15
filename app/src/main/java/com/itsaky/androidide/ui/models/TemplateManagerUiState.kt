@@ -55,9 +55,13 @@ sealed class TemplateManagerUiEffect {
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()
 
-	/** A Downloads file with the same name already exists; ask before [uninstallTemplate][com.itsaky.androidide.repositories.TemplateRepository.uninstallTemplate] overwrites it. */
+	/**
+	 * A Downloads file with the same name already exists; ask before [uninstallTemplate][com.itsaky.androidide.repositories.TemplateRepository.uninstallTemplate] overwrites it.
+	 * [fileName] is that file's exact name on disk, which can differ from [item]'s in case.
+	 */
 	data class ShowReplaceConfirmation(
 		val item: CgtFileItem,
+		val fileName: String,
 	) : TemplateManagerUiEffect()
 
 	data class ShowTemplateDetails(

@@ -24,7 +24,7 @@ interface TemplateRepository {
 	/**
 	 * Restores a copy of [item]'s file to Downloads, removes it from the templates directory, and
 	 * reloads templates. Fails with [TemplateReplaceConflictException] if a file of the same name
-	 * already exists in Downloads, unless [overwrite] is true.
+	 * (ignoring case) already exists in Downloads, unless [overwrite] is true.
 	 */
 	suspend fun uninstallTemplate(
 		item: CgtFileItem,

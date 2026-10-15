@@ -75,6 +75,7 @@ private sealed interface TemplateManagerDialogState : Parcelable {
 	@Parcelize
 	data class ReplaceConfirm(
 		val path: String,
+		val fileName: String,
 	) : TemplateManagerDialogState
 
 	@Parcelize
@@ -168,7 +169,7 @@ fun TemplateManagerScreen(
 					}
 
 					is TemplateManagerUiEffect.ShowReplaceConfirmation -> {
-						dialogState = TemplateManagerDialogState.ReplaceConfirm(effect.item.file.absolutePath)
+						dialogState = TemplateManagerDialogState.ReplaceConfirm(effect.item.file.absolutePath, effect.fileName)
 					}
 
 					is TemplateManagerUiEffect.ShowTemplateDetails -> {
@@ -251,7 +252,7 @@ fun TemplateManagerScreen(
 			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
 			if (item != null) {
 				ReplaceTemplateInDownloadsDialog(
-					item = item,
+					fileName = dialog.fileName,
 					onConfirm = {
 						viewModel.confirmUninstallTemplate(item, overwrite = true)
 						dialogState = TemplateManagerDialogState.None
