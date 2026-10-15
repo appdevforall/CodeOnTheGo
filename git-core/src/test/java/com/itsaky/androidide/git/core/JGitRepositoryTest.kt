@@ -333,13 +333,29 @@ class JGitRepositoryTest {
 			assertTrue(tempDir.renameTo(newDir))
 
 			val statusBefore = jgitRepo.getStatus()
-			assertTrue(statusBefore.unstaged.any { it.path == "myFolder/test.txt" && it.type == ChangeType.DELETED })
-			assertTrue(statusBefore.untracked.any { it.path == "MyFolder/test.txt" && it.type == ChangeType.UNTRACKED })
+			val renamedChange = statusBefore.unstaged.find { it.path == "MyFolder/test.txt" }
+			assertNotNull("Renamed change should be in unstaged", renamedChange)
+			assertEquals(ChangeType.RENAMED, renamedChange!!.type)
+			assertEquals("myFolder/test.txt", renamedChange.oldPath)
+			assertFalse(
+				"Old deleted case should not be separately listed in unstaged",
+				statusBefore.unstaged.any { it.path == "myFolder/test.txt" },
+			)
+			assertFalse(
+				"New case should not be in untracked",
+				statusBefore.untracked.any { it.path == "MyFolder/test.txt" },
+			)
 
-			// Stage both old and new paths
-			val oldFile = File(repoDir, "myFolder/test.txt")
+			// Staging only the new path automatically evicts the old casing
 			val newFile = File(repoDir, "MyFolder/test.txt")
-			jgitRepo.stageFiles(listOf(oldFile, newFile))
+			jgitRepo.stageFiles(listOf(newFile))
+
+			val statusStaged = jgitRepo.getStatus()
+			val stagedRenamed = statusStaged.staged.find { it.path == "MyFolder/test.txt" }
+			assertNotNull("Renamed change should be in staged", stagedRenamed)
+			assertEquals(ChangeType.RENAMED, stagedRenamed!!.type)
+			assertEquals("myFolder/test.txt", stagedRenamed.oldPath)
+			assertTrue("Unstaged should be empty after staging rename", statusStaged.unstaged.isEmpty())
 
 			jgitRepo.commit("Rename myFolder to MyFolder", "User", "user@test.com")
 
@@ -348,6 +364,48 @@ class JGitRepositoryTest {
 			assertTrue(statusAfter.unstaged.isEmpty())
 			assertTrue(statusAfter.untracked.isEmpty())
 			assertTrue(File(repoDir, "MyFolder/test.txt").exists())
+		}
+
+	@Test
+	fun testCaseOnlyFileRenameAggregatedAsRenamed() =
+		runBlocking {
+			val file = File(repoDir, "hello.txt")
+			file.writeText("hello world")
+			jgitRepo.stageFiles(listOf(file))
+			jgitRepo.commit("Initial commit with hello.txt", "User", "user@test.com")
+
+			// Perform case-only file rename: hello.txt -> Hello.txt
+			val tempFile = File(repoDir, "hello_temp.txt")
+			val newFile = File(repoDir, "Hello.txt")
+			assertTrue(file.renameTo(tempFile))
+			assertTrue(tempFile.renameTo(newFile))
+
+			val statusBefore = jgitRepo.getStatus()
+			val renamedChange = statusBefore.unstaged.find { it.path == "Hello.txt" }
+			assertNotNull("Renamed change should be in unstaged", renamedChange)
+			assertEquals(ChangeType.RENAMED, renamedChange!!.type)
+			assertEquals("hello.txt", renamedChange.oldPath)
+			assertFalse(
+				"Old deleted case should not be separately listed",
+				statusBefore.unstaged.any { it.path == "hello.txt" },
+			)
+			assertFalse(
+				"New case should not be in untracked",
+				statusBefore.untracked.any { it.path == "Hello.txt" },
+			)
+
+			// Stage only new file -> auto evicts old casing
+			jgitRepo.stageFiles(listOf(newFile))
+			val statusStaged = jgitRepo.getStatus()
+			val stagedRenamed = statusStaged.staged.find { it.path == "Hello.txt" }
+			assertNotNull("Renamed change should be in staged", stagedRenamed)
+			assertEquals(ChangeType.RENAMED, stagedRenamed!!.type)
+			assertEquals("hello.txt", stagedRenamed.oldPath)
+
+			jgitRepo.commit("Rename hello.txt to Hello.txt", "User", "user@test.com")
+			val statusAfter = jgitRepo.getStatus()
+			assertTrue(statusAfter.isClean)
+			assertTrue(File(repoDir, "Hello.txt").exists())
 		}
 
 	@Test
@@ -372,18 +430,16 @@ class JGitRepositoryTest {
 				git.commit().setMessage("terminal commit only new case").call()
 			}
 
-			// Verify old case remains as deleted unstaged change
+			// Verify old case is automatically staged for removal in staged changes
 			val statusBefore = jgitRepo.getStatus()
-			assertTrue(statusBefore.unstaged.any { it.path == "myFolder/test.txt" && it.type == ChangeType.DELETED })
-
-			// Stage old deleted file through stageFiles
-			val oldFile = File(repoDir, "myFolder/test.txt")
-			jgitRepo.stageFiles(listOf(oldFile))
+			assertTrue(statusBefore.staged.any { it.path == "myFolder/test.txt" && it.type == ChangeType.DELETED })
+			assertTrue("Unstaged should be empty as old casing was automatically staged", statusBefore.unstaged.isEmpty())
 
 			jgitRepo.commit("Remove orphaned old casing", "User", "user@test.com")
 
 			val statusAfter = jgitRepo.getStatus()
 			assertTrue(statusAfter.isClean)
+			assertTrue(statusAfter.staged.isEmpty())
 			assertTrue(statusAfter.unstaged.isEmpty())
 			assertTrue(File(repoDir, "MyFolder/test.txt").exists())
 		}

@@ -96,21 +96,107 @@ class JGitRepository(
 			}
 
 			// 2. Staged files (Added, Changed, Removed)
-			jgitStatus.added.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.ADDED)) }
-			jgitStatus.changed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.MODIFIED)) }
-			jgitStatus.removed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.DELETED)) }
+			val stagedAdded = jgitStatus.added.toMutableSet()
+			val stagedRemoved = jgitStatus.removed.toMutableSet()
+			val stagedRenames = mutableMapOf<String, String>()
 
-			// 3. Unstaged files (Modified, Missing)
+			stagedAdded.forEach { addedPath ->
+				val matchingRemoved =
+					stagedRemoved.find { it.equals(addedPath, ignoreCase = true) && it != addedPath }
+				if (matchingRemoved != null) {
+					stagedRenames[addedPath] = matchingRemoved
+				}
+			}
+			stagedRenames.forEach { (newPath, oldPath) ->
+				stagedAdded.remove(newPath)
+				stagedRemoved.remove(oldPath)
+				if (processedPaths.add(newPath)) {
+					processedPaths.add(oldPath)
+					staged.add(FileChange(path = newPath, type = ChangeType.RENAMED, oldPath = oldPath))
+				}
+			}
+
+			stagedAdded.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.ADDED)) }
+			jgitStatus.changed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.MODIFIED)) }
+			stagedRemoved.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.DELETED)) }
+
+			// 3. Unstaged files (Modified, Missing) & Untracked
+			val missingSet = jgitStatus.missing.toMutableSet()
+			val untrackedSet = jgitStatus.untracked.toMutableSet()
+			val unstagedRenames = mutableMapOf<String, String>()
+
+			untrackedSet.forEach { untrackedPath ->
+				val matchingMissing =
+					missingSet.find { it.equals(untrackedPath, ignoreCase = true) && it != untrackedPath }
+				if (matchingMissing != null) {
+					unstagedRenames[untrackedPath] = matchingMissing
+				}
+			}
+			unstagedRenames.forEach { (newPath, oldPath) ->
+				untrackedSet.remove(newPath)
+				missingSet.remove(oldPath)
+				if (processedPaths.add(newPath)) {
+					processedPaths.add(oldPath)
+					unstaged.add(FileChange(path = newPath, type = ChangeType.RENAMED, oldPath = oldPath))
+				}
+			}
+
+			// Auto-detect orphaned old casing left behind by terminal commits and stage its removal
+			if (missingSet.isNotEmpty()) {
+				try {
+					val dirCache = repository.readDirCache()
+					val trackedPaths = (0 until dirCache.entryCount).map { dirCache.getEntry(it).pathString }
+					val workTreeCanonical =
+						repository.workTree.canonicalFile.path
+							.replace(File.separatorChar, '/')
+					val orphanedOldPaths = mutableListOf<String>()
+
+					missingSet.forEach { missingPath ->
+						val activeNewPath =
+							trackedPaths.find { it.equals(missingPath, ignoreCase = true) && it != missingPath }
+						if (activeNewPath != null) {
+							val realFile = File(repository.workTree, activeNewPath)
+							if (realFile.exists()) {
+								val relativeCanonical =
+									realFile.canonicalFile.path
+										.replace(File.separatorChar, '/')
+										.removePrefix(workTreeCanonical)
+										.removePrefix("/")
+								if (relativeCanonical == activeNewPath) {
+									orphanedOldPaths.add(missingPath)
+								}
+							}
+						}
+					}
+
+					if (orphanedOldPaths.isNotEmpty()) {
+						val rmCommand = git.rm().setCached(true)
+						orphanedOldPaths.forEach { rmCommand.addFilepattern(it) }
+						rmCommand.call()
+
+						orphanedOldPaths.forEach { oldPath ->
+							missingSet.remove(oldPath)
+							if (processedPaths.add(oldPath)) {
+								staged.add(FileChange(path = oldPath, type = ChangeType.DELETED))
+							}
+						}
+					}
+				} catch (e: Exception) {
+					log.warn("Failed to auto-stage orphaned old casing removal", e)
+				}
+			}
+
 			jgitStatus.modified.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.MODIFIED)) }
-			jgitStatus.missing.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.DELETED)) }
+			missingSet.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.DELETED)) }
 
 			// 4. Untracked files
-			jgitStatus.untracked.forEach { if (processedPaths.add(it)) untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
+			untrackedSet.forEach { if (processedPaths.add(it)) untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
 
 			val isMerging = repository.repositoryState == RepositoryState.MERGING
+			val isClean = staged.isEmpty() && unstaged.isEmpty() && untracked.isEmpty() && conflicted.isEmpty()
 
 			GitStatus(
-				isClean = jgitStatus.isClean,
+				isClean = isClean,
 				hasConflicts = conflicted.isNotEmpty(),
 				isMerging = isMerging,
 				staged = staged,
@@ -223,6 +309,13 @@ class JGitRepository(
 					rmCommand.addFilepattern(relativePath)
 					hasRms = true
 				} else {
+					// If this existing file corresponds to a case-only rename of a missing file, evict old casing
+					val caseRenamedOldPath =
+						missingFiles.find { it.equals(relativePath, ignoreCase = true) && it != relativePath }
+					if (caseRenamedOldPath != null) {
+						rmCommand.addFilepattern(caseRenamedOldPath)
+						hasRms = true
+					}
 					addCommand.addFilepattern(relativePath)
 					hasAdds = true
 				}
