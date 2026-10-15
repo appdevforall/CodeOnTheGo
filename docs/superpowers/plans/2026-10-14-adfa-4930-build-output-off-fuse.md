@@ -33,8 +33,8 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
 - `<projectKey>` is `QuickBuildScratch.projectKey`: `<sanitized-basename>-<sha256-prefix>` of the normalized absolute project path. Extract it to a shared helper so both trees key a project the same way.
 - Inside the tree:
-  - `main/<project path>/` - each project's build directory in the main build (`main/_root/` for the root project, `main/app/` for `:app`).
-  - `<name>-<hash>/<project path>/` - nested builds (`buildSrc`, `includeBuild`), keyed by their own root directory.
+  - `main/<name>-<hash>/` - one flat directory per project in the main build: `<name>` is the project's last path segment (`root` for `:`), `<hash>` a SHA-256 prefix of its full Gradle path. `main/root-<hash>/` for the root project, `main/app-<hash>/` for `:app`. Nesting `:core:ui` under `:core` would put it inside `:core`'s build directory, where `:core:clean` deletes it.
+  - `<name>-<hash>/<name>-<hash>/` - nested builds (`buildSrc`, `includeBuild`), keyed by their own root directory, with projects keyed as above.
   - `project-cache/` - Gradle's `.gradle/`, via `--project-cache-dir`.
   - `kotlin/` - Kotlin's `.kotlin/`, via `kotlin.project.persistent.dir`. Confirm the property name and the minimum Kotlin Gradle plugin version before relying on it; skip it for older versions.
   - `project-path` - a one-line marker holding the project's absolute path, for the orphan sweep.
@@ -42,13 +42,15 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 ### How it is wired
 
 1. **IDE side.** `GradleBuildService.getGradleExtraArgs` (`GradleBuildService.kt:697`) adds, when the feature is on:
-   - `-Pandroidide.build.outputDir=<tree>`
+   - `-Pcotg.build.outputDir=<tree>`
    - `--project-cache-dir <tree>/project-cache`
    - `-Pkotlin.project.persistent.dir=<tree>/kotlin`
+   - `--no-watch-fs`, and any `--watch-fs` removed: Gradle refuses `--project-cache-dir` with file-system watching on. Watching does not run on Android anyway (ADFA-6545).
 
    Sync (`RootModelBuilder.kt:207`) and builds (`ToolingApiServerImpl.kt:313`) both take their arguments from `prepareBuild`, so this one change covers both. `prepareBuild` already reads the project path (`GradleBuildService.kt:552`).
 2. **Gradle side.** `AndroidIDEInitScriptPlugin.apply` (`gradle-plugin`) reads the property from `gradle.startParameter.projectProperties` and, in `beforeProject`, sets `project.layout.buildDirectory`. This runs before any build script, so AGP, Kotlin and Quick Build's plugin all see the new location. The prototype init script did exactly this (`gradle.allprojects { p -> p.layout.buildDirectory.set(...) }`), with 33 builds and no output under the project.
-3. **Flag.** A `BuildPreferences` switch, default off, until validation passes.
+3. **Flag.** A `BuildPreferences` switch, default off, shown only with experiments enabled (`FeatureFlags.isExperimentsEnabled`, REVIEW.md section 12) until validation passes.
+4. **Sync applies it.** A sync reads the switch and records what it applied in `<project>/.cg/build-output-relocated`; builds follow that record, not the live switch, so their output is always where the synced model says it is. When the switch and the record differ, the editor shows the sync-needed banner on resume, and opening the project syncs.
 
 ### What reads build output
 
@@ -104,6 +106,13 @@ Feature: Build output in app storage
     When I build and run it
     Then the app installs and launches
     And the project folder contains no "build" or ".gradle" folder
+
+  Scenario: Changing the switch waits for a sync
+    Given an open project that was synced with relocation off
+    When I turn relocation on in Build preferences and return to the editor
+    Then the editor asks for a sync
+    And a build before the sync still writes to the project's "build" folder
+    And after the sync, builds write to app storage
 
   Scenario: Quick Build still works
     Given an open project that has been built once

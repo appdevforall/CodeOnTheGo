@@ -558,7 +558,10 @@ class GradleBuildService :
 
 			@Suppress("SimplifyBooleanWithConstants")
 			val extraArgs =
-				getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
+				getGradleExtraArgs(
+					enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild,
+					isSync = buildInfo.buildId.runType == BuildRunType.ProjectSync,
+				)
 
 			var buildParams =
 				if (FeatureFlags.isExperimentsEnabled) {
@@ -576,7 +579,7 @@ class GradleBuildService :
 						GradleBuildTuner
 							.toGradleBuildParams(tuningConfig = newTuningConfig)
 							.run {
-								copy(gradleArgs = gradleArgs + extraArgs)
+								copy(gradleArgs = BuildOutputLocation.withoutWatchConflict(gradleArgs + extraArgs))
 							}
 					}.onFailure { err ->
 						log.error("Failed to auto-tune Gradle build", err)
@@ -697,6 +700,7 @@ class GradleBuildService :
 	private fun getGradleExtraArgs(
 		enableJdwp: Boolean = JdwpOptions.JDWP_ENABLED,
 		enableLogSender: Boolean = DevOpsPreferences.logsenderEnabled,
+		isSync: Boolean,
 	): List<String> {
 		val extraArgs = ArrayList<String>()
 		extraArgs.add("--init-script")
@@ -708,10 +712,7 @@ class GradleBuildService :
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
-		// Early access only, like the switch itself (REVIEW.md section 12).
-		if (FeatureFlags.isExperimentsEnabled && BuildPreferences.relocateBuildOutput) {
-			extraArgs.addAll(relocatedBuildOutputArgs())
-		}
+		extraArgs.addAll(relocatedBuildOutputArgs(isSync))
 
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")
@@ -745,17 +746,30 @@ class GradleBuildService :
 
 	/**
 	 * The arguments that move the open project's build output to app-private storage (ADFA-4930),
-	 * or none when there is no open project or its directory cannot be created - the build then
-	 * writes to the project folder as before. Runs on the [prepareBuild] worker, so disk I/O is fine.
+	 * or none. A sync applies the user's current choice and records it; a build follows the last
+	 * sync's record, so it writes where the synced model (APK listing file, classpath) looks. With no
+	 * open project, or a tree that cannot be written, the output stays in the project folder. Runs on
+	 * the [prepareBuild] worker, so disk I/O is fine.
 	 */
-	private fun relocatedBuildOutputArgs(): List<String> {
-		val projectDir = ProjectManagerImpl.getInstance().projectDirPath?.let(::File) ?: return emptyList()
+	private fun relocatedBuildOutputArgs(isSync: Boolean): List<String> {
+		val projectDir =
+			ProjectManagerImpl
+				.getInstance()
+				.projectDirPath
+				.takeIf { it.isNotBlank() }
+				?.let(::File) ?: return emptyList()
+		val cacheDir = Environment.getProjectCacheDir(projectDir)
 		val tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir)
-		if (!BuildOutputLocation.prepare(tree, projectDir)) {
-			log.warn("Cannot create build output directory {}; building into the project folder", tree)
-			return emptyList()
+
+		var relocate = if (isSync) BuildOutputLocation.isRequested() else BuildOutputLocation.syncedState(cacheDir)
+		if (relocate && !BuildOutputLocation.prepare(tree, projectDir)) {
+			log.warn("Cannot write build output directory {}; building into the project folder", tree)
+			relocate = false
 		}
-		return BuildOutputLocation.gradleArgs(tree)
+		if (isSync && !BuildOutputLocation.recordSyncedState(cacheDir, relocate)) {
+			log.warn("Cannot record the build output location in {}", cacheDir)
+		}
+		return if (relocate) BuildOutputLocation.gradleArgs(tree) else emptyList()
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =

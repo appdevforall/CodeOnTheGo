@@ -97,6 +97,7 @@ import com.itsaky.androidide.search.replace.ReplaceCoordinator
 import com.itsaky.androidide.search.replace.ReplaceHost
 import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.search.replace.SkipReason
+import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
@@ -122,6 +123,7 @@ import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
+import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
@@ -182,6 +184,9 @@ abstract class ProjectHandlerActivity :
 	protected var mReplaceInProjectDialog: AlertDialog? = null
 	private val replaceCoordinator by lazy { ReplaceCoordinator(editorFor = { file -> getEditorForFile(file)?.editor }) }
 	protected var syncNotificationFlashbar: Flashbar? = null
+
+	/** The relocation request the sync banner last offered, so Ignore holds until it changes. */
+	private var buildOutputSyncOffered: Boolean? = null
 	private var replaceReportFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
@@ -1203,8 +1208,40 @@ abstract class ProjectHandlerActivity :
 		// parked awaiting that retry (auto-retries are bounded by the reducer).
 		quickBuildSessionManager()?.onHostForegrounded()
 
+		// ADFA-4930: a changed "Relocate build output" (or experiments flag) only moves the build
+		// output at the next sync, so offer one, once per change. notifySyncNeeded stays quiet
+		// while the project is still initializing, which syncs on its own when the change is
+		// pending.
+		activityScope.launch {
+			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
+			val requested = BuildOutputLocation.isRequested()
+			val pending = isBuildOutputSyncPending(File(path), requested)
+			withContext(Dispatchers.Main) {
+				when {
+					!pending -> {
+						buildOutputSyncOffered = null
+					}
+
+					buildOutputSyncOffered != requested -> {
+						if (notifySyncNeeded { initializeProject(forceSync = true) }) {
+							buildOutputSyncOffered = requested
+						}
+					}
+				}
+			}
+		}
+
 		invalidateOptionsMenu()
 	}
+
+	/** Reads the project's cache directory, so it runs on [Dispatchers.IO]. */
+	private suspend fun isBuildOutputSyncPending(
+		projectDir: File,
+		requested: Boolean = BuildOutputLocation.isRequested(),
+	): Boolean =
+		withContext(Dispatchers.IO) {
+			BuildOutputLocation.syncPending(Environment.getProjectCacheDir(projectDir), requested)
+		}
 
 	override fun preDestroy() {
 		syncNotificationFlashbar?.dismiss()
@@ -1287,9 +1324,10 @@ abstract class ProjectHandlerActivity :
 		notifySyncNeeded { initializeProject(forceSync = true) }
 	}
 
-	private fun notifySyncNeeded(onConfirm: () -> Unit) {
+	/** @return false when the banner was not shown: no build service, or initializing or building. */
+	private fun notifySyncNeeded(onConfirm: () -> Unit): Boolean {
 		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return
+		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return false
 
 		activityScope.launch(Dispatchers.Main.immediate) {
 			syncNotificationFlashbar?.dismiss()
@@ -1312,6 +1350,7 @@ abstract class ProjectHandlerActivity :
 
 			syncNotificationFlashbar?.showOnUiThread()
 		}
+		return true
 	}
 
 	fun startServices() {
@@ -1421,7 +1460,7 @@ abstract class ProjectHandlerActivity :
 
 		val needsSync =
 			try {
-				forceSync || manager.isGradleSyncNeeded(projectDir)
+				forceSync || manager.isGradleSyncNeeded(projectDir) || isBuildOutputSyncPending(projectDir)
 			} catch (e: Exception) {
 				when (e) {
 					is FileNotFoundException -> {

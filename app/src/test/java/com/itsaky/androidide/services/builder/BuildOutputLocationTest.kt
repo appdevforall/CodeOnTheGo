@@ -37,11 +37,20 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `relocation overrides an earlier --watch-fs, which gradle refuses with a project cache dir`() {
-		// GradleBuildService puts the tuner's arguments first and these after them.
-		val args = listOf("--parallel", "--watch-fs") + BuildOutputLocation.gradleArgs(File(tmp.root, "tree"))
+	fun `watch-fs is dropped wherever it sits once the project cache is relocated`() {
+		val relocation = BuildOutputLocation.gradleArgs(File(tmp.root, "tree"))
 
-		assertThat(args.last { it == "--watch-fs" || it == "--no-watch-fs" }).isEqualTo("--no-watch-fs")
+		for (args in listOf(listOf("--parallel", "--watch-fs") + relocation, relocation + "--watch-fs")) {
+			assertThat(BuildOutputLocation.withoutWatchConflict(args)).doesNotContain("--watch-fs")
+			assertThat(BuildOutputLocation.withoutWatchConflict(args)).containsAtLeastElementsIn(relocation)
+		}
+	}
+
+	@Test
+	fun `watch-fs is kept when nothing is relocated`() {
+		val args = listOf("--parallel", "--watch-fs")
+
+		assertThat(BuildOutputLocation.withoutWatchConflict(args)).isEqualTo(args)
 	}
 
 	@Test
@@ -71,5 +80,49 @@ class BuildOutputLocationTest {
 		val blocker = tmp.newFile("blocker")
 
 		assertThat(BuildOutputLocation.prepare(File(blocker, "tree"), File(tmp.root, "app"))).isFalse()
+	}
+
+	@Test
+	fun `prepare reports a marker it cannot write instead of throwing`() {
+		val tree = tmp.newFolder("tree")
+		File(tree, BuildOutputLocation.PROJECT_PATH_FILE).mkdir()
+
+		assertThat(BuildOutputLocation.prepare(tree, File(tmp.root, "app"))).isFalse()
+	}
+
+	@Test
+	fun `a project never synced with relocation reads as not relocated`() {
+		assertThat(BuildOutputLocation.syncedState(File(tmp.root, "project/.cg"))).isFalse()
+	}
+
+	@Test
+	fun `the synced state round-trips, creating the cache directory`() {
+		val cacheDir = File(tmp.root, "project/.cg")
+
+		assertThat(BuildOutputLocation.recordSyncedState(cacheDir, true)).isTrue()
+		assertThat(BuildOutputLocation.syncedState(cacheDir)).isTrue()
+
+		assertThat(BuildOutputLocation.recordSyncedState(cacheDir, false)).isTrue()
+		assertThat(BuildOutputLocation.syncedState(cacheDir)).isFalse()
+	}
+
+	@Test
+	fun `recording reports a cache directory it cannot create`() {
+		val blocker = tmp.newFile("blocker")
+
+		assertThat(BuildOutputLocation.recordSyncedState(File(blocker, ".cg"), true)).isFalse()
+	}
+
+	@Test
+	fun `a sync is pending exactly when the request differs from the last sync`() {
+		val cacheDir = tmp.newFolder("project", ".cg")
+
+		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = false)).isFalse()
+		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = true)).isTrue()
+
+		BuildOutputLocation.recordSyncedState(cacheDir, true)
+
+		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = true)).isFalse()
+		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = false)).isTrue()
 	}
 }
