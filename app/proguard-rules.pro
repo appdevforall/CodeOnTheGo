@@ -257,6 +257,9 @@
 -keep class io.noties.markwon.** { *; }
 -keep class com.google.gson.** { *; }
 -keep class org.snakeyaml.engine.** { *; }
+-keep class io.github.rosemoe.sora.** { *; }
+-keep class androidx.cardview.** { *; }
+-keep class androidx.viewpager.widget.** { *; }
 
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }

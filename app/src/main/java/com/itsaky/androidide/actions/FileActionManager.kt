@@ -11,6 +11,9 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.text.StringEscapeUtils
 import org.greenrobot.eventbus.EventBus
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 
 class FileActionManager {
 	private val scope = CoroutineScope(Dispatchers.IO)
@@ -51,4 +54,45 @@ class FileActionManager {
 			}
 		}
 	}
+
+	fun createNewFiles(
+		baseDir: File,
+		files: List<Pair<String, String>>,
+		onResult: (Result<List<File>>) -> Unit,
+	) {
+		scope.launch {
+			val result =
+				try {
+					Result.success(writeNewFiles(baseDir, files))
+				} catch (e: IOException) {
+					Result.failure(e)
+				} catch (e: SecurityException) {
+					Result.failure(e)
+				}
+			result.getOrNull()?.forEach { EventBus.getDefault().post(FileCreationEvent(it)) }
+			withContext(Dispatchers.Main) { onResult(result) }
+		}
+	}
+}
+
+internal fun writeNewFiles(
+	baseDir: File,
+	files: List<Pair<String, String>>,
+): List<File> {
+	val created = mutableListOf<File>()
+	try {
+		for ((path, content) in files) {
+			val target = File(baseDir, path)
+			target.parentFile?.let { Files.createDirectories(it.toPath()) }
+			Files.write(target.toPath(), content.toByteArray(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+			created += target
+		}
+	} catch (e: IOException) {
+		created.forEach { it.delete() }
+		throw e
+	} catch (e: SecurityException) {
+		created.forEach { it.delete() }
+		throw e
+	}
+	return created
 }
