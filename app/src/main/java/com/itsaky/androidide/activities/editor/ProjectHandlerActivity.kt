@@ -1209,22 +1209,23 @@ abstract class ProjectHandlerActivity :
 		quickBuildSessionManager()?.onHostForegrounded()
 
 		// ADFA-4930: a changed "Relocate build output" (or experiments flag) only moves the build
-		// output at the next sync, so offer one, once per change. notifySyncNeeded stays quiet
-		// while the project is still initializing, which syncs on its own when the change is
-		// pending.
-		activityScope.launch {
-			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
-			val requested = BuildOutputLocation.isRequested()
-			val pending = isBuildOutputSyncPending(File(path), requested)
-			withContext(Dispatchers.Main) {
-				when {
-					!pending -> {
-						buildOutputSyncOffered = null
-					}
+		// output at the next sync, so offer one, once per change. Not before the project has
+		// initialized: opening it syncs on its own when the change is pending.
+		if (initializingFuture?.isDone == true) {
+			activityScope.launch {
+				val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
+				val requested = BuildOutputLocation.isRequested()
+				val pending = isBuildOutputSyncPending(File(path), requested)
+				withContext(Dispatchers.Main) {
+					when {
+						!pending -> {
+							buildOutputSyncOffered = null
+						}
 
-					buildOutputSyncOffered != requested -> {
-						if (notifySyncNeeded { initializeProject(forceSync = true) }) {
-							buildOutputSyncOffered = requested
+						buildOutputSyncOffered != requested -> {
+							if (notifySyncNeeded { initializeProject(forceSync = true) }) {
+								buildOutputSyncOffered = requested
+							}
 						}
 					}
 				}
@@ -1761,6 +1762,13 @@ abstract class ProjectHandlerActivity :
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
 		invalidateOptionsMenu()
+
+		// ADFA-4930: this initialization applied the build output switch, so a banner offering a
+		// sync for it is stale, whichever way the user started the sync.
+		if (buildOutputSyncOffered != null) {
+			buildOutputSyncOffered = null
+			syncNotificationFlashbar?.dismiss()
+		}
 
 		// ADFA-4128 benchmark: if the bench trampoline armed an autostart for THIS project,
 		// claim it now - the adb-driven stand-in for the human's tap. Claimed BEFORE prebuild
