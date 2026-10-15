@@ -1,11 +1,11 @@
-package org.appdevforall.cotg.quickbuild.data
+package com.itsaky.androidide.utils
 
 import java.io.File
 import java.security.MessageDigest
 
 /**
  * The directory key for a project's per-project trees in app-private storage: Quick Build's
- * scratch ([QuickBuildScratch]) and relocated Gradle build output (ADFA-4930). Both use this one
+ * scratch (`QuickBuildScratch`) and relocated Gradle build output (ADFA-4930). Both use this one
  * function so a project maps to the same key in each.
  */
 object ProjectStorageKey {

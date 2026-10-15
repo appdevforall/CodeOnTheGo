@@ -2,7 +2,7 @@ package com.itsaky.androidide.services.builder
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
-import org.appdevforall.cotg.quickbuild.data.ProjectStorageKey
+import com.itsaky.androidide.utils.ProjectStorageKey
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder

@@ -1,7 +1,7 @@
 package com.itsaky.androidide.services.builder
 
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
-import org.appdevforall.cotg.quickbuild.data.ProjectStorageKey
+import com.itsaky.androidide.utils.ProjectStorageKey
 import java.io.File
 
 /**

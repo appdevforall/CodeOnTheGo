@@ -194,7 +194,7 @@ Four traps in that table:
 - **The scratch tree is deleted on session teardown**, so inspect it while the session is
   live. Its directory name is `<sanitized project basename>-<first 16 hex of SHA-256 of the
   normalized absolute project path>`
-  ([`ProjectStorageKey.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/ProjectStorageKey.kt),
+  ([`ProjectStorageKey.kt`](../../shared/src/main/java/com/itsaky/androidide/utils/ProjectStorageKey.kt),
   shared with relocated Gradle build output), so `ls` the parent rather than trying to compute it.
 - **The generation counter's directory is `.androidide`, not `.cg`.** CoGo's project cache dir
   was renamed to `.cg`; this one path is hardcoded to the old name in
