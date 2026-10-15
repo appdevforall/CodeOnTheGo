@@ -35,7 +35,95 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.42 — unreleased
+- **added — Tell whether a server is on this device, the local network or the internet** _(ADFA-6536)_ **[verified]**
+  `net.ServerUrl.parse(url)` returns `ServerUrlParseResult.Valid(url)` or `Invalid(reason)`, where
+  `Invalid.Reason` is `BLANK`, `MALFORMED`, `UNSUPPORTED_SCHEME` or `NO_HOST` (more may be added). A
+  `ServerUrl` has `scheme` (`HTTP`/`HTTPS`, each with its URL `id` and `isEncrypted`), `host`, `port`, `isCleartext` and a `NetworkLocality`:
+  `LOOPBACK` (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`, `::`), `PRIVATE_NETWORK` (RFC 1918, link-local, IPv6
+  unique-local, `.local` and dotless names) or `PUBLIC`. It reads the URL as typed and never resolves
+  a name, so it is safe on the main thread. It only classifies; each plugin decides what it allows
+  for each locality. Floor `plugin.min_ide_version` at `26.42` to use it.
+- **added — Start Quick Build and get its result** _(ADFA-6493)_ **[verified]**
+  `IdeBuildService.getQuickBuildAvailability()` returns `QuickBuildAvailability.Available`, or
+  `Unavailable(reason, message)` with a `QuickBuildUnavailableReason`: `EXPERIMENTS_DISABLED`,
+  `NO_PROJECT`, `PROJECT_SYNCING`, `PLUGIN_PROJECT`, `NO_APP_MODULE`, `RELEASE_VARIANT`, or
+  `NOT_SUPPORTED` from a host without Quick Build. `startQuickBuild()` runs the same tap as the
+  toolbar button: it saves open files, asks the user before replacing an app installed under the
+  project's application ID, and shows in the toolbar and Build Output as usual. It completes once
+  with a `QuickBuildResult`: `Reloaded(durationMillis, restarted)`, `UpToDate` (nothing to build),
+  `AppNotRunning(message)`, `Failed(reason, output)`, `Refused(reason)` (unavailable, another build
+  or Quick Build running, no editor in the foreground), `Declined` (the user kept the installed app),
+  or `Cancelled`. `cancelQuickBuild()` asks a running Quick Build to stop like the stop icon, or
+  drops a plugin's start still saving or asking the user; the start's future reports what actually
+  happened, usually `Cancelled`. It needs `system.commands`. `getQuickBuildStatus()` returns a `QuickBuildState`: `READY`, `BUILDING`,
+  `FULL_BUILD_NEXT`, `RECONNECTING`, `ERROR`, or `UNAVAILABLE`. Floor `plugin.min_ide_version` at
+  `26.42`: an older IDE has none of these methods or classes.
+- **added — Context window and typed failures for LLM backends** _(ADFA-6493)_ **[verified]**
+  `LlmInferenceService.ContextWindowReportingBackend.getContextWindowTokens()` lets a backend report
+  the tokens one request may hold (for a local model, the context actually allocated), or 0 while
+  unknown; a consumer asks with `instanceof`. `FailureKind` (`OTHER`, `CONTEXT_TOO_LONG`) says why a
+  generation failed without matching its user-facing wording: `LlmResponse.failure(error, kind)`, a
+  constructor taking `failureKind` for a failure that keeps its partial text and token count, and
+  `LlmResponse.failureKind` (null on success, `OTHER` when the backend did not say), and a default
+  `onError(error, kind)` that falls back to `onError(error)`, so consumers built before it still hear
+  every failure. It lives on a new `ErrorCallback` that `StreamCallback` and `ToolStreamCallback`
+  both extend, so one class can still implement both. Floor
+  `plugin.min_ide_version` at `26.42` to call or implement any of them.
+
 ### 26.41 — unreleased
+- **added — Terminal readiness and visible terminal commands** _(ADFA-6373, ADFA-6385)_ **[verified]**
+  `IdeTerminalService.isTerminalReady()` reports whether the terminal environment is installed
+  and bash runs; it needs no permission. `runInTerminal(command, workingDirectory, waitMillis)`
+  runs the command with bash in the visible Terminal, in an idle session of the plugin; a new
+  session opens only while the plugin's others are busy, up to 3. Each command runs in its own
+  bash process, so `cd` and `export` do not carry over; it starts from the session's login shell,
+  so it sees the user's profile and anything the user exported there. It returns
+  `TerminalCommandResult.Completed(exitCode, output)` with that command's output, `Running(commandId,
+  sessionName, output)` when the command is still running after `waitMillis` (default 30 s; it keeps running), or
+  `NotStarted(reason)` (environment missing, IDE not in the foreground, all 3 sessions busy, naming them).
+  Cancelling the caller, or unloading the plugin, interrupts the command with Ctrl-C and ends its
+  session if it has not exited a few seconds later. A session where the user started a program of
+  their own is busy. `readCommand(commandId)` returns that command, `Running` or `Completed`, even
+  after another command reuses its session; null for an id that is not the plugin's, or a command
+  that exited before the plugin's last 8 others did. `stopCommand(commandId, waitMillis)` interrupts
+  that command with Ctrl-C and returns its state as `readCommand` does after waiting up to
+  `waitMillis` for it to exit; it never touches a later command in the same session. All three need `system.commands`;
+  the working directory must lie inside the project. Floor `plugin.min_ide_version` at `26.41`:
+  an older IDE has no `IdeTerminalService` class, so referencing it fails to load.
+- **added — Run Gradle tasks with arguments, get a structured result, cancel** _(ADFA-6373)_ **[verified]**
+  `IdeBuildService.executeTasks(tasks: List<String>, arguments: List<String>)` runs on the
+  IDE's tooling server, so `--tests`, `-P` and `--info` work and the output reaches the Build
+  Output pane (read it with `getBuildOutput()`). It completes with a `GradleTaskResult`:
+  `Success`, `Failed(reason)`, `Refused(reason)` when the build never started (another build
+  running, tooling server down, a task name starting with `-`), or `Cancelled`.
+  `IdeBuildService.cancelBuild()` cancels the running build, whoever started it. Non-empty
+  `arguments` and `cancelBuild()` need `system.commands` and throw `SecurityException` without
+  it. While the build runs, a sync or build the user starts is refused. Floor
+  `plugin.min_ide_version` at `26.41`: an older IDE has neither method.
+- **added — List the project's Gradle tasks** _(ADFA-6373)_ **[verified]**
+  `IdeBuildService.getTasks()` returns the open project's tasks, root project and modules alike,
+  as `GradleTaskInfo(path, name, projectPath, group, description)`. It reflects the last sync:
+  empty before one or with no project open, and a task added since appears after the next.
+  Needs no permission. Floor `plugin.min_ide_version` at `26.41`: an older IDE has no such
+  method or class.
+- **breaking — `IdeBuildService.executeTasks(vararg String)` needs at least one task** _(ADFA-6373)_
+  With no tasks it used to run the project's default tasks; it now completes with `false`
+  without building. Name the tasks to run. A task name starting with `-` still completes with
+  `false`, now without starting a build.
+- **breaking — `CommandSpec.GradleTask` runs on the tooling server** _(ADFA-6373)_
+  It used to start `./gradlew` as a separate process: a second Gradle daemon on the device,
+  with output that never reached the Build Output pane. It now runs like `executeTasks` above.
+  Output arrives in one batch of `StdOut` lines when the build ends instead of streaming; the
+  exit code is 0 on success and 1 on a failed build; a refused build fails with exit code -1
+  and the reason in `CommandResult.Failure.error`. No source change is needed. A plugin that
+  ran a Gradle task while another build was running now gets that refusal instead of a
+  second build, and while its task runs, a sync or build the user starts is refused: keep
+  `timeoutMs` no longer than the task needs. A cancel or timeout completes once Gradle stops.
+- **breaking — `CommandSpec.ShellCommand.workingDirectory` needs an open project** _(ADFA-6373)_
+  With no project open, a `workingDirectory` used to be accepted unchecked; `executeCommand` now
+  throws `SecurityException`, as it does for one outside the project. Pass null to run in the
+  default directory.
 - **added — Plugin languages: tree-sitter highlighting and a language server** _(ADFA-4851)_ **[verified]**
   A plugin implementing `LanguageExtension` returns `LanguageDefinition`s, each claiming file
   extensions and optionally carrying a `TreeSitterGrammar` and a `LanguageServerDefinition`.

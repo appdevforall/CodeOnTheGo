@@ -44,6 +44,7 @@ dependencies {
 
 	implementation(projects.actions)
 	implementation(projects.lsp.api)
+	implementation(projects.lsp.jvmSymbolIndex)
 	implementation(projects.lexers)
 	implementation(projects.subprojects.xmlDom)
 	implementation(projects.subprojects.xmlUtils)

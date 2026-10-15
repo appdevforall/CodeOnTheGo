@@ -441,6 +441,12 @@ class GradleQuickBuildProvisioner(
 					// No bracket to take, so nothing to suppress; the build still runs.
 					runBuild()
 				}
+			// The check above narrows the race but cannot close it: the slot is claimed inside
+			// executeTasks, and a sync that wins it in between is refused here.
+			if (result?.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS) {
+				log.info("A Gradle build took the slot first; the Quick Build proxy app build was refused")
+				return ProxyAppBuildResult.SlotBusy
+			}
 			if (result == null || !result.isSuccessful) {
 				log.error("Quick-build proxy app build failed: {}", result?.failure)
 				// The bracket above suppressed the editor's build listener, and result.failure is
@@ -548,7 +554,7 @@ class GradleQuickBuildProvisioner(
 		 * @param manager the project model to ask; defaults to the process-wide one, which is
 		 *   what every non-injected caller has always used.
 		 */
-		private fun quickBuildModule(manager: IProjectManager = IProjectManager.getInstance()): AndroidModule? =
+		internal fun quickBuildModule(manager: IProjectManager = IProjectManager.getInstance()): AndroidModule? =
 			manager.getAndroidAppModules().firstOrNull()
 				?: manager.getAndroidModules().firstOrNull()
 

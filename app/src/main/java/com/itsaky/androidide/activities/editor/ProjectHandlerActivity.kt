@@ -64,6 +64,7 @@ import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.IDELanguageClientImpl
 import com.itsaky.androidide.lsp.debug.DebugClientConnectionResult
 import com.itsaky.androidide.lsp.java.utils.CancelChecker
+import com.itsaky.androidide.memprof.Memprof
 import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
@@ -106,6 +107,7 @@ import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_CANCELLED
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.BUILD_IN_PROGRESS
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.CACHE_READ_ERROR
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_DIRECTORY_INACCESSIBLE
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Failure.PROJECT_NOT_DIRECTORY
@@ -901,32 +903,18 @@ abstract class ProjectHandlerActivity :
 	/**
 	 * Quick Build install gate (ADFA-4128): the proxy app installs under the project's real
 	 * applicationId. When a different build (the Standard Run app) currently occupies that
-	 * id, installing the proxy app replaces it, so confirm first and run [onConfirmed] only on
-	 * accept; otherwise [onConfirmed] runs immediately. A third-party occupant (different
-	 * signing cert) is caught authoritatively by the provisioner's signature check, which
-	 * refuses rather than clobbers.
+	 * id, installing the proxy app replaces it, so confirm first. A third-party occupant
+	 * (different signing cert) is caught authoritatively by the provisioner's signature check,
+	 * which refuses rather than clobbers.
+	 *
+	 * Call on the main thread: true when the build may proceed, false when the user declined to
+	 * replace the installed app.
 	 */
-	fun ensureQuickBuildClobberConfirmed(onConfirmed: () -> Unit) {
+	suspend fun awaitQuickBuildClobberConfirmed(): Boolean {
 		// No check means the feature is off, and with it off no proxy app can exist to be
 		// replaced - the only branch here that may skip the confirmation.
-		val clobberCheck = quickBuildClobberCheck()
-		if (clobberCheck == null) {
-			onConfirmed()
-			return
-		}
-		// The check reads the PackageManager, which is IO and suspends. Callers of this gate
-		// are ordinary click handlers, so the coroutine is owned here rather than pushed onto
-		// them; Main.immediate keeps the common case (nothing to confirm) in the same frame.
-		lifecycleScope.launch(Dispatchers.Main.immediate) {
-			ensureQuickBuildClobberConfirmedNow(clobberCheck, onConfirmed)
-		}
-	}
-
-	private suspend fun ensureQuickBuildClobberConfirmedNow(
-		clobberCheck: QuickBuildClobberCheck,
-		onConfirmed: () -> Unit,
-	) {
-		when (
+		val clobberCheck = quickBuildClobberCheck() ?: return true
+		return when (
 			val decision =
 				quickBuildClobberConfirmation(
 					projectRealApplicationId(),
@@ -934,20 +922,18 @@ abstract class ProjectHandlerActivity :
 				)
 		) {
 			QuickBuildClobberConfirmation.NotNeeded -> {
-				onConfirmed()
+				true
 			}
 
 			QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-				if (confirmUnknownOccupantSwitch()) onConfirmed()
+				confirmUnknownOccupantSwitch()
 			}
 
 			is QuickBuildClobberConfirmation.Needed -> {
-				val confirmed =
-					awaitBuildTypeSwitchConfirmation(
-						getString(string.quick_build_switch_to_quick_title),
-						getString(string.quick_build_switch_to_quick_message, decision.applicationId),
-					)
-				if (confirmed) onConfirmed()
+				awaitBuildTypeSwitchConfirmation(
+					getString(string.quick_build_switch_to_quick_title),
+					getString(string.quick_build_switch_to_quick_message, decision.applicationId),
+				)
 			}
 		}
 	}
@@ -1621,9 +1607,26 @@ abstract class ProjectHandlerActivity :
 	}
 
 	protected open fun onProjectInitialized(result: InitializeResult.Success) {
+		Memprof.mark("sync_complete")
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()
-			val gradleBuildResult = ProjectSyncHelper.readGradleBuild(result.cacheFile)
+			val gradleBuildResult =
+				Memprof.phase("Parse project model", "cache_parsed") { span ->
+					val startMs = if (span.isRecording) System.currentTimeMillis() else 0L
+					val parsed = ProjectSyncHelper.readGradleBuild(result.cacheFile)
+					if (span.isRecording) {
+						span.put("bytes", result.cacheFile.length())
+						span.put("durationMs", System.currentTimeMillis() - startMs)
+						if (parsed.isFailure) {
+							span.put("failed", 1)
+						}
+					}
+					// readGradleBuild returns its failure rather than throwing, so the phase would end as finished.
+					if (parsed.isFailure) {
+						span.abandon()
+					}
+					parsed
+				}
 			if (gradleBuildResult.isFailure) {
 				val error = gradleBuildResult.exceptionOrNull()
 				log.error("Failed to read project cache", error)
@@ -1703,6 +1706,7 @@ abstract class ProjectHandlerActivity :
 					PROJECT_NOT_DIRECTORY -> string.msg_file_is_not_dir
 					PROJECT_NOT_FOUND -> string.msg_project_dir_doesnt_exist
 					CACHE_READ_ERROR -> string.msg_project_cache_read_failure
+					BUILD_IN_PROGRESS -> string.build_in_progress_warning
 					else -> null
 				}?.let {
 					"$initFailed: ${getString(it)}"
