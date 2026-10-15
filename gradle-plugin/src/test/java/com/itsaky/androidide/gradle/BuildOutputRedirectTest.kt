@@ -8,12 +8,38 @@ class BuildOutputRedirectTest {
 	private val root = File("/out")
 	private val projectDir = File("/projects/MyApp")
 
+	private fun main(path: String) = BuildOutputRedirect.buildDirFor(root, false, projectDir, path)
+
 	@Test
-	fun `main build projects go under main`() {
-		assertThat(BuildOutputRedirect.buildDirFor(root, false, projectDir, ":")).isEqualTo(File("/out/main/_root"))
-		assertThat(BuildOutputRedirect.buildDirFor(root, false, projectDir, ":app")).isEqualTo(File("/out/main/app"))
-		assertThat(BuildOutputRedirect.buildDirFor(root, false, projectDir, ":libs:core"))
-			.isEqualTo(File("/out/main/libs/core"))
+	fun `main build projects get one flat directory each under main`() {
+		for (path in listOf(":", ":app", ":libs:core")) {
+			assertThat(main(path).parentFile).isEqualTo(File(root, "main"))
+		}
+		assertThat(main(":").name).startsWith("root-")
+		assertThat(main(":app").name).startsWith("app-")
+		assertThat(main(":libs:core").name).startsWith("core-")
+	}
+
+	@Test
+	fun `a child project's build directory is not inside its parent's`() {
+		val parent = main(":core")
+		val child = main(":core:ui")
+
+		assertThat(child.parentFile).isEqualTo(parent.parentFile)
+		assertThat(child.path).doesNotContain(parent.path + File.separator)
+	}
+
+	@Test
+	fun `names that used to collide do not`() {
+		val dirs = listOf(":", ":_root", ":root", ":core", ":core:generated", ":generated", ":a:b", ":a_b").map(::main)
+
+		assertThat(dirs.toSet()).hasSize(dirs.size)
+	}
+
+	@Test
+	fun `the mapping is stable and never contains a colon`() {
+		assertThat(main(":core:ui")).isEqualTo(main(":core:ui"))
+		assertThat(main(":core:ui").name).doesNotContain(":")
 	}
 
 	@Test
@@ -22,7 +48,7 @@ class BuildOutputRedirectTest {
 
 		assertThat(buildSrc.parentFile.parentFile).isEqualTo(root)
 		assertThat(buildSrc.parentFile.name).startsWith("buildSrc-")
-		assertThat(buildSrc.name).isEqualTo("_root")
+		assertThat(buildSrc.name).startsWith("root-")
 	}
 
 	@Test

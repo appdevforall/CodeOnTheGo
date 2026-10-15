@@ -99,10 +99,11 @@ class AndroidIDEInitScriptPluginTest {
 			})
 
 		assertIdePluginApplied(result)
-		assertThat(result.output)
-			.contains("Build directory of project ':' relocated to ${File(dir, "main/_root")}")
-		assertThat(result.output)
-			.contains("Build directory of project ':app' relocated to ${File(dir, "main/app")}")
+		for (path in listOf(":", ":app")) {
+			// The main build's directory does not depend on its root, so any File will do.
+			val expected = BuildOutputRedirect.buildDirFor(dir, false, dir, path)
+			assertThat(result.output).contains("Build directory of project '$path' relocated to $expected")
+		}
 	}
 
 	@Test
