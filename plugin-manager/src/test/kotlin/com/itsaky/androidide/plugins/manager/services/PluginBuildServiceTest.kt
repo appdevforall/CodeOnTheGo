@@ -12,6 +12,7 @@ class PluginBuildServiceTest {
 	private class FakeIdeBuildService : IdeBuildService {
 		val runs = mutableListOf<Pair<List<String>, List<String>>>()
 		var cancelRequests = 0
+		var quickBuildCancelRequests = 0
 
 		override fun executeTasks(
 			tasks: List<String>,
@@ -23,6 +24,11 @@ class PluginBuildServiceTest {
 
 		override fun cancelBuild(): CompletableFuture<Boolean> {
 			cancelRequests++
+			return CompletableFuture.completedFuture(true)
+		}
+
+		override fun cancelQuickBuild(): CompletableFuture<Boolean> {
+			quickBuildCancelRequests++
 			return CompletableFuture.completedFuture(true)
 		}
 
@@ -70,5 +76,14 @@ class PluginBuildServiceTest {
 
 		service(PluginPermission.SYSTEM_COMMANDS).cancelBuild()
 		assertThat(delegate.cancelRequests).isEqualTo(1)
+	}
+
+	@Test
+	fun cancelQuickBuildNeedsSystemCommands() {
+		assertThat(runCatching { service().cancelQuickBuild() }.exceptionOrNull()).isInstanceOf(SecurityException::class.java)
+		assertThat(delegate.quickBuildCancelRequests).isEqualTo(0)
+
+		service(PluginPermission.SYSTEM_COMMANDS).cancelQuickBuild()
+		assertThat(delegate.quickBuildCancelRequests).isEqualTo(1)
 	}
 }
