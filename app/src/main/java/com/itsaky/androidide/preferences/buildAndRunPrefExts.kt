@@ -27,6 +27,7 @@ import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_OFFLINE
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_SCAN
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_STACKTRACE
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_WARNINGMODEALL
+import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILDRUN_RELOCATE_OUTPUT
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_BUILD_RUN
 import com.itsaky.androidide.preferences.internal.BuildPreferences.GRADLE_COMMANDS
 import com.itsaky.androidide.preferences.internal.BuildPreferences.LAUNCH_APP_AFTER_INSTALL
@@ -42,6 +43,7 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfte
 import com.itsaky.androidide.preferences.internal.BuildPreferences.relocateBuildOutput
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -68,7 +70,11 @@ private class GradleOptions(
 
 	init {
 		addPreference(GradleCommands())
-		addPreference(RelocateBuildOutput())
+		// Early access only (REVIEW.md section 12): until the rest of the ADFA-4930 stack lands,
+		// Quick Build and plugin builds still look for output in the project folder.
+		if (FeatureFlags.isExperimentsEnabled) {
+			addPreference(RelocateBuildOutput())
+		}
 	}
 }
 
@@ -101,6 +107,7 @@ private class RelocateBuildOutput(
 	override val title: Int = string.idepref_relocateBuildOutput_title,
 	override val summary: Int? = string.idepref_relocateBuildOutput_summary,
 	override val icon: Int? = drawable.ic_folder,
+	override val tooltipTag: String = PREFS_BUILDRUN_RELOCATE_OUTPUT,
 ) : SwitchPreference(setValue = ::relocateBuildOutput::set, getValue = ::relocateBuildOutput::get)
 
 @Parcelize

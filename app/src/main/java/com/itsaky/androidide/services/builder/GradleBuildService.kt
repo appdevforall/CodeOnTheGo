@@ -708,7 +708,8 @@ class GradleBuildService :
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
-		if (BuildPreferences.relocateBuildOutput) {
+		// Early access only, like the switch itself (REVIEW.md section 12).
+		if (FeatureFlags.isExperimentsEnabled && BuildPreferences.relocateBuildOutput) {
 			extraArgs.addAll(relocatedBuildOutputArgs())
 		}
 

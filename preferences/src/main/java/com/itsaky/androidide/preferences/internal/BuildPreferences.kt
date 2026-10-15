@@ -109,7 +109,8 @@ object BuildPreferences {
 
 	/**
 	 * Whether builds write their output to app-private storage instead of the project folder
-	 * (ADFA-4930). Off until the rest of the IDE reads build output from the new location.
+	 * (ADFA-4930). Off until the rest of the IDE reads build output from the new location, and
+	 * honored only while experiments are enabled.
 	 */
 	var relocateBuildOutput: Boolean
 		get() = prefManager.getBoolean(RELOCATE_BUILD_OUTPUT, false)
