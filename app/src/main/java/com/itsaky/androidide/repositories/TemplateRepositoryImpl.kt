@@ -62,9 +62,6 @@ class TemplateRepositoryImpl(
 	 * install/uninstall/delete flows.
 	 */
 	private fun scanTemplates(): List<CgtFileItem> {
-		// installedNames is deliberately built before core.cgt is filtered out below: a same-named
-		// core.cgt sitting in Downloads must still be hidden as a dead-end twin (see the class doc),
-		// not shown as an installable card whose Install could only ever collide with the real one.
 		val installed = cgtFilesIn(templatesDir).mapNotNull { file -> parseCgtFile(file, installed = true) }
 		val installedNames = installed.mapTo(mutableSetOf()) { item -> item.name.lowercase() }
 		val downloaded =
@@ -73,8 +70,11 @@ class TemplateRepositoryImpl(
 				.mapNotNull { file -> parseCgtFile(file, installed = false) }
 		// Filtered out of the combined list, not just `installed`: core.cgt must be excluded even
 		// if templatesDir doesn't have it yet (bootstrap incomplete) and only a Downloads copy exists.
-		return (installed + downloaded).filterNot { item -> item.name == TEMPLATE_CORE_ARCHIVE }
+		return (installed + downloaded).filterNot { item -> isCoreArchive(item.name) }
 	}
+
+	/** Case-insensitive, like the twin dedup above and `findExistingCollision`'s reserved name. */
+	private fun isCoreArchive(fileName: String): Boolean = fileName.equals(TEMPLATE_CORE_ARCHIVE, ignoreCase = true)
 
 	private fun cgtFilesIn(dir: File): List<File> =
 		dir
@@ -146,6 +146,9 @@ class TemplateRepositoryImpl(
 		withContext(Dispatchers.IO) {
 			try {
 				check(item.installed) { "'${item.name}' is not installed" }
+				// Guarded here as well as hidden by scanTemplates: once moved out, core.cgt is never
+				// listed again, so there would be no in-app way to put it back.
+				check(!isCoreArchive(item.name)) { "Cannot uninstall the bundled template" }
 
 				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
 				// throws, the store copy below is never touched, so the user's only copy survives.

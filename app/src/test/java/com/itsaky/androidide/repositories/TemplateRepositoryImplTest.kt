@@ -228,17 +228,28 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
-	fun listTemplateFiles_hidesACoreArchiveTwinInDownloads() =
+	fun listTemplateFiles_excludesTheCoreArchiveCaseInsensitively() =
 		runTest {
-			writeCgt(templatesDir, TEMPLATE_CORE_ARCHIVE)
-			writeCgt(downloadDir, TEMPLATE_CORE_ARCHIVE)
+			writeCgt(templatesDir, "Core.CGT")
+			writeCgt(templatesDir, "installed.cgt")
 
 			val items = repository.listTemplateFiles().getOrThrow()
 
-			// The excluded core.cgt must not resurrect its Downloads twin as an installable card -
-			// that card's Install could only ever fail, since the real core.cgt already occupies
-			// that path in templatesDir.
-			assertThat(items).isEmpty()
+			assertThat(items.map { it.name }).containsExactly("installed.cgt")
+		}
+
+	@Test
+	fun uninstallTemplate_refusesTheCoreArchive_evenWhenNotReachedThroughTheList() =
+		runTest {
+			// A differently-cased name, built directly rather than via listTemplateFiles: the guard
+			// must hold on the operation itself, not rely on the list having hidden the item.
+			val core = File(templatesDir, "Core.cgt").apply { writeText("bundled") }
+
+			val result = repository.uninstallTemplate(item(core, installed = true))
+
+			assertThat(result.exceptionOrNull()).isInstanceOf(IllegalStateException::class.java)
+			assertThat(core.readText()).isEqualTo("bundled")
+			assertThat(downloadDir.list()).isEmpty()
 		}
 
 	@Test
