@@ -19,6 +19,7 @@ package com.itsaky.androidide.gradle
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.tooling.api.GradlePluginConfig
 import org.gradle.testkit.runner.BuildResult
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
@@ -85,6 +86,31 @@ class AndroidIDEInitScriptPluginTest {
 		assertIdePluginApplied(result)
 		assertThat(result.output).doesNotContain("Applying LogSenderPlugin")
 		assertThat(result.output).doesNotContain("Adding LogSender dependency")
+	}
+
+	@Test
+	fun `test build output is relocated when the IDE asks for it`(
+		@TempDir dir: File,
+	) {
+		val result =
+			buildProject(configureArgs = {
+				it += "-P${GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR}=${dir.absolutePath}"
+				it += "--info"
+			})
+
+		assertIdePluginApplied(result)
+		assertThat(result.output)
+			.contains("Build directory of project ':' relocated to ${File(dir, "main/_root")}")
+		assertThat(result.output)
+			.contains("Build directory of project ':app' relocated to ${File(dir, "main/app")}")
+	}
+
+	@Test
+	fun `test build output stays put by default`() {
+		val result = buildProject(configureArgs = { it += "--info" })
+
+		assertIdePluginApplied(result)
+		assertThat(result.output).doesNotContain("relocated to")
 	}
 
 	@Disabled(

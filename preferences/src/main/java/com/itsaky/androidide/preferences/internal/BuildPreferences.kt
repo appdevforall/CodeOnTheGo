@@ -36,6 +36,7 @@ object BuildPreferences {
 	const val GRADLE_COMMANDS = "idepref_build_gradleCommands"
 	const val CUSTOM_GRADLE_INSTALLATION = "idepref_build_customGradleInstallation"
 	const val LAUNCH_APP_AFTER_INSTALL = "ide.build.run.launchAppAfterInstall"
+	const val RELOCATE_BUILD_OUTPUT = "ide.build.relocateBuildOutput"
 
 	/** Switch for Gradle `--debug` option. */
 	var isDebugEnabled: Boolean
@@ -104,5 +105,15 @@ object BuildPreferences {
 		get() = prefManager.getBoolean(LAUNCH_APP_AFTER_INSTALL, false)
 		set(value) {
 			prefManager.putBoolean(LAUNCH_APP_AFTER_INSTALL, value)
+		}
+
+	/**
+	 * Whether builds write their output to app-private storage instead of the project folder
+	 * (ADFA-4930). Off until the rest of the IDE reads build output from the new location.
+	 */
+	var relocateBuildOutput: Boolean
+		get() = prefManager.getBoolean(RELOCATE_BUILD_OUTPUT, false)
+		set(value) {
+			prefManager.putBoolean(RELOCATE_BUILD_OUTPUT, value)
 		}
 }

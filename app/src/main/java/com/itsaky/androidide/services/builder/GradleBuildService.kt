@@ -708,6 +708,10 @@ class GradleBuildService :
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
 
+		if (BuildPreferences.relocateBuildOutput) {
+			extraArgs.addAll(relocatedBuildOutputArgs())
+		}
+
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")
 		}
@@ -736,6 +740,21 @@ class GradleBuildService :
 		}
 
 		return extraArgs
+	}
+
+	/**
+	 * The arguments that move the open project's build output to app-private storage (ADFA-4930),
+	 * or none when there is no open project or its directory cannot be created - the build then
+	 * writes to the project folder as before. Runs on the [prepareBuild] worker, so disk I/O is fine.
+	 */
+	private fun relocatedBuildOutputArgs(): List<String> {
+		val projectDir = ProjectManagerImpl.getInstance().projectDirPath?.let(::File) ?: return emptyList()
+		val tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir)
+		if (!BuildOutputLocation.prepare(tree, projectDir)) {
+			log.warn("Cannot create build output directory {}; building into the project folder", tree)
+			return emptyList()
+		}
+		return BuildOutputLocation.gradleArgs(tree)
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
