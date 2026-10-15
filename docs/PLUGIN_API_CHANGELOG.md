@@ -36,7 +36,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.42 — unreleased
-- **added — Tell whether a server is on this device, the local network or the internet** _(ADFA-6314)_ **[verified]**
+- **added — Tell whether a server is on this device, the local network or the internet** _(ADFA-6536)_ **[verified]**
   `net.ServerUrl.parse(url)` returns `ServerUrlParseResult.Valid(url)` or `Invalid(reason)`, where
   `Invalid.Reason` is `BLANK`, `MALFORMED`, `UNSUPPORTED_SCHEME` or `NO_HOST` (more may be added). A
   `ServerUrl` has `scheme` (`HTTP`/`HTTPS`, each with its URL `id` and `isEncrypted`), `host`, `port`, `isCleartext` and a `NetworkLocality`:
