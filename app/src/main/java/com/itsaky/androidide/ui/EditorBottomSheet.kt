@@ -228,7 +228,19 @@ class EditorBottomSheet
 						}
 					}
 					launch {
+						var previousSheetState = BottomSheetBehavior.STATE_COLLAPSED
 						viewModel.sheetState.collectLatest { state ->
+							val isNowExpanded =
+								state.sheetState == BottomSheetBehavior.STATE_EXPANDED ||
+									state.sheetState == BottomSheetBehavior.STATE_HALF_EXPANDED
+							val wasExpanded =
+								previousSheetState == BottomSheetBehavior.STATE_EXPANDED ||
+									previousSheetState == BottomSheetBehavior.STATE_HALF_EXPANDED
+
+							if (isNowExpanded && !wasExpanded && pagerAdapter.isGitTab(state.currentTab)) {
+								gitViewModel.refreshStatus()
+							}
+							previousSheetState = state.sheetState
 							updateFabVisibility(state)
 						}
 					}
@@ -832,10 +844,6 @@ class EditorBottomSheet
 			val isExpanded =
 				state.sheetState == BottomSheetBehavior.STATE_EXPANDED ||
 					state.sheetState == BottomSheetBehavior.STATE_HALF_EXPANDED
-
-			if (isExpanded && pagerAdapter.isGitTab(state.currentTab)) {
-				gitViewModel.refreshStatus()
-			}
 
 			val showShareAndClear = isExpanded && currentFragment is ShareableOutputFragment
 			val showSearchAndFilter = isExpanded && currentFragment is SearchableOutputFragment

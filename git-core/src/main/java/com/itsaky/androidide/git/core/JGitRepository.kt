@@ -141,48 +141,23 @@ class JGitRepository(
 				}
 			}
 
-			// Auto-detect orphaned old casing left behind by terminal commits and stage its removal
+			// Filter out ghost missing entries where the file exists on disk with different casing
+			// (e.g. after a case-only folder/file rename was committed externally or via terminal)
 			if (missingSet.isNotEmpty()) {
-				try {
-					val dirCache = repository.readDirCache()
-					val trackedPaths = (0 until dirCache.entryCount).map { dirCache.getEntry(it).pathString }
-					val workTreeCanonical =
-						repository.workTree.canonicalFile.path
-							.replace(File.separatorChar, '/')
-					val orphanedOldPaths = mutableListOf<String>()
+				val dirCache = repository.readDirCache()
+				val trackedPaths = (0 until dirCache.entryCount).map { dirCache.getEntry(it).pathString }
 
-					missingSet.forEach { missingPath ->
-						val activeNewPath =
-							trackedPaths.find { it.equals(missingPath, ignoreCase = true) && it != missingPath }
-						if (activeNewPath != null) {
-							val realFile = File(repository.workTree, activeNewPath)
-							if (realFile.exists()) {
-								val relativeCanonical =
-									realFile.canonicalFile.path
-										.replace(File.separatorChar, '/')
-										.removePrefix(workTreeCanonical)
-										.removePrefix("/")
-								if (relativeCanonical == activeNewPath) {
-									orphanedOldPaths.add(missingPath)
-								}
-							}
+				missingSet.removeAll { missingPath ->
+					val counterpart =
+						trackedPaths.find {
+							it.equals(missingPath, ignoreCase = true) && it != missingPath
 						}
+					if (counterpart != null && File(rootDir, counterpart).exists()) {
+						true
+					} else {
+						val realCasing = findRealCasingOnDisk(rootDir, missingPath)
+						realCasing != null && realCasing != missingPath
 					}
-
-					if (orphanedOldPaths.isNotEmpty()) {
-						val rmCommand = git.rm().setCached(true)
-						orphanedOldPaths.forEach { rmCommand.addFilepattern(it) }
-						rmCommand.call()
-
-						orphanedOldPaths.forEach { oldPath ->
-							missingSet.remove(oldPath)
-							if (processedPaths.add(oldPath)) {
-								staged.add(FileChange(path = oldPath, type = ChangeType.DELETED))
-							}
-						}
-					}
-				} catch (e: Exception) {
-					log.warn("Failed to auto-stage orphaned old casing removal", e)
 				}
 			}
 
@@ -619,6 +594,43 @@ class JGitRepository(
 	private data class NewBranch(
 		val name: String,
 	) : BranchResolution
+
+	internal fun findRealCasingOnDisk(
+		rootDir: File,
+		relativePath: String,
+	): String? {
+		val segments = relativePath.split('/').filter { it.isNotEmpty() }
+		if (segments.isEmpty()) return null
+
+		var current = rootDir
+		val realSegments = ArrayList<String>(segments.size)
+
+		for (segment in segments) {
+			val direct = File(current, segment)
+			if (direct.exists()) {
+				val children = current.list()
+				val exactOnDisk = children?.find { it == segment }
+				if (exactOnDisk != null) {
+					realSegments.add(exactOnDisk)
+					current = direct
+					continue
+				}
+				val caseMatch = children?.find { it.equals(segment, ignoreCase = true) }
+				if (caseMatch != null) {
+					realSegments.add(caseMatch)
+					current = File(current, caseMatch)
+					continue
+				}
+			}
+
+			val children = current.list() ?: return null
+			val caseMatch = children.find { it.equals(segment, ignoreCase = true) } ?: return null
+			realSegments.add(caseMatch)
+			current = File(current, caseMatch)
+		}
+
+		return if (current.isFile) realSegments.joinToString("/") else null
+	}
 
 	override fun close() {
 		repository.close()
