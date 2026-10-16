@@ -190,6 +190,9 @@ abstract class ProjectHandlerActivity :
 
 	/** The banner that offer showed, so withdrawing it never dismisses another one. */
 	private var buildOutputSyncBanner: Flashbar? = null
+
+	/** A relocation sync the user asked for while a build held the slot; offered again after it. */
+	private var buildOutputSyncDeferred = false
 	private var replaceReportFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
@@ -298,6 +301,17 @@ abstract class ProjectHandlerActivity :
 			return
 		}
 		didCompleteLiveOnCreate = true
+
+		// ADFA-4930: offer a deferred relocation sync again once no build holds the Gradle slot.
+		val offerDeferredSync =
+			Observer<Boolean> { building ->
+				if (building == false && buildOutputSyncDeferred && !isGradleSlotBusy()) {
+					buildOutputSyncDeferred = false
+					reconcileBuildOutputSyncOffer(afterInit = false)
+				}
+			}
+		editorViewModel._isBuildInProgress.observe(this, offerDeferredSync)
+		editorViewModel._isInternalBuildInProgress.observe(this, offerDeferredSync)
 
 		editorViewModel._isSyncNeeded.observe(this) { isSyncNeeded ->
 			if (!isSyncNeeded) {
@@ -1230,12 +1244,16 @@ abstract class ProjectHandlerActivity :
 	private fun reconcileBuildOutputSyncOffer(afterInit: Boolean) {
 		activityScope.launch {
 			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
+			val projectDir = File(path)
 			val requested = BuildOutputLocation.isRequested()
-			val pending =
-				BuildOutputLocation.syncPending(
-					BuildOutputLocation.modelRelocated(noBackupFilesDir, File(path)),
-					requested,
-				)
+			val modelRelocated = BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir)
+			if (afterInit && modelRelocated == false) {
+				// The model builds into the project folder, so a tree from an earlier relocated sync is
+				// dead weight; a later relocated sync recreates it.
+				val removed = withContext(Dispatchers.IO) { BuildOutputLocation.removeTreesOf(noBackupFilesDir, projectDir) }
+				if (removed > 0) log.info("Deleted {} unused build output tree(s) of {}", removed, projectDir)
+			}
+			val pending = BuildOutputLocation.syncPending(modelRelocated, requested)
 			withContext(Dispatchers.Main) {
 				if (!pending) {
 					val banner = buildOutputSyncBanner
@@ -1248,7 +1266,10 @@ abstract class ProjectHandlerActivity :
 					buildOutputSyncOffered != requested &&
 					notifySyncNeeded(
 						onConfirm = ::syncForBuildOutput,
+						// Short, with a short dismiss label: this banner greets every existing project
+						// once relocation is on by default, and has to keep its Sync button at 2x font scale.
 						message = if (requested) string.msg_sync_build_output_relocate else string.msg_sync_build_output_restore,
+						dismissText = string.btn_not_now,
 					)
 				) {
 					buildOutputSyncOffered = requested
@@ -1258,12 +1279,23 @@ abstract class ProjectHandlerActivity :
 		}
 	}
 
-	/** Forgets the offer, so a sync that fails leaves it to be made again on the next resume. */
+	/**
+	 * Forgets the offer, so a sync that fails leaves it to be made again on the next resume. While a
+	 * build holds the Gradle slot (Quick Build's prebuild starts soon after a project opens), a sync
+	 * would be refused and drop the loaded model, so the offer is made again when the build ends.
+	 */
 	private fun syncForBuildOutput() {
 		buildOutputSyncOffered = null
 		buildOutputSyncBanner = null
+		if (isGradleSlotBusy()) {
+			buildOutputSyncDeferred = true
+			flashInfoLong(getString(string.msg_sync_build_output_deferred))
+			return
+		}
 		initializeProject(forceSync = true)
 	}
+
+	private fun isGradleSlotBusy(): Boolean = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isBuildInProgress == true
 
 	override fun preDestroy() {
 		syncNotificationFlashbar?.dismiss()
@@ -1343,15 +1375,24 @@ abstract class ProjectHandlerActivity :
 	}
 
 	fun notifySyncNeeded() {
-		notifySyncNeeded { initializeProject(forceSync = true) }
+		notifySyncNeeded {
+			// A sync would be refused while a build holds the Gradle slot, and drop the loaded model.
+			if (isGradleSlotBusy()) {
+				flashInfo(getString(string.msg_sync_after_build))
+			} else {
+				initializeProject(forceSync = true)
+			}
+		}
 	}
 
 	/**
 	 * @param message what the banner says; the default is for changed Gradle files.
+	 * @param dismissText the label of the button that dismisses the banner.
 	 * @return false when the banner was not shown: no build service, or initializing or building.
 	 */
 	private fun notifySyncNeeded(
 		@StringRes message: Int = string.msg_sync_needed,
+		@StringRes dismissText: Int = string.btn_ignore_changes,
 		onConfirm: () -> Unit,
 	): Boolean {
 		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
@@ -1372,7 +1413,7 @@ abstract class ProjectHandlerActivity :
 					.positiveActionTapListener {
 						onConfirm()
 						it.dismiss()
-					}.negativeActionText(string.btn_ignore_changes)
+					}.negativeActionText(dismissText)
 					.negativeActionTapListener(Flashbar::dismiss)
 					.build()
 

@@ -121,8 +121,10 @@
 	<string name="build_output">Build Output</string>
 	<string name="quick_run_debug">Quick run</string>
 	<string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
-	<string name="msg_sync_build_output_relocate">Builds are faster with build output in Code on the Go\'s storage. Sync the project to move it there.</string>
-	<string name="msg_sync_build_output_restore">Sync the project to move build output back to the project folder.</string>
+	<string name="msg_sync_build_output_relocate">Sync to move build output to faster storage.</string>
+	<string name="msg_sync_build_output_restore">Sync to move build output back to the project folder.</string>
+	<string name="msg_sync_build_output_deferred">A build is running. You\'ll be asked to sync again when it finishes.</string>
+	<string name="msg_sync_after_build">A build is running. Sync once it finishes.</string>
 	<string name="preparing">Preparing</string>
 	<string name="preparing_first">Initializing a project may take a few moments.</string>
 	<string name="msg_installing_gradlew">Gradle wrapper is not available.\nInstalling a default one. Gradle v7.4 will be downloaded if necessary.</string>
@@ -794,6 +796,7 @@
 
 	<string name="btn_sync">Sync</string>
 	<string name="btn_ignore_changes">Ignore these changes</string>
+	<string name="btn_not_now">Not now</string>
 	<string name="title_fix_imports">Fix imports</string>
 	<string name="msg_no_unresolved_classes">No unresolved class names found</string>
 	<string name="title_class_chooser">Which %1$s?</string>
