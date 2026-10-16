@@ -11,9 +11,12 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_EXPORT_APK
-import com.itsaky.androidide.models.ApkMetadata
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
+import com.itsaky.androidide.projects.models.buildDir
+import com.itsaky.androidide.quickbuild.QuickBuildTaskPaths
 import com.itsaky.androidide.utils.ApkExport
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.IntentUtils
@@ -53,10 +56,15 @@ class ExportApkAction(
 		}
 
 		visible = true
-		enabled = IProjectManager.getInstance().getAndroidAppModules().isNotEmpty()
+		// The user-visible flag, like the build actions: Quick Build's prebuild after every project
+		// open is refused at the tap instead (isBuilding), with a reason.
+		enabled =
+			IProjectManager.getInstance().getAndroidAppModules().isNotEmpty() &&
+			buildService()?.isUserVisibleBuildInProgress != true
 	}
 
 	override suspend fun execAction(data: ActionData) {
+		if (isBuilding()) return
 		openApplicationModuleChooser(data) { app ->
 			val variant = app.getSelectedVariant()
 			if (variant == null) {
@@ -65,19 +73,36 @@ class ExportApkAction(
 			}
 
 			val activity = data.requireActivity()
-			val name = "${File(IProjectManager.getInstance().projectDirPath).name}-${variant.name}"
+			val projectManager = IProjectManager.getInstance()
+			val projectDir = File(projectManager.projectDirPath)
+			// The module only when it tells two app modules' exports apart.
+			val module = app.name.takeIf { projectManager.getAndroidAppModules().size > 1 }
+			val name = listOfNotNull(projectDir.name, module, variant.name).joinToString("-")
 			activity.activityScope.launch {
-				val apk =
+				val found =
 					withContext(Dispatchers.IO) {
-						ApkMetadata.findApkFile(variant.mainArtifact.assembleTaskOutputListingFile)?.takeIf { it.isFile }
+						ApkExport.resolve(
+							listingFile = variant.mainArtifact.assembleTaskOutputListingFile,
+							quickBuildReport = QuickBuildTaskPaths.setupJson(app.buildDir, variant.name),
+							projectDir = projectDir,
+						)
 					}
-				if (apk == null) {
-					flashError(R.string.msg_export_apk_not_built)
-					return@launch
+				when (found) {
+					ApkExport.Exportable.NotBuilt -> flashError(R.string.msg_export_apk_not_built)
+					ApkExport.Exportable.QuickBuildProxy -> flashError(R.string.msg_export_apk_quick_build)
+					is ApkExport.Exportable.Apk -> withContext(Dispatchers.Main) { offerExport(activity, found.file, name) }
 				}
-				withContext(Dispatchers.Main) { offerExport(activity, apk, name) }
 			}
 		}
+	}
+
+	private fun buildService(): BuildService? = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+
+	/** A build, Quick Build's prebuild included, may be rewriting the APK; refuse with a reason. */
+	private fun isBuilding(): Boolean {
+		if (buildService()?.isBuildInProgress != true) return false
+		flashError(R.string.msg_export_apk_build_running)
+		return true
 	}
 
 	private fun offerExport(
@@ -96,7 +121,7 @@ class ExportApkAction(
 			) { _, which ->
 				if (which == 0) {
 					IntentUtils.shareFile(activity, apk, ApkExport.MIME_TYPE)
-				} else {
+				} else if (!isBuilding()) {
 					activity.activityScope.launch(Dispatchers.IO) { copyToDownload(activity, apk, name) }
 				}
 			}.setNegativeButton(android.R.string.cancel, null)

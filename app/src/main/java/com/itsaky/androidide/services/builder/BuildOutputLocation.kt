@@ -129,8 +129,19 @@ object BuildOutputLocation {
 		val trees = File(noBackupDir, DIR_NAME).listFiles { file -> file.isDirectory } ?: return 0
 		return trees.count { tree ->
 			val project = projectOf(tree)
-			project != null && isOrphan(project) && tree.deleteRecursively()
+			project != null && isOrphan(project) && deleteTree(tree)
 		}
+	}
+
+	/**
+	 * Deletes [tree] with its marker last: a deletion that stops part-way keeps the marker, so the
+	 * next sweep can still tell whose tree it is and finish the job.
+	 */
+	private fun deleteTree(tree: File): Boolean {
+		val marker = File(tree, PROJECT_PATH_FILE)
+		val contents = tree.listFiles() ?: return false
+		val deleted = contents.filter { it != marker }.map { it.deleteRecursively() }.all { it }
+		return deleted && (!marker.exists() || marker.delete()) && tree.delete()
 	}
 
 	/** The project [tree] belongs to, from its marker, or null when the marker is missing or unreadable. */

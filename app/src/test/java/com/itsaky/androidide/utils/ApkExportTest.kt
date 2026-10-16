@@ -18,6 +18,86 @@ class ApkExportTest {
 		}
 
 	@Test
+	fun `no listing means nothing to export`() {
+		assertThat(ApkExport.resolve(File(tmp.root, "out/output-metadata.json"), report(), tmp.root))
+			.isEqualTo(ApkExport.Exportable.NotBuilt)
+	}
+
+	@Test
+	fun `a malformed listing is nothing to export, not a crash`() {
+		val listing = File(tmp.newFolder("out"), "output-metadata.json").apply { writeText("{\"elements\": [") }
+
+		assertThat(ApkExport.resolve(listing, report(), tmp.root)).isEqualTo(ApkExport.Exportable.NotBuilt)
+	}
+
+	@Test
+	fun `a standard build's APK is exported`() {
+		val (listing, built) = built()
+
+		assertThat(ApkExport.resolve(listing, report(), tmp.root)).isEqualTo(ApkExport.Exportable.Apk(built))
+	}
+
+	@Test
+	fun `Quick Build's proxy APK at the same path is refused`() {
+		val (listing, built) = built()
+		val report = report(names = built, at = built.lastModified() + 1_000)
+
+		assertThat(ApkExport.resolve(listing, report, tmp.root)).isEqualTo(ApkExport.Exportable.QuickBuildProxy)
+	}
+
+	@Test
+	fun `a standard build after Quick Build's makes the APK exportable again`() {
+		val (listing, built) = built()
+		val report = report(names = built, at = built.lastModified() - 1_000)
+
+		assertThat(ApkExport.resolve(listing, report, tmp.root)).isEqualTo(ApkExport.Exportable.Apk(built))
+	}
+
+	@Test
+	fun `a copy that fails part-way leaves nothing under the export's name`() {
+		val download = tmp.newFolder("Download")
+
+		try {
+			ApkExport.copyTo(apk, download, "app-debug") { _, to ->
+				to.writeText("half an ap")
+				throw IOException("disk full")
+			}
+		} catch (e: IOException) {
+			// expected
+		}
+
+		assertThat(download.list()).isEmpty()
+	}
+
+	/** A variant's output directory holding `app-debug.apk` and its listing. */
+	private fun built(): Pair<File, File> {
+		val dir = tmp.newFolder("outputs", "apk", "debug")
+		val apk = File(dir, "app-debug.apk").apply { writeText("apk") }
+		val listing =
+			File(dir, "output-metadata.json").apply {
+				writeText(
+					"""{"version":3,"artifactType":{"type":"APK","kind":"Directory"},"applicationId":"com.example.app",""" +
+						""""variantName":"debug","elements":[{"type":"SINGLE","outputFile":"app-debug.apk"}],"elementType":"File"}""",
+				)
+			}
+		return listing to apk
+	}
+
+	/** Quick Build's report, naming [names] as its proxy APK, written at [at]; absent without [names]. */
+	private fun report(
+		names: File? = null,
+		at: Long = 0,
+	): File {
+		val report = File(tmp.root, "quickbuild/debug/setup.json")
+		if (names != null) {
+			report.parentFile.mkdirs()
+			report.writeText("""{"proxyAppId":"com.example.app","entryActivity":null,"apk":"${names.absolutePath}"}""")
+			report.setLastModified(at)
+		}
+		return report
+	}
+
+	@Test
 	fun `the copy is named after the project and variant`() {
 		val download = tmp.newFolder("Download")
 

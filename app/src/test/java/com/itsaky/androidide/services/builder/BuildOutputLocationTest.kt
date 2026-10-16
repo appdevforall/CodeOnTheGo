@@ -188,6 +188,24 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
+	fun `a deletion that stops part-way keeps the marker for the next sweep`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val project = tmp.newFolder("projects", "app")
+		val tree = treeOf(noBackup, project)
+		val locked = File(tree, "main/app-1234/outputs").apply { File(this, "app-debug.apk").writeText("apk") }
+		locked.setWritable(false)
+		try {
+			assertThat(BuildOutputLocation.removeTreesOf(noBackup, project)).isEqualTo(0)
+
+			assertThat(File(tree, BuildOutputLocation.PROJECT_PATH_FILE).isFile).isTrue()
+		} finally {
+			locked.setWritable(true)
+		}
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, project)).isEqualTo(1)
+		assertThat(tree.exists()).isFalse()
+	}
+
+	@Test
 	fun `the sweep copes with no trees at all`() {
 		assertThat(BuildOutputLocation.sweep(tmp.newFolder("no_backup"))).isEqualTo(0)
 	}
