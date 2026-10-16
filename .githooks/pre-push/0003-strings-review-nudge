@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Non-blocking nudge: when a push changes user-facing text, remind the author to
+# ask the documentation team (#documentation-request) before the PR goes out.
+#
+# Two triggers, because they need two mechanisms. English strings.xml files are
+# path-matchable, so CODEOWNERS already auto-requests @appdevforall/documentation
+# at PR time -- this hook just moves that signal earlier. Inline literals are NOT
+# path-matchable (you cannot own "Kotlin files that happen to contain UI text"),
+# so a content scan of the diff is the only way to catch them.
+#
+# This is a REMINDER, not a gate -- it always exits 0 and never blocks a push.
+
+set -u
+
+cyan=$(tput setaf 6 2>/dev/null || true)
+yellow=$(tput setaf 3 2>/dev/null || true)
+reset=$(tput sgr0 2>/dev/null || true)
+
+# Determine the commits being pushed. Prefer the tracked upstream; fall back to
+# the integration branch (feature branches are based on stage). If neither is
+# resolvable, stay quiet rather than nag.
+if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+	range="@{upstream}..HEAD"
+elif git rev-parse --verify -q origin/stage >/dev/null 2>&1; then
+	range="origin/stage..HEAD"
+else
+	exit 0
+fi
+
+# The English source strings owned by the documentation team. Kept in step with
+# CODEOWNERS on purpose: the hook and the PR-time reviewer request must agree.
+strings=$(git diff --name-only "$range" -- \
+	'app/src/main/res/values/strings.xml' \
+	'resources/src/main/res/values/strings.xml' \
+	'logsender/src/main/res/values/strings.xml' 2>/dev/null) || exit 0
+
+# Calls that put a literal in front of the user. The trailing [^"] rejects the
+# empty literal, so clearing a field (editor?.setText("")) does not nag.
+ui_text='android:(text|hint|contentDescription|title|summary|label)="[^@?"]'
+ui_text+='|(setText|setContentText|setContentTitle|setTitle|setMessage|setSummary)\("[^"]'
+ui_text+='|makeText\(.*, *"[^"]'
+ui_text+='|(^|[^A-Za-z])Text\( *(text *= *)?"[^"]'
+
+# Added lines only ("^+", minus the "+++" file header), so pre-existing hardcoded
+# text does not re-nag on every push. git-core is excluded because JGit's
+# CommitCommand.setMessage writes a commit message, not UI text.
+inline=$(git diff --unified=0 "$range" -- \
+	'*.kt' '*.java' '*/res/layout/*.xml' \
+	':!git-core/' ':!*/src/test/*' ':!*/src/androidTest/*' 2>/dev/null \
+	| grep -E '^\+' \
+	| grep -vE '^\+\+\+' \
+	| grep -E "$ui_text" \
+	|| true)
+
+[ -n "$strings" ] || [ -n "$inline" ] || exit 0
+
+echo ""
+echo "${cyan}[documentation nudge]${reset} this push changes user-facing text."
+
+if [ -n "$strings" ]; then
+	echo "${yellow}  English strings.xml:${reset}"
+	printf '%s\n' "$strings" | sed 's/^/    /'
+fi
+
+if [ -n "$inline" ]; then
+	echo "${yellow}  Text written inline instead of in strings.xml:${reset}"
+	printf '%s\n' "$inline" | sed 's/^+[[:space:]]*/    /'
+fi
+
+echo "${yellow}  Post in ${cyan}#documentation-request${yellow} before opening the PR${reset}${yellow} -- the"
+echo "  documentation team would rather see wording now than after QA.${reset}"
+echo "${yellow}  (Reminder only -- your push continues.)${reset}"
+echo ""
+
+exit 0
