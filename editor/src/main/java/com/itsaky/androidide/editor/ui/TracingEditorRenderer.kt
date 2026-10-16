@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory
  */
 open class TracingEditorRenderer(
 	private val enabled: Boolean = BuildConfig.DEBUG,
-	editor: CodeEditor,
+	private val editor: CodeEditor,
 ) : EditorRenderer(editor) {
 	private companion object {
 		private val log = LoggerFactory.getLogger(TracingEditorRenderer::class.java)
@@ -198,14 +198,22 @@ open class TracingEditorRenderer(
 		postDrawCurrentLines: MutableIntList?,
 		requiredFirstLn: MutableInt?,
 	) = trace("drawRows") {
-		super.drawRows(
-			canvas,
-			offset,
-			postDrawLineNumbers,
-			postDrawCursor,
-			postDrawCurrentLines,
-			requiredFirstLn,
-		)
+		try {
+			super.drawRows(
+				canvas,
+				offset,
+				postDrawLineNumbers,
+				postDrawCursor,
+				postDrawCurrentLines,
+				requiredFirstLn,
+			)
+		} catch (e: IndexOutOfBoundsException) {
+			// sora 0.23.6 WordwrapLayout race (Rosemoe/sora-editor#666): an async re-break can replace
+			// the row table with rows computed from text that has since shrunk, so a row starts past
+			// the end of its line. The stale rows persist until the next layout, so rebuild it.
+			(editor as? IDEEditor)?.rebuildLayout()
+			log.warn("Skipped drawing rows: word-wrap row table is stale", e)
+		}
 	}
 
 	override fun drawDiagnosticIndicators(

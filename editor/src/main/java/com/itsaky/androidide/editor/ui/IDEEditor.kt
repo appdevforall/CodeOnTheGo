@@ -1008,6 +1008,20 @@ open class IDEEditor
 		 * data-race guards while also drawing inline ghost text. */
 		override fun onCreateRenderer(): EditorRenderer = GhostTextRenderer(this)
 
+		private var layoutRebuildPending = false
+
+		/** Rebuilds the text layout on the next main-loop turn, coalescing repeat requests from
+		 * consecutive failed frames. See [TracingEditorRenderer.drawRows]. */
+		internal fun rebuildLayout() {
+			if (layoutRebuildPending) return
+			layoutRebuildPending = true
+			post {
+				layoutRebuildPending = false
+				createLayout()
+				invalidate()
+			}
+		}
+
 		private val ghostRenderer: GhostTextRenderer?
 			get() = renderer as? GhostTextRenderer
 
