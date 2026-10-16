@@ -352,9 +352,9 @@ internal abstract class AbstractCompilationEnvironment(
 		// Stop and join the background index workers *before* the project is disposed.
 		// Otherwise IndexWorker's coroutine keeps calling PsiManager.findFile(project) on a
 		// disposed project and crashes with "AssertionError: Project is already disposed"
-		// (Sentry APPDEVFORALL-17R / ADFA-4384). close() runs on the main thread during editor
-		// teardown, so the join is bounded by a timeout to avoid an ANR if a read is slow; the
-		// project.isDisposed guards cover the rare case where the timeout fires before draining.
+		// (Sentry APPDEVFORALL-17R / ADFA-4384). KotlinLanguageServer.shutdown() runs this off the
+		// main thread; the join is still bounded so a slow read cannot stall the next project's
+		// setup, and the project.isDisposed guards cover the timeout firing before draining.
 		if (::ktSymbolIndex.isInitialized) {
 			runBlocking { withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) { ktSymbolIndex.close() } }
 		}

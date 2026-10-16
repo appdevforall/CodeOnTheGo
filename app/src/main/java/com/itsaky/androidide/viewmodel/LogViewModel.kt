@@ -198,6 +198,15 @@ abstract class LogViewModel : ViewModel() {
 
 	/** The full retained history, ignoring the active filter. */
 	fun snapshotUnfiltered(): String = buffer.snapshotAll()
+
+	/**
+	 * The newest [maxEntries] retained entries matching [filter], independent of the view's own
+	 * [filter]. Safe from any thread.
+	 */
+	fun tailFiltered(
+		filter: LogFilter,
+		maxEntries: Int,
+	): Pair<List<LogBuffer.Entry>, Boolean> = buffer.tailFiltered(filter, maxEntries)
 }
 
 /**

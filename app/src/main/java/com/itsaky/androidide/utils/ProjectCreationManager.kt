@@ -60,7 +60,7 @@ class ProjectCreationManager(
 			val now = System.currentTimeMillis().toString()
 			val project =
 				RecentProject(
-					location = result.data.projectDir.path,
+					location = result.data.projectDir.canonicalProjectLocation(),
 					name = result.data.name,
 					createdAt = now,
 					lastModified = now,

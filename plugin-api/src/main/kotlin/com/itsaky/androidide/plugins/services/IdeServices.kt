@@ -386,12 +386,48 @@ interface IdeBuildService {
 
 	/**
 	 * Executes the given Gradle task paths (e.g. ":app:assembleDebug") and completes with
-	 * true on success, false on failure/cancellation.
+	 * true on success, false on failure/cancellation. Since 26.41, no tasks, or a task name
+	 * starting with `-`, completes with false without building.
 	 *
 	 * Default completes with false so this addition is binary-compatible: hosts that predate
 	 * the method, and any implementor that does not override it, report "not executed".
 	 */
 	fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
+
+	/**
+	 * Runs [tasks] (e.g. ":app:testDebugUnitTest") with Gradle [arguments] (e.g. "--tests",
+	 * "com.example.FooTest", "-Pkey=value", "--info") through the IDE's tooling server, the same
+	 * Gradle daemon the IDE builds with. The output goes to the Build Output pane; read it
+	 * afterwards with [getBuildOutput]. A task option such as `--tests` or `--rerun` applies to
+	 * the last task in [tasks], as on a command line.
+	 *
+	 * Only one build runs at a time. If one is already running, the tooling server has not
+	 * started, or a task name starts with `-`, the future completes with [GradleTaskResult.Refused]
+	 * at once and no build starts. While this build runs, a sync or build the user starts is
+	 * refused.
+	 *
+	 * Non-empty [arguments] need the `system.commands` permission (`--init-script` runs any code
+	 * in the IDE's Gradle daemon); without it this throws [SecurityException].
+	 *
+	 * The default body is not a compatibility shim: this module sets no `-Xjvm-default`, so an
+	 * IDE older than 26.41 has no such method and the call fails with `NoSuchMethodError`. Floor
+	 * `plugin.min_ide_version` at 26.41 to use it.
+	 */
+	fun executeTasks(
+		tasks: List<String>,
+		arguments: List<String> = emptyList(),
+	): CompletableFuture<GradleTaskResult> =
+		CompletableFuture.completedFuture(GradleTaskResult.Refused("Running Gradle tasks is not supported"))
+
+	/**
+	 * Asks Gradle to cancel the running build, whoever started it. The future completes with
+	 * true if the request was accepted, false if no build is running or the tooling server is
+	 * down. The cancelled run's own future then completes with [GradleTaskResult.Cancelled].
+	 * Needs the `system.commands` permission; without it this throws [SecurityException].
+	 *
+	 * Floor `plugin.min_ide_version` at 26.41 to use it (see [executeTasks]).
+	 */
+	fun cancelBuild(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
 
 	/**
 	 * Builds and runs the app on the connected device.
@@ -414,6 +450,91 @@ interface IdeBuildService {
 	 * @return The build output as a string, or null if no build output is available
 	 */
 	fun getBuildOutput(): String? = null
+
+	/**
+	 * Lists the Gradle tasks of the open project, root project and modules alike, as Gradle
+	 * reported them at the last sync. Empty when no project is open or it has not synced. A task
+	 * added to a build script since then appears only after the next sync.
+	 *
+	 * Floor `plugin.min_ide_version` at 26.41 to use it (see [executeTasks]).
+	 */
+	fun getTasks(): List<GradleTaskInfo> = emptyList()
+
+	/**
+	 * Whether [startQuickBuild] can run for the open project, and if not, why. Needs no permission.
+	 *
+	 * The default body is not a compatibility shim (see [executeTasks]): floor
+	 * `plugin.min_ide_version` at 26.42 to use the Quick Build methods.
+	 */
+	fun getQuickBuildAvailability(): QuickBuildAvailability =
+		QuickBuildAvailability.Unavailable(QuickBuildUnavailableReason.NOT_SUPPORTED, "Quick Build is not supported")
+
+	/**
+	 * Starts Quick Build exactly as a tap on its toolbar button does: open files are saved first,
+	 * the user is asked before an app installed under the project's application ID is replaced,
+	 * and the run shows in the toolbar, Build Output and on-screen messages like any other.
+	 *
+	 * The future completes once, with a [QuickBuildResult]. It completes with
+	 * [QuickBuildResult.Refused] at once when Quick Build is unavailable
+	 * ([getQuickBuildAvailability]), another build or Quick Build is running, or no editor is in
+	 * the foreground. A run that has not settled after 30 minutes completes with
+	 * [QuickBuildResult.Failed], or [QuickBuildResult.Cancelled] if it was asked to stop. Needs no
+	 * permission, like [runApp].
+	 */
+	fun startQuickBuild(): CompletableFuture<QuickBuildResult> =
+		CompletableFuture.completedFuture(QuickBuildResult.Refused("Quick Build is not supported"))
+
+	/**
+	 * Asks the running Quick Build to stop, whoever started it, as a tap on its stop icon does, or
+	 * drops a [startQuickBuild] still saving the open files or asking the user. Completes with true
+	 * if one was running and was asked to stop. Its [startQuickBuild] future, if any, reports what
+	 * actually happened: usually [QuickBuildResult.Cancelled], but a stop that comes too late
+	 * to stop the build lets it finish, as [QuickBuildResult.Reloaded] for example. Needs the
+	 * `system.commands` permission, like [cancelBuild]; without it this throws [SecurityException].
+	 */
+	fun cancelQuickBuild(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
+
+	/** What the Quick Build button shows now. Needs no permission. */
+	fun getQuickBuildStatus(): QuickBuildState = QuickBuildState.UNAVAILABLE
+}
+
+/**
+ * A Gradle task of the open project, as listed by [IdeBuildService.getTasks].
+ *
+ * @param path The task path to run it by, e.g. ":app:testDebugUnitTest".
+ * @param projectPath The path of the project that owns the task, e.g. ":app" or ":" for the root.
+ * @param group The task's group, e.g. "verification"; null for a task with no group.
+ */
+data class GradleTaskInfo(
+	val path: String,
+	val name: String,
+	val projectPath: String,
+	val group: String?,
+	val description: String?,
+)
+
+/**
+ * Outcome of [IdeBuildService.executeTasks] with Gradle arguments.
+ */
+sealed class GradleTaskResult {
+	/** The build ran and succeeded. */
+	data object Success : GradleTaskResult()
+
+	/**
+	 * The build ran and failed. [reason] names the failure (e.g. "BUILD_FAILED"); the log is in
+	 * [IdeBuildService.getBuildOutput].
+	 */
+	data class Failed(
+		val reason: String,
+	) : GradleTaskResult()
+
+	/** The build never started. [reason] says why, e.g. another build is in progress. */
+	data class Refused(
+		val reason: String,
+	) : GradleTaskResult()
+
+	/** The build started and was cancelled, by [IdeBuildService.cancelBuild] or by the user. */
+	data object Cancelled : GradleTaskResult()
 }
 
 /**

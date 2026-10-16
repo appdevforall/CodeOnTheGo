@@ -48,6 +48,10 @@ dependencies {
 	// provider via :common -> :logger, so declaring it keeps the compile and runtime views the same.
 	implementation(libs.tooling.slf4j)
 
+	// Reads AI plugins' prompt config (ai.prompt.PromptConfigLoader). Host-side for the same reason as
+	// slf4j: the loader runs in the host's process, so plugins stop bundling a YAML library of their own.
+	implementation(libs.snakeyaml.engine)
+
 	// Test dependencies
 	testImplementation("junit:junit:4.13.2")
 

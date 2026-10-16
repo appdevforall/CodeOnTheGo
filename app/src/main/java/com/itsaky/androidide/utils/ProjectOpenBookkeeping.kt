@@ -61,9 +61,9 @@ fun recordProjectOpenedBookkeeping(
 	GeneralPreferences.lastOpenedProject = root.absolutePath
 
 	ProcessLifecycleOwner.get().lifecycleScope.launch(Dispatchers.IO) {
-		val location = root.absolutePath
+		val location = root.canonicalProjectLocation()
 		val recentProject =
-			project ?: RecentProject(
+			project?.copy(location = location) ?: RecentProject(
 				name = root.name,
 				location = location,
 				createdAt = getCreatedTime(location).toString(),
