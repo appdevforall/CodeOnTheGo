@@ -351,6 +351,8 @@ class EditorBottomSheetTabAdapter(
 	// long-press handler in EditorBottomSheet passes the ViewPager position.
 	fun getTooltipTag(position: Int): String? = tabs[position].tooltipTag
 
+	fun isGitTab(position: Int): Boolean = tabs.getOrNull(position)?.itemId == TAB_GIT.toLong()
+
 	/**
 	 * Tooltip category for the tab at [position]. Built-in tabs live in
 	 * [TooltipCategory.CATEGORY_IDE]; plugin-contributed tabs live in their
