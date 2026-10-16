@@ -12,6 +12,8 @@ import org.json.JSONException
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Implementation of [TemplateRepository].
@@ -219,9 +221,9 @@ class TemplateRepositoryImpl(
 		val temp = File(target.parentFile, ".${target.name}.part")
 		try {
 			source.copyTo(temp, overwrite = true)
-			if (!temp.renameTo(target)) {
-				throw IOException("Failed to move ${temp.absolutePath} into place as ${target.absolutePath}")
-			}
+			// Files.move, not File.renameTo: renameTo leaves replacing an existing target
+			// unspecified, and a confirmed Replace always has one.
+			Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
 		} finally {
 			temp.delete()
 		}
