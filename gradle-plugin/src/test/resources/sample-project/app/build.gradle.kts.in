@@ -59,4 +59,8 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("com.google.android.material:material:1.9.0")
+    // Contributes a real FINAL manifest component (androidx.room.MultiInstanceInvalidationService)
+    // to the merged manifest - the fixture QuickBuildProxyAppBuildTest uses to prove Quick Build
+    // reads dependency class bytes rather than a hardcoded name list.
+    implementation("androidx.room:room-runtime:2.5.2")
 }

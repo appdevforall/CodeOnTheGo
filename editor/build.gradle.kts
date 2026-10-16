@@ -64,5 +64,6 @@ dependencies {
 		// duplicate classes. Consequence: MockK, which testing:android exposes, cannot be used in this source
 		// set - it needs kotlin-reflect at runtime and will fail on device with NoClassDefFoundError.
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
+		exclude(group = "com.itsaky.androidide", module = "common")
 	}
 }

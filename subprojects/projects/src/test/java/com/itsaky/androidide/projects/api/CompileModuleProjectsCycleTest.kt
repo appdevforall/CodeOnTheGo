@@ -53,7 +53,8 @@ class CompileModuleProjectsCycleTest {
 	/**
 	 * Build a real [AndroidModule] at Gradle [path] whose compile-scope project dependencies are
 	 * [moduleDeps] (Gradle project paths). The dependency graph is encoded exactly the way the tooling
-	 * layer encodes it: a [AndroidModels.GraphItem] in the main artifact's compile graph keyed to a
+	 * layer encodes it: a [AndroidModels.GraphNode] in the main artifact's [AndroidModels.DependencyGraph],
+	 * listed as a root and keyed - through the graph's interned key table - to a
 	 * [AndroidModels.Library] of type [AndroidModels.LibraryType.Project] that points at the dependency
 	 * module via [AndroidModels.ProjectInfo.getProjectPath].
 	 */
@@ -61,15 +62,18 @@ class CompileModuleProjectsCycleTest {
 		path: String,
 		moduleDeps: List<String>,
 	): AndroidModule {
-		val mainArtifact = AndroidModels.ArtifactDependencies.newBuilder()
+		val graph = AndroidModels.DependencyGraph.newBuilder()
 		val variantDeps = AndroidModels.VariantDependencies.newBuilder().setName("debug")
 
 		for (depPath in moduleDeps) {
 			val key = "project$depPath"
-			mainArtifact.addCompileDependency(
-				AndroidModels.GraphItem
+			val keyId = graph.keyCount
+			graph.addKey(key)
+			graph.addRoot(graph.nodeCount)
+			graph.addNode(
+				AndroidModels.GraphNode
 					.newBuilder()
-					.setKey(key)
+					.setKeyId(keyId)
 					.build(),
 			)
 			variantDeps.putLibraries(
@@ -87,7 +91,12 @@ class CompileModuleProjectsCycleTest {
 					).build(),
 			)
 		}
-		variantDeps.setMainArtifact(mainArtifact.build())
+		variantDeps.setMainArtifact(
+			AndroidModels.ArtifactDependencies
+				.newBuilder()
+				.setCompileGraph(graph.build())
+				.build(),
+		)
 
 		val androidProject =
 			AndroidModels.AndroidProject
@@ -109,6 +118,134 @@ class CompileModuleProjectsCycleTest {
 
 		return AndroidModule(gradleProject)
 	}
+
+	/**
+	 * A module whose compile graph is `rootLib -> transitiveLib`, both external Java libraries.
+	 *
+	 * The transitive jar is reachable only by following a node's
+	 * [AndroidModels.GraphNode.getDependencyList] and resolving those indices against the graph, so
+	 * it covers the recursive half of the consumer that a flat root list never reaches.
+	 */
+	private fun moduleWithTransitiveLibrary(
+		path: String,
+		rootJar: String,
+		transitiveJar: String,
+	): AndroidModule {
+		val graph =
+			AndroidModels.DependencyGraph
+				.newBuilder()
+				.addKey("rootLib")
+				.addKey("transitiveLib")
+				.addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(0)
+						.addDependency(1)
+						.build(),
+				).addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(1)
+						.build(),
+				).addRoot(0)
+
+		val variantDeps =
+			AndroidModels.VariantDependencies
+				.newBuilder()
+				.setName("debug")
+				.putLibraries("rootLib", externalJavaLibrary("rootLib", rootJar))
+				.putLibraries("transitiveLib", externalJavaLibrary("transitiveLib", transitiveJar))
+				.setMainArtifact(
+					AndroidModels.ArtifactDependencies
+						.newBuilder()
+						.setCompileGraph(graph.build())
+						.build(),
+				)
+
+		val androidProject =
+			AndroidModels.AndroidProject
+				.newBuilder()
+				.setProjectType(AndroidModels.ProjectType.LibraryProject)
+				.setVariantDependencies(variantDeps.build())
+				.build()
+
+		return AndroidModule(
+			GradleModels.GradleProject
+				.newBuilder()
+				.setName(path.trimStart(':'))
+				.setPath(path)
+				.setProjectDirPath("/tmp/cycle-test${path.replace(':', '/')}")
+				.setBuildDirPath("/tmp/cycle-test${path.replace(':', '/')}/build")
+				.setBuildScriptPath("/tmp/cycle-test${path.replace(':', '/')}/build.gradle")
+				.setAndroidProject(androidProject)
+				.build(),
+		)
+	}
+
+	/**
+	 * A module whose compile graph carries a dangling root index, a dangling dependency index and a
+	 * node whose key index is out of range, as a `project.pb` damaged on disk would.
+	 */
+	private fun moduleWithDanglingGraphIndices(path: String): AndroidModule {
+		val graph =
+			AndroidModels.DependencyGraph
+				.newBuilder()
+				.addKey("rootLib")
+				.addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(0)
+						.addDependency(9)
+						.build(),
+				).addNode(
+					AndroidModels.GraphNode
+						.newBuilder()
+						.setKeyId(4)
+						.build(),
+				).addRoot(0)
+				.addRoot(1)
+				.addRoot(7)
+
+		val variantDeps =
+			AndroidModels.VariantDependencies
+				.newBuilder()
+				.setName("debug")
+				.putLibraries("rootLib", externalJavaLibrary("rootLib", "/tmp/root.jar"))
+				.setMainArtifact(
+					AndroidModels.ArtifactDependencies
+						.newBuilder()
+						.setCompileGraph(graph.build())
+						.build(),
+				)
+
+		return AndroidModule(
+			GradleModels.GradleProject
+				.newBuilder()
+				.setName(path.trimStart(':'))
+				.setPath(path)
+				.setProjectDirPath("/tmp/cycle-test${path.replace(':', '/')}")
+				.setBuildDirPath("/tmp/cycle-test${path.replace(':', '/')}/build")
+				.setBuildScriptPath("/tmp/cycle-test${path.replace(':', '/')}/build.gradle")
+				.setAndroidProject(
+					AndroidModels.AndroidProject
+						.newBuilder()
+						.setProjectType(AndroidModels.ProjectType.LibraryProject)
+						.setVariantDependencies(variantDeps.build())
+						.build(),
+				).build(),
+		)
+	}
+
+	private fun externalJavaLibrary(
+		key: String,
+		artifactPath: String,
+	): AndroidModels.Library =
+		AndroidModels.Library
+			.newBuilder()
+			.setKey(key)
+			.setType(AndroidModels.LibraryType.ExternalJavaLibrary)
+			.setArtifactPath(artifactPath)
+			.build()
 
 	/** Install a real [Workspace] containing the given [modules] on the production [ProjectManagerImpl]. */
 	private fun installWorkspace(vararg modules: ModuleProject) {
@@ -137,6 +274,29 @@ class CompileModuleProjectsCycleTest {
 		val result = a.getCompileModuleProjects()
 
 		assertThat(result.map { it.path }).containsExactly(":b", ":a")
+	}
+
+	/** A transitive graph node is reached by resolving its index against the flat graph. */
+	@Test(timeout = 30_000)
+	fun `collects a library reachable only through a transitive graph node`() {
+		val a = moduleWithTransitiveLibrary(":a", "/tmp/root.jar", "/tmp/transitive.jar")
+		installWorkspace(a)
+
+		val classpaths = a.getCompileClasspaths(excludeSourceGeneratedClassPath = true, visited = HashSet())
+
+		assertThat(classpaths.map { it.path }).containsAtLeast("/tmp/root.jar", "/tmp/transitive.jar")
+	}
+
+	/** A damaged cache whose indices dangle costs a classpath entry rather than throwing. */
+	@Test(timeout = 30_000)
+	fun `skips graph indices that are out of range`() {
+		val a = moduleWithDanglingGraphIndices(":a")
+		installWorkspace(a)
+
+		val classpaths = a.getCompileClasspaths(excludeSourceGeneratedClassPath = true, visited = HashSet())
+
+		assertThat(classpaths.map { it.path }).containsExactly("/tmp/root.jar")
+		assertThat(a.getCompileModuleProjects()).isEmpty()
 	}
 
 	/** A self-dependency (`:a -> :a`) terminates and reports the module once. */

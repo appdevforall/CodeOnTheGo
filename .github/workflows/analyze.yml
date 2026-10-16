@@ -105,6 +105,12 @@ jobs:
           # the unit-test compile path.
           FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
           GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
+          # The aapt2/d8/Compose regression tests (ADFA-4128 bugs 5/6/8) are
+          # assumption-guarded, so on a runner without an Android SDK they would skip
+          # green and take that coverage with them. This turns an absent toolchain
+          # into a hard failure instead. The runner does have an SDK - Assemble V8
+          # Debug above could not run otherwise.
+          REQUIRE_BUILD_TOOLCHAIN: "1"
         run: flox activate -d flox/base -- ./gradlew :testing:tooling:assemble :testing:common:assemble sonarqube --info --no-build-cache -x lint --continue
 
       - name: Upload JaCoCo report

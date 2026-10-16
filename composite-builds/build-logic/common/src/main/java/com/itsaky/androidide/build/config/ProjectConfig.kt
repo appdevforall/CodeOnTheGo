@@ -108,9 +108,9 @@ val Project.releaseVersion: String
 				.orNull
 				.orEmpty()
 				.trim()
-		if (raw.isNotEmpty() && !Regex("""^\d{2}\.\d{2}$""").matches(raw)) {
+		if (raw.isNotEmpty() && !Regex("""^\d{2}\.\d{2}(\.\d+)?$""").matches(raw)) {
 			throw GradleException(
-				"Invalid next_release_version '$raw'; expected YY.ww (two digits, dot, two digits), e.g. 25.47",
+				"Invalid next_release_version '$raw'; expected YY.ww with an optional patch, e.g. 25.47 or 25.47.1",
 			)
 		}
 		return raw

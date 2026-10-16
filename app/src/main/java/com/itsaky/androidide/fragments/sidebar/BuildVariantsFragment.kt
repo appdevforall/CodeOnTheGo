@@ -62,6 +62,10 @@ class BuildVariantsFragment : EmptyStateFragment<FragmentBuildVariantsBinding>(F
 			updateButtonStates(variantsViewModel.updatedBuildVariants)
 		}
 
+		editorViewModel._isInternalBuildInProgress.observe(viewLifecycleOwner) {
+			updateButtonStates(variantsViewModel.updatedBuildVariants)
+		}
+
 		editorViewModel._isInitializing.observe(viewLifecycleOwner) {
 			updateButtonStates(variantsViewModel.updatedBuildVariants)
 		}
@@ -85,8 +89,12 @@ class BuildVariantsFragment : EmptyStateFragment<FragmentBuildVariantsBinding>(F
 	private fun updateButtonStates(updatedVariants: MutableMap<String, BuildVariantInfo>?) {
 		_binding?.apply {
 			// enable buttons only if any of the project's selected build variant was changed
-			// also, changes can only if be applied if no build is in progress
-			val isBuilding = editorViewModel.let { it.isBuildInProgress || it.isInitializing }
+			// also, changes can only if be applied if no build is in progress - including an
+			// internal build, which owns the same Gradle slot a variant switch would need
+			val isBuilding =
+				editorViewModel.let {
+					it.isBuildInProgress || it.isInternalBuildInProgress || it.isInitializing
+				}
 			val isEnabled = updatedVariants?.isNotEmpty() == true && !isBuilding
 
 			btnApply.isEnabled = isEnabled

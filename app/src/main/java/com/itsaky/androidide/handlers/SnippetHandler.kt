@@ -4,6 +4,7 @@ import com.itsaky.androidide.lsp.java.providers.snippet.JavaSnippetScope
 import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetScope
 import com.itsaky.androidide.lsp.snippets.DefaultSnippet
 import com.itsaky.androidide.lsp.snippets.ISnippetScope
+import com.itsaky.androidide.lsp.snippets.SnippetLanguage
 import com.itsaky.androidide.lsp.snippets.SnippetRegistry
 import com.itsaky.androidide.lsp.snippets.UserSnippetLoader
 import com.itsaky.androidide.lsp.xml.providers.snippet.XML_SNIPPET_SCOPES
@@ -15,9 +16,9 @@ object SnippetHandler {
 	private val log = LoggerFactory.getLogger(SnippetHandler::class.java)
 
 	fun loadUserSnippets() {
-		loadUserSnippetsForLanguage("java", JavaSnippetScope.entries)
-		loadUserSnippetsForLanguage("kt", KotlinSnippetScope.entries)
-		loadUserSnippetsForLanguage("xml", XML_SNIPPET_SCOPES)
+		loadUserSnippetsForLanguage(SnippetLanguage.JAVA.id, JavaSnippetScope.entries)
+		loadUserSnippetsForLanguage(SnippetLanguage.KOTLIN.id, KotlinSnippetScope.entries)
+		loadUserSnippetsForLanguage(SnippetLanguage.XML.id, XML_SNIPPET_SCOPES)
 	}
 
 	fun loadPluginSnippets() {
@@ -40,12 +41,14 @@ object SnippetHandler {
 		pluginId: String,
 		contributions: List<SnippetContribution>,
 	) {
-		contributions.groupBy { it.language to it.scope }.forEach { (key, group) ->
+		contributions.groupBy { normalizeLanguage(it.language) to it.scope }.forEach { (key, group) ->
 			val (language, scope) = key
 			val snippets = group.map { DefaultSnippet(it.prefix, it.description, it.body.toTypedArray()) }
 			SnippetRegistry.registerPluginSnippets(pluginId, language, scope, snippets)
 		}
 	}
+
+	private fun normalizeLanguage(language: String): String = SnippetLanguage.fromId(language)?.id ?: language.lowercase()
 
 	fun removePluginSnippets(pluginId: String) {
 		SnippetRegistry.unregisterPluginSnippets(pluginId)

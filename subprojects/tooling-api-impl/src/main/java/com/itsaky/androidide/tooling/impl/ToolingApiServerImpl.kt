@@ -201,7 +201,10 @@ internal class ToolingApiServerImpl(
 		val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
 		val syncMetaFile = ProjectSyncHelper.syncMetaFileForProject(projectDir)
 
-		if (params.needsGradleSync || !ProjectSyncHelper.areSyncFilesReadable(projectDir)) {
+		if (params.needsGradleSync ||
+			!ProjectSyncHelper.areSyncFilesReadable(projectDir) ||
+			!ProjectSyncHelper.isSyncMetaVersionCurrent(syncMetaFile)
+		) {
 			val cancellationToken = GradleConnector.newCancellationTokenSource()
 			buildCancellationToken = cancellationToken
 
@@ -306,8 +309,8 @@ internal class ToolingApiServerImpl(
 			builder.setStandardInput("NoOp".byteInputStream())
 			builder.setStandardError(out)
 			builder.setStandardOutput(out)
-			builder.forTasks(*message.tasks.filter { it.isNotBlank() }.toTypedArray())
-			builder.configureFrom(clientConfig, message.buildParams)
+			// Tasks go in the arguments, not forTasks, so a task option in buildParams binds to them.
+			builder.configureFrom(clientConfig, message.buildParams, message.tasks)
 
 			this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
 			builder.withCancellationToken(this.buildCancellationToken!!.token())

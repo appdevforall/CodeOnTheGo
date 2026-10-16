@@ -298,6 +298,13 @@ internal class CompilationEnvironment(
 		}
 	}
 
+	suspend fun onFileChangedOnDisk(path: Path) {
+		if (FileManager.isActive(path)) return
+		ktSymbolIndex.evictDiskCopy(path)
+		notifyElementModifiedForPath(path) { KaElementModificationType.Unknown }
+		ktSymbolIndex.submitForIndexing(path)
+	}
+
 	suspend fun onFileCreated(path: Path) {
 		notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
 		ktSymbolIndex.submitForIndexing(path)
