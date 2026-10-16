@@ -52,6 +52,7 @@ class TemplateRepositoryImplTest {
 		// Undo any permission changes a test made, or TemporaryFolder can't clean up after itself.
 		templatesDir.setWritable(true)
 		downloadDir.setWritable(true)
+		downloadDir.setReadable(true)
 	}
 
 	private fun item(
@@ -201,6 +202,27 @@ class TemplateRepositoryImplTest {
 
 			assertThat(existingDownload.readText()).isEqualTo("installed")
 			assertThat(downloadDir.list()).asList().containsExactly("Dup.CGT")
+		}
+
+	@Test
+	fun uninstallTemplate_existingFileInvisibleToTheLookup_stillFailsWithReplaceConflict_insteadOfOverwriting() =
+		runTest {
+			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
+			val existingDownload = File(downloadDir, "uninstall.cgt").apply { writeText("already in downloads") }
+
+			// downloadDir.listFiles() returns null without read permission, so the pre-move
+			// existence check misses existingDownload even though it's still there - this is the
+			// race window a lookup-then-move approach has in general (the file could just as well
+			// have appeared between the check and the move). Without a confirmed `overwrite`,
+			// Files.move must still refuse to replace it rather than silently overwriting.
+			check(downloadDir.setReadable(false)) { "test setup: could not make downloadDir unreadable" }
+
+			val result = repository.uninstallTemplate(item(source, installed = true))
+
+			assertThat(result.exceptionOrNull()).isInstanceOf(TemplateReplaceConflictException::class.java)
+			assertThat(source.exists()).isTrue()
+			downloadDir.setReadable(true)
+			assertThat(existingDownload.readText()).isEqualTo("already in downloads")
 		}
 
 	@Test

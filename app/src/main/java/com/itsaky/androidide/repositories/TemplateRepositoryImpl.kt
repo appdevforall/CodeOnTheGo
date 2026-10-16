@@ -12,6 +12,7 @@ import org.json.JSONException
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
@@ -179,7 +180,9 @@ class TemplateRepositoryImpl(
 					)
 					return@withContext Result.failure(TemplateReplaceConflictException(restored.name))
 				}
-				copyThroughTempFile(item.file, restored)
+				// hadExistingDownload is only true here because the !overwrite case above already
+				// returned - replacement is confirmed exactly when a pre-existing file was found.
+				copyThroughTempFile(item.file, restored, replaceExisting = hadExistingDownload)
 				if (!item.file.delete()) {
 					// Only roll back a copy this call created itself. When `overwrite` replaced a
 					// pre-existing Downloads file, that original content is already gone - deleting
@@ -212,10 +215,16 @@ class TemplateRepositoryImpl(
 	 * Copies [source] to [target] via a temp file renamed into place, so a copy that fails partway
 	 * (storage full, I/O error) leaves an existing [target] intact and no truncated file behind.
 	 * `copyTo(overwrite = true)` deletes the target before copying, which would lose it.
+	 *
+	 * [replaceExisting] must be true only when the caller already confirmed overwriting [target];
+	 * when false, a [target] that exists anyway (e.g. created after the caller's own check, between
+	 * that check and this call) fails with [TemplateReplaceConflictException] instead of being
+	 * silently replaced.
 	 */
 	private fun copyThroughTempFile(
 		source: File,
 		target: File,
+		replaceExisting: Boolean,
 	) {
 		// Not a .cgt name, so a leftover is never listed as a template.
 		val temp = File(target.parentFile, ".${target.name}.part")
@@ -223,7 +232,15 @@ class TemplateRepositoryImpl(
 			source.copyTo(temp, overwrite = true)
 			// Files.move, not File.renameTo: renameTo leaves replacing an existing target
 			// unspecified, and a confirmed Replace always has one.
-			Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+			try {
+				if (replaceExisting) {
+					Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+				} else {
+					Files.move(temp.toPath(), target.toPath())
+				}
+			} catch (e: FileAlreadyExistsException) {
+				throw TemplateReplaceConflictException(target.name)
+			}
 		} finally {
 			temp.delete()
 		}
