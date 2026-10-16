@@ -87,6 +87,7 @@ Each PR compiles and passes tests on its own; the flag stays off until PR 4.
 2. **Consumers.** Quick Build `setup.json` lookup and plugin `.cgp` lookup from the model. Tests for both. About 4 files.
 3. **Lifecycle and UX.** Delete-with-project, the orphan sweep, Export APK, strings. About 6 files.
 4. **Default on.** Flip the flag after validation. Update `ARCHITECTURE.md` (storage layout) and any user docs.
+   Validation (2026-10-15/16, posted on ADFA-4930): warm edit builds 48% faster on a 288-source project (Pixel 6 Pro); on an itel A667L, clean builds about 50% faster and small edits unchanged. PR 4 also drops the experiments gate, so the switch and Export APK show for everyone, and gives the sync banner its own wording for a relocation change.
 
 ## Validation before default-on
 

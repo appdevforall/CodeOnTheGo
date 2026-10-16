@@ -109,11 +109,10 @@ object BuildPreferences {
 
 	/**
 	 * Whether builds write their output to app-private storage instead of the project folder
-	 * (ADFA-4930). Off until the rest of the IDE reads build output from the new location, and
-	 * honored only while experiments are enabled.
+	 * (ADFA-4930). On by default: builds there are faster than on the FUSE-backed project folder.
 	 */
 	var relocateBuildOutput: Boolean
-		get() = prefManager.getBoolean(RELOCATE_BUILD_OUTPUT, false)
+		get() = prefManager.getBoolean(RELOCATE_BUILD_OUTPUT, true)
 		set(value) {
 			prefManager.putBoolean(RELOCATE_BUILD_OUTPUT, value)
 		}

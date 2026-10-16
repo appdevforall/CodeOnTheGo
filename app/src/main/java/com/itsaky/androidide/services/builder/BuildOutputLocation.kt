@@ -5,7 +5,6 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
-import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.ProjectStorageKey
 import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.isDeletedProjectDirectory
@@ -35,11 +34,8 @@ object BuildOutputLocation {
 	private const val NO_WATCH_FS = "--no-watch-fs"
 	private const val PROJECT_CACHE_DIR = "--project-cache-dir"
 
-	/** Whether the switch exists at all: early access only (REVIEW.md section 12). */
-	fun isAvailable(): Boolean = FeatureFlags.isExperimentsEnabled
-
 	/** Whether the user currently asks for relocation; applied at the next sync. */
-	fun isRequested(): Boolean = isAvailable() && BuildPreferences.relocateBuildOutput
+	fun isRequested(): Boolean = BuildPreferences.relocateBuildOutput
 
 	/**
 	 * @param noBackupDir the app's `noBackupFilesDir`.
@@ -182,7 +178,7 @@ object BuildOutputLocation {
 	): Boolean? = workspace?.let { isRelocated(it.rootProject.buildDir, treeFor(noBackupDir, projectDir)) }
 
 	/**
-	 * Whether the switch (or the experiments flag) disagrees with the synced model, so the next
+	 * Whether the switch disagrees with the synced model, so the next
 	 * sync would move the build output. False without a model: there is nothing to disagree with.
 	 *
 	 * @param modelRelocated [modelRelocated] for the open project.

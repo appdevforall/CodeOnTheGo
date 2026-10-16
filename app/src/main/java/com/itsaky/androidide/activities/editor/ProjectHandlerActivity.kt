@@ -29,6 +29,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -1219,9 +1220,9 @@ abstract class ProjectHandlerActivity :
 	}
 
 	/**
-	 * ADFA-4930: a changed "Relocate build output" (or experiments flag) only moves the build output
-	 * at the next sync, so offer one, once per change, and withdraw the offer once the synced model
-	 * agrees with the switch again.
+	 * ADFA-4930: a changed "Relocate build output" only moves the build output at the next sync, so
+	 * offer one, once per change, and withdraw the offer once the synced model agrees with the switch
+	 * again. Turning relocation on by default makes this the first thing an existing project shows.
 	 *
 	 * @param afterInit whether a project initialization just finished. It applied any Gradle file
 	 *   changes too, so the banner can go even when it also stands for those.
@@ -1243,7 +1244,13 @@ abstract class ProjectHandlerActivity :
 					}
 					buildOutputSyncBanner = null
 					buildOutputSyncOffered = null
-				} else if (buildOutputSyncOffered != requested && notifySyncNeeded(::syncForBuildOutput)) {
+				} else if (
+					buildOutputSyncOffered != requested &&
+					notifySyncNeeded(
+						onConfirm = ::syncForBuildOutput,
+						message = if (requested) string.msg_sync_build_output_relocate else string.msg_sync_build_output_restore,
+					)
+				) {
 					buildOutputSyncOffered = requested
 					buildOutputSyncBanner = syncNotificationFlashbar
 				}
@@ -1339,8 +1346,14 @@ abstract class ProjectHandlerActivity :
 		notifySyncNeeded { initializeProject(forceSync = true) }
 	}
 
-	/** @return false when the banner was not shown: no build service, or initializing or building. */
-	private fun notifySyncNeeded(onConfirm: () -> Unit): Boolean {
+	/**
+	 * @param message what the banner says; the default is for changed Gradle files.
+	 * @return false when the banner was not shown: no build service, or initializing or building.
+	 */
+	private fun notifySyncNeeded(
+		@StringRes message: Int = string.msg_sync_needed,
+		onConfirm: () -> Unit,
+	): Boolean {
 		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return false
 
@@ -1354,7 +1367,7 @@ abstract class ProjectHandlerActivity :
 				).withIcon(
 					R.drawable.ic_sync,
 					colorFilter = resolveAttr(R.attr.colorOnSecondaryContainer),
-				).message(string.msg_sync_needed)
+				).message(message)
 					.positiveActionText(string.btn_sync)
 					.positiveActionTapListener {
 						onConfirm()

@@ -121,6 +121,8 @@
 	<string name="build_output">Build Output</string>
 	<string name="quick_run_debug">Quick run</string>
 	<string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
+	<string name="msg_sync_build_output_relocate">Builds are faster with build output in Code on the Go\'s storage. Sync the project to move it there.</string>
+	<string name="msg_sync_build_output_restore">Sync the project to move build output back to the project folder.</string>
 	<string name="preparing">Preparing</string>
 	<string name="preparing_first">Initializing a project may take a few moments.</string>
 	<string name="msg_installing_gradlew">Gradle wrapper is not available.\nInstalling a default one. Gradle v7.4 will be downloaded if necessary.</string>
@@ -873,7 +875,7 @@
 	<string name="idepref_launchAppAfterInstall_summary">If enabled, the IDE will (without confirmation) launch the application right after it is installed.</string>
 	<string name="title_run_options">Run options</string>
 	<string name="idepref_relocateBuildOutput_title">Relocate build output</string>
-	<string name="idepref_relocateBuildOutput_summary">Experimental. Faster repeat builds: build output goes to Code on the Go\'s private storage, not the project folder. Sync to apply.</string>
+	<string name="idepref_relocateBuildOutput_summary">Faster builds: build output goes to Code on the Go\'s private storage, not the project folder. Sync to apply.</string>
 	<string name="err_cannot_determine_package">Cannot run application. Unable to determine package name.</string>
 	<string name="msg_launch_failure_no_app_module">Cannot run application. No application modules found in project.</string>
 	<string name="title_launch_app">Launch app</string>

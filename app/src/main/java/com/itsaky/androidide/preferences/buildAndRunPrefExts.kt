@@ -43,7 +43,6 @@ import com.itsaky.androidide.preferences.internal.BuildPreferences.launchAppAfte
 import com.itsaky.androidide.preferences.internal.BuildPreferences.relocateBuildOutput
 import com.itsaky.androidide.resources.R.drawable
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.services.builder.BuildOutputLocation
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -70,11 +69,7 @@ private class GradleOptions(
 
 	init {
 		addPreference(GradleCommands())
-		// Early access only (REVIEW.md section 12): until the rest of the ADFA-4930 stack lands,
-		// Quick Build and plugin builds still look for output in the project folder.
-		if (BuildOutputLocation.isAvailable()) {
-			addPreference(RelocateBuildOutput())
-		}
+		addPreference(RelocateBuildOutput())
 	}
 }
 
