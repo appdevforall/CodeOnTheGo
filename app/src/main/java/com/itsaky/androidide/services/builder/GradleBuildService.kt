@@ -746,10 +746,11 @@ class GradleBuildService :
 
 	/**
 	 * The arguments that move the open project's build output to app-private storage (ADFA-4930),
-	 * or none. A sync applies the user's current choice and records it; a build follows the last
-	 * sync's record, so it writes where the synced model (APK listing file, classpath) looks. With no
-	 * open project, or a tree that cannot be written, the output stays in the project folder. Runs on
-	 * the [prepareBuild] worker, so disk I/O is fine.
+	 * or none. A sync applies the user's current choice, keeping output in the project folder when
+	 * the tree cannot be written; the model it produces records the outcome. A build follows that
+	 * model, so it writes where the model (APK listing file, classpath) looks, and never falls back
+	 * to the project folder, which would leave the model pointing at older output. Runs on the
+	 * [prepareBuild] worker, so disk I/O is fine.
 	 */
 	private fun relocatedBuildOutputArgs(isSync: Boolean): List<String> {
 		val projectDir =
@@ -758,18 +759,22 @@ class GradleBuildService :
 				.projectDirPath
 				.takeIf { it.isNotBlank() }
 				?.let(::File) ?: return emptyList()
-		val cacheDir = Environment.getProjectCacheDir(projectDir)
 		val tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir)
 
-		var relocate = if (isSync) BuildOutputLocation.isRequested() else BuildOutputLocation.syncedState(cacheDir)
-		if (relocate && !BuildOutputLocation.prepare(tree, projectDir)) {
-			log.warn("Cannot write build output directory {}; building into the project folder", tree)
-			relocate = false
+		if (!isSync) {
+			if (BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir) != true) return emptyList()
+			if (!BuildOutputLocation.prepare(tree, projectDir)) {
+				log.warn("Cannot write build output directory {}; Gradle will report it", tree)
+			}
+			return BuildOutputLocation.gradleArgs(tree)
 		}
-		if (isSync && !BuildOutputLocation.recordSyncedState(cacheDir, relocate)) {
-			log.warn("Cannot record the build output location in {}", cacheDir)
+
+		if (!BuildOutputLocation.isRequested()) return emptyList()
+		if (!BuildOutputLocation.prepare(tree, projectDir)) {
+			log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
+			return emptyList()
 		}
-		return if (relocate) BuildOutputLocation.gradleArgs(tree) else emptyList()
+		return BuildOutputLocation.gradleArgs(tree)
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =

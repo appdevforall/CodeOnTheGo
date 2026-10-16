@@ -1,8 +1,12 @@
 package com.itsaky.androidide.services.builder
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.projects.api.GradleProject
+import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
 import com.itsaky.androidide.utils.ProjectStorageKey
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -91,38 +95,54 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `a project never synced with relocation reads as not relocated`() {
-		assertThat(BuildOutputLocation.syncedState(File(tmp.root, "project/.cg"))).isFalse()
+	fun `a model whose build directory is in the tree is relocated`() {
+		val tree = File(tmp.root, "no_backup/gradle-build/app-1234")
+
+		assertThat(BuildOutputLocation.isRelocated(File(tree, "main/root-5678"), tree)).isTrue()
 	}
 
 	@Test
-	fun `the synced state round-trips, creating the cache directory`() {
-		val cacheDir = File(tmp.root, "project/.cg")
+	fun `a model building into the project folder is not relocated`() {
+		val tree = File(tmp.root, "no_backup/gradle-build/app-1234")
 
-		assertThat(BuildOutputLocation.recordSyncedState(cacheDir, true)).isTrue()
-		assertThat(BuildOutputLocation.syncedState(cacheDir)).isTrue()
-
-		assertThat(BuildOutputLocation.recordSyncedState(cacheDir, false)).isTrue()
-		assertThat(BuildOutputLocation.syncedState(cacheDir)).isFalse()
+		assertThat(BuildOutputLocation.isRelocated(File(tmp.root, "projects/app/build"), tree)).isFalse()
 	}
 
 	@Test
-	fun `recording reports a cache directory it cannot create`() {
-		val blocker = tmp.newFile("blocker")
+	fun `a sibling tree that shares the name as a prefix is not this project's`() {
+		val tree = File(tmp.root, "no_backup/gradle-build/app-1234")
+		val sibling = File(tmp.root, "no_backup/gradle-build/app-12345/main/root-5678")
 
-		assertThat(BuildOutputLocation.recordSyncedState(File(blocker, ".cg"), true)).isFalse()
+		assertThat(BuildOutputLocation.isRelocated(sibling, tree)).isFalse()
 	}
 
 	@Test
-	fun `a sync is pending exactly when the request differs from the last sync`() {
-		val cacheDir = tmp.newFolder("project", ".cg")
+	fun `the open project's model is read through its root project's build directory`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val project = File(tmp.root, "projects/app")
+		val tree = BuildOutputLocation.treeFor(noBackup, project)
 
-		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = false)).isFalse()
-		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = true)).isTrue()
+		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace(File(tree, "main/root-5678")))).isTrue()
+		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace(File(project, "build")))).isFalse()
+		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace = null)).isNull()
+	}
 
-		BuildOutputLocation.recordSyncedState(cacheDir, true)
+	@Test
+	fun `a sync is pending exactly when the request differs from the synced model`() {
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = false, requested = false)).isFalse()
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = false, requested = true)).isTrue()
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = true, requested = true)).isFalse()
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = true, requested = false)).isTrue()
+	}
 
-		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = true)).isFalse()
-		assertThat(BuildOutputLocation.syncPending(cacheDir, requested = false)).isTrue()
+	@Test
+	fun `nothing is pending before a model is loaded`() {
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = null, requested = true)).isFalse()
+	}
+
+	private fun workspace(rootBuildDir: File): Workspace {
+		val root = mockk<GradleProject>()
+		every { root.buildDirPath } returns rootBuildDir.path
+		return mockk<Workspace>().also { every { it.rootProject } returns root }
 	}
 }

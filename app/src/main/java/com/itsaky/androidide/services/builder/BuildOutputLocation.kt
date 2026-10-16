@@ -1,6 +1,9 @@
 package com.itsaky.androidide.services.builder
 
 import com.itsaky.androidide.preferences.internal.BuildPreferences
+import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.ProjectStorageKey
@@ -12,9 +15,11 @@ import java.io.IOException
  * (ADFA-4930): `<noBackupFilesDir>/gradle-build/<projectKey>/`, beside Quick Build's scratch and
  * keyed the same way. App-private f2fs makes warm builds 24-35% faster on the devices measured.
  *
- * A sync applies the user's choice and records it in the project's cache directory; builds follow
- * that record, not the live switch, so their output is always where the synced model says it is.
- * A change to the switch therefore waits for the next sync ([syncPending]).
+ * The synced project model is the record of where output goes. A sync applies the user's choice;
+ * a build follows the model's root build directory ([modelRelocated]), not the live switch, so it
+ * writes where the model (APK listing file, classpath) looks, and a sync that fails leaves both
+ * as they were. A change to the switch therefore waits for the next successful sync
+ * ([syncPending]).
  */
 object BuildOutputLocation {
 	/** Parent of every project's tree, under `noBackupFilesDir`. */
@@ -22,9 +27,6 @@ object BuildOutputLocation {
 
 	/** Holds the project's path, so a sweep can find trees whose project is gone. */
 	const val PROJECT_PATH_FILE = "project-path"
-
-	/** Present in a project's cache directory when its last sync relocated build output. */
-	const val SYNCED_STATE_FILE = "build-output-relocated"
 
 	private const val KOTLIN_PERSISTENT_DIR = "kotlin.project.persistent.dir"
 	private const val WATCH_FS = "--watch-fs"
@@ -76,8 +78,8 @@ object BuildOutputLocation {
 	/**
 	 * Creates [tree] and records [projectDir] in it.
 	 *
-	 * @return false when [tree] or its marker cannot be written; the build then keeps its output
-	 *   in the project folder.
+	 * @return false when [tree] or its marker cannot be written; a sync then keeps output in the
+	 *   project folder.
 	 */
 	fun prepare(
 		tree: File,
@@ -95,40 +97,38 @@ object BuildOutputLocation {
 	}
 
 	/**
-	 * Whether the project's last sync relocated its build output. False when nothing was recorded:
-	 * every sync before this feature built into the project folder.
+	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the
+	 * model relocated build output.
 	 *
-	 * @param projectCacheDir the project's cache directory (`<project>/.cg`).
+	 * @param modelBuildDir the root project's build directory in the synced model.
+	 * @param tree the project's tree, from [treeFor].
 	 */
-	fun syncedState(projectCacheDir: File): Boolean = File(projectCacheDir, SYNCED_STATE_FILE).isFile
+	fun isRelocated(
+		modelBuildDir: File,
+		tree: File,
+	): Boolean = modelBuildDir.absoluteFile.normalize().startsWith(tree.absoluteFile.normalize())
 
 	/**
-	 * Records what a sync of the project applied.
+	 * [isRelocated] for the synced model of the open project, or null when no model is loaded.
 	 *
-	 * @return false when the record cannot be written.
+	 * @param noBackupDir the app's `noBackupFilesDir`.
+	 * @param projectDir the open project's root directory.
+	 * @param workspace the synced model of the open project.
 	 */
-	fun recordSyncedState(
-		projectCacheDir: File,
-		relocated: Boolean,
-	): Boolean {
-		val file = File(projectCacheDir, SYNCED_STATE_FILE)
-		return try {
-			if (relocated) {
-				(projectCacheDir.isDirectory || projectCacheDir.mkdirs()) && (file.isFile || file.createNewFile())
-			} else {
-				!file.exists() || file.delete()
-			}
-		} catch (e: IOException) {
-			false
-		}
-	}
+	fun modelRelocated(
+		noBackupDir: File,
+		projectDir: File,
+		workspace: Workspace? = ProjectManagerImpl.getInstance().workspace,
+	): Boolean? = workspace?.let { isRelocated(it.rootProject.buildDir, treeFor(noBackupDir, projectDir)) }
 
 	/**
-	 * Whether the switch (or the experiments flag) has changed since the project's last sync, so the
-	 * next sync would move the build output.
+	 * Whether the switch (or the experiments flag) disagrees with the synced model, so the next
+	 * sync would move the build output. False without a model: there is nothing to disagree with.
+	 *
+	 * @param modelRelocated [modelRelocated] for the open project.
 	 */
 	fun syncPending(
-		projectCacheDir: File,
+		modelRelocated: Boolean?,
 		requested: Boolean = isRequested(),
-	): Boolean = syncedState(projectCacheDir) != requested
+	): Boolean = modelRelocated != null && modelRelocated != requested
 }
