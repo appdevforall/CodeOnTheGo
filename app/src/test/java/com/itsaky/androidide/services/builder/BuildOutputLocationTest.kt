@@ -265,6 +265,12 @@ class BuildOutputLocationTest {
 		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = false, deferred = false, slotBusy = false)).isFalse()
 	}
 
+	@Test
+	fun `relocating arguments are recognised and others are not`() {
+		assertThat(BuildOutputLocation.isRelocating(BuildOutputLocation.gradleArgs(File(tmp.root, "tree")))).isTrue()
+		assertThat(BuildOutputLocation.isRelocating(listOf("--parallel", "--watch-fs", "-Pother=1"))).isFalse()
+	}
+
 	private fun workspace(rootBuildDir: File): Workspace {
 		val root = mockk<GradleProject>()
 		every { root.buildDirPath } returns rootBuildDir.path

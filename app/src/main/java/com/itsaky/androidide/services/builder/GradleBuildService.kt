@@ -95,6 +95,7 @@ import java.util.Objects
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -257,6 +258,9 @@ class GradleBuildService :
 
 	@Volatile
 	private var tuningConfig: GradleTuningConfig? = null
+
+	/** Builds (not syncs) whose output was relocated (ADFA-4930), until their build_completed metric is sent. */
+	private val relocatedBuildIds: MutableSet<BuildId> = ConcurrentHashMap.newKeySet()
 
 	private val buildServiceScope =
 		CoroutineScope(
@@ -556,12 +560,16 @@ class GradleBuildService :
 			val currentTuningConfig = tuningConfig
 			var newTuningConfig: GradleTuningConfig? = null
 
+			val isSync = buildInfo.buildId.runType == BuildRunType.ProjectSync
+
 			@Suppress("SimplifyBooleanWithConstants")
 			val extraArgs =
 				getGradleExtraArgs(
 					enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild,
-					isSync = buildInfo.buildId.runType == BuildRunType.ProjectSync,
+					isSync = isSync,
 				)
+			// Syncs report no build_completed metric, so only builds are recorded.
+			if (!isSync && BuildOutputLocation.isRelocating(extraArgs)) relocatedBuildIds += buildInfo.buildId
 
 			var buildParams =
 				if (FeatureFlags.isExperimentsEnabled) {
@@ -674,6 +682,7 @@ class GradleBuildService :
 					isSuccess = isSuccess,
 					buildType = buildType,
 					buildResult = result,
+					relocatedOutput = relocatedBuildIds.remove(result.buildId),
 				),
 		)
 

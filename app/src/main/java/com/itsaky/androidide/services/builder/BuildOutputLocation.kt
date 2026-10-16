@@ -69,6 +69,9 @@ object BuildOutputLocation {
 			NO_WATCH_FS,
 		)
 
+	/** Whether a sync's or build's arguments relocate its output, from [gradleArgs]. */
+	fun isRelocating(args: List<String>): Boolean = args.any { it.startsWith("-P$PROPERTY_BUILD_OUTPUT_DIR=") }
+
 	/**
 	 * Drops `--watch-fs` from a build's complete argument list when it also relocates the project
 	 * cache, so the build does not fail whatever order the tuner's and these arguments are in.
