@@ -462,7 +462,7 @@ class GradleQuickBuildProvisioner(
 			// debuggable variant, so a flavored project has several and only this variant's is
 			// the built app. Under the build directory the synced model gives the module, which
 			// relocated build output (ADFA-4930) moves out of the project folder.
-			val reportFile = File(module.buildDir, QuickBuildTaskPaths.setupJson(variantName))
+			val reportFile = QuickBuildTaskPaths.setupJson(module.buildDir, variantName)
 			if (!reportFile.isFile) {
 				log.error("{} not found after the proxy app build", reportFile)
 				// The build succeeded but wrote no Quick Build setup, which all but names the

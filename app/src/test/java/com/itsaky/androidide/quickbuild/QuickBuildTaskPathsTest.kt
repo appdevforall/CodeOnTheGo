@@ -2,6 +2,7 @@ package com.itsaky.androidide.quickbuild
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
+import java.io.File
 
 /**
  * Two regressions are pinned here.
@@ -76,15 +77,17 @@ class QuickBuildTaskPathsTest {
 		// Both halves of the plugin contract: `<buildDir>/quickbuild/<variant>/setup.json`. A
 		// flavor-agnostic path here would read another flavor's report - the wrong APK and
 		// the wrong applicationId.
-		assertThat(QuickBuildTaskPaths.setupJson("debug"))
-			.isEqualTo("quickbuild/debug/setup.json")
-		assertThat(QuickBuildTaskPaths.setupJson("demoDebug"))
-			.isEqualTo("quickbuild/demoDebug/setup.json")
+		val buildDir = File("/projects/app/build")
+		assertThat(QuickBuildTaskPaths.setupJson(buildDir, "debug"))
+			.isEqualTo(File(buildDir, "quickbuild/debug/setup.json"))
+		assertThat(QuickBuildTaskPaths.setupJson(buildDir, "demoDebug"))
+			.isEqualTo(File(buildDir, "quickbuild/demoDebug/setup.json"))
 	}
 
 	@Test
 	fun `a blank variant reads the default variant's report`() {
-		assertThat(QuickBuildTaskPaths.setupJson("")).isEqualTo("quickbuild/debug/setup.json")
-		assertThat(QuickBuildTaskPaths.setupJson()).isEqualTo("quickbuild/debug/setup.json")
+		val buildDir = File("/projects/app/build")
+		assertThat(QuickBuildTaskPaths.setupJson(buildDir, "")).isEqualTo(File(buildDir, "quickbuild/debug/setup.json"))
+		assertThat(QuickBuildTaskPaths.setupJson(buildDir)).isEqualTo(File(buildDir, "quickbuild/debug/setup.json"))
 	}
 }

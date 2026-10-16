@@ -148,7 +148,7 @@ internal fun unsyncedProjectManager(projectRoot: File): FakeProjectManager = Fak
 internal fun androidModule(
 	path: String = ":app",
 	variantName: String? = "debug",
-	buildDir: File = File("app", "build"),
+	buildDir: File = File("/fake-project/app/build"),
 ): AndroidModule =
 	mockk<AndroidModule>().also { module ->
 		every { module.path } returns path
@@ -224,7 +224,7 @@ internal fun writeSetupJson(
 	entryActivity: String? = "com.example.demo.MainActivity",
 	buildDir: File = File(moduleDir, "build"),
 ) {
-	val report = File(buildDir, QuickBuildTaskPaths.setupJson(variantName))
+	val report = QuickBuildTaskPaths.setupJson(buildDir, variantName)
 	report.parentFile.mkdirs()
 	val apkPath = "app/build/outputs/apk/$variantName/app-$variantName.apk"
 	report.writeText(
@@ -241,7 +241,7 @@ internal fun writeUnparseableSetupJson(
 	moduleDir: File,
 	variantName: String = "debug",
 ) {
-	val report = File(moduleDir, "build/" + QuickBuildTaskPaths.setupJson(variantName))
+	val report = QuickBuildTaskPaths.setupJson(File(moduleDir, "build"), variantName)
 	report.parentFile.mkdirs()
 	// A well-formed JSON object with no proxyAppId: parseable as JSON, unusable as a report,
 	// which is the shape a schema drift actually produces.
