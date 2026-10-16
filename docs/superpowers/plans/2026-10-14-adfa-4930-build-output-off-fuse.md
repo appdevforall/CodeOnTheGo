@@ -66,8 +66,8 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
 ### Lifecycle
 
-- **Project deleted in the IDE** (`RecentProjectsAdapter.kt:213`, `DeleteProjectFragment`): delete its output tree too.
-- **Orphans** (project moved, renamed or deleted outside the IDE): at startup, off the main thread, remove trees whose `project-path` marker no longer exists - the same shape as `QuickBuildScratch.sweep`.
+- **Project deleted in the IDE**: both deletion paths (Recents and the Delete projects screen) go through `RecentProjectsViewModel`, which deletes the project's trees too. Trees are matched by their `project-path` marker, not by key: deletion uses the canonical path and builds use `projectDirPath`, so a symlinked spelling would key differently.
+- **Orphans** (project moved, renamed or deleted outside the IDE): at startup, off the main thread, remove trees whose project no longer exists while its parent folder does, so a volume that is not mounted doesn't count. Trees without a marker are left alone. Unlike `QuickBuildScratch.sweep`, which clears every tree, this keeps the output of live projects.
 - **Existing `build/` folders in projects**: leave them. They go stale but do no harm. A later "free space" action can offer to remove them.
 - **Storage**: output now counts as app data in Settings, and "Clear storage" removes it (the next build is a full one). Uninstalling removes it as well; sources are unaffected.
 
@@ -75,7 +75,7 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
 These are the tradeoffs from the original analysis, with how this plan handles each:
 
-- **The APK is no longer in the project folder**, file manager or MTP. Add an **Export APK** action that copies the built APK to `Download/` or opens the share sheet. The survey found no existing export or share action.
+- **The APK is no longer in the project folder**, file manager or MTP. Add an **Export APK** toolbar action, shown while relocation is available, that offers the share sheet or a copy in `Download/` (`[project]-[variant].apk`, numbered when taken). The survey found no existing export action.
 - **Build output no longer travels with a copied project folder.** That's acceptable: it can be rebuilt, and copying `build/` is rarely wanted.
 - **Terminal builds** (`./gradlew` in the IDE's terminal) don't get the redirect, so they still build into the project folder, separately from the IDE's tree. Document this. Changing it is a follow-up if users trip over it.
 
