@@ -7,6 +7,8 @@ import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.ProjectStorageKey
+import com.itsaky.androidide.utils.canonicalProjectLocation
+import com.itsaky.androidide.utils.isDeletedProjectDirectory
 import java.io.File
 import java.io.IOException
 
@@ -95,6 +97,53 @@ object BuildOutputLocation {
 			false
 		}
 	}
+
+	/**
+	 * Deletes the trees of [projectDir], matched by their [PROJECT_PATH_FILE] marker rather than by
+	 * key, so a path spelled differently (`/sdcard` against `/storage/emulated/0`) still matches.
+	 * Call it when the user deletes the project.
+	 *
+	 * @return how many trees were deleted.
+	 */
+	fun removeTreesOf(
+		noBackupDir: File,
+		projectDir: File,
+	): Int {
+		val location = projectDir.canonicalProjectLocation()
+		return deleteTreesWhere(noBackupDir) { it.canonicalProjectLocation() == location }
+	}
+
+	/**
+	 * Deletes the trees of projects that no longer exist, such as a project deleted, moved or renamed
+	 * outside the IDE. A project on a volume that is not mounted is not gone, and a tree without a
+	 * marker is left alone. Runs on a background thread at startup.
+	 *
+	 * @return how many trees were deleted.
+	 */
+	fun sweep(noBackupDir: File): Int = deleteTreesWhere(noBackupDir) { it.isDeletedProjectDirectory() }
+
+	private fun deleteTreesWhere(
+		noBackupDir: File,
+		isOrphan: (File) -> Boolean,
+	): Int {
+		val trees = File(noBackupDir, DIR_NAME).listFiles { file -> file.isDirectory } ?: return 0
+		return trees.count { tree ->
+			val project = projectOf(tree)
+			project != null && isOrphan(project) && tree.deleteRecursively()
+		}
+	}
+
+	/** The project [tree] belongs to, from its marker, or null when the marker is missing or unreadable. */
+	private fun projectOf(tree: File): File? =
+		try {
+			File(tree, PROJECT_PATH_FILE)
+				.takeIf { it.isFile }
+				?.readText()
+				?.takeIf { it.isNotBlank() }
+				?.let(::File)
+		} catch (e: IOException) {
+			null
+		}
 
 	/**
 	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the

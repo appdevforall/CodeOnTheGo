@@ -11,6 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 class BuildOutputLocationTest {
 	@get:Rule
@@ -139,6 +140,66 @@ class BuildOutputLocationTest {
 	fun `nothing is pending before a model is loaded`() {
 		assertThat(BuildOutputLocation.syncPending(modelRelocated = null, requested = true)).isFalse()
 	}
+
+	@Test
+	fun `deleting a project deletes its tree and no other`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val app = tmp.newFolder("projects", "app")
+		val other = tmp.newFolder("projects", "other")
+		val appTree = treeOf(noBackup, app)
+		val otherTree = treeOf(noBackup, other)
+
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, app)).isEqualTo(1)
+
+		assertThat(appTree.exists()).isFalse()
+		assertThat(otherTree.isDirectory).isTrue()
+	}
+
+	@Test
+	fun `a tree recorded under another spelling of the project path is still found`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val app = tmp.newFolder("storage", "app")
+		val link = File(tmp.root, "sdcard").toPath()
+		Files.createSymbolicLink(link, app.parentFile.toPath())
+		val tree = treeOf(noBackup, File(link.toFile(), "app"))
+
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, app)).isEqualTo(1)
+		assertThat(tree.exists()).isFalse()
+	}
+
+	@Test
+	fun `the sweep deletes the trees of deleted projects only`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val kept = tmp.newFolder("projects", "kept")
+		val deleted = tmp.newFolder("projects", "deleted")
+		val keptTree = treeOf(noBackup, kept)
+		val deletedTree = treeOf(noBackup, deleted)
+		val unmountedTree = treeOf(noBackup, File(tmp.root, "unmounted-volume/app"))
+		val markerless = File(noBackup, "${BuildOutputLocation.DIR_NAME}/no-marker").apply { mkdirs() }
+		deleted.deleteRecursively()
+
+		assertThat(BuildOutputLocation.sweep(noBackup)).isEqualTo(1)
+
+		assertThat(deletedTree.exists()).isFalse()
+		assertThat(keptTree.isDirectory).isTrue()
+		// A missing parent reads as a volume that is not mounted, not as a deleted project.
+		assertThat(unmountedTree.isDirectory).isTrue()
+		assertThat(markerless.isDirectory).isTrue()
+	}
+
+	@Test
+	fun `the sweep copes with no trees at all`() {
+		assertThat(BuildOutputLocation.sweep(tmp.newFolder("no_backup"))).isEqualTo(0)
+	}
+
+	private fun treeOf(
+		noBackup: File,
+		project: File,
+	): File =
+		BuildOutputLocation.treeFor(noBackup, project).also {
+			assertThat(BuildOutputLocation.prepare(it, project)).isTrue()
+			File(it, "main/app-1234/outputs").mkdirs()
+		}
 
 	private fun workspace(rootBuildDir: File): Workspace {
 		val root = mockk<GradleProject>()
