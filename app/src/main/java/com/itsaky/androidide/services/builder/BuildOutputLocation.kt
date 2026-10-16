@@ -14,7 +14,8 @@ import java.io.IOException
 /**
  * Where a project's Gradle build output goes when it is moved off the FUSE-backed project folder
  * (ADFA-4930): `<noBackupFilesDir>/gradle-build/<projectKey>/`, beside Quick Build's scratch and
- * keyed the same way. App-private f2fs makes warm builds 24-35% faster on the devices measured.
+ * keyed by the same function, from the project's canonical path. App-private f2fs makes warm builds
+ * up to about twice as fast on the devices measured.
  *
  * The synced project model is the record of where output goes. A sync applies the user's choice;
  * a build follows the model's root build directory ([modelRelocated]), not the live switch, so it
@@ -40,12 +41,13 @@ object BuildOutputLocation {
 	/**
 	 * @param noBackupDir the app's `noBackupFilesDir`.
 	 * @param projectDir the project's root directory.
-	 * @return the project's tree; computed, not created.
+	 * @return the project's tree; computed, not created. Keyed by the canonical path, so every spelling
+	 *   of the project's path (`/sdcard` against `/storage/emulated/0`) names the same tree.
 	 */
 	fun treeFor(
 		noBackupDir: File,
 		projectDir: File,
-	): File = File(File(noBackupDir, DIR_NAME), ProjectStorageKey.of(projectDir))
+	): File = File(File(noBackupDir, DIR_NAME), ProjectStorageKey.of(File(projectDir.canonicalProjectLocation())))
 
 	/**
 	 * The Gradle arguments that send a project's build output into [tree]: every project's build
@@ -99,14 +101,19 @@ object BuildOutputLocation {
 	 * key, so a path spelled differently (`/sdcard` against `/storage/emulated/0`) still matches.
 	 * Call it when the user deletes the project.
 	 *
+	 * @param keep a directory whose tree must survive, such as the loaded model's build directory.
 	 * @return how many trees were deleted.
 	 */
 	fun removeTreesOf(
 		noBackupDir: File,
 		projectDir: File,
+		keep: File? = null,
 	): Int {
 		val location = projectDir.canonicalProjectLocation()
-		return deleteTreesWhere(noBackupDir) { it.canonicalProjectLocation() == location }
+		val kept = keep?.absoluteFile?.normalize()
+		return deleteTreesWhere(noBackupDir) { tree, project ->
+			project.canonicalProjectLocation() == location && (kept == null || !kept.startsWith(tree.absoluteFile.normalize()))
+		}
 	}
 
 	/**
@@ -116,16 +123,16 @@ object BuildOutputLocation {
 	 *
 	 * @return how many trees were deleted.
 	 */
-	fun sweep(noBackupDir: File): Int = deleteTreesWhere(noBackupDir) { it.isDeletedProjectDirectory() }
+	fun sweep(noBackupDir: File): Int = deleteTreesWhere(noBackupDir) { _, project -> project.isDeletedProjectDirectory() }
 
 	private fun deleteTreesWhere(
 		noBackupDir: File,
-		isOrphan: (File) -> Boolean,
+		isOrphan: (tree: File, project: File) -> Boolean,
 	): Int {
 		val trees = File(noBackupDir, DIR_NAME).listFiles { file -> file.isDirectory } ?: return 0
 		return trees.count { tree ->
 			val project = projectOf(tree)
-			project != null && isOrphan(project) && deleteTree(tree)
+			project != null && isOrphan(tree, project) && deleteTree(tree)
 		}
 	}
 
@@ -151,6 +158,36 @@ object BuildOutputLocation {
 		} catch (e: IOException) {
 			null
 		}
+
+	/**
+	 * Whether a successful initialization should delete the project's relocated output: its model
+	 * builds into the project folder, so the tree is dead weight. Not while a Quick Build session is
+	 * live, which keeps absolute paths into the tree (the proxy APK, its classes and payload) until
+	 * it ends; the next project open deletes it instead.
+	 *
+	 * @param afterInit an initialization, with or without a sync, just succeeded.
+	 * @param modelRelocated [modelRelocated] for the loaded model.
+	 * @param quickBuildLive a Quick Build session is live.
+	 */
+	fun shouldDeleteTrees(
+		afterInit: Boolean,
+		modelRelocated: Boolean?,
+		quickBuildLive: Boolean,
+	): Boolean = afterInit && modelRelocated == false && !quickBuildLive
+
+	/**
+	 * Whether to offer a relocation sync the user deferred: it was tapped while a build held the
+	 * Gradle slot, and now no build holds it.
+	 *
+	 * @param building the user-visible or internal build flag that just changed.
+	 * @param deferred a sync was deferred.
+	 * @param slotBusy any build still holds the Gradle slot.
+	 */
+	fun shouldOfferDeferredSync(
+		building: Boolean?,
+		deferred: Boolean,
+		slotBusy: Boolean,
+	): Boolean = building == false && deferred && !slotBusy
 
 	/**
 	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the

@@ -219,6 +219,52 @@ class BuildOutputLocationTest {
 			File(it, "main/app-1234/outputs").mkdirs()
 		}
 
+	@Test
+	fun `every spelling of a project's path names the same tree`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val app = tmp.newFolder("storage", "app")
+		val link = File(tmp.root, "sdcard").toPath()
+		Files.createSymbolicLink(link, app.parentFile.toPath())
+
+		assertThat(BuildOutputLocation.treeFor(noBackup, File(link.toFile(), "app")))
+			.isEqualTo(BuildOutputLocation.treeFor(noBackup, app))
+	}
+
+	@Test
+	fun `the tree the loaded model builds into is never deleted`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val project = tmp.newFolder("projects", "app")
+		val tree = treeOf(noBackup, project)
+
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, project, keep = File(tree, "main/root-5678"))).isEqualTo(0)
+		assertThat(tree.isDirectory).isTrue()
+
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, project, keep = File(project, "build"))).isEqualTo(1)
+		assertThat(tree.exists()).isFalse()
+	}
+
+	@Test
+	fun `trees are deleted only after an initialization whose model builds into the project folder`() {
+		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = false, quickBuildLive = false)).isTrue()
+		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = false, modelRelocated = false, quickBuildLive = false)).isFalse()
+		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = true, quickBuildLive = false)).isFalse()
+		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = null, quickBuildLive = false)).isFalse()
+	}
+
+	@Test
+	fun `a live Quick Build session keeps the tree it still uses`() {
+		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = false, quickBuildLive = true)).isFalse()
+	}
+
+	@Test
+	fun `a deferred sync is offered again only once no build holds the slot`() {
+		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = false, deferred = true, slotBusy = false)).isTrue()
+		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = true, deferred = true, slotBusy = true)).isFalse()
+		// The user-visible flag dropped, but Quick Build's prebuild still holds the slot.
+		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = false, deferred = true, slotBusy = true)).isFalse()
+		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = false, deferred = false, slotBusy = false)).isFalse()
+	}
+
 	private fun workspace(rootBuildDir: File): Workspace {
 		val root = mockk<GradleProject>()
 		every { root.buildDirPath } returns rootBuildDir.path

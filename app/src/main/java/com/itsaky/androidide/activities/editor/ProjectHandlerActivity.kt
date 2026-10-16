@@ -77,6 +77,7 @@ import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.quickbuild.AutostartBuild
 import com.itsaky.androidide.quickbuild.GenerateSourcesDeferral
@@ -305,7 +306,7 @@ abstract class ProjectHandlerActivity :
 		// ADFA-4930: offer a deferred relocation sync again once no build holds the Gradle slot.
 		val offerDeferredSync =
 			Observer<Boolean> { building ->
-				if (building == false && buildOutputSyncDeferred && !isGradleSlotBusy()) {
+				if (BuildOutputLocation.shouldOfferDeferredSync(building, buildOutputSyncDeferred, isGradleSlotBusy())) {
 					buildOutputSyncDeferred = false
 					reconcileBuildOutputSyncOffer(afterInit = false)
 				}
@@ -1247,10 +1248,15 @@ abstract class ProjectHandlerActivity :
 			val projectDir = File(path)
 			val requested = BuildOutputLocation.isRequested()
 			val modelRelocated = BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir)
-			if (afterInit && modelRelocated == false) {
-				// The model builds into the project folder, so a tree from an earlier relocated sync is
-				// dead weight; a later relocated sync recreates it.
-				val removed = withContext(Dispatchers.IO) { BuildOutputLocation.removeTreesOf(noBackupFilesDir, projectDir) }
+			if (BuildOutputLocation.shouldDeleteTrees(afterInit, modelRelocated, isQuickBuildSessionLive())) {
+				// Never the tree the loaded model builds into, however its path is spelled.
+				val keep =
+					ProjectManagerImpl
+						.getInstance()
+						.workspace
+						?.rootProject
+						?.buildDir
+				val removed = withContext(Dispatchers.IO) { BuildOutputLocation.removeTreesOf(noBackupFilesDir, projectDir, keep) }
 				if (removed > 0) log.info("Deleted {} unused build output tree(s) of {}", removed, projectDir)
 			}
 			val pending = BuildOutputLocation.syncPending(modelRelocated, requested)
@@ -1294,6 +1300,13 @@ abstract class ProjectHandlerActivity :
 		}
 		initializeProject(forceSync = true)
 	}
+
+	/** Prebuilding writes to the current model's build directory; every later state uses the proxy's paths. */
+	private fun isQuickBuildSessionLive(): Boolean =
+		when (quickBuildSessionManager()?.state?.value) {
+			null, is QuickBuildSessionState.Idle, is QuickBuildSessionState.Prebuilding -> false
+			else -> true
+		}
 
 	private fun isGradleSlotBusy(): Boolean = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isBuildInProgress == true
 
