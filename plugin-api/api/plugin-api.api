@@ -1476,6 +1476,77 @@ public final class com/itsaky/androidide/plugins/extensions/UIExtension$DefaultI
 	public static fun getToolbarActions (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
 }
 
+public final class com/itsaky/androidide/plugins/net/NetworkLocality : java/lang/Enum {
+	public static final field LOOPBACK Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static final field PRIVATE_NETWORK Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static final field PUBLIC Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrl {
+	public static final field Companion Lcom/itsaky/androidide/plugins/net/ServerUrl$Companion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getLocality ()Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public final fun getPort ()Ljava/lang/Integer;
+	public final fun getScheme ()Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public fun hashCode ()I
+	public final fun isCleartext ()Z
+	public static final fun parse (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrl$Companion {
+	public final fun parse (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrl$Scheme : java/lang/Enum {
+	public static final field HTTP Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public static final field HTTPS Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getId ()Ljava/lang/String;
+	public final fun isEncrypted ()Z
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/net/ServerUrlParseResult {
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid : com/itsaky/androidide/plugins/net/ServerUrlParseResult {
+	public fun <init> (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public final fun copy (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid;Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason : java/lang/Enum {
+	public static final field BLANK Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static final field MALFORMED Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static final field NO_HOST Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static final field UNSUPPORTED_SCHEME Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid : com/itsaky/androidide/plugins/net/ServerUrlParseResult {
+	public fun <init> (Lcom/itsaky/androidide/plugins/net/ServerUrl;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/net/ServerUrl;
+	public final fun copy (Lcom/itsaky/androidide/plugins/net/ServerUrl;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid;Lcom/itsaky/androidide/plugins/net/ServerUrl;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getUrl ()Lcom/itsaky/androidide/plugins/net/ServerUrl;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun decrypt (Ljava/lang/String;)Ljava/lang/String;

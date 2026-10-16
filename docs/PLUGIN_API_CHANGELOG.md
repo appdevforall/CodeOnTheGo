@@ -36,6 +36,14 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.42 — unreleased
+- **added — Tell whether a server is on this device, the local network or the internet** _(ADFA-6536)_ **[verified]**
+  `net.ServerUrl.parse(url)` returns `ServerUrlParseResult.Valid(url)` or `Invalid(reason)`, where
+  `Invalid.Reason` is `BLANK`, `MALFORMED`, `UNSUPPORTED_SCHEME` or `NO_HOST` (more may be added). A
+  `ServerUrl` has `scheme` (`HTTP`/`HTTPS`, each with its URL `id` and `isEncrypted`), `host`, `port`, `isCleartext` and a `NetworkLocality`:
+  `LOOPBACK` (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`, `::`), `PRIVATE_NETWORK` (RFC 1918, link-local, IPv6
+  unique-local, `.local` and dotless names) or `PUBLIC`. It reads the URL as typed and never resolves
+  a name, so it is safe on the main thread. It only classifies; each plugin decides what it allows
+  for each locality. Floor `plugin.min_ide_version` at `26.42` to use it.
 - **added — Start Quick Build and get its result** _(ADFA-6493)_ **[verified]**
   `IdeBuildService.getQuickBuildAvailability()` returns `QuickBuildAvailability.Available`, or
   `Unavailable(reason, message)` with a `QuickBuildUnavailableReason`: `EXPERIMENTS_DISABLED`,
