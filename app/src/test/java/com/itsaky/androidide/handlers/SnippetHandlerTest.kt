@@ -2,6 +2,10 @@ package com.itsaky.androidide.handlers
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.snippets.SnippetRegistry
+import com.itsaky.androidide.plugins.PluginContext
+import com.itsaky.androidide.plugins.extensions.SnippetContribution
+import com.itsaky.androidide.plugins.extensions.SnippetExtension
+import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.utils.Environment
 import org.junit.After
 import org.junit.Before
@@ -25,8 +29,83 @@ class SnippetHandlerTest {
 
 	@After
 	fun tearDown() {
+		PluginSnippetManager.getInstance().cleanupPlugin(PLUGIN_ID)
 		SnippetRegistry.clear()
 		Environment.SNIPPETS_DIR = originalSnippetsDir
+	}
+
+	@Test
+	fun `loadPluginSnippets maps the kotlin language id onto the kt registry key`() {
+		registerPlugin(
+			SnippetContribution(
+				language = "kotlin",
+				scope = "local",
+				prefix = "ktplugin",
+				description = "Contributed by a plugin",
+				body = listOf("println(\"plugin\")"),
+			),
+		)
+
+		SnippetHandler.loadPluginSnippets()
+
+		assertThat(SnippetRegistry.getSnippets("kt", "local").map { it.prefix })
+			.containsExactly("ktplugin")
+		assertThat(SnippetRegistry.getSnippets("kotlin", "local")).isEmpty()
+	}
+
+	@Test
+	fun `loadPluginSnippets leaves other language ids untouched`() {
+		registerPlugin(
+			SnippetContribution(
+				language = "java",
+				scope = "local",
+				prefix = "javaplugin",
+				description = "Contributed by a plugin",
+				body = listOf("System.out.println();"),
+			),
+		)
+
+		SnippetHandler.loadPluginSnippets()
+
+		assertThat(SnippetRegistry.getSnippets("java", "local").map { it.prefix })
+			.containsExactly("javaplugin")
+		assertThat(SnippetRegistry.getSnippets("kt", "local")).isEmpty()
+	}
+
+	@Test
+	fun `loadPluginSnippets lower-cases an unrecognised language id and keeps it`() {
+		registerPlugin(
+			SnippetContribution(
+				language = "Groovy",
+				scope = "local",
+				prefix = "groovyplugin",
+				description = "Contributed by a plugin",
+				body = listOf("println 'groovy'"),
+			),
+		)
+
+		SnippetHandler.loadPluginSnippets()
+
+		assertThat(SnippetRegistry.getSnippets("groovy", "local").map { it.prefix })
+			.containsExactly("groovyplugin")
+		assertThat(SnippetRegistry.getSnippets("kt", "local")).isEmpty()
+	}
+
+	private fun registerPlugin(vararg contributions: SnippetContribution) {
+		PluginSnippetManager.getInstance().registerPlugin(
+			PLUGIN_ID,
+			object : SnippetExtension {
+				override fun getSnippetContributions() = contributions.toList()
+
+				override fun initialize(context: PluginContext) = true
+
+				override fun activate() = true
+
+				override fun deactivate() = true
+
+				override fun dispose() = Unit
+			},
+		)
 	}
 
 	@Test
@@ -84,5 +163,9 @@ class SnippetHandlerTest {
 		File(languageDir, "snippets.$scope.json").writeText(
 			"""{"$prefix":{"desc":"$description","body":[$bodyJson]}}""",
 		)
+	}
+
+	private companion object {
+		const val PLUGIN_ID = "test.snippets.plugin"
 	}
 }

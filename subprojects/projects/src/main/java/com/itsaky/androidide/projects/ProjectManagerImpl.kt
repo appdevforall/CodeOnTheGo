@@ -18,6 +18,7 @@
 package com.itsaky.androidide.projects
 
 import androidx.annotation.RestrictTo
+import androidx.annotation.VisibleForTesting
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
 import com.itsaky.androidide.app.BaseApplication
@@ -29,6 +30,7 @@ import com.itsaky.androidide.eventbus.events.file.FileEvent
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
 import com.itsaky.androidide.eventbus.events.project.ProjectInitializedEvent
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.memprof.Memprof
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -77,27 +79,32 @@ import kotlin.io.path.pathString
 class ProjectManagerImpl :
 	IProjectManager,
 	EventReceiver {
-
+	private val indexingServiceManagerLock = Any()
 	private var _indexingServiceManager: IndexingServiceManager? = null
 	lateinit var projectPath: String
 
+	/**
+	 * The indexing service manager of the current project session, created on first access after
+	 * construction or [destroy].
+	 *
+	 * Read from language-server worker threads as well as the main thread, so creation is guarded by
+	 * a lock: two racing first reads must not each create, and leak, a manager.
+	 */
 	val indexingServiceManager: IndexingServiceManager
-		get() {
-			if (_indexingServiceManager == null) {
-				_indexingServiceManager = IndexingServiceManager()
+		get() =
+			synchronized(indexingServiceManagerLock) {
+				_indexingServiceManager ?: IndexingServiceManager().also { _indexingServiceManager = it }
 			}
 
-			return _indexingServiceManager!!
-		}
-
-    @Volatile
-    internal var pluginProjectCached: Boolean? = null
+	@Volatile
+	internal var pluginProjectCached: Boolean? = null
 
 	override var gradleBuild: GradleModels.GradleBuild? = null
 	override var workspace: Workspace? = null
 
 	override var androidBuildVariants: Map<String, BuildVariantInfo> = emptyMap()
-		private set
+		@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+		internal set
 
 	/**
 	 * The project directory path, or an empty string when [projectPath] has not yet been
@@ -125,9 +132,10 @@ class ProjectManagerImpl :
 			log.warn("Project path not initialized before setup(); skipping plugin project cache check.")
 			pluginProjectCached = null
 		} else {
-			pluginProjectCached = withContext(Dispatchers.IO) {
-				File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
-			}
+			pluginProjectCached =
+				withContext(Dispatchers.IO) {
+					File(projectDir, Environment.PLUGIN_API_JAR_RELATIVE_PATH).exists()
+				}
 		}
 
 		this.gradleBuild = gradleBuild
@@ -146,6 +154,7 @@ class ProjectManagerImpl :
 			)
 
 		val workspace = this.workspace!!
+		Memprof.mark("workspace_built")
 
 		// build variants must be updated before the sources and class paths are indexed
 		updateBuildVariants { buildVariants ->
@@ -163,57 +172,29 @@ class ProjectManagerImpl :
 		}
 
 		withStopWatch("Setup project") {
-			val indexerScope = CoroutineScope(Dispatchers.Default)
-			val modulesFlow =
-				flow {
-					workspace.subProjects.filterIsInstance<ModuleProject>().forEach {
-						emit(it)
-					}
-				}
-
-			val jobs =
-				modulesFlow.map { module ->
-					indexerScope.async {
-						module.indexSourcesAndClasspaths()
-						if (module is AndroidModule) {
-							module.readResources()
+			Memprof.phase("Index module classpaths and sources", "indexing_complete") {
+				val indexerScope = CoroutineScope(Dispatchers.Default)
+				val modulesFlow =
+					flow {
+						workspace.subProjects.filterIsInstance<ModuleProject>().forEach {
+							emit(it)
 						}
 					}
-				}
 
-			// wait for the indexing to finish
-			jobs.toList().awaitAll()
-		}
+				val jobs =
+					modulesFlow.map { module ->
+						indexerScope.async {
+							module.indexSourcesAndClasspaths()
+							if (module is AndroidModule) {
+								module.readResources()
+							}
+						}
+					}
 
-		reportUnreadableClasspathJars(workspace)
-	}
-
-	/**
-	 * Surface any classpath JARs that were corrupt/unreadable during indexing (e.g. a truncated
-	 * download or incomplete offline provisioning) to the user — naming the offending dependency and
-	 * offering a recovery path (re-sync) — instead of silently dropping its code-completion symbols.
-	 */
-	private fun reportUnreadableClasspathJars(workspace: Workspace) {
-		val names = workspace.subProjects
-			.filterIsInstance<ModuleProject>()
-			.flatMap { it.unreadableClasspathJars }
-			.map { it.name }
-			.distinct()
-		if (names.isEmpty()) {
-			return
-		}
-
-		log.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
-
-		val context = BaseApplication.baseInstance
-		val shown = names.take(3).joinToString(", ")
-		val list =
-			if (names.size > 3) {
-				context.getString(R.string.msg_unreadable_classpath_jars_overflow, shown, names.size - 3)
-			} else {
-				shown
+				// wait for the indexing to finish
+				jobs.toList().awaitAll()
 			}
-		flashError(context.getString(R.string.msg_unreadable_classpath_jars, list))
+		}
 	}
 
 	override fun getAndroidModules(): List<AndroidModule> {
@@ -284,26 +265,50 @@ class ProjectManagerImpl :
 		this.workspace = null
 		pluginProjectCached = null
 
-		_indexingServiceManager?.close()
-		_indexingServiceManager = null
+		// Closed outside the lock: close() blocks until every service has shut down, and a worker
+		// thread reading the manager meanwhile must not wait on that.
+		val indexingServiceManager =
+			synchronized(indexingServiceManagerLock) {
+				_indexingServiceManager.also { _indexingServiceManager = null }
+			}
+		indexingServiceManager?.close()
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}
 
+	/**
+	 * Where a resource file created or deleted in the file tree sends its `generateSources` run.
+	 *
+	 * The direct call by default. The app swaps in Quick Build's generate-sources deferral so a
+	 * file added from the file tree parks like a save does: an undeferred build landing under a
+	 * live session is handed back as an external build and costs the session a full recompile.
+	 * This module cannot see the deferral (it lives in the app), hence the seam.
+	 */
+	@Volatile
+	var resourceChangeBuild: () -> Unit = { generateSources() }
+
+	/**
+	 * Hands the resource/source generation tasks to the tooling server and returns immediately.
+	 *
+	 * @return whether the tasks were actually dispatched. False means the request did nothing:
+	 *   no build service, no tooling server, or a Gradle build already in progress. Callers that
+	 *   owe the request a retry (the Quick Build generate-sources deferral, added later in this
+	 *   stack) key off this, because the in-progress refusal is silent and transient.
+	 */
 	@JvmOverloads
-	fun generateSources(builder: BuildService? = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)) {
+	fun generateSources(builder: BuildService? = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)): Boolean {
 		if (builder == null) {
 			log.warn("Cannot generate sources. BuildService is null.")
-			return
+			return false
 		}
 
 		if (!builder.isToolingServerStarted()) {
 			flashError(R.string.msg_tooling_server_unavailable)
-			return
+			return false
 		}
 
 		if (builder.isBuildInProgress) {
-			return
+			return false
 		}
 
 		val tasks =
@@ -342,6 +347,7 @@ class ProjectManagerImpl :
 				notifyProjectUpdate()
 			}
 		}
+		return true
 	}
 
 	fun notifyProjectUpdate() {
@@ -392,13 +398,11 @@ class ProjectManagerImpl :
 	private fun isInitialized() = workspace != null
 
 	private fun generateSourcesIfNecessary(event: FileEvent) {
-		val builder = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) ?: return
-		val file = event.file
-		if (!isAndroidResource(file)) {
+		if (!isAndroidResource(event.file)) {
 			return
 		}
 
-		generateSources(builder)
+		resourceChangeBuild()
 	}
 
 	@Suppress("unused")
@@ -492,4 +496,31 @@ class ProjectManagerImpl :
 			}
 		}
 	}
+}
+
+private val unreadableClasspathJarsLog = LoggerFactory.getLogger("UnreadableClasspathJars")
+
+/**
+ * Surfaces unreadable classpath JARs [names] to the user - naming the offending dependency and
+ * offering a recovery path (re-sync) - instead of silently dropping its code-completion symbols.
+ *
+ * Called once per indexing pass with the names of every JAR that pass could not open; a no-op for
+ * an empty list.
+ */
+fun reportUnreadableClasspathJars(names: List<String>) {
+	if (names.isEmpty()) {
+		return
+	}
+
+	unreadableClasspathJarsLog.warn("Skipped {} unreadable classpath JAR(s) during indexing: {}", names.size, names)
+
+	val context = BaseApplication.baseInstance
+	val shown = names.take(3).joinToString(", ")
+	val list =
+		if (names.size > 3) {
+			context.getString(R.string.msg_unreadable_classpath_jars_overflow, shown, names.size - 3)
+		} else {
+			shown
+		}
+	flashError(context.getString(R.string.msg_unreadable_classpath_jars, list))
 }

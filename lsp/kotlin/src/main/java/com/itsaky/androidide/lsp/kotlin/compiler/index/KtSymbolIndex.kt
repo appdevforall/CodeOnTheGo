@@ -24,8 +24,8 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
-import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.checkerframework.checker.index.qual.NonNegative
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
@@ -35,6 +35,8 @@ import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
+import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
+import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
@@ -46,9 +48,6 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.io.path.pathString
-
-val KT_SOURCE_FILE_INDEX_KEY = IndexKey<JvmSymbolIndex>("kt-source-file-index")
-val KT_SOURCE_FILE_META_INDEX_KEY = IndexKey<KtFileMetadataIndex>("kt-source-file-meta-index")
 
 /**
  * An index of symbols from Kotlin source files and JARs.
@@ -317,6 +316,16 @@ internal class KtSymbolIndex(
 		return VersionedKtFile(version, newKtFile)
 	}
 
+	fun evictDiskCopy(path: Path) {
+		ktFileCache.invalidate(path)
+		val vf = path.toVirtualFileOrNull() ?: return
+		project.write {
+			ApplicationManager.getApplication().runWriteAction {
+				(PsiManagerEx.getInstanceEx(project).fileManager as FileManagerImpl).setViewProvider(vf, null)
+			}
+		}
+	}
+
 	/** Drops the cached current file for [path] (e.g. on close). */
 	fun invalidateCurrent(path: Path) {
 		currentFiles.remove(path)
@@ -450,9 +459,11 @@ internal class KtSymbolIndex(
 			null
 		}
 
-		// Applied on the way out rather than during the pin: the version bump that arrived while the path
-		// was frozen still has to reach the FIR session. Skipped once the document is gone, since
-		// invalidateCurrent already unregistered it.
+		/*
+		 * Applied on the way out rather than during the pin: the version bump that arrived while the path
+		 * was frozen still has to reach the FIR session. Skipped once the document is gone, since
+		 * invalidateCurrent already unregistered it.
+		 */
 		if (refreshOwed && FileManager.isActive(path)) {
 			scope.launch { refreshCurrentKtFile(path) }
 		}
@@ -575,11 +586,13 @@ internal class KtSymbolIndex(
 		scanningJob?.cancelAndJoin()
 		indexingJob?.join()
 
-		// Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
-		// debounced modifiedFileIndexer and queueOnFileChangedAsync coroutines also run
-		// project.read { PsiManager … }. Joining guarantees none survive into the caller's
-		// Disposer.dispose(...), which would otherwise crash with "Project is already disposed"
-		// (APPDEVFORALL-17R). This index owns `scope`.
+		/*
+		 * Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
+		 * debounced modifiedFileIndexer and queueOnFileChangedAsync coroutines also run
+		 * project.read { PsiManager ... }. Joining guarantees none survive into the caller's
+		 * Disposer.dispose(...), which would otherwise crash with "Project is already disposed" once
+		 * one of them touches the project after it is gone. This index owns `scope`.
+		 */
 		scope.coroutineContext[Job]?.cancelAndJoin()
 
 		// Drain the refresh pool before disposal: refreshToCurrent runs project.read/write on it (same
@@ -602,9 +615,17 @@ internal fun KtSymbolIndex.subpackageNames(packageFqn: String) = fileIndex.getSu
  * [org.appdevforall.codeonthego.indexing.api.ReadableIndex.query] ("If IndexQuery.limit is 0, all
  * matches are emitted"). A plain `take(limit)` would turn the common `limit = 0` call into
  * `take(0)`, silently yielding no results.
+ *
+ * The limit is passed to each index rather than applied only to the concatenation. Applying it
+ * afterwards made every call fetch both indexes in full, so a caller asking for ten paid for all of
+ * them. [kinds] narrows the fetch for the same reason: an exact-name lookup otherwise returns every
+ * method and field that happens to share the name.
  */
 internal fun KtSymbolIndex.findSymbolBySimpleName(
 	name: String,
 	limit: Int,
-) = (sourceIndex.findBySimpleName(name, 0) + libraryIndex.findBySimpleName(name, 0))
-	.let { if (limit <= 0) it else it.take(limit) }
+	kinds: Set<JvmSymbolKind>? = null,
+) = (
+	sourceIndex.findBySimpleName(name, limit, kinds) +
+		libraryIndex.findBySimpleName(name, limit, kinds)
+).let { if (limit <= 0) it else it.take(limit) }

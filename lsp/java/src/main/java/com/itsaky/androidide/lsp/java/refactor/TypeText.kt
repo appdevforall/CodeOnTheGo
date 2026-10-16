@@ -174,7 +174,7 @@ private fun widensTo(
 ): Boolean = WIDENS_TO[from]?.contains(to) == true
 
 /** A `DeclaredType` whose element has no simple name is an anonymous class. */
-private fun isAnonymousDeclared(type: TypeMirror): Boolean =
+internal fun isAnonymousDeclared(type: TypeMirror): Boolean =
 	runCatching { type is DeclaredType && type.asElement().simpleName.isEmpty() }.getOrDefault(false)
 
 /**

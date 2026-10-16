@@ -1,10 +1,29 @@
 
 package com.itsaky.androidide.plugins.manager.services
 
-import com.itsaky.androidide.plugins.services.IdeBuildService
-import com.itsaky.androidide.plugins.services.BuildStatusListener
+import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.plugins.services.BuildAndLaunchCallback
+import com.itsaky.androidide.plugins.services.BuildStatusListener
 import com.itsaky.androidide.plugins.services.GradleSyncCallback
+import com.itsaky.androidide.plugins.services.GradleTaskInfo
+import com.itsaky.androidide.plugins.services.GradleTaskResult
+import com.itsaky.androidide.plugins.services.IdeBuildService
+import com.itsaky.androidide.plugins.services.QuickBuildAvailability
+import com.itsaky.androidide.plugins.services.QuickBuildResult
+import com.itsaky.androidide.plugins.services.QuickBuildState
+import com.itsaky.androidide.plugins.services.QuickBuildUnavailableReason
+import com.itsaky.androidide.project.GradleModels
+import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.BuildRunType
+import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
+import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
+import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import org.slf4j.LoggerFactory
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionException
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
@@ -15,132 +34,340 @@ import java.util.concurrent.CopyOnWriteArraySet
  * consistent notifications from the main build system.
  */
 class IdeBuildServiceImpl private constructor() : IdeBuildService {
+	private val buildStatusListeners = CopyOnWriteArraySet<BuildStatusListener>()
+	private var buildInProgress = false
+	private var toolingServerStarted = false
 
-    private val buildStatusListeners = CopyOnWriteArraySet<BuildStatusListener>()
-    private var buildInProgress = false
-    private var toolingServerStarted = false
+	// Providers set by the app module
+	private var runAppProvider: ((BuildAndLaunchCallback) -> Unit)? = null
+	private var gradleSyncProvider: ((GradleSyncCallback) -> Unit)? = null
+	private var buildOutputProvider: (() -> String?)? = null
 
-    // Providers set by the app module
-    private var runAppProvider: ((BuildAndLaunchCallback) -> Unit)? = null
-    private var gradleSyncProvider: ((GradleSyncCallback) -> Unit)? = null
-    private var buildOutputProvider: (() -> String?)? = null
+	@Volatile
+	private var quickBuildProvider: QuickBuildProvider? = null
 
-    companion object {
-        @Volatile
-        private var INSTANCE: IdeBuildServiceImpl? = null
+	companion object {
+		private val log = LoggerFactory.getLogger(IdeBuildServiceImpl::class.java)
 
-        fun getInstance(): IdeBuildServiceImpl {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: IdeBuildServiceImpl().also { INSTANCE = it }
-            }
-        }
-    }
+		/** The reason a plugin is given whenever another build holds the Gradle slot. */
+		const val BUILD_IN_PROGRESS_REASON = "another build is in progress"
 
-    override fun isBuildInProgress(): Boolean {
-        return buildInProgress
-    }
+		// What a plugin's run keeps of its output: the tail, where Gradle reports a failure.
+		private const val MAX_OUTPUT_CHARS = 128 * 1024
 
-    override fun isToolingServerStarted(): Boolean {
-        return toolingServerStarted
-    }
+		@Volatile
+		private var instance: IdeBuildServiceImpl? = null
 
-    override fun addBuildStatusListener(callback: BuildStatusListener) {
-        buildStatusListeners.add(callback)
-    }
+		fun getInstance(): IdeBuildServiceImpl =
+			instance ?: synchronized(this) {
+				instance ?: IdeBuildServiceImpl().also { instance = it }
+			}
 
-    override fun removeBuildStatusListener(callback: BuildStatusListener) {
-        buildStatusListeners.remove(callback)
-    }
+		/** The tasks of [build]'s root project and modules, in that order; empty before a sync. */
+		internal fun tasksOf(build: GradleModels.GradleBuild?): List<GradleTaskInfo> {
+			if (build == null) return emptyList()
+			val projects = listOfNotNull(build.rootProject.takeIf { build.hasRootProject() }) + build.subProjectList
+			// Sync puts the root in subProjectList too (RootModelBuilder maps every IDEA module).
+			return projects.flatMap { it.taskList }.distinctBy { it.path }.map { it.toInfo() }
+		}
 
-    /**
-     * Internal method to update build status (should be called by Code On the Go's build system)
-     */
-    fun setBuildInProgress(inProgress: Boolean) {
-        if (this.buildInProgress != inProgress) {
-            this.buildInProgress = inProgress
-            if (inProgress) {
-                notifyBuildStarted()
-            }
-        }
-    }
+		// Proto3 reads an unset optional string as "", which a plugin would take for a real value.
+		private fun GradleModels.GradleTask.toInfo() =
+			GradleTaskInfo(
+				path = path,
+				name = name,
+				projectPath = projectPath,
+				group = group.takeIf { hasGroup() && it.isNotBlank() },
+				description = description.takeIf { hasDescription() && it.isNotBlank() },
+			)
+	}
 
-    /**
-     * Internal method to update tooling server status (should be called by Code On the Go's build system)
-     */
-    fun setToolingServerStarted(started: Boolean) {
-        this.toolingServerStarted = started
-    }
+	override fun isBuildInProgress(): Boolean = buildInProgress
 
-    /**
-     * Internal method to notify listeners of build completion (should be called by Code On the Go's build system)
-     */
-    fun notifyBuildFinished() {
-        this.buildInProgress = false
-        buildStatusListeners.forEach { listener ->
-            try {
-                listener.onBuildFinished()
-            } catch (e: Exception) {
-                // Ignore listener exceptions to prevent one bad listener from affecting others
-            }
-        }
-    }
+	override fun isToolingServerStarted(): Boolean = toolingServerStarted
 
-    /**
-     * Internal method to notify listeners of build failure (should be called by Code On the Go's build system)
-     */
-    fun notifyBuildFailed(error: String?) {
-        this.buildInProgress = false
-        buildStatusListeners.forEach { listener ->
-            try {
-                listener.onBuildFailed(error)
-            } catch (e: Exception) {
-                // Ignore listener exceptions to prevent one bad listener from affecting others
-            }
-        }
-    }
+	override fun addBuildStatusListener(callback: BuildStatusListener) {
+		buildStatusListeners.add(callback)
+	}
 
-    private fun notifyBuildStarted() {
-        buildStatusListeners.forEach { listener ->
-            try {
-                listener.onBuildStarted()
-            } catch (e: Exception) {
-                // Ignore listener exceptions to prevent one bad listener from affecting others
-            }
-        }
-    }
+	override fun removeBuildStatusListener(callback: BuildStatusListener) {
+		buildStatusListeners.remove(callback)
+	}
 
-    override fun runApp(callback: BuildAndLaunchCallback) {
-        runAppProvider?.invoke(callback)
-            ?: callback.onComplete(false, "Run app functionality not initialized")
-    }
+	/**
+	 * Internal method to update build status (should be called by Code On the Go's build system)
+	 */
+	fun setBuildInProgress(inProgress: Boolean) {
+		if (this.buildInProgress != inProgress) {
+			this.buildInProgress = inProgress
+			if (inProgress) {
+				notifyBuildStarted()
+			}
+		}
+	}
 
-    override fun triggerGradleSync(callback: GradleSyncCallback) {
-        gradleSyncProvider?.invoke(callback)
-            ?: callback.onComplete(false, "Gradle sync functionality not initialized")
-    }
+	/**
+	 * Internal method to update tooling server status (should be called by Code On the Go's build system)
+	 */
+	fun setToolingServerStarted(started: Boolean) {
+		this.toolingServerStarted = started
+	}
 
-    override fun getBuildOutput(): String? {
-        return buildOutputProvider?.invoke()
-    }
+	/**
+	 * Internal method to notify listeners of build completion (should be called by Code On the Go's build system)
+	 */
+	fun notifyBuildFinished() {
+		this.buildInProgress = false
+		buildStatusListeners.forEach { listener ->
+			try {
+				listener.onBuildFinished()
+			} catch (e: Exception) {
+				// Ignore listener exceptions to prevent one bad listener from affecting others
+			}
+		}
+	}
 
-    /**
-     * Set the run app provider (should be called by Code On the Go's app module during initialization)
-     */
-    fun setRunAppProvider(provider: (BuildAndLaunchCallback) -> Unit) {
-        this.runAppProvider = provider
-    }
+	/**
+	 * Internal method to notify listeners of build failure (should be called by Code On the Go's build system)
+	 */
+	fun notifyBuildFailed(error: String?) {
+		this.buildInProgress = false
+		buildStatusListeners.forEach { listener ->
+			try {
+				listener.onBuildFailed(error)
+			} catch (e: Exception) {
+				// Ignore listener exceptions to prevent one bad listener from affecting others
+			}
+		}
+	}
 
-    /**
-     * Set the gradle sync provider (should be called by Code On the Go's app module during initialization)
-     */
-    fun setGradleSyncProvider(provider: (GradleSyncCallback) -> Unit) {
-        this.gradleSyncProvider = provider
-    }
+	private fun notifyBuildStarted() {
+		buildStatusListeners.forEach { listener ->
+			try {
+				listener.onBuildStarted()
+			} catch (e: Exception) {
+				// Ignore listener exceptions to prevent one bad listener from affecting others
+			}
+		}
+	}
 
-    /**
-     * Set the build output provider (should be called by Code On the Go's app module during initialization)
-     */
-    fun setBuildOutputProvider(provider: () -> String?) {
-        this.buildOutputProvider = provider
-    }
+	override fun executeTasks(vararg tasks: String): CompletableFuture<Boolean> =
+		executeTasks(tasks.toList(), emptyList()).thenApply { it == GradleTaskResult.Success }
+
+	override fun executeTasks(
+		tasks: List<String>,
+		arguments: List<String>,
+	): CompletableFuture<GradleTaskResult> = startTasks(tasks, arguments).result
+
+	/** Gradle output of the runs [startTasks] has in flight; fed by [onBuildOutput]. */
+	private val outputCaptures = CopyOnWriteArraySet<BuildOutputCapture>()
+
+	/**
+	 * Called by Code On the Go's build system with each line Gradle prints. Only one build holds
+	 * the slot at a time, so every line seen while a run is in flight is that run's.
+	 */
+	fun onBuildOutput(line: String) {
+		outputCaptures.forEach { it.append(line.removeSuffix("\n")) }
+	}
+
+	/** Runs [tasks] like [executeTasks], and also gives the caller this run's output and a cancel for it. */
+	internal fun startTasks(
+		tasks: List<String>,
+		arguments: List<String>,
+	): GradleTaskRun {
+		if (tasks.isEmpty()) return refuse(tasks, "no tasks were given")
+		// Tasks are passed as command-line arguments, so "-I x" would be read as an option.
+		tasks.firstOrNull { it.isBlank() || it.startsWith("-") }?.let { return refuse(tasks, "'$it' is not a task") }
+		val buildService =
+			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+				?: return refuse(tasks, "build service is not registered")
+		if (!buildService.isToolingServerStarted()) return refuse(tasks, "tooling server is not started")
+		if (buildService.isBuildInProgress) return refuse(tasks, BUILD_IN_PROGRESS_REASON)
+
+		val buildId = buildService.nextBuildId(BuildRunType.TaskRun)
+		val message =
+			TaskExecutionMessage(
+				tasks = tasks,
+				buildId = buildId,
+				buildParams = GradleBuildParams(gradleArgs = arguments),
+			)
+		val capture = BuildOutputCapture(MAX_OUTPUT_CHARS)
+		outputCaptures += capture
+		val result =
+			runCatching { buildService.executeTasks(message) }
+				.getOrElse { CompletableFuture<TaskExecutionResult>().apply { completeExceptionally(it) } }
+				.handle { result, error ->
+					outputCaptures -= capture
+					toGradleTaskResult(tasks, result, error)
+				}
+		return ToolingServerRun(result, capture, buildId, buildService)
+	}
+
+	private fun toGradleTaskResult(
+		tasks: List<String>,
+		result: TaskExecutionResult?,
+		error: Throwable?,
+	): GradleTaskResult {
+		if (error != null) {
+			log.error("Tasks {} failed", tasks, error)
+			val cause = (error as? CompletionException)?.cause ?: error
+			return GradleTaskResult.Failed(cause.message ?: cause.javaClass.simpleName)
+		}
+		return when {
+			result == null -> {
+				GradleTaskResult.Failed(TaskExecutionResult.Failure.UNKNOWN.name)
+			}
+
+			result.isSuccessful -> {
+				GradleTaskResult.Success
+			}
+
+			result.failure == TaskExecutionResult.Failure.BUILD_CANCELLED -> {
+				GradleTaskResult.Cancelled
+			}
+
+			// Another build took the slot between the check above and the service's own claim.
+			result.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS -> {
+				GradleTaskResult.Refused(BUILD_IN_PROGRESS_REASON)
+			}
+
+			else -> {
+				GradleTaskResult.Failed((result.failure ?: TaskExecutionResult.Failure.UNKNOWN).name)
+			}
+		}
+	}
+
+	private fun refuse(
+		tasks: List<String>,
+		reason: String,
+	): GradleTaskRun {
+		log.warn("Not executing tasks {}: {}", tasks, reason)
+		return RefusedRun(reason)
+	}
+
+	private class RefusedRun(
+		reason: String,
+	) : GradleTaskRun {
+		override val result: CompletableFuture<GradleTaskResult> =
+			CompletableFuture.completedFuture(GradleTaskResult.Refused(reason))
+
+		override fun output() = ""
+
+		override fun cancel(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
+	}
+
+	private inner class ToolingServerRun(
+		override val result: CompletableFuture<GradleTaskResult>,
+		private val capture: BuildOutputCapture,
+		private val buildId: BuildId,
+		private val buildService: BuildService,
+	) : GradleTaskRun {
+		// A run refused at the slot claim captured the lines of the build that holds it.
+		override fun output() = if (result.getNow(null) is GradleTaskResult.Refused) "" else capture.text()
+
+		override fun cancel(): CompletableFuture<Boolean> =
+			if (!result.isDone && buildService.currentBuildId == buildId) {
+				cancelCurrentBuild(buildService)
+			} else {
+				CompletableFuture.completedFuture(false)
+			}
+	}
+
+	override fun cancelBuild(): CompletableFuture<Boolean> {
+		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
+		if (buildService == null || !buildService.isToolingServerStarted()) {
+			return CompletableFuture.completedFuture(false)
+		}
+		return cancelCurrentBuild(buildService)
+	}
+
+	private fun cancelCurrentBuild(buildService: BuildService): CompletableFuture<Boolean> =
+		runCatching { buildService.cancelCurrentBuild() }
+			.getOrElse { CompletableFuture<BuildCancellationRequestResult>().apply { completeExceptionally(it) } }
+			.handle { result, error ->
+				if (error != null) log.error("Failed to cancel the running build", error)
+				error == null && result?.wasEnqueued == true
+			}
+
+	override fun runApp(callback: BuildAndLaunchCallback) {
+		runAppProvider?.invoke(callback)
+			?: callback.onComplete(false, "Run app functionality not initialized")
+	}
+
+	override fun triggerGradleSync(callback: GradleSyncCallback) {
+		gradleSyncProvider?.invoke(callback)
+			?: callback.onComplete(false, "Gradle sync functionality not initialized")
+	}
+
+	override fun getBuildOutput(): String? = buildOutputProvider?.invoke()
+
+	override fun getTasks(): List<GradleTaskInfo> = tasksOf(IProjectManager.getInstance().gradleBuild)
+
+	// A throw in the app's Quick Build must reach the plugin as a result, not as an exception
+	// out of an IDE service call it had no reason to guard.
+
+	override fun getQuickBuildAvailability(): QuickBuildAvailability {
+		val provider = quickBuildProvider ?: return super.getQuickBuildAvailability()
+		return runCatching { provider.availability() }.getOrElse {
+			log.error("Quick Build availability check failed", it)
+			QuickBuildAvailability.Unavailable(QuickBuildUnavailableReason.NOT_SUPPORTED, "Quick Build failed to report its availability.")
+		}
+	}
+
+	override fun startQuickBuild(): CompletableFuture<QuickBuildResult> {
+		val provider = quickBuildProvider ?: return super.startQuickBuild()
+		val run =
+			runCatching { provider.start() }.getOrElse {
+				log.error("Quick Build failed to start", it)
+				return CompletableFuture.completedFuture(QuickBuildResult.Refused("Quick Build failed to start: ${it.describe()}"))
+			}
+		return run.handle { result, error ->
+			if (error == null) return@handle result
+			log.error("Quick Build failed while running", error)
+			QuickBuildResult.Failed(((error as? CompletionException)?.cause ?: error).describe(), null)
+		}
+	}
+
+	private fun Throwable.describe() = message ?: javaClass.simpleName
+
+	override fun cancelQuickBuild(): CompletableFuture<Boolean> {
+		val cancelled =
+			runCatching { quickBuildProvider?.cancel() ?: false }.getOrElse {
+				log.error("Quick Build failed to cancel", it)
+				false
+			}
+		return CompletableFuture.completedFuture(cancelled)
+	}
+
+	override fun getQuickBuildStatus(): QuickBuildState =
+		runCatching { quickBuildProvider?.status() }.getOrElse {
+			log.error("Quick Build status check failed", it)
+			null
+		} ?: QuickBuildState.UNAVAILABLE
+
+	/** Set the Quick Build provider (should be called by Code On the Go's app module during initialization) */
+	fun setQuickBuildProvider(provider: QuickBuildProvider?) {
+		this.quickBuildProvider = provider
+	}
+
+	/**
+	 * Set the run app provider (should be called by Code On the Go's app module during initialization)
+	 */
+	fun setRunAppProvider(provider: (BuildAndLaunchCallback) -> Unit) {
+		this.runAppProvider = provider
+	}
+
+	/**
+	 * Set the gradle sync provider (should be called by Code On the Go's app module during initialization)
+	 */
+	fun setGradleSyncProvider(provider: (GradleSyncCallback) -> Unit) {
+		this.gradleSyncProvider = provider
+	}
+
+	/**
+	 * Set the build output provider (should be called by Code On the Go's app module during initialization)
+	 */
+	fun setBuildOutputProvider(provider: () -> String?) {
+		this.buildOutputProvider = provider
+	}
 }

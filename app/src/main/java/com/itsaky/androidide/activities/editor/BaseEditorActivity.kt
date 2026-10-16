@@ -81,6 +81,7 @@ import com.itsaky.androidide.activities.projectsRoot
 import com.itsaky.androidide.adapters.DiagnosticsAdapter
 import com.itsaky.androidide.adapters.SearchListAdapter
 import com.itsaky.androidide.api.BuildOutputProvider
+import com.itsaky.androidide.api.LogsProvider
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.app.IDEApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
@@ -154,6 +155,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import com.itsaky.androidide.viewmodel.EditorViewModel
 import com.itsaky.androidide.viewmodel.FileManagerViewModel
 import com.itsaky.androidide.viewmodel.FileOpResult
+import com.itsaky.androidide.viewmodel.IDELogsViewModel
 import com.itsaky.androidide.viewmodel.MetricsViewModel
 import com.itsaky.androidide.viewmodel.RecentProjectsViewModel
 import com.itsaky.androidide.viewmodel.WADBConnectionViewModel
@@ -165,6 +167,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.service.IndexingState
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode.MAIN
 import org.slf4j.Logger
@@ -292,15 +295,18 @@ abstract class BaseEditorActivity :
 	val wadbConnectionViewModel by viewModels<WADBConnectionViewModel>()
 
 	val appLogsViewModel by viewModels<AppLogsViewModel>()
+
+	// Same ViewModelStore key as IDELogFragment's activityViewModels(), so both see one instance.
+	private val ideLogsViewModel by viewModels<IDELogsViewModel>()
 	var appLogsCoordinator: AppLogsCoordinator? = null
 
 	// Mirrors EditorHandlerActivity's/ProjectHandlerActivity's own same-named, independently-tracked
 	// flags: set only once onCreate reaches its end without bailing out early (the "no matching
 	// project" doomed-duplicate-instance branch above returns before this runs). preDestroy() checks
 	// it before touching the process-wide singletons this onCreate registers this instance with
-	// (BuildOutputProvider, the plugin snippet-refresh listener) -- a doomed instance never actually
-	// registered as their owner, so clearing them on its teardown would wipe out whatever a
-	// genuinely live sibling instance set up instead.
+	// (BuildOutputProvider, LogsProvider, the plugin snippet-refresh listener) -- a doomed instance
+	// never actually registered as their owner, so clearing them on its teardown would wipe out
+	// whatever a genuinely live sibling instance set up instead.
 	private var didCompleteLiveOnCreate = false
 
 	// The editor-side counterpart of MainActivity.consumedDeepLinkRequests, for the two deep-link
@@ -399,6 +405,7 @@ abstract class BaseEditorActivity :
 		@UiThread set(value) {
 			field = value
 			onUpdateProgressBarVisibility()
+			postIndexingStatusUpdate()
 		}
 
 	private var debuggerService: DebuggerService? = null
@@ -578,6 +585,9 @@ abstract class BaseEditorActivity :
 	protected open fun preDestroy() {
 		if (didCompleteLiveOnCreate) {
 			BuildOutputProvider.clearBottomSheet()
+			// A rotation keeps both view models and re-attaches them in the new onCreate; detaching
+			// here would leave plugin reads empty in between.
+			if (!isChangingConfigurations) LogsProvider.detach(appLogsViewModel, ideLogsViewModel)
 
 			IDEApplication.getPluginManager()?.setSnippetRefreshListener(null)
 		}
@@ -917,6 +927,7 @@ abstract class BaseEditorActivity :
 		appLogsCoordinator =
 			AppLogsCoordinator(appLogsViewModel)
 				.also(lifecycle::addObserver)
+		LogsProvider.attach(appLogsViewModel, ideLogsViewModel)
 
 		this.optionsMenuInvalidator = Runnable { super.invalidateOptionsMenu() }
 
@@ -1486,7 +1497,11 @@ abstract class BaseEditorActivity :
 		return null
 	}
 
-	fun doSetStatus(
+	/**
+	 * Writes the status line. Open so the subclass that shares the line with Quick Build can see
+	 * every write, including the debugger's here, and hand the line's ownership to the writer.
+	 */
+	open fun doSetStatus(
 		text: CharSequence,
 		@GravityInt gravity: Int = Gravity.CENTER,
 	) {
@@ -1595,12 +1610,47 @@ abstract class BaseEditorActivity :
 
 	private fun onUpdateProgressBarVisibility() {
 		log.debug(
-			"onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}",
+			"onBuildStatusChanged: isInitializing: ${editorViewModel.isInitializing}, isBuildInProgress: ${editorViewModel.isBuildInProgress}, isIndexing: ${editorViewModel.isIndexing}",
 		)
-		val visible =
-			editorViewModel.isBuildInProgress || editorViewModel.isInitializing || isDebuggerStarting
+		val visible = isStatusOwnedElsewhere || editorViewModel.isIndexing
 		content.progressIndicator.visibility = if (visible) View.VISIBLE else View.GONE
 		invalidateOptionsMenu()
+	}
+
+	/*
+	 * Whether a build, project initialization or debugger start owns the progress bar and status slot.
+	 * An internal build owns the same Gradle slot as a user build, but it does NOT relabel the Run
+	 * button: the cancel affordance stays keyed off isBuildInProgress.
+	 */
+	private val isStatusOwnedElsewhere: Boolean
+		get() =
+			editorViewModel.isBuildInProgress ||
+				editorViewModel.isInternalBuildInProgress ||
+				editorViewModel.isInitializing ||
+				isDebuggerStarting
+
+	private fun onIndexingStateChanged(state: IndexingState) {
+		val wasIndexing = editorViewModel.isIndexing
+		editorViewModel.onIndexingStateChanged(state)
+		if (editorViewModel.isIndexing != wasIndexing) {
+			onUpdateProgressBarVisibility()
+		}
+		onUpdateIndexingStatus()
+	}
+
+	private fun onUpdateIndexingStatus() {
+		editorViewModel.updateIndexingStatus(isStatusOwnedElsewhere) { done, total ->
+			getString(string.status_indexing_classes, done, total)
+		}
+	}
+
+	/*
+	 * Deferred to the next main-loop message: the callbacks that clear a slot-owning flag often
+	 * write their final status (e.g. "Build was cancelled") after clearing it, and the indexing
+	 * text must replace that write rather than be overwritten by it.
+	 */
+	private fun postIndexingStatusUpdate() {
+		lifecycleScope.launch(Dispatchers.Main) { onUpdateIndexingStatus() }
 	}
 
 	private fun setupStateObservers() {
@@ -1638,11 +1688,31 @@ abstract class BaseEditorActivity :
 						}
 					}
 				}
+
+				launch {
+					ProjectManagerImpl
+						.getInstance()
+						.indexingServiceManager.state
+						.collect { state -> onIndexingStateChanged(state) }
+				}
 			}
 		}
 
-		editorViewModel._isBuildInProgress.observe(this) { onUpdateProgressBarVisibility() }
-		editorViewModel._isInitializing.observe(this) { onUpdateProgressBarVisibility() }
+		editorViewModel._isBuildInProgress.observe(this) { inProgress ->
+			onUpdateProgressBarVisibility()
+			postIndexingStatusUpdate()
+			// The bottom sheet's collapsed header follows the status line's height; while the
+			// build narrates one line per task it only grows, or the peek jumps on every task.
+			content.bottomSheet.setBuildNarrating(inProgress == true)
+		}
+		editorViewModel._isInternalBuildInProgress.observe(this) {
+			onUpdateProgressBarVisibility()
+			postIndexingStatusUpdate()
+		}
+		editorViewModel._isInitializing.observe(this) {
+			onUpdateProgressBarVisibility()
+			postIndexingStatusUpdate()
+		}
 		editorViewModel._statusText.observe(this) {
 			content.bottomSheet.setStatus(
 				it.first,

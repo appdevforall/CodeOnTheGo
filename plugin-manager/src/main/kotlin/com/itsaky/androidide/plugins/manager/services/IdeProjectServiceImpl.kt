@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.IProject
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.services.IdeProjectService
+import com.itsaky.androidide.plugins.services.ModuleContext
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.utils.Environment
@@ -86,6 +87,19 @@ class IdeProjectServiceImpl(
 			log.warn("getProjectByPath failed for plugin {}; reporting no project at the requested path", pluginId, e)
 			null
 		}
+	}
+
+	override fun getModuleContext(filePath: String): ModuleContext? {
+		if (!hasRequiredPermissions()) {
+			throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
+		}
+
+		val path = File(filePath)
+		if (!isPathAllowed(path)) {
+			throw SecurityException("Plugin $pluginId does not have access to path: ${path.absolutePath}")
+		}
+
+		return ModuleContextResolver.resolve(filePath)
 	}
 
 	override fun openProject(projectDir: File): Boolean {

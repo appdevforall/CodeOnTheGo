@@ -1,6 +1,10 @@
 {
   "types": ["log"],
   "styles": {
+    "stack.frame": {
+      "fg": "@log.frame.text",
+      "underlineSourceLocation": true
+    },
     "begin_header" : {
       "fg": "@comment",
       "italic": true

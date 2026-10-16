@@ -43,4 +43,5 @@ dependencies {
 	api(libs.google.material)
 
 	implementation(libs.google.gson)
+	implementation(projects.idetooltips)
 }

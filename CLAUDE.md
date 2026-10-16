@@ -52,6 +52,14 @@ At 2.0, look for text cut off mid-word, labels overrunning their control, action
 
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** — the single source of truth for the module map, layering/data flow, dependency rules, tech stack (DI, async, persistence, networking), state management, and testing strategy. Don't re-document those here; update ARCHITECTURE.md.
 
+### Sibling repos
+
+CoGo depends on three other `appdevforall` repos; ARCHITECTURE.md (Sibling Repositories & Asset Provenance) explains how they feed the build.
+
+- **[addons](https://github.com/appdevforall/addons)** (public; formerly `plugin-examples`) - the plugins (`.cgp`) and templates published at `addons.appdevforall.org`.
+- **[dev-assets](https://github.com/appdevforall/dev-assets)** (private) - large binary blobs (SDK, bootstrap, Gradle, `core.cgt`, a copy of `documentation.db`) served at `appdevforall.org/dev-assets/`.
+- **[OfflineDocumentationTools](https://github.com/appdevforall/OfflineDocumentationTools)** (public) - the tooling that builds and edits `documentation.db` and owns its schema.
+
 ## Project-specific constraints
 
 - **Avoid new dependencies** — the build almost certainly already has what's needed. Check `gradle/libs.versions.toml` and `build.gradle.kts` first.
@@ -75,6 +83,8 @@ Four independent reviews of work already reported as verified each found a real 
 - **Prove the regression test fails without the fix.** Revert the fix, run the new test, confirm it fails *for the reason it is named for*, then restore. A test that passes against the unfixed code pins nothing. Watch for expectations that all coincide with one boundary value: if every case equals the minimum, a `MIN()` stub passes the whole suite.
 - **Match the handler to the failure the change exists to fix.** `catch (Exception)` does not catch an `Error`. A guard on two of three call sites is not a guard.
 - **Every claim needs its check.** "No behaviour change", "this MIME type has rows in the shipped database", "that tool logs a warning" are all testable — run the query, read the sibling repo's source, diff the commits — or don't write them. Re-read the PR body before pushing: a description that was true at commit 1 is often false by commit 3.
+
+Research answers and plans make claims too. A fact about an outside system - what a platform provides, who ships a product, what an APK contains - is a hypothesis until you check it against source, docs, or the artifact itself. Check it before stating it, or label it unverified.
 
 ## Code style
 

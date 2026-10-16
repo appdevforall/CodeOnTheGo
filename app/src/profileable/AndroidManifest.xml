@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	`isProfileable = true` on the build type already merges in
+	`<profileable android:enabled="true" android:shell="true"/>`, so this manifest only adds the
+	measurement components. Neither is exported: `am broadcast` reaches the receiver because
+	ActivityManager skips the export check for root.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<application>
+
+		<receiver
+			android:name="com.itsaky.androidide.memprof.MemprofReceiver"
+			android:enabled="true"
+			android:exported="false">
+			<intent-filter>
+				<action android:name="com.itsaky.androidide.memprof.CMD" />
+			</intent-filter>
+		</receiver>
+
+		<provider
+			android:name="com.itsaky.androidide.memprof.MemprofInitProvider"
+			android:authorities="${applicationId}.memprof"
+			android:enabled="true"
+			android:exported="false"
+			android:initOrder="1000" />
+
+	</application>
+
+</manifest>

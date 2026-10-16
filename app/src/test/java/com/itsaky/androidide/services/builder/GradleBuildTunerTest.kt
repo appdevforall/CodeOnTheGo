@@ -160,6 +160,46 @@ class GradleBuildTunerTest {
 	}
 
 	@Test
+	fun `low memory tier uses short daemon idle timeout`() {
+		val config = LowMemoryStrategy.tune(LOW_MEM_DEVICE, BuildProfile(isDebugBuild = true))
+		assertThat(config.gradle.daemonIdleTimeoutMs)
+			.isEqualTo(LowMemoryStrategy.GRADLE_DAEMON_IDLE_TIMEOUT_MS)
+	}
+
+	@Test
+	fun `balanced tier uses mid daemon idle timeout`() {
+		val config = BalancedStrategy.tune(MID_PERF_DEVICE, BuildProfile(isDebugBuild = true))
+		assertThat(config.gradle.daemonIdleTimeoutMs)
+			.isEqualTo(BalancedStrategy.GRADLE_DAEMON_IDLE_TIMEOUT_MS)
+	}
+
+	@Test
+	fun `high performance tier uses generous daemon idle timeout`() {
+		val config = HighPerformanceStrategy.tune(HIGH_PERF_DEVICE, BuildProfile(isDebugBuild = true))
+		assertThat(config.gradle.daemonIdleTimeoutMs)
+			.isEqualTo(HighPerformanceStrategy.GRADLE_DAEMON_IDLE_TIMEOUT_MS)
+	}
+
+	@Test
+	fun `daemon idle timeout increases with memory tier`() {
+		// Guard against tier inversion: less RAM must never keep an idle daemon longer.
+		assertThat(LowMemoryStrategy.GRADLE_DAEMON_IDLE_TIMEOUT_MS)
+			.isLessThan(BalancedStrategy.GRADLE_DAEMON_IDLE_TIMEOUT_MS)
+		assertThat(BalancedStrategy.GRADLE_DAEMON_IDLE_TIMEOUT_MS)
+			.isLessThan(HighPerformanceStrategy.GRADLE_DAEMON_IDLE_TIMEOUT_MS)
+	}
+
+	@Test
+	fun `thermal-safe strategy preserves previous daemon idle timeout`() {
+		val prevConfig = BalancedStrategy.tune(MID_PERF_DEVICE, BuildProfile(isDebugBuild = true))
+		val thermalConfig =
+			ThermalSafeStrategy(prevConfig)
+				.tune(MID_PERF_DEVICE, BuildProfile(isDebugBuild = true))
+		assertThat(thermalConfig.gradle.daemonIdleTimeoutMs)
+			.isEqualTo(prevConfig.gradle.daemonIdleTimeoutMs)
+	}
+
+	@Test
 	fun `thermal-safe strategy is picked for high-performance device on request`() {
 		val prevConfig =
 			GradleBuildTuner
