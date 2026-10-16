@@ -5,6 +5,7 @@ import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper.Result.Failure
+import com.itsaky.androidide.resources.R
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -15,6 +16,7 @@ import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -25,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.FileVisitResult
@@ -89,6 +92,25 @@ class AssetsInstallationHelperTest {
 			val failure = assertMissingAssetFailure(helper.install(ctx))
 
 			assertFalse("Should skip GlitchTip report", failure.shouldReportToGlitchTip)
+		}
+
+	@Test
+	fun `install with missing split assets zip names the file and folder`() =
+		runBlocking {
+			every {
+				ctx.getString(R.string.err_missing_split_assets_zip, *anyVararg())
+			} returns "split zip missing"
+			coEvery {
+				helper["doInstall"](any<Context>(), any<AssetsInstallerProgressConsumer>())
+			} throws MissingSplitAssetsZipException(File("/sdcard/Download/assets-arm64-v8a.zip"))
+
+			val failure = assertMissingAssetFailure(helper.install(ctx))
+
+			assertEquals("split zip missing", failure.errorMessage)
+			assertFalse("Should skip GlitchTip report", failure.shouldReportToGlitchTip)
+			verify {
+				ctx.getString(R.string.err_missing_split_assets_zip, "assets-arm64-v8a.zip", "/sdcard/Download", any())
+			}
 		}
 
 	@Test
