@@ -39,10 +39,7 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 	): Unit =
 		withContext(Dispatchers.IO) {
 			if (!Environment.SPLIT_ASSETS_ZIP.exists()) {
-				throw FileNotFoundException(
-					"Assets zip file not found at path: ${Environment.SPLIT_ASSETS_ZIP.path}." +
-						" Please check Slack #qa-testing-builds channel for the latest version.",
-				)
+				throw MissingSplitAssetsZipException(Environment.SPLIT_ASSETS_ZIP)
 			}
 
 			zipFile = ZipFile(Environment.SPLIT_ASSETS_ZIP)
