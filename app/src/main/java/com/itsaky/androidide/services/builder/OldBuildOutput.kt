@@ -16,11 +16,11 @@ object OldBuildOutput {
 	const val REMOVED_FILE = "old-output-removed"
 
 	/**
-	 * The stale folders of a relocated project: each Gradle project's `build/`, and the Gradle and
-	 * Kotlin caches of the root and of `buildSrc`. Only folders Gradle makes by default, inside
-	 * [rootDir]. Left alone: a symlink; a folder that is a project's directory or holds one; a folder
-	 * that holds or lies in a build directory the model still uses; and `buildSrc/.gradle/` and
-	 * included builds, which builds still use.
+	 * The stale folders of a relocated project: the `build/` of each project the synced model lists,
+	 * and the Gradle and Kotlin caches of the root and of `buildSrc`. Only folders Gradle makes by
+	 * default, inside [rootDir]. Left alone: a symlink; a folder that is a project's directory or
+	 * holds one; a folder that holds or lies in a build directory the model still uses; and
+	 * `buildSrc/.gradle/` and an included build's `.gradle/` and `.kotlin/`, which builds still use.
 	 *
 	 * @param rootDir the root project's directory.
 	 * @param projectDirs the directory of every project in the synced model.
