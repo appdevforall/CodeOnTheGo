@@ -62,8 +62,11 @@
 -keep class kotlin.reflect.** { *; }
 -keep class kotlin.script.** { *; }
 -keep class kotlinx.coroutines.internal.** { *; }
--keep class one.util.streamex.** { *; }
 -keep class gnu.trove.** { *; }
+# StreamEx (also bundled in the Kotlin Analysis API jar) is deliberately not
+# kept whole: its only callers are IntelliJ Java PSI classes kept above, and it
+# does no reflection beyond Array.newInstance, so R8 traces what they use.
+# Keeping it whole cost ~380 KB of dex (ADFA-4647).
 
 # Eclipse
 -keep class org.eclipse.** { *; }
