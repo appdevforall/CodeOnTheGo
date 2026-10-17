@@ -104,4 +104,40 @@ class OldBuildOutputTest {
 		assertThat(OldBuildOutput.removeOnce(tree, root, projects, buildDirs)).isEqualTo(0)
 		assertThat(File(root, "app/build").isDirectory).isTrue()
 	}
+
+	@Test
+	fun `a build folder reached through a symlinked module folder is kept`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		val shared = tmp.newFolder("shared", "app")
+		File(shared, "build/outputs").mkdirs()
+		// The module's folder is a link out of the project; its build folder itself is real.
+		Files.createSymbolicLink(File(root, "app").toPath(), shared.toPath())
+
+		val found = OldBuildOutput.find(root, listOf(root, File(root, "app")), listOf(File(tree, "root"), File(tree, "app")))
+
+		assertThat(found).isEmpty()
+		assertThat(File(shared, "build/outputs").isDirectory).isTrue()
+	}
+
+	@Test
+	fun `a deletion that fails is tried again at the next initialization`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		dirs(root, "app/build/outputs", ".gradle")
+		val locked = File(root, "app/build/outputs").apply { File(this, "app-debug.apk").writeText("apk") }
+		val projects = listOf(root, File(root, "app"))
+		val buildDirs = listOf(File(tree, "root"), File(tree, "app"))
+
+		locked.setWritable(false)
+		try {
+			assertThat(OldBuildOutput.removeOnce(tree, root, projects, buildDirs)).isEqualTo(1)
+			assertThat(File(tree, OldBuildOutput.REMOVED_FILE).exists()).isFalse()
+		} finally {
+			locked.setWritable(true)
+		}
+		assertThat(OldBuildOutput.removeOnce(tree, root, projects, buildDirs)).isEqualTo(1)
+		assertThat(File(root, "app/build").exists()).isFalse()
+		assertThat(File(tree, OldBuildOutput.REMOVED_FILE).exists()).isTrue()
+	}
 }

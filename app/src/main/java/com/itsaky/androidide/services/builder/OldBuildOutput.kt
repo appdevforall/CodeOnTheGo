@@ -18,7 +18,8 @@ object OldBuildOutput {
 	/**
 	 * The stale folders of a relocated project: the `build/` of each project the synced model lists,
 	 * and the Gradle and Kotlin caches of the root and of `buildSrc`. Only folders Gradle makes by
-	 * default, inside [rootDir]. Left alone: a symlink; a folder that is a project's directory or
+	 * default, inside [rootDir] once symlinks are resolved, so a linked module folder cannot lead the
+	 * deletion out of the project. Left alone: a symlink; a folder that is a project's directory or
 	 * holds one; a folder that holds or lies in a build directory the model still uses; and
 	 * `buildSrc/.gradle/` and an included build's `.gradle/` and `.kotlin/`, which builds still use.
 	 *
@@ -32,13 +33,14 @@ object OldBuildOutput {
 		buildDirs: List<File>,
 	): List<File> {
 		val root = rootDir.absoluteFile.normalize()
+		val canonicalRoot = canonicalOrNull(root) ?: return emptyList()
 		val projects = projectDirs.map { it.absoluteFile.normalize() }
 		val inUse = buildDirs.map { it.absoluteFile.normalize() }
 		val candidates =
 			projects.map { File(it, "build") } +
 				listOf(".gradle", ".kotlin", "buildSrc/build", "buildSrc/.kotlin").map { File(root, it) }
 		return candidates.distinct().filter { dir ->
-			dir.startsWith(root) &&
+			canonicalOrNull(dir)?.startsWith(canonicalRoot) == true &&
 				Files.isDirectory(dir.toPath(), LinkOption.NOFOLLOW_LINKS) &&
 				projects.none { it.startsWith(dir) } &&
 				inUse.none { it.startsWith(dir) || dir.startsWith(it) }
@@ -46,7 +48,9 @@ object OldBuildOutput {
 	}
 
 	/**
-	 * Deletes what [find] returns, unless [tree] records that it was done before.
+	 * Deletes what [find] returns, unless [tree] records that it was done before. It is recorded only
+	 * once everything is gone, so a deletion that fails part-way is tried again at the next relocated
+	 * initialization.
 	 *
 	 * @param tree the project's tree, from [BuildOutputLocation.treeFor].
 	 * @return how many folders were deleted.
@@ -59,12 +63,22 @@ object OldBuildOutput {
 	): Int {
 		val marker = File(tree, REMOVED_FILE)
 		if (marker.exists()) return 0
-		val removed = find(rootDir, projectDirs, buildDirs).count { deleteWithoutFollowingLinks(it) }
-		try {
-			marker.createNewFile()
-		} catch (e: IOException) {
-			// Not recorded: the next relocated initialization tries again, and finds less to do.
+		val stale = find(rootDir, projectDirs, buildDirs)
+		val removed = stale.count { deleteWithoutFollowingLinks(it) }
+		if (removed == stale.size) {
+			try {
+				marker.createNewFile()
+			} catch (e: IOException) {
+				// Not recorded: the next relocated initialization tries again, and finds nothing to do.
+			}
 		}
 		return removed
 	}
+
+	private fun canonicalOrNull(file: File): File? =
+		try {
+			file.canonicalFile
+		} catch (e: IOException) {
+			null
+		}
 }
