@@ -17,7 +17,7 @@ import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
 import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.quickbuild.QuickBuildTaskPaths
-import com.itsaky.androidide.utils.ApkExport
+import com.itsaky.androidide.utils.BuildExport
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
@@ -34,7 +34,7 @@ import java.io.IOException
  * app-private storage, where a file manager cannot reach it. Offers the share sheet, or a copy in
  * the Download folder.
  */
-class ExportApkAction(
+class ExportBuildAction(
 	context: Context,
 	override val order: Int,
 ) : EditorActivityAction() {
@@ -81,16 +81,16 @@ class ExportApkAction(
 			activity.activityScope.launch {
 				val found =
 					withContext(Dispatchers.IO) {
-						ApkExport.resolve(
+						BuildExport.resolve(
 							listingFile = variant.mainArtifact.assembleTaskOutputListingFile,
 							quickBuildReport = QuickBuildTaskPaths.setupJson(app.buildDir, variant.name),
 							projectDir = projectDir,
 						)
 					}
 				when (found) {
-					ApkExport.Exportable.NotBuilt -> flashError(R.string.msg_export_apk_not_built)
-					ApkExport.Exportable.QuickBuildProxy -> flashError(R.string.msg_export_apk_quick_build)
-					is ApkExport.Exportable.Apk -> withContext(Dispatchers.Main) { offerExport(activity, found.file, name) }
+					BuildExport.Exportable.NotBuilt -> flashError(R.string.msg_export_apk_not_built)
+					BuildExport.Exportable.QuickBuildProxy -> flashError(R.string.msg_export_apk_quick_build)
+					is BuildExport.Exportable.Apk -> withContext(Dispatchers.Main) { offerExport(activity, found.file, name) }
 				}
 			}
 		}
@@ -120,7 +120,7 @@ class ExportApkAction(
 				),
 			) { _, which ->
 				if (which == 0) {
-					IntentUtils.shareFile(activity, apk, ApkExport.MIME_TYPE)
+					IntentUtils.shareFile(activity, apk, BuildExport.MIME_TYPE)
 				} else if (!isBuilding()) {
 					activity.activityScope.launch(Dispatchers.IO) { copyToDownload(activity, apk, name) }
 				}
@@ -136,7 +136,7 @@ class ExportApkAction(
 		@Suppress("DEPRECATION")
 		val download = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
 		try {
-			val copy = ApkExport.copyTo(apk, download, name)
+			val copy = BuildExport.copyTo(apk, download, name)
 			flashSuccess(activity.getString(R.string.msg_export_apk_saved, copy.name))
 		} catch (e: IOException) {
 			log.error("Cannot copy {} to {}", apk, download, e)
@@ -147,6 +147,6 @@ class ExportApkAction(
 	override fun getShowAsActionFlags(data: ActionData): Int = MenuItem.SHOW_AS_ACTION_IF_ROOM
 
 	companion object {
-		private val log = LoggerFactory.getLogger(ExportApkAction::class.java)
+		private val log = LoggerFactory.getLogger(ExportBuildAction::class.java)
 	}
 }

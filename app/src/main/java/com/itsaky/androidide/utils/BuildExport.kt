@@ -7,10 +7,10 @@ import java.io.File
 import java.io.IOException
 
 /** Finds a built APK and copies it out of app storage under a readable name (ADFA-4930). */
-internal object ApkExport {
+internal object BuildExport {
 	const val MIME_TYPE = "application/vnd.android.package-archive"
 
-	private val log = LoggerFactory.getLogger(ApkExport::class.java)
+	private val log = LoggerFactory.getLogger(BuildExport::class.java)
 
 	/** What [resolve] found to export. */
 	sealed interface Exportable {
