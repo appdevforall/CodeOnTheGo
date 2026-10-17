@@ -31,50 +31,69 @@ import java.util.concurrent.ConcurrentHashMap
  */
 @AutoService(WidgetTableRegistry::class)
 class DefaultWidgetTableRegistry : WidgetTableRegistry {
+	private val tables = ConcurrentHashMap<String, WidgetTable>()
 
-  private val tables = ConcurrentHashMap<String, WidgetTable>()
+	// Platform dirs with no readable widget list. See DefaultApiVersionsRegistry.
+	private val unreadablePlatforms = ConcurrentHashMap.newKeySet<String>()
 
-  companion object {
+	companion object {
+		private val log = LoggerFactory.getLogger(DefaultWidgetTableRegistry::class.java)
+	}
 
-    private val log = LoggerFactory.getLogger(DefaultWidgetTableRegistry::class.java)
-  }
+	override var isLoggingEnabled: Boolean = true
 
-  override var isLoggingEnabled: Boolean = true
+	override fun forPlatformDir(platform: File): WidgetTable? {
+		tables[platform.path]?.let { return it }
+		if (platform.path in unreadablePlatforms) {
+			return null
+		}
 
-  override fun forPlatformDir(platform: File): WidgetTable? {
-    var table = tables[platform.path]
-    if (table != null) {
-      return table
-    }
+		/*
+		 * This table only feeds layout completion, and it is read on the path that opens a
+		 * project. A platform file we cannot read must therefore cost the completion, not the
+		 * project.
+		 */
+		val table =
+			try {
+				createTable(platform)
+			} catch (e: Exception) {
+				log.warn("Could not read widgets for platform dir: {}", platform, e)
+				null
+			}
 
-    table = createTable(platform) ?: return null
-    tables[platform.path] = table
-    return table
-  }
+		if (table == null) {
+			unreadablePlatforms += platform.path
+			return null
+		}
 
-  private fun createTable(platformDir: File): WidgetTable? {
-    val widgets = File(platformDir, "data/widgets.txt")
-    if (!widgets.exists() || !widgets.isFile) {
-      if (isLoggingEnabled) {
-        log.warn("'widgets.txt' file does not exist in {}/data directory", platformDir.absolutePath)
-      }
-      return null
-    }
+		tables[platform.path] = table
+		return table
+	}
 
-    if (isLoggingEnabled) {
-      log.info("Creating widget table for platform dir: {}", platformDir)
-    }
+	private fun createTable(platformDir: File): WidgetTable? {
+		val widgets = File(platformDir, "data/widgets.txt")
+		if (!widgets.exists() || !widgets.isFile) {
+			if (isLoggingEnabled) {
+				log.warn("'widgets.txt' file does not exist in {}/data directory", platformDir.absolutePath)
+			}
+			return null
+		}
 
-    return widgets.inputStream().bufferedReader().useLines {
-      val table = DefaultWidgetTable()
-      it.forEach { line ->
-        table.putWidget(line)
-      }
-      table
-    }
-  }
+		if (isLoggingEnabled) {
+			log.info("Creating widget table for platform dir: {}", platformDir)
+		}
 
-  override fun clear() {
-    tables.clear()
-  }
+		return widgets.inputStream().bufferedReader().useLines {
+			val table = DefaultWidgetTable()
+			it.forEach { line ->
+				table.putWidget(line)
+			}
+			table
+		}
+	}
+
+	override fun clear() {
+		tables.clear()
+		unreadablePlatforms.clear()
+	}
 }

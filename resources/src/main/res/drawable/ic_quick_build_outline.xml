@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick Build: slow-build state (the next build cannot take the fast path). Same bolt silhouette as ic_quick_build but
+	hollow (stroke only, not filled) - a distinct shape, not just a color swap, and deliberately NOT the error tint: needing
+	a full build during ordinary editing is normal, not a failure (see QuickBuildTone). -->
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="24dp"
+	android:height="24dp"
+	android:viewportWidth="24"
+	android:viewportHeight="24">
+	<path
+		android:fillColor="@android:color/transparent"
+		android:strokeColor="#ffffff"
+		android:strokeWidth="1.6"
+		android:strokeLineJoin="round"
+		android:pathData="M13,2L3,14L12,14L11,22L21,10L12,10L13,2Z" />
+</vector>

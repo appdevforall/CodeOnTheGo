@@ -26,9 +26,9 @@
   <string name="get_started">Începe</string>
   <string name="msg_cannot_perform_fix">Nu se poate efectua remedierea rapidă</string>
   <string name="msg_performing_actions">Se efectuează o acțiune de cod…</string>
-  <string name="msg_api_info_since">De la API %d</string>
-  <string name="msg_api_info_removed">Eliminat în API %d</string>
-  <string name="msg_api_info_deprecated">Învechit în API %d</string>
+  <string name="msg_api_info_since">De la API %s</string>
+  <string name="msg_api_info_removed">Eliminat în API %s</string>
+  <string name="msg_api_info_deprecated">Învechit în API %s</string>
   <string name="msg_finding_references">Se caută referințe…</string>
   <string name="msg_finding_definition">Se caută definiția…</string>
   <string name="msg_no_definition">Definiția nu a fost găsită</string>

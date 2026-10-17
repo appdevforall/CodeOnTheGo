@@ -3,11 +3,14 @@ package com.itsaky.androidide.viewmodel
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepository
+import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.projects.IProjectManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -24,6 +27,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.io.File
 import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -226,18 +230,16 @@ class GitBottomSheetViewModelTest {
 	@Test
 	fun `initializeRepository clears currentRepository when opening fails`() =
 		runTest {
-			io.mockk.mockkObject(com.itsaky.androidide.projects.IProjectManager.Companion)
-			val mockProjectManager = mockk<com.itsaky.androidide.projects.IProjectManager>(relaxed = true)
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
 			every { mockProjectManager.projectDirPath } returns "/mock/path"
 			every {
-				com.itsaky.androidide.projects.IProjectManager
-					.getInstance()
+				IProjectManager.getInstance()
 			} returns mockProjectManager
 
-			io.mockk.mockkObject(com.itsaky.androidide.git.core.GitRepositoryManager)
+			mockkObject(GitRepositoryManager)
 			coEvery {
-				com.itsaky.androidide.git.core.GitRepositoryManager
-					.openRepository(any())
+				GitRepositoryManager.openRepository(any())
 			} throws RuntimeException("Corrupt repository")
 
 			viewModel.initializeRepository(force = true)
@@ -312,7 +314,42 @@ class GitBottomSheetViewModelTest {
 
 			advanceUntilIdle()
 
-			assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
+			org.junit.Assert.assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
 			coVerify(exactly = 1) { repository.setCommitWatermarkEnabled(true) }
+		}
+
+	@Test
+	fun `initGitRepository delegates to GitRepositoryManager and calls initializeRepository`() =
+		runTest {
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
+			every { mockProjectManager.projectDirPath } returns "/mock/path"
+			every { IProjectManager.getInstance() } returns mockProjectManager
+
+			mockkObject(GitRepositoryManager)
+			coEvery { GitRepositoryManager.initRepository(any()) } returns mockk(relaxed = true)
+
+			viewModel.initGitRepository()
+			advanceUntilIdle()
+
+			coVerify { GitRepositoryManager.initRepository(File("/mock/path")) }
+		}
+
+	@Test
+	fun `initGitRepository handles exceptions smoothly`() =
+		runTest {
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
+			every { mockProjectManager.projectDirPath } returns "/mock/path"
+			every { IProjectManager.getInstance() } returns mockProjectManager
+
+			mockkObject(GitRepositoryManager)
+			coEvery { GitRepositoryManager.initRepository(any()) } throws RuntimeException("Init failed")
+
+			// Should not throw
+			viewModel.initGitRepository()
+			advanceUntilIdle()
+
+			coVerify { GitRepositoryManager.initRepository(File("/mock/path")) }
 		}
 }

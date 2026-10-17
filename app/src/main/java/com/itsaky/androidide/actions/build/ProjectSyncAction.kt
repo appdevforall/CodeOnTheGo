@@ -49,6 +49,7 @@ class ProjectSyncAction(
 	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.EDITOR_TOOLBAR_SYNC
 
 	override suspend fun execAction(data: ActionData) {
+		if (refuseWhileSlotBusy(data)) return
 		val activity = data.requireActivity()
 		activity.saveAll(requestSync = false)
 		activity.initializeProject(forceSync = true)

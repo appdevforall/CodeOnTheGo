@@ -29,4 +29,5 @@
 	<dimen name="sidebar_header_logo_size">44dp</dimen>
 	<dimen name="sidebar_header_logo_margin_top">64dp</dimen>
 	<dimen name="sidebar_header_logo_padding">6dp</dimen>
+	<dimen name="sidebar_rail_menu_margin_top">8dp</dimen>
 </resources>

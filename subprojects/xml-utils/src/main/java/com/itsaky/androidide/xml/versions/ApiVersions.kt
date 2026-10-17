@@ -25,15 +25,14 @@ import com.itsaky.androidide.lookup.Lookup
  * @author Akash Yadav
  */
 interface ApiVersions {
+	companion object {
+		@JvmStatic val COMPLETION_LOOKUP_KEY = Lookup.Key<ApiVersions>()
+	}
 
-  companion object {
-    @JvmStatic val COMPLETION_LOOKUP_KEY = Lookup.Key<ApiVersions>()
-  }
-
-  /**
-   * Get the information about the class with the given name.
-   *
-   * @param name The fully qualified name of the class.
-   */
-  fun getClass(name: String): ClassInfo?
+	/**
+	 * Get the information about the class with the given name.
+	 *
+	 * @param name The fully qualified name of the class.
+	 */
+	fun getClass(name: String): ClassInfo?
 }

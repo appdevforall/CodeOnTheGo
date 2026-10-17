@@ -25,18 +25,17 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Regression test for ADFA-3472.
  *
- * [BuildOutputFragment.clearOutput], [BuildOutputFragment.getShareableContent], and
- * [BuildOutputFragment.appendOutput] touch
+ * [BuildOutputFragment.clearOutput] and [BuildOutputFragment.getShareableContent] touch
  * `buildOutputViewModel`, which is created via `by activityViewModels()`. Forcing that lazy
  * delegate while the fragment is detached calls `requireActivity()`, which throws an
  * [IllegalStateException] ("not attached to an activity"). The run-tasks dialog / config-change
  * path can invoke these methods on a detached fragment, crashing the app (Sentry ADFA-3472).
  *
- * The fix guards all three methods with `if (!isAdded || activity == null) return`. These tests
- * assert that a detached fragment does NOT crash and returns the safe no-op values.
- *
- * Mutation-mindset: on the pre-fix code (no guard), both calls force the activityViewModels
- * delegate -> requireActivity() -> IllegalStateException, so each test goes RED.
+ * Both methods therefore guard with `if (!isAdded || activity == null) return`. These tests
+ * assert that a detached fragment does NOT crash and returns the safe no-op values; drop the
+ * guard and each call forces the activityViewModels delegate -> requireActivity() ->
+ * IllegalStateException, taking the test RED. [BuildOutputFragment.appendOutput] only queues into
+ * the fragment's own buffer, so it needs no guard; the last test pins that it stays safe.
  */
 @RunWith(RobolectricTestRunner::class)
 class BuildOutputFragmentDetachedTest {

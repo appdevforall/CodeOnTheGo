@@ -17,8 +17,6 @@
 
 package com.itsaky.androidide.fragments.output
 
-import android.app.Application
-import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.test.runTest
@@ -127,85 +125,6 @@ class BuildOutputBufferTest {
 			assertThat(inFlight.sessionToken).isEqualTo(3)
 			assertThat(buffer.takeBatch().sessionToken).isEqualTo(4)
 		}
-
-	@Test
-	fun `clear invalidates stale view model session tokens`() =
-		runTest {
-			val viewModel =
-				BuildOutputViewModel(ApplicationProvider.getApplicationContext<Application>())
-			viewModel.clear()
-			val staleToken = viewModel.currentSessionToken
-
-			assertThat(viewModel.append("old\n", staleToken)).isTrue()
-			viewModel.clear()
-
-			assertThat(viewModel.append("stale\n", staleToken)).isFalse()
-			assertThat(viewModel.getFullContent()).isEmpty()
-		}
-
-	@Test
-	fun `repeated appends retain the complete editor window in the bounded cache`() =
-		runTest {
-			val viewModel = BuildOutputViewModel(ApplicationProvider.getApplicationContext<Application>())
-			viewModel.clear()
-			val first = "a".repeat(384 * 1024)
-			val second = "b".repeat(256 * 1024)
-			val fullOutput = first + second
-			assertThat(viewModel.append(first, viewModel.currentSessionToken)).isTrue()
-			assertThat(viewModel.append(second, viewModel.currentSessionToken)).isTrue()
-			assertThat(viewModel.getCachedContentSnapshot())
-				.isEqualTo(fullOutput.takeLast(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS))
-			assertThat(viewModel.getWindowForEditor())
-				.isEqualTo(fullOutput.takeLast(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS))
-			assertThat(viewModel.getFullContent()).isEqualTo(fullOutput)
-			viewModel.clear()
-		}
-
-	@Test
-	fun `window refresh uses hysteresis after reaching the editor limit`() {
-		val batchChars = 32 * 1024
-		var sourceChars = BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS
-		var refreshCount = 0
-
-		repeat(6) {
-			if (BuildOutputViewModel.wouldExceedEditorWindow(sourceChars, batchChars)) {
-				refreshCount++
-				sourceChars =
-					BuildOutputViewModel.editorSourceCharsAfterRefresh(
-						BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS,
-					)
-			} else {
-				sourceChars += batchChars
-			}
-		}
-
-		assertThat(refreshCount).isEqualTo(2)
-	}
-
-	@Test
-	fun `filtered editor refreshes when hidden source output advances the window`() {
-		val oldMatch = "old match\n"
-		val hidden = "x".repeat(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS)
-		var session = oldMatch
-		var sourceChars = session.length
-		var visible = oldMatch
-
-		session += hidden
-		if (BuildOutputViewModel.wouldExceedEditorWindow(sourceChars, hidden.length)) {
-			val window = session.takeLast(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS)
-			visible =
-				BuildOutputViewModel.filterLines(
-					window,
-					query = "match",
-					showTimestamps = true,
-					showDeltas = true,
-				)
-			sourceChars = BuildOutputViewModel.editorSourceCharsAfterRefresh(window.length)
-		}
-
-		assertThat(visible).isEmpty()
-		assertThat(sourceChars).isLessThan(BuildOutputViewModel.EDITOR_WINDOW_MAX_CHARS)
-	}
 
 	@Test
 	fun `refreshed tail applies filtering and timing visibility`() {

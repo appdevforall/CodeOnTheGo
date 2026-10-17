@@ -20,6 +20,8 @@ data class GradleTuningConfig(
  *
  * @property daemonEnabled Whether the daemon is enabled.
  * @property jvm The configuration for the JVM instance.
+ * @property daemonIdleTimeoutMs How long an idle daemon lives before expiring, shortened on
+ *                               low-memory tiers because an idle daemon holds its full heap.
  * @property maxWorkers The maximum number of workers.
  * @property parallel Whether parallel mode is enabled.
  * @property caching Whether caching is enabled.
@@ -30,6 +32,7 @@ data class GradleTuningConfig(
 data class GradleDaemonConfig(
 	val daemonEnabled: Boolean,
 	val jvm: JvmConfig,
+	val daemonIdleTimeoutMs: Int,
 	val maxWorkers: Int,
 	val parallel: Boolean,
 	val caching: Boolean,
@@ -86,13 +89,16 @@ data class JvmConfig(
 	val heapDumpOnOutOfMemory: Boolean = false,
 )
 
+/** Which garbage collector a tuned JVM should run, and the flags that come with it. */
 sealed class GcType {
 	abstract val name: String
 
+	/** Whatever collector the JVM picks; no GC flags are passed. */
 	data object Default : GcType() {
 		override val name: String = "default"
 	}
 
+	/** The serial collector, for tiers that cannot afford a concurrent one's overhead. */
 	data object Serial : GcType() {
 		override val name: String = "serial"
 	}
@@ -100,9 +106,9 @@ sealed class GcType {
 	/**
 	 * Generational garbage collector.
 	 *
-	 * @property useAdaptiveIHOP Whether to use adaptive IHOP. Can be null to use default, JVM-determined value.
-	 * @property softRefLRUPolicyMSPerMB The soft reference LRU policy in milliseconds per MB. Can
-	 *                                   be null to use default, JVM-determined value.
+	 * @property useAdaptiveIHOP Whether to use adaptive IHOP; null leaves it JVM-determined.
+	 * @property softRefLRUPolicyMSPerMB The soft reference LRU policy in milliseconds per MB; null
+	 *                                   leaves it JVM-determined.
 	 */
 	data class Generational(
 		val useAdaptiveIHOP: Boolean? = null,

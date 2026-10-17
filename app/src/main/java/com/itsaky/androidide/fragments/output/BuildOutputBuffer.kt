@@ -135,6 +135,7 @@ internal class BuildOutputBuffer(
 					retainedChars -= entry.value.length
 					sourceChars = saturatedAdd(sourceChars, entry.value.length)
 				}
+
 				is Entry.Omission -> {
 					omittedLines += entry.lineCount
 					sourceChars = saturatedAdd(sourceChars, entry.sourceChars)
@@ -145,8 +146,7 @@ internal class BuildOutputBuffer(
 		return Batch(batch.toString(), sessionToken, sourceChars, omittedLines)
 	}
 
-	private fun lineCount(text: String): Long =
-		text.count { it == '\n' }.toLong() + if (text.endsWith('\n')) 0 else 1
+	private fun lineCount(text: String): Long = text.count { it == '\n' }.toLong() + if (text.endsWith('\n')) 0 else 1
 
 	private fun saturatedAdd(
 		left: Int,

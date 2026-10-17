@@ -1,0 +1,73 @@
+name: Spotless apply
+
+# For contributors without a shell (e.g. editing in the GitHub web UI): runs spotlessApply on a
+# branch and appends the result as a standalone commit. The push uses GITHUB_TOKEN, so it does not
+# start other workflows.
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to format (not stage or main)'
+        required: true
+        type: string
+
+concurrency:
+  group: spotless-apply-${{ inputs.branch }}
+  cancel-in-progress: false
+
+jobs:
+  spotless_apply:
+    name: Run spotlessApply and commit
+    runs-on: self-hosted
+    timeout-minutes: 30
+    env:
+      BRANCH: ${{ inputs.branch }}
+
+    steps:
+      - name: Refuse protected branches
+        run: |
+          case "$BRANCH" in
+            stage|main)
+              echo "::error::Refusing to push to '$BRANCH'."
+              exit 1
+              ;;
+          esac
+
+      # fetch-depth 0: the Spotless ratchet compares against origin/stage.
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Check if Nix is installed
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Run spotlessApply
+        run: |
+          flox activate -d flox/base -- ./gradlew spotlessApply --no-daemon
+
+      - name: Commit and push
+        run: |
+          if git diff --quiet; then
+            echo "::notice::Already formatted. Nothing to commit."
+            exit 0
+          fi
+          git config user.name "ADFA"
+          git config user.email "dev-team@appdevforall.org"
+          git commit -am "style: spotless reformat, no functional change"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          echo "::notice::Pushed $(git rev-parse --short HEAD) to $BRANCH."

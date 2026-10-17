@@ -129,13 +129,13 @@ Not an exit: a `return` belonging to a function **declared inside** the region -
 
 `suspend` and `@Composable` are the two cases where omitting a modifier produces non-compiling code, which is why they are requirements while everything else is left off.
 
-**R11 - Sheet.** A sibling of the extract-variable sheet, not a generalisation of it: `ExtractMethodSheet` (a `BottomSheetDialogFragment` hosting a `ComposeView`), a stateless `ExtractMethodSheetContent`, `ExtractMethodViewModel` + `ExtractMethodUiState` + a sealed `ExtractMethodUiEvent`. `LabelledSection` and `OptionList` are promoted to a shared internal file in `refactor/ui/`.
+**R11 - Sheet.** A sibling of the extract-variable sheet, not a generalisation of it: `ExtractMethodSheet` (a `BottomSheetDialogFragment` hosting a `ComposeView`), a stateless `ExtractMethodSheetContent`, `ExtractMethodViewModel` + `ExtractMethodUiState` + a sealed `ExtractMethodUiEvent` - all in `:lsp:ui`, driven by the plain-data `MethodCandidateView` contract so `lsp/java` renders the same sheet (ADR 0013, revised). `LabelledSection` and `OptionList` are shared public components there, in `SheetComponents.kt`.
 
 Contents, top to bottom: title -> expression chooser (only for an expression region with more than one candidate) -> name field with its `NameProblem` message -> signature preview -> Cancel/Extract. There is **no scope chooser** (R4) and **no replace-all checkbox** (R13).
 
 The preview is **one monospace line: the signature exactly as it will be emitted** - modifiers, receiver, parameters, return type. Types render fully qualified (R5), so a real preview reads `private suspend fun loadUser(id: kotlin.String): com.example.User`. It wraps rather than truncating. No body preview: the body is the code the user selected and can see behind the sheet, so it moves verbatim and previewing it says nothing new, while the signature is the one derived artefact and the one place the derivation can surprise them.
 
-ADR 0013 defers the shared-UI question until the extract-method surface is known; a single generalised sheet would need a state class where half the fields are meaningless to either caller, so that question stays open rather than being settled from one data point.
+ADR 0013 (revised, ADFA-5048) places shared refactoring sheets in `:lsp:ui` behind plain-data contracts; extract-method and extract-variable are siblings there rather than one generalised sheet, which would need a state class where half the fields are meaningless to either caller.
 
 **R12 - Name.** Suggestion: for an expression region, the existing shape/type derivation unchanged; for a statement range, the constant `extracted`, since there is no expression to read a name from and inventing a verb from statement shapes is guesswork. Uniquified as today.
 
@@ -247,20 +247,21 @@ ExtractMethodAction.execAction (background)                lsp/kotlin/actions
 
 ExtractMethodAction.postExec (UI thread)
   refusal -> flashInfo(message for reason)                 [R14]
-  ExtractMethodSheet.show                                  refactor/ui                            [R11]
+  ExtractMethodSheet.show                                  :lsp:ui                                [R11]
   on confirm -> version re-read; mismatch -> refuse        [R3]
     buildExtractMethodRewrite -> two RewriteSpans          utils/refactor/ExtractMethodEdit.kt     [R15]
     client.performCodeAction(one DocumentChange, two TextEdits, descending)
 ```
 
-New files, all in `lsp/kotlin`:
+New files, in `lsp/kotlin` unless noted:
 
 - **`utils/refactor/ExtractionRegion.kt`** - the region model and its resolution (R2). Purely syntactic, so unit-testable with no analysis session, exactly as `CandidateExpressions.kt` is.
 - **`utils/refactor/MethodSignature.kt`** - captured declarations to parameters, outputs, exits, receivers, modifiers, and the rendered signature string (R5-R10). The only analysis-dependent part.
 - **`utils/refactor/ExtractMethodPlan.kt`** - `ExtractMethodPlan` (a `RefactoringPlan` subtype) and `ExtractionRefusal`.
 - **`utils/refactor/ExtractMethodPlanner.kt`** - the single background pass (R3, R16).
 - **`utils/refactor/ExtractMethodEdit.kt`** - the two rewrites and their ordering (R15). Pure text and offsets.
-- **`refactor/ui/ExtractMethod*.kt`** - sheet, content, ViewModel, state, events (R11).
+- **`:lsp:ui` `ExtractMethod*.kt`** - sheet, content, ViewModel, state, events, and the `MethodCandidateView` contract (R11); shared with extract-variable, not under `lsp/kotlin`.
+- **`refactor/KotlinExtractMethodUi.kt`** - the adapter mapping `ExtractMethodPlan` onto `MethodCandidateView` and a selection back to a candidate (R11).
 - **`actions/ExtractMethodAction.kt`** - registered in `KotlinCodeActionsMenu`; the only class touching the editor, the document version or the language client.
 - **`TooltipTag.EDITOR_CODE_ACTIONS_KT_EXTRACT_METHOD`** - one new constant (R1).
 
@@ -272,12 +273,13 @@ Nothing outside `lsp/kotlin` changes except `TooltipTag.kt` and `values/strings.
 
 ## Verification
 
-Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotlin:testV7DebugUnitTest`), mirroring the extract-variable split so a failure localises to one layer:
+Unit tests in `:lsp:kotlin` (`flox activate -d flox/local -- ./gradlew :lsp:kotlin:testV7DebugUnitTest`), plus the shared sheet's `ViewModel` test in `:lsp:ui`, mirroring the extract-variable split so a failure localises to one layer:
 
 - **`ExtractMethodRegionTest`** - no analysis session, PSI only: outward snapping to whole statements, the sibling-in-one-block rule, cross-block rejection, and the expression path (R2).
 - **`ExtractMethodPlanEndToEndTest`** - analysis-backed, one case per rule: the parameter set, order and types (R5), the single output and the `Unit` case (R6, R7), the tail return and the nested-declaration `return` that is not an exit (R8), the extension receiver (R9), `suspend`, a `@Composable` call and a `@Composable` property getter (R10), the anonymous-function anchor (R4), the recorded multi-line-string spans (R15), and **one case per refusal reason** (R14).
 - **`ExtractMethodEditTest`** - pure text: the two edits and their descending order, the three call-site forms, indentation, raw (triple-quoted) string literals left verbatim, the blank-line separation, and CRLF preservation (R15).
-- **`ExtractMethodViewModelTest`** - state derivation: chooser visibility, name validation against inherited names, and the rendered signature preview (R11, R12).
+- **`ExtractMethodViewModelTest`** (in `:lsp:ui`) - state derivation: chooser visibility, name validation against inherited names, and the rendered signature preview (R11, R12).
+- **`KotlinExtractMethodUiTest`** - the contract adapter: `toMethodCandidateViews()` fills each `MethodCandidateView`'s two signature halves from the candidate (so a prefix/suffix swap is caught), and `candidateFor()` maps a selection index back to its candidate (R11).
 
 `lsp/kotlin` has **no `androidTest`** source set, and none is added: `@Composable` detection is tested by declaring `package androidx.compose.runtime; annotation class Composable` in a test source module, and `suspend` is a language modifier, so both need **no new dependency** (`KtLspTestEnvironment` supports `extraLibraryJars`, but not for this).
 

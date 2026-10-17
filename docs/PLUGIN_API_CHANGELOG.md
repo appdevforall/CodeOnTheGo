@@ -35,7 +35,267 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
-### 26.36 — unreleased
+### 26.42 — unreleased
+- **added — Tell whether a server is on this device, the local network or the internet** _(ADFA-6536)_ **[verified]**
+  `net.ServerUrl.parse(url)` returns `ServerUrlParseResult.Valid(url)` or `Invalid(reason)`, where
+  `Invalid.Reason` is `BLANK`, `MALFORMED`, `UNSUPPORTED_SCHEME` or `NO_HOST` (more may be added). A
+  `ServerUrl` has `scheme` (`HTTP`/`HTTPS`, each with its URL `id` and `isEncrypted`), `host`, `port`, `isCleartext` and a `NetworkLocality`:
+  `LOOPBACK` (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`, `::`), `PRIVATE_NETWORK` (RFC 1918, link-local, IPv6
+  unique-local, `.local` and dotless names) or `PUBLIC`. It reads the URL as typed and never resolves
+  a name, so it is safe on the main thread. It only classifies; each plugin decides what it allows
+  for each locality. Floor `plugin.min_ide_version` at `26.42` to use it.
+- **added — Start Quick Build and get its result** _(ADFA-6493)_ **[verified]**
+  `IdeBuildService.getQuickBuildAvailability()` returns `QuickBuildAvailability.Available`, or
+  `Unavailable(reason, message)` with a `QuickBuildUnavailableReason`: `EXPERIMENTS_DISABLED`,
+  `NO_PROJECT`, `PROJECT_SYNCING`, `PLUGIN_PROJECT`, `NO_APP_MODULE`, `RELEASE_VARIANT`, or
+  `NOT_SUPPORTED` from a host without Quick Build. `startQuickBuild()` runs the same tap as the
+  toolbar button: it saves open files, asks the user before replacing an app installed under the
+  project's application ID, and shows in the toolbar and Build Output as usual. It completes once
+  with a `QuickBuildResult`: `Reloaded(durationMillis, restarted)`, `UpToDate` (nothing to build),
+  `AppNotRunning(message)`, `Failed(reason, output)`, `Refused(reason)` (unavailable, another build
+  or Quick Build running, no editor in the foreground), `Declined` (the user kept the installed app),
+  or `Cancelled`. `cancelQuickBuild()` asks a running Quick Build to stop like the stop icon, or
+  drops a plugin's start still saving or asking the user; the start's future reports what actually
+  happened, usually `Cancelled`. It needs `system.commands`. `getQuickBuildStatus()` returns a `QuickBuildState`: `READY`, `BUILDING`,
+  `FULL_BUILD_NEXT`, `RECONNECTING`, `ERROR`, or `UNAVAILABLE`. Floor `plugin.min_ide_version` at
+  `26.42`: an older IDE has none of these methods or classes.
+- **added — Context window and typed failures for LLM backends** _(ADFA-6493)_ **[verified]**
+  `LlmInferenceService.ContextWindowReportingBackend.getContextWindowTokens()` lets a backend report
+  the tokens one request may hold (for a local model, the context actually allocated), or 0 while
+  unknown; a consumer asks with `instanceof`. `FailureKind` (`OTHER`, `CONTEXT_TOO_LONG`) says why a
+  generation failed without matching its user-facing wording: `LlmResponse.failure(error, kind)`, a
+  constructor taking `failureKind` for a failure that keeps its partial text and token count, and
+  `LlmResponse.failureKind` (null on success, `OTHER` when the backend did not say), and a default
+  `onError(error, kind)` that falls back to `onError(error)`, so consumers built before it still hear
+  every failure. It lives on a new `ErrorCallback` that `StreamCallback` and `ToolStreamCallback`
+  both extend, so one class can still implement both. Floor
+  `plugin.min_ide_version` at `26.42` to call or implement any of them.
+
+### 26.41 — unreleased
+- **added — Terminal readiness and visible terminal commands** _(ADFA-6373, ADFA-6385)_ **[verified]**
+  `IdeTerminalService.isTerminalReady()` reports whether the terminal environment is installed
+  and bash runs; it needs no permission. `runInTerminal(command, workingDirectory, waitMillis)`
+  runs the command with bash in the visible Terminal, in an idle session of the plugin; a new
+  session opens only while the plugin's others are busy, up to 3. Each command runs in its own
+  bash process, so `cd` and `export` do not carry over; it starts from the session's login shell,
+  so it sees the user's profile and anything the user exported there. It returns
+  `TerminalCommandResult.Completed(exitCode, output)` with that command's output, `Running(commandId,
+  sessionName, output)` when the command is still running after `waitMillis` (default 30 s; it keeps running), or
+  `NotStarted(reason)` (environment missing, IDE not in the foreground, all 3 sessions busy, naming them).
+  Cancelling the caller, or unloading the plugin, interrupts the command with Ctrl-C and ends its
+  session if it has not exited a few seconds later. A session where the user started a program of
+  their own is busy. `readCommand(commandId)` returns that command, `Running` or `Completed`, even
+  after another command reuses its session; null for an id that is not the plugin's, or a command
+  that exited before the plugin's last 8 others did. `stopCommand(commandId, waitMillis)` interrupts
+  that command with Ctrl-C and returns its state as `readCommand` does after waiting up to
+  `waitMillis` for it to exit; it never touches a later command in the same session. All three need `system.commands`;
+  the working directory must lie inside the project. Floor `plugin.min_ide_version` at `26.41`:
+  an older IDE has no `IdeTerminalService` class, so referencing it fails to load.
+- **added — Run Gradle tasks with arguments, get a structured result, cancel** _(ADFA-6373)_ **[verified]**
+  `IdeBuildService.executeTasks(tasks: List<String>, arguments: List<String>)` runs on the
+  IDE's tooling server, so `--tests`, `-P` and `--info` work and the output reaches the Build
+  Output pane (read it with `getBuildOutput()`). It completes with a `GradleTaskResult`:
+  `Success`, `Failed(reason)`, `Refused(reason)` when the build never started (another build
+  running, tooling server down, a task name starting with `-`), or `Cancelled`.
+  `IdeBuildService.cancelBuild()` cancels the running build, whoever started it. Non-empty
+  `arguments` and `cancelBuild()` need `system.commands` and throw `SecurityException` without
+  it. While the build runs, a sync or build the user starts is refused. Floor
+  `plugin.min_ide_version` at `26.41`: an older IDE has neither method.
+- **added — List the project's Gradle tasks** _(ADFA-6373)_ **[verified]**
+  `IdeBuildService.getTasks()` returns the open project's tasks, root project and modules alike,
+  as `GradleTaskInfo(path, name, projectPath, group, description)`. It reflects the last sync:
+  empty before one or with no project open, and a task added since appears after the next.
+  Needs no permission. Floor `plugin.min_ide_version` at `26.41`: an older IDE has no such
+  method or class.
+- **breaking — `IdeBuildService.executeTasks(vararg String)` needs at least one task** _(ADFA-6373)_
+  With no tasks it used to run the project's default tasks; it now completes with `false`
+  without building. Name the tasks to run. A task name starting with `-` still completes with
+  `false`, now without starting a build.
+- **breaking — `CommandSpec.GradleTask` runs on the tooling server** _(ADFA-6373)_
+  It used to start `./gradlew` as a separate process: a second Gradle daemon on the device,
+  with output that never reached the Build Output pane. It now runs like `executeTasks` above.
+  Output arrives in one batch of `StdOut` lines when the build ends instead of streaming; the
+  exit code is 0 on success and 1 on a failed build; a refused build fails with exit code -1
+  and the reason in `CommandResult.Failure.error`. No source change is needed. A plugin that
+  ran a Gradle task while another build was running now gets that refusal instead of a
+  second build, and while its task runs, a sync or build the user starts is refused: keep
+  `timeoutMs` no longer than the task needs. A cancel or timeout completes once Gradle stops.
+- **breaking — `CommandSpec.ShellCommand.workingDirectory` needs an open project** _(ADFA-6373)_
+  With no project open, a `workingDirectory` used to be accepted unchecked; `executeCommand` now
+  throws `SecurityException`, as it does for one outside the project. Pass null to run in the
+  default directory.
+- **added — Plugin languages: tree-sitter highlighting and a language server** _(ADFA-4851)_ **[verified]**
+  A plugin implementing `LanguageExtension` returns `LanguageDefinition`s, each claiming file
+  extensions and optionally carrying a `TreeSitterGrammar` and a `LanguageServerDefinition`.
+  The grammar is `lib/<abi>/libtree-sitter-<name>.so` exporting `tree_sitter_<name>`, built
+  at tree-sitter language ABI 13 or 14, with `highlights.scm` (and optionally `locals`,
+  `blocks`, `brackets`, `indents`) under `queriesAssetPath` in the plugin's assets. Captures
+  use the standard names (`keyword`, `string`, `function`, `type`, ...); every colour scheme
+  maps them through its `generic.json`. The server is any stdio LSP process: a bare command
+  name resolves against the Termux `bin` directory, and it runs with the Termux environment
+  plus `environment`. A grammar needs `native.code`; a server needs `system.commands`.
+  Extensions the IDE already handles (`java`, `kt`, `kts`, `xml`, `json`, `log`, `gradle`,
+  C/C++) cannot be claimed. Purely additive. Floor `plugin.min_ide_version` at `26.41`: an
+  older IDE cannot load a plugin class that implements `LanguageExtension`.
+- **added — No cap on sidebar items** _(ADFA-4977)_
+  The sidebar held 12 items: the IDE's seven plus the slots plugins declared with
+  `plugin.sidebar_items`. A plugin declaring more than the free slots failed to load, and
+  plugins loaded before the editor counted its own items could overfill the sidebar and
+  crash the IDE at launch. The sidebar now scrolls, so every declared item is shown.
+  `IdeSidebarService.getMaxSidebarItems()` and `getAvailableSidebarSlots()` return
+  `Int.MAX_VALUE`, and `canAddSidebarItems()` returns `true`. A plugin still returns no
+  more items than it declares. Floor `plugin.min_ide_version` at `26.41` if the plugin
+  declares more than 5 items, the slots an older IDE leaves free.
+- **added — Tool-source groups and health, backend model names, and change listeners** _(ADFA-6278)_ **[verified]**
+  A consumer such as the agent's chat screen could not tell which tools the agent has, whether
+  they work, or which model will answer, and was never told when any of that changed.
+  `ToolSourceRegistry.CONTRACT_VERSION` is now `2`.
+  - `ToolSourceRegistry.GroupedToolSource` (new interface, extends `ToolSource`):
+    `getToolGroups()` splits one source into `ToolSourceRegistry.ToolGroup`s (`getId`,
+    `getDisplayName`, `getToolNames`, `getStatus`, `getStatusMessage`) — one per MCP server,
+    say. A group may name no tools, which is how an unreachable server keeps its place.
+  - `ToolSourceRegistry.StatusReportingToolSource` (new interface, extends `ToolSource`):
+    `getStatus()` and `getStatusMessage()` report health as a `CapabilityStatus`:
+    `AVAILABLE`, `CONNECTING` or `DEGRADED`. Both must be cheap and non-blocking, because
+    consumers call them on the UI thread. A provider reports a change with
+    `ToolSourceRegistry.notifyToolSourceStatusChanged`. The enum may grow; handle an unknown
+    constant as `DEGRADED`. A source that does not implement it reads as `AVAILABLE`.
+  - `ToolSourceRegistry.addToolSourceListener` / `removeToolSourceListener` take a
+    `ToolSourceListener`. `onToolSourcesChanged` is told the provider id on register,
+    unregister and `notifyToolsChanged`; `onToolSourceStatusChanged` on
+    `notifyToolSourceStatusChanged`, so a status change need not re-read the tool list. It
+    defaults to `onToolSourcesChanged`.
+  - `LlmInferenceService.ActiveModelReportingBackend` (new interface, extends `LlmBackend`):
+    `getActiveModelName()` names the model a backend will answer with. It is not called
+    `getModelName` because the Gemini and OpenAI backends already declare a private
+    `getModelName()`. A backend that does not implement it names no model.
+  - `LlmInferenceService.StatusReportingBackend` (new interface, extends `LlmBackend`):
+    `getStatus()` and `getStatusMessage()` report whether the backend can answer right now as
+    the same `CapabilityStatus`. A backend
+    that does not implement it reads as `AVAILABLE`. `isAvailable()` still means only "set up"; a
+    configured OpenAI-compatible server that is not running is `DEGRADED`. Same cheap,
+    non-blocking rule and unknown-constant reading as for a tool source.
+  - `com.itsaky.androidide.plugins.services.CapabilityStatus` (new top-level enum) is the one
+    status both contracts return, so a consumer showing backends and tool sources side by side
+    maps one vocabulary, not two identical enums.
+  - `com.itsaky.androidide.plugins.ai.LlmBackendRegistration` keeps a backend plugin's
+    `LlmBackend` registered with the router: `start(backend)` from `activate`, `stop()` from
+    `deactivate` and `dispose`. It re-registers when AI Core restarts, and calls
+    `notifyBackendChanged` when one of the `watchedKeys` in the plugin's settings changes, so
+    backend plugins stop carrying their own copy of that wiring.
+  - `LlmInferenceService.addBackendChangeListener` / `removeBackendChangeListener` take a
+    `BackendChangeListener`, which is told the backend id on register, unregister, a change
+    in the user's selection, and `LlmInferenceService.notifyBackendChanged`. A backend calls
+    that when its availability or model changes.
+  - `LlmInferenceService.EmbeddingModelSelectable` (new interface, extends `EmbeddingBackend`)
+    lets a screen outside the backend's plugin list (`listEmbeddingModels()`) and change
+    (`setEmbeddingModelId`) the embedding model; the backend still stores the choice and calls
+    `notifyBackendChanged`. `EmbeddingBackend.getEmbeddingDimensions()` is now constant per
+    model rather than per backend instance.
+
+  Listeners are called synchronously on the changing thread, outside the implementation's
+  lock. An exception a listener throws is contained.
+
+  Status, model name and groups are new interfaces rather than defaults on `ToolSource` and
+  `LlmBackend`, per the "prefer a new interface" rule in [plugin-api.md](plugin-api.md): a
+  default named `getStatusMessage`, `getActiveModelName` or `getToolGroups` could be taken for
+  an unrelated method a plugin already declares. `LlmBackend` and `ToolSource` gain no
+  members, and the ABI dump diff is additions only, so a plugin built against 26.40 loads
+  unchanged.
+
+  The registry and service defaults do nothing, and ai-core supplies the real behaviour. On an
+  ai-core built before this change, listeners are accepted and never called. Floor
+  `plugin.min_ide_version` at `26.41` to rely on the new members.
+
+- **added — The AI prompt config engine and settings-pane helpers** _(ADFA-6281)_ **[verified]**
+  Every AI plugin carried its own copy of the code that reads and renders its prompt
+  config, and the credential screens their own copy of the reveal toggle and pane
+  styling, so a fix had to be repeated per plugin and a missed copy made the plugins
+  drift. The host now ships one copy.
+  `com.itsaky.androidide.plugins.ai.prompt`: `PromptTemplateEngine` and `PromptText`
+  (the `{{NAME}}` / `{{#NAME}}` / `{{^NAME}}` renderer; names may be in any case and hold
+  dots, e.g. `{{fileName}}` or `{{item.name}}`, `{{{{` writes a literal `{{`, and config text keeps its whitespace as YAML
+  parsed it); `PromptConfigLoader.load(source,
+  parser)`, which reads `agent.yml` and its `include` list off the main thread;
+  `PromptConfigDocument` and `PromptConfigObject`, the strict key-by-key reader a parser
+  maps the merged YAML through; `PromptConfigSource` / `AssetPromptConfigSource`;
+  `PromptConfigException`; and `PromptConfigStore<T>`, the per-activation cache, behind
+  `PromptConfigProvider<T>`. Loader and store are generic over the plugin's config type:
+  a plugin supplies only a `PromptConfigParser<T>` and keeps one store, e.g.
+  `val shared = PromptConfigStore(MyParser)`, and calls `shared.reload(source, onLoaded, onFailed)`
+  from `activate()` and `shared.clear()` from `deactivate()`. The YAML library (snakeyaml-engine 2.10)
+  is on the host side, so a plugin using the loader no longer bundles it.
+  `com.itsaky.androidide.plugins.ai.ui`: `SecretRevealController`, whose two states are
+  each a `RevealToggle` (icon and content description), and
+  `View.applyPaneStyling(PaneStyle, outlinedButtonIds)`, with `PaneStyle` grouping a
+  `ButtonColors` per emphasis and a `FieldColors`. Both take the plugin's own resource ids
+  rather than shipping any: they resolve against the view's context, which carries the
+  plugin's resources, not the host's.
+  Additive to the ABI (185 added lines in the dump, none removed), but no longer unused:
+  AI-Core and the Gemini, Local and OpenAI agents now load and render their prompt config
+  through `ai.prompt` and drop their private copies, and the Gemini, OpenAI and MCP
+  settings screens use `ai.ui`. `LlmInferenceService.WebSearchBackend` (`canSearchWeb()`)
+  lets a backend say whether a `web_search` request would be searched now; ai-core forces
+  and offers its `web_search` tool only when it does. The `extraParams` keys both sides
+  read are defined once, as `WebSearchBackend.EXTRA_PARAM_WEB_SEARCH` and
+  `ToolCallingBackend.EXTRA_PARAM_REQUIRED_TOOL`. Floor
+  `plugin.min_ide_version` at `26.41` to use any of it; an older IDE has none of these
+  classes, and the plugin fails with `NoClassDefFoundError` on first use.
+- **added — Read-only App Logs and IDE Logs** _(ADFA-6267)_ **[verified]**
+  Plugins could read build output (`IdeBuildService.getBuildOutput()`) but not the App Logs
+  or IDE Logs tabs, so an agent diagnosing a runtime crash had to ask the user to paste them.
+  `IdeLogService.readLogs(LogSource, LogQuery): LogReadResult` returns the newest lines of
+  either tab (`LogSource.APP` / `LogSource.IDE`), oldest first, as `LogEntry(level, text)`.
+  `LogQuery` filters as the tab's filter bar does: `levels` (empty = all; a line with no
+  known level always passes), `text` (case-insensitive substring of the rendered line, tag
+  included), and `maxLines` (default 200, clamped to `1..1000`). A result is also capped at
+  `LogQuery.MAX_CHARS` (131072 UTF-16 chars of line content, terminators not counted),
+  dropping the oldest lines first; `truncated` says whether either bound left matching
+  lines out, or cut the text of a single line longer than the cap. With no editor open or no log yet, the read returns
+  `LogReadResult.EMPTY`, never a throw. The service has no clear or write method, and needs
+  no permission: plugins run in-process under the IDE's uid, so a gate would disclose log
+  access, not enforce it. Purely additive (the ABI dump diff is additions only). Floor
+  `plugin.min_ide_version` at `26.41` to use it; an older IDE has no such service.
+### 26.40 — 2026-09-29
+- **added — An embedding capability a backend can declare** _(ADFA-6053)_ **[verified]**
+  A backend that has an embedding model can now say so. The only embedding entry point
+  before this was `LlmInferenceService.getEmbeddings(String, String)`, which addresses a
+  backend by id and hands back a bare `float[]`: the caller learns neither which model
+  produced the vector nor how long it is, and pays one round trip per text. Indexing a
+  project is thousands of chunks, so that is thousands of requests, and a stored vector
+  carries no provenance — swapping the model behind a backend silently degrades every
+  vector already on disk instead of invalidating it.
+  `LlmInferenceService.EmbeddingBackend extends LlmBackend` is an optional capability
+  interface, like `ToolCallingBackend` and `HistoryCapableBackend`: implement it and the
+  consumer finds it with `instanceof`, there is no flag to set. It declares
+  `embed(List<String>)` returning `CompletableFuture<List<float[]>>` index-aligned with
+  the input, `getEmbeddingDimensions()`, and `getEmbeddingModelId()` — the model's
+  identity, not the backend's, because two models of equal width are mutually
+  incomparable and a width check alone cannot detect a swap.
+  The batch either completes whole or fails whole; it never yields a short list, a list
+  padded with nulls, or a placeholder vector, so a caller can never store a partially-real
+  batch. `embed` must not block the calling thread and must be safe for concurrent calls
+  (indexing and a user's query can be in flight at once), and it snapshots the caller's
+  list before returning, so a caller may reuse or clear its own list as soon as the call
+  comes back; the caller owns the returned list and arrays outright. It reports every failure by
+  completing the future exceptionally and throws synchronously only for a caller's own
+  mistake — `NullPointerException` for a null argument or element, `IllegalArgumentException`
+  for an empty list. The static `EmbeddingBackend.requireValidBatch(List<String>)` does
+  those checks and returns the snapshot, so a backend calls it first in `embed`.
+  Purely additive: a new interface with three new methods and one static helper, nothing
+  existing changed (the ABI dump diff is seven added lines and no removals), so an already-built `.cgp` keeps
+  loading and running against the refreshed jar. `getEmbeddings(String, String)` stays —
+  the Vector-Search plugin is a live caller. Floor `plugin.min_ide_version` at `26.40` if
+  you implement or consume `EmbeddingBackend`; an older IDE has no such type, and a
+  consumer's `instanceof` against it there fails to resolve the class.
+- **added — `SnippetContribution.language` accepts `kotlin`** _(ADFA-6189)_
+  The host keys Kotlin snippets under `kt`, so a contribution declaring `kotlin` registered
+  under a language nothing looks up and never appeared in a `.kt` file. The id is now
+  lower-cased and `kotlin` is aliased to `kt`; `java`, `kt` and `xml` are unchanged.
+  Accepted ids are `java`, `kt` (or `kotlin`) and `xml` — anything else registers but is
+  never queried.
+
+### 26.37 — 2026-09-08
 - **added — Build provenance in every `.cgp`** _(ADFA-5394)_ **[verified]**
   A plugin artifact now records the commit it was built from, so a crash report or a
   support question can be traced back to source. Nothing in the pipeline carried a git
@@ -90,6 +350,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   either state. Neither can be applied by the IDE
   on a plugin's behalf: `Window` has no theme attribute for its type, and a toast is
   posted by the system against whatever context built it.
+
+### 26.36 — 2026-09-01
 - **added — File-targeted editor save** _(ADFA-5259)_
   Save a named file's open buffer and find out whether the bytes actually landed.
   `saveCurrentFile` follows whichever tab the user has focused and returns as soon
@@ -375,3 +637,6 @@ Map any commit to the release that first shipped it:
 ```bash
 git tag --list --contains <sha> | grep -E '^[0-9]{2}\.[0-9]{2}$' | sort -V | head -1
 ```
+
+When a release is tagged, replace its bucket's `unreleased` with the tag date and move
+any entry the tag does not contain up to the next bucket.

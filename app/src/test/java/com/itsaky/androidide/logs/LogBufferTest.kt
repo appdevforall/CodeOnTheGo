@@ -119,4 +119,38 @@ class LogBufferTest {
 		buffer.clear()
 		assertTrue(buffer.isEmpty)
 	}
+
+	@Test
+	fun `tail keeps the newest matching entries oldest first`() {
+		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
+		buffer.append(ILogger.Level.ERROR, "e1\n")
+		buffer.append(ILogger.Level.DEBUG, "d1\n")
+		buffer.append(ILogger.Level.ERROR, "e2\n")
+		buffer.append(ILogger.Level.ERROR, "e3\n")
+
+		val (tail, truncated) =
+			buffer.tailFiltered(LogFilter(enabledLevels = setOf(ILogger.Level.ERROR)), maxEntries = 2)
+		assertEquals(listOf("e2\n", "e3\n"), tail.map { it.text })
+		assertTrue(truncated)
+	}
+
+	@Test
+	fun `tail is not truncated when every match fits`() {
+		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
+		buffer.append(ILogger.Level.ERROR, "e1\n")
+		buffer.append(ILogger.Level.DEBUG, "d1\n")
+
+		val (tail, truncated) =
+			buffer.tailFiltered(LogFilter(enabledLevels = setOf(ILogger.Level.ERROR)), maxEntries = 1)
+		assertEquals(listOf("e1\n"), tail.map { it.text })
+		assertFalse(truncated)
+	}
+
+	@Test
+	fun `tail of an empty buffer is empty`() {
+		val buffer = LogBuffer(trimOnEntryCount = 10, maxEntryCount = 5)
+		val (tail, truncated) = buffer.tailFiltered(LogFilter.NONE, maxEntries = 3)
+		assertTrue(tail.isEmpty())
+		assertFalse(truncated)
+	}
 }

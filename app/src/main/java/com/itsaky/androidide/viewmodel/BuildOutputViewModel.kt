@@ -168,31 +168,6 @@ class BuildOutputViewModel(
 	suspend fun append(text: String) = appendForSession(text, sessionGeneration)
 
 	/**
-	 * The current session's token. Producers capture this before queueing output so a batch
-	 * that outlives its build can be discarded rather than written into the next one.
-	 */
-	val currentSessionToken: Int
-		get() = lock.withLock { sessionGeneration }
-
-	/** True while [token] is still the session [clear] has not superseded. */
-	fun isCurrentSession(token: Int): Boolean = lock.withLock { token == sessionGeneration }
-
-	/**
-	 * Appends [text] if [sessionToken] is still current, reporting whether it was written.
-	 *
-	 * The boolean is what lets a caller stop feeding a buffer whose build has ended; the
-	 * generation check itself still happens inside the lock, in [appendForSession].
-	 */
-	suspend fun append(
-		text: String,
-		sessionToken: Int,
-	): Boolean {
-		if (text.isEmpty()) return false
-		appendForSession(text, sessionToken)
-		return isCurrentSession(sessionToken)
-	}
-
-	/**
 	 * Appends [text] only while [generation] is still the current session.
 	 *
 	 * The check lives inside the lock, with the write: checked outside, a batch that had already
@@ -293,27 +268,6 @@ class BuildOutputViewModel(
 	}
 
 	companion object {
-		/**
-		 * The editor never holds more than this many characters of build output; it mirrors
-		 * [WINDOW_SIZE_CHARS] so the on-screen window and the snapshot cap stay in lockstep.
-		 */
-		internal const val EDITOR_WINDOW_MAX_CHARS = WINDOW_SIZE_CHARS
-
-		private const val EDITOR_WINDOW_REFRESH_CHARS = 128 * 1024
-
-		private const val EDITOR_WINDOW_REFRESH_BASE_CHARS =
-			EDITOR_WINDOW_MAX_CHARS - EDITOR_WINDOW_REFRESH_CHARS
-
-		/** True when appending [incomingChars] to [currentChars] would overrun the editor window. */
-		internal fun wouldExceedEditorWindow(
-			currentChars: Int,
-			incomingChars: Int,
-		): Boolean = currentChars > EDITOR_WINDOW_MAX_CHARS - incomingChars
-
-		/** Characters the editor keeps after a refresh trims it back from the window maximum. */
-		internal fun editorSourceCharsAfterRefresh(windowChars: Int): Int =
-			windowChars.coerceAtMost(EDITOR_WINDOW_REFRESH_BASE_CHARS)
-
 		// Must mirror formatLinePrefix exactly; the round-trip is covered by BuildOutputFilterTest.
 		// Anchored to line start so timestamp-shaped text inside a message is never stripped.
 		private val PREFIX_REGEX =
@@ -385,17 +339,18 @@ class BuildOutputViewModel(
 		 *
 		 * A tail sliced at a character offset begins part-way through a line, and [PREFIX_REGEX] is
 		 * anchored to the start of one, so that fragment keeps the timestamp every other line has
-		 * stripped. Text short enough to survive whole keeps its real first line; a tail holding no
-		 * newline at all is returned as it is, being better than nothing.
+		 * stripped. Text short enough to survive whole keeps its real first line; a tail with no line
+		 * start inside it (no newline, or only the final one) is returned as it is, being better than
+		 * nothing.
 		 */
 		internal fun tailFromLineStart(
-			text: String,
+			text: CharSequence,
 			maxChars: Int,
 		): String {
-			if (text.length <= maxChars) return text
-			val tail = text.takeLast(maxChars)
+			if (text.length <= maxChars) return text.toString()
+			val tail = text.subSequence(text.length - maxChars, text.length).toString()
 			val newline = tail.indexOf('\n')
-			return if (newline == -1) tail else tail.substring(newline + 1)
+			return if (newline == -1 || newline == tail.lastIndex) tail else tail.substring(newline + 1)
 		}
 
 		/**
@@ -429,6 +384,18 @@ class BuildOutputViewModel(
 		/** Name of the on-disk build output session file, shared with [com.itsaky.androidide.api.BuildOutputProvider]. */
 		internal const val SESSION_FILE_NAME = "build_output_session.txt"
 		private const val WINDOW_SIZE_CHARS = 512 * 1024
+
+		/** Editor length past which the fragment trims back to the [WINDOW_SIZE_CHARS] tail. */
+		internal const val EDITOR_REWINDOW_CHARS = 2 * WINDOW_SIZE_CHARS
+
+		/**
+		 * The last [WINDOW_SIZE_CHARS] of [text], starting at a line boundary, or null while [text]
+		 * is within [EDITOR_REWINDOW_CHARS].
+		 */
+		internal fun editorTail(text: CharSequence): String? {
+			if (text.length <= EDITOR_REWINDOW_CHARS) return null
+			return tailFromLineStart(text, WINDOW_SIZE_CHARS)
+		}
 
 		/** Max length of [cachedContentSnapshot] to bound memory. */
 		private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS

@@ -26,9 +26,9 @@
   <string name="get_started">Vamos começar</string>
   <string name="msg_cannot_perform_fix">Não foi possível realizar a correção rápida</string>
   <string name="msg_performing_actions">Executando ação de código…</string>
-  <string name="msg_api_info_since">Desde a API %d</string>
-  <string name="msg_api_info_removed">Removido na API %d</string>
-  <string name="msg_api_info_deprecated">Obsoleto na API %d</string>
+  <string name="msg_api_info_since">Desde a API %s</string>
+  <string name="msg_api_info_removed">Removido na API %s</string>
+  <string name="msg_api_info_deprecated">Obsoleto na API %s</string>
   <string name="msg_finding_references">Procurando referências…</string>
   <string name="msg_finding_definition">Procurando definição…</string>
   <string name="msg_no_definition">Definição não encontrada</string>
