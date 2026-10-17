@@ -107,6 +107,36 @@ class AndroidIDEInitScriptPluginTest {
 	}
 
 	@Test
+	fun `test an included build's output is relocated too`(
+		@TempDir dir: File,
+	) {
+		val project = File(dir, "composite")
+		File(
+			project,
+			"settings.gradle.kts",
+		).also { it.parentFile.mkdirs() }.writeText("rootProject.name = \"composite\"\nincludeBuild(\"lib\")\n")
+		File(project, "build.gradle.kts").writeText("")
+		val lib = File(project, "lib").apply { mkdirs() }
+		File(lib, "settings.gradle.kts").writeText("rootProject.name = \"lib\"\n")
+		File(lib, "build.gradle.kts").writeText("")
+		val output = File(dir, "output")
+
+		val result =
+			buildProject(
+				task = ":lib:help",
+				projectDir = project.toPath(),
+				configureArgs = {
+					it += "-P${GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR}=${output.absolutePath}"
+					it += "--info"
+				},
+			)
+
+		// An included build gets no project properties of its own, so it reads the root build's.
+		val expected = BuildOutputRedirect.buildDirFor(output, true, lib.canonicalFile, ":")
+		assertThat(result.output).contains("Build directory of project ':' relocated to $expected")
+	}
+
+	@Test
 	fun `test build output stays put by default`() {
 		val result = buildProject(configureArgs = { it += "--info" })
 

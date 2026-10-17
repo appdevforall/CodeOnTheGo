@@ -20,11 +20,10 @@ data class TemplateMetadata(
  * template ID: [com.itsaky.androidide.templates.Template.templateId] is a random UUID
  * regenerated on every reload). Matches the convention used by
  * `IdeTemplateServiceImpl`/`PluginProjectManager` when they write into `Environment.TEMPLATES_DIR`.
+ * The IDE's bundled `core.cgt` has no case here - it's excluded from the Templates tab entirely
+ * (see [com.itsaky.androidide.repositories.TemplateRepositoryImpl]).
  */
 enum class TemplateProvenance {
-	/** The IDE's bundled `core.cgt`. */
-	BUNDLED,
-
 	/** Registered by a plugin (`plugin_<pluginId>_*.cgt`). */
 	PLUGIN,
 
