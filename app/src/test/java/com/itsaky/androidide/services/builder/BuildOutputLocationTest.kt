@@ -157,6 +157,22 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
+	fun `deleting a project's tree never follows a symlink out of it`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val project = tmp.newFolder("projects", "app")
+		val tree = treeOf(noBackup, project)
+		val elsewhere = tmp.newFolder("elsewhere")
+		val precious = File(elsewhere, "precious.txt").apply { writeText("keep me") }
+		// A build can leave a link in its output, such as one a custom task makes.
+		Files.createSymbolicLink(File(tree, "main/app-1234/outputs/link").toPath(), elsewhere.toPath())
+
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, project)).isEqualTo(1)
+
+		assertThat(tree.exists()).isFalse()
+		assertThat(precious.readText()).isEqualTo("keep me")
+	}
+
+	@Test
 	fun `a tree recorded under another spelling of the project path is still found`() {
 		val noBackup = tmp.newFolder("no_backup")
 		val app = tmp.newFolder("storage", "app")

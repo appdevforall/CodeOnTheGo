@@ -166,12 +166,13 @@ object BuildOutputLocation {
 
 	/**
 	 * Deletes [tree] with its marker last: a deletion that stops part-way keeps the marker, so the
-	 * next sweep can still tell whose tree it is and finish the job.
+	 * next sweep can still tell whose tree it is and finish the job. A build can leave symlinks in its
+	 * output, so the deletion never follows one out of the tree.
 	 */
 	private fun deleteTree(tree: File): Boolean {
 		val marker = File(tree, PROJECT_PATH_FILE)
 		val contents = tree.listFiles() ?: return false
-		val deleted = contents.filter { it != marker }.map { it.deleteRecursively() }.all { it }
+		val deleted = contents.filter { it != marker }.map { deleteWithoutFollowingLinks(it) }.all { it }
 		return deleted && (!marker.exists() || marker.delete()) && tree.delete()
 	}
 

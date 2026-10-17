@@ -80,7 +80,7 @@ class OldBuildOutputTest {
 		val precious = File(elsewhere, "precious.txt").apply { writeText("keep me") }
 		Files.createSymbolicLink(File(build, "link").toPath(), elsewhere.toPath())
 
-		assertThat(OldBuildOutput.deleteWithoutFollowingLinks(build)).isTrue()
+		assertThat(deleteWithoutFollowingLinks(build)).isTrue()
 
 		assertThat(build.exists()).isFalse()
 		assertThat(precious.readText()).isEqualTo("keep me")
