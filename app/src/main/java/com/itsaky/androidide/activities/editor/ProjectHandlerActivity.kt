@@ -102,6 +102,7 @@ import com.itsaky.androidide.search.replace.SkipReason
 import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
+import com.itsaky.androidide.services.builder.OldBuildOutput
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.BuildId
@@ -1264,6 +1265,35 @@ abstract class ProjectHandlerActivity :
 	}
 
 	/**
+	 * ADFA-4930: once a project's model builds into app storage, the output its folder still holds is
+	 * stale and takes space, so remove it, once ([OldBuildOutput]). Not while a Quick Build session is
+	 * live: it may still use the old model's build directory, and the next initialization will do it.
+	 */
+	private fun removeOldBuildOutput() {
+		activityScope.launch {
+			val manager = ProjectManagerImpl.getInstance()
+			val projectDir = manager.projectDirPath.takeIf { it.isNotBlank() }?.let(::File) ?: return@launch
+			val workspace = manager.workspace ?: return@launch
+			if (BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir, workspace) != true) return@launch
+			if (isQuickBuildSessionLive()) return@launch
+			val projects = listOf(workspace.rootProject) + workspace.subProjects
+			val removed =
+				withContext(Dispatchers.IO) {
+					OldBuildOutput.removeOnce(
+						tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir),
+						rootDir = workspace.rootProject.projectDir,
+						projectDirs = projects.map { it.projectDir },
+						buildDirs = projects.map { it.buildDir },
+					)
+				}
+			if (removed > 0) {
+				log.info("Removed {} old build output folder(s) from {}", removed, projectDir)
+				withContext(Dispatchers.Main) { flashInfoLong(getString(string.msg_old_build_output_removed)) }
+			}
+		}
+	}
+
+	/**
 	 * Forgets the offer, so a sync that fails leaves it to be made again on the next resume. While a
 	 * build holds the Gradle slot (Quick Build's prebuild starts soon after a project opens), a sync
 	 * would be refused and drop the loaded model, so the offer is made again when the build ends.
@@ -1828,6 +1858,7 @@ abstract class ProjectHandlerActivity :
 		invalidateOptionsMenu()
 
 		reconcileBuildOutputSyncOffer(afterInit = true)
+		removeOldBuildOutput()
 
 		// ADFA-4128 benchmark: if the bench trampoline armed an autostart for THIS project,
 		// claim it now - the adb-driven stand-in for the human's tap. Claimed BEFORE prebuild

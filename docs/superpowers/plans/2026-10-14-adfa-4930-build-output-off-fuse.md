@@ -68,7 +68,7 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
 - **Project deleted in the IDE**: both deletion paths (Recents and the Delete projects screen) go through `RecentProjectsViewModel`, which deletes the project's trees too. Trees are matched by their `project-path` marker, not by key: deletion uses the canonical path and builds use `projectDirPath`, so a symlinked spelling would key differently.
 - **Orphans** (project moved, renamed or deleted outside the IDE): at startup, off the main thread, remove trees whose project no longer exists. A project counts as gone when its parent folder exists, or, with the parent deleted too, when the nearest folder that exists is a readable folder on a volume under `/storage`. A volume that is not mounted leaves only `/storage` itself, so it doesn't count. Trees without a marker are left alone. Unlike `QuickBuildScratch.sweep`, which clears every tree, this keeps the output of live projects.
-- **Existing `build/` folders in projects**: leave them. They go stale but do no harm. A later "free space" action can offer to remove them.
+- **Existing `build/` folders in projects**: removed once, after the project's first relocated initialization (`OldBuildOutput`): each Gradle project's `build/`, and `.gradle/` and `.kotlin/` at the root and in `buildSrc` (not `buildSrc/.gradle/`, which builds still use). A stale APK where a file manager finds it misleads, and the copy doubles the space a project takes. Symlinks are never followed, a `build` folder that is or holds a module stays, and so does anything outside the project folder. The user is told once.
 - **Storage**: output now counts as app data in Settings, and "Clear storage" removes it (the next build is a full one). Uninstalling removes it as well; sources are unaffected.
 
 ### What users will notice
@@ -112,6 +112,13 @@ Feature: Build output in app storage
     Then the editor asks for a sync
     And a build before the sync still writes to the project's "build" folder
     And after the sync, builds write to app storage
+
+  Scenario: An existing project's old output is removed after it moves
+    Given a project last built by a version without relocation, with "app/build" in its folder
+    When I open it and accept the sync
+    Then "build", "app/build", ".gradle" and ".kotlin" are gone from the project folder
+    And I am told the old build output was removed
+    And a later sync removes nothing, and says nothing
 
   Scenario: Quick Build still works
     Given an open project that has been built once

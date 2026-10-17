@@ -123,6 +123,7 @@
 	<string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
 	<string name="msg_sync_build_output_relocate">Sync to move build output to faster storage.</string>
 	<string name="msg_sync_build_output_deferred">A build is running. You\'ll be asked to sync again when it finishes.</string>
+	<string name="msg_old_build_output_removed">Old build output was removed from the project folder. Export gets your latest build.</string>
 	<string name="msg_sync_after_build">A build is running. Sync once it finishes.</string>
 	<string name="preparing">Preparing</string>
 	<string name="preparing_first">Initializing a project may take a few moments.</string>

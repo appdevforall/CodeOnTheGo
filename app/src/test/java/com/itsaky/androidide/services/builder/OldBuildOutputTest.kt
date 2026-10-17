@@ -1,0 +1,107 @@
+package com.itsaky.androidide.services.builder
+
+import com.google.common.truth.Truth.assertThat
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+import java.nio.file.Files
+
+class OldBuildOutputTest {
+	@get:Rule
+	val tmp = TemporaryFolder()
+
+	private fun dirs(
+		root: File,
+		vararg paths: String,
+	): List<File> = paths.map { File(root, it).apply { mkdirs() } }
+
+	@Test
+	fun `finds each project's build folder and the root's and buildSrc's caches`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		dirs(root, "build", "app/build", ".gradle", ".kotlin", "buildSrc/build", "buildSrc/.kotlin", "buildSrc/.gradle", ".cxx")
+
+		val found = OldBuildOutput.find(root, listOf(root, File(root, "app")), listOf(File(tree, "root"), File(tree, "app")))
+
+		assertThat(found.map { it.relativeTo(root).path }).containsExactly(
+			"build",
+			"app/build",
+			".gradle",
+			".kotlin",
+			"buildSrc/build",
+			"buildSrc/.kotlin",
+		)
+	}
+
+	@Test
+	fun `a module called build is not build output`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		val module = dirs(root, "build/src").first().parentFile
+
+		val found = OldBuildOutput.find(root, listOf(root, module), listOf(File(tree, "root"), File(tree, "build")))
+
+		assertThat(found).isEmpty()
+	}
+
+	@Test
+	fun `a build folder the model still builds into is kept`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		dirs(root, "build/custom", "app/build")
+
+		// The root project set its own build directory, overriding the relocation.
+		val found = OldBuildOutput.find(root, listOf(root, File(root, "app")), listOf(File(root, "build/custom"), File(tree, "app")))
+
+		assertThat(found.map { it.relativeTo(root).path }).containsExactly("app/build")
+	}
+
+	@Test
+	fun `folders outside the project and symlinked folders are kept`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		val outside = tmp.newFolder("shared", "lib")
+		File(outside, "build").mkdirs()
+		val elsewhere = tmp.newFolder("elsewhere")
+		Files.createSymbolicLink(File(root, "build").toPath(), elsewhere.toPath())
+
+		val found = OldBuildOutput.find(root, listOf(root, outside), listOf(File(tree, "root"), File(tree, "lib")))
+
+		assertThat(found).isEmpty()
+	}
+
+	@Test
+	fun `deleting never follows a symlink out of the folder`() {
+		val build = tmp.newFolder("project", "build")
+		File(build, "outputs/apk").mkdirs()
+		File(build, "outputs/apk/app-debug.apk").writeText("apk")
+		val elsewhere = tmp.newFolder("elsewhere")
+		val precious = File(elsewhere, "precious.txt").apply { writeText("keep me") }
+		Files.createSymbolicLink(File(build, "link").toPath(), elsewhere.toPath())
+
+		assertThat(OldBuildOutput.deleteWithoutFollowingLinks(build)).isTrue()
+
+		assertThat(build.exists()).isFalse()
+		assertThat(precious.readText()).isEqualTo("keep me")
+	}
+
+	@Test
+	fun `old output is removed once`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		dirs(root, "app/build/outputs", ".gradle")
+		val projects = listOf(root, File(root, "app"))
+		val buildDirs = listOf(File(tree, "root"), File(tree, "app"))
+
+		assertThat(OldBuildOutput.removeOnce(tree, root, projects, buildDirs)).isEqualTo(2)
+		assertThat(File(root, "app/build").exists()).isFalse()
+		assertThat(File(root, ".gradle").exists()).isFalse()
+		assertThat(File(root, "app").isDirectory).isTrue()
+
+		// A later build from the terminal writes here again; that output is the user's to keep.
+		dirs(root, "app/build")
+		assertThat(OldBuildOutput.removeOnce(tree, root, projects, buildDirs)).isEqualTo(0)
+		assertThat(File(root, "app/build").isDirectory).isTrue()
+	}
+}
