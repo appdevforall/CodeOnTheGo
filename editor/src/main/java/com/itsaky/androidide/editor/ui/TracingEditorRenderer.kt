@@ -32,6 +32,7 @@ import io.github.rosemoe.sora.util.LongArrayList
 import io.github.rosemoe.sora.util.MutableInt
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorRenderer
+import io.github.rosemoe.sora.widget.layout.WordwrapLayout
 import org.slf4j.LoggerFactory
 
 /**
@@ -49,8 +50,33 @@ open class TracingEditorRenderer(
 
 	override fun draw(canvas: Canvas) =
 		trace("draw") {
-			super.draw(canvas)
+			if (hasStaleWordwrapRows()) {
+				// Drawing would throw mid-frame (sora indexes the line's width cache past its end) and
+				// leak the span reader's line lock, so skip the frame instead. The stale rows persist
+				// until the next layout, so rebuild it.
+				(editor as? IDEEditor)?.rebuildLayout()
+				log.warn("Skipped a frame: word-wrap row table is stale")
+			} else {
+				super.draw(canvas)
+			}
 		}
+
+	/**
+	 * sora 0.23.6 WordwrapLayout race (Rosemoe/sora-editor#666): an async re-break can replace the row
+	 * table with rows computed from text that has since shrunk. Only the visible rows are drawn, so
+	 * only they need checking.
+	 */
+	private fun hasStaleWordwrapRows(): Boolean {
+		val layout = editor.layout as? WordwrapLayout ?: return false
+		val text = editor.text
+		for (i in editor.firstVisibleRow..editor.lastVisibleRow) {
+			val row = layout.getRowAt(i)
+			if (row.lineIndex >= text.lineCount || row.endColumn > text.getColumnCount(row.lineIndex)) {
+				return true
+			}
+		}
+		return false
+	}
 
 	@RequiresApi(Build.VERSION_CODES.Q)
 	override fun updateLineDisplayList(
@@ -198,22 +224,14 @@ open class TracingEditorRenderer(
 		postDrawCurrentLines: MutableIntList?,
 		requiredFirstLn: MutableInt?,
 	) = trace("drawRows") {
-		try {
-			super.drawRows(
-				canvas,
-				offset,
-				postDrawLineNumbers,
-				postDrawCursor,
-				postDrawCurrentLines,
-				requiredFirstLn,
-			)
-		} catch (e: IndexOutOfBoundsException) {
-			// sora 0.23.6 WordwrapLayout race (Rosemoe/sora-editor#666): an async re-break can replace
-			// the row table with rows computed from text that has since shrunk, so a row starts past
-			// the end of its line. The stale rows persist until the next layout, so rebuild it.
-			(editor as? IDEEditor)?.rebuildLayout()
-			log.warn("Skipped drawing rows: word-wrap row table is stale", e)
-		}
+		super.drawRows(
+			canvas,
+			offset,
+			postDrawLineNumbers,
+			postDrawCursor,
+			postDrawCurrentLines,
+			requiredFirstLn,
+		)
 	}
 
 	override fun drawDiagnosticIndicators(

@@ -1011,12 +1011,13 @@ open class IDEEditor
 		private var layoutRebuildPending = false
 
 		/** Rebuilds the text layout on the next main-loop turn, coalescing repeat requests from
-		 * consecutive failed frames. See [TracingEditorRenderer.drawRows]. */
+		 * consecutive skipped frames. See [TracingEditorRenderer.draw]. */
 		internal fun rebuildLayout() {
 			if (layoutRebuildPending) return
 			layoutRebuildPending = true
 			post {
 				layoutRebuildPending = false
+				if (isReleased) return@post
 				createLayout()
 				invalidate()
 			}
