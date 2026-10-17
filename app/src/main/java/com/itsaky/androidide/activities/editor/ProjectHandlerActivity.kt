@@ -187,8 +187,8 @@ abstract class ProjectHandlerActivity :
 	private val replaceCoordinator by lazy { ReplaceCoordinator(editorFor = { file -> getEditorForFile(file)?.editor }) }
 	protected var syncNotificationFlashbar: Flashbar? = null
 
-	/** The relocation request the sync banner last offered, so Ignore holds until it changes. */
-	private var buildOutputSyncOffered: Boolean? = null
+	/** Whether the relocation banner made its offer, so Not now holds for this screen. */
+	private var buildOutputSyncOffered = false
 
 	/** The banner that offer showed, so withdrawing it never dismisses another one. */
 	private var buildOutputSyncBanner: Flashbar? = null
@@ -1225,9 +1225,9 @@ abstract class ProjectHandlerActivity :
 	}
 
 	/**
-	 * ADFA-4930: a changed "Relocate build output" only moves the build output at the next sync, so
-	 * offer one, once per change, and withdraw the offer once the synced model agrees with the switch
-	 * again. Turning relocation on by default makes this the first thing an existing project shows.
+	 * ADFA-4930: an existing project's cached model builds into the project folder until its next
+	 * sync, and opening it does not sync, so offer one, once, and withdraw the offer once the synced
+	 * model is relocated. This is the first thing an existing project shows after the update.
 	 *
 	 * @param afterInit whether a project initialization just finished. It applied any Gradle file
 	 *   changes too, so the banner can go even when it also stands for those.
@@ -1236,20 +1236,8 @@ abstract class ProjectHandlerActivity :
 		activityScope.launch {
 			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
 			val projectDir = File(path)
-			val requested = BuildOutputLocation.isRequested()
 			val modelRelocated = BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir)
-			if (BuildOutputLocation.shouldDeleteTrees(afterInit, modelRelocated, isQuickBuildSessionLive())) {
-				// Never the tree the loaded model builds into, however its path is spelled.
-				val keep =
-					ProjectManagerImpl
-						.getInstance()
-						.workspace
-						?.rootProject
-						?.buildDir
-				val removed = withContext(Dispatchers.IO) { BuildOutputLocation.removeTreesOf(noBackupFilesDir, projectDir, keep) }
-				if (removed > 0) log.info("Deleted {} unused build output tree(s) of {}", removed, projectDir)
-			}
-			val pending = BuildOutputLocation.syncPending(modelRelocated, requested)
+			val pending = BuildOutputLocation.syncPending(modelRelocated)
 			withContext(Dispatchers.Main) {
 				if (!pending) {
 					val banner = buildOutputSyncBanner
@@ -1257,18 +1245,18 @@ abstract class ProjectHandlerActivity :
 						banner.dismiss()
 					}
 					buildOutputSyncBanner = null
-					buildOutputSyncOffered = null
+					buildOutputSyncOffered = false
 				} else if (
-					buildOutputSyncOffered != requested &&
+					!buildOutputSyncOffered &&
 					notifySyncNeeded(
 						onConfirm = ::syncForBuildOutput,
-						// Short, with a short dismiss label: this banner greets every existing project
-						// once relocation is on by default, and has to keep its Sync button at 2x font scale.
-						message = if (requested) string.msg_sync_build_output_relocate else string.msg_sync_build_output_restore,
+						// Short, with a short dismiss label: this banner greets every existing project, and
+						// has to keep its Sync button at 2x font scale.
+						message = string.msg_sync_build_output_relocate,
 						dismissText = string.btn_not_now,
 					)
 				) {
-					buildOutputSyncOffered = requested
+					buildOutputSyncOffered = true
 					buildOutputSyncBanner = syncNotificationFlashbar
 				}
 			}
@@ -1281,7 +1269,7 @@ abstract class ProjectHandlerActivity :
 	 * would be refused and drop the loaded model, so the offer is made again when the build ends.
 	 */
 	private fun syncForBuildOutput() {
-		buildOutputSyncOffered = null
+		buildOutputSyncOffered = false
 		buildOutputSyncBanner = null
 		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		if (service?.isBuildInProgress == true) {

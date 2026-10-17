@@ -132,16 +132,14 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `a sync is pending exactly when the request differs from the synced model`() {
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = false, requested = false)).isFalse()
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = false, requested = true)).isTrue()
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = true, requested = true)).isFalse()
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = true, requested = false)).isTrue()
+	fun `a sync is pending exactly when the synced model builds into the project folder`() {
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = false)).isTrue()
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = true)).isFalse()
 	}
 
 	@Test
 	fun `nothing is pending before a model is loaded`() {
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = null, requested = true)).isFalse()
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = null)).isFalse()
 	}
 
 	@Test
@@ -263,32 +261,6 @@ class BuildOutputLocationTest {
 
 		assertThat(BuildOutputLocation.treeFor(noBackup, File(link.toFile(), "app")))
 			.isEqualTo(BuildOutputLocation.treeFor(noBackup, app))
-	}
-
-	@Test
-	fun `the tree the loaded model builds into is never deleted`() {
-		val noBackup = tmp.newFolder("no_backup")
-		val project = tmp.newFolder("projects", "app")
-		val tree = treeOf(noBackup, project)
-
-		assertThat(BuildOutputLocation.removeTreesOf(noBackup, project, keep = File(tree, "main/root-5678"))).isEqualTo(0)
-		assertThat(tree.isDirectory).isTrue()
-
-		assertThat(BuildOutputLocation.removeTreesOf(noBackup, project, keep = File(project, "build"))).isEqualTo(1)
-		assertThat(tree.exists()).isFalse()
-	}
-
-	@Test
-	fun `trees are deleted only after an initialization whose model builds into the project folder`() {
-		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = false, quickBuildLive = false)).isTrue()
-		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = false, modelRelocated = false, quickBuildLive = false)).isFalse()
-		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = true, quickBuildLive = false)).isFalse()
-		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = null, quickBuildLive = false)).isFalse()
-	}
-
-	@Test
-	fun `a live Quick Build session keeps the tree it still uses`() {
-		assertThat(BuildOutputLocation.shouldDeleteTrees(afterInit = true, modelRelocated = false, quickBuildLive = true)).isFalse()
 	}
 
 	@Test

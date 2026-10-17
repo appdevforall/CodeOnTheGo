@@ -49,7 +49,7 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
    Sync (`RootModelBuilder.kt:207`) and builds (`ToolingApiServerImpl.kt:313`) both take their arguments from `prepareBuild`, so this one change covers both. `prepareBuild` already reads the project path (`GradleBuildService.kt:552`).
 2. **Gradle side.** `AndroidIDEInitScriptPlugin.apply` (`gradle-plugin`) reads the property from `gradle.startParameter.projectProperties` and, in `beforeProject`, sets `project.layout.buildDirectory`. This runs before any build script, so AGP, Kotlin and Quick Build's plugin all see the new location. The prototype init script did exactly this (`gradle.allprojects { p -> p.layout.buildDirectory.set(...) }`), with 33 builds and no output under the project.
-3. **Flag.** A `BuildPreferences` switch, default off, shown only with experiments enabled (`FeatureFlags.isExperimentsEnabled`, REVIEW.md section 12) until validation passes.
+3. **Flag.** A `BuildPreferences` switch, default off, shown only with experiments enabled (`FeatureFlags.isExperimentsEnabled`, REVIEW.md section 12) until validation passes. Removed after review: every sync relocates.
 4. **Sync applies it.** A sync reads the switch; the model it produces is the record. A build relocates exactly when the model's root build directory is in the tree, so its output is always where the model (APK listing file, classpath) looks, and a failed sync changes neither. When the switch and the model disagree, the editor offers a sync after the project initializes and on resume, once per change, and withdraws the offer when they agree again.
 
 ### What reads build output
@@ -88,6 +88,7 @@ Each PR compiles and passes tests on its own; the flag stays off until PR 4.
 3. **Lifecycle and UX.** Delete-with-project, the orphan sweep, Export APK, strings. About 6 files.
 4. **Default on.** Flip the flag after validation. Update `ARCHITECTURE.md` (storage layout) and any user docs.
    Validation (2026-10-15/16, posted on ADFA-4930): warm edit builds 48% faster on a 288-source project (Pixel 6 Pro); on an itel A667L, clean builds about 50% faster and small edits unchanged. PR 4 also drops the experiments gate, so the switch and Export APK show for everyone, and gives the sync banner its own wording for a relocation change.
+   After review (Hal Eisen on #2155) the switch is gone: every sync relocates, and the banner only offers an existing project's first relocating sync.
 
 ## Validation before default-on
 
@@ -99,18 +100,15 @@ Each PR compiles and passes tests on its own; the flag stays off until PR 4.
 ```gherkin
 Feature: Build output in app storage
 
-  Background:
-    Given build output relocation is enabled in Build preferences
-
   Scenario: A project builds and runs with output in app storage
     Given a new Empty Activity project in CodeOnTheGoProjects
     When I build and run it
     Then the app installs and launches
     And the project folder contains no "build" or ".gradle" folder
 
-  Scenario: Changing the switch waits for a sync
-    Given an open project that was synced with relocation off
-    When I turn relocation on in Build preferences and return to the editor
+  Scenario: An existing project moves its output at its next sync
+    Given a project last synced by a version without relocation
+    When I open it
     Then the editor asks for a sync
     And a build before the sync still writes to the project's "build" folder
     And after the sync, builds write to app storage

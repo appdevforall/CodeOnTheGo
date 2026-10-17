@@ -1,6 +1,5 @@
 package com.itsaky.androidide.services.builder
 
-import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.buildDir
@@ -22,11 +21,10 @@ import java.io.IOException
  * keyed by the same function, from the project's canonical path. App-private f2fs makes warm builds
  * up to about twice as fast on the devices measured.
  *
- * The synced project model is the record of where output goes. A sync applies the user's choice;
- * a build follows the model's root build directory ([modelRelocated]), not the live switch, so it
- * writes where the model (APK listing file, classpath) looks, and a sync that fails leaves both
- * as they were. A change to the switch therefore waits for the next successful sync
- * ([syncPending]).
+ * The synced project model is the record of where output goes. Every sync relocates; a build
+ * follows the model's root build directory ([modelRelocated]), so it writes where the model (APK
+ * listing file, classpath) looks, and a sync that fails leaves both as they were. An existing
+ * project's cached model builds into the project folder until its next sync ([syncPending]).
  */
 object BuildOutputLocation {
 	/** Parent of every project's tree, under `noBackupFilesDir`. */
@@ -42,9 +40,6 @@ object BuildOutputLocation {
 
 	/** Where Android mounts storage volumes: internal storage, and each SD card or USB drive. */
 	private val STORAGE_ROOT = File("/storage")
-
-	/** Whether the user currently asks for relocation; applied at the next sync. */
-	fun isRequested(): Boolean = BuildPreferences.relocateBuildOutput
 
 	/**
 	 * @param noBackupDir the app's `noBackupFilesDir`.
@@ -113,19 +108,14 @@ object BuildOutputLocation {
 	 * key, so a path spelled differently (`/sdcard` against `/storage/emulated/0`) still matches.
 	 * Call it when the user deletes the project.
 	 *
-	 * @param keep a directory whose tree must survive, such as the loaded model's build directory.
 	 * @return how many trees were deleted.
 	 */
 	fun removeTreesOf(
 		noBackupDir: File,
 		projectDir: File,
-		keep: File? = null,
 	): Int {
 		val location = projectDir.canonicalProjectLocation()
-		val kept = keep?.absoluteFile?.normalize()
-		return deleteTreesWhere(noBackupDir) { tree, project ->
-			project.canonicalProjectLocation() == location && (kept == null || !kept.startsWith(tree.absoluteFile.normalize()))
-		}
+		return deleteTreesWhere(noBackupDir) { _, project -> project.canonicalProjectLocation() == location }
 	}
 
 	/**
@@ -198,22 +188,6 @@ object BuildOutputLocation {
 		}
 
 	/**
-	 * Whether a successful initialization should delete the project's relocated output: its model
-	 * builds into the project folder, so the tree is dead weight. Not while a Quick Build session is
-	 * live, which keeps absolute paths into the tree (the proxy APK, its classes and payload) until
-	 * it ends; the next project open deletes it instead.
-	 *
-	 * @param afterInit an initialization, with or without a sync, just succeeded.
-	 * @param modelRelocated [modelRelocated] for the loaded model.
-	 * @param quickBuildLive a Quick Build session is live.
-	 */
-	fun shouldDeleteTrees(
-		afterInit: Boolean,
-		modelRelocated: Boolean?,
-		quickBuildLive: Boolean,
-	): Boolean = afterInit && modelRelocated == false && !quickBuildLive
-
-	/**
 	 * Offers a relocation sync the user deferred, once no build holds the Gradle slot. Waits on the
 	 * slot itself: a finished build's listener can run before the build frees the slot, so a check
 	 * made when the build flags drop can still find it busy, and nothing would check again.
@@ -257,13 +231,10 @@ object BuildOutputLocation {
 	): Boolean? = workspace?.let { isRelocated(it.rootProject.buildDir, treeFor(noBackupDir, projectDir)) }
 
 	/**
-	 * Whether the switch disagrees with the synced model, so the next
-	 * sync would move the build output. False without a model: there is nothing to disagree with.
+	 * Whether the synced model still builds into the project folder, so the next sync would move the
+	 * build output. False without a model: there is nothing to move yet.
 	 *
 	 * @param modelRelocated [modelRelocated] for the open project.
 	 */
-	fun syncPending(
-		modelRelocated: Boolean?,
-		requested: Boolean = isRequested(),
-	): Boolean = modelRelocated != null && modelRelocated != requested
+	fun syncPending(modelRelocated: Boolean?): Boolean = modelRelocated == false
 }

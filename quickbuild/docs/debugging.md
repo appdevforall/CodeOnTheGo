@@ -185,7 +185,7 @@ to CoGo.
 | `no_backup/quickbuild-scratch/<name>-<16 hex>/out` | daemon output: classes, dex, relinked resources | as above |
 | `<project>/.androidide/quickbuild/generation` | the generation counter | plain `adb shell cat` |
 | `<project>/<module>/build/quickbuild/<variant>/setup.json` | the proxy app build's handshake with CoGo | plain `adb shell cat` |
-| `no_backup/gradle-build/<name>-<16 hex>/main/<module>-<16 hex>/quickbuild/<variant>/setup.json` | the same, when "Relocate build output" is on (ADFA-4930) | `run-as com.itsaky.androidide` |
+| `no_backup/gradle-build/<name>-<16 hex>/main/<module>-<16 hex>/quickbuild/<variant>/setup.json` | the same, once the project has synced since ADFA-4930 | `run-as com.itsaky.androidide` |
 | `/data/data/<user applicationId>/files/quickbuild/payload/` | persisted payload: `payload.dex`, `resources.arsc`, `assets.zip`, `meta.json` | `run-as <the user's package>` |
 
 Projects live under `/storage/emulated/0/CodeOnTheGoProjects/`.

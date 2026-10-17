@@ -760,8 +760,8 @@ class GradleBuildService :
 
 	/**
 	 * The arguments that move the open project's build output to app-private storage (ADFA-4930),
-	 * or none. A sync applies the user's current choice, keeping output in the project folder when
-	 * the tree cannot be written; the model it produces records the outcome. A build follows that
+	 * or none. Every sync relocates, keeping output in the project folder only when the tree cannot
+	 * be written; the model it produces records the outcome. A build follows that
 	 * model, so it writes where the model (APK listing file, classpath) looks, and never falls back
 	 * to the project folder, which would leave the model pointing at older output. Runs on the
 	 * [prepareBuild] worker, so disk I/O is fine.
@@ -783,7 +783,6 @@ class GradleBuildService :
 			return BuildOutputLocation.gradleArgs(tree)
 		}
 
-		if (!BuildOutputLocation.isRequested()) return emptyList()
 		if (!BuildOutputLocation.prepare(tree, projectDir)) {
 			log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
 			return emptyList()

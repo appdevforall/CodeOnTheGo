@@ -122,7 +122,6 @@
 	<string name="quick_run_debug">Quick run</string>
 	<string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
 	<string name="msg_sync_build_output_relocate">Sync to move build output to faster storage.</string>
-	<string name="msg_sync_build_output_restore">Sync to move build output back to the project folder.</string>
 	<string name="msg_sync_build_output_deferred">A build is running. You\'ll be asked to sync again when it finishes.</string>
 	<string name="msg_sync_after_build">A build is running. Sync once it finishes.</string>
 	<string name="preparing">Preparing</string>
@@ -877,8 +876,6 @@
 	<string name="idepref_launchAppAfterInstall_title">Launch app after installation</string>
 	<string name="idepref_launchAppAfterInstall_summary">If enabled, the IDE will (without confirmation) launch the application right after it is installed.</string>
 	<string name="title_run_options">Run options</string>
-	<string name="idepref_relocateBuildOutput_title">Relocate build output</string>
-	<string name="idepref_relocateBuildOutput_summary">Faster builds: build output goes to Code on the Go\'s private storage, not the project folder. Sync to apply.</string>
 	<string name="err_cannot_determine_package">Cannot run application. Unable to determine package name.</string>
 	<string name="msg_launch_failure_no_app_module">Cannot run application. No application modules found in project.</string>
 	<string name="title_launch_app">Launch app</string>
