@@ -20,6 +20,7 @@ class RangeResponseTest {
 		assertThat(reply.status).isEqualTo(200)
 		assertThat(reply.headers).containsExactly("Accept-Ranges", "bytes")
 		assertThat(reply.streamLength).isEqualTo(content.size)
+		assertThat(reply.sentLength).isEqualTo(content.size)
 	}
 
 	private fun assertPartial(
@@ -33,6 +34,7 @@ class RangeResponseTest {
 		assertThat(reply.reason).isEqualTo("Partial Content")
 		assertThat(reply.headers).containsExactly("Accept-Ranges", "bytes", "Content-Range", "bytes $first-$last/1000")
 		assertThat(delivered(reply, first)).isEqualTo(content.copyOfRange(first, last + 1))
+		assertThat(reply.sentLength).isEqualTo(last - first + 1)
 	}
 
 	@Test

@@ -59,7 +59,7 @@ class DocumentationRequestInterceptor(
 	 */
 	fun intercept(request: WebResourceRequest): WebResourceResponse? =
 		try {
-			contentFor(request)?.let { response(it, rangeHeader(request.requestHeaders)) }
+			replyFor(request)?.let { (content, reply) -> response(content, reply) }
 		} catch (e: Throwable) {
 			// Throwable, not Exception. The documented contract is that anything this returns null for
 			// falls through to the web server, and that only holds for values, not throws: decoding the
@@ -89,17 +89,33 @@ class DocumentationRequestInterceptor(
 		val path = url.encodedPath?.removePrefix("/").orEmpty()
 		if (path.isEmpty() || path.startsWith("pr/")) return null
 
-		val content =
-			when (val lookup = contentSource.lookupRequestPath(path).lookup) {
-				is DocumentationLookup.Found -> lookup.content
-				else -> return null
-			}
+		return when (val lookup = contentSource.lookupRequestPath(path).lookup) {
+			is DocumentationLookup.Found -> lookup.content
+			else -> null
+		}
+	}
+
+	/**
+	 * The content for [request] and how to answer its `Range`, counted in [servedSummary] by what
+	 * the WebView sends: for a 206 that is the range, not the whole row.
+	 *
+	 * @return The content and its [RangeResponse], or `null` when [contentFor] returns `null`.
+	 */
+	internal fun replyFor(request: WebResourceRequest): Pair<DocumentationContent, RangeResponse>? {
+		val content = contentFor(request) ?: return null
+		val range = rangeHeader(request.requestHeaders)
+		val reply = RangeResponse.of(range, content.bytes.size)
 
 		servedRequests.incrementAndGet()
-		servedBytes.addAndGet(content.bytes.size.toLong())
-		if (log.isDebugEnabled) log.debug("Served '{}' in-process, {} bytes.", path, content.bytes.size)
+		servedBytes.addAndGet(reply.sentLength.toLong())
+		if (log.isDebugEnabled) {
+			log.debug("Served '{}' in-process, {} of {} bytes.", request.url.encodedPath, reply.sentLength, content.bytes.size)
+			if (range != null) {
+				log.debug("Answered Range '{}' with {} {}.", range, reply.status, reply.headers["Content-Range"].orEmpty())
+			}
+		}
 
-		return content
+		return content to reply
 	}
 
 	/** What this instance has answered without a socket. */
@@ -117,19 +133,14 @@ class DocumentationRequestInterceptor(
 	 * Creates a WebView resource response from documentation content.
 	 *
 	 * @param content The documentation content to serve.
-	 * @param range The request's `Range` value, or null; see [RangeResponse].
+	 * @param reply The status, headers and stream length for the request's `Range`.
 	 * @return A response containing the content bytes and parsed MIME metadata.
 	 */
 	private fun response(
 		content: DocumentationContent,
-		range: String?,
+		reply: RangeResponse,
 	): WebResourceResponse {
 		val (type, charset) = mimeAndCharset(content.mimeType)
-		val reply = RangeResponse.of(range, content.bytes.size)
-		if (range != null && log.isDebugEnabled) {
-			log.debug("Answered Range '{}' with {} {}.", range, reply.status, reply.headers["Content-Range"].orEmpty())
-		}
-
 		return WebResourceResponse(
 			type,
 			charset,

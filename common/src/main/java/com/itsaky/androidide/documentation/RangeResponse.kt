@@ -20,12 +20,15 @@ import java.util.Locale
  * @property headers The headers to add. Neither `Content-Length` nor `Content-Type` is among them:
  * the WebView sets both, and adds these beside its own rather than in place of them.
  * @property streamLength How many bytes of the content, from its start, the response stream holds.
+ * @property sentLength How many bytes the WebView sends: the range's length for a 206, all of the
+ * content otherwise. (For a range it rejects, it sends none, which this cannot tell.)
  */
 internal data class RangeResponse(
 	val status: Int,
 	val reason: String,
 	val headers: Map<String, String>,
 	val streamLength: Int,
+	val sentLength: Int,
 ) {
 	companion object {
 		/**
@@ -46,13 +49,14 @@ internal data class RangeResponse(
 					?.takeIf { length > 0 }
 					?.let { singleRange(it) }
 					?.boundsWithin(length.toLong())
-					?: return RangeResponse(200, "OK", mapOf(ACCEPT_RANGES), length)
+					?: return RangeResponse(200, "OK", mapOf(ACCEPT_RANGES), length, length)
 
 			return RangeResponse(
 				206,
 				"Partial Content",
 				mapOf(ACCEPT_RANGES, "Content-Range" to "bytes ${bounds.first}-${bounds.last}/$length"),
 				(bounds.last + 1).toInt(),
+				(bounds.last - bounds.first + 1).toInt(),
 			)
 		}
 
