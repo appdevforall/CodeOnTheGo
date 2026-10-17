@@ -73,6 +73,13 @@ class RangeResponseTest {
 	}
 
 	// Chromium holds "not given" as -1, so a last position of -1 leaves the range open.
+	// Chromium's integer parser takes a leading plus, so a stricter digit check here would answer a
+	// range the WebView still cuts with a 200 that starts mid-file.
+	@Test
+	fun `a plus sign is read as the WebView reads it`() {
+		assertPartial("bytes=+5-", 5, 999)
+	}
+
 	@Test
 	fun `a last position of -1 reads as an open range, as it does in the WebView`() {
 		assertPartial("bytes=5--1", 5, 999)
@@ -83,10 +90,16 @@ class RangeResponseTest {
 		assertWhole(RangeResponse.of("bytes=0-9,20-29", content.size))
 	}
 
+	// The WebView fails these requests itself, so nothing is sent whatever the response says.
 	@Test
-	fun `a range the WebView rejects gets the whole content`() {
-		for (range in listOf("bytes=1000-", "bytes=9-0", "bytes=-0", "bytes=abc", "items=0-9", "bytes 0-9", "bytes=")) {
-			assertWhole(RangeResponse.of(range, content.size))
+	fun `a range the WebView rejects gets a 200 and counts as nothing sent`() {
+		val rejected = listOf("bytes=1000-", "bytes=9-0", "bytes=-0", "bytes=abc", "items=0-9", "bytes 0-9", "bytes=", "bytes=0-9,abc")
+		for (range in rejected) {
+			val reply = RangeResponse.of(range, content.size)
+
+			assertThat(reply.status).isEqualTo(200)
+			assertThat(reply.streamLength).isEqualTo(content.size)
+			assertThat(reply.sentLength).isEqualTo(0)
 		}
 	}
 

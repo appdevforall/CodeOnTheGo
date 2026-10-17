@@ -7,9 +7,9 @@ import java.util.Locale
  *
  * The WebView, not this code, cuts the body to the range. For a single range it can satisfy,
  * Chromium's `AndroidStreamReaderURLLoader` skips the response stream to the range's first byte,
- * sets `Content-Length` to the range's length, reads the stream to its end, and only then applies
- * the response's own status and headers (`components/embedder_support/android/util`, read at
- * WebView 155.0.8059.43). Without a status of ours, a ranged request got "200 OK" with a body that
+ * sets `Content-Length` to the range's length, applies the response's own status and headers, and
+ * then reads the stream to its end (`components/embedder_support/android/util`, read at WebView
+ * 155.0.8059.43). Without a status of ours, a ranged request got "200 OK" with a body that
  * began mid-file, which a media player takes for the file from byte 0: looping `<video>` clips
  * froze after a re-request during playback (ADFA-3305). So a satisfiable range gets a 206 with
  * `Content-Range`, and a stream that stops at the range's last byte, since the WebView reads on
@@ -20,8 +20,8 @@ import java.util.Locale
  * @property headers The headers to add. Neither `Content-Length` nor `Content-Type` is among them:
  * the WebView sets both, and adds these beside its own rather than in place of them.
  * @property streamLength How many bytes of the content, from its start, the response stream holds.
- * @property sentLength How many bytes the WebView sends: the range's length for a 206, all of the
- * content otherwise. (For a range it rejects, it sends none, which this cannot tell.)
+ * @property sentLength How many bytes the WebView sends: the range's length for a 206, none for a
+ * range it rejects, since it fails that request, and all of the content otherwise.
  */
 internal data class RangeResponse(
 	val status: Int,
@@ -37,19 +37,20 @@ internal data class RangeResponse(
 		 * Parsed as the WebView parses it (`net::HttpUtil::ParseRangeHeader`, then
 		 * `net::HttpByteRange::ComputeBounds`), so the two agree on which bytes are meant. Anything
 		 * but one satisfiable range gets all the content with a 200: the WebView ignores several
-		 * ranges, and fails a malformed or unsatisfiable one itself, whatever this returns. Empty
-		 * content is never cut, by the WebView or here.
+		 * ranges and sends everything, and fails a malformed or unsatisfiable one itself, whatever
+		 * this returns, so that one counts as nothing sent. Empty content is never cut, by the
+		 * WebView or here.
 		 */
 		fun of(
 			range: String?,
 			length: Int,
 		): RangeResponse {
-			val bounds =
-				range
-					?.takeIf { length > 0 }
-					?.let { singleRange(it) }
-					?.boundsWithin(length.toLong())
-					?: return RangeResponse(200, "OK", mapOf(ACCEPT_RANGES), length, length)
+			val whole = RangeResponse(200, "OK", mapOf(ACCEPT_RANGES), length, length)
+			if (range == null || length == 0) return whole
+
+			val rejected = whole.copy(sentLength = 0)
+			val single = (ranges(range) ?: return rejected).singleOrNull() ?: return whole
+			val bounds = single.boundsWithin(length.toLong()) ?: return rejected
 
 			return RangeResponse(
 				206,
@@ -63,8 +64,8 @@ internal data class RangeResponse(
 		private val ACCEPT_RANGES = "Accept-Ranges" to "bytes"
 		private const val NOT_SPECIFIED = -1L
 
-		/** `HttpUtil::ParseRangeHeader`, kept only when it yields exactly one range. */
-		private fun singleRange(header: String): ByteRange? {
+		/** `HttpUtil::ParseRangeHeader`: the ranges [header] names, or null where the WebView rejects it. */
+		private fun ranges(header: String): List<ByteRange>? {
 			val equals = header.indexOf('=')
 			if (equals < 0 || header.substring(0, equals).trimLws().lowercase(Locale.ROOT) != "bytes") return null
 
@@ -74,8 +75,7 @@ internal data class RangeResponse(
 					.split(',')
 					.map { it.trimLws() }
 					.filter { it.isNotEmpty() }
-			val ranges = values.map { parseRange(it) ?: return null }
-			return ranges.singleOrNull()
+			return values.map { parseRange(it) ?: return null }.ifEmpty { null }
 		}
 
 		private fun parseRange(value: String): ByteRange? {
