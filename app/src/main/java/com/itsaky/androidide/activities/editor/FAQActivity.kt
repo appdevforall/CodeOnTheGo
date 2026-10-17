@@ -28,6 +28,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityFaqBinding
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
+import com.itsaky.androidide.documentation.OffDeviceRequests
 import org.adfa.constants.CONTENT_KEY
 
 class FAQActivity : EdgeToEdgeIDEActivity() {
@@ -84,7 +85,13 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 						request: WebResourceRequest,
 					): WebResourceResponse? =
 						DocumentationRequestInterceptor.shared?.intercept(request)
+							?: OffDeviceRequests.block(request)
 							?: super.shouldInterceptRequest(view, request)
+
+					override fun shouldOverrideUrlLoading(
+						view: WebView,
+						request: WebResourceRequest,
+					): Boolean = OffDeviceRequests.openWithConsent(this@FAQActivity, request.url.toString())
 				}
 
 			// Load the HTML file from the assets folder

@@ -16,6 +16,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.AnimationUtils
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
@@ -28,6 +30,7 @@ import android.view.MotionEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.documentation.OffDeviceRequests
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
@@ -252,6 +255,14 @@ object TooltipManager {
 		)
 	}
 
+	private tailrec fun Context.findActivity(): Activity? {
+		return when (this) {
+			is Activity -> this
+			is ContextWrapper -> baseContext?.findActivity()
+			else -> null
+		}
+	}
+
 	/**
 	 * Whether a popup anchored to [view] can actually be shown right now.
 	 *
@@ -261,14 +272,6 @@ object TooltipManager {
 	 * appeared.
 	 */
 	internal fun canShowPopup(context: Context, view: View): Boolean {
-		tailrec fun Context.findActivity(): Activity? {
-			return when (this) {
-				is Activity -> this
-				is ContextWrapper -> baseContext?.findActivity()
-				else -> null
-			}
-		}
-
 		val activity = context.findActivity()
 
 		val isLifecycleValid = if (activity != null) {
@@ -362,9 +365,19 @@ object TooltipManager {
 			context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
 
 		webView.webViewClient = object : WebViewClient() {
+			// The tooltip's text is HTML from the database: it must not fetch anything off the device.
+			override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+				OffDeviceRequests.block(request) ?: super.shouldInterceptRequest(view, request)
+
 			override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
 				url?.let { clickedUrl ->
 					popupWindow.dismiss()
+					// A link in the tooltip's own text can name any site: ask, then open it outside
+					// the app, rather than load it in Help.
+					if (OffDeviceRequests.isOffDevice(clickedUrl)) {
+						context.findActivity()?.let { OffDeviceRequests.openWithConsent(it, clickedUrl) }
+						return true
+					}
 					// Find the button label for this URL to use as title
 					val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first
 						?: tooltipItem.tag
