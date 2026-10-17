@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong
  * fails -- falls through to that server unchanged.
  *
  * Templated pages included: [DocumentationContentSource] renders them, so every documentation path
- * a WebView asks for is answered here. A `Range` request gets a 206; see [RangeResponse].
+ * a WebView asks for is answered here. A single satisfiable `Range` gets a 206; see [RangeResponse].
  */
 class DocumentationRequestInterceptor(
 	private val contentSource: DocumentationContentSource,
