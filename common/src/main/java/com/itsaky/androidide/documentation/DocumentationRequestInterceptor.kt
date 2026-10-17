@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong
  * fails -- falls through to that server unchanged.
  *
  * Templated pages included: [DocumentationContentSource] renders them, so every documentation path
- * a WebView asks for is answered here.
+ * a WebView asks for is answered here. A `Range` request gets a 206; see [RangeResponse].
  */
 class DocumentationRequestInterceptor(
 	private val contentSource: DocumentationContentSource,
@@ -59,7 +59,7 @@ class DocumentationRequestInterceptor(
 	 */
 	fun intercept(request: WebResourceRequest): WebResourceResponse? =
 		try {
-			contentFor(request)?.let { response(it) }
+			contentFor(request)?.let { response(it, rangeHeader(request.requestHeaders)) }
 		} catch (e: Throwable) {
 			// Throwable, not Exception. The documented contract is that anything this returns null for
 			// falls through to the web server, and that only holds for values, not throws: decoding the
@@ -117,14 +117,34 @@ class DocumentationRequestInterceptor(
 	 * Creates a WebView resource response from documentation content.
 	 *
 	 * @param content The documentation content to serve.
+	 * @param range The request's `Range` value, or null; see [RangeResponse].
 	 * @return A response containing the content bytes and parsed MIME metadata.
 	 */
-	private fun response(content: DocumentationContent): WebResourceResponse {
+	private fun response(
+		content: DocumentationContent,
+		range: String?,
+	): WebResourceResponse {
 		val (type, charset) = mimeAndCharset(content.mimeType)
-		return WebResourceResponse(type, charset, ByteArrayInputStream(content.bytes))
+		val reply = RangeResponse.of(range, content.bytes.size)
+		if (range != null && log.isDebugEnabled) {
+			log.debug("Answered Range '{}' with {} {}.", range, reply.status, reply.headers["Content-Range"].orEmpty())
+		}
+
+		return WebResourceResponse(
+			type,
+			charset,
+			reply.status,
+			reply.reason,
+			reply.headers,
+			ByteArrayInputStream(content.bytes, 0, reply.streamLength),
+		)
 	}
 
 	companion object {
+		/** A request's `Range` value, looked up regardless of case, as header names are. */
+		internal fun rangeHeader(headers: Map<String, String>?): String? =
+			headers?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
+
 		/**
 		 * Separates a MIME type from its optional charset.
 		 *
