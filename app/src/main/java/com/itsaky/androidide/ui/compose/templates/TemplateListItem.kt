@@ -124,15 +124,13 @@ fun TemplateListItem(
 				}
 				DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
 					if (item.installed) {
-						if (item.provenance != TemplateProvenance.BUNDLED) {
-							DropdownMenuItem(
-								text = { Text(stringResource(R.string.action_uninstall_template)) },
-								onClick = {
-									menuExpanded = false
-									onUninstall()
-								},
-							)
-						}
+						DropdownMenuItem(
+							text = { Text(stringResource(R.string.action_uninstall_template)) },
+							onClick = {
+								menuExpanded = false
+								onUninstall()
+							},
+						)
 					} else {
 						DropdownMenuItem(
 							text = { Text(stringResource(R.string.action_install_template)) },
@@ -178,7 +176,6 @@ fun TemplateListItem(
 
 private fun TemplateProvenance.labelRes(): Int =
 	when (this) {
-		TemplateProvenance.BUNDLED -> R.string.template_provenance_bundled
 		TemplateProvenance.PLUGIN -> R.string.template_provenance_plugin
 		TemplateProvenance.USER -> R.string.template_provenance_user
 	}
