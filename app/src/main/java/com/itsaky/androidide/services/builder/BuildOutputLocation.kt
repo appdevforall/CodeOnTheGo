@@ -7,6 +7,8 @@ import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.ProjectStorageKey
+import com.itsaky.androidide.utils.canonicalProjectLocation
+import com.itsaky.androidide.utils.isDeletedProjectDirectory
 import java.io.File
 import java.io.IOException
 
@@ -25,13 +27,16 @@ object BuildOutputLocation {
 	/** Parent of every project's tree, under `noBackupFilesDir`. */
 	const val DIR_NAME = "gradle-build"
 
-	/** Holds the project's path, so a sweep can find trees whose project is gone. */
+	/** Holds the project's canonical path, so a sweep can find trees whose project is gone. */
 	const val PROJECT_PATH_FILE = "project-path"
 
 	private const val KOTLIN_PERSISTENT_DIR = "kotlin.project.persistent.dir"
 	private const val WATCH_FS = "--watch-fs"
 	private const val NO_WATCH_FS = "--no-watch-fs"
 	private const val PROJECT_CACHE_DIR = "--project-cache-dir"
+
+	/** Where Android mounts storage volumes: internal storage, and each SD card or USB drive. */
+	private val STORAGE_ROOT = File("/storage")
 
 	/** Whether the switch exists at all: early access only (REVIEW.md section 12). */
 	fun isAvailable(): Boolean = FeatureFlags.isExperimentsEnabled
@@ -76,7 +81,8 @@ object BuildOutputLocation {
 	fun withoutWatchConflict(args: List<String>): List<String> = if (PROJECT_CACHE_DIR in args) args.filterNot { it == WATCH_FS } else args
 
 	/**
-	 * Creates [tree] and records [projectDir] in it.
+	 * Creates [tree] and records [projectDir] in it, canonically: a project deleted through its real
+	 * path must still match a marker written while it was opened through a symlink.
 	 *
 	 * @return false when [tree] or its marker cannot be written; a sync then keeps output in the
 	 *   project folder.
@@ -87,7 +93,7 @@ object BuildOutputLocation {
 	): Boolean {
 		if (!tree.isDirectory && !tree.mkdirs()) return false
 		val marker = File(tree, PROJECT_PATH_FILE)
-		val path = projectDir.absolutePath
+		val path = projectDir.canonicalProjectLocation()
 		return try {
 			if (!marker.isFile || marker.readText() != path) marker.writeText(path)
 			true
@@ -95,6 +101,90 @@ object BuildOutputLocation {
 			false
 		}
 	}
+
+	/**
+	 * Deletes the trees of [projectDir], matched by their [PROJECT_PATH_FILE] marker rather than by
+	 * key, so a path spelled differently (`/sdcard` against `/storage/emulated/0`) still matches.
+	 * Call it when the user deletes the project.
+	 *
+	 * @return how many trees were deleted.
+	 */
+	fun removeTreesOf(
+		noBackupDir: File,
+		projectDir: File,
+	): Int {
+		val location = projectDir.canonicalProjectLocation()
+		return deleteTreesWhere(noBackupDir) { it.canonicalProjectLocation() == location }
+	}
+
+	/**
+	 * Deletes the trees of projects that no longer exist, such as a project deleted, moved or renamed
+	 * outside the IDE, or deleted with the folder holding it. A project on a volume that is not
+	 * mounted is not gone, and a tree without a marker is left alone. Runs on a background thread at
+	 * startup.
+	 *
+	 * @param volumesRoot where storage volumes are mounted; tests pass their own.
+	 * @return how many trees were deleted.
+	 */
+	fun sweep(
+		noBackupDir: File,
+		volumesRoot: File = STORAGE_ROOT,
+	): Int = deleteTreesWhere(noBackupDir) { isGone(it, volumesRoot) }
+
+	/**
+	 * Whether [project] was deleted. With its parent folder still there, Recents' rule decides. With
+	 * the parent missing too, the nearest folder that exists decides: a readable folder on a volume
+	 * means the folders were deleted, while [volumesRoot] itself means the volume is not mounted.
+	 */
+	private fun isGone(
+		project: File,
+		volumesRoot: File,
+	): Boolean {
+		if (project.isDeletedProjectDirectory()) return true
+		if (project.exists()) return false
+		val nearest = generateSequence(project.parentFile) { it.parentFile }.firstOrNull { it.exists() } ?: return false
+		return try {
+			val ancestor = nearest.canonicalFile
+			val root = volumesRoot.canonicalFile
+			ancestor != root && ancestor.startsWith(root) && ancestor.isDirectory && ancestor.canRead()
+		} catch (e: IOException) {
+			false
+		}
+	}
+
+	private fun deleteTreesWhere(
+		noBackupDir: File,
+		isOrphan: (File) -> Boolean,
+	): Int {
+		val trees = File(noBackupDir, DIR_NAME).listFiles { file -> file.isDirectory } ?: return 0
+		return trees.count { tree ->
+			val project = projectOf(tree)
+			project != null && isOrphan(project) && deleteTree(tree)
+		}
+	}
+
+	/**
+	 * Deletes [tree] with its marker last: a deletion that stops part-way keeps the marker, so the
+	 * next sweep can still tell whose tree it is and finish the job.
+	 */
+	private fun deleteTree(tree: File): Boolean {
+		val marker = File(tree, PROJECT_PATH_FILE)
+		val contents = tree.listFiles() ?: return false
+		val deleted = contents.filter { it != marker }.map { it.deleteRecursively() }.all { it }
+		return deleted && (!marker.exists() || marker.delete()) && tree.delete()
+	}
+
+	/** The project [tree] belongs to, from its marker, or null when the marker is missing or unreadable. */
+	private fun projectOf(tree: File): File? =
+		try {
+			File(tree, PROJECT_PATH_FILE)
+				.takeIf { it.isFile }
+				?.readText()
+				?.takeIf { it.isNotBlank() }
+				?.let(::File)
+		} catch (e: IOException) {
+			null
+		}
 
 	/**
 	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the
