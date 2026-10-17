@@ -53,12 +53,15 @@ object TooltipManager {
 	private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
 			"/Download/documentation.db")
 
-	private const val QUERY_TOOLTIP = """
+	// Looks the category up first, so the tag is found through Tooltips' UNIQUE (categoryId, tag)
+	// index. Written as a join, it made SQLite's planner scan all of Tooltips (46,128 rows, 13 MB)
+	// for every tooltip shown, because documentation.db carries no ANALYZE statistics (ADFA-6597).
+	// IN rather than =, so two categories sharing a name still come back as duplicates, as before.
+	internal const val QUERY_TOOLTIP = """
 		SELECT T.rowid, T.id, T.summary, T.detail
-		FROM Tooltips AS T, TooltipCategories AS TC
-		WHERE T.categoryId = TC.id
+		FROM Tooltips AS T
+		WHERE T.categoryId IN (SELECT id FROM TooltipCategories WHERE category = ?)
 		AND T.tag = ?
-		AND TC.category = ?
 	"""
 
 
@@ -93,7 +96,7 @@ object TooltipManager {
 						"n/a"
 					}
 
-					database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
+					database.rawQuery(QUERY_TOOLTIP, arrayOf(category, tag)).use { c ->
 						when (c.count) {
 							// A missing tag is a normal outcome (e.g. a Gradle task with no
 							// authored tooltip). Honor the nullable contract so the caller
