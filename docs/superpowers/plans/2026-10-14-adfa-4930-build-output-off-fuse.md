@@ -67,7 +67,7 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 ### Lifecycle
 
 - **Project deleted in the IDE**: both deletion paths (Recents and the Delete projects screen) go through `RecentProjectsViewModel`, which deletes the project's trees too. Trees are matched by their `project-path` marker, not by key: deletion uses the canonical path and builds use `projectDirPath`, so a symlinked spelling would key differently.
-- **Orphans** (project moved, renamed or deleted outside the IDE): at startup, off the main thread, remove trees whose project no longer exists while its parent folder does, so a volume that is not mounted doesn't count. Trees without a marker are left alone. Unlike `QuickBuildScratch.sweep`, which clears every tree, this keeps the output of live projects.
+- **Orphans** (project moved, renamed or deleted outside the IDE): at startup, off the main thread, remove trees whose project no longer exists. A project counts as gone when its parent folder exists, or, with the parent deleted too, when the nearest folder that exists is a readable folder on a volume under `/storage`. A volume that is not mounted leaves only `/storage` itself, so it doesn't count. Trees without a marker are left alone. Unlike `QuickBuildScratch.sweep`, which clears every tree, this keeps the output of live projects.
 - **Existing `build/` folders in projects**: leave them. They go stale but do no harm. A later "free space" action can offer to remove them.
 - **Storage**: output now counts as app data in Settings, and "Clear storage" removes it (the next build is a full one). Uninstalling removes it as well; sources are unaffected.
 

@@ -35,6 +35,9 @@ object BuildOutputLocation {
 	private const val NO_WATCH_FS = "--no-watch-fs"
 	private const val PROJECT_CACHE_DIR = "--project-cache-dir"
 
+	/** Where Android mounts storage volumes: internal storage, and each SD card or USB drive. */
+	private val STORAGE_ROOT = File("/storage")
+
 	/** Whether the switch exists at all: early access only (REVIEW.md section 12). */
 	fun isAvailable(): Boolean = FeatureFlags.isExperimentsEnabled
 
@@ -115,12 +118,38 @@ object BuildOutputLocation {
 
 	/**
 	 * Deletes the trees of projects that no longer exist, such as a project deleted, moved or renamed
-	 * outside the IDE. A project on a volume that is not mounted is not gone, and a tree without a
-	 * marker is left alone. Runs on a background thread at startup.
+	 * outside the IDE, or deleted with the folder holding it. A project on a volume that is not
+	 * mounted is not gone, and a tree without a marker is left alone. Runs on a background thread at
+	 * startup.
 	 *
+	 * @param volumesRoot where storage volumes are mounted; tests pass their own.
 	 * @return how many trees were deleted.
 	 */
-	fun sweep(noBackupDir: File): Int = deleteTreesWhere(noBackupDir) { it.isDeletedProjectDirectory() }
+	fun sweep(
+		noBackupDir: File,
+		volumesRoot: File = STORAGE_ROOT,
+	): Int = deleteTreesWhere(noBackupDir) { isGone(it, volumesRoot) }
+
+	/**
+	 * Whether [project] was deleted. With its parent folder still there, Recents' rule decides. With
+	 * the parent missing too, the nearest folder that exists decides: a readable folder on a volume
+	 * means the folders were deleted, while [volumesRoot] itself means the volume is not mounted.
+	 */
+	private fun isGone(
+		project: File,
+		volumesRoot: File,
+	): Boolean {
+		if (project.isDeletedProjectDirectory()) return true
+		if (project.exists()) return false
+		val nearest = generateSequence(project.parentFile) { it.parentFile }.firstOrNull { it.exists() } ?: return false
+		return try {
+			val ancestor = nearest.canonicalFile
+			val root = volumesRoot.canonicalFile
+			ancestor != root && ancestor.startsWith(root) && ancestor.isDirectory && ancestor.canRead()
+		} catch (e: IOException) {
+			false
+		}
+	}
 
 	private fun deleteTreesWhere(
 		noBackupDir: File,
