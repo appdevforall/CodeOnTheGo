@@ -82,6 +82,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -96,7 +99,6 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -115,10 +117,16 @@ class GradleBuildService :
 	private var isToolingServerStarted = false
 
 	// Atomic: two callers may race for the slot, and Quick Build's pre-check reads it cross-thread.
-	private val buildSlot = AtomicBoolean(false)
+	private val buildSlot = MutableStateFlow(false)
+
+	/**
+	 * [isBuildInProgress] as a flow. A finished build's listener can run before the build frees the
+	 * slot, so a caller waiting for the slot to free watches this instead of the listener.
+	 */
+	val buildSlotBusy: StateFlow<Boolean> = buildSlot.asStateFlow()
 
 	override val isBuildInProgress: Boolean
-		get() = buildSlot.get()
+		get() = buildSlot.value
 
 	// Written only while the slot is held, by the build holding it.
 	@Volatile
@@ -257,6 +265,8 @@ class GradleBuildService :
 
 	@Volatile
 	private var tuningConfig: GradleTuningConfig? = null
+
+	private val relocatedBuilds = RelocatedBuilds()
 
 	private val buildServiceScope =
 		CoroutineScope(
@@ -556,12 +566,15 @@ class GradleBuildService :
 			val currentTuningConfig = tuningConfig
 			var newTuningConfig: GradleTuningConfig? = null
 
+			val isSync = buildInfo.buildId.runType == BuildRunType.ProjectSync
+
 			@Suppress("SimplifyBooleanWithConstants")
 			val extraArgs =
 				getGradleExtraArgs(
 					enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild,
-					isSync = buildInfo.buildId.runType == BuildRunType.ProjectSync,
+					isSync = isSync,
 				)
+			relocatedBuilds.prepared(buildInfo, extraArgs)
 
 			var buildParams =
 				if (FeatureFlags.isExperimentsEnabled) {
@@ -674,6 +687,7 @@ class GradleBuildService :
 					isSuccess = isSuccess,
 					buildType = buildType,
 					buildResult = result,
+					relocatedOutput = relocatedBuilds.completed(result.buildId),
 				),
 		)
 
@@ -746,8 +760,8 @@ class GradleBuildService :
 
 	/**
 	 * The arguments that move the open project's build output to app-private storage (ADFA-4930),
-	 * or none. A sync applies the user's current choice, keeping output in the project folder when
-	 * the tree cannot be written; the model it produces records the outcome. A build follows that
+	 * or none. Every sync relocates, keeping output in the project folder only when the tree cannot
+	 * be written; the model it produces records the outcome. A build follows that
 	 * model, so it writes where the model (APK listing file, classpath) looks, and never falls back
 	 * to the project folder, which would leave the model pointing at older output. Runs on the
 	 * [prepareBuild] worker, so disk I/O is fine.
@@ -769,7 +783,6 @@ class GradleBuildService :
 			return BuildOutputLocation.gradleArgs(tree)
 		}
 
-		if (!BuildOutputLocation.isRequested()) return emptyList()
 		if (!BuildOutputLocation.prepare(tree, projectDir)) {
 			log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
 			return emptyList()
@@ -925,7 +938,7 @@ class GradleBuildService :
 				dispatch()
 			} catch (e: Throwable) {
 				currentBuildId = null
-				buildSlot.set(false)
+				buildSlot.value = false
 				throw e
 			}
 		pendingBuild = future
@@ -1011,7 +1024,7 @@ class GradleBuildService :
 		throwable: Throwable?,
 	): T {
 		currentBuildId = null
-		buildSlot.set(false)
+		buildSlot.value = false
 		return result
 	}
 

@@ -1,27 +1,30 @@
 package com.itsaky.androidide.services.builder
 
-import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
-import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.ProjectStorageKey
 import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.isDeletedProjectDirectory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
 
 /**
  * Where a project's Gradle build output goes when it is moved off the FUSE-backed project folder
  * (ADFA-4930): `<noBackupFilesDir>/gradle-build/<projectKey>/`, beside Quick Build's scratch and
- * keyed the same way. App-private f2fs makes warm builds 24-35% faster on the devices measured.
+ * keyed by the same function, from the project's canonical path. App-private f2fs makes warm builds
+ * up to about twice as fast on the devices measured.
  *
- * The synced project model is the record of where output goes. A sync applies the user's choice;
- * a build follows the model's root build directory ([modelRelocated]), not the live switch, so it
- * writes where the model (APK listing file, classpath) looks, and a sync that fails leaves both
- * as they were. A change to the switch therefore waits for the next successful sync
- * ([syncPending]).
+ * The synced project model is the record of where output goes. Every sync relocates; a build
+ * follows the model's root build directory ([modelRelocated]), so it writes where the model (APK
+ * listing file, classpath) looks, and a sync that fails leaves both as they were. An existing
+ * project's cached model builds into the project folder until its next sync ([syncPending]).
  */
 object BuildOutputLocation {
 	/** Parent of every project's tree, under `noBackupFilesDir`. */
@@ -38,21 +41,16 @@ object BuildOutputLocation {
 	/** Where Android mounts storage volumes: internal storage, and each SD card or USB drive. */
 	private val STORAGE_ROOT = File("/storage")
 
-	/** Whether the switch exists at all: early access only (REVIEW.md section 12). */
-	fun isAvailable(): Boolean = FeatureFlags.isExperimentsEnabled
-
-	/** Whether the user currently asks for relocation; applied at the next sync. */
-	fun isRequested(): Boolean = isAvailable() && BuildPreferences.relocateBuildOutput
-
 	/**
 	 * @param noBackupDir the app's `noBackupFilesDir`.
 	 * @param projectDir the project's root directory.
-	 * @return the project's tree; computed, not created.
+	 * @return the project's tree; computed, not created. Keyed by the canonical path, so every spelling
+	 *   of the project's path (`/sdcard` against `/storage/emulated/0`) names the same tree.
 	 */
 	fun treeFor(
 		noBackupDir: File,
 		projectDir: File,
-	): File = File(File(noBackupDir, DIR_NAME), ProjectStorageKey.of(projectDir))
+	): File = File(File(noBackupDir, DIR_NAME), ProjectStorageKey.of(File(projectDir.canonicalProjectLocation())))
 
 	/**
 	 * The Gradle arguments that send a project's build output into [tree]: every project's build
@@ -73,6 +71,9 @@ object BuildOutputLocation {
 			"-P$KOTLIN_PERSISTENT_DIR=${File(tree, "kotlin").absolutePath}",
 			NO_WATCH_FS,
 		)
+
+	/** Whether a sync's or build's arguments relocate its output, from [gradleArgs]. */
+	fun isRelocating(args: List<String>): Boolean = args.any { it.startsWith("-P$PROPERTY_BUILD_OUTPUT_DIR=") }
 
 	/**
 	 * Drops `--watch-fs` from a build's complete argument list when it also relocates the project
@@ -114,7 +115,7 @@ object BuildOutputLocation {
 		projectDir: File,
 	): Int {
 		val location = projectDir.canonicalProjectLocation()
-		return deleteTreesWhere(noBackupDir) { it.canonicalProjectLocation() == location }
+		return deleteTreesWhere(noBackupDir) { _, project -> project.canonicalProjectLocation() == location }
 	}
 
 	/**
@@ -129,7 +130,7 @@ object BuildOutputLocation {
 	fun sweep(
 		noBackupDir: File,
 		volumesRoot: File = STORAGE_ROOT,
-	): Int = deleteTreesWhere(noBackupDir) { isGone(it, volumesRoot) }
+	): Int = deleteTreesWhere(noBackupDir) { _, project -> isGone(project, volumesRoot) }
 
 	/**
 	 * Whether [project] was deleted. With its parent folder still there, Recents' rule decides. With
@@ -154,23 +155,24 @@ object BuildOutputLocation {
 
 	private fun deleteTreesWhere(
 		noBackupDir: File,
-		isOrphan: (File) -> Boolean,
+		isOrphan: (tree: File, project: File) -> Boolean,
 	): Int {
 		val trees = File(noBackupDir, DIR_NAME).listFiles { file -> file.isDirectory } ?: return 0
 		return trees.count { tree ->
 			val project = projectOf(tree)
-			project != null && isOrphan(project) && deleteTree(tree)
+			project != null && isOrphan(tree, project) && deleteTree(tree)
 		}
 	}
 
 	/**
 	 * Deletes [tree] with its marker last: a deletion that stops part-way keeps the marker, so the
-	 * next sweep can still tell whose tree it is and finish the job.
+	 * next sweep can still tell whose tree it is and finish the job. A build can leave symlinks in its
+	 * output, so the deletion never follows one out of the tree.
 	 */
 	private fun deleteTree(tree: File): Boolean {
 		val marker = File(tree, PROJECT_PATH_FILE)
 		val contents = tree.listFiles() ?: return false
-		val deleted = contents.filter { it != marker }.map { it.deleteRecursively() }.all { it }
+		val deleted = contents.filter { it != marker }.map { deleteWithoutFollowingLinks(it) }.all { it }
 		return deleted && (!marker.exists() || marker.delete()) && tree.delete()
 	}
 
@@ -184,6 +186,24 @@ object BuildOutputLocation {
 				?.let(::File)
 		} catch (e: IOException) {
 			null
+		}
+
+	/**
+	 * Offers a relocation sync the user deferred, once no build holds the Gradle slot. Waits on the
+	 * slot itself: a finished build's listener can run before the build frees the slot, so a check
+	 * made when the build flags drop can still find it busy, and nothing would check again.
+	 *
+	 * @param slotBusy whether a build holds the Gradle slot.
+	 * @param offer makes the offer again.
+	 */
+	fun offerWhenSlotFree(
+		scope: CoroutineScope,
+		slotBusy: StateFlow<Boolean>,
+		offer: () -> Unit,
+	): Job =
+		scope.launch {
+			slotBusy.first { !it }
+			offer()
 		}
 
 	/**
@@ -212,13 +232,10 @@ object BuildOutputLocation {
 	): Boolean? = workspace?.let { isRelocated(it.rootProject.buildDir, treeFor(noBackupDir, projectDir)) }
 
 	/**
-	 * Whether the switch (or the experiments flag) disagrees with the synced model, so the next
-	 * sync would move the build output. False without a model: there is nothing to disagree with.
+	 * Whether the synced model still builds into the project folder, so the next sync would move the
+	 * build output. False without a model: there is nothing to move yet.
 	 *
 	 * @param modelRelocated [modelRelocated] for the open project.
 	 */
-	fun syncPending(
-		modelRelocated: Boolean?,
-		requested: Boolean = isRequested(),
-	): Boolean = modelRelocated != null && modelRelocated != requested
+	fun syncPending(modelRelocated: Boolean?): Boolean = modelRelocated == false
 }

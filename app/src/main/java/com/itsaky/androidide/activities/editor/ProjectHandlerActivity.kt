@@ -29,6 +29,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -76,6 +77,7 @@ import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.quickbuild.AutostartBuild
 import com.itsaky.androidide.quickbuild.GenerateSourcesDeferral
@@ -100,6 +102,7 @@ import com.itsaky.androidide.search.replace.SkipReason
 import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
+import com.itsaky.androidide.services.builder.OldBuildOutput
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.BuildId
@@ -124,6 +127,7 @@ import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
@@ -146,6 +150,7 @@ import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -162,6 +167,7 @@ import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.net.SocketException
 import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
@@ -184,11 +190,14 @@ abstract class ProjectHandlerActivity :
 	private val replaceCoordinator by lazy { ReplaceCoordinator(editorFor = { file -> getEditorForFile(file)?.editor }) }
 	protected var syncNotificationFlashbar: Flashbar? = null
 
-	/** The relocation request the sync banner last offered, so Ignore holds until it changes. */
-	private var buildOutputSyncOffered: Boolean? = null
+	/** Whether the relocation banner made its offer, so Not now holds for this screen. */
+	private var buildOutputSyncOffered = false
 
 	/** The banner that offer showed, so withdrawing it never dismisses another one. */
 	private var buildOutputSyncBanner: Flashbar? = null
+
+	/** Offers again a relocation sync the user asked for while a build held the slot. */
+	private var buildOutputSyncDeferral: Job? = null
 	private var replaceReportFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
@@ -1135,7 +1144,15 @@ abstract class ProjectHandlerActivity :
 	private fun installPlugin(cgpFile: File) {
 		lifecycleScope.launch {
 			setStatus(getString(string.status_installing_plugin))
-			val result = pluginRepository.installPluginFromFile(cgpFile)
+			// Installing deletes the file it is given. A copy keeps the built plugin for Export.
+			val result =
+				try {
+					val copy = InstallTempFiles.newTempFile(filesDir, "built_plugin", cgpFile.extension)
+					withContext(Dispatchers.IO) { cgpFile.copyTo(copy) }
+					pluginRepository.installPluginFromFile(copy)
+				} catch (e: IOException) {
+					Result.failure(e)
+				}
 			result
 				.onSuccess {
 					showRestartPrompt(this@ProjectHandlerActivity)
@@ -1219,9 +1236,9 @@ abstract class ProjectHandlerActivity :
 	}
 
 	/**
-	 * ADFA-4930: a changed "Relocate build output" (or experiments flag) only moves the build output
-	 * at the next sync, so offer one, once per change, and withdraw the offer once the synced model
-	 * agrees with the switch again.
+	 * ADFA-4930: an existing project's cached model builds into the project folder until its next
+	 * sync, and opening it does not sync, so offer one, once, and withdraw the offer once the synced
+	 * model is relocated. This is the first thing an existing project shows after the update.
 	 *
 	 * @param afterInit whether a project initialization just finished. It applied any Gradle file
 	 *   changes too, so the banner can go even when it also stands for those.
@@ -1229,12 +1246,9 @@ abstract class ProjectHandlerActivity :
 	private fun reconcileBuildOutputSyncOffer(afterInit: Boolean) {
 		activityScope.launch {
 			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
-			val requested = BuildOutputLocation.isRequested()
-			val pending =
-				BuildOutputLocation.syncPending(
-					BuildOutputLocation.modelRelocated(noBackupFilesDir, File(path)),
-					requested,
-				)
+			val projectDir = File(path)
+			val modelRelocated = BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir)
+			val pending = BuildOutputLocation.syncPending(modelRelocated)
 			withContext(Dispatchers.Main) {
 				if (!pending) {
 					val banner = buildOutputSyncBanner
@@ -1242,21 +1256,82 @@ abstract class ProjectHandlerActivity :
 						banner.dismiss()
 					}
 					buildOutputSyncBanner = null
-					buildOutputSyncOffered = null
-				} else if (buildOutputSyncOffered != requested && notifySyncNeeded(::syncForBuildOutput)) {
-					buildOutputSyncOffered = requested
+					buildOutputSyncOffered = false
+				} else if (
+					!buildOutputSyncOffered &&
+					notifySyncNeeded(
+						onConfirm = ::syncForBuildOutput,
+						// Short, with a short dismiss label: this banner greets every existing project, and
+						// has to keep its Sync button at 2x font scale.
+						message = string.msg_sync_build_output_relocate,
+						dismissText = string.btn_not_now,
+					)
+				) {
+					buildOutputSyncOffered = true
 					buildOutputSyncBanner = syncNotificationFlashbar
 				}
 			}
 		}
 	}
 
-	/** Forgets the offer, so a sync that fails leaves it to be made again on the next resume. */
+	/**
+	 * ADFA-4930: once a project's model builds into app storage, the output its folder still holds is
+	 * stale and takes space, so remove it, once ([OldBuildOutput]). Not while a Quick Build session is
+	 * live: it may still use the old model's build directory, and the next initialization will do it.
+	 */
+	private fun removeOldBuildOutput() {
+		activityScope.launch {
+			val manager = ProjectManagerImpl.getInstance()
+			val projectDir = manager.projectDirPath.takeIf { it.isNotBlank() }?.let(::File) ?: return@launch
+			val workspace = manager.workspace ?: return@launch
+			if (BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir, workspace) != true) return@launch
+			if (isQuickBuildSessionLive()) return@launch
+			val projects = listOf(workspace.rootProject) + workspace.subProjects
+			val removed =
+				withContext(Dispatchers.IO) {
+					OldBuildOutput.removeOnce(
+						tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir),
+						rootDir = workspace.rootProject.projectDir,
+						projectDirs = projects.map { it.projectDir },
+						buildDirs = projects.map { it.buildDir },
+					)
+				}
+			if (removed > 0) {
+				log.info("Removed {} old build output folder(s) from {}", removed, projectDir)
+				withContext(Dispatchers.Main) { flashInfoLong(getString(string.msg_old_build_output_removed)) }
+			}
+		}
+	}
+
+	/**
+	 * Forgets the offer, so a sync that fails leaves it to be made again on the next resume. While a
+	 * build holds the Gradle slot (Quick Build's prebuild starts soon after a project opens), a sync
+	 * would be refused and drop the loaded model, so the offer is made again when the build ends.
+	 */
 	private fun syncForBuildOutput() {
-		buildOutputSyncOffered = null
+		buildOutputSyncOffered = false
 		buildOutputSyncBanner = null
+		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+		if (service?.isBuildInProgress == true) {
+			flashInfoLong(getString(string.msg_sync_build_output_deferred))
+			buildOutputSyncDeferral?.cancel()
+			buildOutputSyncDeferral =
+				BuildOutputLocation.offerWhenSlotFree(activityScope, service.buildSlotBusy) {
+					reconcileBuildOutputSyncOffer(afterInit = false)
+				}
+			return
+		}
 		initializeProject(forceSync = true)
 	}
+
+	/** Prebuilding writes to the current model's build directory; every later state uses the proxy's paths. */
+	private fun isQuickBuildSessionLive(): Boolean =
+		when (quickBuildSessionManager()?.state?.value) {
+			null, is QuickBuildSessionState.Idle, is QuickBuildSessionState.Prebuilding -> false
+			else -> true
+		}
+
+	private fun isGradleSlotBusy(): Boolean = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isBuildInProgress == true
 
 	override fun preDestroy() {
 		syncNotificationFlashbar?.dismiss()
@@ -1336,11 +1411,26 @@ abstract class ProjectHandlerActivity :
 	}
 
 	fun notifySyncNeeded() {
-		notifySyncNeeded { initializeProject(forceSync = true) }
+		notifySyncNeeded {
+			// A sync would be refused while a build holds the Gradle slot, and drop the loaded model.
+			if (isGradleSlotBusy()) {
+				flashInfo(getString(string.msg_sync_after_build))
+			} else {
+				initializeProject(forceSync = true)
+			}
+		}
 	}
 
-	/** @return false when the banner was not shown: no build service, or initializing or building. */
-	private fun notifySyncNeeded(onConfirm: () -> Unit): Boolean {
+	/**
+	 * @param message what the banner says; the default is for changed Gradle files.
+	 * @param dismissText the label of the button that dismisses the banner.
+	 * @return false when the banner was not shown: no build service, or initializing or building.
+	 */
+	private fun notifySyncNeeded(
+		@StringRes message: Int = string.msg_sync_needed,
+		@StringRes dismissText: Int = string.btn_ignore_changes,
+		onConfirm: () -> Unit,
+	): Boolean {
 		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return false
 
@@ -1354,12 +1444,12 @@ abstract class ProjectHandlerActivity :
 				).withIcon(
 					R.drawable.ic_sync,
 					colorFilter = resolveAttr(R.attr.colorOnSecondaryContainer),
-				).message(string.msg_sync_needed)
+				).message(message)
 					.positiveActionText(string.btn_sync)
 					.positiveActionTapListener {
 						onConfirm()
 						it.dismiss()
-					}.negativeActionText(string.btn_ignore_changes)
+					}.negativeActionText(dismissText)
 					.negativeActionTapListener(Flashbar::dismiss)
 					.build()
 
@@ -1778,6 +1868,7 @@ abstract class ProjectHandlerActivity :
 		invalidateOptionsMenu()
 
 		reconcileBuildOutputSyncOffer(afterInit = true)
+		removeOldBuildOutput()
 
 		// ADFA-4128 benchmark: if the bench trampoline armed an autostart for THIS project,
 		// claim it now - the adb-driven stand-in for the human's tap. Claimed BEFORE prebuild

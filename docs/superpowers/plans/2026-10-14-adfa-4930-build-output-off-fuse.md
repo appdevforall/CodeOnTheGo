@@ -49,7 +49,7 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
    Sync (`RootModelBuilder.kt:207`) and builds (`ToolingApiServerImpl.kt:313`) both take their arguments from `prepareBuild`, so this one change covers both. `prepareBuild` already reads the project path (`GradleBuildService.kt:552`).
 2. **Gradle side.** `AndroidIDEInitScriptPlugin.apply` (`gradle-plugin`) reads the property from `gradle.startParameter.projectProperties` and, in `beforeProject`, sets `project.layout.buildDirectory`. This runs before any build script, so AGP, Kotlin and Quick Build's plugin all see the new location. The prototype init script did exactly this (`gradle.allprojects { p -> p.layout.buildDirectory.set(...) }`), with 33 builds and no output under the project.
-3. **Flag.** A `BuildPreferences` switch, default off, shown only with experiments enabled (`FeatureFlags.isExperimentsEnabled`, REVIEW.md section 12) until validation passes.
+3. **Flag.** A `BuildPreferences` switch, default off, shown only with experiments enabled (`FeatureFlags.isExperimentsEnabled`, REVIEW.md section 12) until validation passes. Removed after review: every sync relocates.
 4. **Sync applies it.** A sync reads the switch; the model it produces is the record. A build relocates exactly when the model's root build directory is in the tree, so its output is always where the model (APK listing file, classpath) looks, and a failed sync changes neither. When the switch and the model disagree, the editor offers a sync after the project initializes and on resume, once per change, and withdraws the offer when they agree again.
 
 ### What reads build output
@@ -68,14 +68,14 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
 - **Project deleted in the IDE**: both deletion paths (Recents and the Delete projects screen) go through `RecentProjectsViewModel`, which deletes the project's trees too. Trees are matched by their `project-path` marker, not by key: deletion uses the canonical path and builds use `projectDirPath`, so a symlinked spelling would key differently.
 - **Orphans** (project moved, renamed or deleted outside the IDE): at startup, off the main thread, remove trees whose project no longer exists. A project counts as gone when its parent folder exists, or, with the parent deleted too, when the nearest folder that exists is a readable folder on a volume under `/storage`. A volume that is not mounted leaves only `/storage` itself, so it doesn't count. Trees without a marker are left alone. Unlike `QuickBuildScratch.sweep`, which clears every tree, this keeps the output of live projects.
-- **Existing `build/` folders in projects**: leave them. They go stale but do no harm. A later "free space" action can offer to remove them.
+- **Existing `build/` folders in projects**: removed once, after the project's first relocated initialization (`OldBuildOutput`): each Gradle project's `build/`, and `.gradle/` and `.kotlin/` at the root and in `buildSrc` (not `buildSrc/.gradle/`, which builds still use). A stale APK where a file manager finds it misleads, and the copy doubles the space a project takes. Symlinks are never followed, a `build` folder that is or holds a module stays, and so does anything outside the project folder. The user is told once.
 - **Storage**: output now counts as app data in Settings, and "Clear storage" removes it (the next build is a full one). Uninstalling removes it as well; sources are unaffected.
 
 ### What users will notice
 
 These are the tradeoffs from the original analysis, with how this plan handles each:
 
-- **The APK is no longer in the project folder**, file manager or MTP. Add an **Export APK** toolbar action, shown while relocation is available, that offers the share sheet or a copy in `Download/` (`[project]-[variant].apk`, numbered when taken). The survey found no existing export action.
+- **The APK is no longer in the project folder**, file manager or MTP. Add an **Export APK** toolbar action, shown while relocation is available, that offers the share sheet or a copy in `Download/` (`[project]-[variant].apk`, numbered when taken). The survey found no existing export action. After review it became **Export**, covering the App Bundle (`outputs/bundle/[variant]/`, as the model has no bundle listing) and a plugin project's `.cgp` too, and installing a built plugin no longer deletes the `.cgp`.
 - **Build output no longer travels with a copied project folder.** That's acceptable: it can be rebuilt, and copying `build/` is rarely wanted.
 - **Terminal builds** (`./gradlew` in the IDE's terminal) don't get the redirect, so they still build into the project folder, separately from the IDE's tree. Document this. Changing it is a follow-up if users trip over it.
 
@@ -87,6 +87,8 @@ Each PR compiles and passes tests on its own; the flag stays off until PR 4.
 2. **Consumers.** Quick Build `setup.json` lookup and plugin `.cgp` lookup from the model. Tests for both. About 4 files.
 3. **Lifecycle and UX.** Delete-with-project, the orphan sweep, Export APK, strings. About 6 files.
 4. **Default on.** Flip the flag after validation. Update `ARCHITECTURE.md` (storage layout) and any user docs.
+   Validation (2026-10-15/16, posted on ADFA-4930): warm edit builds 48% faster on a 288-source project (Pixel 6 Pro); on an itel A667L, clean builds about 50% faster and small edits unchanged. PR 4 also drops the experiments gate, so the switch and Export APK show for everyone, and gives the sync banner its own wording for a relocation change.
+   After review (Hal Eisen on #2155) the switch is gone: every sync relocates, and the banner only offers an existing project's first relocating sync.
 
 ## Validation before default-on
 
@@ -98,21 +100,25 @@ Each PR compiles and passes tests on its own; the flag stays off until PR 4.
 ```gherkin
 Feature: Build output in app storage
 
-  Background:
-    Given build output relocation is enabled in Build preferences
-
   Scenario: A project builds and runs with output in app storage
     Given a new Empty Activity project in CodeOnTheGoProjects
     When I build and run it
     Then the app installs and launches
     And the project folder contains no "build" or ".gradle" folder
 
-  Scenario: Changing the switch waits for a sync
-    Given an open project that was synced with relocation off
-    When I turn relocation on in Build preferences and return to the editor
+  Scenario: An existing project moves its output at its next sync
+    Given a project last synced by a version without relocation
+    When I open it
     Then the editor asks for a sync
     And a build before the sync still writes to the project's "build" folder
     And after the sync, builds write to app storage
+
+  Scenario: An existing project's old output is removed after it moves
+    Given a project last built by a version without relocation, with "app/build" in its folder
+    When I open it and accept the sync
+    Then "build", "app/build", ".gradle" and ".kotlin" are gone from the project folder
+    And I am told the old build output was removed
+    And a later sync removes nothing, and says nothing
 
   Scenario: Quick Build still works
     Given an open project that has been built once
@@ -126,8 +132,19 @@ Feature: Build output in app storage
 
   Scenario: Export APK
     Given a built project
-    When I choose Export APK
+    When I choose Export
     Then the APK appears in Download
+
+  Scenario: Export an App Bundle
+    Given a project where Run Tasks has run ":app:bundleRelease" after a run
+    When I choose Export
+    Then I can choose between the APK and the App Bundle
+    And choosing the App Bundle and Copy to Download puts "[project]-release.aab" in Download
+
+  Scenario: Export a plugin after installing it
+    Given a plugin project that has been run, and its plugin installed
+    When I choose Export
+    Then "Copy to Download" puts the plugin's ".cgp" in Download
 
   Scenario: Deleting a project frees its build output
     Given a built project

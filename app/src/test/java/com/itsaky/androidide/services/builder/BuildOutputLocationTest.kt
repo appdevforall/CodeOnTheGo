@@ -7,6 +7,9 @@ import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPU
 import com.itsaky.androidide.utils.ProjectStorageKey
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -129,16 +132,14 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `a sync is pending exactly when the request differs from the synced model`() {
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = false, requested = false)).isFalse()
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = false, requested = true)).isTrue()
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = true, requested = true)).isFalse()
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = true, requested = false)).isTrue()
+	fun `a sync is pending exactly when the synced model builds into the project folder`() {
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = false)).isTrue()
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = true)).isFalse()
 	}
 
 	@Test
 	fun `nothing is pending before a model is loaded`() {
-		assertThat(BuildOutputLocation.syncPending(modelRelocated = null, requested = true)).isFalse()
+		assertThat(BuildOutputLocation.syncPending(modelRelocated = null)).isFalse()
 	}
 
 	@Test
@@ -153,6 +154,22 @@ class BuildOutputLocationTest {
 
 		assertThat(appTree.exists()).isFalse()
 		assertThat(otherTree.isDirectory).isTrue()
+	}
+
+	@Test
+	fun `deleting a project's tree never follows a symlink out of it`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val project = tmp.newFolder("projects", "app")
+		val tree = treeOf(noBackup, project)
+		val elsewhere = tmp.newFolder("elsewhere")
+		val precious = File(elsewhere, "precious.txt").apply { writeText("keep me") }
+		// A build can leave a link in its output, such as one a custom task makes.
+		Files.createSymbolicLink(File(tree, "main/app-1234/outputs/link").toPath(), elsewhere.toPath())
+
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, project)).isEqualTo(1)
+
+		assertThat(tree.exists()).isFalse()
+		assertThat(precious.readText()).isEqualTo("keep me")
 	}
 
 	@Test
@@ -250,6 +267,54 @@ class BuildOutputLocationTest {
 			assertThat(BuildOutputLocation.prepare(it, project)).isTrue()
 			File(it, "main/app-1234/outputs").mkdirs()
 		}
+
+	@Test
+	fun `every spelling of a project's path names the same tree`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val app = tmp.newFolder("storage", "app")
+		val link = File(tmp.root, "sdcard").toPath()
+		Files.createSymbolicLink(link, app.parentFile.toPath())
+
+		assertThat(BuildOutputLocation.treeFor(noBackup, File(link.toFile(), "app")))
+			.isEqualTo(BuildOutputLocation.treeFor(noBackup, app))
+	}
+
+	@Test
+	fun `a deferred sync is offered again once the build frees the slot, though its listener ran first`() =
+		runTest {
+			// The build's listener has run and its flags have dropped, but it still holds the slot.
+			val slotBusy = MutableStateFlow(true)
+			var offers = 0
+			BuildOutputLocation.offerWhenSlotFree(backgroundScope, slotBusy) { offers++ }
+			runCurrent()
+			assertThat(offers).isEqualTo(0)
+
+			slotBusy.value = false
+			runCurrent()
+			assertThat(offers).isEqualTo(1)
+
+			// Only once: a later build does not bring the offer back.
+			slotBusy.value = true
+			runCurrent()
+			slotBusy.value = false
+			runCurrent()
+			assertThat(offers).isEqualTo(1)
+		}
+
+	@Test
+	fun `a deferred sync is offered at once when the slot is already free`() =
+		runTest {
+			var offers = 0
+			BuildOutputLocation.offerWhenSlotFree(backgroundScope, MutableStateFlow(false)) { offers++ }
+			runCurrent()
+			assertThat(offers).isEqualTo(1)
+		}
+
+	@Test
+	fun `relocating arguments are recognised and others are not`() {
+		assertThat(BuildOutputLocation.isRelocating(BuildOutputLocation.gradleArgs(File(tmp.root, "tree")))).isTrue()
+		assertThat(BuildOutputLocation.isRelocating(listOf("--parallel", "--watch-fs", "-Pother=1"))).isFalse()
+	}
 
 	private fun workspace(rootBuildDir: File): Workspace {
 		val root = mockk<GradleProject>()
