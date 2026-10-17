@@ -127,6 +127,7 @@ import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
 import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
@@ -166,6 +167,7 @@ import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.IOException
 import java.net.SocketException
 import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
@@ -1142,7 +1144,15 @@ abstract class ProjectHandlerActivity :
 	private fun installPlugin(cgpFile: File) {
 		lifecycleScope.launch {
 			setStatus(getString(string.status_installing_plugin))
-			val result = pluginRepository.installPluginFromFile(cgpFile)
+			// Installing deletes the file it is given. A copy keeps the built plugin for Export.
+			val result =
+				try {
+					val copy = InstallTempFiles.newTempFile(filesDir, "built_plugin", cgpFile.extension)
+					withContext(Dispatchers.IO) { cgpFile.copyTo(copy) }
+					pluginRepository.installPluginFromFile(copy)
+				} catch (e: IOException) {
+					Result.failure(e)
+				}
 			result
 				.onSuccess {
 					showRestartPrompt(this@ProjectHandlerActivity)

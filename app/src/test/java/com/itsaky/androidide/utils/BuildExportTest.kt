@@ -58,7 +58,7 @@ class BuildExportTest {
 		val download = tmp.newFolder("Download")
 
 		try {
-			BuildExport.copyTo(apk, download, "app-debug") { _, to ->
+			BuildExport.copyTo(apk, download, "app-debug", "apk") { _, to ->
 				to.writeText("half an ap")
 				throw IOException("disk full")
 			}
@@ -101,7 +101,7 @@ class BuildExportTest {
 	fun `the copy is named after the project and variant`() {
 		val download = tmp.newFolder("Download")
 
-		val copy = BuildExport.copyTo(apk, download, "My Application-debug")
+		val copy = BuildExport.copyTo(apk, download, "My Application-debug", "apk")
 
 		assertThat(copy).isEqualTo(File(download, "My Application-debug.apk"))
 		assertThat(copy.readText()).isEqualTo("apk")
@@ -113,7 +113,7 @@ class BuildExportTest {
 		File(download, "app-debug.apk").writeText("first")
 		File(download, "app-debug (2).apk").writeText("second")
 
-		val copy = BuildExport.copyTo(apk, download, "app-debug")
+		val copy = BuildExport.copyTo(apk, download, "app-debug", "apk")
 
 		assertThat(copy.name).isEqualTo("app-debug (3).apk")
 		assertThat(File(download, "app-debug.apk").readText()).isEqualTo("first")
@@ -121,7 +121,7 @@ class BuildExportTest {
 
 	@Test
 	fun `characters a file name cannot hold are replaced`() {
-		val copy = BuildExport.copyTo(apk, tmp.newFolder("Download"), "a/b:c-debug")
+		val copy = BuildExport.copyTo(apk, tmp.newFolder("Download"), "a/b:c-debug", "apk")
 
 		assertThat(copy.name).isEqualTo("a_b_c-debug.apk")
 	}
@@ -130,13 +130,52 @@ class BuildExportTest {
 	fun `a missing Download folder is created`() {
 		val download = File(tmp.root, "sdcard/Download")
 
-		assertThat(BuildExport.copyTo(apk, download, "app-debug").isFile).isTrue()
+		assertThat(BuildExport.copyTo(apk, download, "app-debug", "apk").isFile).isTrue()
 	}
 
 	@Test(expected = IOException::class)
 	fun `a Download folder that cannot be created is reported`() {
 		val blocker = tmp.newFile("sdcard")
 
-		BuildExport.copyTo(apk, File(blocker, "Download"), "app-debug")
+		BuildExport.copyTo(apk, File(blocker, "Download"), "app-debug", "apk")
+	}
+
+	@Test
+	fun `the newest bundle of the variant is found`() {
+		val buildDir = tmp.newFolder("tree", "main", "app-1234")
+		val release = File(buildDir, "outputs/bundle/release").apply { mkdirs() }
+		val old = File(release, "app-release-old.aab").apply { writeText("old") }
+		old.setLastModified(1_000)
+		val newest = File(release, "app-release.aab").apply { writeText("new") }
+		newest.setLastModified(2_000)
+		File(release, "app-release.aab.idsig").writeText("not a bundle")
+		File(buildDir, "outputs/bundle/debug").mkdirs()
+
+		assertThat(BuildExport.findBundle(buildDir, "release")).isEqualTo(newest)
+		assertThat(BuildExport.findBundle(buildDir, "debug")).isNull()
+		assertThat(BuildExport.findBundle(buildDir, "freeRelease")).isNull()
+	}
+
+	@Test
+	fun `outputs are offered APK first, and never Quick Build's proxy`() {
+		val built = apk
+		val bundle = File(tmp.root, "app-release.aab")
+		val plugin = File(tmp.root, "plugin-debug.cgp")
+
+		assertThat(BuildExport.outputs(BuildExport.Exportable.Apk(built), bundle, plugin).map { it.kind })
+			.containsExactly(BuildExport.Kind.APK, BuildExport.Kind.BUNDLE, BuildExport.Kind.PLUGIN)
+			.inOrder()
+		assertThat(BuildExport.outputs(BuildExport.Exportable.QuickBuildProxy, bundle, null))
+			.containsExactly(BuildExport.Output(BuildExport.Kind.BUNDLE, bundle))
+		assertThat(BuildExport.outputs(BuildExport.Exportable.NotBuilt, null, null)).isEmpty()
+	}
+
+	@Test
+	fun `a copy keeps its kind's extension`() {
+		val download = tmp.newFolder("Download")
+		val bundle = File(tmp.root, "app-release.aab").apply { writeText("aab") }
+
+		assertThat(BuildExport.copyTo(bundle, download, "MyApp-release", "aab").name).isEqualTo("MyApp-release.aab")
+		assertThat(BuildExport.copyTo(bundle, download, "MyApp-release", "aab").name).isEqualTo("MyApp-release (2).aab")
 	}
 }

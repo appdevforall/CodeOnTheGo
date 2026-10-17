@@ -75,7 +75,7 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
 
 These are the tradeoffs from the original analysis, with how this plan handles each:
 
-- **The APK is no longer in the project folder**, file manager or MTP. Add an **Export APK** toolbar action, shown while relocation is available, that offers the share sheet or a copy in `Download/` (`[project]-[variant].apk`, numbered when taken). The survey found no existing export action.
+- **The APK is no longer in the project folder**, file manager or MTP. Add an **Export APK** toolbar action, shown while relocation is available, that offers the share sheet or a copy in `Download/` (`[project]-[variant].apk`, numbered when taken). The survey found no existing export action. After review it became **Export**, covering the App Bundle (`outputs/bundle/[variant]/`, as the model has no bundle listing) and a plugin project's `.cgp` too, and installing a built plugin no longer deletes the `.cgp`.
 - **Build output no longer travels with a copied project folder.** That's acceptable: it can be rebuilt, and copying `build/` is rarely wanted.
 - **Terminal builds** (`./gradlew` in the IDE's terminal) don't get the redirect, so they still build into the project folder, separately from the IDE's tree. Document this. Changing it is a follow-up if users trip over it.
 
@@ -132,8 +132,19 @@ Feature: Build output in app storage
 
   Scenario: Export APK
     Given a built project
-    When I choose Export APK
+    When I choose Export
     Then the APK appears in Download
+
+  Scenario: Export an App Bundle
+    Given a project where Run Tasks has run ":app:bundleRelease" after a run
+    When I choose Export
+    Then I can choose between the APK and the App Bundle
+    And choosing the App Bundle and Copy to Download puts "[project]-release.aab" in Download
+
+  Scenario: Export a plugin after installing it
+    Given a plugin project that has been run, and its plugin installed
+    When I choose Export
+    Then "Copy to Download" puts the plugin's ".cgp" in Download
 
   Scenario: Deleting a project frees its build output
     Given a built project
