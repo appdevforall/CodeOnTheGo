@@ -59,14 +59,14 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `prepare creates the tree and records the project path`() {
+	fun `prepare creates the tree and records the canonical project path`() {
 		val tree = File(tmp.root, "gradle-build/app-1234")
 		val project = File(tmp.root, "projects/app")
 
 		assertThat(BuildOutputLocation.prepare(tree, project)).isTrue()
 
 		assertThat(tree.isDirectory).isTrue()
-		assertThat(File(tree, BuildOutputLocation.PROJECT_PATH_FILE).readText()).isEqualTo(project.absolutePath)
+		assertThat(File(tree, BuildOutputLocation.PROJECT_PATH_FILE).readText()).isEqualTo(project.canonicalPath)
 	}
 
 	@Test
@@ -77,7 +77,7 @@ class BuildOutputLocationTest {
 
 		assertThat(BuildOutputLocation.prepare(tree, project)).isTrue()
 
-		assertThat(File(tree, BuildOutputLocation.PROJECT_PATH_FILE).readText()).isEqualTo(project.absolutePath)
+		assertThat(File(tree, BuildOutputLocation.PROJECT_PATH_FILE).readText()).isEqualTo(project.canonicalPath)
 	}
 
 	@Test
@@ -164,6 +164,19 @@ class BuildOutputLocationTest {
 		val tree = treeOf(noBackup, File(link.toFile(), "app"))
 
 		assertThat(BuildOutputLocation.removeTreesOf(noBackup, app)).isEqualTo(1)
+		assertThat(tree.exists()).isFalse()
+	}
+
+	@Test
+	fun `deleting a project opened through a symlinked root deletes its tree`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val real = tmp.newFolder("real", "app")
+		val alias = File(tmp.root, "alias-app").also { Files.createSymbolicLink(it.toPath(), real.toPath()) }
+		val tree = treeOf(noBackup, alias)
+		// Recents deletes the real folder, which leaves the alias dangling.
+		real.deleteRecursively()
+
+		assertThat(BuildOutputLocation.removeTreesOf(noBackup, real)).isEqualTo(1)
 		assertThat(tree.exists()).isFalse()
 	}
 

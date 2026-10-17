@@ -27,7 +27,7 @@ object BuildOutputLocation {
 	/** Parent of every project's tree, under `noBackupFilesDir`. */
 	const val DIR_NAME = "gradle-build"
 
-	/** Holds the project's path, so a sweep can find trees whose project is gone. */
+	/** Holds the project's canonical path, so a sweep can find trees whose project is gone. */
 	const val PROJECT_PATH_FILE = "project-path"
 
 	private const val KOTLIN_PERSISTENT_DIR = "kotlin.project.persistent.dir"
@@ -82,7 +82,8 @@ object BuildOutputLocation {
 	fun withoutWatchConflict(args: List<String>): List<String> = if (PROJECT_CACHE_DIR in args) args.filterNot { it == WATCH_FS } else args
 
 	/**
-	 * Creates [tree] and records [projectDir] in it.
+	 * Creates [tree] and records [projectDir] in it, canonically: a project deleted through its real
+	 * path must still match a marker written while it was opened through a symlink.
 	 *
 	 * @return false when [tree] or its marker cannot be written; a sync then keeps output in the
 	 *   project folder.
@@ -93,7 +94,7 @@ object BuildOutputLocation {
 	): Boolean {
 		if (!tree.isDirectory && !tree.mkdirs()) return false
 		val marker = File(tree, PROJECT_PATH_FILE)
-		val path = projectDir.absolutePath
+		val path = projectDir.canonicalProjectLocation()
 		return try {
 			if (!marker.isFile || marker.readText() != path) marker.writeText(path)
 			true
