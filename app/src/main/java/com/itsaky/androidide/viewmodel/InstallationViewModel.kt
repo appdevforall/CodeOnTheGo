@@ -21,6 +21,7 @@ import com.itsaky.androidide.viewmodel.InstallationState.InstallationGranted
 import com.itsaky.androidide.viewmodel.InstallationState.InstallationPending
 import com.itsaky.androidide.viewmodel.InstallationState.Installing
 import io.sentry.Sentry
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +34,10 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import kotlin.coroutines.cancellation.CancellationException
 
-class InstallationViewModel : ViewModel() {
+// All-default constructor, so the default ViewModel factory still finds a no-arg one.
+class InstallationViewModel(
+	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : ViewModel() {
 	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
 
 	private val _state = MutableStateFlow<InstallationState>(InstallationPending)
@@ -59,19 +63,23 @@ class InstallationViewModel : ViewModel() {
 			return
 		}
 
+		// Set before launching: callers wait for the next Complete/Error with state.first {}, and
+		// on a retry a stale InstallationError from the previous attempt would end that wait
+		// before this run even starts, leaving no progress and no navigation on success.
+		_state.update { Installing() }
+
 		viewModelScope.launch {
 			if (!checkStorageAndNotify(context)) {
+				_state.update { InstallationError(context.getString(R.string.title_installation_failed)) }
 				return@launch
 			}
-			if (withContext(Dispatchers.IO) { checkToolsIsInstalled() }) {
+			if (withContext(ioDispatcher) { checkToolsIsInstalled() }) {
 				// Tools already installed
 				_state.update { InstallationComplete }
 				return@launch
 			}
 			try {
-				_state.update { Installing() }
-
-				withContext(Dispatchers.IO) {
+				withContext(ioDispatcher) {
 					val result =
 						withStopWatch("Assets installation") {
 							AssetsInstallationHelper.install(context) { progress ->
@@ -122,7 +130,7 @@ class InstallationViewModel : ViewModel() {
 
 	fun isSetupComplete(): Boolean = checkToolsIsInstalled()
 
-	suspend fun isSetupCompleteAsync(): Boolean = withContext(Dispatchers.IO) { checkToolsIsInstalled() }
+	suspend fun isSetupCompleteAsync(): Boolean = withContext(ioDispatcher) { checkToolsIsInstalled() }
 
 	private fun checkToolsIsInstalled(): Boolean =
 		IJdkDistributionProvider.getInstance().installedDistributions.isNotEmpty() &&
@@ -148,7 +156,7 @@ class InstallationViewModel : ViewModel() {
 	}
 
 	suspend fun checkStorageAndNotify(context: Context): Boolean =
-		withContext(Dispatchers.IO) {
+		withContext(ioDispatcher) {
 			val storageInfo = getStorageInfo(context)
 
 			if (storageInfo.isLowStorage) {

@@ -120,9 +120,14 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 	 * [PROPERTY_BUILD_OUTPUT_DIR], off the FUSE-backed project folder (ADFA-4930). `beforeProject`
 	 * runs before any build script, so AGP, Kotlin and the IDE's own plugins all see the new
 	 * location. Without the property, Gradle's default stays.
+	 *
+	 * The property is read from the root build: Gradle copies project properties into `buildSrc`'s
+	 * start parameters but not into an included build's, which would otherwise keep its output in
+	 * the project folder.
 	 */
 	private fun redirectBuildOutput(gradle: Gradle) {
-		val outputDir = gradle.startParameter.projectProperties[PROPERTY_BUILD_OUTPUT_DIR]
+		val rootBuild = generateSequence(gradle) { it.parent }.last()
+		val outputDir = rootBuild.startParameter.projectProperties[PROPERTY_BUILD_OUTPUT_DIR]
 		if (outputDir.isNullOrBlank()) return
 
 		val root = File(outputDir)
