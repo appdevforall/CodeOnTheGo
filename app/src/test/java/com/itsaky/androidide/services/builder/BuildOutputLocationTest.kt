@@ -174,17 +174,36 @@ class BuildOutputLocationTest {
 		val deleted = tmp.newFolder("projects", "deleted")
 		val keptTree = treeOf(noBackup, kept)
 		val deletedTree = treeOf(noBackup, deleted)
-		val unmountedTree = treeOf(noBackup, File(tmp.root, "unmounted-volume/app"))
+		val volumes = tmp.newFolder("storage")
+		val unmountedTree = treeOf(noBackup, File(volumes, "usb-drive/Projects/app"))
 		val markerless = File(noBackup, "${BuildOutputLocation.DIR_NAME}/no-marker").apply { mkdirs() }
 		deleted.deleteRecursively()
 
-		assertThat(BuildOutputLocation.sweep(noBackup)).isEqualTo(1)
+		assertThat(BuildOutputLocation.sweep(noBackup, volumes)).isEqualTo(1)
 
 		assertThat(deletedTree.exists()).isFalse()
 		assertThat(keptTree.isDirectory).isTrue()
-		// A missing parent reads as a volume that is not mounted, not as a deleted project.
+		// Only the volumes root is left of the path: the volume is not mounted, not deleted.
 		assertThat(unmountedTree.isDirectory).isTrue()
 		assertThat(markerless.isDirectory).isTrue()
+	}
+
+	@Test
+	fun `the sweep deletes the trees of projects deleted with their folder`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val volumes = tmp.newFolder("storage")
+		val experiments = tmp.newFolder("storage", "emulated", "Projects", "Experiments")
+		val first = treeOf(noBackup, File(experiments, "first").apply { mkdirs() })
+		val second = treeOf(noBackup, File(experiments, "nested/second").apply { mkdirs() })
+		val outsideVolumes = treeOf(noBackup, File(tmp.root, "elsewhere/gone/app"))
+		experiments.deleteRecursively()
+
+		assertThat(BuildOutputLocation.sweep(noBackup, volumes)).isEqualTo(2)
+
+		assertThat(first.exists()).isFalse()
+		assertThat(second.exists()).isFalse()
+		// Off the volumes, a missing parent proves nothing, so the tree stays.
+		assertThat(outsideVolumes.isDirectory).isTrue()
 	}
 
 	@Test
