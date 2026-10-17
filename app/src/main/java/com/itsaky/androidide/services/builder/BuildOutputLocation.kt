@@ -8,6 +8,11 @@ import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPU
 import com.itsaky.androidide.utils.ProjectStorageKey
 import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.isDeletedProjectDirectory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
 
@@ -209,18 +214,22 @@ object BuildOutputLocation {
 	): Boolean = afterInit && modelRelocated == false && !quickBuildLive
 
 	/**
-	 * Whether to offer a relocation sync the user deferred: it was tapped while a build held the
-	 * Gradle slot, and now no build holds it.
+	 * Offers a relocation sync the user deferred, once no build holds the Gradle slot. Waits on the
+	 * slot itself: a finished build's listener can run before the build frees the slot, so a check
+	 * made when the build flags drop can still find it busy, and nothing would check again.
 	 *
-	 * @param building the user-visible or internal build flag that just changed.
-	 * @param deferred a sync was deferred.
-	 * @param slotBusy any build still holds the Gradle slot.
+	 * @param slotBusy whether a build holds the Gradle slot.
+	 * @param offer makes the offer again.
 	 */
-	fun shouldOfferDeferredSync(
-		building: Boolean?,
-		deferred: Boolean,
-		slotBusy: Boolean,
-	): Boolean = building == false && deferred && !slotBusy
+	fun offerWhenSlotFree(
+		scope: CoroutineScope,
+		slotBusy: StateFlow<Boolean>,
+		offer: () -> Unit,
+	): Job =
+		scope.launch {
+			slotBusy.first { !it }
+			offer()
+		}
 
 	/**
 	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the

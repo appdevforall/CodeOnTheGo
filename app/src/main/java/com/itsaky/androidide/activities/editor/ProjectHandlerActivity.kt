@@ -148,6 +148,7 @@ import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -192,8 +193,8 @@ abstract class ProjectHandlerActivity :
 	/** The banner that offer showed, so withdrawing it never dismisses another one. */
 	private var buildOutputSyncBanner: Flashbar? = null
 
-	/** A relocation sync the user asked for while a build held the slot; offered again after it. */
-	private var buildOutputSyncDeferred = false
+	/** Offers again a relocation sync the user asked for while a build held the slot. */
+	private var buildOutputSyncDeferral: Job? = null
 	private var replaceReportFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
@@ -302,17 +303,6 @@ abstract class ProjectHandlerActivity :
 			return
 		}
 		didCompleteLiveOnCreate = true
-
-		// ADFA-4930: offer a deferred relocation sync again once no build holds the Gradle slot.
-		val offerDeferredSync =
-			Observer<Boolean> { building ->
-				if (BuildOutputLocation.shouldOfferDeferredSync(building, buildOutputSyncDeferred, isGradleSlotBusy())) {
-					buildOutputSyncDeferred = false
-					reconcileBuildOutputSyncOffer(afterInit = false)
-				}
-			}
-		editorViewModel._isBuildInProgress.observe(this, offerDeferredSync)
-		editorViewModel._isInternalBuildInProgress.observe(this, offerDeferredSync)
 
 		editorViewModel._isSyncNeeded.observe(this) { isSyncNeeded ->
 			if (!isSyncNeeded) {
@@ -1293,9 +1283,14 @@ abstract class ProjectHandlerActivity :
 	private fun syncForBuildOutput() {
 		buildOutputSyncOffered = null
 		buildOutputSyncBanner = null
-		if (isGradleSlotBusy()) {
-			buildOutputSyncDeferred = true
+		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+		if (service?.isBuildInProgress == true) {
 			flashInfoLong(getString(string.msg_sync_build_output_deferred))
+			buildOutputSyncDeferral?.cancel()
+			buildOutputSyncDeferral =
+				BuildOutputLocation.offerWhenSlotFree(activityScope, service.buildSlotBusy) {
+					reconcileBuildOutputSyncOffer(afterInit = false)
+				}
 			return
 		}
 		initializeProject(forceSync = true)

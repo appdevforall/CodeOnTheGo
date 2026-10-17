@@ -82,6 +82,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -96,7 +99,6 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -115,10 +117,16 @@ class GradleBuildService :
 	private var isToolingServerStarted = false
 
 	// Atomic: two callers may race for the slot, and Quick Build's pre-check reads it cross-thread.
-	private val buildSlot = AtomicBoolean(false)
+	private val buildSlot = MutableStateFlow(false)
+
+	/**
+	 * [isBuildInProgress] as a flow. A finished build's listener can run before the build frees the
+	 * slot, so a caller waiting for the slot to free watches this instead of the listener.
+	 */
+	val buildSlotBusy: StateFlow<Boolean> = buildSlot.asStateFlow()
 
 	override val isBuildInProgress: Boolean
-		get() = buildSlot.get()
+		get() = buildSlot.value
 
 	// Written only while the slot is held, by the build holding it.
 	@Volatile
@@ -931,7 +939,7 @@ class GradleBuildService :
 				dispatch()
 			} catch (e: Throwable) {
 				currentBuildId = null
-				buildSlot.set(false)
+				buildSlot.value = false
 				throw e
 			}
 		pendingBuild = future
@@ -1017,7 +1025,7 @@ class GradleBuildService :
 		throwable: Throwable?,
 	): T {
 		currentBuildId = null
-		buildSlot.set(false)
+		buildSlot.value = false
 		return result
 	}
 

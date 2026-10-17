@@ -7,6 +7,9 @@ import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPU
 import com.itsaky.androidide.utils.ProjectStorageKey
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -289,13 +292,35 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `a deferred sync is offered again only once no build holds the slot`() {
-		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = false, deferred = true, slotBusy = false)).isTrue()
-		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = true, deferred = true, slotBusy = true)).isFalse()
-		// The user-visible flag dropped, but Quick Build's prebuild still holds the slot.
-		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = false, deferred = true, slotBusy = true)).isFalse()
-		assertThat(BuildOutputLocation.shouldOfferDeferredSync(building = false, deferred = false, slotBusy = false)).isFalse()
-	}
+	fun `a deferred sync is offered again once the build frees the slot, though its listener ran first`() =
+		runTest {
+			// The build's listener has run and its flags have dropped, but it still holds the slot.
+			val slotBusy = MutableStateFlow(true)
+			var offers = 0
+			BuildOutputLocation.offerWhenSlotFree(backgroundScope, slotBusy) { offers++ }
+			runCurrent()
+			assertThat(offers).isEqualTo(0)
+
+			slotBusy.value = false
+			runCurrent()
+			assertThat(offers).isEqualTo(1)
+
+			// Only once: a later build does not bring the offer back.
+			slotBusy.value = true
+			runCurrent()
+			slotBusy.value = false
+			runCurrent()
+			assertThat(offers).isEqualTo(1)
+		}
+
+	@Test
+	fun `a deferred sync is offered at once when the slot is already free`() =
+		runTest {
+			var offers = 0
+			BuildOutputLocation.offerWhenSlotFree(backgroundScope, MutableStateFlow(false)) { offers++ }
+			runCurrent()
+			assertThat(offers).isEqualTo(1)
+		}
 
 	@Test
 	fun `relocating arguments are recognised and others are not`() {
