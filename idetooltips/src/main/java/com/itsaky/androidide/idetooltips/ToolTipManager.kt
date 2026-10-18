@@ -53,13 +53,6 @@ object TooltipManager {
 	private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
 			"/Download/documentation.db")
 
-	private const val QUERY_TOOLTIP_BUTTONS = """
-		SELECT description, uri
-		FROM TooltipButtons
-		WHERE tooltipId = ?
-		ORDER BY buttonNumberId
-	"""
-
 	suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
 		Log.d(TAG, "In getTooltip() for category='$category', tag='$tag'.")
 
@@ -100,24 +93,19 @@ object TooltipManager {
 						}
 
 						c.moveToFirst()
-						val rowId = c.getInt(0)
-						val tooltipId = c.getInt(1)
-						val summary = c.getString(2)
-						val detail = c.getString(3)
+						val tooltipId = c.getInt(0)
+						val summary = c.getString(1)
+						val detail = c.getString(2)
 
 						val buttons = ArrayList<Pair<String, String>>()
-						database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { bc ->
-							while (bc.moveToNext()) {
-								buttons.add(
-									Pair(
-										bc.getString(0),
-										"http://localhost:6174/" + bc.getString(1)
-									)
-								)
-							}
+						for ((description, uri) in queryTooltipButtons(database, tooltipId)) {
+							buttons.add(Pair(description, "http://localhost:6174/$uri"))
 						}
 
-						IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
+						// Tooltips has no rowid from documentation version 3 on. It always equalled
+						// id before (id was the INTEGER PRIMARY KEY), so the debug dialog's Row is
+						// still the id.
+						IDETooltipItem(tooltipId, tooltipId, category, tag, summary, detail, buttons, lastChange)
 					}
 				}
 			} catch (e: NoTooltipFoundException) {
