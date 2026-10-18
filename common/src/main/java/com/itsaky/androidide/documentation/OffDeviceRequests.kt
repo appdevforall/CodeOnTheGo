@@ -78,9 +78,10 @@ object OffDeviceRequests {
 
 	/**
 	 * Turns off Safe Browsing, which has Google Play services send the addresses a WebView loads to
-	 * Google to be checked, charged to this app. These WebViews load only documentation from the
-	 * device, so there is nothing to check; with it off, a request that ever got past [block] would
-	 * not also be looked up. Call it before the WebView loads anything.
+	 * Google to be checked, charged to this app. It looks an address up even when [block] answers
+	 * the request locally: on a Pixel 6 Pro, two documentation pages cost 15 KB of lookups with
+	 * Safe Browsing on and nothing with it off. These WebViews load only documentation from the
+	 * device, so there is nothing for it to check. Call it before the WebView loads anything.
 	 */
 	fun disableSafeBrowsing(settings: WebSettings) {
 		settings.safeBrowsingEnabled = false
