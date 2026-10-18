@@ -144,7 +144,7 @@ class HelpActivity : BaseIDEActivity() {
 			webView.settings.domStorageEnabled = true
 			webView.settings.databaseEnabled = true
 			webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-			OffDeviceRequests.disableSafeBrowsing(webView.settings)
+			OffDeviceRequests.keepOnDevice(webView.settings)
 
 			// Set WebViewClient to handle page navigation within the WebView
 			webView.webViewClient =
@@ -270,7 +270,8 @@ class HelpActivity : BaseIDEActivity() {
 		supportActionBar?.title = pageTitle ?: getString(R.string.help)
 
 		currentIntent.getStringExtra(CONTENT_KEY)?.let { url ->
-			// A link in a tooltip's text can name any site, and reaches here through launch().
+			// Nothing passes an off-device URL here today (ToolTipManager asks first itself); this keeps
+			// a future caller from loading one.
 			if (!OffDeviceRequests.openWithConsent(this, url)) {
 				binding.webView.loadUrl(url)
 			}

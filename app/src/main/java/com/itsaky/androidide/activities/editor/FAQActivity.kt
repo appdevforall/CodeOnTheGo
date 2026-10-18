@@ -67,7 +67,7 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 //            }
 			// Enable JavaScript if required
 			webView.settings.javaScriptEnabled = true
-			OffDeviceRequests.disableSafeBrowsing(webView.settings)
+			OffDeviceRequests.keepOnDevice(webView.settings)
 
 			// Set WebViewClient to handle page navigation within the WebView. ADFA-5176: it answers
 			// documentation from the database in-process, falling through to the local web server

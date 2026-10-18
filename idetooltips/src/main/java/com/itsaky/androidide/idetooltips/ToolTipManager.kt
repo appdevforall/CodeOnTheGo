@@ -396,7 +396,7 @@ object TooltipManager {
 		}
 
 		webView.settings.javaScriptEnabled = true
-		OffDeviceRequests.disableSafeBrowsing(webView.settings)
+		OffDeviceRequests.keepOnDevice(webView.settings)
 		webView.setBackgroundColor(Color.TRANSPARENT)
 		webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
 
@@ -479,7 +479,13 @@ object TooltipManager {
 			setColorFilter(iconTintColor)
 			setOnClickListener {
 				val sponsorUrl = context.getString(ResR.string.github_sponsors_url)
-				UrlManager.openUrl(sponsorUrl, null, context)
+				// The consent dialog needs an Activity: without one, UrlManager opens the link unasked.
+				val activity = OffDeviceRequests.activityFor(context, anchorView.context)
+				if (activity == null) {
+					Toast.makeText(context, ResR.string.tooltip_link_cannot_open, Toast.LENGTH_LONG).show()
+				} else {
+					UrlManager.openUrl(sponsorUrl, null, activity)
+				}
 			}
 		}
 

@@ -142,7 +142,7 @@ class IDETooltipWebviewFragment : Fragment() {
 
 		// Enable JavaScript if needed
 		webView.settings.javaScriptEnabled = true
-		OffDeviceRequests.disableSafeBrowsing(webView.settings)
+		OffDeviceRequests.keepOnDevice(webView.settings)
 
 		// Load the HTML file from the assets folder
 		webView.loadUrl(website)

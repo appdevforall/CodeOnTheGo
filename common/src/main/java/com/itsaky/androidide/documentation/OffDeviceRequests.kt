@@ -19,21 +19,28 @@ package com.itsaky.androidide.documentation
 
 import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
+import android.webkit.ServiceWorkerClient
+import android.webkit.ServiceWorkerController
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import com.itsaky.androidide.utils.UrlManager
+import com.itsaky.androidide.utils.findActivity
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.net.URI
 import java.net.URISyntaxException
 
 /**
- * Keeps the app's WebViews on the device (ADFA-6589). Documentation pages reference fonts, YouTube
+ * Keeps the documentation WebViews on the device (ADFA-6589). Documentation pages reference YouTube
  * players and images on the internet, and a WebView fetches anything its client does not answer.
- * So every first-party WebView answers off-device requests with [block], sends tapped off-device
- * links through [openWithConsent], and turns Safe Browsing off with [disableSafeBrowsing].
+ * So each documentation WebView answers off-device requests with [block], sends tapped off-device
+ * links through [openWithConsent], and calls [keepOnDevice] before loading anything.
+ *
+ * [block] sees only what reaches `shouldInterceptRequest`. A page can still reach the network
+ * without it: `<link rel=preconnect>` and `dns-prefetch` (or the same in a `Link:` header),
+ * WebSockets, and each hop of a redirect. No documentation page uses any of them, and neither
+ * WebServer nor DocumentationRequestInterceptor sends a redirect or a `Link:` header.
  *
  * Not `WebSettings.blockNetworkLoads`: that would also stop requests to the local web server on
  * localhost:6174, which the `/pr/` endpoints and the `CodeOnTheGo.nointercept` fallback rely on.
@@ -42,6 +49,7 @@ object OffDeviceRequests {
 	private val log = LoggerFactory.getLogger(OffDeviceRequests::class.java)
 
 	private val LOOPBACK_V4 = Regex("""127\.\d{1,3}\.\d{1,3}\.\d{1,3}""")
+	private val AUTHORITY = Regex("""^([A-Za-z][A-Za-z0-9+.-]*)://([^/?#]*)""")
 
 	/**
 	 * Whether [url] is an http(s) URL whose host is not this device. Fails closed: an http(s) URL
@@ -86,36 +94,63 @@ object OffDeviceRequests {
 	fun activityFor(vararg contexts: Context?): Activity? = contexts.firstNotNullOfOrNull { it?.findActivity() }
 
 	/**
-	 * Turns off Safe Browsing, which has Google Play services send the addresses a WebView loads to
-	 * Google to be checked, charged to this app. It looks an address up even when [block] answers
-	 * the request locally: on a Pixel 6 Pro, two documentation pages cost 15 KB of lookups with
-	 * Safe Browsing on and nothing with it off. These WebViews load only documentation from the
-	 * device, so there is nothing for it to check. Call it before the WebView loads anything.
+	 * Closes two ways a WebView reaches the network that [block] does not see. Call it before the
+	 * WebView loads anything.
+	 *
+	 * Safe Browsing has Google Play services look the addresses a WebView loads up with Google (as
+	 * hash prefixes), charged to this app, even when [block] answers the request locally: on a
+	 * Pixel 6 Pro, two documentation pages cost 15 KB of lookups with it on and nothing with it off.
+	 * Service-worker fetches go to the process-wide ServiceWorkerClient rather than a WebView's
+	 * client, so that one gets [block] too. No documentation page registers a service worker today.
 	 */
-	fun disableSafeBrowsing(settings: WebSettings) {
+	fun keepOnDevice(settings: WebSettings) {
 		settings.safeBrowsingEnabled = false
+		ServiceWorkerController.getInstance().setServiceWorkerClient(serviceWorkerClient)
 	}
 
-	private tailrec fun Context.findActivity(): Activity? =
-		when (this) {
-			is Activity -> this
-			is ContextWrapper -> baseContext?.findActivity()
-			else -> null
+	// Lazy: ServiceWorkerClient is a framework class, so building it with the object would break
+	// every plain JVM test of the host check.
+	private val serviceWorkerClient by lazy {
+		object : ServiceWorkerClient() {
+			override fun shouldInterceptRequest(request: WebResourceRequest): WebResourceResponse? = block(request)
 		}
+	}
 
 	// The host [url] would connect to, or null if it stays on the device. The URLs a WebView hands
-	// its client are already canonical (lowercase host, no backslashes), so java.net.URI reads the
-	// host as Chromium does, userinfo included: http://localhost@example.com is example.com.
+	// its client are already canonical (lowercase host, no backslashes), so where java.net.URI
+	// parses one it finds the same host, userinfo included: http://localhost@example.com is
+	// example.com.
 	private fun offDeviceHost(url: String): String? {
 		val uri =
 			try {
 				URI(url)
 			} catch (e: URISyntaxException) {
-				return if (url.startsWith("http:", ignoreCase = true) || url.startsWith("https:", ignoreCase = true)) url else null
+				return offDeviceHostOfUnparsed(url)
 			}
 		val scheme = uri.scheme?.lowercase()
 		if (scheme != "http" && scheme != "https") return null
 		val host = uri.host?.lowercase()?.removeSurrounding("[", "]") ?: return url
-		return if (host == "localhost" || host == "::1" || LOOPBACK_V4.matches(host)) null else host
+		return if (isThisDevice(host)) null else host
 	}
+
+	// java.net.URI rejects some characters a canonical URL keeps (a | in a query, a stray % in a
+	// path), so read only scheme://authority. A URL even that cannot read stays off-device.
+	private fun offDeviceHostOfUnparsed(url: String): String? {
+		val match = AUTHORITY.find(url)
+		if (match == null) {
+			return if (url.startsWith("http:", ignoreCase = true) || url.startsWith("https:", ignoreCase = true)) url else null
+		}
+		val scheme = match.groupValues[1].lowercase()
+		if (scheme != "http" && scheme != "https") return null
+		val authority = match.groupValues[2].substringAfterLast('@')
+		val host =
+			if (authority.startsWith("[")) {
+				authority.substringBefore(']').removePrefix("[")
+			} else {
+				authority.substringBefore(':')
+			}.lowercase()
+		return if (isThisDevice(host)) null else url
+	}
+
+	private fun isThisDevice(host: String) = host == "localhost" || host == "::1" || LOOPBACK_V4.matches(host)
 }

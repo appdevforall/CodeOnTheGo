@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.net.Uri
+import android.webkit.ServiceWorkerClient
+import android.webkit.ServiceWorkerController
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -15,7 +17,9 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkConstructor
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.runs
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
@@ -56,6 +60,7 @@ class OffDeviceRequestsTest {
 			"HTTPS://KOTL.IN/x",
 			"http://192.168.1.10:6174/x",
 			"http://10.0.2.2:6174/x",
+			"http://[2001:db8::1]/x",
 		)) {
 			assertWithMessage(url).that(OffDeviceRequests.isOffDevice(url)).isTrue()
 		}
@@ -78,9 +83,24 @@ class OffDeviceRequestsTest {
 
 	@Test
 	fun `an http URL that cannot be read is treated as off the device`() {
-		for (url in listOf("http://exa mple.com/", "https://example.com/a b", "http:///no-host", "https:")) {
+		for (url in listOf("http://exa mple.com/", "HTTP://exa mple.com/", "https://example.com/a b", "http:///no-host", "https:")) {
 			assertWithMessage(url).that(OffDeviceRequests.isOffDevice(url)).isTrue()
 		}
+	}
+
+	@Test
+	fun `a local URL that java_net_URI rejects is still on the device`() {
+		// Chromium leaves these characters as they are in a canonical URL; java.net.URI refuses them.
+		for (url in listOf(
+			"http://localhost:6174/i/x.html?a=1|2",
+			"http://localhost:6174/i/%zz.html",
+			"http://127.0.0.1:6174/p.html#b c",
+			"http://[::1]:6174/q.html?{y}",
+		)) {
+			assertWithMessage(url).that(OffDeviceRequests.isOffDevice(url)).isFalse()
+		}
+		assertThat(OffDeviceRequests.isOffDevice("http://example.com/i/x.html?a=1|2")).isTrue()
+		assertThat(OffDeviceRequests.isOffDevice("http://localhost@example.com/%zz")).isTrue()
 	}
 
 	@Test
@@ -143,13 +163,23 @@ class OffDeviceRequestsTest {
 	}
 
 	@Test
-	fun `Safe Browsing is turned off`() {
+	fun `keepOnDevice turns Safe Browsing off and blocks service-worker fetches`() {
 		val settings = mockk<WebSettings>(relaxed = true)
+		val controller = mockk<ServiceWorkerController>(relaxed = true)
+		val client = slot<ServiceWorkerClient>()
+		mockkStatic(ServiceWorkerController::class)
+		every { ServiceWorkerController.getInstance() } returns controller
+		every { controller.setServiceWorkerClient(capture(client)) } returns Unit
+		// Both are framework classes: stand in for their constructors.
+		mockkConstructor(ServiceWorkerClient::class)
+		mockkConstructor(WebResourceResponse::class)
 
-		OffDeviceRequests.disableSafeBrowsing(settings)
+		OffDeviceRequests.keepOnDevice(settings)
 
 		verify(exactly = 1) { settings.safeBrowsingEnabled = false }
 		verify(exactly = 0) { settings.safeBrowsingEnabled = true }
+		assertThat(client.captured.shouldInterceptRequest(request("https://example.com/sw.js"))).isNotNull()
+		assertThat(client.captured.shouldInterceptRequest(request("http://localhost:6174/sw.js"))).isNull()
 	}
 
 	private fun request(url: String): WebResourceRequest {
