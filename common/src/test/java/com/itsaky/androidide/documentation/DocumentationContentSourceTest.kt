@@ -459,6 +459,17 @@ class DocumentationContentSourceTest {
 	}
 
 	@Test
+	fun `a jstopics file is rendered from a page found only under the decoded path`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(page = "i/a b.html")
+
+		val result = source().lookupRequestPath("i/jstopics/a%20b.js")
+
+		assertThat(result.queriedPath).isEqualTo("i/jstopics/a b.js")
+		assertThat((result.lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("""hmLoadTopic({hmTitle:"Enable the debugger"});""")
+	}
+
+	@Test
 	fun `a jstopics miss stays not found when the database has no jstopics template`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(jsTopicTemplate = null)
 
@@ -499,7 +510,8 @@ class DocumentationContentSourceTest {
 	}
 
 	// Every shipped page is Brotli-compressed: bytes marked brotli that are not fail the decode,
-	// where joining them as they are would have parsed as JSON and rendered.
+	// where joining them as they are would have parsed as JSON and rendered. A successful decode
+	// needs brotli4j's desktop native, which only :app's tests load: see BrotliContentSourceTest.
 	@Test
 	fun `a page marked brotli is decoded before it is rendered`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageCompression = "brotli")

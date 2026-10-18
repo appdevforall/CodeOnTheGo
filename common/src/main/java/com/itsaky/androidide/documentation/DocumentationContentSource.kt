@@ -292,6 +292,8 @@ class DocumentationContentSource(
 
 	/**
 	 * Looks up a request path, retrying with a percent-decoded path when the raw path is not found.
+	 * When both stored forms miss, a Help+Manual `jstopics/X.js` is rendered from its page `X.html`,
+	 * raw form first (see [lookupJsTopic]); for a duplicated page, the path returned is the page's.
 	 *
 	 * @param rawPath The request path as received from the client.
 	 * @return The path used for the successful lookup and its result.
