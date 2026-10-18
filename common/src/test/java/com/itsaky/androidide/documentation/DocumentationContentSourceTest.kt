@@ -431,7 +431,7 @@ class DocumentationContentSourceTest {
 	fun `a missing jstopics file is rendered from its page's JSON with the jstopics template`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase()
 
-		val lookup = source().lookup("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+		val lookup = jsTopic("i/jstopics/debug-enable.js") as DocumentationLookup.Found
 
 		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("""hmLoadTopic({hmTitle:"Enable the debugger"});""")
 		assertThat(lookup.content.mimeType).isEqualTo("text/javascript")
@@ -439,9 +439,21 @@ class DocumentationContentSourceTest {
 
 	@Test
 	fun `a stored jstopics row is served as it is, with no rendering`() {
-		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(storedCopy = "stored".toByteArray())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			jsTopicDatabase(storedCopies = mapOf("i/jstopics/debug-enable.js" to "stored"))
 
-		val lookup = source().lookup("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+		val lookup = jsTopic("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("stored")
+	}
+
+	// The raw form misses and its page would render, but the decoded form has a stored row: it wins.
+	@Test
+	fun `a stored jstopics row under the decoded path wins over rendering the raw one`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			jsTopicDatabase(page = "i/a%20b.html", storedCopies = mapOf("i/jstopics/a b.js" to "stored"))
+
+		val lookup = jsTopic("i/jstopics/a%20b.js") as DocumentationLookup.Found
 
 		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("stored")
 	}
@@ -450,21 +462,63 @@ class DocumentationContentSourceTest {
 	fun `a jstopics miss stays not found when the database has no jstopics template`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(jsTopicTemplate = null)
 
-		assertThat(source().lookup("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
 	}
 
 	@Test
 	fun `a jstopics miss stays not found when its page is plain HTML`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageTemplateId = 0)
 
-		assertThat(source().lookup("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when its page uses another template`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageTemplate = "page.peb")
+
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
 	}
 
 	@Test
 	fun `a jstopics miss stays not found when it has no page`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase()
 
-		assertThat(source().lookup("i/jstopics/no-such-topic.js")).isEqualTo(DocumentationLookup.NotFound)
+		assertThat(jsTopic("i/jstopics/no-such-topic.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a duplicated page row is reported as ambiguous, as the page itself is`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageRows = 2)
+
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.Ambiguous(2))
+	}
+
+	// Every shipped page is Brotli-compressed: bytes marked brotli that are not fail the decode,
+	// where joining them as they are would have parsed as JSON and rendered.
+	@Test
+	fun `a page marked brotli is decoded before it is rendered`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageCompression = "brotli")
+
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isInstanceOf(DocumentationLookup.Failed::class.java)
+	}
+
+	@Test
+	fun `a page split across rows is read whole before it is rendered`() {
+		val json = """{"hmTitle": "Enable the debugger", "pad": "${"x".repeat(DocumentationContentSource.CONTENT_CHUNK_SIZE)}"}"""
+		val bytes = json.toByteArray()
+		val first = bytes.copyOfRange(0, DocumentationContentSource.CONTENT_CHUNK_SIZE)
+		val rest = bytes.copyOfRange(DocumentationContentSource.CONTENT_CHUNK_SIZE, bytes.size)
+		val database = jsTopicDatabase(pageBytes = first)
+		every { database.rawQuery(match { it.startsWith("SELECT content FROM Content") }, arrayOf("i/debug-enable.html-1")) } returns
+			mockk(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns rest
+			}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = jsTopic("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("""hmLoadTopic({hmTitle:"Enable the debugger"});""")
 	}
 
 	@Test
@@ -472,31 +526,47 @@ class DocumentationContentSourceTest {
 		val database = jsTopicDatabase()
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
 
-		assertThat(source().lookup("i/js/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
-		assertThat(source().lookup("i/jstopics/sub/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		assertThat(jsTopic("i/js/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		assertThat(jsTopic("i/jstopics/sub/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
 		verify(exactly = 0) { database.rawQuery(match { it.contains("FROM   Content") }, match { it[0].endsWith(".html") }) }
 	}
 
+	/** The lookup both transports make for a request path. */
+	private fun jsTopic(path: String) = source().lookupRequestPath(path).lookup
+
 	/**
-	 * A database holding the templated page `i/debug-enable.html` (template [pageTemplateId]), the
-	 * `jstopics` copy [storedCopy] if any, and the `helpmanual-jstopic.peb` template [jsTopicTemplate]
-	 * if any. Every other Content path is missing.
+	 * A database whose [page] row is templated with [pageTemplateId], named [pageTemplate], and
+	 * holds a topic's JSON; [storedCopies] are stored jstopics rows by path; [jsTopicTemplate] is
+	 * the `helpmanual-jstopic.peb` body, if the database has one. Every other Content path misses.
 	 */
 	private fun jsTopicDatabase(
+		page: String = "i/debug-enable.html",
 		pageTemplateId: Int = 5,
+		pageTemplate: String = "helpmanual-topic.peb",
+		pageRows: Int = 1,
+		pageCompression: String = "none",
+		pageBytes: ByteArray = """{"hmTitle": "Enable the debugger"}""".toByteArray(),
 		jsTopicTemplate: String? = """hmLoadTopic({hmTitle:"{{ hmTitle }}"});""",
-		storedCopy: ByteArray? = null,
+		storedCopies: Map<String, String> = emptyMap(),
 	): SQLiteDatabase =
 		mockk<SQLiteDatabase>(relaxed = true) {
 			every { rawQuery(match { it.contains("FROM   Content") }, any()) } answers { missingRowCursor() }
-			every { rawQuery(match { it.contains("FROM   Content") }, arrayOf("i/debug-enable.html")) } answers {
-				contentCursor(bytes = """{"hmTitle": "Enable the debugger"}""".toByteArray(), templateId = pageTemplateId)
+			every { rawQuery(match { it.contains("FROM   Content") }, arrayOf(page)) } answers {
+				contentCursor(bytes = pageBytes, compression = pageCompression, templateId = pageTemplateId, rowCount = pageRows)
 			}
-			if (storedCopy != null) {
-				every { rawQuery(match { it.contains("FROM   Content") }, arrayOf("i/jstopics/debug-enable.js")) } answers {
-					contentCursor(bytes = storedCopy, mimeType = "text/javascript")
+			for ((path, body) in storedCopies) {
+				every { rawQuery(match { it.contains("FROM   Content") }, arrayOf(path)) } answers {
+					contentCursor(bytes = body.toByteArray(), mimeType = "text/javascript")
 				}
 			}
+			every { rawQuery(match { it.contains("WHERE id = ?") }, arrayOf(pageTemplateId.toString())) } answers {
+				mockk(relaxed = true) {
+					every { count } returns 1
+					every { moveToFirst() } returns true
+					every { getString(0) } returns pageTemplate
+				}
+			}
+			// One cursor answers both the loader's existence count and its read of the body.
 			every { rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("helpmanual-jstopic.peb")) } answers {
 				if (jsTopicTemplate == null) {
 					missingRowCursor()
@@ -504,6 +574,7 @@ class DocumentationContentSourceTest {
 					mockk(relaxed = true) {
 						every { count } returns 1
 						every { moveToFirst() } returns true
+						every { getInt(0) } returns 1
 						every { getBlob(0) } returns jsTopicTemplate.toByteArray()
 					}
 				}
