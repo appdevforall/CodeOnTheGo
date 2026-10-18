@@ -90,9 +90,13 @@ class OffDeviceRequestsTest {
 
 	@Test
 	fun `spaces around a URL do not hide its host`() {
-		// Chromium drops them before parsing, so these load from the host inside.
+		// Chromium drops them before parsing, and tabs and line breaks anywhere, so these load from
+		// the host inside.
 		assertThat(OffDeviceRequests.isOffDevice(" http://evil.com/x|y")).isTrue()
 		assertThat(OffDeviceRequests.isOffDevice("\thttps://evil.com/\n")).isTrue()
+		assertThat(OffDeviceRequests.isOffDevice("http\n://evil.com/x")).isTrue()
+		assertThat(OffDeviceRequests.isOffDevice("ht\ttp://evil.com/x")).isTrue()
+		assertThat(OffDeviceRequests.isOffDevice("https\r\n://evil.com/x")).isTrue()
 		assertThat(OffDeviceRequests.isOffDevice(" http://localhost:6174/x|y ")).isFalse()
 	}
 

@@ -105,8 +105,9 @@ object OffDeviceRequests {
 	 *
 	 * Service-worker fetches go to the ServiceWorkerClient rather than a WebView's client, so that one
 	 * gets [block] too. It is process-wide and has no undo: from the first documentation WebView on,
-	 * it covers every WebView in the app, plugins' included, and a plugin that sets its own replaces
-	 * it. No documentation page registers a service worker today.
+	 * it covers every WebView in the app, plugins' included. A plugin that sets its own replaces it
+	 * only until the next documentation WebView or tooltip popup sets this one again. No
+	 * documentation page registers a service worker today.
 	 */
 	fun keepOnDevice(settings: WebSettings) {
 		settings.safeBrowsingEnabled = false
@@ -122,9 +123,10 @@ object OffDeviceRequests {
 	// stays on the device. The URLs a WebView hands its client are already canonical (lowercase
 	// host, no backslashes), so where java.net.URI parses one it finds the same host, userinfo
 	// included: http://localhost@example.com is example.com. Leading and trailing spaces and control
-	// characters are dropped first, as Chromium drops them.
+	// characters, and tabs and line breaks anywhere, are dropped first, as the URL Standard has
+	// Chromium drop them: "http\n://evil.com/" loads evil.com.
 	private fun offDeviceHost(rawUrl: String): String? {
-		val url = rawUrl.trim { it <= ' ' }
+		val url = rawUrl.trim { it <= ' ' }.filterNot { it == '\t' || it == '\n' || it == '\r' }
 		val uri =
 			try {
 				URI(url)
