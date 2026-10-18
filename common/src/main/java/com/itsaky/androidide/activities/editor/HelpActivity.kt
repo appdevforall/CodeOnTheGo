@@ -144,6 +144,7 @@ class HelpActivity : BaseIDEActivity() {
 			webView.settings.domStorageEnabled = true
 			webView.settings.databaseEnabled = true
 			webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+			OffDeviceRequests.disableSafeBrowsing(webView.settings)
 
 			// Set WebViewClient to handle page navigation within the WebView
 			webView.webViewClient =

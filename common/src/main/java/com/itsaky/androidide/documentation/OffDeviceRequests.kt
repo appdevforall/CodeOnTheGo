@@ -20,6 +20,7 @@ package com.itsaky.androidide.documentation
 import android.app.Activity
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import com.itsaky.androidide.utils.UrlManager
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -29,8 +30,8 @@ import java.net.URISyntaxException
 /**
  * Keeps the app's WebViews on the device (ADFA-6589). Documentation pages reference fonts, YouTube
  * players and images on the internet, and a WebView fetches anything its client does not answer.
- * So every first-party WebView answers off-device requests with [block] and sends tapped
- * off-device links through [openWithConsent].
+ * So every first-party WebView answers off-device requests with [block], sends tapped off-device
+ * links through [openWithConsent], and turns Safe Browsing off with [disableSafeBrowsing].
  *
  * Not `WebSettings.blockNetworkLoads`: that would also stop requests to the local web server on
  * localhost:6174, which the `/pr/` endpoints and the `CodeOnTheGo.nointercept` fallback rely on.
@@ -73,6 +74,16 @@ object OffDeviceRequests {
 		if (!isOffDevice(url)) return false
 		UrlManager.openUrl(url, context = activity)
 		return true
+	}
+
+	/**
+	 * Turns off Safe Browsing, which has Google Play services send the addresses a WebView loads to
+	 * Google to be checked, charged to this app. These WebViews load only documentation from the
+	 * device, so there is nothing to check; with it off, a request that ever got past [block] would
+	 * not also be looked up. Call it before the WebView loads anything.
+	 */
+	fun disableSafeBrowsing(settings: WebSettings) {
+		settings.safeBrowsingEnabled = false
 	}
 
 	// The host [url] would connect to, or null if it stays on the device. The URLs a WebView hands

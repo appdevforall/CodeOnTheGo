@@ -4,6 +4,7 @@ import android.app.Activity
 import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.utils.UrlManager
@@ -121,6 +122,16 @@ class OffDeviceRequestsTest {
 		assertThat(OffDeviceRequests.openWithConsent(activity, "http://localhost:6174/i/index.html")).isFalse()
 		assertThat(OffDeviceRequests.openWithConsent(activity, "file:///android_asset/x.html")).isFalse()
 		verify(exactly = 1) { UrlManager.openUrl(any(), any(), any()) }
+	}
+
+	@Test
+	fun `Safe Browsing is turned off`() {
+		val settings = mockk<WebSettings>(relaxed = true)
+
+		OffDeviceRequests.disableSafeBrowsing(settings)
+
+		verify(exactly = 1) { settings.safeBrowsingEnabled = false }
+		verify(exactly = 0) { settings.safeBrowsingEnabled = true }
 	}
 
 	private fun request(url: String): WebResourceRequest {

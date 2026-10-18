@@ -388,6 +388,7 @@ object TooltipManager {
 		}
 
 		webView.settings.javaScriptEnabled = true
+		OffDeviceRequests.disableSafeBrowsing(webView.settings)
 		webView.setBackgroundColor(Color.TRANSPARENT)
 		webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
 
