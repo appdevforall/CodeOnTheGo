@@ -426,6 +426,90 @@ class DocumentationContentSourceTest {
 		assertThat(source().lookup("k/html/basic-syntax.html")).isInstanceOf(DocumentationLookup.Failed::class.java)
 	}
 
+	// ADFA-6618: the pipeline drops Help+Manual's jstopics copies, and the page's JSON stands in.
+	@Test
+	fun `a missing jstopics file is rendered from its page's JSON with the jstopics template`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase()
+
+		val lookup = source().lookup("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("""hmLoadTopic({hmTitle:"Enable the debugger"});""")
+		assertThat(lookup.content.mimeType).isEqualTo("text/javascript")
+	}
+
+	@Test
+	fun `a stored jstopics row is served as it is, with no rendering`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(storedCopy = "stored".toByteArray())
+
+		val lookup = source().lookup("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("stored")
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when the database has no jstopics template`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(jsTopicTemplate = null)
+
+		assertThat(source().lookup("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when its page is plain HTML`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageTemplateId = 0)
+
+		assertThat(source().lookup("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when it has no page`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase()
+
+		assertThat(source().lookup("i/jstopics/no-such-topic.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a miss outside jstopics is not looked up as a page`() {
+		val database = jsTopicDatabase()
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		assertThat(source().lookup("i/js/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		assertThat(source().lookup("i/jstopics/sub/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		verify(exactly = 0) { database.rawQuery(match { it.contains("FROM   Content") }, match { it[0].endsWith(".html") }) }
+	}
+
+	/**
+	 * A database holding the templated page `i/debug-enable.html` (template [pageTemplateId]), the
+	 * `jstopics` copy [storedCopy] if any, and the `helpmanual-jstopic.peb` template [jsTopicTemplate]
+	 * if any. Every other Content path is missing.
+	 */
+	private fun jsTopicDatabase(
+		pageTemplateId: Int = 5,
+		jsTopicTemplate: String? = """hmLoadTopic({hmTitle:"{{ hmTitle }}"});""",
+		storedCopy: ByteArray? = null,
+	): SQLiteDatabase =
+		mockk<SQLiteDatabase>(relaxed = true) {
+			every { rawQuery(match { it.contains("FROM   Content") }, any()) } answers { missingRowCursor() }
+			every { rawQuery(match { it.contains("FROM   Content") }, arrayOf("i/debug-enable.html")) } answers {
+				contentCursor(bytes = """{"hmTitle": "Enable the debugger"}""".toByteArray(), templateId = pageTemplateId)
+			}
+			if (storedCopy != null) {
+				every { rawQuery(match { it.contains("FROM   Content") }, arrayOf("i/jstopics/debug-enable.js")) } answers {
+					contentCursor(bytes = storedCopy, mimeType = "text/javascript")
+				}
+			}
+			every { rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("helpmanual-jstopic.peb")) } answers {
+				if (jsTopicTemplate == null) {
+					missingRowCursor()
+				} else {
+					mockk(relaxed = true) {
+						every { count } returns 1
+						every { moveToFirst() } returns true
+						every { getBlob(0) } returns jsTopicTemplate.toByteArray()
+					}
+				}
+			}
+		}
+
 	@Test
 	fun `a newer debug database is swapped in, and the generation says so`() {
 		val installed = database(contentCursor(bytes = "installed".toByteArray()))

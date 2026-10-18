@@ -447,7 +447,7 @@ class DocumentationContentSource(
 		}
 
 		database.rawQuery(CONTENT_QUERY, arrayOf(path)).use { cursor ->
-			if (cursor.count == 0) return DocumentationLookup.NotFound
+			if (cursor.count == 0) return renderJsTopic(database, path) ?: DocumentationLookup.NotFound
 			if (cursor.count != 1) return DocumentationLookup.Ambiguous(cursor.count)
 
 			cursor.moveToFirst()
@@ -461,6 +461,33 @@ class DocumentationContentSource(
 			val bytes = if (templateId > 0) render(database, templateId, decoded, path) else decoded
 
 			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType))
+		}
+	}
+
+	/**
+	 * Help+Manual's in-page navigation loads `jstopics/X.js`, a JavaScript copy of topic `X`. The
+	 * documentation pipeline stores each topic once, as the JSON its page `X.html` renders from, and
+	 * drops the copies (ADFA-6618), so a miss for one is rendered from that JSON with the
+	 * [JSTOPIC_TEMPLATE] template.
+	 *
+	 * @return The rendered copy, or null -- the request stays a plain miss -- when [path] is not a
+	 * `jstopics` file, its page is not one templated row, or the database has no [JSTOPIC_TEMPLATE].
+	 */
+	private fun renderJsTopic(
+		database: SQLiteDatabase,
+		path: String,
+	): DocumentationLookup? {
+		val match = JSTOPIC_PATH.matchEntire(path) ?: return null
+		val pagePath = match.groupValues[1] + match.groupValues[2] + ".html"
+
+		database.rawQuery(CONTENT_QUERY, arrayOf(pagePath)).use { cursor ->
+			if (cursor.count != 1 || !cursor.moveToFirst() || cursor.getInt(3) <= 0) return null
+			val hasTemplate = database.rawQuery(TEMPLATE_EXISTS_QUERY, arrayOf(JSTOPIC_TEMPLATE)).use { it.count > 0 }
+			if (!hasTemplate) return null
+
+			val chunks = readChunks(database, pagePath, cursor.getBlob(0))
+			val json = if (cursor.getString(2) == "brotli") decompressBrotli(database, chunks) else joinChunks(chunks)
+			return DocumentationLookup.Found(DocumentationContent(renderNamed(JSTOPIC_TEMPLATE, json, path), JSTOPIC_MIME_TYPE))
 		}
 	}
 
@@ -787,5 +814,11 @@ class DocumentationContentSource(
 		"""
 
 		private const val CHUNK_QUERY = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
+
+		// A Help+Manual topic's JavaScript copy, beside its page: i/jstopics/X.js for i/X.html.
+		private val JSTOPIC_PATH = Regex("""(.*/)?jstopics/([^/]+)\.js""")
+		private const val JSTOPIC_TEMPLATE = "helpmanual-jstopic.peb"
+		private const val JSTOPIC_MIME_TYPE = "text/javascript"
+		private const val TEMPLATE_EXISTS_QUERY = "SELECT 1 FROM Templates WHERE name = ?"
 	}
 }
