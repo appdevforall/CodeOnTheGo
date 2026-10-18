@@ -257,10 +257,16 @@ class DocumentationContentSource(
 	 */
 	fun lookup(path: String): DocumentationLookup = readLocked(path) { database -> readContent(database, path) }
 
-	/** A Help+Manual `jstopics` file rendered from its page, or [DocumentationLookup.NotFound]. */
-	private fun lookupJsTopic(path: String): DocumentationLookup {
-		if (!JSTOPIC_PATH.matches(path)) return DocumentationLookup.NotFound
-		return readLocked(path) { database -> renderJsTopic(database, path) ?: DocumentationLookup.NotFound }
+	/**
+	 * A Help+Manual `jstopics` file rendered from its page, or [DocumentationLookup.NotFound]. An
+	 * [DocumentationLookup.Ambiguous] result names the page, whose rows are the duplicated ones, so
+	 * the path a caller reports is one whose query reproduces them.
+	 */
+	private fun lookupJsTopic(path: String): RequestLookup {
+		val match = JSTOPIC_PATH.matchEntire(path) ?: return RequestLookup(path, DocumentationLookup.NotFound)
+		val pagePath = match.groupValues[1] + match.groupValues[2] + ".html"
+		val lookup = readLocked(path) { database -> renderJsTopic(database, path, pagePath) ?: DocumentationLookup.NotFound }
+		return RequestLookup(if (lookup is DocumentationLookup.Ambiguous) pagePath else path, lookup)
 	}
 
 	private fun readLocked(
@@ -302,8 +308,8 @@ class DocumentationContentSource(
 
 		// Only once both stored forms miss, so a stored jstopics row wins under either (ADFA-6618).
 		val rendered = lookupJsTopic(rawPath)
-		if (rendered !is DocumentationLookup.NotFound || decodedPath == rawPath) return RequestLookup(rawPath, rendered)
-		return RequestLookup(decodedPath, lookupJsTopic(decodedPath))
+		if (rendered.lookup !is DocumentationLookup.NotFound || decodedPath == rawPath) return rendered
+		return lookupJsTopic(decodedPath)
 	}
 
 	/**
@@ -499,17 +505,16 @@ class DocumentationContentSource(
 	 * through [HM_TOPIC_TEMPLATE], and drops the copies (ADFA-6618), so a miss for one is rendered
 	 * from that JSON with [JSTOPIC_TEMPLATE].
 	 *
+	 * @param pagePath The page [path] is the `jstopics` file of.
 	 * @return The rendered copy; [DocumentationLookup.Ambiguous] when the page row is duplicated; or
-	 * null -- the request stays a plain miss -- when [path] is not a `jstopics` file, its page has
-	 * no row or is not a [HM_TOPIC_TEMPLATE] page, or the database has no [JSTOPIC_TEMPLATE].
+	 * null -- the request stays a plain miss -- when the page has no row or is not a
+	 * [HM_TOPIC_TEMPLATE] page, or the database has no [JSTOPIC_TEMPLATE].
 	 */
 	private fun renderJsTopic(
 		database: SQLiteDatabase,
 		path: String,
+		pagePath: String,
 	): DocumentationLookup? {
-		val match = JSTOPIC_PATH.matchEntire(path) ?: return null
-		val pagePath = match.groupValues[1] + match.groupValues[2] + ".html"
-
 		database.rawQuery(CONTENT_QUERY, arrayOf(pagePath)).use { cursor ->
 			if (cursor.count > 1) return DocumentationLookup.Ambiguous(cursor.count)
 			if (!cursor.moveToFirst()) return null

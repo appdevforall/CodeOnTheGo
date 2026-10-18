@@ -486,11 +486,16 @@ class DocumentationContentSourceTest {
 		assertThat(jsTopic("i/jstopics/no-such-topic.js")).isEqualTo(DocumentationLookup.NotFound)
 	}
 
+	// The path is the page's: WebServer quotes it in its "Corrupt database" answer, so a bug report
+	// carries a query that returns the duplicated rows, not the jstopics path, which has none.
 	@Test
-	fun `a duplicated page row is reported as ambiguous, as the page itself is`() {
+	fun `a duplicated page row is reported as ambiguous, under the page's path`() {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageRows = 2)
 
-		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.Ambiguous(2))
+		val result = source().lookupRequestPath("i/jstopics/debug-enable.js")
+
+		assertThat(result.lookup).isEqualTo(DocumentationLookup.Ambiguous(2))
+		assertThat(result.queriedPath).isEqualTo("i/debug-enable.html")
 	}
 
 	// Every shipped page is Brotli-compressed: bytes marked brotli that are not fail the decode,
