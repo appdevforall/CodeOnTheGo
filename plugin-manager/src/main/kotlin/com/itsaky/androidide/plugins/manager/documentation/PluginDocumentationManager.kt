@@ -20,7 +20,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Manages plugin documentation by writing into the main documentation.db.
- * Plugin entries are stored in the existing Tooltips/TooltipCategories/TooltipButtons tables,
+ * Plugin entries are stored in the existing tooltip tables (see PluginTooltipTables.kt),
  * differentiated by a "plugin_<pluginId>" category prefix so they never conflict with
  * built-in documentation.
  */
