@@ -22,6 +22,8 @@ import java.util.Locale
  * @property streamLength How many bytes of the content, from its start, the response stream holds.
  * @property sentLength How many bytes the WebView sends: the range's length for a 206, none for a
  * range it rejects, since it fails that request, and all of the content otherwise.
+ * @property rejected Whether the WebView fails this request itself, for a malformed or
+ * unsatisfiable range, so that nothing reaches the page.
  */
 internal data class RangeResponse(
 	val status: Int,
@@ -29,6 +31,7 @@ internal data class RangeResponse(
 	val headers: Map<String, String>,
 	val streamLength: Int,
 	val sentLength: Int,
+	val rejected: Boolean = false,
 ) {
 	companion object {
 		/**
@@ -48,7 +51,7 @@ internal data class RangeResponse(
 			val whole = RangeResponse(200, "OK", mapOf(ACCEPT_RANGES), length, length)
 			if (range == null || length == 0) return whole
 
-			val rejected = whole.copy(sentLength = 0)
+			val rejected = whole.copy(sentLength = 0, rejected = true)
 			val single = (ranges(range) ?: return rejected).singleOrNull() ?: return whole
 			val bounds = single.boundsWithin(length.toLong()) ?: return rejected
 

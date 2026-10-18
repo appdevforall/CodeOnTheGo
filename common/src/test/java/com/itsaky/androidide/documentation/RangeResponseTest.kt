@@ -21,6 +21,7 @@ class RangeResponseTest {
 		assertThat(reply.headers).containsExactly("Accept-Ranges", "bytes")
 		assertThat(reply.streamLength).isEqualTo(content.size)
 		assertThat(reply.sentLength).isEqualTo(content.size)
+		assertThat(reply.rejected).isFalse()
 	}
 
 	private fun assertPartial(
@@ -35,6 +36,7 @@ class RangeResponseTest {
 		assertThat(reply.headers).containsExactly("Accept-Ranges", "bytes", "Content-Range", "bytes $first-$last/1000")
 		assertThat(delivered(reply, first)).isEqualTo(content.copyOfRange(first, last + 1))
 		assertThat(reply.sentLength).isEqualTo(last - first + 1)
+		assertThat(reply.rejected).isFalse()
 	}
 
 	@Test
@@ -53,6 +55,7 @@ class RangeResponseTest {
 	fun `a closed range delivers no bytes past its end`() {
 		assertPartial("bytes=0-99", 0, 99)
 		assertPartial("bytes=250-260", 250, 260)
+		assertPartial("bytes=5-5", 5, 5)
 	}
 
 	@Test
@@ -70,6 +73,7 @@ class RangeResponseTest {
 	fun `the unit is matched regardless of case, and blanks and empty items are skipped`() {
 		assertPartial(" Bytes = 10 - 19 ", 10, 19)
 		assertPartial("bytes=10-19,", 10, 19)
+		assertPartial("bytes=10-19, ", 10, 19)
 	}
 
 	// Chromium holds "not given" as -1, so a last position of -1 leaves the range open.
@@ -90,16 +94,30 @@ class RangeResponseTest {
 		assertWhole(RangeResponse.of("bytes=0-9,20-29", content.size))
 	}
 
-	// The WebView fails these requests itself, so nothing is sent whatever the response says.
+	// The WebView fails these requests itself, so nothing is sent whatever the response says. It
+	// checks every item of several ranges, and trims only spaces and tabs.
 	@Test
 	fun `a range the WebView rejects gets a 200 and counts as nothing sent`() {
-		val rejected = listOf("bytes=1000-", "bytes=9-0", "bytes=-0", "bytes=abc", "items=0-9", "bytes 0-9", "bytes=", "bytes=0-9,abc")
+		val rejected =
+			listOf(
+				"bytes=1000-",
+				"bytes=9-0",
+				"bytes=-0",
+				"bytes=abc",
+				"items=0-9",
+				"bytes 0-9",
+				"bytes=",
+				"bytes=0-9,abc",
+				"bytes=0-9,9-0",
+				"bytes=5-\u000b",
+			)
 		for (range in rejected) {
 			val reply = RangeResponse.of(range, content.size)
 
 			assertThat(reply.status).isEqualTo(200)
 			assertThat(reply.streamLength).isEqualTo(content.size)
 			assertThat(reply.sentLength).isEqualTo(0)
+			assertThat(reply.rejected).isTrue()
 		}
 	}
 

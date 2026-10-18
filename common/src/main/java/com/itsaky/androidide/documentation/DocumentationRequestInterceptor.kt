@@ -97,7 +97,8 @@ class DocumentationRequestInterceptor(
 
 	/**
 	 * The content for [request] and how to answer its `Range`, counted in [servedSummary] by what
-	 * the WebView sends: for a 206 that is the range, not the whole row.
+	 * the WebView sends: for a 206 that is the range, not the whole row, and a request the WebView
+	 * fails is not counted at all.
 	 *
 	 * @return The content and its [RangeResponse], or `null` when [contentFor] returns `null`.
 	 */
@@ -105,6 +106,11 @@ class DocumentationRequestInterceptor(
 		val content = contentFor(request) ?: return null
 		val range = rangeHeader(request.requestHeaders)
 		val reply = RangeResponse.of(range, content.bytes.size)
+
+		if (reply.rejected) {
+			log.debug("Range '{}' for '{}' is one the WebView fails; not counted as served.", range, request.url.encodedPath)
+			return content to reply
+		}
 
 		servedRequests.incrementAndGet()
 		servedBytes.addAndGet(reply.sentLength.toLong())

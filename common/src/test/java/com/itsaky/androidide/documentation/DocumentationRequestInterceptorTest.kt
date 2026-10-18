@@ -153,6 +153,16 @@ class DocumentationRequestInterceptorTest {
 		assertThat(interceptor.servedSummary()).isEqualTo("1 requests, 2 bytes served in-process")
 	}
 
+	// The WebView fails an unsatisfiable range before anything reaches the page.
+	@Test
+	fun `does not count a request the WebView fails`() {
+		val interceptor = DocumentationRequestInterceptor(source)
+		val (_, reply) = interceptor.replyFor(request(headers = mapOf("Range" to "bytes=99-")))!!
+
+		assertThat(reply.rejected).isTrue()
+		assertThat(interceptor.servedSummary()).isEqualTo("0 requests, 0 bytes served in-process")
+	}
+
 	@Test
 	fun `splits a stored MIME type into what a WebResourceResponse needs`() {
 		assertThat(DocumentationRequestInterceptor.mimeAndCharset("text/html; charset=utf-8"))
