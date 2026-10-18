@@ -1,6 +1,8 @@
 package com.itsaky.androidide.documentation
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -122,6 +124,22 @@ class OffDeviceRequestsTest {
 		assertThat(OffDeviceRequests.openWithConsent(activity, "http://localhost:6174/i/index.html")).isFalse()
 		assertThat(OffDeviceRequests.openWithConsent(activity, "file:///android_asset/x.html")).isFalse()
 		verify(exactly = 1) { UrlManager.openUrl(any(), any(), any()) }
+	}
+
+	@Test
+	fun `the consent dialog uses the first context that is or wraps an Activity`() {
+		val activity = mockk<Activity>()
+		val plain = mockk<Context>()
+		val wrapsActivity = mockk<ContextWrapper> { every { baseContext } returns activity }
+		val wrapsWrapper = mockk<ContextWrapper> { every { baseContext } returns wrapsActivity }
+		val wrapsPlain = mockk<ContextWrapper> { every { baseContext } returns plain }
+
+		assertThat(OffDeviceRequests.activityFor(activity, plain)).isSameInstanceAs(activity)
+		assertThat(OffDeviceRequests.activityFor(plain, wrapsActivity)).isSameInstanceAs(activity)
+		assertThat(OffDeviceRequests.activityFor(wrapsPlain, wrapsWrapper)).isSameInstanceAs(activity)
+		assertThat(OffDeviceRequests.activityFor(null, wrapsActivity)).isSameInstanceAs(activity)
+		assertThat(OffDeviceRequests.activityFor(plain, wrapsPlain)).isNull()
+		assertThat(OffDeviceRequests.activityFor()).isNull()
 	}
 
 	@Test

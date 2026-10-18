@@ -23,6 +23,7 @@ import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import android.widget.Toast
 import android.os.Handler
 import android.os.Looper
 import android.view.InputDevice
@@ -255,14 +256,6 @@ object TooltipManager {
 		)
 	}
 
-	private tailrec fun Context.findActivity(): Activity? {
-		return when (this) {
-			is Activity -> this
-			is ContextWrapper -> baseContext?.findActivity()
-			else -> null
-		}
-	}
-
 	/**
 	 * Whether a popup anchored to [view] can actually be shown right now.
 	 *
@@ -272,6 +265,14 @@ object TooltipManager {
 	 * appeared.
 	 */
 	internal fun canShowPopup(context: Context, view: View): Boolean {
+		tailrec fun Context.findActivity(): Activity? {
+			return when (this) {
+				is Activity -> this
+				is ContextWrapper -> baseContext?.findActivity()
+				else -> null
+			}
+		}
+
 		val activity = context.findActivity()
 
 		val isLifecycleValid = if (activity != null) {
@@ -371,13 +372,20 @@ object TooltipManager {
 
 			override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
 				url?.let { clickedUrl ->
-					popupWindow.dismiss()
 					// A link in the tooltip's own text can name any site: ask, then open it outside
-					// the app, rather than load it in Help.
+					// the app, rather than load it in Help. The question needs an Activity; with
+					// none, keep the popup open and say so rather than drop the tap.
 					if (OffDeviceRequests.isOffDevice(clickedUrl)) {
-						context.findActivity()?.let { OffDeviceRequests.openWithConsent(it, clickedUrl) }
+						val activity = OffDeviceRequests.activityFor(context, anchorView.context)
+						if (activity == null) {
+							Toast.makeText(context, ResR.string.tooltip_link_cannot_open, Toast.LENGTH_LONG).show()
+						} else {
+							popupWindow.dismiss()
+							OffDeviceRequests.openWithConsent(activity, clickedUrl)
+						}
 						return true
 					}
+					popupWindow.dismiss()
 					// Find the button label for this URL to use as title
 					val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first
 						?: tooltipItem.tag

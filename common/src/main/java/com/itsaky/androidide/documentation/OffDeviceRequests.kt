@@ -18,6 +18,8 @@
 package com.itsaky.androidide.documentation
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
@@ -77,6 +79,13 @@ object OffDeviceRequests {
 	}
 
 	/**
+	 * The first of [contexts] that is, or wraps, an [Activity], for [openWithConsent], which needs
+	 * one to ask. A tooltip popup's own context may not be one, while the view it is anchored to
+	 * belongs to an Activity.
+	 */
+	fun activityFor(vararg contexts: Context?): Activity? = contexts.firstNotNullOfOrNull { it?.findActivity() }
+
+	/**
 	 * Turns off Safe Browsing, which has Google Play services send the addresses a WebView loads to
 	 * Google to be checked, charged to this app. It looks an address up even when [block] answers
 	 * the request locally: on a Pixel 6 Pro, two documentation pages cost 15 KB of lookups with
@@ -86,6 +95,13 @@ object OffDeviceRequests {
 	fun disableSafeBrowsing(settings: WebSettings) {
 		settings.safeBrowsingEnabled = false
 	}
+
+	private tailrec fun Context.findActivity(): Activity? =
+		when (this) {
+			is Activity -> this
+			is ContextWrapper -> baseContext?.findActivity()
+			else -> null
+		}
 
 	// The host [url] would connect to, or null if it stays on the device. The URLs a WebView hands
 	// its client are already canonical (lowercase host, no backslashes), so java.net.URI reads the
