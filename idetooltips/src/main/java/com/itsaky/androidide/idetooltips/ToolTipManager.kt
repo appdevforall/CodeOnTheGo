@@ -473,19 +473,15 @@ object TooltipManager {
 			setColorFilter(iconTintColor)
 		}
 
+		// The consent dialog needs an Activity: without one (the debugger overlay runs in a Service),
+		// UrlManager would open the link unasked, so the button is not offered there.
+		val sponsorActivity = OffDeviceRequests.activityFor(context, anchorView.context)
 		val sponsorButton = popupView.findViewById<ImageButton>(R.id.sponsor_button)
 		sponsorButton.apply {
-			visibility = if (level >= 1) View.VISIBLE else View.GONE
+			visibility = if (level >= 1 && sponsorActivity != null) View.VISIBLE else View.GONE
 			setColorFilter(iconTintColor)
 			setOnClickListener {
-				val sponsorUrl = context.getString(ResR.string.github_sponsors_url)
-				// The consent dialog needs an Activity: without one, UrlManager opens the link unasked.
-				val activity = OffDeviceRequests.activityFor(context, anchorView.context)
-				if (activity == null) {
-					Toast.makeText(context, ResR.string.tooltip_link_cannot_open, Toast.LENGTH_LONG).show()
-				} else {
-					UrlManager.openUrl(sponsorUrl, null, activity)
-				}
+				sponsorActivity?.let { UrlManager.openUrl(context.getString(ResR.string.github_sponsors_url), null, it) }
 			}
 		}
 

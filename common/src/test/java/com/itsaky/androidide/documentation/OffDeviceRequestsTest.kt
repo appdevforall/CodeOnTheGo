@@ -7,7 +7,6 @@ import android.net.Uri
 import android.webkit.ServiceWorkerClient
 import android.webkit.ServiceWorkerController
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
@@ -15,7 +14,6 @@ import com.itsaky.androidide.utils.UrlManager
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkConstructor
 import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.runs
@@ -76,6 +74,8 @@ class OffDeviceRequestsTest {
 			"http://example.com/?next=http://localhost:6174/",
 			"http://example.com/#localhost",
 			"http://127.0.0.1.example.com/",
+			// Chromium ends the authority at a backslash, so the host is evil.com.
+			"http://evil.com\\@localhost/",
 		)) {
 			assertWithMessage(url).that(OffDeviceRequests.isOffDevice(url)).isTrue()
 		}
@@ -89,18 +89,29 @@ class OffDeviceRequestsTest {
 	}
 
 	@Test
+	fun `spaces around a URL do not hide its host`() {
+		// Chromium drops them before parsing, so these load from the host inside.
+		assertThat(OffDeviceRequests.isOffDevice(" http://evil.com/x|y")).isTrue()
+		assertThat(OffDeviceRequests.isOffDevice("\thttps://evil.com/\n")).isTrue()
+		assertThat(OffDeviceRequests.isOffDevice(" http://localhost:6174/x|y ")).isFalse()
+	}
+
+	@Test
 	fun `a local URL that java_net_URI rejects is still on the device`() {
 		// Chromium leaves these characters as they are in a canonical URL; java.net.URI refuses them.
 		for (url in listOf(
 			"http://localhost:6174/i/x.html?a=1|2",
 			"http://localhost:6174/i/%zz.html",
-			"http://127.0.0.1:6174/p.html#b c",
+			"http://127.0.0.1:6174/p.html#b|c",
 			"http://[::1]:6174/q.html?{y}",
 		)) {
 			assertWithMessage(url).that(OffDeviceRequests.isOffDevice(url)).isFalse()
 		}
 		assertThat(OffDeviceRequests.isOffDevice("http://example.com/i/x.html?a=1|2")).isTrue()
 		assertThat(OffDeviceRequests.isOffDevice("http://localhost@example.com/%zz")).isTrue()
+		assertThat(OffDeviceRequests.isOffDevice("http://[2001:db8::1]/x|y")).isTrue()
+		// The @ is in the query, not the authority: the host is evil.com.
+		assertThat(OffDeviceRequests.isOffDevice("http://evil.com/x|y?u=a@localhost:1")).isTrue()
 	}
 
 	@Test
@@ -119,9 +130,6 @@ class OffDeviceRequestsTest {
 
 	@Test
 	fun `an off-device request gets a local response, not the network`() {
-		// WebResourceResponse is a framework class: stand in for its constructor.
-		mockkConstructor(WebResourceResponse::class)
-
 		assertThat(OffDeviceRequests.block(request("https://fonts.googleapis.com/css?family=Roboto"))).isNotNull()
 		assertThat(OffDeviceRequests.block(request("http://localhost@example.com/x.png"))).isNotNull()
 	}
@@ -170,9 +178,6 @@ class OffDeviceRequestsTest {
 		mockkStatic(ServiceWorkerController::class)
 		every { ServiceWorkerController.getInstance() } returns controller
 		every { controller.setServiceWorkerClient(capture(client)) } returns Unit
-		// Both are framework classes: stand in for their constructors.
-		mockkConstructor(ServiceWorkerClient::class)
-		mockkConstructor(WebResourceResponse::class)
 
 		OffDeviceRequests.keepOnDevice(settings)
 
