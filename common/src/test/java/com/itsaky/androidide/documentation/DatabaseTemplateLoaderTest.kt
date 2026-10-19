@@ -4,11 +4,14 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import io.mockk.every
 import io.mockk.mockk
 import io.pebbletemplates.pebble.error.LoaderException
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import org.slf4j.event.Level
+import java.io.IOException
 
 /**
  * Covers the loader that lets one template reference another (ADFA-5405): a name resolves to the
@@ -34,13 +37,61 @@ class DatabaseTemplateLoaderTest {
 				}
 		}
 
-	private fun loader(database: SQLiteDatabase?) = DatabaseTemplateLoader { database }
+	// Rows here are stored as their text, so the decode is the identity unless a test says otherwise.
+	private fun loader(
+		database: SQLiteDatabase?,
+		decode: (SQLiteDatabase, ByteArray) -> ByteArray = { _, body -> body },
+	) = DatabaseTemplateLoader({ database }, decode)
 
 	@Test
 	fun `a name resolves to its template row`() {
 		val reader = loader(database("nav.peb" to "[nav]")).getReader("nav.peb")
 
 		assertThat(reader.readText()).isEqualTo("[nav]")
+	}
+
+	// From documentation version 3 a row holds the template Brotli-compressed, so Pebble has to be
+	// handed what the decode returns, never the stored bytes.
+	@Test
+	fun `a row's bytes reach the engine through the decode, not as stored`() {
+		val database = database("nav.peb" to "]van[")
+
+		val reader = loader(database) { _, body -> body.reversedArray() }.getReader("nav.peb")
+
+		assertThat(reader.readText()).isEqualTo("[nav]")
+	}
+
+	@Test
+	fun `a decode failure fails by name, as a loader failure`() {
+		// A Brotli decode failure is an IOException: not a RuntimeException, so it would escape a
+		// catch written for the database's own failures, and Pebble does not wrap it either.
+		val loader = loader(database("nav.peb" to "[nav]")) { _, _ -> throw IOException("Brotli decoder failed") }
+
+		val thrown = assertThrows(LoaderException::class.java) { loader.getReader("nav.peb") }
+
+		// pebbleMessage, not message: the content source passes that on, without the "(?:?)" suffix.
+		assertThat(thrown.pebbleMessage).isEqualTo("Cannot decode template 'nav.peb'")
+	}
+
+	// The exception's message reaches HTTP responses, so it names no file; the log line is where the
+	// database is named, so a broken release file can be found from the log alone.
+	@Test
+	fun `a decode failure is logged with the template and the database`() {
+		val database = database("nav.peb" to "[nav]")
+		every { database.path } returns "/sdcard/Download/documentation.db"
+		val errors = mutableListOf<String>()
+		val sink = IdeLogRouter.ExternalSink { level, _, message, _ -> if (level == Level.ERROR) errors += message }
+		IdeLogRouter.addSink(sink)
+		try {
+			val loader = loader(database) { _, _ -> throw IOException("Brotli decoder failed") }
+			assertThrows(LoaderException::class.java) { loader.getReader("nav.peb") }
+		} finally {
+			IdeLogRouter.removeSink(sink)
+		}
+
+		assertThat(errors).hasSize(1)
+		assertThat(errors.single()).contains("'nav.peb'")
+		assertThat(errors.single()).contains("/sdcard/Download/documentation.db")
 	}
 
 	@Test
