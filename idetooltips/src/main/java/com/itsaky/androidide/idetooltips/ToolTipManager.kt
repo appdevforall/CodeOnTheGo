@@ -58,6 +58,8 @@ object TooltipManager {
 
 		return withContext(Dispatchers.IO) {
 			var dbPath = Environment.DOC_DB.absolutePath
+			// Named in the error log: a refused database could be either file, and only the log says which.
+			var dbSource = "installed database"
 
 			// TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
 			val debugDatabaseTimestamp =
@@ -66,6 +68,7 @@ object TooltipManager {
 			if (debugDatabaseTimestamp > databaseTimestamp) {
 				// Switch to the debug database.
 				dbPath = debugDatabaseFile.absolutePath
+				dbSource = "debug database"
 			}
 
 			try {
@@ -88,7 +91,7 @@ object TooltipManager {
 			} catch (e: Exception) {
 				Log.e(
 					TAG,
-					"Error getting tooltip for category='$category', tag='$tag': ${e.message}"
+					"Error getting tooltip for category='$category', tag='$tag' from the $dbSource '$dbPath': ${e.message}"
 				)
 				null
 			}
