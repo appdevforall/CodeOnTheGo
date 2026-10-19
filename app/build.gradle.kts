@@ -768,9 +768,11 @@ val pluginApiKeepRules =
 
 // proguardFiles (not dependsOn) so Gradle infers the dependency for every
 // consumer: R8 and lint both read this list, and wiring only R8 fails validation
-// in a real release build. Debug variants stay off the fat jar entirely.
-androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
-	variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+// in a real release build. Unminified variants skip the rules.
+androidComponents.onVariants { variant ->
+	if (variant.isMinifyEnabled) {
+		variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+	}
 }
 
 // Dependency-free POM for the fat plugin-api coordinate: it is compile-only/provided,
