@@ -77,36 +77,7 @@ object TooltipManager {
 						"n/a"
 					}
 
-					queryTooltip(database, category = category, tag = tag).use { c ->
-						when (c.count) {
-							// A missing tag is a normal outcome (e.g. a Gradle task with no
-							// authored tooltip). Honor the nullable contract so the caller
-							// shows nothing rather than an "n/a" popup.
-							0 -> throw NoTooltipFoundException(category, tag)
-							1 -> { /* Expected case, continue processing */
-							}
-
-							else -> throw DatabaseCorruptionException(
-								"Multiple tooltips found for category='$category', tag='$tag' (found ${c.count} rows). " +
-										"Each category/tag combination should be unique."
-							)
-						}
-
-						c.moveToFirst()
-						val tooltipId = c.getInt(0)
-						val summary = c.getString(1)
-						val detail = c.getString(2)
-
-						val buttons = ArrayList<Pair<String, String>>()
-						for ((description, uri) in queryTooltipButtons(database, tooltipId)) {
-							buttons.add(Pair(description, "http://localhost:6174/$uri"))
-						}
-
-						// Tooltips has no rowid from documentation version 3 on. It always equalled
-						// id before (id was the INTEGER PRIMARY KEY), so the debug dialog's Row is
-						// still the id.
-						IDETooltipItem(tooltipId, tooltipId, category, tag, summary, detail, buttons, lastChange)
-					}
+					readTooltip(database, category = category, tag = tag, lastChange = lastChange)
 				}
 			} catch (e: NoTooltipFoundException) {
 				Log.d(TAG, "No tooltip found for category='$category', tag='$tag'")
