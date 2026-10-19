@@ -13,7 +13,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Runs [queryTooltip] and [queryTooltipButtons], the lookups TooltipManager.getTooltip makes,
+ * Runs [queryTooltip] and [queryTooltipButtons], the lookups TooltipManager.getTooltip makes, and
+ * [readTooltip], which turns their rows into the item it shows,
  * against documentation.db's version 3 tooltip schema (ADFA-3305), as migrate_tooltip_schema.py in
  * OfflineDocumentationTools writes it. The query plans matter as much as the rows: the join
  * QUERY_TOOLTIP replaced scanned the whole 13 MB table for every tooltip shown (ADFA-6597), and the
@@ -120,6 +121,53 @@ class TooltipQueryTest {
 		assertTrue(plan.toString(), plan.any { Regex("""\bUSING PRIMARY KEY \(tooltipId=\?\)""").containsMatchIn(it) })
 		assertFalse(plan.toString(), plan.any { "TEMP B-TREE" in it })
 		assertFalse(plan.toString(), plan.any { Regex("""\bSCAN (TABLE )?\w+""").containsMatchIn(it) })
+	}
+
+	@Test
+	fun `reads a tooltip's id, text and buttons into the item TooltipManager shows`() {
+		db.execSQL("INSERT INTO TooltipTexts VALUES (4242, 'Declares a read-only property.', 'Longer detail.')")
+		db.execSQL("INSERT INTO Tooltips VALUES (4242, 4, 'val')")
+		db.execSQL("INSERT INTO TooltipButtonDescriptions VALUES (3, 'Learn more about properties')")
+		db.execSQL("INSERT INTO TooltipButtonUris VALUES (9001, 'k/html/properties.html'), (9002, 'k/html/basic-syntax.html')")
+		db.execSQL("INSERT INTO TooltipButtons VALUES (4242, 2, 2, 9002), (4242, 1, 3, 9001)")
+
+		val item = readTooltip(db, category = "kotlin", tag = "val", lastChange = "2026-10-18 (test)")
+
+		assertEquals(
+			IDETooltipItem(
+				rowId = 4242,
+				id = 4242,
+				category = "kotlin",
+				tag = "val",
+				summary = "Declares a read-only property.",
+				detail = "Longer detail.",
+				buttons =
+					arrayListOf(
+						"Learn more about properties" to "http://localhost:6174/k/html/properties.html",
+						"Examples" to "http://localhost:6174/k/html/basic-syntax.html",
+					),
+				lastChange = "2026-10-18 (test)",
+			),
+			item,
+		)
+	}
+
+	@Test
+	fun `reading a tag with no tooltip throws NoTooltipFoundException`() {
+		assertThrows(NoTooltipFoundException::class.java) {
+			readTooltip(db, category = "java", tag = "no-such-tag", lastChange = "test")
+		}
+	}
+
+	@Test
+	fun `reading a tag two same-named categories hold throws DatabaseCorruptionException`() {
+		db.execSQL("INSERT INTO TooltipCategories VALUES (5, 'java')")
+		db.execSQL("INSERT INTO TooltipTexts VALUES (9999, 'duplicate', 'detail')")
+		db.execSQL("INSERT INTO Tooltips VALUES (9999, 5, 'tag7')")
+
+		assertThrows(DatabaseCorruptionException::class.java) {
+			readTooltip(db, category = "java", tag = "tag7", lastChange = "test")
+		}
 	}
 
 	@Test
