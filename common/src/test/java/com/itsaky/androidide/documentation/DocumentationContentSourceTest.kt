@@ -59,6 +59,10 @@ class DocumentationContentSourceTest {
 
 	private val reversing: (BrotliDictionaryCodec, ByteArray) -> ByteArray = { _, body -> body.reversedArray() }
 
+	// For non-ASCII text, whose UTF-8 bytes reversed are not UTF-8: reverses the characters instead.
+	private val reversingChars: (BrotliDictionaryCodec, ByteArray) -> ByteArray =
+		{ _, body -> body.toString(Charsets.UTF_8).reversed().toByteArray(Charsets.UTF_8) }
+
 	/** A Content row as the source's query sees it. */
 	private fun contentCursor(
 		bytes: ByteArray = "hello".toByteArray(),
@@ -519,6 +523,30 @@ class DocumentationContentSourceTest {
 		assertThat((lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8)).isEqualTo("Hello Kotlin!")
 	}
 
+	// Most real templates hold non-ASCII text, U+00A0 above all. Compared as the page's bytes, so a
+	// template read in any charset but UTF-8, plain or decoded, fails here.
+	@Test
+	fun `a version 2 template's non-ASCII text renders as UTF-8`() {
+		val database = templatedDatabase("page.peb" to "$NON_ASCII {{ who }}", declaredMajorVersion = 2)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversing).lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes)
+			.isEqualTo("$NON_ASCII Kotlin".toByteArray(Charsets.UTF_8))
+	}
+
+	@Test
+	fun `a version 3 template's non-ASCII text renders as UTF-8`() {
+		val database = templatedDatabase("page.peb" to "$NON_ASCII {{ who }}".reversed())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversingChars).lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes)
+			.isEqualTo("$NON_ASCII Kotlin".toByteArray(Charsets.UTF_8))
+	}
+
 	// Never rendered as whatever the bytes happen to be: the page fails, naming the template.
 	@Test
 	fun `a version 3 template that does not decode fails its page, naming the template`() {
@@ -788,5 +816,10 @@ class DocumentationContentSourceTest {
 
 		assertThat(source.lookup("p")).isEqualTo(DocumentationLookup.NotFound)
 		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
+	private companion object {
+		// A no-break space (in Latin-1) and an em dash and an ellipsis (outside it), as real templates hold.
+		const val NON_ASCII = "a b — c…"
 	}
 }

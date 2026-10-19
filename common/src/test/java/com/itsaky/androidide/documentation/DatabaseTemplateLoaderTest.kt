@@ -61,6 +61,22 @@ class DatabaseTemplateLoaderTest {
 		assertThat(reader.readText()).isEqualTo("[nav]")
 	}
 
+	// Templates hold non-ASCII text: 640 of the 3.0.0 build's 1,126 do, most of them U+00A0. Read in
+	// any charset but UTF-8, a no-break space reaches the page as "Â" plus a no-break space.
+	@Test
+	fun `a plain row's non-ASCII text reaches the engine as UTF-8`() {
+		val reader = loader(database("nav.peb" to NON_ASCII)).getReader("nav.peb")
+
+		assertThat(reader.readText()).isEqualTo(NON_ASCII)
+	}
+
+	@Test
+	fun `a decoded row's non-ASCII text reaches the engine as UTF-8`() {
+		val loader = loader(database("nav.peb" to "[nav]")) { _, _ -> NON_ASCII.toByteArray(Charsets.UTF_8) }
+
+		assertThat(loader.getReader("nav.peb").readText()).isEqualTo(NON_ASCII)
+	}
+
 	@Test
 	fun `a decode failure fails by name, as a loader failure`() {
 		// A Brotli decode failure is an IOException: not a RuntimeException, so it would escape a
@@ -217,5 +233,10 @@ class DatabaseTemplateLoaderTest {
 			}
 
 		assertThat(loader(database).resourceExists("nav.peb")).isFalse()
+	}
+
+	private companion object {
+		// A no-break space (in Latin-1) and an em dash and an ellipsis (outside it), as real templates hold.
+		const val NON_ASCII = "a b — c…"
 	}
 }

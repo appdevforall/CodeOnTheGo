@@ -12,6 +12,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -57,6 +58,28 @@ class CompressedTemplateTest {
 			database(dictionary, "page.peb" to stored(page("kotlin"), dictionary))
 
 		assertEquals(page("kotlin").replace("{{ who }}", "Kotlin"), render(source()))
+	}
+
+	// 640 of the 3.0.0 build's 1,126 templates hold non-ASCII text, most of them U+00A0. Compared as
+	// the page's bytes, so a template decoded to text in any charset but UTF-8 fails here.
+	@Test
+	fun `a compressed template's non-ASCII text renders as UTF-8`() {
+		val dictionary = dictionary("kotlin")
+		val template = "$NON_ASCII ${page("kotlin")}"
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			database(dictionary, "page.peb" to stored(template, dictionary))
+
+		assertArrayEquals(template.replace("{{ who }}", "Kotlin").toByteArray(Charsets.UTF_8), renderedBytes(source()))
+	}
+
+	@Test
+	fun `a version 2 database's plain non-ASCII template renders as UTF-8`() {
+		val dictionary = dictionary("kotlin")
+		val template = "$NON_ASCII ${page("kotlin")}"
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			database(dictionary, "page.peb" to template.toByteArray(Charsets.UTF_8), declaredMajorVersion = 2)
+
+		assertArrayEquals(template.replace("{{ who }}", "Kotlin").toByteArray(Charsets.UTF_8), renderedBytes(source()))
 	}
 
 	@Test
@@ -166,8 +189,10 @@ class CompressedTemplateTest {
 		debugFile.setLastModified(installedFile.lastModified() + 60_000)
 	}
 
-	private fun render(source: DocumentationContentSource): String =
-		(source.lookup("k/html/basic-syntax.html") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8)
+	private fun render(source: DocumentationContentSource): String = renderedBytes(source).toString(Charsets.UTF_8)
+
+	private fun renderedBytes(source: DocumentationContentSource): ByteArray =
+		(source.lookup("k/html/basic-syntax.html") as DocumentationLookup.Found).content.bytes
 
 	private fun dictionary(word: String) = "$SHARED $word interface companion object ".repeat(400)
 
@@ -243,5 +268,8 @@ class CompressedTemplateTest {
 		const val SHARED = """<div class="api-item"><h3 class="api-name">docs-sidebar toc-element"""
 
 		const val DATABASE_PATH = "/sdcard/Download/documentation.db"
+
+		// A no-break space (in Latin-1) and an em dash and an ellipsis (outside it), as real templates hold.
+		const val NON_ASCII = "a b — c…"
 	}
 }
