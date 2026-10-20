@@ -23,6 +23,8 @@ import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -130,7 +132,13 @@ public final class LexerImpl implements Lexer {
   /**
    * Regular expression to find operators
    */
-  private Pattern regexOperators;
+  Pattern regexOperators;
+
+  /**
+   * The operator regex for each set of operators, shared by every lexer; see
+   * {@link #buildOperatorRegex}.
+   */
+  private static final ConcurrentMap<String, Pattern> OPERATOR_REGEXES = new ConcurrentHashMap<>();
 
   /**
    * This lexer's Matcher for each pattern it has matched, and the window they are reset onto, with
@@ -801,7 +809,11 @@ public final class LexerImpl implements Lexer {
       }
     }
 
-    this.regexOperators = Pattern.compile(regex.toString());
+    // Code On The Go (ADFA-3305): compiled once per set of operators instead of once per template,
+    // since building an ICU Pattern is costly on Android. A Pattern is immutable, so lexers on any
+    // thread may share it. The regex is built from the operators' symbols alone and is its own key,
+    // so lexers with different operators never share one.
+    this.regexOperators = OPERATOR_REGEXES.computeIfAbsent(regex.toString(), Pattern::compile);
   }
 
 }

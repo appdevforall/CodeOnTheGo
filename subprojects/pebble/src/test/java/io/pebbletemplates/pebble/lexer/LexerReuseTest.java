@@ -1,6 +1,8 @@
 package io.pebbletemplates.pebble.lexer;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import io.pebbletemplates.pebble.PebbleEngine;
@@ -22,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 /**
- * LexerImpl reuses its regex machinery (ADFA-3305): one Matcher per pattern, reset onto each window, and one copy of each window for every pattern tried there. LexerWindowTest pins the tokens. These pin the reuse, which is what makes lexing cheap on Android, and that it never crosses templates or threads.
+ * LexerImpl reuses its regex machinery (ADFA-3305): one Matcher per pattern, reset onto each window; one copy of each window for every pattern tried there; and one operator regex per set of operators, shared by every lexer. LexerWindowTest pins the tokens. These pin the reuse, which is what makes lexing cheap on Android, and that it never crosses templates, operator sets or threads.
  */
 public class LexerReuseTest {
 
@@ -93,9 +95,38 @@ public class LexerReuseTest {
 	}
 
 	@Test
+	public void lexersWithTheSameOperatorsShareOneOperatorRegex() {
+		LexerImpl first = newLexer();
+		LexerImpl second = newLexer();
+		lex(first, "{{ a }}");
+		lex(second, "{{ b }}");
+		assertSame(first.regexOperators, second.regexOperators);
+	}
+
+	@Test
+	public void lexersWithOtherOperatorsGetTheirOwnOperatorRegex() {
+		// In either order: whichever set of operators reaches a shared regex first, the other must still get its own.
+		for (int round = 0; round < 2; round++) {
+			LexerImpl plain = newLexer();
+			LexerImpl xor = newLexerWithXor();
+			String plainTokens, xorTokens;
+			if (round == 0) {
+				plainTokens = lex(plain, "{{ a xor b }}");
+				xorTokens = lex(xor, "{{ a xor b }}");
+			} else {
+				xorTokens = lex(xor, "{{ a xor b }}");
+				plainTokens = lex(plain, "{{ a xor b }}");
+			}
+			assertTrue(plainTokens, plainTokens.contains("NAME xor @1"));
+			assertTrue(xorTokens, xorTokens.contains("OPERATOR xor @1"));
+			assertNotSame(plain.regexOperators, xor.regexOperators);
+		}
+	}
+
+	@Test
 	public void lexersOnManyThreadsLexAsOneDoes() throws Exception {
-		// Pebble compiles on whichever thread asks for a template, so lexers run concurrently. Each thread lexes with
-		// two sets of operators, a new lexer per template as PebbleEngine makes one.
+		// Pebble compiles on whichever thread asks for a template, so lexers run concurrently and share the operator
+		// regexes. Each thread lexes with both sets of operators, a new lexer per template as PebbleEngine makes one.
 		List<String> templates = new ArrayList<>();
 		templates.add(shortTokens());
 		templates.add("{{ a xor b }}{% if c is not null and d %}{{ \"#{ e }\" ~ 'f' }}{% endif %}{# g #}");
