@@ -411,6 +411,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			PluginRunAppCoordinator.runApp(application.foregroundActivity, callback)
 		}
 
+		buildServiceImpl.setQuickBuildProvider(PluginQuickBuildCoordinator { application.foregroundActivity })
+
 		// Provide gradle sync functionality
 		buildServiceImpl.setGradleSyncProvider { callback ->
 			GlobalScope.launch(Dispatchers.IO) {

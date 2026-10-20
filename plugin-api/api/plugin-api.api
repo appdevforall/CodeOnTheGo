@@ -1476,6 +1476,77 @@ public final class com/itsaky/androidide/plugins/extensions/UIExtension$DefaultI
 	public static fun getToolbarActions (Lcom/itsaky/androidide/plugins/extensions/UIExtension;)Ljava/util/List;
 }
 
+public final class com/itsaky/androidide/plugins/net/NetworkLocality : java/lang/Enum {
+	public static final field LOOPBACK Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static final field PRIVATE_NETWORK Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static final field PUBLIC Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrl {
+	public static final field Companion Lcom/itsaky/androidide/plugins/net/ServerUrl$Companion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getLocality ()Lcom/itsaky/androidide/plugins/net/NetworkLocality;
+	public final fun getPort ()Ljava/lang/Integer;
+	public final fun getScheme ()Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public fun hashCode ()I
+	public final fun isCleartext ()Z
+	public static final fun parse (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrl$Companion {
+	public final fun parse (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrl$Scheme : java/lang/Enum {
+	public static final field HTTP Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public static final field HTTPS Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getId ()Ljava/lang/String;
+	public final fun isEncrypted ()Z
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/net/ServerUrl$Scheme;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/net/ServerUrlParseResult {
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid : com/itsaky/androidide/plugins/net/ServerUrlParseResult {
+	public fun <init> (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public final fun copy (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid;Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason : java/lang/Enum {
+	public static final field BLANK Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static final field MALFORMED Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static final field NO_HOST Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static final field UNSUPPORTED_SCHEME Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Invalid$Reason;
+}
+
+public final class com/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid : com/itsaky/androidide/plugins/net/ServerUrlParseResult {
+	public fun <init> (Lcom/itsaky/androidide/plugins/net/ServerUrl;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/net/ServerUrl;
+	public final fun copy (Lcom/itsaky/androidide/plugins/net/ServerUrl;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid;Lcom/itsaky/androidide/plugins/net/ServerUrl;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/net/ServerUrlParseResult$Valid;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getUrl ()Lcom/itsaky/androidide/plugins/net/ServerUrl;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class com/itsaky/androidide/plugins/security/KeystoreSecretStore {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun decrypt (Ljava/lang/String;)Ljava/lang/String;
@@ -1679,25 +1750,33 @@ public final class com/itsaky/androidide/plugins/services/IdeArchiveService$Defa
 public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildService {
 	public abstract fun addBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
 	public abstract fun cancelBuild ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun cancelQuickBuild ()Ljava/util/concurrent/CompletableFuture;
 	public abstract fun executeTasks (Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun executeTasks ([Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun getBuildOutput ()Ljava/lang/String;
+	public abstract fun getQuickBuildAvailability ()Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability;
+	public abstract fun getQuickBuildStatus ()Lcom/itsaky/androidide/plugins/services/QuickBuildState;
 	public abstract fun getTasks ()Ljava/util/List;
 	public abstract fun isBuildInProgress ()Z
 	public abstract fun isToolingServerStarted ()Z
 	public abstract fun removeBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
 	public abstract fun runApp (Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
+	public abstract fun startQuickBuild ()Ljava/util/concurrent/CompletableFuture;
 	public abstract fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeBuildService$DefaultImpls {
 	public static fun cancelBuild (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/util/concurrent/CompletableFuture;
+	public static fun cancelQuickBuild (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/util/concurrent/CompletableFuture;
 	public static fun executeTasks (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
 	public static fun executeTasks (Lcom/itsaky/androidide/plugins/services/IdeBuildService;[Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public static synthetic fun executeTasks$default (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public static fun getBuildOutput (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/lang/String;
+	public static fun getQuickBuildAvailability (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability;
+	public static fun getQuickBuildStatus (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Lcom/itsaky/androidide/plugins/services/QuickBuildState;
 	public static fun getTasks (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/util/List;
 	public static fun runApp (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
+	public static fun startQuickBuild (Lcom/itsaky/androidide/plugins/services/IdeBuildService;)Ljava/util/concurrent/CompletableFuture;
 	public static fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V
 }
 
@@ -1956,6 +2035,10 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getSettingsFragmentClassName ()Ljava/lang/String;
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ContextWindowReportingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
+	public abstract fun getContextWindowTokens ()I
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$EmbeddingBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
 	public abstract fun embed (Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
 	public abstract fun getEmbeddingDimensions ()I
@@ -1966,6 +2049,19 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$EmbeddingModelSelectable : com/itsaky/androidide/plugins/services/LlmInferenceService$EmbeddingBackend {
 	public abstract fun listEmbeddingModels ()Ljava/util/concurrent/CompletableFuture;
 	public abstract fun setEmbeddingModelId (Ljava/lang/String;)V
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ErrorCallback {
+	public abstract fun onError (Ljava/lang/String;)V
+	public fun onError (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;)V
+}
+
+public final class com/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind : java/lang/Enum {
+	public static final field CONFIGURATION Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
+	public static final field CONTEXT_TOO_LONG Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
+	public static final field OTHER Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$HistoryCapableBackend : com/itsaky/androidide/plugins/services/LlmInferenceService$LlmBackend {
@@ -1996,12 +2092,15 @@ public class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmConfi
 
 public class com/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse {
 	public final field error Ljava/lang/String;
+	public final field failureKind Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;
 	public final field success Z
 	public final field text Ljava/lang/String;
 	public final field timeMs J
 	public final field tokensGenerated I
 	public fun <init> (ZLjava/lang/String;Ljava/lang/String;IJ)V
+	public fun <init> (ZLjava/lang/String;Ljava/lang/String;IJLcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;)V
 	public static fun failure (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;
+	public static fun failure (Ljava/lang/String;Lcom/itsaky/androidide/plugins/services/LlmInferenceService$FailureKind;)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;
 	public static fun success (Ljava/lang/String;IJ)Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;
 }
 
@@ -2010,9 +2109,8 @@ public abstract interface class com/itsaky/androidide/plugins/services/LlmInfere
 	public abstract fun getStatusMessage ()Ljava/lang/String;
 }
 
-public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback {
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$StreamCallback : com/itsaky/androidide/plugins/services/LlmInferenceService$ErrorCallback {
 	public abstract fun onComplete (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;)V
-	public abstract fun onError (Ljava/lang/String;)V
 	public abstract fun onToken (Ljava/lang/String;)V
 }
 
@@ -2042,9 +2140,8 @@ public class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolDefi
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
 }
 
-public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback {
+public abstract interface class com/itsaky/androidide/plugins/services/LlmInferenceService$ToolStreamCallback : com/itsaky/androidide/plugins/services/LlmInferenceService$ErrorCallback {
 	public abstract fun onComplete (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$LlmResponse;)V
-	public abstract fun onError (Ljava/lang/String;)V
 	public abstract fun onToken (Ljava/lang/String;)V
 	public abstract fun onToolCall (Lcom/itsaky/androidide/plugins/services/LlmInferenceService$ToolCallRequest;)V
 }
@@ -2152,6 +2249,126 @@ public final class com/itsaky/androidide/plugins/services/ModuleContext {
 	public final fun getVariantName ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/itsaky/androidide/plugins/services/QuickBuildAvailability {
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildAvailability$Available : com/itsaky/androidide/plugins/services/QuickBuildAvailability {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability$Available;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildAvailability$Unavailable : com/itsaky/androidide/plugins/services/QuickBuildAvailability {
+	public fun <init> (Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;Ljava/lang/String;)V
+	public final fun component1 ()Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability$Unavailable;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability$Unavailable;Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability$Unavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getReason ()Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class com/itsaky/androidide/plugins/services/QuickBuildResult {
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildResult$AppNotRunning : com/itsaky/androidide/plugins/services/QuickBuildResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$AppNotRunning;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/QuickBuildResult$AppNotRunning;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$AppNotRunning;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildResult$Cancelled : com/itsaky/androidide/plugins/services/QuickBuildResult {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Cancelled;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildResult$Declined : com/itsaky/androidide/plugins/services/QuickBuildResult {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Declined;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildResult$Failed : com/itsaky/androidide/plugins/services/QuickBuildResult {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Failed;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Failed;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getOutput ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildResult$Refused : com/itsaky/androidide/plugins/services/QuickBuildResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Refused;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Refused;Ljava/lang/String;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Refused;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildResult$Reloaded : com/itsaky/androidide/plugins/services/QuickBuildResult {
+	public fun <init> (JZ)V
+	public final fun component1 ()J
+	public final fun component2 ()Z
+	public final fun copy (JZ)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Reloaded;
+	public static synthetic fun copy$default (Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Reloaded;JZILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/QuickBuildResult$Reloaded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDurationMillis ()J
+	public final fun getRestarted ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildResult$UpToDate : com/itsaky/androidide/plugins/services/QuickBuildResult {
+	public static final field INSTANCE Lcom/itsaky/androidide/plugins/services/QuickBuildResult$UpToDate;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildState : java/lang/Enum {
+	public static final field BUILDING Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public static final field ERROR Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public static final field FULL_BUILD_NEXT Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public static final field READY Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public static final field RECONNECTING Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public static final field UNAVAILABLE Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+}
+
+public final class com/itsaky/androidide/plugins/services/QuickBuildUnavailableReason : java/lang/Enum {
+	public static final field EXPERIMENTS_DISABLED Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static final field NOT_SUPPORTED Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static final field NO_APP_MODULE Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static final field NO_PROJECT Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static final field PLUGIN_PROJECT Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static final field PROJECT_SYNCING Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static final field RELEASE_VARIANT Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
+	public static fun values ()[Lcom/itsaky/androidide/plugins/services/QuickBuildUnavailableReason;
 }
 
 public final class com/itsaky/androidide/plugins/services/SelectionRange {

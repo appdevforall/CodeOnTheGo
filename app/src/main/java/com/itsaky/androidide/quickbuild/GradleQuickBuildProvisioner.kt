@@ -554,7 +554,7 @@ class GradleQuickBuildProvisioner(
 		 * @param manager the project model to ask; defaults to the process-wide one, which is
 		 *   what every non-injected caller has always used.
 		 */
-		private fun quickBuildModule(manager: IProjectManager = IProjectManager.getInstance()): AndroidModule? =
+		internal fun quickBuildModule(manager: IProjectManager = IProjectManager.getInstance()): AndroidModule? =
 			manager.getAndroidAppModules().firstOrNull()
 				?: manager.getAndroidModules().firstOrNull()
 
