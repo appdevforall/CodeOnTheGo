@@ -98,7 +98,6 @@ import com.itsaky.androidide.search.replace.ReplaceHost
 import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.search.replace.SkipReason
 import com.itsaky.androidide.services.builder.GradleBuildService
-import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.BuildId
@@ -241,8 +240,6 @@ abstract class ProjectHandlerActivity :
 	}
 
 	protected val mBuildEventListener = EditorBuildEventListener()
-
-	private val buildServiceConnection = GradleBuildServiceConnnection()
 
 	// True once onCreate() has completed past its isFinishing check -- mirrors
 	// EditorHandlerActivity.didCompleteLiveOnCreate. super.onCreate() (BaseEditorActivity) may
@@ -1229,6 +1226,10 @@ abstract class ProjectHandlerActivity :
 
 		super.preDestroy()
 
+		if (didCompleteLiveOnCreate && !isDestroying) {
+			editorViewModel.clearBuildServiceCallback()
+		}
+
 		if (didCompleteLiveOnCreate && isDestroying) {
 			try {
 				stopLanguageServers()
@@ -1237,10 +1238,9 @@ abstract class ProjectHandlerActivity :
 			}
 
 			try {
-				unbindService(buildServiceConnection)
-				buildServiceConnection.onConnected = {}
-			} catch (_: Throwable) {
-				log.error("Unable to unbind service")
+				editorViewModel.unbindBuildService()
+			} catch (err: IllegalArgumentException) {
+				log.error("Unable to unbind service", err)
 			} finally {
 				Lookup.getDefault().apply {
 					(lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService?)
@@ -1250,7 +1250,6 @@ abstract class ProjectHandlerActivity :
 				}
 
 				mBuildEventListener.release()
-				editorViewModel.isBoundToBuildSerice = false
 			}
 		}
 	}
@@ -1330,15 +1329,7 @@ abstract class ProjectHandlerActivity :
 			log.info("Binding to Gradle build service...")
 		}
 
-		buildServiceConnection.onConnected = this::onGradleBuildServiceConnected
-
-		if (
-			bindService(
-				Intent(this, GradleBuildService::class.java),
-				buildServiceConnection,
-				BIND_AUTO_CREATE or BIND_IMPORTANT,
-			)
-		) {
+		if (editorViewModel.bindBuildService(this, this::onGradleBuildServiceConnected)) {
 			log.info("Bind request for Gradle build service was successful...")
 		} else {
 			log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
@@ -1555,7 +1546,7 @@ abstract class ProjectHandlerActivity :
 	protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
 		log.info("Connected to Gradle build service")
 
-		buildServiceConnection.onConnected = null
+		editorViewModel.clearBuildServiceCallback()
 		editorViewModel.isBoundToBuildSerice = true
 		Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, service)
 		service.setEventListener(mBuildEventListener)
