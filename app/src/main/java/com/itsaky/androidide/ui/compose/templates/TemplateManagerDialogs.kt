@@ -2,6 +2,7 @@ package com.itsaky.androidide.ui.compose.templates
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,10 +12,16 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -24,6 +31,48 @@ import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import com.itsaky.androidide.templates.manager.models.displayName
 import com.itsaky.androidide.templates.manager.models.primaryTemplate
 import com.itsaky.androidide.templates.manager.models.versionLabel
+
+/** Same "delete after install" choice as the Plugins tab's install dialog. */
+@Composable
+fun InstallTemplateConfirmationDialog(
+	item: CgtFileItem,
+	onConfirm: (deleteSourceAfterInstall: Boolean) -> Unit,
+	onDismiss: () -> Unit,
+) {
+	var deleteSource by rememberSaveable { mutableStateOf(false) }
+
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.title_install_template_collection)) },
+		text = {
+			Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+				Text(
+					stringResource(
+						R.string.msg_template_install_confirm,
+						item.displayName,
+						item.templates.joinToString(", ") { it.name },
+					),
+				)
+				Row(
+					verticalAlignment = Alignment.CenterVertically,
+					modifier = Modifier.padding(top = 8.dp),
+				) {
+					Checkbox(checked = deleteSource, onCheckedChange = { deleteSource = it })
+					Text(
+						stringResource(R.string.checkbox_delete_source_after_install),
+						modifier = Modifier.weight(1f),
+					)
+				}
+			}
+		},
+		confirmButton = {
+			TextButton(onClick = { onConfirm(deleteSource) }) { Text(stringResource(R.string.btn_install)) }
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+		},
+	)
+}
 
 @Composable
 fun DeleteTemplateConfirmationDialog(
