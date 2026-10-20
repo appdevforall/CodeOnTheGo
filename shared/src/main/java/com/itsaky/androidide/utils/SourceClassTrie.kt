@@ -79,7 +79,7 @@ open class SourceClassTrie(
 				name = name,
 			)
 		klass.isClass = true
-		node.children[name] = klass
+		node.addSource(klass)
 		return klass
 	}
 
@@ -182,8 +182,38 @@ open class SourceClassTrie(
 			name: String,
 			qualifiedName: String,
 		): SourcePackageNode =
-			this.children.computeIfAbsent(name) {
-				SourcePackageNode(dir, this, name, qualifiedName)
-			} as SourcePackageNode
+			synchronized(this) {
+				when (val existing = children[name]) {
+					is SourcePackageNode -> {
+						existing
+					}
+
+					is SourceNode -> {
+						children[existing.file.fileName.toString()] = existing
+						SourcePackageNode(dir, this, name, qualifiedName).also { children[name] = it }
+					}
+
+					null -> {
+						SourcePackageNode(dir, this, name, qualifiedName).also { children[name] = it }
+					}
+
+					else -> {
+						error("Unexpected ${existing.javaClass.name} at '$qualifiedName'")
+					}
+				}
+			}
+
+		fun addSource(source: SourceNode) {
+			synchronized(this) {
+				val key = if (children[source.name] is SourcePackageNode) source.file.fileName.toString() else source.name
+				children[key] = source
+			}
+		}
+
+		override fun removeChild(child: Node) {
+			synchronized(this) {
+				children.values.remove(child)
+			}
+		}
 	}
 }
