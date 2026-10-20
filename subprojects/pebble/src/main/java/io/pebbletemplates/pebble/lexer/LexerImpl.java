@@ -131,6 +131,16 @@ public final class LexerImpl implements Lexer {
   private Pattern regexOperators;
 
   /**
+   * How many characters of the remaining source a match starts from; see {@link #match}.
+   */
+  static final int MATCH_WINDOW = 256;
+
+  /**
+   * {@link #MATCH_WINDOW}, settable by a test to compare small windows with the whole source.
+   */
+  int matchWindow = MATCH_WINDOW;
+
+  /**
    * Constructor
    *
    * @param syntax The primary syntax
@@ -222,8 +232,9 @@ public final class LexerImpl implements Lexer {
   private void tokenizeStringInterpolation() {
     this.logger.trace("Tokenizing String Interpolation");
     String lastBracket = this.brackets.peek().getLeft();
-    Matcher matcher = this.syntax.getRegexInterpolationClose().matcher(this.source);
-    if (this.syntax.getInterpolationOpenDelimiter().equals(lastBracket) && matcher.lookingAt()) {
+    Matcher matcher;
+    if (this.syntax.getInterpolationOpenDelimiter().equals(lastBracket)
+        && (matcher = this.lookingAt(this.syntax.getRegexInterpolationClose())) != null) {
       this.brackets.pop();
       this.pushToken(Token.Type.STRING_INTERPOLATION_END);
       this.source.advance(matcher.end());
@@ -236,8 +247,8 @@ public final class LexerImpl implements Lexer {
   private void tokenizeString() {
     this.logger.trace("Tokenizing String");
     // interpolation
-    Matcher matcher = this.syntax.getRegexInterpolationOpen().matcher(this.source);
-    if (matcher.lookingAt()) {
+    Matcher matcher = this.lookingAt(this.syntax.getRegexInterpolationOpen());
+    if (matcher != null) {
       this.brackets.push(
           new Pair<>(this.syntax.getInterpolationOpenDelimiter(), this.source.getLineNumber()));
       this.pushToken(Token.Type.STRING_INTERPOLATION_START);
@@ -247,8 +258,8 @@ public final class LexerImpl implements Lexer {
     }
 
     // regular string start (always full string if single quotes)
-    matcher = REGEX_STRING_NON_INTERPOLATED_PART.matcher(this.source);
-    if (matcher.lookingAt() && matcher.end() > 0) {
+    matcher = this.lookingAt(REGEX_STRING_NON_INTERPOLATED_PART);
+    if (matcher != null && matcher.end() > 0) {
       String token = this.source.substring(matcher.end());
       this.source.advance(matcher.end());
       this.pushToken(Token.Type.STRING, token);
@@ -256,8 +267,8 @@ public final class LexerImpl implements Lexer {
     }
 
     // end of string (which may have contained interpolation)
-    matcher = REGEX_DOUBLEQUOTE.matcher(this.source);
-    if (matcher.lookingAt()) {
+    matcher = this.lookingAt(REGEX_DOUBLEQUOTE);
+    if (matcher != null) {
       String expected = this.brackets.pop().getLeft();
 
       if (this.source.charAt(0) != '"') {
@@ -278,8 +289,8 @@ public final class LexerImpl implements Lexer {
   private void tokenizeData() {
     this.logger.trace("Tokenizing Data");
     // find the next start delimiter
-    Matcher matcher = this.syntax.getRegexStartDelimiters().matcher(this.source);
-    boolean match = matcher.find();
+    Matcher matcher = this.find(this.syntax.getRegexStartDelimiters());
+    boolean match = matcher != null;
 
     String text;
     String startDelimiter = null;
@@ -318,8 +329,8 @@ public final class LexerImpl implements Lexer {
         this.lexerStateStack.push(State.PRINT);
       } else if ((this.syntax.getExecuteOpenDelimiter().equals(startDelimiter))) {
         // check for verbatim tag
-        Matcher verbatimStartMatcher = this.syntax.getRegexVerbatimStart().matcher(this.source);
-        if (verbatimStartMatcher.lookingAt()) {
+        Matcher verbatimStartMatcher = this.lookingAt(this.syntax.getRegexVerbatimStart());
+        if (verbatimStartMatcher != null) {
           this.lexVerbatimData(verbatimStartMatcher);
           this.lexerStateStack.push(State.DATA);
         } else {
@@ -338,10 +349,11 @@ public final class LexerImpl implements Lexer {
     // check for the trailing whitespace trim character
     this.checkForTrailingWhitespaceTrim();
 
-    Matcher matcher = this.syntax.getRegexExecuteClose().matcher(this.source);
+    Matcher matcher;
 
     // check if we are at the execute closing delimiter
-    if (this.brackets.isEmpty() && matcher.lookingAt()) {
+    if (this.brackets.isEmpty()
+        && (matcher = this.lookingAt(this.syntax.getRegexExecuteClose())) != null) {
       this.pushToken(Token.Type.EXECUTE_END, this.syntax.getExecuteCloseDelimiter());
       this.source.advance(matcher.end());
       this.popState();
@@ -358,10 +370,11 @@ public final class LexerImpl implements Lexer {
     // check for the trailing whitespace trim character
     this.checkForTrailingWhitespaceTrim();
 
-    Matcher matcher = this.syntax.getRegexPrintClose().matcher(this.source);
+    Matcher matcher;
 
     // check if we are at the print closing delimiter
-    if (this.brackets.isEmpty() && matcher.lookingAt()) {
+    if (this.brackets.isEmpty()
+        && (matcher = this.lookingAt(this.syntax.getRegexPrintClose())) != null) {
       this.pushToken(Token.Type.PRINT_END, this.syntax.getPrintCloseDelimiter());
       this.source.advance(matcher.end());
       this.popState();
@@ -378,9 +391,9 @@ public final class LexerImpl implements Lexer {
   private void tokenizeComment() {
 
     // all we need to do is find the end of the comment.
-    Matcher matcher = this.syntax.getRegexCommentClose().matcher(this.source);
+    Matcher matcher = this.find(this.syntax.getRegexCommentClose());
 
-    boolean match = matcher.find(0);
+    boolean match = matcher != null;
     if (!match) {
       throw new ParserException(null, "Unclosed comment.", this.source.getLineNumber(),
           this.source.getFilename());
@@ -416,8 +429,8 @@ public final class LexerImpl implements Lexer {
      */
 
     // operators
-    Matcher matcher = this.regexOperators.matcher(this.source);
-    if (matcher.lookingAt()) {
+    Matcher matcher = this.lookingAt(this.regexOperators);
+    if (matcher != null) {
       token = this.source.substring(matcher.end());
       this.pushToken(Token.Type.OPERATOR, token);
       this.source.advance(matcher.end());
@@ -425,8 +438,8 @@ public final class LexerImpl implements Lexer {
     }
 
     // names
-    matcher = REGEX_IDENTIFIER.matcher(this.source);
-    if (matcher.lookingAt()) {
+    matcher = this.lookingAt(REGEX_IDENTIFIER);
+    if (matcher != null) {
       token = this.source.substring(matcher.end());
       this.pushToken(Token.Type.NAME, token);
       this.source.advance(matcher.end());
@@ -434,8 +447,8 @@ public final class LexerImpl implements Lexer {
     }
 
     // long
-    matcher = REGEX_LONG.matcher(this.source);
-    if (matcher.lookingAt()) {
+    matcher = this.lookingAt(REGEX_LONG);
+    if (matcher != null) {
       token = this.source.substring(matcher.end() - 1);
       this.pushToken(Token.Type.LONG, token);
       this.source.advance(matcher.end());
@@ -443,8 +456,8 @@ public final class LexerImpl implements Lexer {
     }
 
     // numbers
-    matcher = REGEX_NUMBER.matcher(this.source);
-    if (matcher.lookingAt()) {
+    matcher = this.lookingAt(REGEX_NUMBER);
+    if (matcher != null) {
       token = this.source.substring(matcher.end());
       this.pushToken(Token.Type.NUMBER, token);
       this.source.advance(matcher.end());
@@ -485,8 +498,8 @@ public final class LexerImpl implements Lexer {
     }
 
     // Plain (non-interpolated) string
-    matcher = REGEX_STRING_PLAIN.matcher(this.source);
-    if (matcher.lookingAt()) {
+    matcher = this.lookingAt(REGEX_STRING_PLAIN);
+    if (matcher != null) {
       token = this.source.substring(matcher.end());
       this.source.advance(matcher.end());
       token = this.unquoteAndUnescape(token);
@@ -495,8 +508,8 @@ public final class LexerImpl implements Lexer {
     }
 
     // Interpolated strings
-    matcher = REGEX_DOUBLEQUOTE.matcher(this.source);
-    if (matcher.lookingAt()) {
+    matcher = this.lookingAt(REGEX_DOUBLEQUOTE);
+    if (matcher != null) {
       this.brackets.push(new Pair<>("\"", this.source.getLineNumber()));
       this.lexerStateStack.push(State.STRING);
       this.source.advance(matcher.end());
@@ -530,10 +543,9 @@ public final class LexerImpl implements Lexer {
 
   private void checkForLeadingWhitespaceTrim(Token leadingToken) {
 
-    Matcher whitespaceTrimMatcher =
-        this.syntax.getRegexLeadingWhitespaceTrim().matcher(this.source);
+    Matcher whitespaceTrimMatcher = this.lookingAt(this.syntax.getRegexLeadingWhitespaceTrim());
 
-    if (whitespaceTrimMatcher.lookingAt()) {
+    if (whitespaceTrimMatcher != null) {
       this.logger.trace("Found Leading Whitespace Trim Character");
       if (leadingToken != null) {
         this.logger.trace("Right trimming leading token: {}", leadingToken);
@@ -545,10 +557,9 @@ public final class LexerImpl implements Lexer {
   }
 
   private void checkForTrailingWhitespaceTrim() {
-    Matcher whitespaceTrimMatcher =
-        this.syntax.getRegexTrailingWhitespaceTrim().matcher(this.source);
+    Matcher whitespaceTrimMatcher = this.lookingAt(this.syntax.getRegexTrailingWhitespaceTrim());
 
-    if (whitespaceTrimMatcher.lookingAt()) {
+    if (whitespaceTrimMatcher != null) {
       this.trimLeadingWhitespaceFromNextData = true;
     }
   }
@@ -563,10 +574,10 @@ public final class LexerImpl implements Lexer {
 
     // look for the "endverbatim" tag and storing everything between
     // now and then into a TEXT node
-    Matcher verbatimEndMatcher = this.syntax.getRegexVerbatimEnd().matcher(this.source);
+    Matcher verbatimEndMatcher = this.find(this.syntax.getRegexVerbatimEnd());
 
     // check for EOF
-    if (!verbatimEndMatcher.find()) {
+    if (verbatimEndMatcher == null) {
       throw new ParserException(null, "Unclosed verbatim tag.", this.source.getLineNumber(),
           this.source.getFilename());
     }
@@ -591,6 +602,47 @@ public final class LexerImpl implements Lexer {
     this.source.advance(verbatimEndMatcher.end());
 
     this.pushToken(Type.TEXT, verbatimText);
+  }
+
+  /**
+   * Matches {@code pattern} at the start of the remaining source.
+   *
+   * @return the matcher, or null if the pattern does not match there
+   */
+  private Matcher lookingAt(Pattern pattern) {
+    return this.match(pattern, false);
+  }
+
+  /**
+   * Finds the first match of {@code pattern} in the remaining source.
+   *
+   * @return the matcher, or null if there is no match
+   */
+  private Matcher find(Pattern pattern) {
+    return this.match(pattern, true);
+  }
+
+  /*
+   * Code On The Go (ADFA-3305): on Android, java.util.regex runs on ICU, and creating a Matcher
+   * copies its whole input twice: TemplateSource.toString(), then ICU's own buffer (libcore
+   * Matcher.reset, ICU MatcherState::updateInput). Matching each token against the rest of the
+   * template made lexing quadratic: an 807 KB template took 93-114 s to compile on a Pixel 6 Pro.
+   * So a match runs on a window at the start of the remaining source, and runs again on a window
+   * twice as long while the engine reports reaching the window's end (hitEnd), which is when more
+   * input could change the result. A result that did not reach the end is the one the whole
+   * remaining source gives.
+   */
+  private Matcher match(Pattern pattern, boolean find) {
+    int remaining = this.source.length();
+    int window = Math.min(Math.max(this.matchWindow, 1), remaining);
+    while (true) {
+      Matcher matcher = pattern.matcher(this.source.subSequence(0, window));
+      boolean matched = find ? matcher.find() : matcher.lookingAt();
+      if (window == remaining || !matcher.hitEnd()) {
+        return matched ? matcher : null;
+      }
+      window = (int) Math.min((long) window * 2, remaining);
+    }
   }
 
   /**

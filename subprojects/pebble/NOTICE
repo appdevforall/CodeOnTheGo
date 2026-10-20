@@ -10,4 +10,10 @@ not use are left out:
 - io/pebbletemplates/pebble/cache/template/CaffeineTemplateCache.java (Caffeine)
 - io/pebbletemplates/pebble/cache/tag/CaffeineTagCache.java (Caffeine)
 
-Local changes: none.
+Local changes (Code On The Go, ADFA-3305):
+
+- io/pebbletemplates/pebble/lexer/LexerImpl.java matches each token against a window at the start of
+  the remaining template, doubled while the regex engine reports reaching its end, instead of against
+  the whole remaining template. On Android, java.util.regex copies its whole input every time a
+  Matcher is created, which made lexing quadratic in the template's length. The comment at
+  LexerImpl.match says why in full.
