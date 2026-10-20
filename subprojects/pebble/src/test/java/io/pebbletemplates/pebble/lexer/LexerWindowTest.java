@@ -37,6 +37,9 @@ public class LexerWindowTest {
 
 	private static final String LONG = repeat("lorem ipsum dolor ", 40);
 
+	// U+1D465, MATHEMATICAL ITALIC SMALL X: a letter outside the BMP, so two chars in UTF-16.
+	private static final String SUPPLEMENTARY_LETTER = new String(Character.toChars(0x1D465));
+
 	private static void assertSameAtEveryWindow(String name, String template) {
 		String whole = lex(template, WHOLE);
 		for (int window : WINDOWS) {
@@ -74,6 +77,7 @@ public class LexerWindowTest {
 		templates.put("nested brackets", "{{ f([1, 2, {'k': (3 + 4)}], g(h(i))) }}");
 		templates.put("tags only", "{% for i in range(0, 10) %}{{ i }}{% endfor %}");
 		templates.put("ends inside text", "{{ a }}" + LONG.substring(0, 37));
+		templates.put("supplementary letters at window edges", supplementaryLettersAtWindowEdges());
 		return templates;
 	}
 
@@ -129,6 +133,17 @@ public class LexerWindowTest {
 		return String.join("", parts);
 	}
 
+	// For each window, identifiers whose supplementary letter straddles its first three edges.
+	private static String supplementaryLettersAtWindowEdges() {
+		StringBuilder template = new StringBuilder();
+		for (int window : WINDOWS) {
+			for (int edge = window; edge <= 4 * window; edge *= 2) {
+				template.append("{{ ").append(repeat("a", edge - 1)).append(SUPPLEMENTARY_LETTER).append("b }}");
+			}
+		}
+		return template.toString();
+	}
+
 	@Test
 	public void aMatchThatReachesTheWindowsEndIsRetriedOnALongerOne() {
 		// "or" is an operator only when no identifier character follows; with a 2-character window the engine reaches
@@ -136,6 +151,17 @@ public class LexerWindowTest {
 		String tokens = lex("{{ organization }}", 2);
 		assertTrue(tokens, tokens.contains("NAME organization"));
 		assertFalse(tokens, tokens.contains("OPERATOR or"));
+	}
+
+	@Test
+	public void aWindowNeverEndsBetweenTheHalvesOfASurrogatePair() {
+		// Both regex engines read a lone high surrogate at the window's end as a whole code point without
+		// reporting the end, so a split pair would end the identifier just before its supplementary letter.
+		String small = lex("{{ a" + SUPPLEMENTARY_LETTER + "b }}", 2);
+		assertTrue(small, small.contains("NAME a" + SUPPLEMENTARY_LETTER + "b @1\n"));
+		String identifier = repeat("a", LexerImpl.MATCH_WINDOW - 1) + SUPPLEMENTARY_LETTER + "b";
+		String production = lex("{{ " + identifier + " }}", LexerImpl.MATCH_WINDOW);
+		assertTrue(production, production.contains("NAME " + identifier + " @1\n"));
 	}
 
 	@Test

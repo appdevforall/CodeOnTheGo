@@ -636,6 +636,11 @@ public final class LexerImpl implements Lexer {
     int remaining = this.source.length();
     int window = Math.min(Math.max(this.matchWindow, 1), remaining);
     while (true) {
+      // Both engines read a lone high surrogate at the window's end as a whole code point, without
+      // reporting the end, so a window must not split a surrogate pair.
+      if (window < remaining && Character.isHighSurrogate(this.source.charAt(window - 1))) {
+        window++;
+      }
       Matcher matcher = pattern.matcher(this.source.subSequence(0, window));
       boolean matched = find ? matcher.find() : matcher.lookingAt();
       if (window == remaining || !matcher.hitEnd()) {
