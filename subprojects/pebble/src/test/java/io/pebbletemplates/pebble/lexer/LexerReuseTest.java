@@ -30,22 +30,6 @@ public class LexerReuseTest {
 
 	private static final PebbleEngine ENGINE = new PebbleEngine.Builder().build();
 
-	// The engine's operators plus "xor", a word operator the core extension does not define.
-	private static List<BinaryOperator> withXor() {
-		List<BinaryOperator> operators = new ArrayList<>(ENGINE.getExtensionRegistry().getBinaryOperators().values());
-		operators.add(new BinaryOperatorImpl("xor", 10, OrExpression::new, BinaryOperatorType.NORMAL, Associativity.LEFT));
-		return operators;
-	}
-
-	private static LexerImpl newLexer() {
-		ExtensionRegistry extensions = ENGINE.getExtensionRegistry();
-		return new LexerImpl(ENGINE.getSyntax(), extensions.getUnaryOperators().values(), extensions.getBinaryOperators().values());
-	}
-
-	private static LexerImpl newLexerWithXor() {
-		return new LexerImpl(ENGINE.getSyntax(), ENGINE.getExtensionRegistry().getUnaryOperators().values(), withXor());
-	}
-
 	// The token dump LexerWindowTest compares: type, value and line of each token, or the error.
 	private static String lex(LexerImpl lexer, String template) {
 		StringBuilder out = new StringBuilder();
@@ -59,28 +43,26 @@ public class LexerReuseTest {
 		return out.toString();
 	}
 
+	private static LexerImpl newLexer() {
+		ExtensionRegistry extensions = ENGINE.getExtensionRegistry();
+		return new LexerImpl(ENGINE.getSyntax(), extensions.getUnaryOperators().values(), extensions.getBinaryOperators().values());
+	}
+
+	private static LexerImpl newLexerWithXor() {
+		return new LexerImpl(ENGINE.getSyntax(), ENGINE.getExtensionRegistry().getUnaryOperators().values(), withXor());
+	}
+
 	// About 100 KB of rows of short tokens, like an HTML page's.
 	private static String shortTokens() {
 		String row = "<li class=\"row\">{{ item.name | upper }}</li>{% if item.count > 1 %}<b>{{ item.count + 1 }}</b>{% endif %}\n";
 		return String.join("", Collections.nCopies(100_000 / row.length() + 1, row));
 	}
 
-	@Test
-	public void eachPatternGetsOneMatcherPerLexer() {
-		// LexerImpl matches about 15 patterns. A new Matcher per match made one for each of the 87,792 matches here.
-		LexerImpl lexer = newLexer();
-		lexer.tokenize(new StringReader(shortTokens()), "template");
-		assertTrue(lexer.matches + " matches", lexer.matches > 10_000);
-		assertTrue(lexer.matchersCreated + " matchers for " + lexer.matches + " matches", lexer.matchersCreated >= 1 && lexer.matchersCreated <= 20);
-	}
-
-	@Test
-	public void thePatternsTriedAtOnePositionShareOneWindow() {
-		// Most positions are tried against several patterns, such as a closing delimiter, then an operator, then a name:
-		// 0.39 windows cut per window matched on here. A copy per match cut one for each.
-		LexerImpl lexer = newLexer();
-		lexer.tokenize(new StringReader(shortTokens()), "template");
-		assertTrue(lexer.windowsCut + " windows cut for " + lexer.windows + " matched on", lexer.windowsCut >= 1 && lexer.windowsCut <= 0.5 * lexer.windows);
+	// The engine's operators plus "xor", a word operator the core extension does not define.
+	private static List<BinaryOperator> withXor() {
+		List<BinaryOperator> operators = new ArrayList<>(ENGINE.getExtensionRegistry().getBinaryOperators().values());
+		operators.add(new BinaryOperatorImpl("xor", 10, OrExpression::new, BinaryOperatorType.NORMAL, Associativity.LEFT));
+		return operators;
 	}
 
 	@Test
@@ -95,32 +77,12 @@ public class LexerReuseTest {
 	}
 
 	@Test
-	public void lexersWithTheSameOperatorsShareOneOperatorRegex() {
-		LexerImpl first = newLexer();
-		LexerImpl second = newLexer();
-		lex(first, "{{ a }}");
-		lex(second, "{{ b }}");
-		assertSame(first.regexOperators, second.regexOperators);
-	}
-
-	@Test
-	public void lexersWithOtherOperatorsGetTheirOwnOperatorRegex() {
-		// In either order: whichever set of operators reaches a shared regex first, the other must still get its own.
-		for (int round = 0; round < 2; round++) {
-			LexerImpl plain = newLexer();
-			LexerImpl xor = newLexerWithXor();
-			String plainTokens, xorTokens;
-			if (round == 0) {
-				plainTokens = lex(plain, "{{ a xor b }}");
-				xorTokens = lex(xor, "{{ a xor b }}");
-			} else {
-				xorTokens = lex(xor, "{{ a xor b }}");
-				plainTokens = lex(plain, "{{ a xor b }}");
-			}
-			assertTrue(plainTokens, plainTokens.contains("NAME xor @1"));
-			assertTrue(xorTokens, xorTokens.contains("OPERATOR xor @1"));
-			assertNotSame(plain.regexOperators, xor.regexOperators);
-		}
+	public void eachPatternGetsOneMatcherPerLexer() {
+		// LexerImpl matches about 15 patterns. A new Matcher per match made one for each of the 87,792 matches here.
+		LexerImpl lexer = newLexer();
+		lexer.tokenize(new StringReader(shortTokens()), "template");
+		assertTrue(lexer.matches + " matches", lexer.matches > 10_000);
+		assertTrue(lexer.matchersCreated + " matchers for " + lexer.matches + " matches", lexer.matchersCreated >= 1 && lexer.matchersCreated <= 20);
 	}
 
 	@Test
@@ -162,5 +124,43 @@ public class LexerReuseTest {
 			assertEquals("same", result.get(5, TimeUnit.MINUTES));
 		}
 		pool.shutdown();
+	}
+
+	@Test
+	public void lexersWithOtherOperatorsGetTheirOwnOperatorRegex() {
+		// In either order: whichever set of operators reaches a shared regex first, the other must still get its own.
+		for (int round = 0; round < 2; round++) {
+			LexerImpl plain = newLexer();
+			LexerImpl xor = newLexerWithXor();
+			String plainTokens, xorTokens;
+			if (round == 0) {
+				plainTokens = lex(plain, "{{ a xor b }}");
+				xorTokens = lex(xor, "{{ a xor b }}");
+			} else {
+				xorTokens = lex(xor, "{{ a xor b }}");
+				plainTokens = lex(plain, "{{ a xor b }}");
+			}
+			assertTrue(plainTokens, plainTokens.contains("NAME xor @1"));
+			assertTrue(xorTokens, xorTokens.contains("OPERATOR xor @1"));
+			assertNotSame(plain.regexOperators, xor.regexOperators);
+		}
+	}
+
+	@Test
+	public void lexersWithTheSameOperatorsShareOneOperatorRegex() {
+		LexerImpl first = newLexer();
+		LexerImpl second = newLexer();
+		lex(first, "{{ a }}");
+		lex(second, "{{ b }}");
+		assertSame(first.regexOperators, second.regexOperators);
+	}
+
+	@Test
+	public void thePatternsTriedAtOnePositionShareOneWindow() {
+		// Most positions are tried against several patterns, such as a closing delimiter, then an operator, then a name:
+		// 0.39 windows cut per window matched on here. A copy per match cut one for each.
+		LexerImpl lexer = newLexer();
+		lexer.tokenize(new StringReader(shortTokens()), "template");
+		assertTrue(lexer.windowsCut + " windows cut for " + lexer.windows + " matched on", lexer.windowsCut >= 1 && lexer.windowsCut <= 0.5 * lexer.windows);
 	}
 }
