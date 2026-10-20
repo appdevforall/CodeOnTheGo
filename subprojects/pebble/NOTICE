@@ -1,0 +1,13 @@
+Pebble 4.1.1 (https://github.com/PebbleTemplates/pebble), under the BSD 3-Clause License in LICENSE.
+
+src/main/java holds Pebble's main sources from Maven Central's io.pebbletemplates:pebble:4.1.1 sources
+jar (pebble-4.1.1-sources.jar, SHA-1 699371e19483456ebd81e2083bb7b436d3ad412d). They are identical to
+pebble/src/main/java at the v4.1.1 tag. The four classes that need optional dependencies the app does
+not use are left out:
+
+- io/pebbletemplates/pebble/loader/ServletLoader.java (javax.servlet)
+- io/pebbletemplates/pebble/loader/Servlet5Loader.java (jakarta.servlet)
+- io/pebbletemplates/pebble/cache/template/CaffeineTemplateCache.java (Caffeine)
+- io/pebbletemplates/pebble/cache/tag/CaffeineTagCache.java (Caffeine)
+
+Local changes: none.

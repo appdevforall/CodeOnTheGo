@@ -322,6 +322,8 @@ monitor = { group = "androidx.test", name = "monitor", version.ref = "monitorVer
 org-json = { module = "org.json:json", version = "20210307"}
 
 pebble = { module = "io.pebbletemplates:pebble", version.ref = "pebble" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version = "2.0.17" }
+unbescape = { module = "org.unbescape:unbescape", version = "1.1.6.RELEASE" }
 kotlinx-metadata = { module = "org.jetbrains.kotlin:kotlin-metadata-jvm", version.ref = "kotlin" }
 
 shark = { module = "com.squareup.leakcanary:shark", version.ref = "leakcanary" }
