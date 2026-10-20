@@ -141,6 +141,16 @@ public final class LexerImpl implements Lexer {
   int matchWindow = MATCH_WINDOW;
 
   /**
+   * Calls of {@link #match}, the windows they matched on and those windows' total length, which a
+   * test bounds to pin the cost {@link #match} exists to cut.
+   */
+  int matches;
+
+  int windows;
+
+  long windowChars;
+
+  /**
    * Constructor
    *
    * @param syntax The primary syntax
@@ -635,12 +645,15 @@ public final class LexerImpl implements Lexer {
   private Matcher match(Pattern pattern, boolean find) {
     int remaining = this.source.length();
     int window = Math.min(Math.max(this.matchWindow, 1), remaining);
+    this.matches++;
     while (true) {
       // Both engines read a lone high surrogate at the window's end as a whole code point, without
       // reporting the end, so a window must not split a surrogate pair.
       if (window < remaining && Character.isHighSurrogate(this.source.charAt(window - 1))) {
         window++;
       }
+      this.windows++;
+      this.windowChars += window;
       Matcher matcher = pattern.matcher(this.source.subSequence(0, window));
       boolean matched = find ? matcher.find() : matcher.lookingAt();
       if (window == remaining || !matcher.hitEnd()) {

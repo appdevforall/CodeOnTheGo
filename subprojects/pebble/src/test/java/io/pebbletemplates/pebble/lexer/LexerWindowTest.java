@@ -20,7 +20,7 @@ import java.util.zip.ZipFile;
 import org.junit.Test;
 
 /**
- * LexerImpl matches on a window of the remaining template and grows it while the regex engine reports reading the window's end (ADFA-3305). Stock Pebble 4.1.1 matched on the whole remaining template, so these tests check that a window of any size gives stock's tokens, values, line numbers and errors. The oracle is stock's own tokens for a template per token kind, and the lex with an unbounded window, one match over the whole remainder as stock did, for every template in core.cgt and the hand-made ones.
+ * LexerImpl matches on a window of the remaining template and grows it while the regex engine reports reading the window's end (ADFA-3305). Stock Pebble 4.1.1 matched on the whole remaining template, so these tests check that a window of any size gives stock's tokens, values, line numbers and errors. The oracle is stock's own tokens for a template per token kind, and the lex with an unbounded window, one match over the whole remainder as stock did, for every template in core.cgt and the hand-made ones. Two more bound the work the window exists to cut.
  */
 public class LexerWindowTest {
 
@@ -82,12 +82,7 @@ public class LexerWindowTest {
 	}
 
 	private static String lex(String template, int window) {
-		PebbleEngine engine = new PebbleEngine.Builder().build();
-		ExtensionRegistry extensions = engine.getExtensionRegistry();
-		LexerImpl lexer = new LexerImpl(
-				engine.getSyntax(),
-				extensions.getUnaryOperators().values(),
-				extensions.getBinaryOperators().values());
+		LexerImpl lexer = newLexer();
 		lexer.matchWindow = window;
 		StringBuilder out = new StringBuilder();
 		try {
@@ -98,6 +93,28 @@ public class LexerWindowTest {
 			out.append("error ").append(e.getClass().getSimpleName()).append(": ").append(e.getMessage());
 		}
 		return out.toString();
+	}
+
+	// Lexes template at the production window, for the lexer's counters.
+	private static LexerImpl lexedAtTheProductionWindow(String template) {
+		LexerImpl lexer = newLexer();
+		lexer.tokenize(new StringReader(template), "template");
+		return lexer;
+	}
+
+	// About 800 KB, the size of the template stock Pebble took 93-114 s over on a Pixel 6 Pro, of tokens
+	// thousands of characters long: text, an identifier, two strings, a comment and verbatim text.
+	private static String longTokens() {
+		String text = repeat("lorem ipsum dolor sit amet ", 80);
+		String block = text + "{{ " + repeat("identifier_", 100) + " }}{{ \"" + text + "\" }}{{ '" + text + "' }}{# " + text
+				+ " #}{% verbatim %}" + text + "{% endverbatim %}";
+		return repeat(block, 800_000 / block.length() + 1);
+	}
+
+	private static LexerImpl newLexer() {
+		PebbleEngine engine = new PebbleEngine.Builder().build();
+		ExtensionRegistry extensions = engine.getExtensionRegistry();
+		return new LexerImpl(engine.getSyntax(), extensions.getUnaryOperators().values(), extensions.getBinaryOperators().values());
 	}
 
 	private static File projectRoot() {
@@ -136,6 +153,12 @@ public class LexerWindowTest {
 	// A template per token kind, through every one of LexerImpl's 18 match sites, and as stock Pebble 4.1.1
 	// (io.pebbletemplates:pebble:4.1.1, which has no window) lexed it. These pin the whole-remainder lex the
 	// other tests compare windows with, so a call site broken alike at every window still fails.
+	// About 100 KB of rows of short tokens, like an HTML page's.
+	private static String shortTokens() {
+		String row = "<li class=\"row\">{{ item.name | upper }}</li>{% if item.count > 1 %}<b>{{ item.count + 1 }}</b>{% endif %}\n";
+		return repeat(row, 100_000 / row.length() + 1);
+	}
+
 	private static Map<String, String> stockTokens() {
 		Map<String, String> tokens = new LinkedHashMap<>();
 		tokens.put("", "EOF null @1\n");
@@ -454,6 +477,14 @@ public class LexerWindowTest {
 	}
 
 	@Test
+	public void aShortTokenIsMatchedInOneWindow() {
+		// A window too small for a typical token makes most matches read its end and run again on a longer one: another
+		// Matcher, and on Android two more copies. A 1-character window needs about 2 per match here.
+		LexerImpl lexer = lexedAtTheProductionWindow(shortTokens());
+		assertTrue(lexer.windows + " windows for " + lexer.matches + " matches", lexer.windows <= 1.1 * lexer.matches);
+	}
+
+	@Test
 	public void aWindowNeverEndsBetweenTheHalvesOfASurrogatePair() {
 		// Both regex engines read a lone high surrogate at the window's end as a whole code point without
 		// reporting the end, so a split pair would end the identifier just before its supplementary letter.
@@ -503,5 +534,17 @@ public class LexerWindowTest {
 		for (Map.Entry<String, String> template : templates.entrySet()) {
 			assertSameAtEveryWindow(template.getKey(), template.getValue());
 		}
+	}
+
+	@Test
+	public void theEngineIsHandedAFewCharactersPerTemplateCharacter() {
+		// Stock Pebble handed the regex engine the whole rest of the template at every match: on this template over a
+		// thousand characters per template character, each copied twice on Android. Doubling the window hands it about
+		// 4; growing it one character at a time, about as many as stock.
+		String template = longTokens();
+		LexerImpl lexer = lexedAtTheProductionWindow(template);
+		assertTrue(
+				lexer.windowChars + " characters for a template of " + template.length(),
+				lexer.windowChars <= 8L * template.length());
 	}
 }
