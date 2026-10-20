@@ -109,4 +109,7 @@ data class PluginTooltipButton(
 	 * keeping the path configurable by the plugin author. Default is false.
 	 */
 	val directPath: Boolean = false,
-)
+) {
+	@Deprecated("Binary compatibility with plugins built before directPath was added", level = DeprecationLevel.HIDDEN)
+	constructor(description: String, uri: String, order: Int = 0) : this(description, uri, order, false)
+}
