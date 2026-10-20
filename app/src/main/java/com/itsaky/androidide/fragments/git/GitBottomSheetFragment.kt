@@ -388,7 +388,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 					.rotationBy(360f)
 					.setDuration(500)
 					.start()
-				viewModel.refreshStatus()
+				viewModel.refreshStatus(force = true)
 			}
 			setTooltipOnView(TooltipTag.GIT_REFRESH)
 		}

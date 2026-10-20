@@ -275,17 +275,13 @@ class EditorBottomSheet
 						// by user input; the sheetState collector refreshes the FABs.
 						viewModel.setSheetState(currentTab = tab.position)
 						updateWordWrapButtonState(EditorPreferences.outputWordWrap)
-
-						if (pagerAdapter.isGitTab(tab.position)) {
-							gitViewModel.refreshStatus()
-						}
 					}
 
 					override fun onTabUnselected(tab: Tab) {}
 
 					override fun onTabReselected(tab: Tab) {
 						if (pagerAdapter.isGitTab(tab.position)) {
-							gitViewModel.refreshStatus()
+							gitViewModel.refreshStatus(force = true)
 						}
 					}
 				},

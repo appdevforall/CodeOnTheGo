@@ -50,7 +50,14 @@ class GitBottomSheetViewModel(
 	repository: GitRepository? = null,
 	private val watcherFactory: ((GitRepository, CoroutineScope, suspend () -> Unit) -> GitRepositoryWatcher)? = null,
 ) : ViewModel() {
+	companion object {
+		private const val REFRESH_THROTTLE_MS = 300L
+	}
+
 	private val log = LoggerFactory.getLogger(GitBottomSheetViewModel::class.java)
+
+	@Volatile
+	private var lastRefreshTimestamp: Long = 0L
 
 	private val _gitStatus = MutableStateFlow(GitStatus.EMPTY)
 	val gitStatus: StateFlow<GitStatus> = _gitStatus.asStateFlow()
@@ -125,12 +132,12 @@ class GitBottomSheetViewModel(
 		if (repo == null) return
 
 		val watcher =
-			watcherFactory?.invoke(repo, viewModelScope) { refreshStatus() }
+			watcherFactory?.invoke(repo, viewModelScope) { refreshStatus(force = true) }
 				?: repo.createWatcher(
 					scope = viewModelScope,
 					debounceDelay = 1000.milliseconds,
 				) {
-					refreshStatus()
+					refreshStatus(force = true)
 				}
 		repoWatcher = watcher
 		watcher.start()
@@ -213,10 +220,23 @@ class GitBottomSheetViewModel(
 	/**
 	 * Refreshes the Git status and branch state of the project.
 	 * Failures while querying branches are handled separately to preserve valid status and commit count.
-	 * Any previous in-flight refresh is cancelled to prevent older results from overwriting newer ones.
+	 * When [force] is true, cancels any in-flight refresh and bypasses the throttle window.
+	 * When [force] is false, redundant calls during an active refresh or within the throttle window
+	 * reuse the existing job to save device resources.
 	 */
-	fun refreshStatus(): Job {
-		refreshJob?.cancel()
+	fun refreshStatus(force: Boolean = false): Job {
+		val activeJob = refreshJob
+		if (!force) {
+			if (activeJob?.isActive == true) {
+				return activeJob
+			}
+			val now = System.currentTimeMillis()
+			if (now - lastRefreshTimestamp < REFRESH_THROTTLE_MS && activeJob != null) {
+				return activeJob
+			}
+		}
+
+		activeJob?.cancel()
 		val job =
 			viewModelScope.launch {
 				val repo = currentRepository
@@ -251,6 +271,8 @@ class GitBottomSheetViewModel(
 				} catch (e: Exception) {
 					log.error("Failed to fetch branches during status refresh", e)
 					_branches.value = BranchesUiState.Error(e.message)
+				} finally {
+					lastRefreshTimestamp = System.currentTimeMillis()
 				}
 			}
 		refreshJob = job
@@ -300,7 +322,7 @@ class GitBottomSheetViewModel(
 				_checkoutState.value = CheckoutUiState.CheckingOut
 				try {
 					val resolvedBranch = repository.checkout(branchName, createNew, startPoint)
-					refreshStatus()
+					refreshStatus(force = true)
 					_checkoutState.value = CheckoutUiState.Success(resolvedBranch)
 					onSuccess?.invoke()
 				} catch (e: CheckoutConflictException) {
@@ -353,7 +375,7 @@ class GitBottomSheetViewModel(
 						authorEmail = GitPreferences.userEmail,
 					)
 
-					refreshStatus()
+					refreshStatus(force = true)
 					onSuccess()
 				} catch (e: CancellationException) {
 					throw e
@@ -465,7 +487,7 @@ class GitBottomSheetViewModel(
 	) {
 		_pushState.value = PushUiState.Success
 		credentialsManager.saveCredentialsIfNeeded(username, token)
-		refreshStatus()
+		refreshStatus(force = true)
 		getLocalCommitsCount()
 		getCommitHistoryList()
 	}
@@ -526,7 +548,7 @@ class GitBottomSheetViewModel(
 
 		if (mergeStatus == MergeStatus.CONFLICTING) {
 			_pullState.value = PullUiState.Conflicts()
-			refreshStatus()
+			refreshStatus(force = true)
 		} else {
 			_pullState.value = PullUiState.Error("Pull failed: $statusName")
 		}
@@ -538,7 +560,7 @@ class GitBottomSheetViewModel(
 	) {
 		_pullState.value = PullUiState.Success
 		credentialsManager.saveCredentialsIfNeeded(username, token)
-		refreshStatus()
+		refreshStatus(force = true)
 		getCommitHistoryList()
 	}
 
@@ -592,7 +614,7 @@ class GitBottomSheetViewModel(
 									targetBranch = targetBranchName,
 									currentBranch = currentBranchName,
 								)
-							refreshStatus()
+							refreshStatus(force = true)
 							getCommitHistoryList()
 							getLocalCommitsCount()
 						}
@@ -609,7 +631,7 @@ class GitBottomSheetViewModel(
 									currentBranch = currentBranchName,
 									conflictingFiles = conflictingFiles,
 								)
-							refreshStatus()
+							refreshStatus(force = true)
 						}
 
 						else -> {
@@ -779,7 +801,7 @@ class GitBottomSheetViewModel(
 			withGuardedGitOperation {
 				try {
 					currentRepository?.abortMerge()
-					refreshStatus()
+					refreshStatus(force = true)
 					onSuccess?.invoke()
 				} catch (e: CancellationException) {
 					throw e
@@ -797,7 +819,7 @@ class GitBottomSheetViewModel(
 					val repository = currentRepository ?: return@withGuardedGitOperation
 					val projectDir = File(IProjectManager.getInstance().projectDirPath)
 					repository.stageFiles(listOf(File(projectDir, path)))
-					refreshStatus()
+					refreshStatus(force = true)
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Exception) {

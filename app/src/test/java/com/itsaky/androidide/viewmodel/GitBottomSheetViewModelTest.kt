@@ -23,6 +23,7 @@ import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -230,7 +231,7 @@ class GitBottomSheetViewModelTest {
 		}
 
 	@Test
-	fun `refreshStatus cancels in-flight previous refresh job`() =
+	fun `refreshStatus cancels in-flight previous refresh job when forced`() =
 		runTest {
 			val firstStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
 			val secondStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
@@ -245,13 +246,50 @@ class GitBottomSheetViewModelTest {
 			coEvery { repository.getLocalCommitsCount() } returns 0
 			coEvery { repository.getBranches() } returns emptyList()
 
-			val firstJob = viewModel.refreshStatus()
-			val secondJob = viewModel.refreshStatus()
+			val firstJob = viewModel.refreshStatus(force = true)
+			val secondJob = viewModel.refreshStatus(force = true)
 			advanceUntilIdle()
 
 			assertTrue(firstJob.isCancelled)
 			assertTrue(secondJob.isCompleted)
 			assertEquals(secondStatus, viewModel.gitStatus.value)
+		}
+
+	@Test
+	fun `refreshStatus reuses active in-flight job when not forced`() =
+		runTest {
+			coEvery { repository.getStatus() } coAnswers {
+				delay(1000)
+				mockk(relaxed = true)
+			}
+			coEvery { repository.getCurrentBranch() } returns GitBranch("main", "refs/heads/main", true, false)
+			coEvery { repository.getLocalCommitsCount() } returns 0
+			coEvery { repository.getBranches() } returns emptyList()
+
+			val firstJob = viewModel.refreshStatus(force = false)
+			val secondJob = viewModel.refreshStatus(force = false)
+
+			assertSame(firstJob, secondJob)
+			advanceUntilIdle()
+		}
+
+	@Test
+	fun `refreshStatus skips redundant execution within throttle window when not forced`() =
+		runTest {
+			coEvery { repository.getStatus() } returns mockk(relaxed = true)
+			coEvery { repository.getCurrentBranch() } returns GitBranch("main", "refs/heads/main", true, false)
+			coEvery { repository.getLocalCommitsCount() } returns 0
+			coEvery { repository.getBranches() } returns emptyList()
+
+			viewModel.refreshStatus(force = false)
+			advanceUntilIdle()
+
+			// Call again without force immediately (within throttle window)
+			val secondJob = viewModel.refreshStatus(force = false)
+			advanceUntilIdle()
+
+			// Verify getStatus was only executed once
+			coVerify(exactly = 1) { repository.getStatus() }
 		}
 
 	@Test
