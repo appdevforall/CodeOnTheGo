@@ -41,7 +41,7 @@ dependencies {
 	implementation(libs.androidx.core.ktx)
 	implementation(libs.google.auto.service.annotations)
 
-	implementation(libs.pebble)
+	implementation(projects.subprojects.pebble)
 
 	testImplementation(projects.templatesApi)
 	testImplementation(projects.lsp.api)

@@ -69,6 +69,6 @@ dependencies {
 	// Documentation content: Brotli-decoded rows above, Pebble-rendered pages, gson for their
 	// template context. Moved down from `app` with the shared content source (ADFA-5176), so both
 	// the web server and the in-process WebView path render the same way.
-	implementation(libs.pebble)
+	implementation(projects.subprojects.pebble)
 	implementation(libs.google.gson)
 }
