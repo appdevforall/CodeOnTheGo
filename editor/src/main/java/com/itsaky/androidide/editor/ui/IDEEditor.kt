@@ -715,25 +715,29 @@ open class IDEEditor
 			arguments: Bundle?,
 		): Boolean {
 			when (action) {
-				AccessibilityNodeInfo.ACTION_SET_SELECTION ->
+				AccessibilityNodeInfo.ACTION_SET_SELECTION -> {
 					if (handleAccessibilitySetSelection(arguments)) return true
+				}
 
-				AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY ->
+				AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY -> {
 					if (handleAccessibilityGranularityMove(action, arguments, forward = true)) return true
+				}
 
-				AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY ->
+				AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY -> {
 					if (handleAccessibilityGranularityMove(action, arguments, forward = false)) return true
+				}
 
-				AccessibilityNodeInfo.ACTION_CLICK ->
+				AccessibilityNodeInfo.ACTION_CLICK -> {
 					if (handleAccessibilityClick()) return true
+				}
 			}
 			return super.performAccessibilityAction(action, arguments)
 		}
 
 		/**
-		* Places the caret where the user last explored by touch. This makes a TalkBack double-tap
-		* on a word or line move the real text cursor to that spot instead of the node's center.
-		*/
+		 * Places the caret where the user last explored by touch. This makes a TalkBack double-tap
+		 * on a word or line move the real text cursor to that spot instead of the node's center.
+		 */
 		private fun handleAccessibilityClick(): Boolean {
 			if (isReleased || !isEditable || !isTouchExplorationEnabled) return false
 			val x = lastHoverX
@@ -773,23 +777,25 @@ open class IDEEditor
 		}
 
 		/**
-		* Handles the move-by-granularity actions. Moves the real text cursor to the next/previous
-		* character, word or line and reports the traversed segment so the screen reader reads it,
-		* mirroring [EditText] behaviour.
-		*/
+		 * Handles the move-by-granularity actions. Moves the real text cursor to the next/previous
+		 * character, word or line and reports the traversed segment so the screen reader reads it,
+		 * mirroring [EditText] behaviour.
+		 */
 		private fun handleAccessibilityGranularityMove(
 			action: Int,
 			arguments: Bundle?,
 			forward: Boolean,
 		): Boolean {
 			if (isReleased || !isEditable || arguments == null) return false
-			val granularity = arguments.getInt(
-				AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
-			)
-			val extendSelection = arguments.getBoolean(
-				AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
-				false,
-			)
+			val granularity =
+				arguments.getInt(
+					AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+				)
+			val extendSelection =
+				arguments.getBoolean(
+					AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN,
+					false,
+				)
 			val content = text
 			val cur = cursor ?: return false
 			val selStart = cur.left
@@ -821,7 +827,10 @@ open class IDEEditor
 		}
 
 		/** Converts absolute char indices to (line, column) positions and moves the selection. */
-		private fun applySelectionFromIndices(start: Int, end: Int): Boolean {
+		private fun applySelectionFromIndices(
+			start: Int,
+			end: Int,
+		): Boolean {
 			val content = text
 			return try {
 				val indexer = content.indexer
@@ -843,9 +852,9 @@ open class IDEEditor
 		}
 
 		/**
-		* Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY] event so the
-		* screen reader announces the character/word/line the caret just traversed.
-		*/
+		 * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY] event so the
+		 * screen reader announces the character/word/line the caret just traversed.
+		 */
 		@Suppress("DEPRECATION") // AccessibilityEvent(int) requires API 30; obtain() works on minSdk 28.
 		private fun sendTextTraversedEvent(
 			fromIndex: Int,
@@ -855,9 +864,10 @@ open class IDEEditor
 		) {
 			val manager = accessibilityManager ?: return
 			if (!manager.isEnabled) return
-			val event = AccessibilityEvent.obtain(
-				AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
-			)
+			val event =
+				AccessibilityEvent.obtain(
+					AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
+				)
 			onInitializeAccessibilityEvent(event)
 			event.className = EditText::class.java.name
 			event.fromIndex = fromIndex
@@ -868,6 +878,7 @@ open class IDEEditor
 			event.text.add(text.toString())
 			sendAccessibilityEventUnchecked(event)
 		}
+
 		/**
 		 * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED] event so the screen reader
 		 * tracks the caret/selection as it moves — required for reliable movement-by-granularity
@@ -1412,7 +1423,7 @@ open class IDEEditor
 						content = text,
 						file = currentFile,
 						cursor =
-							text.cursor.apply {//                    set(lineToProcess, text.getLine(lineToProcess).length)
+							text.cursor.apply { //                    set(lineToProcess, text.getLine(lineToProcess).length)
 							},
 					)
 
