@@ -699,10 +699,11 @@ public final class LexerImpl implements Lexer {
 
   /*
    * Code On The Go (ADFA-3305): on Android a new Matcher allocates native ICU state, which the GC
-   * counts as a native allocation, and every window is copied again into ICU's buffer. A Matcher
-   * per pattern tried at every position, over a new copy of the window each time, was most of
-   * lexing's cost there. So each pattern keeps one Matcher, reset onto the window, and the patterns
-   * tried at one position share one copy of it. That is safe because a lexer is used by one thread,
+   * counts as a native allocation. A Matcher per pattern tried at every position, over a new String
+   * copy of the window each time, was most of lexing's cost there. So each pattern keeps one
+   * Matcher, reset onto the window, and the patterns tried at one position share one String copy of
+   * it. Each reset still copies that String into the Matcher's ICU buffer, which is cheap at 256
+   * characters. That is safe because a lexer is used by one thread,
    * as its source and tokens already require, and every caller reads the Matcher it is handed before
    * matching that pattern again. The source only shrinks, so its remaining length and the window's
    * length name one window of one template.

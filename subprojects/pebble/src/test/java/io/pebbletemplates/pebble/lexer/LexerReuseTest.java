@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 /**
- * LexerImpl reuses its regex machinery (ADFA-3305): one Matcher per pattern, reset onto each window; one copy of each window for every pattern tried there; and one operator regex per set of operators, shared by every lexer. LexerWindowTest pins the tokens. These pin the reuse, which is what makes lexing cheap on Android, and that it never crosses templates, operator sets or threads.
+ * LexerImpl reuses its regex machinery (ADFA-3305): one Matcher per pattern, reset onto each window; one String copy of each window for every pattern tried there; and one operator regex per set of operators, shared by every lexer. LexerWindowTest pins the tokens. These pin the reuse, which is what makes lexing cheap on Android, and that it never crosses templates, operator sets or threads.
  */
 public class LexerReuseTest {
 
