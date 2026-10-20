@@ -59,7 +59,7 @@ public final class LexerImpl implements Lexer {
    * As we progress through the source we maintain a string which is the text that has yet to be
    * tokenized.
    */
-  private TemplateSource source;
+  TemplateSource source;
 
   /**
    * The list of tokens that we find and use to create a TokenStream
@@ -146,7 +146,7 @@ public final class LexerImpl implements Lexer {
    */
   private final Map<Pattern, Matcher> matchers = new IdentityHashMap<>();
 
-  private String windowText;
+  String windowText;
 
   private int windowRemaining = -1;
 
@@ -708,7 +708,7 @@ public final class LexerImpl implements Lexer {
    * matching that pattern again. The source only shrinks, so its remaining length and the window's
    * length name one window of one template.
    */
-  private Matcher matcherOnWindow(Pattern pattern, int remaining, int window) {
+  Matcher matcherOnWindow(Pattern pattern, int remaining, int window) {
     if (remaining != this.windowRemaining || window != this.windowLength) {
       this.windowText = this.source.subSequence(0, window).toString();
       this.windowRemaining = remaining;

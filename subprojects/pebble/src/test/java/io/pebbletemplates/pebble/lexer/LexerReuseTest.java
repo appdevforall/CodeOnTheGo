@@ -1,6 +1,7 @@
 package io.pebbletemplates.pebble.lexer;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -12,6 +13,7 @@ import io.pebbletemplates.pebble.operator.Associativity;
 import io.pebbletemplates.pebble.operator.BinaryOperator;
 import io.pebbletemplates.pebble.operator.BinaryOperatorImpl;
 import io.pebbletemplates.pebble.operator.BinaryOperatorType;
+import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +23,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.Test;
 
 /**
@@ -74,6 +78,23 @@ public class LexerReuseTest {
 		String again = lex(lexer, "{{ b }}");
 		assertEquals(lex(newLexer(), "{{ b }}"), again);
 		assertTrue(again, again.contains("PRINT_START"));
+	}
+
+	@Test
+	public void aPatternIsResetNotGivenANewMatcher() throws IOException {
+		// The same Matcher, at one position and at the next. A new Matcher per call is what allocated native ICU state on
+		// every match, and counting only the map's misses would not show it.
+		LexerImpl lexer = newLexer();
+		lexer.source = new TemplateSource(new StringReader("{{ alpha }}xyz"), "template");
+		Pattern open = Pattern.compile("^\\{\\{");
+		Matcher first = lexer.matcherOnWindow(open, lexer.source.length(), 4);
+		assertTrue(first.lookingAt());
+		assertSame(first, lexer.matcherOnWindow(open, lexer.source.length(), 4));
+		lexer.source.advance(11);
+		Matcher next = lexer.matcherOnWindow(open, lexer.source.length(), 3);
+		assertSame(first, next);
+		// Reset onto "xyz": still on "{{ a", it would match.
+		assertFalse(next.lookingAt());
 	}
 
 	@Test
@@ -153,6 +174,23 @@ public class LexerReuseTest {
 		lex(first, "{{ a }}");
 		lex(second, "{{ b }}");
 		assertSame(first.regexOperators, second.regexOperators);
+	}
+
+	@Test
+	public void thePatternsTriedAtOnePositionMatchOnOneString() throws IOException {
+		// The same String for a second pattern at one position, and a new one at the next. A copy per call, counted only
+		// when the position changes, would pass the count but not this.
+		LexerImpl lexer = newLexer();
+		lexer.source = new TemplateSource(new StringReader("{{ alpha }}"), "template");
+		int remaining = lexer.source.length();
+		lexer.matcherOnWindow(Pattern.compile("^\\{\\{"), remaining, remaining);
+		String window = lexer.windowText;
+		lexer.matcherOnWindow(Pattern.compile("^\\{%"), remaining, remaining);
+		assertSame(window, lexer.windowText);
+		lexer.source.advance(3);
+		lexer.matcherOnWindow(Pattern.compile("^\\{\\{"), lexer.source.length(), lexer.source.length());
+		assertNotSame(window, lexer.windowText);
+		assertEquals("alpha }}", lexer.windowText);
 	}
 
 	@Test
