@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.documentation
 
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import androidx.annotation.VisibleForTesting
 import com.google.gson.Gson
@@ -152,6 +153,10 @@ data class RequestLookup(
  * are Brotli-compressed against the same dictionary as the rows; an earlier database's are plain
  * UTF-8 and are read as they are, since an app update never replaces the installed database.
  *
+ * A database with a `ContentBlockItems` table (the ADFA-6683 prototype) stores some pages N to a
+ * Brotli block: such a row's own content is empty, and its bytes are a slice of the decoded block,
+ * which is then served exactly as a decoded row would be. Decoded blocks are cached per database.
+ *
  * Thread-safe: [lookup] and [withDatabase] hold a read lock for the whole read, and the swap takes
  * the write lock, since swapping closes the handle a reader could be using. Readers never block
  * each other.
@@ -230,6 +235,17 @@ class DocumentationContentSource internal constructor(
 	// null until its first render asks. Cleared on every swap: the next database may be either kind.
 	@Volatile
 	private var templatesCompressed: Boolean? = null
+
+	// Whether the active database has a ContentBlockItems table, or null until its first read asks.
+	// Cleared on every swap, with the blocks cached from the previous database: a block id names a
+	// different block in another database.
+	@Volatile
+	private var hasContentBlocks: Boolean? = null
+
+	private val blockCache = ContentBlockCache(ContentBlockCache.MAX_PLAIN_BYTES)
+
+	// Its own tag, so the phone measurement can filter logcat to these lines alone.
+	private val blockLog = LoggerFactory.getLogger("DocBlocks")
 
 	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
 	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
@@ -456,6 +472,7 @@ class DocumentationContentSource internal constructor(
 				log.error("Cannot close the documentation database", e)
 			}
 			database = null
+			blockCache.clear()
 		}
 	}
 
@@ -502,21 +519,94 @@ class DocumentationContentSource internal constructor(
 			log.warn("Could not prime the compression dictionary; will retry on the next read: {}", e.message)
 		}
 
-		database.rawQuery(CONTENT_QUERY, arrayOf(path)).use { cursor ->
+		queryContent(database, path).use { cursor ->
 			if (cursor.count == 0) return DocumentationLookup.NotFound
 			if (cursor.count != 1) return DocumentationLookup.Ambiguous(cursor.count)
 
 			cursor.moveToFirst()
-			val firstChunk = cursor.getBlob(0)
 			val mimeType = cursor.getString(1)
-			val compression = cursor.getString(2)
 			val templateId = cursor.getInt(3)
 
-			val decoded = decodeRow(database, path, firstChunk, compression)
+			val decoded = rowBytes(database, path, cursor)
 			val bytes = if (templateId > 0) render(database, templateId, decoded, path) else decoded
 
 			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType))
 		}
+	}
+
+	/**
+	 * [path]'s Content row: content, MIME type, compression and template id, then -- in a database
+	 * with content blocks -- the row's block id, offset and length, NULL when it has no block.
+	 */
+	private fun queryContent(
+		database: SQLiteDatabase,
+		path: String,
+	): Cursor = database.rawQuery(if (hasContentBlocks(database)) BLOCKED_CONTENT_QUERY else CONTENT_QUERY, arrayOf(path))
+
+	/**
+	 * Whether [database] has a `ContentBlockItems` table; asked once per database. A failure to ask is
+	 * not cached, so it fails this read and the next read asks again.
+	 */
+	private fun hasContentBlocks(database: SQLiteDatabase): Boolean =
+		hasContentBlocks
+			?: database.rawQuery(BLOCK_TABLE_QUERY, null).use { it.moveToFirst() }.also { hasContentBlocks = it }
+
+	/**
+	 * The plain bytes of the row [cursor] is on, a [queryContent] result: the row's slice of its
+	 * decoded block when it has one, else its own content decoded (see [decodeRow]).
+	 */
+	private fun rowBytes(
+		database: SQLiteDatabase,
+		path: String,
+		cursor: Cursor,
+	): ByteArray {
+		if (!hasContentBlocks(database) || cursor.isNull(BLOCK_ID_COLUMN)) {
+			return decodeRow(database, path, cursor.getBlob(0), cursor.getString(2))
+		}
+		val blockId = cursor.getLong(BLOCK_ID_COLUMN)
+		val offset = cursor.getLong(BLOCK_ID_COLUMN + 1)
+		val length = cursor.getLong(BLOCK_ID_COLUMN + 2)
+		return sliceBlockItem(decodedBlock(database, blockId, path), blockId, offset, length)
+	}
+
+	/**
+	 * Block [blockId] decoded, from the cache or else read and Brotli-decoded with the codec the
+	 * database's Content rows use, then cached.
+	 *
+	 * @param path The page being served, for the log lines only.
+	 */
+	private fun decodedBlock(
+		database: SQLiteDatabase,
+		blockId: Long,
+		path: String,
+	): ByteArray {
+		blockCache.get(blockId)?.let { block ->
+			if (blockLog.isDebugEnabled) blockLog.debug("hit block={} path={} plain={}", blockId, path, block.size)
+			return block
+		}
+
+		val compressed =
+			database.rawQuery(BLOCK_QUERY, arrayOf(blockId.toString())).use { cursor ->
+				check(cursor.moveToFirst()) { "Content block $blockId not found, for path '$path'" }
+				checkNotNull(cursor.getBlob(0)) { "Content block $blockId has no data, for path '$path'" }
+			}
+
+		val codec = codec(database)
+		val started = System.nanoTime()
+		val block = codec.decompress(ByteArrayInputStream(compressed))
+		val decodeNanos = System.nanoTime() - started
+		val cached = blockCache.put(blockId, block)
+
+		blockLog.info(
+			"decode block={} path={} compressed={} plain={} decodeMs={} cachePlain={}",
+			blockId,
+			path,
+			compressed.size,
+			block.size,
+			String.format(Locale.ROOT, "%.3f", decodeNanos / 1_000_000.0),
+			cached,
+		)
+		return block
 	}
 
 	/** A row's content: its chunks joined, and Brotli-decoded when its content type says so. */
@@ -546,7 +636,7 @@ class DocumentationContentSource internal constructor(
 		path: String,
 		pagePath: String,
 	): DocumentationLookup? {
-		database.rawQuery(CONTENT_QUERY, arrayOf(pagePath)).use { cursor ->
+		queryContent(database, pagePath).use { cursor ->
 			if (cursor.count > 1) return DocumentationLookup.Ambiguous(cursor.count)
 			if (!cursor.moveToFirst()) return null
 			val templateId = cursor.getInt(3)
@@ -554,7 +644,7 @@ class DocumentationContentSource internal constructor(
 			val pageTemplate = templateNames.getOrPut(templateId) { templateName(database, templateId, pagePath) }
 			if (pageTemplate != HM_TOPIC_TEMPLATE || !templateLoader.resourceExists(JSTOPIC_TEMPLATE)) return null
 
-			val json = decodeRow(database, pagePath, cursor.getBlob(0), cursor.getString(2))
+			val json = rowBytes(database, pagePath, cursor)
 			return DocumentationLookup.Found(DocumentationContent(renderNamed(database, JSTOPIC_TEMPLATE, json, path), JSTOPIC_MIME_TYPE))
 		}
 	}
@@ -862,6 +952,8 @@ class DocumentationContentSource internal constructor(
 		// the compiled templates go with the cache clear below.
 		templatesCompressed = null
 		clearTemplateCache()
+		hasContentBlocks = null
+		blockCache.clear()
 		generation++
 
 		try {
@@ -896,6 +988,22 @@ class DocumentationContentSource internal constructor(
 			WHERE  C.contentTypeID = CT.id
 			AND    C.path = ?
 		"""
+
+		// CONTENT_QUERY's four columns, then the row's block; a row with no block joins to NULLs. The
+		// item's key is ContentBlockItems' primary key, so the join cannot duplicate a row.
+		private const val BLOCKED_CONTENT_QUERY = """
+			SELECT C.content, CT.value, CT.compression, C.templateId, CBI.blockId, CBI."offset", CBI.length
+			FROM   Content C
+			JOIN   ContentTypes CT ON C.contentTypeID = CT.id
+			LEFT JOIN ContentBlockItems CBI ON CBI.contentId = C.id
+			WHERE  C.path = ?
+		"""
+
+		private const val BLOCK_ID_COLUMN = 4
+
+		private const val BLOCK_TABLE_QUERY = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ContentBlockItems'"
+
+		private const val BLOCK_QUERY = "SELECT data FROM ContentBlocks WHERE id = ?"
 
 		private const val CHUNK_QUERY = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
 
