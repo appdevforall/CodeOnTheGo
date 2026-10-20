@@ -19,8 +19,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -131,6 +133,18 @@ public final class LexerImpl implements Lexer {
   private Pattern regexOperators;
 
   /**
+   * This lexer's Matcher for each pattern it has matched, and the window they are reset onto, with
+   * the remaining length and window length it was cut at; see {@link #matcherOnWindow}.
+   */
+  private final Map<Pattern, Matcher> matchers = new IdentityHashMap<>();
+
+  private String windowText;
+
+  private int windowRemaining = -1;
+
+  private int windowLength = -1;
+
+  /**
    * How many characters of the remaining source a match starts from; see {@link #match}.
    */
   static final int MATCH_WINDOW = 256;
@@ -149,6 +163,14 @@ public final class LexerImpl implements Lexer {
   int windows;
 
   long windowChars;
+
+  /**
+   * Matchers created and windows cut, which a test bounds to pin the reuse in
+   * {@link #matcherOnWindow}.
+   */
+  int matchersCreated;
+
+  int windowsCut;
 
   /**
    * Constructor
@@ -175,6 +197,9 @@ public final class LexerImpl implements Lexer {
 
     // operator regex
     this.buildOperatorRegex();
+
+    // a window cut from the previous template must not stand in for one of this template's
+    this.windowRemaining = -1;
 
     // standardize the character used for line breaks
     try {
@@ -655,13 +680,41 @@ public final class LexerImpl implements Lexer {
       }
       this.windows++;
       this.windowChars += window;
-      Matcher matcher = pattern.matcher(this.source.subSequence(0, window));
+      Matcher matcher = this.matcherOnWindow(pattern, remaining, window);
       boolean matched = find ? matcher.find() : matcher.lookingAt();
       if (window == remaining || !matcher.hitEnd()) {
         return matched ? matcher : null;
       }
       window = (int) Math.min((long) window * 2, remaining);
     }
+  }
+
+  /*
+   * Code On The Go (ADFA-3305): on Android a new Matcher allocates native ICU state, which the GC
+   * counts as a native allocation, and every window is copied again into ICU's buffer. A Matcher
+   * per pattern tried at every position, over a new copy of the window each time, was most of
+   * lexing's cost there. So each pattern keeps one Matcher, reset onto the window, and the patterns
+   * tried at one position share one copy of it. That is safe because a lexer is used by one thread,
+   * as its source and tokens already require, and every caller reads the Matcher it is handed before
+   * matching that pattern again. The source only shrinks, so its remaining length and the window's
+   * length name one window of one template.
+   */
+  private Matcher matcherOnWindow(Pattern pattern, int remaining, int window) {
+    if (remaining != this.windowRemaining || window != this.windowLength) {
+      this.windowText = this.source.subSequence(0, window).toString();
+      this.windowRemaining = remaining;
+      this.windowLength = window;
+      this.windowsCut++;
+    }
+    Matcher matcher = this.matchers.get(pattern);
+    if (matcher == null) {
+      matcher = pattern.matcher(this.windowText);
+      this.matchers.put(pattern, matcher);
+      this.matchersCreated++;
+    } else {
+      matcher.reset(this.windowText);
+    }
+    return matcher;
   }
 
   /**
