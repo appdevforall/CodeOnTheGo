@@ -62,6 +62,7 @@ CoGo depends on three other `appdevforall` repos; ARCHITECTURE.md (Sibling Repos
 
 ## Project-specific constraints
 
+- **Gate experimental code with an `Experiment` entry** - `Experiments.isOn(Experiment.X)`, never the raw flag. See [EXPERIMENTS.md](EXPERIMENTS.md).
 - **Avoid new dependencies** — the build almost certainly already has what's needed. Check `gradle/libs.versions.toml` and `build.gradle.kts` first.
 - **Persistence:** prefer **Room** for relational data and the filesystem/preferences for settings; raw SQLite only for justified exceptions — see [ADR 0001](docs/adr/0001-prefer-room-for-persistence.md).
 - **Don't treat a large binary asset's on-disk content as ground truth without checking its provenance first.** Run `git ls-files <path>` / `git check-ignore -v <path>`, and grep the build files for how it's provisioned, before relying on its current schema or row content. Several assets here (e.g. `assets/documentation.db`, and the SDK/bootstrap/Gradle zips alongside it) are `.gitignore`d and fetched by a Gradle task from an external URL (see the `Asset(...)` list in `app/build.gradle.kts`) — a locally-cached copy can be stale independent of git commit history and silently diverge from the maintained original.
