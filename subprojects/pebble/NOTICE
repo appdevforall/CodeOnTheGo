@@ -13,7 +13,8 @@ not use are left out:
 Local changes (Code On The Go, ADFA-3305):
 
 - io/pebbletemplates/pebble/lexer/LexerImpl.java matches each token against a window at the start of
-  the remaining template, doubled while the regex engine reports reaching its end, instead of against
-  the whole remaining template. On Android, java.util.regex copies its whole input every time a
-  Matcher is created, which made lexing quadratic in the template's length. The comment at
-  LexerImpl.match says why in full.
+  the remaining template, doubled while the regex engine reports reading its end (Matcher.hitEnd)
+  and never ending inside a surrogate pair, instead of against the whole remaining template. It also
+  counts the matches and windows, for a test. On Android, java.util.regex copies its whole input
+  every time a Matcher is created, which made lexing quadratic in the template's length. The comment
+  at LexerImpl.match says why in full.

@@ -637,10 +637,11 @@ public final class LexerImpl implements Lexer {
    * copies its whole input twice: TemplateSource.toString(), then ICU's own buffer (libcore
    * Matcher.reset, ICU MatcherState::updateInput). Matching each token against the rest of the
    * template made lexing quadratic: an 807 KB template took 93-114 s to compile on a Pixel 6 Pro.
-   * So a match runs on a window at the start of the remaining source, and runs again on a window
-   * twice as long while the engine reports reaching the window's end (hitEnd), which is when more
-   * input could change the result. A result that did not reach the end is the one the whole
-   * remaining source gives.
+   * So a match runs on a window at the start of the remaining source, and again on one twice as
+   * long whenever the engine read the window's end, which is what hitEnd() reports: only then could
+   * more input change the result, even for a match that stops short of the end, such as an
+   * operator after its lookahead. A result reached with hitEnd() false is the one the whole
+   * remaining source gives, provided the window does not split a surrogate pair (see below).
    */
   private Matcher match(Pattern pattern, boolean find) {
     int remaining = this.source.length();
