@@ -4,6 +4,7 @@ package com.itsaky.androidide.plugins.extensions
 
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.plugins.IPlugin
+import kotlin.jvm.internal.DefaultConstructorMarker
 
 /**
  * Interface for plugins that extend the IDE's user interface.
@@ -84,6 +85,27 @@ data class MenuItem
 	) {
 		var isEnabledProvider: (() -> Boolean)? = null
 		var isVisibleProvider: (() -> Boolean)? = null
+
+		@Deprecated("Binary compatibility with plugins built before tooltipTag was added", level = DeprecationLevel.HIDDEN)
+		constructor(
+			id: String,
+			title: String,
+			isEnabled: Boolean,
+			isVisible: Boolean,
+			shortcut: String?,
+			subItems: List<MenuItem>?,
+			action: () -> Unit,
+			defaulted: Int,
+			marker: DefaultConstructorMarker?,
+		) : this(
+			id = id,
+			title = title,
+			isEnabled = if ((defaulted and 0b000100) != 0) true else isEnabled,
+			isVisible = if ((defaulted and 0b001000) != 0) true else isVisible,
+			shortcut = if ((defaulted and 0b010000) != 0) null else shortcut,
+			subItems = if ((defaulted and 0b100000) != 0) emptyList() else requireNotNull(subItems),
+			action = action,
+		)
 	}
 
 data class ContextMenuContext(
@@ -110,7 +132,17 @@ data class TabItem(
 	 * tooltipTag fallback already on NavigationItem and MenuItem.
 	 */
 	val tooltipTag: String? = null,
-)
+) {
+	@Deprecated("Binary compatibility with plugins built before tooltipTag was added", level = DeprecationLevel.HIDDEN)
+	constructor(
+		id: String,
+		title: String,
+		fragmentFactory: () -> Fragment,
+		isEnabled: Boolean = true,
+		isVisible: Boolean = true,
+		order: Int = 0,
+	) : this(id, title, fragmentFactory, isEnabled, isVisible, order, null)
+}
 
 data class NavigationItem(
 	val id: String,
@@ -128,7 +160,19 @@ data class NavigationItem(
 	 */
 	val tooltipTag: String? = null,
 	val action: () -> Unit,
-)
+) {
+	@Deprecated("Binary compatibility with plugins built before tooltipTag was added", level = DeprecationLevel.HIDDEN)
+	constructor(
+		id: String,
+		title: String,
+		icon: Int? = null,
+		isEnabled: Boolean = true,
+		isVisible: Boolean = true,
+		group: String? = null,
+		order: Int = 0,
+		action: () -> Unit,
+	) : this(id, title, icon, isEnabled, isVisible, group, order, null, action)
+}
 
 data class ToolbarAction(
 	val id: String,

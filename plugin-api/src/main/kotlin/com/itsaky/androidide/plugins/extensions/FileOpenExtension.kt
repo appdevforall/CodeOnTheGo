@@ -24,4 +24,15 @@ data class FileTabMenuItem(
 	val order: Int = 0,
 	val tooltipTag: String? = null,
 	val action: () -> Unit,
-)
+) {
+	@Deprecated("Binary compatibility with plugins built before tooltipTag was added", level = DeprecationLevel.HIDDEN)
+	constructor(
+		id: String,
+		title: String,
+		icon: Int? = null,
+		isEnabled: Boolean = true,
+		isVisible: Boolean = true,
+		order: Int = 0,
+		action: () -> Unit,
+	) : this(id, title, icon, isEnabled, isVisible, order, null, action)
+}
