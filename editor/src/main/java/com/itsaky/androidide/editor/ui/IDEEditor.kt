@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.AttributeSet
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -599,6 +600,10 @@ open class IDEEditor
 			selectionChangeRunner?.also { selectionChangeHandler.removeCallbacks(it) }
 			selectionChangeRunner = null
 
+			lastHoverX = Float.NaN
+			lastHoverY = Float.NaN
+			lastExploredLine = -1
+
 			if (EventBus.getDefault().isRegistered(this)) {
 				EventBus.getDefault().unregister(this)
 			}
@@ -674,6 +679,7 @@ open class IDEEditor
 		// where the user double-taps under TalkBack. NaN means "no recent exploration".
 		private var lastHoverX = Float.NaN
 		private var lastHoverY = Float.NaN
+		private var lastExploredLine = -1
 
 		private val isTouchExplorationEnabled: Boolean
 			get() = accessibilityManager?.isTouchExplorationEnabled == true
@@ -681,7 +687,7 @@ open class IDEEditor
 		override fun getAccessibilityClassName(): CharSequence =
 			// Only advertise EditText semantics in the same states createAccessibilityNodeInfo()
 			// does, so a read-only or released editor is not announced as an "Edit box".
-			if (!isReleased && isEnabled && isEditable) {
+			if (!isReleased && isEnabled && editable) {
 				EditText::class.java.name
 			} else {
 				super.getAccessibilityClassName()
@@ -689,11 +695,13 @@ open class IDEEditor
 
 		override fun createAccessibilityNodeInfo(): AccessibilityNodeInfo? {
 			val info = super.createAccessibilityNodeInfo() ?: return null
-			if (!isReleased && isEnabled && isEditable) {
+			if (!isReleased && isEnabled && editable) {
 				// Report as an EditText so TalkBack engages its text-editing affordances and keeps
 				// the caret in sync with granular navigation.
 				info.className = EditText::class.java.name
+				info.isClickable = true
 				info.movementGranularities = EditorAccessibilitySegments.SUPPORTED_GRANULARITIES
+				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
 				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_SELECTION)
 				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_NEXT_AT_MOVEMENT_GRANULARITY)
 				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY)
@@ -701,13 +709,69 @@ open class IDEEditor
 			return info
 		}
 
+		override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
+			super.onInitializeAccessibilityNodeInfo(info)
+			if (!isReleased && isEnabled && editable) {
+				info.className = EditText::class.java.name
+				info.isClickable = true
+				info.movementGranularities = EditorAccessibilitySegments.SUPPORTED_GRANULARITIES
+				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK)
+				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_SELECTION)
+				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_NEXT_AT_MOVEMENT_GRANULARITY)
+				info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY)
+			}
+		}
+
 		override fun dispatchHoverEvent(event: MotionEvent): Boolean {
-			// Remember where the user is exploring so ACTION_CLICK can place the caret there.
-			if (isTouchExplorationEnabled) {
-				lastHoverX = event.x
-				lastHoverY = event.y
+			if (!isTouchExplorationEnabled || isReleased) {
+				return super.dispatchHoverEvent(event)
+			}
+
+			when (event.actionMasked) {
+				MotionEvent.ACTION_HOVER_ENTER,
+				MotionEvent.ACTION_HOVER_MOVE,
+				-> {
+					val x = event.x.coerceIn(0f, (width - 1).coerceAtLeast(0).toFloat())
+					val y = event.y.coerceIn(0f, (height - 1).coerceAtLeast(0).toFloat())
+					lastHoverX = x
+					lastHoverY = y
+					handleHoverExploration(x, y)
+					return true
+				}
+
+				MotionEvent.ACTION_HOVER_EXIT -> {
+					// Reset the explored line tracker, but keep lastHoverX and lastHoverY intact
+					// so an ensuing ACTION_CLICK places the caret where the user explored.
+					lastExploredLine = -1
+					return true
+				}
 			}
 			return super.dispatchHoverEvent(event)
+		}
+
+		@Suppress("DEPRECATION")
+		private fun handleHoverExploration(
+			x: Float,
+			y: Float,
+		) {
+			if (isReleased) return
+			val currentText = text
+			val count = currentText.lineCount
+			if (count <= 0) return
+
+			val packed = getPointPositionOnScreen(x, y)
+			val line = (packed ushr 32).toInt().coerceIn(0, count - 1)
+			if (line != lastExploredLine) {
+				lastExploredLine = line
+				val lineContent = currentText.getLine(line).toString().trimEnd('\r', '\n')
+				val announcement =
+					if (lineContent.isBlank()) {
+						"Line ${line + 1}"
+					} else {
+						"Line ${line + 1}: $lineContent"
+					}
+				announceForAccessibility(announcement)
+			}
 		}
 
 		override fun performAccessibilityAction(
@@ -735,21 +799,38 @@ open class IDEEditor
 		}
 
 		/**
-		 * Places the caret where the user last explored by touch. This makes a TalkBack double-tap
-		 * on a word or line move the real text cursor to that spot instead of the node's center.
+		 * Places the caret where the user last explored by touch or tapped. This makes a TalkBack
+		 * double-tap on a word or line move the real text cursor to that spot and announce feedback.
 		 */
 		private fun handleAccessibilityClick(): Boolean {
-			if (isReleased || !isEditable || !isTouchExplorationEnabled) return false
-			val x = lastHoverX
-			val y = lastHoverY
-			if (x.isNaN() || y.isNaN()) return false
+			if (isReleased || !isEnabled) return false
+
+			val currentText = text
+			val count = currentText.lineCount
+			if (count <= 0) return false
+
+			val (targetLine, targetCol) =
+				if (!lastHoverX.isNaN() && !lastHoverY.isNaN()) {
+					val packed = getPointPositionOnScreen(lastHoverX, lastHoverY)
+					val line = (packed ushr 32).toInt().coerceIn(0, count - 1)
+					val maxCol = currentText.getColumnCount(line)
+					val col = (packed and 0xffffffffL).toInt().coerceIn(0, maxCol)
+					line to col
+				} else {
+					val cur = cursor
+					if (cur != null) {
+						cur.leftLine to cur.leftColumn
+					} else {
+						0 to 0
+					}
+				}
+
 			return try {
 				if (!isFocused) requestFocus()
-				val packed = getPointPositionOnScreen(x, y)
-				val line = (packed ushr 32).toInt()
-				val column = (packed and 0xffffffffL).toInt()
-				if (line < 0 || column < 0) return false
-				setSelection(line, column)
+				setSelection(targetLine, targetCol, true, SelectionChangeEvent.CAUSE_TAP)
+				ensurePositionVisible(targetLine, targetCol)
+				sendClickAccessibilityEvent()
+				performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
 				true
 			} catch (e: IndexOutOfBoundsException) {
 				log.error("Error placing cursor from accessibility click", e)
@@ -762,7 +843,7 @@ open class IDEEditor
 
 		/** Handles [AccessibilityNodeInfo.ACTION_SET_SELECTION] using absolute character indices. */
 		private fun handleAccessibilitySetSelection(arguments: Bundle?): Boolean {
-			if (isReleased || !isEditable || arguments == null) return false
+			if (isReleased || !isEnabled || arguments == null) return false
 			if (!arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT) ||
 				!arguments.containsKey(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)
 			) {
@@ -786,7 +867,7 @@ open class IDEEditor
 			arguments: Bundle?,
 			forward: Boolean,
 		): Boolean {
-			if (isReleased || !isEditable || arguments == null) return false
+			if (isReleased || !isEnabled || arguments == null) return false
 			val granularity =
 				arguments.getInt(
 					AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
@@ -848,6 +929,23 @@ open class IDEEditor
 			} catch (e: IllegalArgumentException) {
 				log.error("Error applying accessibility selection [$start, $end]", e)
 				false
+			}
+		}
+
+		/**
+		 * Emits a [AccessibilityEvent.TYPE_VIEW_CLICKED] event so accessibility services receive
+		 * click notifications regardless of view attachment state in unit tests.
+		 */
+		@Suppress("DEPRECATION")
+		private fun sendClickAccessibilityEvent() {
+			val manager = accessibilityManager ?: return
+			if (!manager.isEnabled) return
+			val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_CLICKED)
+			onInitializeAccessibilityEvent(event)
+			if (parent != null) {
+				sendAccessibilityEventUnchecked(event)
+			} else {
+				manager.sendAccessibilityEvent(event)
 			}
 		}
 
@@ -945,6 +1043,30 @@ open class IDEEditor
 			}
 			event.text.add(current)
 			sendAccessibilityEventUnchecked(event)
+		}
+
+		/**
+		 * Announces the current cursor position and line content to screen readers after a tap/click.
+		 */
+		@Suppress("DEPRECATION")
+		private fun announceCursorPosition(
+			line: Int,
+			column: Int,
+		) {
+			if (isReleased) return
+			val manager = accessibilityManager ?: return
+			if (!manager.isEnabled) return
+
+			val currentText = text
+			if (line !in 0 until currentText.lineCount) return
+			val lineContent = currentText.getLine(line).toString().trimEnd('\r', '\n')
+			val announcement =
+				if (lineContent.isBlank()) {
+					"Line ${line + 1}, column ${column + 1}"
+				} else {
+					"Line ${line + 1}, column ${column + 1}: $lineContent"
+				}
+			announceForAccessibility(announcement)
 		}
 		// endregion Accessibility
 
@@ -1280,13 +1402,17 @@ open class IDEEditor
 				}
 			}
 
-			subscribeEvent(SelectionChangeEvent::class.java) { _, _ ->
+			subscribeEvent(SelectionChangeEvent::class.java) { event, _ ->
 				if (isReleased) {
 					return@subscribeEvent
 				}
 
 				// Keep the screen reader's caret in sync as the selection moves, like an EditText.
 				sendSelectionChangedAccessibilityEvent()
+
+				if (accessibilityManager?.isEnabled == true && event.cause == SelectionChangeEvent.CAUSE_TAP) {
+					announceCursorPosition(event.left.line, event.left.column)
+				}
 
 				// Moving the cursor away from the anchor makes ghost text meaningless.
 				dismissInlineSuggestion()
