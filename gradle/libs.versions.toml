@@ -306,7 +306,8 @@ tests-kotlinx-coroutines = {module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 tooling-agp = { module = "com.android.tools.build:gradle", version.ref = "agp-tooling" }
 tooling-builderModel = { module = "com.android.tools.build:builder-model", version.ref = "agp-tooling" }
 tooling-gradleApi = { module = "com.itsaky.androidide.gradle:gradle-tooling-api", version.ref = "gradle-tooling" }
-tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.12" }
+# The whole build's slf4j-api, not only the tooling API's: subprojects:pebble uses it too.
+tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.17" }
 # 2.x targets Java 8; 3.x needs 11. Match the AI plugins' copy, which the app shadows parent-first.
 snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version = "2.10" }
 
@@ -319,7 +320,6 @@ androidx-monitor = { group = "androidx.test", name = "monitor", version.ref = "m
 monitor = { group = "androidx.test", name = "monitor", version.ref = "monitorVersion" }
 org-json = { module = "org.json:json", version = "20210307"}
 
-slf4j-api = { module = "org.slf4j:slf4j-api", version = "2.0.17" }
 unbescape = { module = "org.unbescape:unbescape", version = "1.1.6.RELEASE" }
 kotlinx-metadata = { module = "org.jetbrains.kotlin:kotlin-metadata-jvm", version.ref = "kotlin" }
 

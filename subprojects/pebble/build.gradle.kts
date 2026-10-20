@@ -6,7 +6,7 @@ plugins {
 dependencies {
 	// The versions io.pebbletemplates:pebble:4.1.1 resolved to before it was vendored.
 	implementation(libs.unbescape)
-	implementation(libs.slf4j.api)
+	implementation(libs.tooling.slf4j)
 
 	testImplementation(libs.tests.junit)
 }
