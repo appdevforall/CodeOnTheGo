@@ -1220,7 +1220,11 @@ abstract class ProjectHandlerActivity :
 		}
 
 		if (didCompleteLiveOnCreate && IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.shutdown()
+			if (isDestroying) {
+				IDELanguageClientImpl.shutdown()
+			} else {
+				IDELanguageClientImpl.getInstance().setActivity(null)
+			}
 		}
 
 		super.preDestroy()
@@ -1319,6 +1323,7 @@ abstract class ProjectHandlerActivity :
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as GradleBuildService?
 		if (editorViewModel.isBoundToBuildSerice && service != null) {
 			log.info("Reusing already started Gradle build service")
+			attachLanguageClient()
 			onGradleBuildServiceConnected(service)
 			return
 		} else {
@@ -2243,12 +2248,19 @@ abstract class ProjectHandlerActivity :
 		startActivity(intent)
 	}
 
-	private suspend fun initLspClient() {
-		if (!IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.initialize(this as EditorHandlerActivity)
+	private fun attachLanguageClient() {
+		val activity = this as EditorHandlerActivity
+		if (IDELanguageClientImpl.isInitialized()) {
+			IDELanguageClientImpl.getInstance().setActivity(activity)
+		} else {
+			IDELanguageClientImpl.initialize(activity)
 		}
 
 		connectClient(IDELanguageClientImpl.getInstance())
+	}
+
+	private suspend fun initLspClient() {
+		attachLanguageClient()
 
 		val results =
 			try {
