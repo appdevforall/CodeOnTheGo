@@ -17,13 +17,15 @@ interface TemplateRepository {
 	 */
 	suspend fun listTemplateFiles(): Result<List<CgtFileItem>>
 
-	/** Moves [item]'s file from Downloads into the templates directory and reloads templates. */
+	/**
+	 * Copies [item]'s file from Downloads into the templates directory and reloads templates. The
+	 * Downloads original is left in place; removing it is the caller's choice ([deleteDownloadFile]).
+	 */
 	suspend fun installTemplate(item: CgtFileItem): Result<Unit>
 
 	/**
-	 * Removes [item] from the templates directory and reloads templates. A user-imported item is
-	 * restored to Downloads first; a plugin-provided item is just deleted, since it never came
-	 * from Downloads in the first place.
+	 * Deletes [item] from the templates directory and reloads templates. There is no restore: the
+	 * user re-installs from the original `.cgt`, or re-installs the plugin that provided it.
 	 */
 	suspend fun uninstallTemplate(item: CgtFileItem): Result<Unit>
 
