@@ -96,6 +96,7 @@ class GitBottomSheetViewModel(
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
 	private var watermarkWriteJob: Job? = null
+	private var refreshJob: Job? = null
 	internal var repoWatcher: GitRepositoryWatcher? = null
 	var currentRepository: GitRepository? = repository
 		private set
@@ -114,6 +115,7 @@ class GitBottomSheetViewModel(
 		super.onCleared()
 		EventBus.getDefault().unregister(this)
 		initJob?.cancel()
+		refreshJob?.cancel()
 		stopRepoWatcher()
 		currentRepository?.close()
 	}
@@ -211,43 +213,48 @@ class GitBottomSheetViewModel(
 	/**
 	 * Refreshes the Git status and branch state of the project.
 	 * Failures while querying branches are handled separately to preserve valid status and commit count.
+	 * Any previous in-flight refresh is cancelled to prevent older results from overwriting newer ones.
 	 */
-	fun refreshStatus() {
-		viewModelScope.launch {
-			val repo = currentRepository
-			if (repo == null) {
-				_gitStatus.value = GitStatus.EMPTY
-				_currentBranch.value = null
-				_branches.value = BranchesUiState.None
-				_localCommitsCount.value = 0
-				_isProjectWatermarkEnabled.value = true
-				return@launch
-			}
+	fun refreshStatus(): Job {
+		refreshJob?.cancel()
+		val job =
+			viewModelScope.launch {
+				val repo = currentRepository
+				if (repo == null) {
+					_gitStatus.value = GitStatus.EMPTY
+					_currentBranch.value = null
+					_branches.value = BranchesUiState.None
+					_localCommitsCount.value = 0
+					_isProjectWatermarkEnabled.value = true
+					return@launch
+				}
 
-			try {
-				val status = repo.getStatus()
-				_gitStatus.value = status
-				_currentBranch.value = repo.getCurrentBranch()?.name
-				_isProjectWatermarkEnabled.value = repo.isCommitWatermarkEnabled()
-				getLocalCommitsCount()
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to refresh git status", e)
-				_gitStatus.value = GitStatus.EMPTY
-				_currentBranch.value = null
-				_localCommitsCount.value = 0
-			}
+				try {
+					val status = repo.getStatus()
+					_gitStatus.value = status
+					_currentBranch.value = repo.getCurrentBranch()?.name
+					_isProjectWatermarkEnabled.value = repo.isCommitWatermarkEnabled()
+					getLocalCommitsCount()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to refresh git status", e)
+					_gitStatus.value = GitStatus.EMPTY
+					_currentBranch.value = null
+					_localCommitsCount.value = 0
+				}
 
-			try {
-				_branches.value = BranchesUiState.Success(repo.getBranches())
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to fetch branches during status refresh", e)
-				_branches.value = BranchesUiState.Error(e.message)
+				try {
+					_branches.value = BranchesUiState.Success(repo.getBranches())
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to fetch branches during status refresh", e)
+					_branches.value = BranchesUiState.Error(e.message)
+				}
 			}
-		}
+		refreshJob = job
+		return job
 	}
 
 	/**

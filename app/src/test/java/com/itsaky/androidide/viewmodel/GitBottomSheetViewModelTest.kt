@@ -230,6 +230,31 @@ class GitBottomSheetViewModelTest {
 		}
 
 	@Test
+	fun `refreshStatus cancels in-flight previous refresh job`() =
+		runTest {
+			val firstStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+			val secondStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+
+			coEvery { repository.getStatus() } coAnswers {
+				delay(1000)
+				firstStatus
+			} andThenAnswer {
+				secondStatus
+			}
+			coEvery { repository.getCurrentBranch() } returns GitBranch("main", "refs/heads/main", true, false)
+			coEvery { repository.getLocalCommitsCount() } returns 0
+			coEvery { repository.getBranches() } returns emptyList()
+
+			val firstJob = viewModel.refreshStatus()
+			val secondJob = viewModel.refreshStatus()
+			advanceUntilIdle()
+
+			assertTrue(firstJob.isCancelled)
+			assertTrue(secondJob.isCompleted)
+			assertEquals(secondStatus, viewModel.gitStatus.value)
+		}
+
+	@Test
 	fun `initializeRepository clears currentRepository when opening fails`() =
 		runTest {
 			mockkObject(IProjectManager.Companion)
