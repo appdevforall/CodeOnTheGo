@@ -32,6 +32,7 @@ import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
@@ -91,6 +92,7 @@ import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
+import io.github.rosemoe.sora.event.DoubleClickEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
@@ -662,6 +664,32 @@ open class IDEEditor
 			}
 		}
 
+		override fun showSoftInput() {
+			if (isReleased || !isEnabled || !editable) {
+				return
+			}
+			if (!isFocused) {
+				requestFocus()
+			}
+			super.showSoftInput()
+			val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+			imm?.showSoftInput(this, 0)
+			post {
+				if (!isReleased && isEnabled && editable) {
+					val manager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+					manager?.showSoftInput(this, 0)
+				}
+			}
+		}
+
+		override fun performClick(): Boolean {
+			val handled = super.performClick()
+			if (!isReleased && isEnabled && editable) {
+				showSoftInput()
+			}
+			return handled
+		}
+
 		// region Accessibility (screen reader) cursor synchronization
 		//
 		// The base CodeEditor exposes its whole content to accessibility services as a single
@@ -829,6 +857,9 @@ open class IDEEditor
 				if (!isFocused) requestFocus()
 				setSelection(targetLine, targetCol, true, SelectionChangeEvent.CAUSE_TAP)
 				ensurePositionVisible(targetLine, targetCol)
+				if (editable) {
+					showSoftInput()
+				}
 				sendClickAccessibilityEvent()
 				performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
 				true
@@ -1425,6 +1456,13 @@ open class IDEEditor
 					selectionChangeHandler.removeCallbacks(it)
 					selectionChangeHandler.postDelayed(it, SELECTION_CHANGE_DELAY)
 				}
+			}
+
+			subscribeEvent(DoubleClickEvent::class.java) { _, _ ->
+				if (isReleased || !isEnabled || !editable) {
+					return@subscribeEvent
+				}
+				showSoftInput()
 			}
 
 			EventBus.getDefault().register(this)

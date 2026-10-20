@@ -23,6 +23,7 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -131,5 +132,16 @@ class IDEEditorAccessibilityTest {
 		val clickHandled = editor.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
 		assertThat(clickHandled).isTrue()
 		assertThat(editor.cursor).isNotNull()
+	}
+
+	@Test
+	fun `accessibility click requests soft keyboard when editable`() {
+		val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+		val clickHandled = editor.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
+		assertThat(clickHandled).isTrue()
+
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+		assertThat(shadowOf(imm).isSoftInputVisible).isTrue()
 	}
 }
