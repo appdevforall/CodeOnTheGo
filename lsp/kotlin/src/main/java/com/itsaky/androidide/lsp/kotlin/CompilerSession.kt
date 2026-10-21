@@ -55,7 +55,7 @@ internal class CompilerSession<C : Any>(
 
 	private val updates = Channel<Workspace>(Channel.CONFLATED)
 
-	// Guards only the swap of [current] against [isShutDown]; never held while building or closing.
+	/** Guards only the swap of [current] against [isShutDown]; never held while building or closing. */
 	private val lock = Any()
 	private var isShutDown = false
 
@@ -98,20 +98,25 @@ internal class CompilerSession<C : Any>(
 	}
 
 	private fun update(workspace: Workspace) {
-		// prepare opens the source indexes, which a previous project's compiler may still hold open.
-		if (!awaitClosed()) return
+		/*
+		 * prepare opens the source indexes, which a previous project's compiler may still hold open.
+		 * The update cannot be cancelled while it blocks, so shutdown is re-checked after each wait:
+		 * past it, prepare would revive the closed project's indexing state.
+		 */
+		if (!awaitClosed() || isStopped()) return
 		lifecycle.prepare(workspace)
 		val layout = lifecycle.layoutOf(workspace)
+		if (isStopped()) return
 
 		val existing = current
 		if (existing != null && layout == currentLayout) {
 			logger.info("Kotlin module layout unchanged; keeping the analysis session")
-			if (synchronized(lock) { !isShutDown }) lifecycle.onReady(workspace, existing)
+			if (!isStopped()) lifecycle.onReady(workspace, existing)
 			return
 		}
 
 		detachCurrent()
-		if (!awaitClosed()) return
+		if (!awaitClosed() || isStopped()) return
 
 		val built = lifecycle.build(workspace, layout)
 		val published =
@@ -127,6 +132,8 @@ internal class CompilerSession<C : Any>(
 		currentLayout = layout
 		lifecycle.onReady(workspace, built)
 	}
+
+	private fun isStopped() = synchronized(lock) { isShutDown }
 
 	private fun awaitClosed(): Boolean {
 		if (lifecycle.awaitClosed()) return true

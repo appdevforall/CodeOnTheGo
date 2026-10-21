@@ -29,6 +29,8 @@ class CompilerSessionTest {
 	@After
 	fun tearDown() {
 		lifecycle.gates.values.forEach { it.complete(Unit) }
+		lifecycle.awaitClosedGate?.complete(Unit)
+		lifecycle.prepareGate?.complete(Unit)
 		scope.cancel()
 	}
 
@@ -118,6 +120,37 @@ class CompilerSessionTest {
 		}
 
 	@Test
+	fun `shutdown while waiting for the previous close stops the update before preparing`(): Unit =
+		runBlocking {
+			val gate = CompletableDeferred<Unit>()
+			lifecycle.awaitClosedGate = gate
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("awaitClosed")
+
+			session.shutdown()
+			gate.complete(Unit)
+			delay(SETTLE_MILLIS)
+
+			assertThat(lifecycle.events).doesNotContain("prepare")
+			assertThat(lifecycle.builds).isEqualTo(0)
+		}
+
+	@Test
+	fun `shutdown while preparing stops the update before building`(): Unit =
+		runBlocking {
+			val gate = CompletableDeferred<Unit>()
+			lifecycle.prepareGate = gate
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("prepare")
+
+			session.shutdown()
+			gate.complete(Unit)
+			delay(SETTLE_MILLIS)
+
+			assertThat(lifecycle.builds).isEqualTo(0)
+		}
+
+	@Test
 	fun `a failed build is retried by the next update with the same layout`(): Unit =
 		runBlocking {
 			lifecycle.failingBuilds += 1
@@ -172,14 +205,22 @@ class CompilerSessionTest {
 
 		fun gate(build: Int) = CompletableDeferred<Unit>().also { gates[build] = it }
 
+		@Volatile
+		var awaitClosedGate: CompletableDeferred<Unit>? = null
+
+		@Volatile
+		var prepareGate: CompletableDeferred<Unit>? = null
+
 		override fun prepare(workspace: Workspace) {
 			events += "prepare"
+			prepareGate?.let { runBlocking { it.await() } }
 		}
 
 		override fun layoutOf(workspace: Workspace) = layouts.getValue(workspace)
 
 		override fun awaitClosed(): Boolean {
 			events += "awaitClosed"
+			awaitClosedGate?.let { runBlocking { it.await() } }
 			return awaitClosedResults.pollFirst() ?: true
 		}
 
@@ -211,6 +252,9 @@ class CompilerSessionTest {
 	}
 
 	private companion object {
+		/** Long enough for a released worker to reach its next lifecycle call. */
+		const val SETTLE_MILLIS = 200L
+
 		fun layout(name: String) = KotlinModuleLayout(listOf(Path.of("/$name.jar")), emptySet(), emptyList())
 
 		val LAYOUT_A = layout("A")
