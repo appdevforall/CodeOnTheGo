@@ -19,7 +19,7 @@ package com.itsaky.androidide.utils
 
 /**
  * Whether an indefinite error bar also dismisses on any tap or swipe, not only via its
- * explicit Dismiss button. Gated on [FeatureFlags.isExperimentsEnabled]: the touch-dismiss
+ * explicit Dismiss button. Gated on [Experiment.ERROR_BAR_TOUCH_DISMISS]: the touch-dismiss
  * change was driven by Quick Build (the bar occludes the toolbar's Run/Quick Build buttons),
  * and for flag-off users an accidental brush must not dismiss an unread error, so they keep
  * the Dismiss-button-only behavior until this ships on its own merits.
@@ -27,4 +27,4 @@ package com.itsaky.androidide.utils
  * Lives in its own file (not FlashbarActivityUtils.kt, whose top-level vals need
  * android.graphics.Color) so JVM unit tests can load it.
  */
-internal fun indefiniteErrorBarDismissesOnTouch(): Boolean = FeatureFlags.isExperimentsEnabled
+internal fun indefiniteErrorBarDismissesOnTouch(): Boolean = Experiments.isOn(Experiment.ERROR_BAR_TOUCH_DISMISS)
