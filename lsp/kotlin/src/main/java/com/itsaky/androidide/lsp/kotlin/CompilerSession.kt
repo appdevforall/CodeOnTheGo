@@ -98,6 +98,8 @@ internal class CompilerSession<C : Any>(
 	}
 
 	private fun update(workspace: Workspace) {
+		// prepare opens the source indexes, which a previous project's compiler may still hold open.
+		if (!awaitClosed()) return
 		lifecycle.prepare(workspace)
 		val layout = lifecycle.layoutOf(workspace)
 
@@ -109,10 +111,7 @@ internal class CompilerSession<C : Any>(
 		}
 
 		detachCurrent()
-		if (!lifecycle.awaitClosed()) {
-			logger.error("Skipping Kotlin setup: the previous compiler is still closing")
-			return
-		}
+		if (!awaitClosed()) return
 
 		val built = lifecycle.build(workspace, layout)
 		val published =
@@ -127,6 +126,12 @@ internal class CompilerSession<C : Any>(
 
 		currentLayout = layout
 		lifecycle.onReady(workspace, built)
+	}
+
+	private fun awaitClosed(): Boolean {
+		if (lifecycle.awaitClosed()) return true
+		logger.error("Skipping Kotlin setup: the previous compiler is still closing")
+		return false
 	}
 
 	private fun detachCurrent() {

@@ -46,6 +46,16 @@ class CompilerSessionTest {
 		}
 
 	@Test
+	fun `an update waits for the previous close before preparing`(): Unit =
+		runBlocking {
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c1")
+
+			val events = lifecycle.events.toList()
+			assertThat(events.indexOf("awaitClosed")).isLessThan(events.indexOf("prepare"))
+		}
+
+	@Test
 	fun `a changed layout closes the old compiler before building the new one`(): Unit =
 		runBlocking {
 			session.submit(workspace(LAYOUT_A))
@@ -162,7 +172,9 @@ class CompilerSessionTest {
 
 		fun gate(build: Int) = CompletableDeferred<Unit>().also { gates[build] = it }
 
-		override fun prepare(workspace: Workspace) = Unit
+		override fun prepare(workspace: Workspace) {
+			events += "prepare"
+		}
 
 		override fun layoutOf(workspace: Workspace) = layouts.getValue(workspace)
 
