@@ -190,12 +190,11 @@ internal abstract class AbstractCompilationEnvironment(
 				applicationEnvironmentMode = applicationEnvironmentMode,
 				compilerConfiguration = configuration,
 			)
+		project.registerRWLock()
 
 		if (applicationEnvironmentMode == KotlinCoreApplicationEnvironmentMode.Production) {
 			KotlinApplicationEnvironmentPin.ensure(configuration)
 		}
-
-		project.registerRWLock()
 
 		val serviceRegistrars = createServiceRegistrars()
 		ApplicationServiceRegistration.registerWithCustomRegistration(
@@ -359,6 +358,12 @@ internal abstract class AbstractCompilationEnvironment(
 			runBlocking { withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) { ktSymbolIndex.close() } }
 		}
 
-		Disposer.dispose(disposable)
+		if (!::projectEnv.isInitialized) {
+			Disposer.dispose(disposable)
+			return
+		}
+
+		// A rebuild disposes a compiler while the editor is live; the write lock waits out request reads in flight.
+		project.write { Disposer.dispose(disposable) }
 	}
 }
