@@ -250,6 +250,7 @@ open class IDEEditor
 			private const val LARGE_FILE_LINE_THRESHOLD = 10000
 			private const val TEXT_WINDOW_MARGIN = 100
 			private const val MAX_ANNOUNCED_CHANGE = TEXT_WINDOW_MARGIN * 2
+			private const val NO_HOVER = -1L
 			private const val FNV_OFFSET_BASIS = -3750763034362895579L
 			private const val FNV_PRIME = 1099511628211L
 			internal val log = LoggerFactory.getLogger(IDEEditor::class.java)
@@ -604,9 +605,9 @@ open class IDEEditor
 			selectionChangeRunner?.also { selectionChangeHandler.removeCallbacks(it) }
 			selectionChangeRunner = null
 
-			lastHoverX = Float.NaN
-			lastHoverY = Float.NaN
+			lastHoverPosition = NO_HOVER
 			lastExploredLine = -1
+			selectionAnchor = -1
 
 			if (EventBus.getDefault().isRegistered(this)) {
 				EventBus.getDefault().unregister(this)
@@ -723,11 +724,15 @@ open class IDEEditor
 			context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
 		}
 
-		// Last touch-exploration (hover) position, in view coordinates, used to place the cursor
-		// where the user double-taps under TalkBack. NaN means "no recent exploration".
-		private var lastHoverX = Float.NaN
-		private var lastHoverY = Float.NaN
+		// Text position (packed line/column) last explored by touch, used to place the cursor
+		// where the user double-taps under TalkBack. Resolved at hover time so a later scroll
+		// can't remap it, and cleared once the caret is moved another way.
+		private var lastHoverPosition = NO_HOVER
 		private var lastExploredLine = -1
+
+		// Fixed end of a selection extended by granularity; the other end is the moving caret.
+		// sora normalizes left/right, so the anchor has to be remembered here.
+		private var selectionAnchor = -1
 
 		private val isTouchExplorationEnabled: Boolean
 			get() = accessibilityManager?.isTouchExplorationEnabled == true
@@ -768,16 +773,15 @@ open class IDEEditor
 					super.dispatchHoverEvent(event)
 					val x = event.x.coerceIn(0f, (width - 1).coerceAtLeast(0).toFloat())
 					val y = event.y.coerceIn(0f, (height - 1).coerceAtLeast(0).toFloat())
-					lastHoverX = x
-					lastHoverY = y
-					handleHoverExploration(x, y)
+					lastHoverPosition = getPointPositionOnScreen(x, y)
+					handleHoverExploration(lastHoverPosition)
 					return true
 				}
 
 				MotionEvent.ACTION_HOVER_EXIT -> {
 					super.dispatchHoverEvent(event)
-					// Reset the explored line tracker, but keep lastHoverX and lastHoverY intact
-					// so an ensuing ACTION_CLICK places the caret where the user explored.
+					// Reset the explored line tracker, but keep lastHoverPosition intact so an
+					// ensuing ACTION_CLICK places the caret where the user explored.
 					lastExploredLine = -1
 					return true
 				}
@@ -786,16 +790,12 @@ open class IDEEditor
 		}
 
 		@Suppress("DEPRECATION")
-		private fun handleHoverExploration(
-			x: Float,
-			y: Float,
-		) {
+		private fun handleHoverExploration(packed: Long) {
 			if (isReleased) return
 			val currentText = text
 			val count = currentText.lineCount
 			if (count <= 0) return
 
-			val packed = getPointPositionOnScreen(x, y)
 			val line = (packed ushr 32).toInt().coerceIn(0, count - 1)
 			if (line != lastExploredLine) {
 				lastExploredLine = line
@@ -846,8 +846,8 @@ open class IDEEditor
 			if (count <= 0) return false
 
 			val (targetLine, targetCol) =
-				if (!lastHoverX.isNaN() && !lastHoverY.isNaN()) {
-					val packed = getPointPositionOnScreen(lastHoverX, lastHoverY)
+				if (lastHoverPosition != NO_HOVER) {
+					val packed = lastHoverPosition
 					val line = (packed ushr 32).toInt().coerceIn(0, count - 1)
 					val maxCol = currentText.getColumnCount(line)
 					val col = (packed and 0xffffffffL).toInt().coerceIn(0, maxCol)
@@ -880,8 +880,7 @@ open class IDEEditor
 				log.error("Error placing cursor from accessibility click", e)
 				false
 			} finally {
-				lastHoverX = Float.NaN
-				lastHoverY = Float.NaN
+				lastHoverPosition = NO_HOVER
 			}
 		}
 
@@ -898,7 +897,10 @@ open class IDEEditor
 			val start = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT)
 			val end = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT)
 			if (start < 0 || end < 0 || start > length || end > length) return false
-			return applySelectionFromIndices(start, end)
+			if (!applySelectionFromIndices(start, end)) return false
+			lastHoverPosition = NO_HOVER
+			selectionAnchor = -1
+			return true
 		}
 
 		/**
@@ -927,7 +929,20 @@ open class IDEEditor
 			val selStart = cur.left
 			val selEnd = cur.right
 
-			val fromIndex = if (forward) selEnd else selStart
+			val fromIndex =
+				if (extendSelection) {
+					// Keep the anchor across steps so reversing direction shrinks the selection
+					// from the caret end, like EditText. A stale anchor falls back to the far end.
+					if (selStart == selEnd) {
+						selectionAnchor = selStart
+					} else if (selectionAnchor != selStart && selectionAnchor != selEnd) {
+						selectionAnchor = if (forward) selStart else selEnd
+					}
+					if (selectionAnchor == selStart) selEnd else selStart
+				} else {
+					selectionAnchor = -1
+					if (forward) selEnd else selStart
+				}
 			val segment =
 				if (forward) {
 					EditorAccessibilitySegments.following(content, granularity, fromIndex)
@@ -941,12 +956,12 @@ open class IDEEditor
 
 			val applied =
 				if (extendSelection) {
-					val anchor = if (forward) selStart else selEnd
-					applySelectionFromIndices(minOf(anchor, newCaret), maxOf(anchor, newCaret))
+					applySelectionFromIndices(minOf(selectionAnchor, newCaret), maxOf(selectionAnchor, newCaret))
 				} else {
 					applySelectionFromIndices(newCaret, newCaret)
 				}
 			if (!applied) return false
+			lastHoverPosition = NO_HOVER
 
 			sendTextTraversedEvent(content, segStart, segEnd, action, granularity)
 			return true

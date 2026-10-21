@@ -303,6 +303,57 @@ class IDEEditorAccessibilityTest {
 		assertThat(clicked).isTrue()
 	}
 
+	@Test
+	fun `accessibility click after a granularity move keeps the moved caret`() {
+		enableTouchExploration()
+		editor.setSelection(0, 0)
+		val downTime = SystemClock.uptimeMillis()
+		val hover = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_HOVER_MOVE, 5f, 1f, 0)
+		editor.dispatchHoverEvent(hover)
+
+		assertThat(moveByWord(forward = true, extend = false)).isTrue()
+		val moved = editor.cursor!!.left
+		assertThat(moved).isGreaterThan(0)
+
+		assertThat(editor.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)).isTrue()
+		assertThat(editor.cursor!!.left).isEqualTo(moved)
+	}
+
+	@Test
+	fun `reversing an extended selection shrinks it from the caret end`() {
+		editor.setText("alpha beta gamma")
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+		editor.setSelection(0, 10)
+
+		assertThat(moveByWord(forward = false, extend = true)).isTrue() // [6, 10]
+		assertThat(moveByWord(forward = false, extend = true)).isTrue() // [0, 10]
+		assertThat(moveByWord(forward = true, extend = true)).isTrue() // [5, 10]
+
+		assertThat(editor.cursor!!.left).isEqualTo(5)
+		assertThat(editor.cursor!!.right).isEqualTo(10)
+	}
+
+	private fun moveByWord(
+		forward: Boolean,
+		extend: Boolean,
+	): Boolean {
+		val args =
+			android.os.Bundle().apply {
+				putInt(
+					AccessibilityNodeInfo.ACTION_ARGUMENT_MOVEMENT_GRANULARITY_INT,
+					AccessibilityNodeInfo.MOVEMENT_GRANULARITY_WORD,
+				)
+				putBoolean(AccessibilityNodeInfo.ACTION_ARGUMENT_EXTEND_SELECTION_BOOLEAN, extend)
+			}
+		val action =
+			if (forward) {
+				AccessibilityNodeInfo.ACTION_NEXT_AT_MOVEMENT_GRANULARITY
+			} else {
+				AccessibilityNodeInfo.ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY
+			}
+		return editor.performAccessibilityAction(action, args)
+	}
+
 	private fun enableTouchExploration() {
 		shadowOf(a11yManager).apply {
 			setEnabled(true)

@@ -30,10 +30,10 @@ import java.text.BreakIterator
  * indices into that flat text; the caller is responsible for mapping the returned
  * indices back to (line, column) positions in the editor.
  *
- * The character and word implementations mirror the semantics of the framework's
- * (hidden) `android.view.AccessibilityIterators`, so navigation matches what users
- * already expect from an [android.widget.EditText]. Line navigation walks logical
- * lines (separated by `'\n'`), which for source code is the natural unit.
+ * The character implementation mirrors the framework's (hidden)
+ * `android.view.AccessibilityIterators`. Word navigation splits on anything that is not a
+ * letter, digit or `_`, so identifiers in dotted chains are separate words. Line navigation
+ * walks logical lines (separated by `'\n'`), which for source code is the natural unit.
  *
  * @author Code On The Go
  */
@@ -118,29 +118,24 @@ object EditorAccessibilitySegments {
 		return intArrayOf(start, end)
 	}
 
+	// A word is a run of letters, digits and '_', so `System.out.println` is three words.
+	// BreakIterator's word rules keep `a.b` and `a:b` together, which is too coarse for code.
 	private fun wordFollowing(
 		text: CharSequence,
 		offset: Int,
 	): IntArray? {
 		val length = text.length
 		if (length <= 0 || offset >= length) return null
-		val iterator = BreakIterator.getWordInstance().apply { setText(text.toString()) }
 		var start = if (offset < 0) 0 else offset
 		// If the offset lands inside a word, snap back to that word's start so the whole
 		// enclosing word is traversed instead of a truncated tail (e.g. "hello"@2 -> [0,5]).
 		if (isLetterOrDigit(text, start)) {
 			while (start > 0 && isLetterOrDigit(text, start - 1)) start--
 		}
-		// Skip past any non-word characters (whitespace, punctuation) to the start of a word.
-		while (!isLetterOrDigit(text, start) && !isWordStart(text, start)) {
-			start = iterator.following(start)
-			if (start == DONE) return null
-		}
-		var end = iterator.following(start)
-		while (end != DONE && end < length && isLetterOrDigit(text, end)) {
-			end = iterator.following(end)
-		}
-		if (end == DONE || !isWordEnd(text, end)) return null
+		while (start < length && !isLetterOrDigit(text, start)) start++
+		if (start >= length) return null
+		var end = start
+		while (end < length && isLetterOrDigit(text, end)) end++
 		return intArrayOf(start, end)
 	}
 
@@ -150,36 +145,18 @@ object EditorAccessibilitySegments {
 	): IntArray? {
 		val length = text.length
 		if (length <= 0 || offset <= 0) return null
-		val iterator = BreakIterator.getWordInstance().apply { setText(text.toString()) }
 		var end = if (offset > length) length else offset
 		// If the offset lands inside a word, snap forward to that word's end so the whole
 		// enclosing word is traversed instead of a truncated head (e.g. "hello"@2 -> [0,5]).
 		if (isLetterOrDigit(text, end - 1) && isLetterOrDigit(text, end)) {
 			while (end < length && isLetterOrDigit(text, end)) end++
 		}
-		while (!isLetterOrDigit(text, end - 1) && !isWordEnd(text, end)) {
-			end = iterator.preceding(end)
-			if (end == DONE) return null
-		}
-		var start = iterator.preceding(end)
-		while (start != DONE && start > 0 && isLetterOrDigit(text, start - 1)) {
-			start = iterator.preceding(start)
-		}
-		if (start == DONE || !isWordStart(text, start)) return null
+		while (end > 0 && !isLetterOrDigit(text, end - 1)) end--
+		if (end <= 0) return null
+		var start = end
+		while (start > 0 && isLetterOrDigit(text, start - 1)) start--
 		return intArrayOf(start, end)
 	}
-
-	private fun isWordStart(
-		text: CharSequence,
-		index: Int,
-	): Boolean = isLetterOrDigit(text, index) && (index == 0 || !isLetterOrDigit(text, index - 1))
-
-	private fun isWordEnd(
-		text: CharSequence,
-		index: Int,
-	): Boolean =
-		(index > 0 && isLetterOrDigit(text, index - 1)) &&
-			(index == text.length || !isLetterOrDigit(text, index))
 
 	private fun isLetterOrDigit(
 		text: CharSequence,

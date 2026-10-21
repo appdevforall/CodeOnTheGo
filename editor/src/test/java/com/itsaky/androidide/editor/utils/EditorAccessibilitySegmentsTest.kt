@@ -46,10 +46,6 @@ class EditorAccessibilitySegmentsTest {
 		offset: Int,
 	) = EditorAccessibilitySegments.preceding(text, granularity, offset)?.toList()
 
-	// ---------------------------------------------------------------------------------------------
-	// Character
-	// ---------------------------------------------------------------------------------------------
-
 	@Test
 	fun `character following returns the next single character`() {
 		assertThat(following("abc", char, 0)).isEqualTo(listOf(0, 1))
@@ -71,10 +67,6 @@ class EditorAccessibilitySegmentsTest {
 	fun `character preceding at start returns null`() {
 		assertThat(preceding("abc", char, 0)).isNull()
 	}
-
-	// ---------------------------------------------------------------------------------------------
-	// Word
-	// ---------------------------------------------------------------------------------------------
 
 	@Test
 	fun `word following skips whitespace and returns whole words`() {
@@ -115,10 +107,14 @@ class EditorAccessibilitySegmentsTest {
 	}
 
 	@Test
-	fun `word navigation treats a dotted identifier as a single word`() {
-		// Matches EditText/BreakIterator semantics: "a.b" is one word, not three.
-		val text = "a.b"
-		assertThat(following(text, word, 0)).isEqualTo(listOf(0, 3))
+	fun `word navigation splits dotted and colon-separated identifiers`() {
+		val text = "System.out.println(x)"
+		assertThat(following(text, word, 0)).isEqualTo(listOf(0, 6)) // System
+		assertThat(following(text, word, 6)).isEqualTo(listOf(7, 10)) // out
+		assertThat(following(text, word, 12)).isEqualTo(listOf(11, 18)) // println, from inside
+		assertThat(preceding(text, word, 18)).isEqualTo(listOf(11, 18))
+		assertThat(preceding(text, word, 11)).isEqualTo(listOf(7, 10))
+		assertThat(following("a:b", word, 0)).isEqualTo(listOf(0, 1))
 	}
 
 	@Test
@@ -137,10 +133,6 @@ class EditorAccessibilitySegmentsTest {
 		assertThat(preceding(text, word, 8)).isEqualTo(listOf(0, 7)) // foo_bar
 		assertThat(preceding(text, word, 4)).isEqualTo(listOf(0, 7)) // mid-word foo_bar
 	}
-
-	// ---------------------------------------------------------------------------------------------
-	// Line
-	// ---------------------------------------------------------------------------------------------
 
 	@Test
 	fun `line following returns the current line when at its start`() {
@@ -195,10 +187,6 @@ class EditorAccessibilitySegmentsTest {
 		assertThat(following(text, line, 5)).isEqualTo(listOf(6, 9))
 	}
 
-	// ---------------------------------------------------------------------------------------------
-	// Paragraph
-	// ---------------------------------------------------------------------------------------------
-
 	@Test
 	fun `paragraph following returns the current non-empty line`() {
 		val text = "abc\ndef\nghi"
@@ -238,10 +226,6 @@ class EditorAccessibilitySegmentsTest {
 		// offset 5 is inside "def"; the whole line must be returned, not a truncated head.
 		assertThat(preceding(text, paragraph, 5)).isEqualTo(listOf(4, 7))
 	}
-
-	// ---------------------------------------------------------------------------------------------
-	// Guards
-	// ---------------------------------------------------------------------------------------------
 
 	@Test
 	fun `empty text yields no segments`() {
