@@ -9,12 +9,14 @@ class CgtFileItemTest {
 		name: String,
 		templates: List<TemplateMetadata> = listOf(TemplateMetadata("T", "d", "1.0")),
 		provenance: TemplateProvenance = TemplateProvenance.USER,
+		manifestDisplayName: String? = null,
 	) = CgtFileItem(
 		file = File("/tmp/$name"),
 		name = name,
 		templates = templates,
 		installed = false,
 		provenance = provenance,
+		manifestDisplayName = manifestDisplayName,
 	)
 
 	@Test
@@ -39,6 +41,26 @@ class CgtFileItemTest {
 		val empty = item("x.cgt", emptyList()).primaryTemplate
 		assertThat(empty.name).isEmpty()
 		assertThat(empty.version).isEmpty()
+	}
+
+	@Test
+	fun effectiveDisplayName_prefersManifestDisplayNameOverFirstTemplate() {
+		val a = TemplateMetadata("Empty", "da", "1.0")
+		val b = TemplateMetadata("Login", "db", "2.0")
+		val item = item("x.cgt", listOf(a, b), manifestDisplayName = "Block Game")
+		assertThat(item.effectiveDisplayName).isEqualTo("Block Game")
+	}
+
+	@Test
+	fun effectiveDisplayName_fallsBackToFirstTemplateNameWhenNoManifestDisplayName() {
+		val a = TemplateMetadata("Empty", "da", "1.0")
+		val b = TemplateMetadata("Login", "db", "2.0")
+		assertThat(item("x.cgt", listOf(a, b)).effectiveDisplayName).isEqualTo("Empty")
+	}
+
+	@Test
+	fun effectiveDisplayName_fallsBackToFilenameWhenNoTemplatesAndNoManifestDisplayName() {
+		assertThat(item("core.cgt", emptyList()).effectiveDisplayName).isEqualTo("core")
 	}
 
 	@Test

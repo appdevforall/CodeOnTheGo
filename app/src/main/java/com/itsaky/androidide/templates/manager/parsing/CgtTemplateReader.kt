@@ -16,6 +16,9 @@ import java.util.zip.ZipInputStream
 object CgtTemplateReader {
 	private const val TEMPLATE_JSON_SUFFIX = "/template/template.json"
 
+	/** Optional archive-root manifest; only its `displayName` field is read here (ADFA-6570). */
+	private const val ARCHIVE_JSON = "templates.json"
+
 	// template.json is a small manifest; a legitimate one is a few KB at most. Bounding the
 	// read protects against a corrupt or hostile archive claiming a huge (or streamed,
 	// size-unknown) entry under that name and exhausting memory via an unbounded readBytes().
@@ -23,16 +26,30 @@ object CgtTemplateReader {
 	private const val COPY_BUFFER_SIZE = 8 * 1024
 
 	/**
-	 * Reads every `<path>/template/template.json` entry from a `.cgt` zip [input] and returns
-	 * one [TemplateMetadata] per entry (empty if the archive contains none). The stream is
-	 * consumed and closed.
+	 * [displayName] is the archive's own name from its root `templates.json`, when the archive
+	 * ships one and it declares a non-blank `displayName` - null otherwise, in which case the
+	 * card falls back to its first template's name (see [com.itsaky.androidide.templates.manager.models.effectiveDisplayName]).
 	 */
-	fun readTemplates(input: InputStream): List<TemplateMetadata> {
+	data class CgtArchiveContents(
+		val displayName: String?,
+		val templates: List<TemplateMetadata>,
+	)
+
+	/**
+	 * Reads a `.cgt` zip [input]: every `<path>/template/template.json` entry as a
+	 * [TemplateMetadata] (empty if the archive contains none), plus the root `templates.json`'s
+	 * `displayName` when present. The stream is consumed and closed.
+	 */
+	fun readTemplates(input: InputStream): CgtArchiveContents {
 		val templates = mutableListOf<TemplateMetadata>()
+		var displayName: String? = null
 		ZipInputStream(input).use { zip ->
 			while (true) {
 				val entry = zip.nextEntry ?: break
-				if (!entry.isDirectory && entry.name.endsWith(TEMPLATE_JSON_SUFFIX)) {
+				if (!entry.isDirectory && entry.name == ARCHIVE_JSON) {
+					val json = JSONObject(readBounded(zip).toString(Charsets.UTF_8))
+					displayName = json.optString("displayName").takeIf { it.isNotBlank() }
+				} else if (!entry.isDirectory && entry.name.endsWith(TEMPLATE_JSON_SUFFIX)) {
 					val json = JSONObject(readBounded(zip).toString(Charsets.UTF_8))
 					templates.add(
 						TemplateMetadata(
@@ -46,7 +63,7 @@ object CgtTemplateReader {
 				zip.closeEntry()
 			}
 		}
-		return templates
+		return CgtArchiveContents(displayName, templates)
 	}
 
 	/** Reads the current zip entry, throwing [IOException] instead of exceeding [MAX_TEMPLATE_JSON_BYTES]. */
