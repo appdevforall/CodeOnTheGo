@@ -18,7 +18,6 @@ data class IndexKey<T : Any>(
  * and consumers (LSPs, etc.) retrieve them.
  */
 class IndexRegistry : Closeable {
-
 	private val indexes = ConcurrentHashMap<String, Any>()
 	private val listeners = ConcurrentHashMap<String, MutableList<(Any) -> Unit>>()
 
@@ -29,7 +28,10 @@ class IndexRegistry : Closeable {
 	 * If there are listeners waiting for this key, they are notified
 	 * immediately.
 	 */
-	fun <T : Any> register(key: IndexKey<T>, index: T) {
+	fun <T : Any> register(
+		key: IndexKey<T>,
+		index: T,
+	) {
 		val old = indexes.put(key.name, index)
 
 		// Close the old index if it's Closeable
@@ -48,8 +50,7 @@ class IndexRegistry : Closeable {
 	 * Retrieve an index by key. Returns null if not yet registered.
 	 */
 	@Suppress("UNCHECKED_CAST")
-	fun <T : Any> get(key: IndexKey<T>): T? =
-		indexes[key.name] as? T
+	fun <T : Any> get(key: IndexKey<T>): T? = indexes[key.name] as? T
 
 	/**
 	 * Retrieve an index, throwing if not available.
@@ -57,7 +58,7 @@ class IndexRegistry : Closeable {
 	fun <T : Any> require(key: IndexKey<T>): T =
 		get(key) ?: throw IllegalStateException(
 			"Index '${key.name}' is not registered. " +
-					"Has the corresponding IndexingService been initialized?"
+				"Has the corresponding IndexingService been initialized?",
 		)
 
 	/**
@@ -78,9 +79,13 @@ class IndexRegistry : Closeable {
 	 * If the index is already registered, the listener is
 	 * called immediately.
 	 */
-	fun <T : Any> onAvailable(key: IndexKey<T>, listener: (T) -> Unit) {
+	fun <T : Any> onAvailable(
+		key: IndexKey<T>,
+		listener: (T) -> Unit,
+	) {
 		@Suppress("UNCHECKED_CAST")
-		listeners.getOrPut(key.name) { mutableListOf() }
+		listeners
+			.getOrPut(key.name) { mutableListOf() }
 			.add(listener as (Any) -> Unit)
 
 		// If already registered, notify immediately
@@ -98,8 +103,7 @@ class IndexRegistry : Closeable {
 	/**
 	 * Returns true if an index is registered for this key.
 	 */
-	fun <T : Any> isRegistered(key: IndexKey<T>): Boolean =
-		indexes.containsKey(key.name)
+	fun <T : Any> isRegistered(key: IndexKey<T>): Boolean = indexes.containsKey(key.name)
 
 	/**
 	 * Returns all registered keys.

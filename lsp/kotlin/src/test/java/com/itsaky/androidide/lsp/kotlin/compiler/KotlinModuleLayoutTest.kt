@@ -53,7 +53,11 @@ class KotlinModuleLayoutTest {
 		assertThat(layoutOf(jvmTarget = "17")).isNotEqualTo(layoutOf(jvmTarget = "11"))
 	}
 
-	private fun tempJar(name: String): Path = tempDir.root.toPath().resolve(name).createFile()
+	private fun tempJar(name: String): Path =
+		tempDir.root
+			.toPath()
+			.resolve(name)
+			.createFile()
 
 	private fun layoutOf(
 		compileJars: List<Path> = emptyList(),
