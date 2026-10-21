@@ -122,10 +122,11 @@ class KotlinLanguageServer : ILanguageServer {
 		const val KOTLIN_SOURCE_EXTENSION = "kt"
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 
-		// Compiler.close() drains its workers with runBlocking and is reached from
-		// ProjectHandlerActivity.onDestroy on the main thread, so it runs here instead. One
-		// thread serializes closes; the next build waits so a new compiler never starts
-		// while the previous one is still disposing.
+		/**
+		 * Runs every Compiler.close(), which blocks draining workers and is reached from
+		 * ProjectHandlerActivity.onDestroy on the main thread. One thread serializes closes; the next
+		 * build waits so a new compiler never starts while the previous one is still disposing.
+		 */
 		private val closeExecutor =
 			Executors.newSingleThreadExecutor { Thread(it, "KotlinLspClose").apply { isDaemon = true } }
 
