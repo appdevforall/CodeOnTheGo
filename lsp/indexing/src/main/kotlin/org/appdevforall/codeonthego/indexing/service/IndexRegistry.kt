@@ -57,7 +57,8 @@ class IndexRegistry : Closeable {
 	 *
 	 * Unlike [register], an existing index is kept open and in place, so callers holding it are not
 	 * left with a closed index. [create] runs only when no index is registered, and listeners are
-	 * notified only when it ran.
+	 * notified only when it ran. [create] runs inside the registry's map update, so it must not call
+	 * back into this registry.
 	 */
 	fun <T : Any> registerIfAbsent(
 		key: IndexKey<T>,

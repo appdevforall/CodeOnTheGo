@@ -43,7 +43,12 @@ internal data class SourceModuleLayout(
 	val jvmTarget: String?,
 )
 
-/** Returns the [KotlinModuleLayout] of this workspace. Reads the file system, so not on the main thread. */
+/**
+ * Returns the [KotlinModuleLayout] of this workspace. Reads the file system, so not on the main thread.
+ *
+ * Module dependencies and compile classpaths are resolved through the global
+ * `IProjectManager.getInstance().workspace`, not this one, and come out empty while it is null.
+ */
 internal fun Workspace.kotlinModuleLayout(): KotlinModuleLayout {
 	val moduleProjects =
 		subProjects

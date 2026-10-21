@@ -93,6 +93,8 @@ import java.util.concurrent.TimeoutException
 import kotlin.io.path.extension
 
 class KotlinLanguageServer : ILanguageServer {
+	/** Volatile: read by the session worker when it publishes a compiler, written by [connectClient]. */
+	@Volatile
 	private var _client: ILanguageClient? = null
 	private var _settings: IServerSettings? = null
 
@@ -476,6 +478,8 @@ class KotlinLanguageServer : ILanguageServer {
 		val toPath = event.newFile.toPath()
 
 		scope.launch {
+			// One read: a rebuild can swap the compiler between two reads of the property.
+			val compiler = compiler ?: return@launch
 			val oldIsKotlinFile = DocumentUtils.isKotlinFile(fromPath)
 			val newIsKotlinFile = DocumentUtils.isKotlinFile(toPath)
 
@@ -483,7 +487,7 @@ class KotlinLanguageServer : ILanguageServer {
 				// only the new file is a Kotlin file
 				// so just submit it for indexing
 				compiler
-					?.compilationEnvironmentFor(toPath)
+					.compilationEnvironmentFor(toPath)
 					?.onFileCreated(toPath)
 				return@launch
 			}
@@ -492,15 +496,15 @@ class KotlinLanguageServer : ILanguageServer {
 				// only the old file was a Kotlin file
 				// so just remove it from the index
 				compiler
-					?.compilationEnvironmentFor(fromPath)
+					.compilationEnvironmentFor(fromPath)
 					?.onFileRemoved(fromPath)
 				return@launch
 			}
 
-			val fromKind = runCatching { compiler?.compilationKindFor(fromPath) }.getOrNull()
-			val toKind = runCatching { compiler?.compilationKindFor(toPath) }.getOrNull()
-			val fromEnv = fromKind?.let { compiler?.compilationEnvironmentFor(it) }
-			val toEnv = toKind?.let { compiler?.compilationEnvironmentFor(it) }
+			val fromKind = runCatching { compiler.compilationKindFor(fromPath) }.getOrNull()
+			val toKind = runCatching { compiler.compilationKindFor(toPath) }.getOrNull()
+			val fromEnv = fromKind?.let { compiler.compilationEnvironmentFor(it) }
+			val toEnv = toKind?.let { compiler.compilationEnvironmentFor(it) }
 
 			if (fromKind != null && fromEnv == toEnv && toEnv != null) {
 				// file was renamed within the same compilation environment
