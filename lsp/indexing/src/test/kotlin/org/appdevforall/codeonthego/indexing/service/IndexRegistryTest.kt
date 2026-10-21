@@ -166,6 +166,39 @@ class IndexRegistryTest {
 		assertThat(registry.registeredKeys()).isEmpty()
 	}
 
+	@Test
+	fun `registerIfAbsent keeps and does not close an existing index`() {
+		val registry = IndexRegistry()
+		val keyC = IndexKey<CloseableValue>("index-c")
+		val existing = CloseableValue()
+		registry.register(keyC, existing)
+		var created = false
+
+		val got =
+			registry.registerIfAbsent(keyC) {
+				created = true
+				CloseableValue()
+			}
+
+		assertThat(got).isSameInstanceAs(existing)
+		assertThat(registry.get(keyC)).isSameInstanceAs(existing)
+		assertThat(existing.closed).isFalse()
+		assertThat(created).isFalse()
+	}
+
+	@Test
+	fun `registerIfAbsent registers and notifies when absent`() {
+		val registry = IndexRegistry()
+		val received = mutableListOf<String>()
+		registry.onAvailable(keyA) { received += it }
+
+		val got = registry.registerIfAbsent(keyA) { "created" }
+
+		assertThat(got).isEqualTo("created")
+		assertThat(registry.get(keyA)).isEqualTo("created")
+		assertThat(received).containsExactly("created")
+	}
+
 	class CloseableValue : Closeable {
 		var closed = false
 

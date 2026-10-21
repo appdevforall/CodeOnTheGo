@@ -39,11 +39,37 @@ class IndexRegistry : Closeable {
 			old.close()
 		}
 
-		// Notify listeners
+		notifyListeners(key, index)
+	}
+
+	private fun <T : Any> notifyListeners(
+		key: IndexKey<T>,
+		index: T,
+	) {
 		listeners[key.name]?.forEach { listener ->
 			@Suppress("UNCHECKED_CAST")
 			(listener as (T) -> Unit).invoke(index)
 		}
+	}
+
+	/**
+	 * Returns the index registered for [key], registering the one [create] returns if there is none.
+	 *
+	 * Unlike [register], an existing index is kept open and in place, so callers holding it are not
+	 * left with a closed index. [create] runs only when no index is registered, and listeners are
+	 * notified only when it ran.
+	 */
+	fun <T : Any> registerIfAbsent(
+		key: IndexKey<T>,
+		create: () -> T,
+	): T {
+		var created: T? = null
+		val index = indexes.computeIfAbsent(key.name) { create().also { created = it } }
+
+		created?.let { notifyListeners(key, it) }
+
+		@Suppress("UNCHECKED_CAST")
+		return index as T
 	}
 
 	/**
