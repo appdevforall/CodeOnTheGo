@@ -53,11 +53,14 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.ui.compose.plugins.PluginManagerContent
 import com.itsaky.androidide.ui.compose.templates.TemplateManagerScreen
+import com.itsaky.androidide.ui.models.AddonFileKind
+import com.itsaky.androidide.ui.models.DownloadPickerUiState
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.getFileName
+import com.itsaky.androidide.viewmodels.DownloadPickerViewModel
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
@@ -156,15 +159,44 @@ fun ManagerScreen(
 	pluginViewModel: PluginManagerViewModel,
 	templateViewModel: TemplateManagerViewModel,
 	externalFileInstallViewModel: ExternalFileInstallViewModel,
+	downloadPickerViewModel: DownloadPickerViewModel,
 	modifier: Modifier = Modifier,
 ) {
 	val pagerState = rememberPagerState(pageCount = { 2 })
 	val coroutineScope = rememberCoroutineScope()
 	val rootView = LocalView.current
 	val pluginUiState by pluginViewModel.uiState.collectAsStateWithLifecycle()
+	val downloadPickerState by downloadPickerViewModel.uiState.collectAsStateWithLifecycle()
 
 	fun showTooltip() {
 		TooltipManager.showIdeCategoryTooltip(activity, rootView, TooltipTag.PLUGIN_MANAGER)
+	}
+
+	// One route for both kinds of pick: a content:// Uri from the system picker, or a file:// Uri
+	// from the Downloads list. Neither is ever redelivered, so the template side uses the ungated
+	// onPicked() and picking the same file twice opens its confirmation twice.
+	fun routePick(uri: Uri) {
+		coroutineScope.launch {
+			// Resolving a content:// display name is a ContentResolver IPC call.
+			val name = withContext(Dispatchers.IO) { uri.getFileName(activity) }
+			when {
+				name.endsWith(".$TEMPLATE_ARCHIVE_EXTENSION", ignoreCase = true) -> {
+					pagerState.animateScrollToPage(TAB_TEMPLATES)
+					externalFileInstallViewModel.onPicked(uri)
+				}
+
+				name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) -> {
+					// Bring the Plugins page forward first: it owns the collector for the
+					// resulting confirmation effect, and the pager disposes it while hidden.
+					pagerState.animateScrollToPage(TAB_PLUGINS)
+					pluginViewModel.onEvent(PluginManagerUiEvent.FileSelected(uri))
+				}
+
+				else -> {
+					activity.flashError(activity.getString(R.string.msg_unsupported_extension_file))
+				}
+			}
+		}
 	}
 
 	val filePickerLauncher =
@@ -175,28 +207,41 @@ fun ManagerScreen(
 			} catch (e: SecurityException) {
 				log.warn("Could not take persistable URI permission", e)
 			}
-			coroutineScope.launch {
-				// Resolving a content:// display name is a ContentResolver IPC call.
-				val name = withContext(Dispatchers.IO) { uri.getFileName(activity) }
-				when {
-					name.endsWith(".$TEMPLATE_ARCHIVE_EXTENSION", ignoreCase = true) -> {
-						pagerState.animateScrollToPage(TAB_TEMPLATES)
-						externalFileInstallViewModel.onReceived(uri)
-					}
-
-					name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) -> {
-						// Bring the Plugins page forward first: it owns the collector for the
-						// resulting confirmation effect, and the pager disposes it while hidden.
-						pagerState.animateScrollToPage(TAB_PLUGINS)
-						pluginViewModel.onEvent(PluginManagerUiEvent.FileSelected(uri))
-					}
-
-					else -> {
-						activity.flashError(activity.getString(R.string.msg_unsupported_extension_file))
-					}
-				}
-			}
+			routePick(uri)
 		}
+
+	// The fallback for add-ons kept outside Downloads (another folder, an SD card, a cloud drive).
+	fun launchSystemPicker() {
+		try {
+			// SAF filters by MIME type, not extension, and neither .cgp nor .cgt has a
+			// registered one. Document providers report unrecognized extensions as
+			// "application/octet-stream", but both are zips, and some providers (and most
+			// cloud providers' own mappings) report "application/zip" instead - an
+			// octet-stream-only filter hides those with no way to reach them. "*/*" keeps
+			// every provider's mapping reachable; SAF still honors this ordering for the
+			// initial filter. routePick() validates the actual pick, since this is only an
+			// approximation - and why + opens the filtered Downloads list first (ADFA-6729).
+			filePickerLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
+		} catch (e: ActivityNotFoundException) {
+			log.warn("No document provider available for the extension file picker", e)
+			activity.flashError(activity.getString(R.string.msg_no_file_manager))
+		}
+	}
+
+	(downloadPickerState as? DownloadPickerUiState.Open)?.let { state ->
+		DownloadPickerDialog(
+			state = state,
+			onPick = { file ->
+				downloadPickerViewModel.dismiss()
+				routePick(Uri.fromFile(file.file))
+			},
+			onBrowse = {
+				downloadPickerViewModel.dismiss()
+				launchSystemPicker()
+			},
+			onDismiss = downloadPickerViewModel::dismiss,
+		)
+	}
 
 	ExternalFileInstallDialogs(
 		viewModel = externalFileInstallViewModel,
@@ -261,20 +306,9 @@ fun ManagerScreen(
 					// on its own - swallow that one click here.
 					if (longPressAwareClick.consumeIfSuppressed()) return@FloatingActionButton
 					if (pluginUiState.isInstalling) return@FloatingActionButton
-					try {
-						// SAF filters by MIME type, not extension, and neither .cgp nor .cgt has a
-						// registered one. Document providers report unrecognized extensions as
-						// "application/octet-stream", but both are zips, and some providers (and most
-						// cloud providers' own mappings) report "application/zip" instead - an
-						// octet-stream-only filter hides those with no way to reach them. "*/*" keeps
-						// every provider's mapping reachable; SAF still honors this ordering for the
-						// initial filter. The routing above validates the actual pick, since this is
-						// only an approximation.
-						filePickerLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
-					} catch (e: ActivityNotFoundException) {
-						log.warn("No document provider available for the extension file picker", e)
-						activity.flashError(activity.getString(R.string.msg_no_file_manager))
-					}
+					downloadPickerViewModel.open(
+						if (pagerState.currentPage == TAB_TEMPLATES) AddonFileKind.TEMPLATE else AddonFileKind.PLUGIN,
+					)
 				},
 				modifier = Modifier.alpha(if (pluginUiState.isInstalling) DISABLED_ALPHA else 1f),
 				interactionSource = longPressAwareClick.interactionSource,
