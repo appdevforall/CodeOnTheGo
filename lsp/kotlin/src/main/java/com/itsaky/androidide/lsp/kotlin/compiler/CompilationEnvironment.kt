@@ -15,7 +15,6 @@ import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
-import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
@@ -65,7 +64,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class CompilationEnvironment(
 	name: String,
 	kind: CompilationKind,
-	private val workspace: Workspace,
+	private val layout: KotlinModuleLayout,
 	val ktProject: KotlinProjectModel,
 	intellijPluginRoot: Path,
 	jdkHome: Path,
@@ -161,7 +160,7 @@ internal class CompilationEnvironment(
 	private fun buildModules(
 		project: MockProject,
 		applicationEnv: KotlinCoreApplicationEnvironment,
-	): List<KtModule> = workspace.collectKtModules(project, applicationEnv)
+	): List<KtModule> = layout.toKtModules(project, applicationEnv)
 
 	override fun createServiceRegistrars() = listOf(LspAnalysisApiServiceRegistrar(AnalysisApiServiceProviders.Production))
 

@@ -34,6 +34,7 @@ import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
+import com.itsaky.androidide.lsp.kotlin.compiler.kotlinModuleLayout
 import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
@@ -256,7 +257,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 			val compiler =
 				Compiler(
-					workspace = workspace,
+					layout = workspace.kotlinModuleLayout(),
 					projectModel = model,
 					intellijPluginRoot = intellijPluginRoot,
 					jdkHome = jdkHome,
