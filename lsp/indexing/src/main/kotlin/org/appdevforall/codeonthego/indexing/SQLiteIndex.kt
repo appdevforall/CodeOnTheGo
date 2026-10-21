@@ -191,6 +191,7 @@ class SQLiteIndex<T : Indexable>(
 	private val mutex = Mutex()
 
 	@Volatile private var closed = false
+	private var useAfterCloseReported = false
 	private val db: SupportSQLiteDatabase
 
 	init {
@@ -233,7 +234,7 @@ class SQLiteIndex<T : Indexable>(
 
 	override fun query(query: IndexQuery): Sequence<T> =
 		runBlocking {
-			ifOpen(emptySequence()) {
+			ifOpen("query", emptySequence()) {
 				val limit = effectiveLimit(query)
 				val results = mutableListOf<T>()
 				for (chunk in sourceIdChunks(query)) {
@@ -256,7 +257,7 @@ class SQLiteIndex<T : Indexable>(
 
 	override suspend fun get(key: String): T? =
 		withContext(Dispatchers.IO) {
-			ifOpen(null) {
+			ifOpen("get", null) {
 				val cursor =
 					db.query(
 						"SELECT _payload FROM $tableName WHERE _key = ? ORDER BY _source_id LIMIT 1",
@@ -274,7 +275,7 @@ class SQLiteIndex<T : Indexable>(
 
 	override suspend fun containsSource(sourceId: String): Boolean =
 		withContext(Dispatchers.IO) {
-			ifOpen(false) {
+			ifOpen("containsSource", false) {
 				val cursor =
 					db.query(
 						"SELECT 1 FROM $tableName WHERE _source_id = ? LIMIT 1",
@@ -289,7 +290,7 @@ class SQLiteIndex<T : Indexable>(
 		query: IndexQuery,
 	): Sequence<String> =
 		runBlocking {
-			ifOpen(emptySequence()) {
+			ifOpen("distinctValues", emptySequence()) {
 				val col =
 					fieldColumns[fieldName]
 						?: throw IllegalArgumentException("Unknown field: $fieldName")
@@ -339,13 +340,13 @@ class SQLiteIndex<T : Indexable>(
 		fingerprint: String,
 		entries: Flow<T>,
 	) = withContext(Dispatchers.IO) {
-		val generation = ifOpen(null) { beginPassLocked(sourceId) } ?: return@withContext
+		val generation = ifOpen("insertSource", null) { beginPassLocked(sourceId) } ?: return@withContext
 		insertBatched(entries, SourcePass(sourceId, fingerprint, generation))
 	}
 
 	override suspend fun sourceFingerprint(sourceId: String): String? =
 		withContext(Dispatchers.IO) {
-			ifOpen(null) {
+			ifOpen("sourceFingerprint", null) {
 				db
 					.query(
 						"SELECT _fingerprint FROM $sourcesTableName WHERE _source_id = ?",
@@ -356,7 +357,7 @@ class SQLiteIndex<T : Indexable>(
 
 	override suspend fun sourceFingerprints(): Map<String, String> =
 		withContext(Dispatchers.IO) {
-			ifOpen(emptyMap()) {
+			ifOpen("sourceFingerprints", emptyMap()) {
 				db.query("SELECT _source_id, _fingerprint FROM $sourcesTableName").use { cursor ->
 					buildMap {
 						while (cursor.moveToNext()) {
@@ -372,7 +373,7 @@ class SQLiteIndex<T : Indexable>(
 		sourceIds: Collection<String>?,
 	): Set<String> =
 		runBlocking {
-			ifOpen(emptySet()) {
+			ifOpen("subpackages", emptySet()) {
 				val names = HashSet<String>()
 				for (chunk in sourceIdChunks(sourceIds)) {
 					val (sql, args) = buildSubpackagesQuery(parent, chunk)
@@ -391,7 +392,7 @@ class SQLiteIndex<T : Indexable>(
 		sourceIds: Collection<String>?,
 	): Boolean =
 		runBlocking {
-			ifOpen(false) {
+			ifOpen("containsPackage", false) {
 				sourceIdChunks(sourceIds).any { chunk ->
 					val (sql, args) = buildContainsPackageQuery(name, chunk)
 					db.query(sql, args.toTypedArray()).use { it.moveToFirst() }
@@ -419,19 +420,19 @@ class SQLiteIndex<T : Indexable>(
 			batch.add(entry)
 			if (batch.size >= batchSize) {
 				ensureActive()
-				ifOpen { insertBatchLocked(batch, generation, completing = null) }
+				ifOpen("insert") { insertBatchLocked(batch, generation, completing = null) }
 				batch.clear()
 			}
 		}
 		if (batch.isNotEmpty() || pass != null) {
 			ensureActive()
-			ifOpen { insertBatchLocked(batch, generation, completing = pass) }
+			ifOpen("insert") { insertBatchLocked(batch, generation, completing = pass) }
 		}
 	}
 
 	override suspend fun insert(entry: T) =
 		withContext(Dispatchers.IO) {
-			ifOpen { insertBatchLocked(listOf(entry), generation = 0L, completing = null) }
+			ifOpen("insert") { insertBatchLocked(listOf(entry), generation = 0L, completing = null) }
 		}
 
 	override suspend fun removeBySource(sourceId: String) = removeBySources(listOf(sourceId))
@@ -448,7 +449,7 @@ class SQLiteIndex<T : Indexable>(
 	override suspend fun removeBySources(sourceIds: Collection<String>) =
 		withContext(Dispatchers.IO) {
 			if (sourceIds.isEmpty()) return@withContext
-			ifOpen {
+			ifOpen("removeBySources") {
 				db.beginTransaction()
 				try {
 					for (chunk in sourceIds.chunked(DELETE_CHUNK_SIZE)) {
@@ -475,7 +476,7 @@ class SQLiteIndex<T : Indexable>(
 
 	override suspend fun clear() =
 		withContext(Dispatchers.IO) {
-			ifOpen {
+			ifOpen("clear") {
 				db.beginTransaction()
 				try {
 					db.execSQL("DELETE FROM $tableName")
@@ -503,7 +504,7 @@ class SQLiteIndex<T : Indexable>(
 	 */
 	override suspend fun optimize() =
 		withContext(Dispatchers.IO) {
-			ifOpen {
+			ifOpen("optimize") {
 				val version = db.query("SELECT sqlite_version()").use { if (it.moveToFirst()) it.getString(0) else "" }
 				if (!supportsAnalysisLimit(version)) {
 					log.debug("Not analyzing {}: SQLite {} has no analysis limit", tableName, version)
@@ -536,15 +537,43 @@ class SQLiteIndex<T : Indexable>(
 	}
 
 	private suspend inline fun <R> ifOpen(
+		operation: String,
 		default: R,
 		crossinline block: () -> R,
-	): R = mutex.withLock { if (closed) default else block() }
+	): R =
+		mutex.withLock {
+			if (closed) {
+				reportUseAfterClose(operation)
+				default
+			} else {
+				block()
+			}
+		}
 
-	private suspend inline fun ifOpen(crossinline block: () -> Unit) = mutex.withLock { if (!closed) block() }
+	private suspend inline fun ifOpen(
+		operation: String,
+		crossinline block: () -> Unit,
+	) = ifOpen(operation, Unit, block)
+
+	/*
+	 * A closed index answers with empty results, which callers cannot tell from a genuinely empty
+	 * index, so the first such call is logged with its stack to name whoever still holds it.
+	 * Called under [mutex].
+	 */
+	private fun reportUseAfterClose(operation: String) {
+		if (useAfterCloseReported) return
+		useAfterCloseReported = true
+		log.error(
+			"Index '{}' used after close in {}; returning an empty result",
+			name,
+			operation,
+			IllegalStateException("Use of closed index '$name'"),
+		)
+	}
 
 	suspend fun size(): Int =
 		withContext(Dispatchers.IO) {
-			ifOpen(0) {
+			ifOpen("size", 0) {
 				val cursor = db.query("SELECT COUNT(*) FROM $tableName")
 				cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
 			}
@@ -937,7 +966,7 @@ class SQLiteIndex<T : Indexable>(
 
 	private fun explain(query: SqlQuery): String =
 		runBlocking {
-			ifOpen("") {
+			ifOpen("explain", "") {
 				db.query("EXPLAIN QUERY PLAN ${query.sql}", query.args.toTypedArray()).use { cursor ->
 					val detail = cursor.getColumnIndexOrThrow("detail")
 					buildList { while (cursor.moveToNext()) add(cursor.getString(detail)) }.joinToString("\n")
