@@ -84,10 +84,6 @@ object EditorAccessibilitySegments {
 			else -> null
 		}
 
-	// ---------------------------------------------------------------------------------------------
-	// Character
-	// ---------------------------------------------------------------------------------------------
-
 	private fun characterFollowing(
 		text: CharSequence,
 		offset: Int,
@@ -121,10 +117,6 @@ object EditorAccessibilitySegments {
 		if (start == DONE) return null
 		return intArrayOf(start, end)
 	}
-
-	// ---------------------------------------------------------------------------------------------
-	// Word
-	// ---------------------------------------------------------------------------------------------
 
 	private fun wordFollowing(
 		text: CharSequence,
@@ -196,10 +188,7 @@ object EditorAccessibilitySegments {
 		index in 0 until text.length &&
 			(Character.isLetterOrDigit(text[index]) || text[index] == '_')
 
-	// ---------------------------------------------------------------------------------------------
 	// Line (logical, '\n'-separated)
-	// ---------------------------------------------------------------------------------------------
-
 	private fun lineFollowing(
 		text: CharSequence,
 		offset: Int,
@@ -242,10 +231,7 @@ object EditorAccessibilitySegments {
 		return intArrayOf(start, lineEnd)
 	}
 
-	// ---------------------------------------------------------------------------------------------
 	// Paragraph (non-empty '\n'-separated lines; blank lines are skipped, as EditText does)
-	// ---------------------------------------------------------------------------------------------
-
 	private fun paragraphFollowing(
 		text: CharSequence,
 		offset: Int,

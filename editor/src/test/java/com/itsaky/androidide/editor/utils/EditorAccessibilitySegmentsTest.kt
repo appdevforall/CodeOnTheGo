@@ -108,7 +108,7 @@ class EditorAccessibilitySegmentsTest {
 
 	@Test
 	fun `word navigation skips separator punctuation between identifiers`() {
-		// Simulates code like "x=y" — the identifiers are words, '=' is skipped.
+		// Simulates code like "x=y" - the identifiers are words, '=' is skipped.
 		val text = "x=y"
 		assertThat(following(text, word, 0)).isEqualTo(listOf(0, 1)) // x
 		assertThat(following(text, word, 1)).isEqualTo(listOf(2, 3)) // y
@@ -208,7 +208,7 @@ class EditorAccessibilitySegmentsTest {
 	@Test
 	fun `paragraph following skips blank lines`() {
 		val text = "abc\n\ndef"
-		// From end of "abc" (index 3), the next paragraph is "def" — the blank line is skipped.
+		// From end of "abc" (index 3), the next paragraph is "def" - the blank line is skipped.
 		assertThat(following(text, paragraph, 3)).isEqualTo(listOf(5, 8))
 	}
 

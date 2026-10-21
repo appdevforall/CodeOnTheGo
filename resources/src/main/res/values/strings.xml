@@ -1855,5 +1855,8 @@
 	<string name="cd_outline_kind_element">Element</string>
     <string name="initialize_git_repository">Initialize Git Repository</string>
     <string name="git_init_failed">Failed to initialize Git repository</string>
+	<string name="a11y_editor_line">Line %1$d</string>
+	<string name="a11y_editor_line_content">Line %1$d: %2$s</string>
+	<string name="a11y_editor_line_column">Line %1$d, column %2$d</string>
+	<string name="a11y_editor_line_column_content">Line %1$d, column %2$d: %3$s</string>
 </resources>
-

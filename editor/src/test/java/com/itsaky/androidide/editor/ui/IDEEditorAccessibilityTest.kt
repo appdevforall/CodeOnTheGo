@@ -222,4 +222,93 @@ class IDEEditorAccessibilityTest {
 		assertThat(event.removedCount).isEqualTo("First content".length)
 		assertThat(event.beforeText.toString()).isEqualTo("First content")
 	}
+
+	@Test
+	fun `selection change event uses absolute indices past the first window`() {
+		enableTouchExploration()
+		val line = "x".repeat(99) + "\n"
+		val content = line.repeat(5)
+		editor.setText(content)
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		editor.setSelection(3, 10)
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		val event = lastEvent(AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)
+		assertThat(event.fromIndex).isEqualTo(3 * line.length + 10)
+		assertThat(event.toIndex).isEqualTo(3 * line.length + 10)
+		assertThat(event.itemCount).isEqualTo(content.length)
+		assertThat(event.text.single().toString()).isEqualTo(content)
+	}
+
+	@Test
+	fun `large insert announces a bounded slice with consistent counts`() {
+		enableTouchExploration()
+		val pasted = "y".repeat(5_000)
+
+		editor.text.insert(0, 0, pasted)
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		val event = lastEvent(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+		val text = event.text.single().toString()
+		assertThat(event.addedCount).isLessThan(pasted.length)
+		assertThat(text.length).isLessThan(pasted.length)
+		assertThat(text.removeRange(event.fromIndex, event.fromIndex + event.addedCount))
+			.isEqualTo(event.beforeText.toString())
+	}
+
+	@Test
+	fun `large delete announces a bounded slice with consistent counts`() {
+		enableTouchExploration()
+		editor.setText("z".repeat(5_000) + "\nend")
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		editor.text.delete(0, 0, 0, 5_000)
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		val event = lastEvent(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+		val before = event.beforeText.toString()
+		assertThat(event.removedCount).isLessThan(5_000)
+		assertThat(before.removeRange(event.fromIndex, event.fromIndex + event.removedCount))
+			.isEqualTo(event.text.single().toString())
+	}
+
+	@Test
+	fun `new text event addedCount matches the text it carries`() {
+		enableTouchExploration()
+
+		editor.setText("w".repeat(1_000))
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		val event = lastEvent(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+		assertThat(event.addedCount).isEqualTo(event.text.single().length)
+	}
+
+	@Test
+	fun `performClick does not show the keyboard without touch exploration`() {
+		val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+		editor.performClick()
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		assertThat(shadowOf(imm).isSoftInputVisible).isFalse()
+	}
+
+	@Test
+	fun `accessibility click runs the click listener`() {
+		var clicked = false
+		editor.setOnClickListener { clicked = true }
+
+		assertThat(editor.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)).isTrue()
+		assertThat(clicked).isTrue()
+	}
+
+	private fun enableTouchExploration() {
+		shadowOf(a11yManager).apply {
+			setEnabled(true)
+			setTouchExplorationEnabled(true)
+		}
+	}
+
+	private fun lastEvent(type: Int): AccessibilityEvent = shadowOf(a11yManager).sentAccessibilityEvents.last { it.eventType == type }
 }
