@@ -191,6 +191,9 @@ class SQLiteIndex<T : Indexable>(
 	private val mutex = Mutex()
 
 	@Volatile private var closed = false
+	override val isOpen: Boolean
+		get() = !closed
+
 	private var useAfterCloseReported = false
 	private val db: SupportSQLiteDatabase
 
