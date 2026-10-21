@@ -121,6 +121,23 @@ class EditorAccessibilitySegmentsTest {
 		assertThat(following(text, word, 0)).isEqualTo(listOf(0, 3))
 	}
 
+	@Test
+	fun `word navigation treats identifiers with underscores as single words`() {
+		val text = "foo_bar _baz test_123"
+		assertThat(following(text, word, 0)).isEqualTo(listOf(0, 7)) // foo_bar
+		assertThat(following(text, word, 4)).isEqualTo(listOf(0, 7)) // mid-word foo_bar
+		assertThat(following(text, word, 7)).isEqualTo(listOf(8, 12)) // _baz
+		assertThat(following(text, word, 12)).isEqualTo(listOf(13, 21)) // test_123
+	}
+
+	@Test
+	fun `word preceding treats identifiers with underscores as single words`() {
+		val text = "foo_bar baz"
+		assertThat(preceding(text, word, 11)).isEqualTo(listOf(8, 11)) // baz
+		assertThat(preceding(text, word, 8)).isEqualTo(listOf(0, 7)) // foo_bar
+		assertThat(preceding(text, word, 4)).isEqualTo(listOf(0, 7)) // mid-word foo_bar
+	}
+
 	// ---------------------------------------------------------------------------------------------
 	// Line
 	// ---------------------------------------------------------------------------------------------
@@ -162,7 +179,20 @@ class EditorAccessibilitySegmentsTest {
 	fun `line handles empty lines`() {
 		val text = "abc\n\ndef"
 		// index 4 is the empty line between the two newlines.
-		assertThat(following(text, line, 4)).isEqualTo(listOf(4, 4))
+		// Moving forward from offset 4 advances past the empty line to "def" [5, 8]
+		assertThat(following(text, line, 4)).isEqualTo(listOf(5, 8))
+	}
+
+	@Test
+	fun `line forward navigation steps across repeated blank lines`() {
+		val text = "abc\n\n\ndef"
+		// offset 3 is the end of line 0 "abc" [0, 3].
+		// Stepping forward returns the first blank line [4, 4].
+		assertThat(following(text, line, 3)).isEqualTo(listOf(4, 4))
+		// From offset 4, stepping forward advances to the second blank line [5, 5].
+		assertThat(following(text, line, 4)).isEqualTo(listOf(5, 5))
+		// From offset 5, stepping forward advances to "def" [6, 9].
+		assertThat(following(text, line, 5)).isEqualTo(listOf(6, 9))
 	}
 
 	// ---------------------------------------------------------------------------------------------

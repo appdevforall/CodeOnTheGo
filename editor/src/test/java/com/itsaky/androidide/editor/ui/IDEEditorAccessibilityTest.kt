@@ -120,6 +120,15 @@ class IDEEditorAccessibilityTest {
 		val events = shadowOf(a11yManager).sentAccessibilityEvents
 		val clickedEvents = events.filter { it.eventType == AccessibilityEvent.TYPE_VIEW_CLICKED }
 		assertThat(clickedEvents).isNotEmpty()
+
+		// Changing caret location manually and performing second click without hover
+		editor.setSelection(2, 0)
+		assertThat(editor.cursor?.leftLine).isEqualTo(2)
+
+		val secondClick = editor.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
+		assertThat(secondClick).isTrue()
+		// Must not jump back to the previous hover position (line 0)
+		assertThat(editor.cursor?.leftLine).isEqualTo(2)
 	}
 
 	@Test
@@ -143,5 +152,74 @@ class IDEEditorAccessibilityTest {
 
 		shadowOf(android.os.Looper.getMainLooper()).idle()
 		assertThat(shadowOf(imm).isSoftInputVisible).isTrue()
+	}
+
+	@Test
+	fun `showSoftInput respects checkSoftInputEnabled when soft keyboard is disabled`() {
+		val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+		editor.isSoftKeyboardEnabled = false
+
+		editor.showSoftInput()
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		assertThat(shadowOf(imm).isSoftInputVisible).isFalse()
+	}
+
+	@Test
+	fun `text change event is emitted with bounded payload when touch exploration enabled`() {
+		shadowOf(a11yManager).apply {
+			setEnabled(true)
+			setTouchExplorationEnabled(true)
+		}
+
+		editor.text.insert(0, 0, "PREFIX_")
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		val events = shadowOf(a11yManager).sentAccessibilityEvents
+		val textEvents = events.filter { it.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED }
+		assertThat(textEvents).isNotEmpty()
+		val event = textEvents.last()
+		assertThat(event.addedCount).isEqualTo("PREFIX_".length)
+		assertThat(event.removedCount).isEqualTo(0)
+		assertThat(event.fromIndex).isEqualTo(0)
+	}
+
+	@Test
+	fun `selection change event is emitted with bounded payload`() {
+		shadowOf(a11yManager).apply {
+			setEnabled(true)
+			setTouchExplorationEnabled(true)
+		}
+
+		editor.setSelection(0, 4)
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		val events = shadowOf(a11yManager).sentAccessibilityEvents
+		val selEvents = events.filter { it.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED }
+		assertThat(selEvents).isNotEmpty()
+		val event = selEvents.last()
+		assertThat(event.fromIndex).isEqualTo(4)
+		assertThat(event.toIndex).isEqualTo(4)
+	}
+
+	@Test
+	fun `setText captures previous document text for ACTION_SET_NEW_TEXT`() {
+		shadowOf(a11yManager).apply {
+			setEnabled(true)
+			setTouchExplorationEnabled(true)
+		}
+
+		editor.setText("First content")
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		editor.setText("Second content")
+		shadowOf(android.os.Looper.getMainLooper()).idle()
+
+		val events = shadowOf(a11yManager).sentAccessibilityEvents
+		val textEvents = events.filter { it.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED }
+		assertThat(textEvents).isNotEmpty()
+		val event = textEvents.last()
+		assertThat(event.removedCount).isEqualTo("First content".length)
+		assertThat(event.beforeText.toString()).isEqualTo("First content")
 	}
 }

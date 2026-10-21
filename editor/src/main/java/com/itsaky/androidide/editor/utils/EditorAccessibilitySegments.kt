@@ -144,7 +144,10 @@ object EditorAccessibilitySegments {
 			start = iterator.following(start)
 			if (start == DONE) return null
 		}
-		val end = iterator.following(start)
+		var end = iterator.following(start)
+		while (end != DONE && end < length && isLetterOrDigit(text, end)) {
+			end = iterator.following(end)
+		}
 		if (end == DONE || !isWordEnd(text, end)) return null
 		return intArrayOf(start, end)
 	}
@@ -166,7 +169,10 @@ object EditorAccessibilitySegments {
 			end = iterator.preceding(end)
 			if (end == DONE) return null
 		}
-		val start = iterator.preceding(end)
+		var start = iterator.preceding(end)
+		while (start != DONE && start > 0 && isLetterOrDigit(text, start - 1)) {
+			start = iterator.preceding(start)
+		}
 		if (start == DONE || !isWordStart(text, start)) return null
 		return intArrayOf(start, end)
 	}
@@ -186,7 +192,9 @@ object EditorAccessibilitySegments {
 	private fun isLetterOrDigit(
 		text: CharSequence,
 		index: Int,
-	): Boolean = index in 0 until text.length && Character.isLetterOrDigit(text[index])
+	): Boolean =
+		index in 0 until text.length &&
+			(Character.isLetterOrDigit(text[index]) || text[index] == '_')
 
 	// ---------------------------------------------------------------------------------------------
 	// Line (logical, '\n'-separated)
@@ -207,6 +215,13 @@ object EditorAccessibilitySegments {
 		}
 		var end = start
 		while (end < length && text[end] != '\n') end++
+		// An empty line at the caret makes no progress (caret = segment end); go to the next line.
+		while (end <= offset && end < length) {
+			start = end + 1
+			if (start >= length) return null
+			end = start
+			while (end < length && text[end] != '\n') end++
+		}
 		return intArrayOf(start, end)
 	}
 
