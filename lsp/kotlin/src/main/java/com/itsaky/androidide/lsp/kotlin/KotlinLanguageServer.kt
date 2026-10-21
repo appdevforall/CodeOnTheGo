@@ -33,6 +33,7 @@ import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.Compiler
+import com.itsaky.androidide.lsp.kotlin.compiler.KotlinModuleLayout
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.compiler.kotlinModuleLayout
 import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
@@ -94,12 +95,12 @@ import kotlin.io.path.extension
 class KotlinLanguageServer : ILanguageServer {
 	private var _client: ILanguageClient? = null
 	private var _settings: IServerSettings? = null
-	private var initialized = false
 
 	private val scope =
 		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
-	private var projectModel: KotlinProjectModel? = null
-	private var compiler: Compiler? = null
+	private val session = CompilerSession(scope, ProjectCompilerLifecycle())
+	private val compiler: Compiler?
+		get() = session.current
 
 	override val serverId: String = SERVER_ID
 
@@ -123,7 +124,7 @@ class KotlinLanguageServer : ILanguageServer {
 
 		// Compiler.close() drains its workers with runBlocking and is reached from
 		// ProjectHandlerActivity.onDestroy on the main thread, so it runs here instead. One
-		// thread serializes closes; setupWithProject waits so a new compiler never starts
+		// thread serializes closes; the next build waits so a new compiler never starts
 		// while the previous one is still disposing.
 		private val closeExecutor =
 			Executors.newSingleThreadExecutor { Thread(it, "KotlinLspClose").apply { isDaemon = true } }
@@ -152,6 +153,19 @@ class KotlinLanguageServer : ILanguageServer {
 			}
 			return true
 		}
+
+		private fun closeInBackground(compiler: Compiler) {
+			pendingClose =
+				closeExecutor.submit {
+					try {
+						compiler.close()
+					} catch (e: Throwable) {
+						// Throwable: an Error (e.g. "Project is already disposed") left in the Future
+						// would otherwise be rethrown by every later setup.
+						logger.error("Failed to close the Kotlin compiler", e)
+					}
+				}
+		}
 	}
 
 	init {
@@ -164,21 +178,8 @@ class KotlinLanguageServer : ILanguageServer {
 
 	override fun shutdown() {
 		EventBus.getDefault().unregister(this)
+		session.shutdown()
 		scope.cancel("LSP is being shut down")
-		compiler?.let { closing ->
-			pendingClose =
-				closeExecutor.submit {
-					try {
-						closing.close()
-					} catch (e: Throwable) {
-						// Throwable: an Error (e.g. "Project is already disposed") left in the Future
-						// would otherwise be rethrown by every later setupWithProject.
-						logger.error("Failed to close the Kotlin compiler", e)
-					}
-				}
-		}
-		compiler = null
-		initialized = false
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
@@ -193,99 +194,90 @@ class KotlinLanguageServer : ILanguageServer {
 		this._settings = settings
 	}
 
+	/** Queues a project update; the analysis session is kept or rebuilt off the caller's thread. */
 	override fun setupWithProject(workspace: Workspace) {
-		logger.info("setupWithProject called, initialized={}", initialized)
-
-		// Runs on an EventBus background thread. Wait out the previous project's teardown:
-		// its compiler and the SQLite indexes it registered must be closed before we reopen them.
-		// If they are still closing, skip setup rather than share them; initialized stays false,
-		// so the next ProjectInitializedEvent (sync) retries.
-		if (!awaitPendingClose() || !runBlocking { IndexingServiceManager.awaitPendingClose() }) {
-			logger.error("Skipping Kotlin setup: the previous project is still closing")
-			return
-		}
-
+		logger.info("setupWithProject called")
 		LSPEditorActions.ensureActionsMenuRegistered(KotlinCodeActionsMenu)
+		session.submit(workspace)
+	}
 
-		val context = BaseApplication.baseInstance
-		val indexingServiceManager =
-			ProjectManagerImpl
-				.getInstance()
-				.indexingServiceManager
+	private inner class ProjectCompilerLifecycle : CompilerLifecycle<Compiler> {
+		override fun prepare(workspace: Workspace) {
+			val context = BaseApplication.baseInstance
+			val indexingServiceManager = ProjectManagerImpl.getInstance().indexingServiceManager
+			val indexingRegistry = indexingServiceManager.registry
 
-		val indexingRegistry = indexingServiceManager.registry
-		indexingRegistry.register(
-			key = KT_SOURCE_FILE_INDEX_KEY,
-			index =
+			// Once per project: replacing them would close the instances a live session reads.
+			indexingRegistry.registerIfAbsent(KT_SOURCE_FILE_INDEX_KEY) {
 				JvmSymbolIndex.createSqliteIndex(
 					context = context,
 					dbName = KT_SOURCE_FILE_INDEX_KEY.name,
 					indexName = KT_SOURCE_FILE_INDEX_KEY.name,
-				),
-		)
-
-		indexingRegistry.register(
-			key = KT_SOURCE_FILE_META_INDEX_KEY,
-			index =
+				)
+			}
+			indexingRegistry.registerIfAbsent(KT_SOURCE_FILE_META_INDEX_KEY) {
 				KtFileMetadataIndex.sqliteBacked(
 					context = context,
 					dbName = KT_SOURCE_FILE_META_INDEX_KEY.name,
-				),
-		)
+				)
+			}
 
-		val jvmLibraryIndexingService =
-			indexingServiceManager.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+			val jvmLibraryIndexingService =
+				indexingServiceManager.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+			jvmLibraryIndexingService?.refresh()
+		}
 
-		jvmLibraryIndexingService?.refresh()
+		override fun layoutOf(workspace: Workspace) = workspace.kotlinModuleLayout()
 
-		val jdkHome = Environment.JAVA_HOME.toPath()
-		val jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE
-		val intellijPluginRoot = Paths.get(context.applicationInfo.sourceDir)
+		/*
+		 * The previous compiler, and on a project switch the previous project's SQLite indexes, must be
+		 * closed before a new compiler opens them.
+		 */
+		override fun awaitClosed() = awaitPendingClose() && runBlocking { IndexingServiceManager.awaitPendingClose() }
 
-		val jvmTarget =
-			JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
-				?: JvmTarget.JVM_21
+		override fun build(
+			workspace: Workspace,
+			layout: KotlinModuleLayout,
+		): Compiler {
+			logger.info("Creating analysis session")
 
-		val jvmPlatform = JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
-
-		if (!initialized) {
-			logger.info("Creating initial analysis session")
+			val jvmTarget =
+				JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
+					?: JvmTarget.JVM_21
 
 			val model = KotlinProjectModel()
-			model.update(workspace, jvmPlatform)
-			this.projectModel = model
+			model.update(workspace, JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget))
 
-			val compiler =
-				Compiler(
-					layout = workspace.kotlinModuleLayout(),
-					projectModel = model,
-					intellijPluginRoot = intellijPluginRoot,
-					jdkHome = jdkHome,
-					jdkRelease = jdkRelease,
-					languageVersion = LanguageVersion.LATEST_STABLE,
-				)
+			return Compiler(
+				layout = layout,
+				projectModel = model,
+				intellijPluginRoot = Paths.get(BaseApplication.baseInstance.applicationInfo.sourceDir),
+				jdkHome = Environment.JAVA_HOME.toPath(),
+				jdkRelease = IJdkDistributionProvider.DEFAULT_JAVA_RELEASE,
+				languageVersion = LanguageVersion.LATEST_STABLE,
+			)
+		}
 
+		override fun close(compiler: Compiler) = closeInBackground(compiler)
+
+		override fun onReady(
+			workspace: Workspace,
+			compiler: Compiler,
+		) {
 			compiler.updateLanguageClient(client)
-			this.compiler = compiler
-		} else {
-			logger.info("Updating project model")
-			projectModel?.update(workspace, jvmPlatform)
-		}
 
-		// Open already open files
-		// we won't get an event for these
-		FileManager.activeDocuments.ifNotEmpty {
-			forEach { document ->
-				compiler
-					?.compilationEnvironmentFor(document.file)
-					?.openFileIfNeeded(document.file)
+			// Already open files get no open event.
+			FileManager.activeDocuments.ifNotEmpty {
+				forEach { document ->
+					compiler
+						.compilationEnvironmentFor(document.file)
+						?.openFileIfNeeded(document.file)
+				}
 			}
+
+			KotlinSnippetRepository.init()
+			logger.info("Kotlin project initialized")
 		}
-
-		KotlinSnippetRepository.init()
-
-		initialized = true
-		logger.info("Kotlin project initialized")
 	}
 
 	override fun complete(params: CompletionParams?): CompletionResult {

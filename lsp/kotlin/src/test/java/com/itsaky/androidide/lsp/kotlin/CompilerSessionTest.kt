@@ -1,0 +1,210 @@
+package com.itsaky.androidide.lsp.kotlin
+
+import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.lsp.kotlin.compiler.KotlinModuleLayout
+import com.itsaky.androidide.lsp.kotlin.fixtures.gradleProject
+import com.itsaky.androidide.projects.api.GradleProject
+import com.itsaky.androidide.projects.api.Workspace
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.junit.After
+import org.junit.Test
+import java.nio.file.Path
+import java.util.Collections
+import java.util.IdentityHashMap
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.CopyOnWriteArrayList
+
+class CompilerSessionTest {
+	private val scope = CoroutineScope(SupervisorJob())
+	private val lifecycle = FakeLifecycle()
+	private val session = CompilerSession(scope, lifecycle)
+
+	@After
+	fun tearDown() {
+		lifecycle.gates.values.forEach { it.complete(Unit) }
+		scope.cancel()
+	}
+
+	@Test
+	fun `an unchanged layout keeps the compiler`(): Unit =
+		runBlocking {
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c1")
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c1", times = 2)
+
+			assertThat(lifecycle.builds).isEqualTo(1)
+			assertThat(lifecycle.events.filter { it.startsWith("close") }).isEmpty()
+			assertThat(session.current).isEqualTo("c1")
+		}
+
+	@Test
+	fun `a changed layout closes the old compiler before building the new one`(): Unit =
+		runBlocking {
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c1")
+			session.submit(workspace(LAYOUT_B))
+			awaitEvent("ready c2")
+
+			val events = lifecycle.events.toList()
+			assertThat(events.indexOf("close c1")).isLessThan(events.lastIndexOf("awaitClosed"))
+			assertThat(events.lastIndexOf("awaitClosed")).isLessThan(events.indexOf("build c2 for B"))
+			assertThat(session.current).isEqualTo("c2")
+		}
+
+	@Test
+	fun `current is null while a rebuild is in progress`(): Unit =
+		runBlocking {
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c1")
+			val gate = lifecycle.gate(build = 2)
+
+			session.submit(workspace(LAYOUT_B))
+			awaitEvent("building c2")
+
+			assertThat(session.current).isNull()
+			gate.complete(Unit)
+			awaitEvent("ready c2")
+		}
+
+	@Test
+	fun `updates during a build collapse to the latest`(): Unit =
+		runBlocking {
+			val gate = lifecycle.gate(build = 1)
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("building c1")
+
+			session.submit(workspace(LAYOUT_B))
+			session.submit(workspace(LAYOUT_C))
+			session.submit(workspace(LAYOUT_D))
+			gate.complete(Unit)
+			awaitEvent("ready c2")
+
+			assertThat(lifecycle.events.filter { it.startsWith("build ") })
+				.containsExactly("build c1 for A", "build c2 for D")
+				.inOrder()
+		}
+
+	@Test
+	fun `shutdown during a build closes the new compiler instead of publishing it`(): Unit =
+		runBlocking {
+			val gate = lifecycle.gate(build = 1)
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("building c1")
+
+			session.shutdown()
+			gate.complete(Unit)
+			awaitEvent("close c1")
+
+			assertThat(session.current).isNull()
+			assertThat(lifecycle.events).doesNotContain("ready c1")
+		}
+
+	@Test
+	fun `a failed build is retried by the next update with the same layout`(): Unit =
+		runBlocking {
+			lifecycle.failingBuilds += 1
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("build failed c1")
+
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c2")
+
+			assertThat(session.current).isEqualTo("c2")
+		}
+
+	@Test
+	fun `a skipped update is retried by the next update`(): Unit =
+		runBlocking {
+			lifecycle.awaitClosedResults += false
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("awaitClosed")
+
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c1")
+
+			assertThat(lifecycle.builds).isEqualTo(1)
+			assertThat(session.current).isEqualTo("c1")
+		}
+
+	private fun workspace(layout: KotlinModuleLayout): Workspace =
+		Workspace(
+			rootProject = GradleProject(gradleProject(":")),
+			subProjects = emptyList(),
+			syncIssues = emptyList(),
+		).also { lifecycle.layouts[it] = layout }
+
+	private suspend fun awaitEvent(
+		event: String,
+		times: Int = 1,
+	) {
+		withTimeout(5_000) {
+			while (lifecycle.events.count { it == event } < times) delay(10)
+		}
+	}
+
+	private class FakeLifecycle : CompilerLifecycle<String> {
+		val events: MutableList<String> = CopyOnWriteArrayList()
+		val layouts: MutableMap<Workspace, KotlinModuleLayout> = Collections.synchronizedMap(IdentityHashMap())
+		val gates = ConcurrentHashMap<Int, CompletableDeferred<Unit>>()
+		val failingBuilds: MutableSet<Int> = Collections.synchronizedSet(mutableSetOf())
+		val awaitClosedResults = ConcurrentLinkedDeque<Boolean>()
+
+		@Volatile
+		var builds = 0
+
+		fun gate(build: Int) = CompletableDeferred<Unit>().also { gates[build] = it }
+
+		override fun prepare(workspace: Workspace) = Unit
+
+		override fun layoutOf(workspace: Workspace) = layouts.getValue(workspace)
+
+		override fun awaitClosed(): Boolean {
+			events += "awaitClosed"
+			return awaitClosedResults.pollFirst() ?: true
+		}
+
+		override fun build(
+			workspace: Workspace,
+			layout: KotlinModuleLayout,
+		): String {
+			val n = ++builds
+			events += "building c$n"
+			gates[n]?.let { runBlocking { it.await() } }
+			if (n in failingBuilds) {
+				events += "build failed c$n"
+				throw IllegalStateException("build $n failed")
+			}
+			events += "build c$n for ${LAYOUT_NAMES.getValue(layout)}"
+			return "c$n"
+		}
+
+		override fun close(compiler: String) {
+			events += "close $compiler"
+		}
+
+		override fun onReady(
+			workspace: Workspace,
+			compiler: String,
+		) {
+			events += "ready $compiler"
+		}
+	}
+
+	private companion object {
+		fun layout(name: String) = KotlinModuleLayout(listOf(Path.of("/$name.jar")), emptySet(), emptyList())
+
+		val LAYOUT_A = layout("A")
+		val LAYOUT_B = layout("B")
+		val LAYOUT_C = layout("C")
+		val LAYOUT_D = layout("D")
+		val LAYOUT_NAMES = mapOf(LAYOUT_A to "A", LAYOUT_B to "B", LAYOUT_C to "C", LAYOUT_D to "D")
+	}
+}
