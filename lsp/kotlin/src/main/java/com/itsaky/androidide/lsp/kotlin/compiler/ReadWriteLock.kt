@@ -22,3 +22,19 @@ fun <T> Project.write(fn: () -> T): T {
 	val lock = getUserData(key)!!
 	return lock.write(fn)
 }
+
+/**
+ * Runs [fn] under the write lock if it is free now, without waiting or queueing; returns whether it ran.
+ *
+ * A queued writer would block every new reader, including the UI thread, until it got the lock.
+ */
+fun Project.tryWrite(fn: () -> Unit): Boolean {
+	val writeLock = getUserData(key)!!.writeLock()
+	if (!writeLock.tryLock()) return false
+	try {
+		fn()
+	} finally {
+		writeLock.unlock()
+	}
+	return true
+}
