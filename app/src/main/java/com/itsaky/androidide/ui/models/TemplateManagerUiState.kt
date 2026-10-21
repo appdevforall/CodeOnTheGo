@@ -46,6 +46,10 @@ sealed class TemplateManagerUiEffect {
 		val formatArgs: List<Any> = emptyList(),
 	) : TemplateManagerUiEffect()
 
+	data class ShowInstallConfirmation(
+		val item: CgtFileItem,
+	) : TemplateManagerUiEffect()
+
 	data class ShowDeleteConfirmation(
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()

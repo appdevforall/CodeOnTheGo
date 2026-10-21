@@ -47,11 +47,11 @@ class TemplateRepositoryImpl(
 		}
 
 	/**
-	 * One card per archive, not per file on disk. The same `.cgt` name can exist in both
-	 * directories at once - a copy dropped into Downloads by hand, or the picker-install path,
-	 * which copies rather than moves. Both rows would then render identically apart from the
-	 * status line, and the Downloads twin is a dead end: [installTemplate] refuses to overwrite,
-	 * so its Install can only ever fail. The installed copy wins.
+	 * One card per archive, not per file on disk. The same `.cgt` name normally exists in both
+	 * directories at once, since [installTemplate] copies and leaves the Downloads original
+	 * behind. The Downloads twin is a dead end while the installed copy exists ([installTemplate]
+	 * refuses to overwrite), so the installed copy wins; after [uninstallTemplate] the twin is
+	 * listed again, which is how the user re-installs.
 	 *
 	 * Names are compared case-insensitively, matching the stricter of the two install paths
 	 * (`TemplateCollectionRepository.findExistingCollision`), so any row still listed as
@@ -126,10 +126,6 @@ class TemplateRepositoryImpl(
 				val dest = File(templatesDir, item.file.name)
 				check(!dest.exists()) { "A template named '${dest.name}' already exists in $templatesDir" }
 				item.file.copyTo(dest, overwrite = false)
-				if (!item.file.delete()) {
-					dest.delete()
-					throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
-				}
 				ITemplateProvider.getInstance(reload = true)
 				Result.success(Unit)
 			} catch (e: CancellationException) {
@@ -147,18 +143,11 @@ class TemplateRepositoryImpl(
 		withContext(Dispatchers.IO) {
 			try {
 				check(item.installed) { "'${item.name}' is not installed" }
-				// Guarded here as well as hidden by scanTemplates: once moved out, core.cgt is never
+				// Guarded here as well as hidden by scanTemplates: once deleted, core.cgt is never
 				// listed again, so there would be no in-app way to put it back.
 				check(!isCoreArchive(item.name)) { "Cannot uninstall the bundled template" }
-
-				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
-				// throws, the store copy below is never touched, so the user's only copy survives.
-				val restored = File(downloadDir, item.file.name)
-				check(!restored.exists()) { "A download named '${restored.name}' already exists in $downloadDir" }
-				item.file.copyTo(restored, overwrite = false)
 				if (!item.file.delete()) {
-					restored.delete()
-					throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
+					throw IOException("Failed to delete ${item.file.absolutePath}")
 				}
 				ITemplateProvider.getInstance(reload = true)
 				Result.success(Unit)

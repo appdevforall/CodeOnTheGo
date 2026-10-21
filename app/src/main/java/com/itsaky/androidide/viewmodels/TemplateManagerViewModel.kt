@@ -41,7 +41,7 @@ class TemplateManagerViewModel(
 	fun onEvent(event: TemplateManagerUiEvent) {
 		when (event) {
 			is TemplateManagerUiEvent.LoadTemplates -> loadTemplates()
-			is TemplateManagerUiEvent.InstallTemplate -> installTemplate(event.item)
+			is TemplateManagerUiEvent.InstallTemplate -> showInstallConfirmation(event.item)
 			is TemplateManagerUiEvent.UninstallTemplate -> uninstallTemplate(event.item)
 			is TemplateManagerUiEvent.DeleteDownloadFile -> showDeleteConfirmation(event.item)
 			is TemplateManagerUiEvent.ShowTemplateDetails -> showTemplateDetails(event.item)
@@ -71,7 +71,21 @@ class TemplateManagerViewModel(
 		}
 	}
 
-	private fun installTemplate(item: CgtFileItem) {
+	private fun showInstallConfirmation(item: CgtFileItem) {
+		viewModelScope.launch {
+			_uiEffect.send(TemplateManagerUiEffect.ShowInstallConfirmation(item))
+		}
+	}
+
+	/**
+	 * Installs a Downloads template (called after confirmation). Install copies, so the Downloads
+	 * original is kept unless [deleteSourceAfterInstall] - the same choice the Plugins tab offers.
+	 * A failed delete is reported but doesn't undo the install, matching the Plugins tab.
+	 */
+	fun confirmInstallTemplate(
+		item: CgtFileItem,
+		deleteSourceAfterInstall: Boolean,
+	) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
@@ -84,6 +98,11 @@ class TemplateManagerViewModel(
 							listOf(item.displayName),
 						),
 					)
+					if (deleteSourceAfterInstall) {
+						templateRepository.deleteDownloadFile(item).onFailure {
+							_uiEffect.send(TemplateManagerUiEffect.ShowError(R.string.msg_source_delete_failed))
+						}
+					}
 					// loadTemplates() clears isLoading once the post-install rescan completes, so the
 					// indicator stays up continuously across both phases instead of flickering off
 					// between them.
