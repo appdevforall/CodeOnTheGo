@@ -29,14 +29,14 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param gitDir the `.git` directory to watch.
  * @param scope coroutine scope where the debouncing and change callback run.
  * @param debounceDelay quiet period required before invoking [onGitStateChanged]. Defaults to 1000ms.
- * @param context coroutine context where the change callback executes. Defaults to [Dispatchers.IO].
+ * @param context coroutine context where the change callback executes. Defaults to [Dispatchers.Main.immediate].
  * @param onGitStateChanged callback invoked when changes settle.
  */
 class GitRepositoryWatcher(
 	val gitDir: File,
 	private val scope: CoroutineScope,
 	val debounceDelay: Duration = DEFAULT_DEBOUNCE_DELAY,
-	private val context: CoroutineContext = Dispatchers.IO,
+	private val context: CoroutineContext = Dispatchers.Main.immediate,
 	private val onGitStateChanged: suspend () -> Unit,
 ) : Closeable {
 	companion object {

@@ -141,26 +141,6 @@ class JGitRepository(
 				}
 			}
 
-			// Filter out ghost missing entries where the file exists on disk with different casing
-			// (e.g. after a case-only folder/file rename was committed externally or via terminal)
-			if (missingSet.isNotEmpty()) {
-				val dirCache = repository.readDirCache()
-				val trackedPaths = (0 until dirCache.entryCount).map { dirCache.getEntry(it).pathString }
-
-				missingSet.removeAll { missingPath ->
-					val counterpart =
-						trackedPaths.find {
-							it.equals(missingPath, ignoreCase = true) && it != missingPath
-						}
-					if (counterpart != null && File(rootDir, counterpart).exists()) {
-						true
-					} else {
-						val realCasing = findRealCasingOnDisk(rootDir, missingPath)
-						realCasing != null && realCasing != missingPath
-					}
-				}
-			}
-
 			jgitStatus.modified.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.MODIFIED)) }
 			missingSet.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.DELETED)) }
 
@@ -594,43 +574,6 @@ class JGitRepository(
 	private data class NewBranch(
 		val name: String,
 	) : BranchResolution
-
-	internal fun findRealCasingOnDisk(
-		rootDir: File,
-		relativePath: String,
-	): String? {
-		val segments = relativePath.split('/').filter { it.isNotEmpty() }
-		if (segments.isEmpty()) return null
-
-		var current = rootDir
-		val realSegments = ArrayList<String>(segments.size)
-
-		for (segment in segments) {
-			val direct = File(current, segment)
-			if (direct.exists()) {
-				val children = current.list()
-				val exactOnDisk = children?.find { it == segment }
-				if (exactOnDisk != null) {
-					realSegments.add(exactOnDisk)
-					current = direct
-					continue
-				}
-				val caseMatch = children?.find { it.equals(segment, ignoreCase = true) }
-				if (caseMatch != null) {
-					realSegments.add(caseMatch)
-					current = File(current, caseMatch)
-					continue
-				}
-			}
-
-			val children = current.list() ?: return null
-			val caseMatch = children.find { it.equals(segment, ignoreCase = true) } ?: return null
-			realSegments.add(caseMatch)
-			current = File(current, caseMatch)
-		}
-
-		return if (current.isFile) realSegments.joinToString("/") else null
-	}
 
 	override fun close() {
 		repository.close()

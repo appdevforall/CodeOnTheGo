@@ -32,7 +32,7 @@ interface GitRepository : Closeable {
 	fun createWatcher(
 		scope: CoroutineScope,
 		debounceDelay: Duration = GitRepositoryWatcher.DEFAULT_DEBOUNCE_DELAY,
-		context: CoroutineContext = Dispatchers.IO,
+		context: CoroutineContext = Dispatchers.Main.immediate,
 		onGitStateChanged: suspend () -> Unit,
 	): GitRepositoryWatcher =
 		GitRepositoryWatcher(

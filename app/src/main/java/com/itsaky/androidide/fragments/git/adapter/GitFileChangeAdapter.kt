@@ -99,7 +99,7 @@ class GitFileChangeAdapter(
 			val isRenamed = change.type == ChangeType.RENAMED && !change.oldPath.isNullOrBlank()
 			binding.filePath.text =
 				if (isRenamed) {
-					"${change.oldPath} → ${change.path}"
+					"${change.oldPath} -> ${change.path}"
 				} else {
 					change.path
 				}

@@ -50,14 +50,7 @@ class GitBottomSheetViewModel(
 	repository: GitRepository? = null,
 	private val watcherFactory: ((GitRepository, CoroutineScope, suspend () -> Unit) -> GitRepositoryWatcher)? = null,
 ) : ViewModel() {
-	companion object {
-		private const val REFRESH_THROTTLE_MS = 300L
-	}
-
 	private val log = LoggerFactory.getLogger(GitBottomSheetViewModel::class.java)
-
-	@Volatile
-	private var lastRefreshTimestamp: Long = 0L
 
 	private val _gitStatus = MutableStateFlow(GitStatus.EMPTY)
 	val gitStatus: StateFlow<GitStatus> = _gitStatus.asStateFlow()
@@ -103,6 +96,8 @@ class GitBottomSheetViewModel(
 	private var pullResetJob: Job? = null
 	private var pushResetJob: Job? = null
 	private var watermarkWriteJob: Job? = null
+
+	@Volatile
 	private var refreshJob: Job? = null
 	internal var repoWatcher: GitRepositoryWatcher? = null
 	var currentRepository: GitRepository? = repository
@@ -132,12 +127,12 @@ class GitBottomSheetViewModel(
 		if (repo == null) return
 
 		val watcher =
-			watcherFactory?.invoke(repo, viewModelScope) { refreshStatus(force = true) }
+			watcherFactory?.invoke(repo, viewModelScope) { refreshStatus() }
 				?: repo.createWatcher(
 					scope = viewModelScope,
 					debounceDelay = 1000.milliseconds,
 				) {
-					refreshStatus(force = true)
+					refreshStatus()
 				}
 		repoWatcher = watcher
 		watcher.start()
@@ -219,24 +214,11 @@ class GitBottomSheetViewModel(
 
 	/**
 	 * Refreshes the Git status and branch state of the project.
+	 * Any previous in-flight refresh job is cancelled to ensure the latest repository state is reflected.
 	 * Failures while querying branches are handled separately to preserve valid status and commit count.
-	 * When [force] is true, cancels any in-flight refresh and bypasses the throttle window.
-	 * When [force] is false, redundant calls during an active refresh or within the throttle window
-	 * reuse the existing job to save device resources.
 	 */
 	fun refreshStatus(force: Boolean = false): Job {
-		val activeJob = refreshJob
-		if (!force) {
-			if (activeJob?.isActive == true) {
-				return activeJob
-			}
-			val now = System.currentTimeMillis()
-			if (now - lastRefreshTimestamp < REFRESH_THROTTLE_MS && activeJob != null) {
-				return activeJob
-			}
-		}
-
-		activeJob?.cancel()
+		refreshJob?.cancel()
 		val job =
 			viewModelScope.launch {
 				val repo = currentRepository
@@ -271,8 +253,6 @@ class GitBottomSheetViewModel(
 				} catch (e: Exception) {
 					log.error("Failed to fetch branches during status refresh", e)
 					_branches.value = BranchesUiState.Error(e.message)
-				} finally {
-					lastRefreshTimestamp = System.currentTimeMillis()
 				}
 			}
 		refreshJob = job
