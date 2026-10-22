@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego.screens
 
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import io.github.kakaocup.kakao.text.KButton
+import org.appdevforall.codeonthego.R
 
 object InstallToolsScreen : KScreen<InstallToolsScreen>() {
 	override val layoutId: Int? = null

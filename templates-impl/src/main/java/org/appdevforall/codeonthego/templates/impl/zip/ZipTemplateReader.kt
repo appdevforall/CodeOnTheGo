@@ -1,13 +1,13 @@
 package org.appdevforall.codeonthego.templates.impl.zip
 
 import com.google.gson.Gson
-import com.itsaky.androidide.templates.R
 import org.appdevforall.codeonthego.templates.CheckBoxWidget
 import org.appdevforall.codeonthego.templates.ModuleTemplateData
 import org.appdevforall.codeonthego.templates.Parameter
 import org.appdevforall.codeonthego.templates.ProjectTemplate
 import org.appdevforall.codeonthego.templates.ProjectTemplateData
 import org.appdevforall.codeonthego.templates.ProjectTemplateRecipeResult
+import org.appdevforall.codeonthego.templates.R
 import org.appdevforall.codeonthego.templates.TemplateRecipe
 import org.appdevforall.codeonthego.templates.TextFieldWidget
 import org.appdevforall.codeonthego.templates.Widget

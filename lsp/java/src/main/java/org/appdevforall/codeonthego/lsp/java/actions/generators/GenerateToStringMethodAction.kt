@@ -21,8 +21,6 @@ import com.github.javaparser.StaticJavaParser
 import com.github.javaparser.ast.Modifier
 import com.github.javaparser.ast.body.MethodDeclaration
 import com.github.javaparser.ast.stmt.ReturnStmt
-import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.resources.R.string
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.VariableElement
 import openjdk.source.tree.ClassTree
@@ -45,6 +43,8 @@ import org.appdevforall.codeonthego.lsp.java.utils.EditHelper
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import org.appdevforall.codeonthego.preferences.utils.indentationString
 import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.resources.R
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.flashError
 import org.slf4j.LoggerFactory

@@ -30,8 +30,8 @@ import android.widget.LinearLayout
 import androidx.core.view.updateMarginsRelative
 import androidx.core.view.updatePaddingRelative
 import com.google.android.material.textview.MaterialTextView
-import com.itsaky.androidide.uidesigner.R
 import org.appdevforall.codeonthego.inflater.IView
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.utils.dpToPx
 import org.appdevforall.codeonthego.utils.resolveAttr
 

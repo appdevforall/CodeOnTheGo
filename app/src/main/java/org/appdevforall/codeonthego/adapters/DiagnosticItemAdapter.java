@@ -23,14 +23,14 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
-import com.itsaky.androidide.databinding.LayoutDiagnosticItemBinding;
-import com.itsaky.androidide.resources.R;
 import java.io.File;
 import java.util.List;
 import java.util.Objects;
+import org.appdevforall.codeonthego.databinding.LayoutDiagnosticItemBinding;
 import org.appdevforall.codeonthego.interfaces.DiagnosticClickListener;
 import org.appdevforall.codeonthego.lsp.models.DiagnosticItem;
 import org.appdevforall.codeonthego.lsp.models.DiagnosticSeverity;
+import org.appdevforall.codeonthego.resources.R;
 
 public class DiagnosticItemAdapter extends RecyclerView.Adapter<DiagnosticItemAdapter.VH> {
 

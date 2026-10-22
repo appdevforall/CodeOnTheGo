@@ -21,8 +21,6 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.databinding.ActivityShowXmlBinding
 import io.github.rosemoe.sora.event.Unsubscribe
 import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.app.BaseIDEActivity
@@ -31,6 +29,8 @@ import org.appdevforall.codeonthego.editor.schemes.IDEColorSchemeProvider
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
+import org.appdevforall.codeonthego.uidesigner.R
+import org.appdevforall.codeonthego.uidesigner.databinding.ActivityShowXmlBinding
 import org.appdevforall.codeonthego.utils.flashInfo
 import org.appdevforall.codeonthego.utils.jetbrainsMono
 import org.slf4j.LoggerFactory

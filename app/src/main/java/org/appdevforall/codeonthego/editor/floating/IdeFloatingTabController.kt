@@ -5,7 +5,6 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
@@ -14,6 +13,7 @@ import org.appdevforall.codeonthego.floating.model.DockingManager
 import org.appdevforall.codeonthego.floating.permission.OverlayPermission
 import org.appdevforall.codeonthego.floating.service.FloatingTabService
 import org.appdevforall.codeonthego.floating.window.InitialBounds
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.ui.MetricsCarouselController
 import org.slf4j.LoggerFactory
 

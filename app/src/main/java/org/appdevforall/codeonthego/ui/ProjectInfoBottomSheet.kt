@@ -6,11 +6,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.itsaky.androidide.databinding.LayoutProjectInfoSheetBinding
-import com.itsaky.androidide.resources.R
 import com.termux.shared.interact.ShareUtils.copyTextToClipboard
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.databinding.LayoutProjectInfoSheetBinding
 import org.appdevforall.codeonthego.models.ProjectFile
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.templates.Language
 import org.appdevforall.codeonthego.utils.ProjectDetails

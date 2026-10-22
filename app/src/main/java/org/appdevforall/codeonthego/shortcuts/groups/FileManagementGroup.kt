@@ -2,9 +2,9 @@ package org.appdevforall.codeonthego.shortcuts.groups
 
 import android.content.Context
 import android.view.KeyEvent
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.file.CloseFileAction
 import org.appdevforall.codeonthego.actions.file.SaveFileAction
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.shortcuts.KeyShortcut
 import org.appdevforall.codeonthego.shortcuts.ShortcutCategory
 import org.appdevforall.codeonthego.shortcuts.ShortcutContext

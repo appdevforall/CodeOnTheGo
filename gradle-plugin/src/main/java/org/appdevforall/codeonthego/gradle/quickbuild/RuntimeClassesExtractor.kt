@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle.quickbuild
+package org.appdevforall.codeonthego.gradle.quickbuild
 
 import org.gradle.api.GradleException
 import java.io.File

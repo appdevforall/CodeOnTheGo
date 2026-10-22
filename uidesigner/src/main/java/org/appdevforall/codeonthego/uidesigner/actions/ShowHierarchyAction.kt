@@ -20,11 +20,11 @@ package org.appdevforall.codeonthego.uidesigner.actions
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.R.string
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
+import org.appdevforall.codeonthego.uidesigner.R
+import org.appdevforall.codeonthego.uidesigner.R.string
 
 /**
  * Open the drawers which contains the layout hierarchy.

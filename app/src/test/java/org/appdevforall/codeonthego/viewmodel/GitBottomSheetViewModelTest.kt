@@ -193,7 +193,7 @@ class GitBottomSheetViewModelTest {
 			assertTrue(state is GitBottomSheetViewModel.MergeUiState.Error)
 			val errorState = state as GitBottomSheetViewModel.MergeUiState.Error
 			assertEquals("non-existent", errorState.targetBranch)
-			assertEquals(com.itsaky.androidide.resources.R.string.git_merge_failed, errorState.errorResId)
+			assertEquals(org.appdevforall.codeonthego.resources.R.string.git_merge_failed, errorState.errorResId)
 			assertEquals(listOf("non-existent"), errorState.errorArgs)
 		}
 

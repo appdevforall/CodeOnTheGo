@@ -31,7 +31,7 @@
 #define EXIT_FATAL_KILL 9
 #define EXIT_FATAL_BINDER_BLOCKED_BY_SELINUX 10
 
-#define PACKAGE_NAME "com.itsaky.androidide"
+#define PACKAGE_NAME "org.appdevforall.codeonthego"
 #define SERVER_NAME "cotg_server"
 #define SERVER_CLASS_PATH "rikka.shizuku.server.ShizukuService"
 
@@ -283,3 +283,4 @@ int main(int argc, char *argv[]) {
     LOGD("start_server");
     start_server(apk_path.c_str(), SERVER_CLASS_PATH, SERVER_NAME);
 }
+

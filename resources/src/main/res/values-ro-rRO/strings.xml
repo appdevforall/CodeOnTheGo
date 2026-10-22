@@ -279,7 +279,7 @@
   <string name="xml_formatting_options">XML opțiune de formatares</string>
   <string name="xml_formatting_options_summary">Configurarea formatterului XML</string>
   <string name="idepref_customFont_title">Folosește fontul particularizat</string>
-  <string name="idepref_customFont_summary">Dacă este activat, fișierul din \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" va fi folosit ca font în Editor.</string>
+  <string name="idepref_customFont_summary">Dacă este activat, fișierul din \"/data/data/org.appdevforall.codeonthego/files/home/.cg/ui/font.ttf\" va fi folosit ca font în Editor.</string>
   <string name="msg_installing_apk">Instalez APK…</string>
   <string name="msg_action_open_application">Doriți să deschideți aplicația?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle build service</string>
@@ -465,3 +465,4 @@
   <string name="idepref_jdkVersion_title">JDK version</string>
   <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
 </resources>
+

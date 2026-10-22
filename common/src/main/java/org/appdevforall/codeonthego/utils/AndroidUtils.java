@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.utils;
 
-import com.itsaky.androidide.resources.R;
 import java.util.Locale;
 import org.apache.commons.lang3.StringUtils;
 import org.appdevforall.codeonthego.app.BaseApplication;
+import org.appdevforall.codeonthego.resources.R;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

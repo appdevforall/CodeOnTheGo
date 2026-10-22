@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle.quickbuild
+package org.appdevforall.codeonthego.gradle.quickbuild
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper

@@ -18,10 +18,10 @@
 package org.appdevforall.codeonthego.actions.editor
 
 import android.content.Context
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.BaseEditorAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
 
 /** @author Akash Yadav */
 class CopyAction(

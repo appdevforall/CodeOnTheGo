@@ -1,13 +1,13 @@
 package org.appdevforall.codeonthego.screens
 
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.check.KCheckBox
 import io.github.kakaocup.kakao.spinner.KSpinner
 import io.github.kakaocup.kakao.spinner.KSpinnerItem
 import io.github.kakaocup.kakao.text.KButton
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByText
 import org.appdevforall.codeonthego.helper.setAccessibilityEditText
 

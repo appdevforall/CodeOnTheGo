@@ -14,25 +14,25 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.itsaky.androidide.lexers.xml
+package org.appdevforall.codeonthego.lexers.xml
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.lexers.xml.XMLLexer.CLOSE
-import com.itsaky.androidide.lexers.xml.XMLLexer.COMMENT
-import com.itsaky.androidide.lexers.xml.XMLLexer.COMMENT_END
-import com.itsaky.androidide.lexers.xml.XMLLexer.COMMENT_MODE
-import com.itsaky.androidide.lexers.xml.XMLLexer.COMMENT_START
-import com.itsaky.androidide.lexers.xml.XMLLexer.CommentModeEnd
-import com.itsaky.androidide.lexers.xml.XMLLexer.CommentText
-import com.itsaky.androidide.lexers.xml.XMLLexer.DEFAULT_MODE
-import com.itsaky.androidide.lexers.xml.XMLLexer.EQUALS
-import com.itsaky.androidide.lexers.xml.XMLLexer.Name
-import com.itsaky.androidide.lexers.xml.XMLLexer.OPEN
-import com.itsaky.androidide.lexers.xml.XMLLexer.OPEN_SLASH
-import com.itsaky.androidide.lexers.xml.XMLLexer.SLASH_CLOSE
-import com.itsaky.androidide.lexers.xml.XMLLexer.STRING
-import com.itsaky.androidide.lexers.xml.XMLLexer.TEXT
 import org.appdevforall.codeonthego.lexers.BaseLexerTest
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.CLOSE
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.COMMENT
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.COMMENT_END
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.COMMENT_MODE
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.COMMENT_START
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.CommentModeEnd
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.CommentText
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.DEFAULT_MODE
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.EQUALS
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.Name
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.OPEN
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.OPEN_SLASH
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.SLASH_CLOSE
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.STRING
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer.TEXT
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4

@@ -1,7 +1,6 @@
 package org.appdevforall.codeonthego.actions.build
 
 import android.content.Context
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionData
@@ -16,6 +15,7 @@ import org.appdevforall.codeonthego.lsp.java.JavaLanguageServer
 import org.appdevforall.codeonthego.lsp.java.debug.JdwpOptions
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.isPluginProject
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.PermissionsHelper
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.isAtLeastR

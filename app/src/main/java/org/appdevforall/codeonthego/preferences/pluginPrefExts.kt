@@ -9,8 +9,8 @@ import org.appdevforall.codeonthego.activities.PluginScreenNavigator
 import org.appdevforall.codeonthego.app.IDEApplication
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_PLUGIN_MANAGER
 import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.utils.ILogger
 import org.appdevforall.codeonthego.utils.flashError
 import kotlinx.parcelize.Parcelize

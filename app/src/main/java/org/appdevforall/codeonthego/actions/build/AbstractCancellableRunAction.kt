@@ -4,13 +4,13 @@ import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.BaseBuildAction
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.projects.builder.BuildService
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.requestBuildCancellation
 import org.slf4j.Logger
@@ -84,7 +84,7 @@ abstract class AbstractCancellableRunAction(
 	protected fun cancelBuild(): Boolean {
 		val builder = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 		if (builder?.isToolingServerStarted() != true) {
-			flashError(com.itsaky.androidide.projects.R.string.msg_tooling_server_unavailable)
+			flashError(org.appdevforall.codeonthego.projects.R.string.msg_tooling_server_unavailable)
 			return false
 		}
 

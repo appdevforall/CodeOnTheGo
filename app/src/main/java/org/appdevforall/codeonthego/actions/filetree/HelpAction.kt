@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.actions.filetree
 
 import android.content.Context
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.idetooltips.TooltipManager

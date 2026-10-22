@@ -2,7 +2,6 @@ package org.appdevforall.codeonthego.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +21,7 @@ import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.projects.isPluginProject
 import org.appdevforall.codeonthego.projects.models.assembleTaskOutputListingFile
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tooling.api.messages.BuildRunType
 import org.appdevforall.codeonthego.tooling.api.messages.GradleBuildParams
 import org.appdevforall.codeonthego.tooling.api.messages.TaskExecutionMessage

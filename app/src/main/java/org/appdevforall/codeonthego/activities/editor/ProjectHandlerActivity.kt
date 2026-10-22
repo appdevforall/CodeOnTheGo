@@ -38,9 +38,6 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutSearchProjectBinding
-import com.itsaky.androidide.resources.R.string
 import io.github.rosemoe.sora.text.ICUUtils
 import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
@@ -52,6 +49,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem.Location.EDITOR_FIND_ACTION_MENU
 import org.appdevforall.codeonthego.actions.ActionsRegistry.Companion.getInstance
@@ -62,6 +60,7 @@ import org.appdevforall.codeonthego.actions.etc.ReplaceInProjectAction
 import org.appdevforall.codeonthego.actions.internal.DefaultActionsRegistry
 import org.appdevforall.codeonthego.activities.MainActivity
 import org.appdevforall.codeonthego.app.IDEApplication
+import org.appdevforall.codeonthego.databinding.LayoutSearchProjectBinding
 import org.appdevforall.codeonthego.flashbar.Flashbar
 import org.appdevforall.codeonthego.fragments.FindActionDialog
 import org.appdevforall.codeonthego.fragments.SearchFieldToolbar
@@ -104,6 +103,7 @@ import org.appdevforall.codeonthego.quickbuild.QuickBuildWontStayUpRestart
 import org.appdevforall.codeonthego.quickbuild.quickBuildStatusBarUpdate
 import org.appdevforall.codeonthego.quickbuild.resolve
 import org.appdevforall.codeonthego.repositories.PluginRepository
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.search.replace.ReplaceCoordinator
 import org.appdevforall.codeonthego.search.replace.ReplaceHost
 import org.appdevforall.codeonthego.search.replace.ReplaceSession
@@ -1094,7 +1094,7 @@ abstract class ProjectHandlerActivity :
 		// Destructive styling: the confirm action replaces an installed app, so it must
 		// not read as the default affirmative.
 		dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(
-			resolveAttr(com.itsaky.androidide.resources.R.attr.colorError),
+			resolveAttr(org.appdevforall.codeonthego.resources.R.attr.colorError),
 		)
 		return dialog
 	}

@@ -18,10 +18,10 @@
 package org.appdevforall.codeonthego.utils
 
 import android.app.Activity
-import com.itsaky.androidide.resources.R.string
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.resources.R.string
 import org.slf4j.LoggerFactory
 import java.io.File
 

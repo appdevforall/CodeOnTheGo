@@ -13,10 +13,10 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import com.google.android.material.checkbox.MaterialCheckBox
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutSearchResultGroupBinding
-import com.itsaky.androidide.databinding.LayoutSearchResultItemBinding
-import com.itsaky.androidide.databinding.LayoutSearchResultSectionBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutSearchResultGroupBinding
+import org.appdevforall.codeonthego.databinding.LayoutSearchResultItemBinding
+import org.appdevforall.codeonthego.databinding.LayoutSearchResultSectionBinding
 import org.appdevforall.codeonthego.models.FileExtension
 import org.appdevforall.codeonthego.models.SearchResult
 import org.appdevforall.codeonthego.search.replace.FileCheckState
@@ -29,7 +29,7 @@ import org.appdevforall.codeonthego.viewmodel.EditorViewModel.SearchResultSectio
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
-import com.itsaky.androidide.resources.R as ResR
+import org.appdevforall.codeonthego.resources.R as ResR
 
 // Sections, files and matches are flattened into a single row list so the hosting
 // RecyclerView can recycle match rows; a nested RecyclerView would inflate every

@@ -22,9 +22,9 @@ import android.content.DialogInterface.OnClickListener
 import android.view.LayoutInflater
 import android.view.View
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.common.databinding.LayoutDialogProgressBinding
-import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.resources.R.style
+import org.appdevforall.codeonthego.common.databinding.LayoutDialogProgressBinding
+import org.appdevforall.codeonthego.resources.R.string
+import org.appdevforall.codeonthego.resources.R.style
 import org.jetbrains.annotations.Contract
 import java.util.concurrent.atomic.AtomicInteger
 

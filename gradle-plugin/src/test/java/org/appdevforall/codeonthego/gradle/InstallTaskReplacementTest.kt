@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import com.android.build.gradle.internal.tasks.InstallVariantTask
 import com.android.build.gradle.internal.tasks.UninstallTask

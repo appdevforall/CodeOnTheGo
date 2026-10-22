@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import android.view.MenuItem
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.plugins.extensions.ShowAsAction
 import org.appdevforall.codeonthego.plugins.extensions.ToolbarAction
 import org.appdevforall.codeonthego.plugins.manager.pluginCategory

@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import com.android.build.api.variant.ApplicationVariant
 import com.android.build.api.variant.Sources

@@ -9,8 +9,8 @@ import android.widget.PopupWindow
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.PopupGitBranchesBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.PopupGitBranchesBinding
 import org.appdevforall.codeonthego.fragments.git.adapter.GitBranchAdapter
 import org.appdevforall.codeonthego.fragments.git.adapter.GitBranchListItem
 import org.appdevforall.codeonthego.git.core.models.GitBranch

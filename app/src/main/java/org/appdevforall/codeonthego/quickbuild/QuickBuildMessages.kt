@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.quickbuild
 
 import android.content.Context
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 
 /**

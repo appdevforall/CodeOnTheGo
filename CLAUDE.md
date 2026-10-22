@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) in this repository. This file is self-
 
 ## What this is
 
-Code On The Go (CoGo) is an Android IDE that runs *on the device* — edit, build, and deploy real Android apps from a phone, offline. It's the maintained successor to AndroidIDE, so the Gradle/AGP namespace stays `com.itsaky.androidide` even though the product is "Code On The Go". A bundled Termux provides the shell/toolchain; a `tooling-api` runs a real Gradle build inside the app.
+Code On The Go (CoGo) is an Android IDE that runs *on the device* — edit, build, and deploy real Android apps from a phone, offline. It's the maintained successor to AndroidIDE; its application id and Gradle/AGP namespace are `org.appdevforall.codeonthego` (vendored build-logic and fork packages keep `com.itsaky.androidide`, see ADR 0017). A bundled Termux provides the shell/toolchain; a `tooling-api` runs a real Gradle build inside the app.
 
 ## Build & test
 
@@ -16,7 +16,7 @@ flox activate -d flox/local -- ./gradlew <task>
 
 - **Debug APK (arm64, the usual target):** `flox activate -d flox/local -- ./gradlew :app:assembleV8Debug --parallel --max-workers=6`
 - **Module unit tests:** `flox activate -d flox/local -- ./gradlew :editor:testV7DebugUnitTest` - unit tests are per-flavor, there is no plain `test` task. `:plugin-api` is the one module without flavors: `:plugin-api:testDebugUnitTest`.
-- **Single unit test:** append `--tests "com.itsaky.androidide.SomeTest"` to the flavored task above.
+- **Single unit test:** append `--tests "org.appdevforall.codeonthego.SomeTest"` to the flavored task above.
 - **Fast iteration:** during multi-file/multi-module changes, verify with targeted `:module:compileV8DebugKotlin`/`compileV8DebugJavaWithJavac` invocations (batch several modules into one Gradle call) rather than a full assemble. Reserve `:app:assembleV8Debug` for final end-to-end verification — it's slow (multi-minute) in this multi-module project, and running it after every small change adds up.
 - **Long-running commands: narrate them, and background only the read-only ones.** Anything that can exceed ~60s — `assembleV8Debug`, a full test sweep, a cold Gradle invocation of any kind (daemon start plus configuring this many modules is ~20s before any task runs, and far worse under memory pressure), and `git push`, which runs Spotless through the hook — gets a line before it starts saying what is running and roughly how long it takes, and a status line every couple of minutes while it runs: elapsed time, the last output line, whether it is still progressing. A silent terminal is indistinguishable from a hang, and saying which it is is your job, not the user's to ask.
 

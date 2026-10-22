@@ -2,13 +2,13 @@ package org.appdevforall.codeonthego.actions.etc
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.EditorActivityAction
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.resources.R
 
 class ReplaceInProjectAction() : EditorActivityAction() {
 	override val id: String = ID

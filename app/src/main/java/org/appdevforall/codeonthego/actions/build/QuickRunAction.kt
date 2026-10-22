@@ -21,13 +21,13 @@ import android.content.Context
 import android.graphics.ColorFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.getContext
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.builder.BuildService
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tooling.api.messages.TaskExecutionMessage
 import org.appdevforall.codeonthego.tooling.api.models.BasicAndroidVariantMetadata
 import org.appdevforall.codeonthego.utils.resolveAttr

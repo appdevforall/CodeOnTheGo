@@ -22,8 +22,8 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.core.widget.addTextChangedListener
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutBuildVariantItemBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutBuildVariantItemBinding
 import org.appdevforall.codeonthego.tooling.api.IAndroidProject
 import org.appdevforall.codeonthego.tooling.api.models.BuildVariantInfo
 import org.appdevforall.codeonthego.tooling.api.models.BuildVariantInfo.Companion.withSelection

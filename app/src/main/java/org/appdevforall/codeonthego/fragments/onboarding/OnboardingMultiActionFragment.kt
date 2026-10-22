@@ -21,8 +21,8 @@ import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.databinding.LayoutOnboardingMultiactionBinding
 import org.appdevforall.codeonthego.adapters.onboarding.DefaultOnboardingItemAdapter
+import org.appdevforall.codeonthego.databinding.LayoutOnboardingMultiactionBinding
 import org.appdevforall.codeonthego.models.OnboardingItem
 import org.appdevforall.codeonthego.utils.uncheckedCast
 

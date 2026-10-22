@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +15,7 @@ import org.appdevforall.codeonthego.git.core.GitCredentialsManager
 import org.appdevforall.codeonthego.git.core.GitRepositoryManager
 import org.appdevforall.codeonthego.git.core.models.CloneRepoUiState
 import org.appdevforall.codeonthego.git.core.parseGitRepositoryUrl
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.isNetworkConnected
 import org.eclipse.jgit.api.errors.TransportException
 import org.eclipse.jgit.lib.ProgressMonitor

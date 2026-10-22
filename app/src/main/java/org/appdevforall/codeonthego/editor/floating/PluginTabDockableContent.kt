@@ -7,7 +7,7 @@ import android.util.Log
 import android.view.View
 import android.widget.TextView
 import androidx.fragment.app.FragmentFactory
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.floating.fragment.OverlayFragmentHost
 import org.appdevforall.codeonthego.floating.model.ChromeControl
 import org.appdevforall.codeonthego.floating.model.DockableContent

@@ -18,11 +18,11 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.VideoView
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.models.UiWidget
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 
 /**
  * Attribute adapter for [VideoView].

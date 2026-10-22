@@ -29,7 +29,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
 import org.appdevforall.codeonthego.templates.manager.models.TemplateProvenance
 import org.appdevforall.codeonthego.templates.manager.models.displayName

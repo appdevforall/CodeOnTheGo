@@ -26,9 +26,9 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import com.itsaky.androidide.uidesigner.databinding.LayoutAttrValueEditorBinding
-import com.itsaky.androidide.uidesigner.databinding.LayoutViewInfoHeaderBinding
 import org.appdevforall.codeonthego.inflater.internal.ViewImpl
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutAttrValueEditorBinding
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutViewInfoHeaderBinding
 import org.appdevforall.codeonthego.uidesigner.utils.ValueCompletionProvider
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 

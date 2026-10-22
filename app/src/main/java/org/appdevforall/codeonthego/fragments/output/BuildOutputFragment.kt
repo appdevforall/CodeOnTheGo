@@ -25,8 +25,6 @@ import android.widget.LinearLayout
 import androidx.appcompat.widget.ListPopupWindow
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -39,6 +37,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutLogFilterBarBinding
 import org.appdevforall.codeonthego.editor.ui.EditorSearchLayout
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipTag

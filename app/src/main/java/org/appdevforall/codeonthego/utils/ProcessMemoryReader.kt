@@ -21,12 +21,12 @@ import android.os.Debug
 import android.os.Debug.MemoryInfo
 import android.os.Process
 import androidx.annotation.VisibleForTesting
-import com.itsaky.androidide.BuildConfig
 import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.BuildConfig
 import org.slf4j.LoggerFactory
 import java.io.File
 

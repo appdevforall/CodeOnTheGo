@@ -4,9 +4,9 @@ import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiScrollable
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.testcases.api.scenario.Scenario
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByDescription
 import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeParentByText
 

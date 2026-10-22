@@ -18,7 +18,6 @@ package org.appdevforall.codeonthego.lsp.java.actions.generators
 
 import android.content.Context
 import android.view.View
-import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.ElementKind
 import jdkx.lang.model.element.ExecutableElement
@@ -52,6 +51,7 @@ import org.appdevforall.codeonthego.models.Position
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import org.appdevforall.codeonthego.preferences.utils.indentationString
 import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively
 import org.appdevforall.codeonthego.utils.flashError

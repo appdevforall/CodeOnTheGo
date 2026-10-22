@@ -5,7 +5,6 @@ import android.os.ParcelFileDescriptor
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.profiler.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -15,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.profiler.R
 import org.appdevforall.cotg.profiler.aidl.ICpuProfileObserver
 import org.appdevforall.cotg.profiler.aidl.IProcessListObserver
 import org.appdevforall.cotg.profiler.aidl.IProfilerService
@@ -212,11 +212,16 @@ class ProfilerViewModel(
 
 	private fun onStopProfiling() {
 		when (val current = _state.value) {
-			is ProfilerUiState.Profiling.CpuSampling ->
+			is ProfilerUiState.Profiling.CpuSampling -> {
 				// While finalizing the report the same button acts as "Cancel": abort the in-flight
 				// report generation instead of (re-)starting it.
 				if (current.finalizing) cancelCpuReport() else finalizeCpuProfiling(current.process)
-			is ProfilerUiState.Profiling.HeapDump -> cancelHeapDump()
+			}
+
+			is ProfilerUiState.Profiling.HeapDump -> {
+				cancelHeapDump()
+			}
+
 			else -> {} // not profiling — nothing to stop
 		}
 	}

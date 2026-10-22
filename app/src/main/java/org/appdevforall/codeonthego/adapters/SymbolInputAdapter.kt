@@ -23,9 +23,9 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutSymbolItemBinding
 import io.github.rosemoe.sora.widget.SelectionMovement
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutSymbolItemBinding
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag

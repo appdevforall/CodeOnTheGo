@@ -3,7 +3,6 @@ package org.appdevforall.codeonthego.assets
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.adfa.constants.ANDROID_SDK_ZIP
@@ -18,6 +17,7 @@ import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE_BR
 import org.appdevforall.codeonthego.app.configuration.CpuArch
 import org.appdevforall.codeonthego.managers.ToolsManager
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.TerminalInstaller
 import org.appdevforall.codeonthego.utils.retryOnceOnNoSuchFile

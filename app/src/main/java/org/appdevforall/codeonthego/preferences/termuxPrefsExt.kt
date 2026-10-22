@@ -21,7 +21,7 @@ import android.content.Context
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.app.IDEApplication
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_TERMUX
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_TERMUX_CRASHREPORTS

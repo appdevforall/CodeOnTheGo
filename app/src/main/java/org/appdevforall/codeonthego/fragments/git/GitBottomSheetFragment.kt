@@ -19,13 +19,13 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.FragmentGitBottomSheetBinding
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.PreferencesActivity
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
+import org.appdevforall.codeonthego.databinding.FragmentGitBottomSheetBinding
 import org.appdevforall.codeonthego.events.ListProjectFilesRequestEvent
 import org.appdevforall.codeonthego.fragments.git.adapter.GitFileChangeAdapter
 import org.appdevforall.codeonthego.git.core.GitCredentialsManager

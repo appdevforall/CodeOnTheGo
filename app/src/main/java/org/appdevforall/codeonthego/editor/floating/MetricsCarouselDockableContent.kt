@@ -23,11 +23,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import androidx.core.view.updateLayoutParams
-import com.itsaky.androidide.databinding.LayoutMemUsageBinding
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.databinding.LayoutMemUsageBinding
 import org.appdevforall.codeonthego.floating.model.ChromeControl
 import org.appdevforall.codeonthego.floating.model.DockableContent
 import org.appdevforall.codeonthego.floating.window.FloatingWindowHost
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.ui.MetricsCarouselController
 
 /**
@@ -85,7 +85,7 @@ class MetricsCarouselDockableContent(
 		binding.metricsNext.updateLayoutParams<ViewGroup.MarginLayoutParams> {
 			marginEnd =
 				context.resources.getDimensionPixelSize(
-					com.itsaky.androidide.R.dimen.metrics_carousel_undocked_arrow_margin_end,
+					org.appdevforall.codeonthego.R.dimen.metrics_carousel_undocked_arrow_margin_end,
 				)
 		}
 

@@ -73,3 +73,17 @@ listings).
 - [ADR 0003](0003-vendored-forked-desktop-toolchain.md) — vendored coordinates affected by the
   rename.
 - [ADFA-174](https://appdevforall.atlassian.net/browse/ADFA-174) — tracking ticket.
+
+## Implementation notes
+
+- **Still `com.itsaky.androidide`, by design:** vendored build logic and forks under
+  `composite-builds/` (`build.*`, `plugins.*` build plugins, `desugaring`, `layoutlib`, `zipfs2`,
+  `javac.config`, `fuzzysearch`), the `buildinfo.BuildInfo` template, the external
+  `android-tree-sitter` library, and the `com.itsaky.androidide.gradle:gradle-tooling-api` artifact.
+  None of these is tied to the application id.
+- **Hidden copies of the id** found by an on-device test of the new bootstrap: the data-dir
+  constants in `build-deps-common/constants` (`ANDROIDIDE_HOME`, `MAVEN_LOCAL_REPOSITORY`),
+  `TermuxConstants.TERMUX_PACKAGE_NAME`, the init-script template in `GenerateInitScriptTask`,
+  and the app id used as the injected Gradle plugin id.
+- **Firebase:** the app needs a Firebase client registered for `org.appdevforall.codeonthego`;
+  `AnalyticsManager` throws at first use without one.

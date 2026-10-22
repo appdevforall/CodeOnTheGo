@@ -5,7 +5,7 @@ package org.appdevforall.codeonthego.actions
 import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.plugins.extensions.MenuItem
 import org.appdevforall.codeonthego.plugins.manager.pluginCategory
 import org.appdevforall.codeonthego.plugins.manager.pluginTooltipTag

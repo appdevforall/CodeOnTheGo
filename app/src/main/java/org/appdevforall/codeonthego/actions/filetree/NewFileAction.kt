@@ -22,10 +22,6 @@ import android.content.DialogInterface
 import android.view.LayoutInflater
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
-import com.itsaky.androidide.databinding.LayoutCreateFileCppBinding
-import com.itsaky.androidide.databinding.LayoutCreateFileJavaBinding
-import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
-import com.itsaky.androidide.resources.R
 import com.unnamed.b.atv.model.TreeNode
 import jdkx.lang.model.SourceVersion
 import kotlinx.coroutines.CancellationException
@@ -33,11 +29,15 @@ import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.FileActionManager
 import org.appdevforall.codeonthego.actions.observers.FileActionObserver
 import org.appdevforall.codeonthego.actions.requireFile
+import org.appdevforall.codeonthego.databinding.LayoutCreateFileCppBinding
+import org.appdevforall.codeonthego.databinding.LayoutCreateFileJavaBinding
 import org.appdevforall.codeonthego.eventbus.events.file.FileCreationEvent
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.idetooltips.attachTooltip
+import org.appdevforall.codeonthego.preferences.databinding.LayoutDialogTextInputBinding
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.templates.base.models.Dependency
 import org.appdevforall.codeonthego.utils.ClassBuilder.SourceLanguage
 import org.appdevforall.codeonthego.utils.DialogUtils

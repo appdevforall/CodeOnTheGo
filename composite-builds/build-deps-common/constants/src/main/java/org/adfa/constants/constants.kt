@@ -39,7 +39,7 @@ const val GRADLE_DISTRIBUTION_ARCHIVE_NAME = "$GRADLE_DISTRIBUTION_NAME-bin.zip"
 const val IDE_DATA_DIR_NAME = ".cg"
 
 @Suppress("SdCardPath")
-const val ANDROIDIDE_HOME = "/data/data/com.itsaky.androidide/files/home/$IDE_DATA_DIR_NAME"
+const val ANDROIDIDE_HOME = "/data/data/org.appdevforall.codeonthego/files/home/$IDE_DATA_DIR_NAME"
 
 // Code On the Go gradle plugin
 const val COGO_GRADLE_PLUGIN_NAME = "cogo-plugin"
@@ -61,7 +61,7 @@ const val LOCAL_MAVEN_CACHES_DEST = "$HOME_PATH/maven"
 const val LOCAL_MAVEN_REPO_FOLDER_DEST = "localMvnRepository"
 
 @Suppress("SdCardPath")
-const val MAVEN_LOCAL_REPOSITORY = "/data/data/com.itsaky.androidide/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"
+const val MAVEN_LOCAL_REPOSITORY = "/data/data/org.appdevforall.codeonthego/files/$LOCAL_MAVEN_CACHES_DEST/$LOCAL_MAVEN_REPO_FOLDER_DEST"
 
 // Plugin maven-repo overlay (plugin-api + plugin-builder coordinates + marker)
 const val PLUGIN_MAVEN_REPO_ZIP_NAME = "plugin-maven-repo.zip"

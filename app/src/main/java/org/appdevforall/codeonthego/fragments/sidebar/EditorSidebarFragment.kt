@@ -19,8 +19,8 @@ package org.appdevforall.codeonthego.fragments.sidebar
 
 import android.os.Bundle
 import android.view.View
-import com.itsaky.androidide.databinding.FragmentEditorSidebarBinding
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
+import org.appdevforall.codeonthego.databinding.FragmentEditorSidebarBinding
 import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipCategory
 import org.appdevforall.codeonthego.idetooltips.TooltipManager

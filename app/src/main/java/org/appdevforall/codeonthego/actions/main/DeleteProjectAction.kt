@@ -3,7 +3,7 @@ package org.appdevforall.codeonthego.actions.main
 import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.markInvisible

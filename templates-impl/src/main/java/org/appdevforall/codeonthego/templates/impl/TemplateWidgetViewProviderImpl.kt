@@ -35,15 +35,13 @@ import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.textfield.TextInputLayout
 import com.google.auto.service.AutoService
-import com.itsaky.androidide.resources.databinding.LayoutSpinnerBinding
-import com.itsaky.androidide.templates.impl.databinding.LayoutCheckboxBinding
-import com.itsaky.androidide.templates.impl.databinding.LayoutTextfieldBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.resources.ITooltipView
+import org.appdevforall.codeonthego.resources.databinding.LayoutSpinnerBinding
 import org.appdevforall.codeonthego.templates.BooleanParameter
 import org.appdevforall.codeonthego.templates.CheckBoxWidget
 import org.appdevforall.codeonthego.templates.EnumParameter
@@ -56,6 +54,8 @@ import org.appdevforall.codeonthego.templates.StringParameter
 import org.appdevforall.codeonthego.templates.TextFieldParameter
 import org.appdevforall.codeonthego.templates.TextFieldWidget
 import org.appdevforall.codeonthego.templates.Widget
+import org.appdevforall.codeonthego.templates.impl.databinding.LayoutCheckboxBinding
+import org.appdevforall.codeonthego.templates.impl.databinding.LayoutTextfieldBinding
 import org.appdevforall.codeonthego.utils.ServiceLoader
 import org.appdevforall.codeonthego.utils.SingleTextWatcher
 

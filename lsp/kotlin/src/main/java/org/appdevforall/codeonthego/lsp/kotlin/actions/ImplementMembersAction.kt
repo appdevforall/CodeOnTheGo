@@ -1,6 +1,5 @@
 package org.appdevforall.codeonthego.lsp.kotlin.actions
 
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.get
 import org.appdevforall.codeonthego.actions.requireEditor
@@ -21,6 +20,7 @@ import org.appdevforall.codeonthego.lsp.models.DocumentChange
 import org.appdevforall.codeonthego.lsp.models.TextEdit
 import org.appdevforall.codeonthego.models.Range
 import org.appdevforall.codeonthego.progress.ICancelChecker
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tasks.createJobCancelChecker
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
 import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol

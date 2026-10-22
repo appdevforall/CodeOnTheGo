@@ -26,13 +26,13 @@ import static org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.
 import static org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.forKeyword;
 import static org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE.forString;
 
-import com.itsaky.androidide.lexers.cpp.CPP14Lexer;
 import io.github.rosemoe.sora.lang.styling.Span;
 import java.util.ArrayList;
 import java.util.List;
 import org.appdevforall.codeonthego.editor.language.incremental.BaseIncrementalAnalyzeManager;
 import org.appdevforall.codeonthego.editor.language.incremental.IncrementalToken;
 import org.appdevforall.codeonthego.editor.language.incremental.LineState;
+import org.appdevforall.codeonthego.lexers.cpp.CPP14Lexer;
 
 public class CppAnalyzer extends BaseIncrementalAnalyzeManager {
 

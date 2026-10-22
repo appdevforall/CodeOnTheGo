@@ -29,18 +29,18 @@ import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
-import com.itsaky.androidide.common.databinding.ActivityHelpBinding
-import com.itsaky.androidide.resources.R
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 import org.appdevforall.codeonthego.app.BaseIDEActivity
+import org.appdevforall.codeonthego.common.databinding.ActivityHelpBinding
 import org.appdevforall.codeonthego.documentation.DocumentationRequestInterceptor
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.DeviceFormFactorUtils
 import org.appdevforall.codeonthego.utils.UrlManager
 import org.appdevforall.codeonthego.utils.applyMultiWindowFlags
 import org.appdevforall.codeonthego.utils.isSystemInDarkMode
 import org.slf4j.LoggerFactory
-import com.itsaky.androidide.common.R as CommonR
+import org.appdevforall.codeonthego.common.R as CommonR
 
 class HelpActivity : BaseIDEActivity() {
 	companion object {

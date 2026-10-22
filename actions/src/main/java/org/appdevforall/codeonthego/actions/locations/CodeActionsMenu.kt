@@ -20,11 +20,11 @@ package org.appdevforall.codeonthego.actions.locations
 import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionMenu
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
 
 /** @author Akash Yadav */
 object CodeActionsMenu : ActionMenu {

@@ -7,8 +7,8 @@ import android.view.ViewGroup
 import androidx.core.view.updateLayoutParams
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.ContentEditorBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.ContentEditorBinding
 import org.appdevforall.codeonthego.utils.isSoftInputVisible
 import kotlin.math.abs
 

@@ -2,12 +2,12 @@ package org.appdevforall.codeonthego.quickbuild
 
 import android.content.Context
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.resources.R
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.projects.builder.BuildService
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tooling.api.messages.InitializeProjectParams
 import org.appdevforall.codeonthego.tooling.api.messages.TaskExecutionMessage
 import org.appdevforall.codeonthego.tooling.api.messages.result.BuildCancellationRequestResult

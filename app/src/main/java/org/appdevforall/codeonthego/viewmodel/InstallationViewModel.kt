@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.StatFs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.resources.R
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,6 +19,7 @@ import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
 import org.appdevforall.codeonthego.assets.AssetsInstallationHelper
 import org.appdevforall.codeonthego.events.InstallationEvent
 import org.appdevforall.codeonthego.models.StorageInfo
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.Environment
 import org.appdevforall.codeonthego.utils.bytesToGigabytes
 import org.appdevforall.codeonthego.utils.getMinimumStorageNeeded

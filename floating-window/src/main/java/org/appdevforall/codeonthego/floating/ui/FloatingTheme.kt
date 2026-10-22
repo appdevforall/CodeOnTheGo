@@ -11,7 +11,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import org.appdevforall.codeonthego.common.compose.IdeTheme
-import com.itsaky.androidide.resources.R as ResR
+import org.appdevforall.codeonthego.resources.R as ResR
 
 private val AtkinsonHyperlegible: FontFamily =
 	FontFamily(

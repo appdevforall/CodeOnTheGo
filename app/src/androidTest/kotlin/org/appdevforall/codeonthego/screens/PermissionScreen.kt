@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.screens
 
 import android.view.View
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import io.github.kakaocup.kakao.recycler.KRecyclerItem
 import io.github.kakaocup.kakao.recycler.KRecyclerView
 import io.github.kakaocup.kakao.text.KButton
 import io.github.kakaocup.kakao.text.KTextView
+import org.appdevforall.codeonthego.R
 import org.hamcrest.Matcher
 
 object PermissionScreen : KScreen<PermissionScreen>() {

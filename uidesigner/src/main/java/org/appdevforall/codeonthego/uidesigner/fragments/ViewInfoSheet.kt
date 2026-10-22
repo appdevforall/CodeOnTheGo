@@ -29,8 +29,8 @@ import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.NavHostFragment
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.databinding.LayoutViewInfoSheetBinding
+import org.appdevforall.codeonthego.uidesigner.R
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutViewInfoSheetBinding
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 
 /** @author Akash Yadav */

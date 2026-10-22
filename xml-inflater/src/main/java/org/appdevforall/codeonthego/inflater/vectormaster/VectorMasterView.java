@@ -26,7 +26,6 @@ import android.graphics.Matrix;
 import android.graphics.Path;
 import android.util.AttributeSet;
 import android.view.View;
-import com.itsaky.androidide.resources.R;
 import java.io.IOException;
 import java.util.Stack;
 import org.appdevforall.codeonthego.inflater.vectormaster.models.ClipPathModel;
@@ -34,6 +33,7 @@ import org.appdevforall.codeonthego.inflater.vectormaster.models.GroupModel;
 import org.appdevforall.codeonthego.inflater.vectormaster.models.PathModel;
 import org.appdevforall.codeonthego.inflater.vectormaster.models.VectorModel;
 import org.appdevforall.codeonthego.inflater.vectormaster.utilities.Utils;
+import org.appdevforall.codeonthego.resources.R;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 

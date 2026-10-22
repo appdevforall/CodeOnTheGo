@@ -30,7 +30,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.plugins.PluginInfo
 import org.appdevforall.codeonthego.templates.manager.models.versionLabel
 import org.appdevforall.codeonthego.ui.compose.common.FileImage

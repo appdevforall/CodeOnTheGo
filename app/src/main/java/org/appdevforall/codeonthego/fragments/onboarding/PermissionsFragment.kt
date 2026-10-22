@@ -38,20 +38,20 @@ import androidx.recyclerview.widget.RecyclerView
 import com.github.appintro.SlidePolicy
 import com.github.appintro.SlideSelectionListener
 import com.google.android.material.button.MaterialButton
-import com.itsaky.androidide.R
 import com.itsaky.androidide.buildinfo.BuildInfo
-import com.itsaky.androidide.databinding.LayoutDialogPrivacyConsentBinding
-import com.itsaky.androidide.databinding.LayoutOnboardingPermissionsBinding
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.OnboardingActivity
 import org.appdevforall.codeonthego.adapters.onboarding.OnboardingPermissionsAdapter
 import org.appdevforall.codeonthego.app.DeviceProtectedApplicationLoader
 import org.appdevforall.codeonthego.app.IDEApplication
+import org.appdevforall.codeonthego.databinding.LayoutDialogPrivacyConsentBinding
+import org.appdevforall.codeonthego.databinding.LayoutOnboardingPermissionsBinding
 import org.appdevforall.codeonthego.events.InstallationEvent
 import org.appdevforall.codeonthego.preferences.internal.StatPreferences
 import org.appdevforall.codeonthego.preferences.internal.TelemetryConsent
@@ -439,7 +439,7 @@ class PermissionsFragment :
 
 		val dialog =
 			builder
-				.setTitle(com.itsaky.androidide.resources.R.string.privacy_disclosure_title)
+				.setTitle(org.appdevforall.codeonthego.resources.R.string.privacy_disclosure_title)
 				.setView(binding.root)
 				.setCancelable(false)
 				.create()

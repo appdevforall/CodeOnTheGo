@@ -53,7 +53,7 @@ class GlitchTipDiagnosticsContextTest {
 		System.setProperty("androidide.test.mode", "true")
 
 		app = mockk(relaxed = true)
-		every { app.packageName } returns "com.itsaky.androidide"
+		every { app.packageName } returns "org.appdevforall.codeonthego"
 		every { app.filesDir } returns File("/tmp/androidide-test")
 		every { app.isUserUnlocked } returns true
 

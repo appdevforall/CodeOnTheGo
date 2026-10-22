@@ -29,7 +29,7 @@ object BuildConfig {
 	const val INTERNAL_NAME = "CodeOnTheGo"
 
 	/** AndroidIDE's package name. */
-	const val PACKAGE_NAME = "com.itsaky.androidide"
+	const val PACKAGE_NAME = "org.appdevforall.codeonthego"
 
 	/** The compile SDK version. */
 	const val COMPILE_SDK = 36

@@ -17,7 +17,7 @@
 
 package org.appdevforall.codeonthego.flashbar
 
-import com.itsaky.androidide.flashbar.R
+import org.appdevforall.codeonthego.flashbar.R
 
 import android.app.Activity
 import android.graphics.Bitmap

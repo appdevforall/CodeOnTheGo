@@ -384,7 +384,7 @@ class IdeArchiveServiceImpl(
 		const val COPY_BUFFER_SIZE = 64 * 1024
 		const val PROGRESS_REPORT_INTERVAL = 1L * 1024 * 1024
 		const val OWNER_EXECUTE_BIT = 0b001_000_000
-		const val TERMUX_BIN_PATH = "/data/data/com.itsaky.androidide/files/usr/bin"
+		const val TERMUX_BIN_PATH = "/data/data/org.appdevforall.codeonthego/files/usr/bin"
 		val writePermissions =
 			setOf(
 				PluginPermission.FILESYSTEM_WRITE,

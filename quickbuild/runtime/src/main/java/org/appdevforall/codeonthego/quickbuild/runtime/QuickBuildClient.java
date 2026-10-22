@@ -25,7 +25,7 @@ final class QuickBuildClient implements ServiceConnection {
 	static final String SERVICE_ACTION = "org.appdevforall.codeonthego.QUICK_BUILD_ACTION";
 
 	/** CoGo's package name (same constant the LogSender uses). */
-	static final String IDE_PACKAGE = "com.itsaky.androidide";
+	static final String IDE_PACKAGE = "org.appdevforall.codeonthego";
 
 	/** First rebind delay, doubled per failed attempt. */
 	private static final int REBIND_MIN_DELAY_MS = 1000;

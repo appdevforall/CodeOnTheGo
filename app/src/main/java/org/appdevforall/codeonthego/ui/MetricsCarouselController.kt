@@ -37,9 +37,6 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.ImageViewCompat
 import androidx.viewpager2.widget.ViewPager2
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutMemUsageBinding
-import com.itsaky.androidide.resources.R.string
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,9 +44,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
+import org.appdevforall.codeonthego.databinding.LayoutMemUsageBinding
 import org.appdevforall.codeonthego.floating.window.OverlayDialogs
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.IntentUtils
 import org.appdevforall.codeonthego.utils.MemoryUsageWatcher

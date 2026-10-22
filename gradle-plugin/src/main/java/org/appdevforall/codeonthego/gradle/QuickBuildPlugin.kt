@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import com.android.build.api.artifact.ScopedArtifact
 import com.android.build.api.artifact.SingleArtifact
@@ -8,12 +8,12 @@ import com.android.build.api.variant.ApplicationVariant
 import com.android.build.api.variant.ScopedArtifacts
 import com.android.build.api.variant.SourceDirectories
 import com.android.build.api.variant.impl.ApplicationVariantImpl
-import com.itsaky.androidide.gradle.quickbuild.BaselineGenerationAsset
-import com.itsaky.androidide.gradle.quickbuild.QuickBuildBaselineGenerationTask
-import com.itsaky.androidide.gradle.quickbuild.QuickBuildGenerateSourcesTask
-import com.itsaky.androidide.gradle.quickbuild.QuickBuildPayloadDexTask
-import com.itsaky.androidide.gradle.quickbuild.QuickBuildPayloadTransformTask
-import com.itsaky.androidide.gradle.quickbuild.QuickBuildProxyAppReportTask
+import org.appdevforall.codeonthego.gradle.quickbuild.BaselineGenerationAsset
+import org.appdevforall.codeonthego.gradle.quickbuild.QuickBuildBaselineGenerationTask
+import org.appdevforall.codeonthego.gradle.quickbuild.QuickBuildGenerateSourcesTask
+import org.appdevforall.codeonthego.gradle.quickbuild.QuickBuildPayloadDexTask
+import org.appdevforall.codeonthego.gradle.quickbuild.QuickBuildPayloadTransformTask
+import org.appdevforall.codeonthego.gradle.quickbuild.QuickBuildProxyAppReportTask
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_BASELINE_GENERATION
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_RUNTIME_AAR

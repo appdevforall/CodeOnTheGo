@@ -21,15 +21,15 @@ import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GENERAL
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GENERAL_CONFIRMOPEN
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GENERAL_LANGUAGE
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GENERAL_OPENLAST
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GENERAL_UIMODE
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.resources.localization.LocaleProvider
 import kotlinx.parcelize.Parcelize
 

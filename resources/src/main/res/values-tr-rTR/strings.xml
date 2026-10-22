@@ -279,7 +279,7 @@
   <string name="xml_formatting_options">XML biçimlendirme seçenekleri</string>
   <string name="xml_formatting_options_summary">XML biçimlendiriciyi yapılandır</string>
   <string name="idepref_customFont_title">Kişisel yazı tipi kullan</string>
-  <string name="idepref_customFont_summary">Eğer etkinleştirilmişse \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" konumundaki dosya Düzenleyici yazı tipi olarak kullanılacak.</string>
+  <string name="idepref_customFont_summary">Eğer etkinleştirilmişse \"/data/data/org.appdevforall.codeonthego/files/home/.cg/ui/font.ttf\" konumundaki dosya Düzenleyici yazı tipi olarak kullanılacak.</string>
   <string name="msg_installing_apk">APK kuruluyor...</string>
   <string name="msg_action_open_application">Uygulamayı açmak ister misiniz?</string>
   <string name="title_gradle_service_notification_channel">Code on the Go Gradle inşa servisi</string>
@@ -465,3 +465,4 @@
   <string name="idepref_jdkVersion_title">JDK sürümü</string>
   <string name="idepref_jdkVersion_summary">Seçili olan: %1$s (değiştirildiğinde uygulamayı yeniden başlatmalısınız)</string>
 </resources>
+

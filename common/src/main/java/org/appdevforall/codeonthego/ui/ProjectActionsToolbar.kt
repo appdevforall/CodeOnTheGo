@@ -11,8 +11,8 @@ import android.view.View
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import com.google.android.material.appbar.MaterialToolbar
-import com.itsaky.androidide.common.R
-import com.itsaky.androidide.common.databinding.ProjectActionsToolbarBinding
+import org.appdevforall.codeonthego.common.R
+import org.appdevforall.codeonthego.common.databinding.ProjectActionsToolbarBinding
 
 class ProjectActionsToolbar
 	@JvmOverloads

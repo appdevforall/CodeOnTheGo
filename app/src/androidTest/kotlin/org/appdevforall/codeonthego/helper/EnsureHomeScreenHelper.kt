@@ -7,9 +7,9 @@ import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import org.appdevforall.codeonthego.BuildConfig
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.MainActivity
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
 import org.appdevforall.codeonthego.screens.HomeScreen

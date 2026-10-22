@@ -19,8 +19,8 @@ package org.appdevforall.codeonthego.uidesigner.actions
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.uidesigner.R
 import org.appdevforall.codeonthego.actions.ActionData
+import org.appdevforall.codeonthego.uidesigner.R
 
 /**
  * Undo action for UI Designer.

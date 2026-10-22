@@ -19,7 +19,7 @@ package org.appdevforall.codeonthego.fragments.onboarding
 
 import android.os.Bundle
 import android.view.View
-import com.itsaky.androidide.databinding.FragmentOnboardingGreetingBinding
+import org.appdevforall.codeonthego.databinding.FragmentOnboardingGreetingBinding
 import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 import org.appdevforall.codeonthego.utils.FeatureFlags
 

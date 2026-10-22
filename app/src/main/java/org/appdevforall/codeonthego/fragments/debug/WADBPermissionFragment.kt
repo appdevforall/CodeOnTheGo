@@ -7,12 +7,12 @@ import androidx.annotation.RequiresApi
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.FragmentWadbConnectionBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.FragmentWadbConnectionBinding
 import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 import org.appdevforall.codeonthego.utils.viewLifecycleScope
 import org.appdevforall.codeonthego.viewmodel.WADBConnectionViewModel

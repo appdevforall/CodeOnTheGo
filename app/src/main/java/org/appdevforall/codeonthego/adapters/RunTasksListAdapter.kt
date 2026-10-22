@@ -20,8 +20,8 @@ package org.appdevforall.codeonthego.adapters
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.databinding.LayoutRunTaskItemBinding
 import org.appdevforall.codeonthego.adapters.RunTasksListAdapter.VH
+import org.appdevforall.codeonthego.databinding.LayoutRunTaskItemBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.models.Checkable

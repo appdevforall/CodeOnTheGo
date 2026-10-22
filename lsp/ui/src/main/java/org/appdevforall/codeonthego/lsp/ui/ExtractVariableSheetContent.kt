@@ -22,7 +22,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 
 /**
  * The extract-variable sheet: one surface holding every choice, with no navigation between steps.

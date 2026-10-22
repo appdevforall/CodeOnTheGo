@@ -16,9 +16,9 @@
  */
 package org.appdevforall.codeonthego.lsp.xml.utils
 
-import com.itsaky.androidide.lexers.xml.XMLLexer
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.Token
+import org.appdevforall.codeonthego.lexers.xml.XMLLexer
 import org.appdevforall.codeonthego.lsp.xml.utils.XmlUtils.NodeType.ATTRIBUTE
 import org.appdevforall.codeonthego.lsp.xml.utils.XmlUtils.NodeType.ATTRIBUTE_VALUE
 import org.appdevforall.codeonthego.lsp.xml.utils.XmlUtils.NodeType.TAG

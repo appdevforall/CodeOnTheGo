@@ -2,8 +2,8 @@ package org.appdevforall.codeonthego.helper
 
 import android.Manifest
 import androidx.test.platform.app.InstrumentationRegistry
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.screens.PermissionScreen
 import org.appdevforall.codeonthego.utils.PermissionsHelper
 

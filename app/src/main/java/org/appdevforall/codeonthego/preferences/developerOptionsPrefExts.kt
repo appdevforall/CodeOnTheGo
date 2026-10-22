@@ -17,7 +17,7 @@
 
 package org.appdevforall.codeonthego.preferences
 
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_DEVOPTIONS
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_DEVOPTIONS_DUMPLOGS
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_DEVOPTIONS_LOGSENDER

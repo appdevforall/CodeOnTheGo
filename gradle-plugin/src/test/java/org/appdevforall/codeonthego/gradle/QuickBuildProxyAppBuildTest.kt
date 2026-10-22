@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import com.google.common.truth.Truth.assertThat
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_BASELINE_GENERATION

@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -12,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.eventbus.events.file.FileRenameEvent
 import org.appdevforall.codeonthego.projects.FileManager
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.FileUtils
 import org.greenrobot.eventbus.EventBus
 import java.io.File

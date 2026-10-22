@@ -20,12 +20,12 @@ package org.appdevforall.codeonthego.lsp.java.actions.diagnostics
 import android.content.Context
 import android.view.View
 import android.widget.ListView
-import com.itsaky.androidide.lsp.java.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.actions.requirePath
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.lsp.java.R
 import org.appdevforall.codeonthego.lsp.java.actions.BaseJavaCodeAction
 import org.appdevforall.codeonthego.lsp.java.compiler.CompileTask
 import org.appdevforall.codeonthego.lsp.java.models.DiagnosticCode

@@ -27,14 +27,14 @@ import android.widget.ImageView.ScaleType.FIT_END
 import android.widget.ImageView.ScaleType.FIT_START
 import android.widget.ImageView.ScaleType.FIT_XY
 import android.widget.ImageView.ScaleType.MATRIX
-import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.models.UiWidget
+import org.appdevforall.codeonthego.resources.R
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 
 /**
  * Attribute adpater [ImageView]s.

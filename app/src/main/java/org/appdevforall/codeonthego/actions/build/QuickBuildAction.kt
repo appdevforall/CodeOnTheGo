@@ -9,7 +9,6 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,6 +20,7 @@ import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.quickbuild.QuickBuildGraphWarmUp
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.resolveAttr
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildTone

@@ -4,7 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.databinding.DeleteProjectsItemBinding
+import org.appdevforall.codeonthego.databinding.DeleteProjectsItemBinding
 import org.appdevforall.codeonthego.models.Checkable
 import org.appdevforall.codeonthego.models.ProjectFile
 

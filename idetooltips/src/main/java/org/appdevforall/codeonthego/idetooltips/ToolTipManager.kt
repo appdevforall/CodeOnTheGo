@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.idetooltips
 
 
-import com.itsaky.androidide.idetooltips.R
+import org.appdevforall.codeonthego.idetooltips.R
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -36,7 +36,7 @@ import org.appdevforall.codeonthego.utils.FeedbackManager
 import org.appdevforall.codeonthego.utils.UrlManager
 import org.appdevforall.codeonthego.utils.isSystemInDarkMode
 import org.appdevforall.codeonthego.utils.toCssHex
-import com.itsaky.androidide.resources.R as ResR
+import org.appdevforall.codeonthego.resources.R as ResR
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

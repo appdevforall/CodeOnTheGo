@@ -25,8 +25,8 @@ import androidx.core.graphics.ColorUtils
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutOnboardingPermissionItemBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutOnboardingPermissionItemBinding
 import org.appdevforall.codeonthego.models.OnboardingPermissionItem
 import org.appdevforall.codeonthego.utils.dpToPx
 

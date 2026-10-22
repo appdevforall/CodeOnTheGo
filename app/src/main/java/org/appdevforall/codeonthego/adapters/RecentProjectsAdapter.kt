@@ -14,9 +14,9 @@ import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.RenameProjectTextinputBinding
-import com.itsaky.androidide.databinding.SavedRecentProjectItemBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.RenameProjectTextinputBinding
+import org.appdevforall.codeonthego.databinding.SavedRecentProjectItemBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DELETE_PROJECT_DIALOG

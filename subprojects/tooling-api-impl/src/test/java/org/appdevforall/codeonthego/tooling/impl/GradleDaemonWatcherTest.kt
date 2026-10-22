@@ -234,7 +234,7 @@ class GradleDaemonWatcherTest {
 		/** What the daemon's command line looks like on device, trimmed to the identifying part. */
 		const val DAEMON_COMMAND_LINE =
 			"/usr/bin/java -Xmx4620m -XX:MaxMetaspaceSize=384m -cp " +
-				"/data/data/com.itsaky.androidide/files/home/.cg/gradle-dists/gradle-8.14.3/lib/" +
+				"/data/data/org.appdevforall.codeonthego/files/home/.cg/gradle-dists/gradle-8.14.3/lib/" +
 				"gradle-daemon-main-8.14.3.jar " +
 				GradleDaemonWatcher.DAEMON_MAIN_CLASS + " 8.14.3"
 

@@ -24,7 +24,6 @@ import com.github.javaparser.ast.expr.SimpleName
 import com.github.javaparser.ast.stmt.BlockStmt
 import com.github.javaparser.ast.type.Type
 import com.github.javaparser.ast.type.VoidType
-import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.widget.CodeEditor
 import jdkx.lang.model.element.Modifier.FINAL
 import jdkx.lang.model.element.VariableElement
@@ -44,6 +43,7 @@ import org.appdevforall.codeonthego.lsp.java.utils.TypeUtils.toType
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import org.appdevforall.codeonthego.preferences.utils.indentationString
 import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.flashError
 import org.slf4j.LoggerFactory

@@ -5,7 +5,7 @@ import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.provider.Settings
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.getMinimumStorageNeeded
 
 fun Activity.showLowStorageDialog() {

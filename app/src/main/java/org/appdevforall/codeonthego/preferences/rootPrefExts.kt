@@ -17,7 +17,7 @@
 
 package org.appdevforall.codeonthego.preferences
 
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.utils.FeatureFlags
 import kotlinx.parcelize.Parcelize
 

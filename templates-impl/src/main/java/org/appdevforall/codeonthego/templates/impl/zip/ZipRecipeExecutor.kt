@@ -3,7 +3,6 @@ package org.appdevforall.codeonthego.templates.impl.zip
 import android.annotation.SuppressLint
 import android.content.Context
 import androidx.annotation.StringRes
-import com.itsaky.androidide.templates.impl.R
 import dalvik.system.DexClassLoader
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.error.PebbleException
@@ -20,6 +19,7 @@ import org.appdevforall.codeonthego.templates.ProjectTemplateData
 import org.appdevforall.codeonthego.templates.ProjectTemplateRecipeResult
 import org.appdevforall.codeonthego.templates.RecipeExecutor
 import org.appdevforall.codeonthego.templates.TemplateRecipe
+import org.appdevforall.codeonthego.templates.impl.R
 import org.appdevforall.codeonthego.templates.impl.base.ProjectTemplateRecipeResultImpl
 import org.appdevforall.codeonthego.utils.Environment
 import org.slf4j.LoggerFactory

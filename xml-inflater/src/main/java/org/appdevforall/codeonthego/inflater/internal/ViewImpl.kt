@@ -20,7 +20,6 @@ package org.appdevforall.codeonthego.inflater.internal
 import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.core.content.ContextCompat.getDrawable
-import com.itsaky.androidide.resources.R.drawable
 import org.appdevforall.codeonthego.inflater.IAttribute
 import org.appdevforall.codeonthego.inflater.INamespace
 import org.appdevforall.codeonthego.inflater.IView
@@ -30,6 +29,7 @@ import org.appdevforall.codeonthego.inflater.internal.utils.simpleName
 import org.appdevforall.codeonthego.inflater.internal.utils.tagName
 import org.appdevforall.codeonthego.inflater.utils.newAttribute
 import org.appdevforall.codeonthego.inflater.viewAdapter
+import org.appdevforall.codeonthego.resources.R.drawable
 import org.slf4j.LoggerFactory
 
 open class ViewImpl

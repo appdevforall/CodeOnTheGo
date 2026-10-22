@@ -17,11 +17,11 @@
 
 package org.appdevforall.codeonthego.preferences
 
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.preferences.internal.JavaPreferences
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 import kotlinx.parcelize.Parcelize
 
 @Parcelize

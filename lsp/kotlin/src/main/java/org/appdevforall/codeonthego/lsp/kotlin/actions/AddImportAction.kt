@@ -3,7 +3,6 @@ package org.appdevforall.codeonthego.lsp.kotlin.actions
 import android.content.Context
 import android.view.View
 import android.widget.ListView
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.actions.ActionData
@@ -28,6 +27,7 @@ import org.appdevforall.codeonthego.lsp.models.Command
 import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
 import org.appdevforall.codeonthego.lsp.models.DocumentChange
 import org.appdevforall.codeonthego.lsp.models.TextEdit
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashInfo

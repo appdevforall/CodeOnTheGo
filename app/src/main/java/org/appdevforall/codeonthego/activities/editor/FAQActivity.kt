@@ -24,10 +24,10 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.graphics.Insets
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.ActivityFaqBinding
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
+import org.appdevforall.codeonthego.databinding.ActivityFaqBinding
 import org.appdevforall.codeonthego.documentation.DocumentationRequestInterceptor
 
 class FAQActivity : EdgeToEdgeIDEActivity() {

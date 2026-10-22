@@ -22,8 +22,6 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.inflater.ViewAdapter
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
@@ -35,6 +33,8 @@ import org.appdevforall.codeonthego.inflater.LayoutStrategy
 import org.appdevforall.codeonthego.inflater.internal.LayoutFile
 import org.appdevforall.codeonthego.inflater.models.UiWidget
 import org.appdevforall.codeonthego.inflater.utils.newAttribute
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 
 /**
  * Attribute adapter for [LinearLayout].

@@ -17,13 +17,13 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.startForegroundService
 import androidx.core.view.setPadding
 import com.google.android.material.textview.MaterialTextView
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.adb.AdbPairingService
 import org.adfa.constants.CONTENT_KEY
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.activities.editor.HelpActivity
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.PermissionsHelper
 import org.appdevforall.codeonthego.utils.appendHtmlWithLinks

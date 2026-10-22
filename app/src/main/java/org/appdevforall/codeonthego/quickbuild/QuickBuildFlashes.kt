@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.quickbuild
 
 import androidx.annotation.StringRes
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.session.SessionFailure
 

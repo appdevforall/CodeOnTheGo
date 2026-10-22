@@ -4,15 +4,15 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.R
-import com.itsaky.androidide.resources.R.string
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.activities.editor.HelpActivity
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R.string
 
 class DocsAction(
 	context: Context,

@@ -18,13 +18,13 @@
 package org.appdevforall.codeonthego.inflater.internal.adapters
 
 import android.widget.ScrollView
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.IViewGroup
 import org.appdevforall.codeonthego.inflater.models.UiWidget
+import org.appdevforall.codeonthego.resources.R
 
 /**
  * View adapter for [ScrollView].

@@ -98,7 +98,7 @@ class UtilTest {
 			assertThat(isValid("2invalid.package", listOf(PACKAGE))).isFalse()
 			assertThat(isValid("invalid.package", listOf(PACKAGE))).isFalse()
 			assertThat(isValid("inval0d.PacKage", listOf(PACKAGE))).isFalse()
-			assertThat(isValid("com.itsaky.androidide", listOf(PACKAGE))).isTrue()
+			assertThat(isValid("org.appdevforall.codeonthego", listOf(PACKAGE))).isTrue()
 
 			assertThat(isValid("Class", listOf(CLASS))).isTrue()
 			assertThat(isValid("pck.name.Class", listOf(CLASS))).isTrue()

@@ -19,11 +19,11 @@ package org.appdevforall.codeonthego.actions.filetree
 
 import android.content.Context
 import android.content.Intent
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.actions.requireFile
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.IntentUtils
 
 /**

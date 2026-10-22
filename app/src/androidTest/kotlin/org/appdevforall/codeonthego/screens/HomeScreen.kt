@@ -1,12 +1,12 @@
 package org.appdevforall.codeonthego.screens
 
 import androidx.test.platform.app.InstrumentationRegistry
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import io.github.kakaocup.kakao.text.KTextView
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByText
-import com.itsaky.androidide.resources.R as ResourcesR
+import org.appdevforall.codeonthego.resources.R as ResourcesR
 
 object HomeScreen : KScreen<HomeScreen>() {
 	override val layoutId: Int? = null

@@ -6,9 +6,9 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.plugins.extensions.NavigationItem
 import org.appdevforall.codeonthego.plugins.manager.pluginCategory
 import org.appdevforall.codeonthego.plugins.manager.pluginTooltipTag

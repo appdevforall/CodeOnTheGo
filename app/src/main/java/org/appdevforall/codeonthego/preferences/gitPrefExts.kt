@@ -6,10 +6,10 @@ import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GIT
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GIT_USEREMAIL
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_GIT_USERNAME
 import org.appdevforall.codeonthego.preferences.internal.GitPreferences
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 import kotlinx.parcelize.Parcelize
 
 @Parcelize

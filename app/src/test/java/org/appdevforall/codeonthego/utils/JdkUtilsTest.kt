@@ -35,10 +35,10 @@ class JdkUtilsTest {
 	file.separator = /
 	java.class.path =
 	java.class.version = 61.0
-	java.home = /data/data/com.itsaky.androidide/files/usr/opt/openjdk-17.0
-	java.io.tmpdir = /data/data/com.itsaky.androidide/files/usr/tmp/
-	java.library.path = /data/data/com.itsaky.androidide/files/usr/java/packages/lib
-		/data/data/com.itsaky.androidide/files/usr/lib
+	java.home = /data/data/org.appdevforall.codeonthego/files/usr/opt/openjdk-17.0
+	java.io.tmpdir = /data/data/org.appdevforall.codeonthego/files/usr/tmp/
+	java.library.path = /data/data/org.appdevforall.codeonthego/files/usr/java/packages/lib
+		/data/data/org.appdevforall.codeonthego/files/usr/lib
 	java.runtime.name = OpenJDK Runtime Environment
 	java.runtime.version = 17-internal+0-adhoc.root.src
 	java.specification.name = Java Platform API Specification
@@ -65,7 +65,7 @@ class JdkUtilsTest {
 	os.version = 4.9.305-ððð
 	path.separator = :
 	sun.arch.data.model = 64
-	sun.boot.library.path = /data/data/com.itsaky.androidide/files/usr/opt/openjdk-17.0/lib
+	sun.boot.library.path = /data/data/org.appdevforall.codeonthego/files/usr/opt/openjdk-17.0/lib
 	sun.cpu.endian = little
 	sun.io.unicode.encoding = UnicodeLittle
 	sun.java.launcher = SUN_STANDARD
@@ -73,8 +73,8 @@ class JdkUtilsTest {
 	sun.management.compiler = HotSpot 64-Bit Tiered Compilers
 	sun.stderr.encoding = UTF-8
 	sun.stdout.encoding = UTF-8
-	user.dir = /data/data/com.itsaky.androidide/files/home
-	user.home = /data/data/com.itsaky.androidide/files/home
+	user.dir = /data/data/org.appdevforall.codeonthego/files/home
+	user.home = /data/data/org.appdevforall.codeonthego/files/home
 	user.language = en
 	user.name = u0_a248
 
@@ -90,10 +90,10 @@ OpenJDK 64-Bit Server VM (build 17-internal+0-adhoc.root.src, mixed mode)
 	file.separator = /
 	java.class.path =
 	java.class.version = 65.0
-	java.home = /data/data/com.itsaky.androidide/files/usr/opt/openjdk-21.0.1
-	java.io.tmpdir = /data/data/com.itsaky.androidide/files/usr/tmp/
-	java.library.path = /data/data/com.itsaky.androidide/files/usr/java/packages/lib
-		/data/data/com.itsaky.androidide/files/usr/lib
+	java.home = /data/data/org.appdevforall.codeonthego/files/usr/opt/openjdk-21.0.1
+	java.io.tmpdir = /data/data/org.appdevforall.codeonthego/files/usr/tmp/
+	java.library.path = /data/data/org.appdevforall.codeonthego/files/usr/java/packages/lib
+		/data/data/org.appdevforall.codeonthego/files/usr/lib
 	java.runtime.name = OpenJDK Runtime Environment
 	java.runtime.version = 21.0.1-internal-adhoc.root.src
 	java.specification.name = Java Platform API Specification
@@ -122,14 +122,14 @@ OpenJDK 64-Bit Server VM (build 17-internal+0-adhoc.root.src, mixed mode)
 	stderr.encoding = UTF-8
 	stdout.encoding = UTF-8
 	sun.arch.data.model = 64
-	sun.boot.library.path = /data/data/com.itsaky.androidide/files/usr/opt/openjdk-21.0.1/lib
+	sun.boot.library.path = /data/data/org.appdevforall.codeonthego/files/usr/opt/openjdk-21.0.1/lib
 	sun.cpu.endian = little
 	sun.io.unicode.encoding = UnicodeLittle
 	sun.java.launcher = SUN_STANDARD
 	sun.jnu.encoding = UTF-8
 	sun.management.compiler = HotSpot 64-Bit Tiered Compilers
-	user.dir = /data/data/com.itsaky.androidide/files/home
-	user.home = /data/data/com.itsaky.androidide/files/home
+	user.dir = /data/data/org.appdevforall.codeonthego/files/home
+	user.home = /data/data/org.appdevforall.codeonthego/files/home
 	user.language = en
 	user.name = u0_a248
 
@@ -151,7 +151,7 @@ OpenJDK 64-Bit Server VM (build 21.0.1-internal-adhoc.root.src, mixed mode)
 		val dist = JdkUtils.readDistFromProps(JDK_17_PROPS)
 		assertThat(dist).isNotNull()
 		assertThat(dist!!.javaVersion).isEqualTo("17-internal")
-		assertThat(dist.javaHome).isEqualTo("/data/data/com.itsaky.androidide/files/usr/opt/openjdk-17.0")
+		assertThat(dist.javaHome).isEqualTo("/data/data/org.appdevforall.codeonthego/files/usr/opt/openjdk-17.0")
 	}
 
 	@Test
@@ -159,7 +159,7 @@ OpenJDK 64-Bit Server VM (build 21.0.1-internal-adhoc.root.src, mixed mode)
 		val dist = JdkUtils.readDistFromProps(JDK_21_PROPS)
 		assertThat(dist).isNotNull()
 		assertThat(dist!!.javaVersion).isEqualTo("21.0.1-internal")
-		assertThat(dist.javaHome).isEqualTo("/data/data/com.itsaky.androidide/files/usr/opt/openjdk-21.0.1")
+		assertThat(dist.javaHome).isEqualTo("/data/data/org.appdevforall.codeonthego/files/usr/opt/openjdk-21.0.1")
 	}
 
 	@Test

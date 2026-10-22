@@ -26,7 +26,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintLayout.LayoutParams;
-import com.itsaky.androidide.databinding.LayoutProgressSheetBinding;
+import org.appdevforall.codeonthego.databinding.LayoutProgressSheetBinding;
 
 public class ProgressSheet extends BaseBottomSheetFragment {
 

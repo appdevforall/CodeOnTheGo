@@ -1,82 +1,91 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  ~  This file is part of AndroidIDE.
-  ~
-  ~  AndroidIDE is free software: you can redistribute it and/or modify
-  ~  it under the terms of the GNU General Public License as published by
-  ~  the Free Software Foundation, either version 3 of the License, or
-  ~  (at your option) any later version.
-  ~
-  ~  AndroidIDE is distributed in the hope that it will be useful,
-  ~  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~  GNU General Public License for more details.
-  ~
-  ~  You should have received a copy of the GNU General Public License
-  ~   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
-  -->
+<!-- ~ This file is part of AndroidIDE. ~ ~ AndroidIDE is free software: you can redistribute it and/or modify ~ it under
+	the terms of the GNU General Public License as published by ~ the Free Software Foundation, either version 3 of the License,
+	or ~ (at your option) any later version. ~ ~ AndroidIDE is distributed in the hope that it will be useful, ~ but WITHOUT
+	ANY WARRANTY; without even the implied warranty of ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the ~ GNU General
+	Public License for more details. ~ ~ You should have received a copy of the GNU General Public License ~ along with AndroidIDE.
+	If not, see <https://www.gnu.org/licenses/>. -->
 <resources>
-  <string name="msg_directory_absolute_path">%1$s Dizini Tam Yolu: \"%2$s\"</string>
-  <!-- PackageUtils -->
-  <string name="error_app_not_installed_or_disabled_warning">%1$s (%2$s) uygulaması kurulmadı ya da devre dışı.</string>
-  <string name="error_get_package_context_failed_title">Failed To Get Package Context</string>
-  <string name="error_get_package_context_failed_message">Failed to get package context for the \"%1$s\" package. This may be because the app package is not installed or it has different APK signature from the current app.</string>
-  <string name="error_get_package_context_failed_help_url_message">Daha fazla için %1$s kısmına gözatın.</string>
-  <string name="error_get_component_state_failed">Failed to get %1$s/%2$s component state</string>
-  <string name="error_enable_component_failed">%1$s/%2$s bileşeni etkinleştirilemedi</string>
-  <string name="error_disable_component_failed">%1$s/%2$s bileşeni devre dışı bırakılamadı</string>
-  <!-- PermissionUtils -->
-  <string name="error_failed_to_request_permissions">Failed to request permissions with request code %1$d: %2$s</string>
-  <string name="error_attempted_to_ask_for_permissions_not_requested">Attempted to ask for permissions that have not been requested in app manifest: %1$s</string>
-  <string name="error_has_not_requested_legacy_external_storage">The \"%1$s\" package is targeting targetSdkVersion %2$d and is running on android sdk %3$d but has not set requestLegacyExternalStorage to true in app manifest</string>
-  <string name="msg_requires_dump_and_package_usage_stats_permissions">`DUMP` ve `PACKAGE_USAGE_STATS` izinlerini gerektirir</string>
-  <string name="error_display_over_other_apps_permission_not_granted">%1$s requires
-        \"Display over other apps\" permission to start activities and services from background on Android &gt;= 10.
-        Grants it from Android Settings -&gt; Apps -&gt; %1$s -&gt; Advanced -&gt; Draw over other apps.
-        The permission name may be different on different devices, like on Xiaomi, its called
-        \"Display pop-up windows while running in the background\", check https://dontkillmyapp.com
-        for device specific issues.</string>
-  <!-- TermuxPluginUtils -->
-  <string name="error_allow_external_apps_ungranted">%1$s requires `allow-external-apps` property to be set to `true` in `%2$s` file.</string>
-  <!-- ReportActivity -->
-  <string name="title_report_text">Rapor Metni</string>
-  <string name="msg_report_truncated">**Report Truncated**\n\nReport is too large to view here. Use `Save To File` option from options menu (3-dots on top right) and view it in an external text editor app.\n\n##\n\n</string>
-  <!-- ShareUtils -->
-  <string name="title_share_with">Şununla Paylaş</string>
-  <string name="title_open_url_with">URL\'yi Şununla Aç</string>
-  <string name="msg_storage_permission_not_granted">Depolama izni verilmedi.</string>
-  <string name="msg_file_saved_successfully">%1$s dosyası \"%2$s\" yoluna başarıyla kaydedildi</string>
-  <!-- Shell -->
-  <!-- TermuxUtils -->
-  <string name="msg_report_issue">        If you want to report this issue, then copy its text from the options menu (3-dots on top right) and post
-        an issue on one of the following links.
-        \n\nIf you are posting a Termux app crash report, then please provide details on what you were doing that
-        caused the crash and how to reproduce it, if possible.
-        \n\nIf you are posting an issue on GitHub, then post it in the repository at which the report belongs at.
-        Issues opened or emails sent with **(partial) screenshots** instead of copied text or a file of this report
-        **will likely be automatically closed/deleted**. You may optionally remove any device specific info that
-        you consider private or don\'t want to share or that is not relevant to the issue.
-        \n\nWe do not provide support for any hacking related tools/scripts. Any questions asked about them over email,
-        on GitHub or other official termux community forums **will likely be automatically closed/deleted** and may
-        even result in **temporary or permanent** ban. Check %1$s/wiki/Hacking for details.</string>
-  <string name="msg_termux_app_required_by_app">The Code on the Go app is required by the %1$s app to run termux commands.</string>
-  <string name="error_termux_app_package_context_not_accessible">The Code on the Go app (package context) is not accessible.</string>
-  <string name="error_termux_prefix_dir_path_not_accessible">The Code on the Go app $PREFIX directory is not accessible by the %1$s app.
-        This may be because you have not installed or setup Code on the Go app or
-    Code on the Go app and %1$s app both have different APK signatures because you have managed to install both apps from different sources.
-        It may also be because Code on the Go $PREFIX directory \"/data/data/com.itsaky.androidide/files/usr\" does not exist or does not have read,
-        write and execute permissions.</string>
-  <!-- Miscellaneous -->
-  <string name="action_share">Paylaş</string>
-  <string name="action_save_to_file">Dosyaya Kaydet</string>
-  <string name="msg_storage_permission_granted_on_request">İstek üzerine depolama izni kullanıcı tarafından verildi</string>
-  <string name="msg_storage_permission_not_granted_on_request">İstek üzerine depolama izni kullanıcı tarafından verilmedi</string>
-  <!-- Log Level -->
-  <string name="log_level_title">Günlük Düzeyi</string>
-  <string name="log_level_off">Kapalı</string>
-  <string name="log_level_normal">Normal</string>
-  <string name="log_level_debug">Hata ayıklama</string>
-  <string name="log_level_verbose">Ayrıntılı</string>
-  <string name="log_level_unknown">*Bilinmeyen*</string>
-  <string name="log_level_value">Logcat seviyesi \"%1$s\" olarak ayarlandı</string>
+	<string name="msg_directory_absolute_path">%1$s Dizini Tam Yolu: \"%2$s\"</string>
+	<!-- PackageUtils -->
+	<string name="error_app_not_installed_or_disabled_warning">%1$s (%2$s) uygulaması kurulmadı ya da devre dışı.</string>
+	<string name="error_get_package_context_failed_title">Failed To Get Package Context</string>
+	<string name="error_get_package_context_failed_message">Failed to get package context for the \"%1$s\" package. This may be because the app package is
+		not installed or it has different APK signature from the current app.</string>
+	<string name="error_get_package_context_failed_help_url_message">Daha fazla için %1$s kısmına gözatın.</string>
+	<string name="error_get_component_state_failed">Failed to get %1$s/%2$s component state</string>
+	<string name="error_enable_component_failed">%1$s/%2$s bileşeni etkinleştirilemedi</string>
+	<string name="error_disable_component_failed">%1$s/%2$s bileşeni devre dışı bırakılamadı</string>
+	<!-- PermissionUtils -->
+	<string name="error_failed_to_request_permissions">Failed to request permissions with request code %1$d: %2$s</string>
+	<string name="error_attempted_to_ask_for_permissions_not_requested">Attempted to ask for permissions that have not been requested in app manifest: %1$s</string>
+	<string name="error_has_not_requested_legacy_external_storage">The \"%1$s\" package is targeting targetSdkVersion %2$d and is running on android sdk %3$d but
+		has not set requestLegacyExternalStorage to true in app manifest</string>
+	<string name="msg_requires_dump_and_package_usage_stats_permissions">`DUMP` ve `PACKAGE_USAGE_STATS` izinlerini gerektirir</string>
+	<string name="error_display_over_other_apps_permission_not_granted">%1$s requires
+		\"Display over other apps\" permission to start activities and services from
+		background on Android &gt;= 10.
+		Grants it from Android Settings -&gt; Apps -&gt; %1$s -&gt; Advanced -&gt; Draw
+		over other apps.
+		The permission name may be different on different devices, like on Xiaomi, its called
+		\"Display
+		pop-up windows while running in the background\", check https://dontkillmyapp.com
+		for device specific issues.</string>
+	<!-- TermuxPluginUtils -->
+	<string name="error_allow_external_apps_ungranted">%1$s requires `allow-external-apps` property to be set to `true` in `%2$s` file.</string>
+	<!-- ReportActivity -->
+	<string name="title_report_text">Rapor Metni</string>
+	<string name="msg_report_truncated">**Report Truncated**\n\nReport is too large to view here. Use `Save To File` option from options
+		menu (3-dots on top right) and view it in an external text editor app.\n\n##\n\n</string>
+	<!-- ShareUtils -->
+	<string name="title_share_with">Şununla Paylaş</string>
+	<string name="title_open_url_with">URL\'yi Şununla Aç</string>
+	<string name="msg_storage_permission_not_granted">Depolama izni verilmedi.</string>
+	<string name="msg_file_saved_successfully">%1$s dosyası \"%2$s\" yoluna başarıyla kaydedildi</string>
+	<!-- Shell -->
+	<!-- TermuxUtils -->
+	<string name="msg_report_issue"> If you want to report this issue, then copy its text from the options menu (3-dots on top
+		right) and post
+		an issue on one of the following links.
+		\n\nIf you are posting a Termux app crash report, then
+		please provide details on what you were doing that
+		caused the crash and how to reproduce it, if possible.
+		\n\nIf
+		you are posting an issue on GitHub, then post it in the repository at which the report belongs at.
+		Issues opened
+		or emails sent with **(partial) screenshots** instead of copied text or a file of this report
+		**will likely be
+		automatically closed/deleted**. You may optionally remove any device specific info that
+		you consider private or
+		don\'t want to share or that is not relevant to the issue.
+		\n\nWe do not provide support for any hacking related
+		tools/scripts. Any questions asked about them over email,
+		on GitHub or other official termux community forums
+		**will likely be automatically closed/deleted** and may
+		even result in **temporary or permanent** ban. Check
+		%1$s/wiki/Hacking for details.</string>
+	<string name="msg_termux_app_required_by_app">The Code on the Go app is required by the %1$s app to run termux commands.</string>
+	<string name="error_termux_app_package_context_not_accessible">The Code on the Go app (package context) is not accessible.</string>
+	<string name="error_termux_prefix_dir_path_not_accessible">The Code on the Go app $PREFIX directory is not accessible by the %1$s app.
+		This may be because
+		you have not installed or setup Code on the Go app or
+		Code on the Go app and %1$s app both have different APK signatures because you have managed to install both apps from
+		different sources.
+		It may also be because Code on the Go $PREFIX directory
+		\"/data/data/org.appdevforall.codeonthego/files/usr\" does not exist or does not have read,
+		write and execute
+		permissions.</string>
+	<!-- Miscellaneous -->
+	<string name="action_share">Paylaş</string>
+	<string name="action_save_to_file">Dosyaya Kaydet</string>
+	<string name="msg_storage_permission_granted_on_request">İstek üzerine depolama izni kullanıcı tarafından verildi</string>
+	<string name="msg_storage_permission_not_granted_on_request">İstek üzerine depolama izni kullanıcı tarafından verilmedi</string>
+	<!-- Log Level -->
+	<string name="log_level_title">Günlük Düzeyi</string>
+	<string name="log_level_off">Kapalı</string>
+	<string name="log_level_normal">Normal</string>
+	<string name="log_level_debug">Hata ayıklama</string>
+	<string name="log_level_verbose">Ayrıntılı</string>
+	<string name="log_level_unknown">*Bilinmeyen*</string>
+	<string name="log_level_value">Logcat seviyesi \"%1$s\" olarak ayarlandı</string>
 </resources>

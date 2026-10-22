@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.StatFs
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -21,6 +20,7 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.ContainedPathResolver
 import org.appdevforall.codeonthego.utils.ContainedPathResolver.Resolution
 import org.appdevforall.codeonthego.utils.Environment.DEFAULT_ROOT

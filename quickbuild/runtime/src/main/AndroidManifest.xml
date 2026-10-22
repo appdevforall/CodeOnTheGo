@@ -6,7 +6,7 @@
 		Declared here so every generated proxy app inherits it via manifest merge.
 	-->
 	<queries>
-		<package android:name="com.itsaky.androidide" />
+		<package android:name="org.appdevforall.codeonthego" />
 	</queries>
 
 	<!--

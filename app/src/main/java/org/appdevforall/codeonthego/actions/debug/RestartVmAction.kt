@@ -1,10 +1,10 @@
 package org.appdevforall.codeonthego.actions.debug
 
 import android.content.Context
-import com.itsaky.androidide.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.idetooltips.TooltipTag

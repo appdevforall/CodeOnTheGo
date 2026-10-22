@@ -17,7 +17,7 @@
 
 package org.appdevforall.codeonthego.preferences
 
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_BUILDRUN_AUTOLAUNCH
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_BUILDRUN_FLAGS_BUILDCACHE
@@ -38,8 +38,8 @@ import org.appdevforall.codeonthego.preferences.internal.BuildPreferences.isScan
 import org.appdevforall.codeonthego.preferences.internal.BuildPreferences.isStacktraceEnabled
 import org.appdevforall.codeonthego.preferences.internal.BuildPreferences.isWarningModeAllEnabled
 import org.appdevforall.codeonthego.preferences.internal.BuildPreferences.launchAppAfterInstall
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 import kotlinx.parcelize.Parcelize
 
 @Parcelize

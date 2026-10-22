@@ -19,11 +19,11 @@ package org.appdevforall.codeonthego.actions.build
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.BaseBuildAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
+import org.appdevforall.codeonthego.resources.R.string
 
 /**
  * Triggers a project sync request.

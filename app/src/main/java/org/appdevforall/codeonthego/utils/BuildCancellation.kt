@@ -17,8 +17,8 @@
 
 package org.appdevforall.codeonthego.utils
 
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.projects.builder.BuildService
+import org.appdevforall.codeonthego.resources.R
 import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger("BuildCancellation")

@@ -13,10 +13,10 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.hardware.display.DisplayManagerCompat
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.DebuggerActionsWindowBinding
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionsRegistry
+import org.appdevforall.codeonthego.databinding.DebuggerActionsWindowBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.utils.PermissionsHelper

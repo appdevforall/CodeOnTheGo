@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.quickbuild
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.service.provision.InstallOutcome
 import org.junit.Test

@@ -24,7 +24,7 @@ import android.graphics.drawable.Drawable
 import android.view.Menu
 import android.view.View
 import androidx.annotation.CallSuper
-import com.itsaky.androidide.actions.R
+import org.appdevforall.codeonthego.actions.R
 import org.appdevforall.codeonthego.idetooltips.TooltipCategory
 import org.appdevforall.codeonthego.utils.resolveAttr
 

@@ -9,7 +9,7 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.Interpolator
 import androidx.annotation.CallSuper
 import androidx.annotation.InterpolatorRes
-import com.itsaky.androidide.flashbar.R
+import org.appdevforall.codeonthego.flashbar.R
 
 abstract class BaseFlashAnimBuilder(private val context: Context) {
 

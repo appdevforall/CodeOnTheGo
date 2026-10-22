@@ -39,7 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.editor.language.outline.OutlineSymbolKind
 import org.appdevforall.codeonthego.ui.models.OutlineUiEvent
 import org.appdevforall.codeonthego.ui.models.OutlineUiState

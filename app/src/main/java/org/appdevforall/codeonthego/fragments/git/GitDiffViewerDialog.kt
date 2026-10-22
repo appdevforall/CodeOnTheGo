@@ -13,11 +13,11 @@ import android.view.ViewGroup
 import androidx.core.content.ContextCompat.getColor
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.DialogGitDiffBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.DialogGitDiffBinding
 import org.appdevforall.codeonthego.viewmodel.GitBottomSheetViewModel
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import java.io.File

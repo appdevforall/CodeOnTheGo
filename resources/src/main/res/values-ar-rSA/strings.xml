@@ -279,7 +279,7 @@
   <string name="xml_formatting_options">خيارات تنسيق XML</string>
   <string name="xml_formatting_options_summary">تهيئة تنسيق XML</string>
   <string name="idepref_customFont_title">استخدام خط مخصص</string>
-  <string name="idepref_customFont_summary">في حالة التمكين، سيتم استخدام الملف الموجود على \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" كخط محرر.</string>
+  <string name="idepref_customFont_summary">في حالة التمكين، سيتم استخدام الملف الموجود على \"/data/data/org.appdevforall.codeonthego/files/home/.cg/ui/font.ttf\" كخط محرر.</string>
   <string name="msg_installing_apk">تثبيت APK...</string>
   <string name="msg_action_open_application">هل تريد فتح التطبيق؟</string>
   <string name="title_gradle_service_notification_channel">خدمة بناء Code on the Go</string>
@@ -465,3 +465,4 @@
   <string name="idepref_jdkVersion_title">JDK version</string>
   <string name="idepref_jdkVersion_summary">Currently selected: %1$s (requires restart if changed)</string>
 </resources>
+

@@ -19,11 +19,11 @@ package org.appdevforall.codeonthego.actions.etc
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.EditorActivityAction
 import org.appdevforall.codeonthego.actions.build.AbstractCancellableRunAction.Companion.isBuildInProgress
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
 
 /** @author Akash Yadav */
 class FindAction() : EditorActivityAction() {

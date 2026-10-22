@@ -16,7 +16,6 @@
  */
 package org.appdevforall.codeonthego.lsp.java.actions.common
 
-import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
@@ -24,6 +23,7 @@ import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.editor.api.ILspEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lsp.java.actions.BaseJavaCodeAction
+import org.appdevforall.codeonthego.resources.R
 import java.io.File
 
 /**

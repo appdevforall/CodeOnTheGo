@@ -19,7 +19,7 @@ package org.appdevforall.codeonthego.fragments
 import android.os.Bundle
 import android.view.View
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.adapters.DiagnosticsAdapter
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lsp.IDELanguageClientImpl

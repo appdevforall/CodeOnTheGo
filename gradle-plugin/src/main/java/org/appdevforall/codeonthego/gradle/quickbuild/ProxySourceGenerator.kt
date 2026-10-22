@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle.quickbuild
+package org.appdevforall.codeonthego.gradle.quickbuild
 
 /**
  * Emits the Java source of a proxy component: a subclass of the user's class that keeps the manifest

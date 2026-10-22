@@ -21,9 +21,9 @@ import android.content.ClipData
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.uidesigner.databinding.LayoutUiWidgetsItemBinding
 import org.appdevforall.codeonthego.inflater.models.UiWidget
 import org.appdevforall.codeonthego.uidesigner.adapters.WidgetsItemAdapter.VH
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutUiWidgetsItemBinding
 import org.appdevforall.codeonthego.uidesigner.drag.WidgetDragShadowBuilder
 import org.appdevforall.codeonthego.uidesigner.fragments.DesignerWorkspaceFragment
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel

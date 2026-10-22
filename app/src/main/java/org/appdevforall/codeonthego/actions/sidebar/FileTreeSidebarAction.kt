@@ -20,7 +20,7 @@ package org.appdevforall.codeonthego.actions.sidebar
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.fragments.sidebar.FileTreeFragment
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import kotlin.reflect.KClass

@@ -22,13 +22,13 @@ import android.os.Bundle
 import android.view.View
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.FragmentTemplateListBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.adapters.TemplateListAdapter
+import org.appdevforall.codeonthego.databinding.FragmentTemplateListBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.EXIT_TO_MAIN
 import org.appdevforall.codeonthego.templates.ITemplateProvider

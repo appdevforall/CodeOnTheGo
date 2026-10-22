@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import com.itsaky.androidide.buildinfo.BuildInfo
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig
@@ -110,7 +110,7 @@ internal fun writeInitScript(file: File, deps: List<File>) {
 			}
 		}
 
-		apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
+		apply plugin: org.appdevforall.codeonthego.gradle.AndroidIDEInitScriptPlugin
 		""".trimIndent())
 	}
 }

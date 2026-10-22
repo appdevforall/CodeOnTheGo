@@ -5,7 +5,7 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toDrawable
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 
 object DropHighlighter {
 	/**

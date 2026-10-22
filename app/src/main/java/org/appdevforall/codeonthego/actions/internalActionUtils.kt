@@ -18,7 +18,7 @@
 package org.appdevforall.codeonthego.actions
 
 import android.content.Context
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.utils.DialogUtils

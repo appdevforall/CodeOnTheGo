@@ -8,7 +8,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
-import com.itsaky.androidide.idetooltips.R
+import org.appdevforall.codeonthego.idetooltips.R
 import org.appdevforall.codeonthego.idetooltips.TooltipCategory
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 

@@ -23,7 +23,7 @@ import android.view.inputmethod.EditorInfo
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputLayout
-import com.itsaky.androidide.preferences.databinding.LayoutDialogTextInputBinding
+import org.appdevforall.codeonthego.preferences.databinding.LayoutDialogTextInputBinding
 
 /**
  * A preference which shows an edittext

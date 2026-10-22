@@ -39,13 +39,13 @@ import android.widget.ArrayAdapter
 import androidx.core.content.getSystemService
 import androidx.core.view.isVisible
 import com.github.appintro.SlidePolicy
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutOnboardngSetupConfigBinding
-import com.itsaky.androidide.resources.R.string
 import org.adfa.constants.ARM_KEY
 import org.adfa.constants.V7_KEY
 import org.adfa.constants.V8_KEY
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutOnboardngSetupConfigBinding
 import org.appdevforall.codeonthego.models.IdeSetupArgument
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.ConnectionInfo
 import org.appdevforall.codeonthego.utils.Environment

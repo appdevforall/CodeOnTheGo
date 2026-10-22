@@ -38,12 +38,11 @@ import androidx.transition.TransitionManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.R.string
-import com.itsaky.androidide.databinding.LayoutRunTaskBinding
-import com.itsaky.androidide.databinding.LayoutRunTaskDialogBinding
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.R.string
 import org.appdevforall.codeonthego.activities.editor.HelpActivity
 import org.appdevforall.codeonthego.adapters.RunTasksListAdapter
+import org.appdevforall.codeonthego.databinding.LayoutRunTaskBinding
+import org.appdevforall.codeonthego.databinding.LayoutRunTaskDialogBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lookup.Lookup
@@ -51,6 +50,7 @@ import org.appdevforall.codeonthego.models.Checkable
 import org.appdevforall.codeonthego.project.GradleModels
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.builder.BuildService
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tasks.executeAsync
 import org.appdevforall.codeonthego.tasks.mainThreadHandler
 import org.appdevforall.codeonthego.utils.SingleTextWatcher

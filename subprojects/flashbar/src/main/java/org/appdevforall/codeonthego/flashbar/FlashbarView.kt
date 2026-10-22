@@ -17,8 +17,8 @@
 
 package org.appdevforall.codeonthego.flashbar
 
-import com.itsaky.androidide.flashbar.R
-import com.itsaky.androidide.flashbar.databinding.FlashBarViewBinding
+import org.appdevforall.codeonthego.flashbar.R
+import org.appdevforall.codeonthego.flashbar.databinding.FlashBarViewBinding
 
 import android.annotation.SuppressLint
 import android.app.Activity

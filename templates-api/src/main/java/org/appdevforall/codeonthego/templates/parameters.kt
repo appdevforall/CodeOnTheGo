@@ -18,7 +18,7 @@
 package org.appdevforall.codeonthego.templates
 
 
-import com.itsaky.androidide.templates.R
+import org.appdevforall.codeonthego.templates.R
 import android.view.View
 import androidx.annotation.StringRes
 import androidx.annotation.StyleableRes
@@ -27,7 +27,7 @@ import org.appdevforall.codeonthego.templates.Language.Java
 import org.appdevforall.codeonthego.templates.Language.Kotlin
 import org.appdevforall.codeonthego.templates.ParameterConstraint.NONEMPTY
 import org.appdevforall.codeonthego.templates.ParameterConstraint.PACKAGE
-import com.itsaky.androidide.templates.R.string
+import org.appdevforall.codeonthego.templates.R.string
 import org.adfa.constants.Sdk
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock

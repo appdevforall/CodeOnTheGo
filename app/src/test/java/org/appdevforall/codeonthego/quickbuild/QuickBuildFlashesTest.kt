@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.quickbuild
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.viewmodel.EditorViewModel
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic

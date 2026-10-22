@@ -19,12 +19,12 @@ package org.appdevforall.codeonthego.handlers
 
 import android.os.SystemClock
 import androidx.annotation.VisibleForTesting
-import com.itsaky.androidide.R
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.editor.EditorHandlerActivity
 import org.appdevforall.codeonthego.preferences.internal.GeneralPreferences
 import org.appdevforall.codeonthego.projects.builder.BuildResult
 import org.appdevforall.codeonthego.projects.builder.LaunchResult
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.services.builder.GradleBuildService
 import org.appdevforall.codeonthego.tooling.api.messages.result.BuildInfo
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult

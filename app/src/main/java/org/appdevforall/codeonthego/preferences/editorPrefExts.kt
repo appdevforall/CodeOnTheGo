@@ -20,8 +20,8 @@ package org.appdevforall.codeonthego.preferences
 import android.view.LayoutInflater
 import androidx.preference.Preference
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutTextSizeSliderBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutTextSizeSliderBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences.COMPLETIONS_MATCH_LOWER
@@ -36,8 +36,8 @@ import org.appdevforall.codeonthego.preferences.internal.EditorPreferences.USE_I
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences.USE_MAGNIFER
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences.USE_SOFT_TAB
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences.WORD_WRAP
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 

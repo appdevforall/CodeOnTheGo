@@ -21,7 +21,7 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.annotation.StringRes
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 
 /**
  * A page of the editor's metrics carousel.

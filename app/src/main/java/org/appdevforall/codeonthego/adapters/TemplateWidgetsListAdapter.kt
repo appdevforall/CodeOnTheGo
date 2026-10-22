@@ -21,8 +21,8 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.databinding.LayoutTemplateWidgetlistItemBinding
 import org.appdevforall.codeonthego.adapters.TemplateWidgetsListAdapter.WidgetViewHolder
+import org.appdevforall.codeonthego.databinding.LayoutTemplateWidgetlistItemBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.templates.ITemplateWidgetViewProvider
 import org.appdevforall.codeonthego.templates.Widget

@@ -19,7 +19,7 @@ package org.appdevforall.codeonthego.app.configuration
 
 import android.os.Build
 import com.google.auto.service.AutoService
-import com.itsaky.androidide.BuildConfig
+import org.appdevforall.codeonthego.BuildConfig
 import org.appdevforall.codeonthego.app.BaseApplication
 
 /**

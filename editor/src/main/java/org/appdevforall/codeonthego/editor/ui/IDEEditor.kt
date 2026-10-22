@@ -30,8 +30,6 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
-import com.itsaky.androidide.editor.R
-import com.itsaky.androidide.editor.R.string
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
@@ -55,6 +53,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.editor.R
+import org.appdevforall.codeonthego.editor.R.string
 import org.appdevforall.codeonthego.editor.adapters.CompletionListAdapter
 import org.appdevforall.codeonthego.editor.api.IEditor
 import org.appdevforall.codeonthego.editor.api.ILspEditor

@@ -19,7 +19,7 @@ package org.appdevforall.codeonthego.fragments
 
 import android.os.Bundle
 import androidx.preference.PreferenceFragmentCompat
-import com.itsaky.androidide.R.xml
+import org.appdevforall.codeonthego.R.xml
 
 abstract class BasePreferenceFragment : PreferenceFragmentCompat() {
 	override fun onCreatePreferences(

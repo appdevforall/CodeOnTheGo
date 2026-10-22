@@ -34,8 +34,6 @@ import androidx.lifecycle.lifecycleScope
 import com.github.appintro.AppIntro2
 import com.github.appintro.AppIntroPageTransformerType
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import com.itsaky.androidide.R
-import com.itsaky.androidide.R.string
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.markdown.MarkdownUtils
 import com.termux.shared.termux.TermuxConstants
@@ -44,6 +42,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.FeedbackButtonManager
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.R.string
 import org.appdevforall.codeonthego.app.configuration.IDEBuildConfigProvider
 import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
 import org.appdevforall.codeonthego.fragments.onboarding.GreetingFragment

@@ -25,13 +25,13 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.databinding.LayoutViewInfoBinding
-import com.itsaky.androidide.uidesigner.databinding.LayoutViewInfoHeaderBinding
 import org.appdevforall.codeonthego.inflater.internal.NamespaceImpl
 import org.appdevforall.codeonthego.inflater.internal.ViewImpl
 import org.appdevforall.codeonthego.inflater.utils.newAttribute
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.adapters.ViewAttrListAdapter
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutViewInfoBinding
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutViewInfoHeaderBinding
 import org.appdevforall.codeonthego.uidesigner.models.UiAttribute
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 
