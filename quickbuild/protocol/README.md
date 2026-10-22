@@ -16,8 +16,8 @@ compatibility rules.
 | Format | Transport | Declared in |
 | --- | --- | --- |
 | Daemon protocol | line-delimited JSON on the daemon's stdin/stdout | [`DaemonProtocol.kt`](src/main/kotlin/org/appdevforall/cotg/quickbuild/protocol/DaemonProtocol.kt) |
-| Deploy metadata | `metadataJson` on `IQuickBuildTarget.onPayload` | [`PayloadDeployer.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/deploy/PayloadDeployer.kt) writes, [`DeployMetadata.java`](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/DeployMetadata.java) parses |
-| Build status | `statusJson` on `IQuickBuildTarget.onBuildStatus` | [`BuildStatusJson.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/deploy/BuildStatusJson.kt) writes, [`BuildStatus.java`](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/BuildStatus.java) parses |
+| Deploy metadata | `metadataJson` on `IQuickBuildTarget.onPayload` | [`PayloadDeployer.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/deploy/PayloadDeployer.kt) writes, [`DeployMetadata.java`](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/DeployMetadata.java) parses |
+| Build status | `statusJson` on `IQuickBuildTarget.onBuildStatus` | [`BuildStatusJson.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/deploy/BuildStatusJson.kt) writes, [`BuildStatus.java`](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/BuildStatus.java) parses |
 
 Only the daemon protocol has shared types, because both its ends compile against this module - and
 since the wire itself is untyped JSON, the module holds the **names** too: `DaemonOps`,
@@ -131,7 +131,7 @@ A compile error produces no payload, so this is how a running proxy app learns a
 Kinds: `build_failed`, `build_ok`, `building`, `reinstall_pending`.
 
 - **Every value is a string, including the numbers.** The runtime's hand-rolled
-  [`MiniJson`](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/MiniJson.java)
+  [`MiniJson`](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/MiniJson.java)
   keeps only strings and arrays of strings; it consumes numbers, booleans, nulls and nested objects
   so extra fields still parse, but **drops those keys entirely** - send a JSON number and the
   runtime sees an absent field. Unknown kinds and fields are ignored, so CoGo can extend the schema
@@ -177,4 +177,4 @@ that gap - a renamed op or field no longer compiles on both sides - but nothing 
 | [`DaemonMain.kt`](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonMain.kt) | serve loop, stdout/stderr split |
 | [`DaemonService.kt`](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonService.kt) | the op implementations that fill the response values |
 | [`DaemonProcessClient.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/DaemonProcessClient.kt) | CoGo's client: spawn, serialize, version gate, unpacking |
-| [`IQuickBuildTarget.aidl`](../runtime/src/main/aidl/com/itsaky/androidide/quickbuild/IQuickBuildTarget.aidl) / [`IQuickBuildHost.aidl`](../runtime/src/main/aidl/com/itsaky/androidide/quickbuild/IQuickBuildHost.aidl) | authoritative signatures for both binder directions |
+| [`IQuickBuildTarget.aidl`](../runtime/src/main/aidl/org/appdevforall/codeonthego/quickbuild/IQuickBuildTarget.aidl) / [`IQuickBuildHost.aidl`](../runtime/src/main/aidl/org/appdevforall/codeonthego/quickbuild/IQuickBuildHost.aidl) | authoritative signatures for both binder directions |

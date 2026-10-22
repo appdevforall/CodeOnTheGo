@@ -7,7 +7,7 @@
 ## Context
 
 The K2 Kotlin LSP relies on one live `KtFile` instance per open path. `DeclarationProvider.ktFilesForPackage`
-(`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/services/DeclarationsProvider.kt`) resolves a
+(`lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/services/DeclarationsProvider.kt`) resolves a
 path through `KtSymbolIndex.getKtFile` for anything an analysis session needs to see beyond the file it started on.
 If that lookup can answer with a *different* instance than the one the analysis is holding, FIR sees every
 top-level declaration twice - once as the analysis's own PSI, once through the provider - and reports the file as
@@ -24,7 +24,7 @@ changes, and neither the atomic install nor the serialization carried forward. T
 that gap: `getCurrentVersionedKtFile` and `getKtFile` could each answer a lookup for the same path with a different
 instance if a refresh landed between them, and an analysis rooted at the older one saw its own declarations doubled
 through the provider. `StaleKtFileInstanceDiagnosticsTest`
-(`lsp/kotlin/src/test/java/com/itsaky/androidide/lsp/kotlin/compiler/index/StaleKtFileInstanceDiagnosticsTest.kt`)
+(`lsp/kotlin/src/test/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/index/StaleKtFileInstanceDiagnosticsTest.kt`)
 reproduces it directly.
 
 The history is the argument for the decision below: a runtime mechanism enforced the invariant once, tied to code
@@ -35,10 +35,10 @@ something the next refactor cannot drop without the code failing to compile.
 ## Decision
 
 **A `KtFile` for an open path may only be obtained as a pinned handle, and only one instance is pinned to a path
-at a time.** `LiveKtFile` (`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/LiveKtFile.kt`)
+at a time.** `LiveKtFile` (`lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/index/LiveKtFile.kt`)
 is an `internal sealed interface` whose only implementation, `KtSymbolIndex.PinnedKtFile`, is `private`. The only
 way to obtain one is `KtSymbolIndex.withLiveKtFile` / `withLiveKtFileAsync`
-(`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/KtSymbolIndex.kt`), which:
+(`lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/index/KtSymbolIndex.kt`), which:
 
 1. Acquire the path's `Pin` - join one already open (`joinExistingPin`, reference-counted), or resolve the current
    instance and install a new one (`acquirePin` / `acquirePinAsync`, `installPin`).
@@ -58,7 +58,7 @@ production opt-ins are the Analysis API service providers that only need to name
 `DirectInheritorsProvider.computeIndex`). `LiveKtFile` never exposes the `KtFile` as a value - `read` and
 `analyzing` take a lambda instead of returning the file - so a caller cannot hold a reference past the scope that
 pinned it. `analyzing` routes through `analyzeMaybeDangling`, which is `withAnalysisLock` under the hood
-(`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/modules/KtFileExts.kt`).
+(`lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/modules/KtFileExts.kt`).
 
 **Gating the sources is not sufficient, so the sink is gated too.** A third `@RequiresOptIn(ERROR)` marker,
 `UnpinnedAnalysis`, sits on `analyzeMaybeDangling` itself. The reason is that not every source of a live `KtFile`
@@ -82,7 +82,7 @@ cover them. `withAnalysisLock`'s doc comment asks callers not to take that route
 
 **One escape hatch:** `KtSymbolIndex.peekLiveKtFile`, gated behind `@RequiresOptIn(ERROR)` `UnpinnedKtFileAccess`.
 Its one production caller is `AdvancedKotlinEditHandler`
-(`lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/completion/AdvancedKotlinEditHandler.kt`), which runs
+(`lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/completion/AdvancedKotlinEditHandler.kt`), which runs
 on the UI thread after completion has already returned, does PSI-only work, and opens no analysis session.
 Pinning there would block the UI thread on a refresh that a background analysis might be holding up.
 
@@ -167,11 +167,11 @@ tracked separately; widening the hatch to a second caller has to weigh that, not
   the pipeline this pin protects.
 - [ADR 0011](0011-command-analysis-priority.md) - `AnalysisScheduler` priorities and `preempt()`, referenced above
   as the reason acquisition cannot yet be made priority-aware.
-- `lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/LiveKtFile.kt` - the pinned handle,
+- `lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/index/LiveKtFile.kt` - the pinned handle,
   `UnpinnedKtFileAccess` and `ResolutionSideKtFileAccess`.
-- `lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/modules/KtFileExts.kt` - `UnpinnedAnalysis`
+- `lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/modules/KtFileExts.kt` - `UnpinnedAnalysis`
   and the `analyzeMaybeDangling` sink it gates.
-- `lsp/kotlin/src/main/java/com/itsaky/androidide/lsp/kotlin/compiler/index/KtSymbolIndex.kt` - `pins`, `Pin`,
+- `lsp/kotlin/src/main/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/index/KtSymbolIndex.kt` - `pins`, `Pin`,
   `withLiveKtFile`, `withLiveKtFileAsync`, `getKtFile`.
-- `lsp/kotlin/src/test/java/com/itsaky/androidide/lsp/kotlin/compiler/index/StaleKtFileInstanceDiagnosticsTest.kt` -
+- `lsp/kotlin/src/test/java/org/appdevforall/codeonthego/lsp/kotlin/compiler/index/StaleKtFileInstanceDiagnosticsTest.kt` -
   reproduces the regression this ADR documents the fix for.

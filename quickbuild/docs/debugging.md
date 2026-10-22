@@ -19,7 +19,7 @@ sections 5 and 6 need it, sections 1 to 4 do not.
 
 **Flag files are read once per process.** `FeatureFlags.initialize()` caches on first call and
 never re-reads disk, so creating or deleting a flag file changes nothing until CoGo restarts
-([`FeatureFlags.kt`](../../common/src/main/java/com/itsaky/androidide/utils/FeatureFlags.kt)).
+([`FeatureFlags.kt`](../../common/src/main/java/org/appdevforall/codeonthego/utils/FeatureFlags.kt)).
 
 ## 1. My edit did not show up: work down this list
 
@@ -111,7 +111,7 @@ grep -rn 'getLogger("QB-' quickbuild app/src/main/java/com/itsaky/androidide
 
 The prefix exists because CoGo's slf4j binding trims any tag over **23 characters** to its
 last 23, overwriting the first two with `..`
-([`LogTagUtils.java`](../../logger/src/main/java/com/itsaky/androidide/utils/LogTagUtils.java),
+([`LogTagUtils.java`](../../logger/src/main/java/org/appdevforall/codeonthego/utils/LogTagUtils.java),
 `LogUtils.MAX_TAG_LENGTH = 23`). Class-derived names used to blow that limit and arrive
 unsearchable, e.g. `QuickBuildSessionManager` as `..ckBuildSessionManager`. So a new logger
 must be an explicit name of 23 characters or fewer, prefix included; `LogUtilsTest` pins both
@@ -203,7 +203,7 @@ Four traps in that table:
   what is running.
 - **`resources.arsc` is not a resource table.** It holds the whole relinked resource apk;
   the filename is historical
-  ([`PayloadPersistence.java`](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/PayloadPersistence.java)).
+  ([`PayloadPersistence.java`](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/PayloadPersistence.java)).
 - **The baseline is inside the APK, not on disk** - `assets/quickbuild/gen-0.dex`, with its
   stamped generation beside it at `assets/quickbuild/baseline-generation.txt`. Component names
   reach CoGo through the `manifest-info.json`/`setup.json` build intermediates, not an APK asset.
@@ -214,7 +214,7 @@ With `CodeOnTheGo.qbbench` present on a **debug** build, two extra listeners run
 shipping analytics sink and append to a JSON-lines file. (The whole benchmark surface lives in
 `app/src/debug/`, so a release APK has none of it, flag or no flag.) One object per line, each carrying `"v":1` and a
 wall-clock `wallMs`
-([`BenchEventsFile.kt`](../../app/src/debug/java/com/itsaky/androidide/quickbuild/BenchEventsFile.kt)).
+([`BenchEventsFile.kt`](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/BenchEventsFile.kt)).
 
 ```bash
 adb shell run-as com.itsaky.androidide \
@@ -237,8 +237,8 @@ Seven event types:
 
 The harness string-compares these literals and historical files carry them, so a rename in
 code must not change them
-([`BenchQuickBuildMetricsSink.kt`](../../app/src/debug/java/com/itsaky/androidide/quickbuild/BenchQuickBuildMetricsSink.kt),
-[`BenchStateRecorder.kt`](../../app/src/debug/java/com/itsaky/androidide/quickbuild/BenchStateRecorder.kt)).
+([`BenchQuickBuildMetricsSink.kt`](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/BenchQuickBuildMetricsSink.kt),
+[`BenchStateRecorder.kt`](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/BenchStateRecorder.kt)).
 Three will trip you up when grepping:
 
 | In code | On the wire |
@@ -294,7 +294,7 @@ double-gated on both flags. It opens a project and
 fires the first Quick Build tap as the editor initializes, replacing the human's tap. It
 accepts only an existing directory inside the projects folder, so a hostile sender can at
 worst open one of the user's own projects
-([`QuickBuildBenchActivity.kt`](../../app/src/debug/java/com/itsaky/androidide/quickbuild/QuickBuildBenchActivity.kt)).
+([`QuickBuildBenchActivity.kt`](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/QuickBuildBenchActivity.kt)).
 
 ```bash
 adb shell am start-activity \
