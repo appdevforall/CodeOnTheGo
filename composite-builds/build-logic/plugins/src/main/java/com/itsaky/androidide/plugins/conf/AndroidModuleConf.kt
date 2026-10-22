@@ -141,7 +141,7 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 			// required
 			multiDexEnabled = true
 
-			testInstrumentationRunner = "com.itsaky.androidide.testing.android.TestInstrumentationRunner"
+			testInstrumentationRunner = "org.appdevforall.codeonthego.testing.android.TestInstrumentationRunner"
 			testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
 			testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
 		}
