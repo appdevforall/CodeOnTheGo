@@ -106,7 +106,7 @@ guessed. Each tag is still usable on its own (`adb logcat -s QB-SessionManager`)
 the current set rather than trust a doc:
 
 ```bash
-grep -rn 'getLogger("QB-' quickbuild app/src/main/java/com/itsaky/androidide
+grep -rn 'getLogger("QB-' quickbuild app/src/main/java/org/appdevforall/codeonthego
 ```
 
 The prefix exists because CoGo's slf4j binding trims any tag over **23 characters** to its
