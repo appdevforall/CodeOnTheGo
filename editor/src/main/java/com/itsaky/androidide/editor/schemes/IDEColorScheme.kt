@@ -50,12 +50,16 @@ class IDEColorScheme(
 		internal set
 
 	private var colorId = endColorId
+	private var loaded = false
 
+	@Synchronized
 	internal fun load() {
+		if (loaded) return
 		SchemeParser { name -> File(this.file.parentFile, name) }.load(this)
+		loaded = true
 	}
 
-	fun getLanguageScheme(type: String): LanguageScheme? = this.languages[type]
+	fun getLanguageScheme(type: String): LanguageScheme? = this.languages[type] ?: this.languages[GENERIC_LANGUAGE_TYPE]
 
 	internal fun putColor(color: Int): Int {
 		this.colorIds[++colorId] = color
@@ -76,6 +80,10 @@ class IDEColorScheme(
 	}
 
 	override fun isDark(): Boolean = this.isDarkScheme
+
+	companion object {
+		const val GENERIC_LANGUAGE_TYPE = "*"
+	}
 }
 
 /**

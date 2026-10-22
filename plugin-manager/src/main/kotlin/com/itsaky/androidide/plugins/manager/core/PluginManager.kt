@@ -4,7 +4,6 @@ package com.itsaky.androidide.plugins.manager.core
 
 import android.app.Activity
 import android.content.Context
-import com.itsaky.androidide.actions.SidebarSlotExceededException
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
@@ -19,6 +18,8 @@ import com.itsaky.androidide.plugins.extensions.DocumentationExtension
 import com.itsaky.androidide.plugins.extensions.EditorDecorationProvider
 import com.itsaky.androidide.plugins.extensions.FileOpenExtension
 import com.itsaky.androidide.plugins.extensions.FileTabMenuItem
+import com.itsaky.androidide.plugins.extensions.LanguageDefinition
+import com.itsaky.androidide.plugins.extensions.LanguageExtension
 import com.itsaky.androidide.plugins.extensions.PluginSettingsEntry
 import com.itsaky.androidide.plugins.extensions.SettingsExtension
 import com.itsaky.androidide.plugins.extensions.SnippetExtension
@@ -33,6 +34,7 @@ import com.itsaky.androidide.plugins.manager.context.ServiceRegistryImpl
 import com.itsaky.androidide.plugins.manager.context.SharedServiceRegistry
 import com.itsaky.androidide.plugins.manager.documentation.PluginDocumentationManager
 import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
+import com.itsaky.androidide.plugins.manager.language.PluginLanguageContribution
 import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
 import com.itsaky.androidide.plugins.manager.loaders.PluginResourceContext
@@ -41,7 +43,6 @@ import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
-import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorTabServiceImpl
@@ -54,9 +55,11 @@ import com.itsaky.androidide.plugins.manager.services.IdeProjectServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSidebarServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeSnippetServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTemplateServiceImpl
+import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
+import com.itsaky.androidide.plugins.manager.services.PluginBuildService
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.services.IdeArchiveService
@@ -73,6 +76,7 @@ import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.IdeSidebarService
 import com.itsaky.androidide.plugins.services.IdeSnippetService
 import com.itsaky.androidide.plugins.services.IdeTemplateService
+import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeUIService
@@ -330,6 +334,9 @@ class PluginManager private constructor(
 	private val documentationManager = PluginDocumentationManager(context)
 	private var templateReloadListener: (() -> Unit)? = null
 	private var snippetRefreshListener: ((String) -> Unit)? = null
+
+	@Volatile
+	private var languageContributionsListener: (() -> Unit)? = null
 	val crashTracker = PluginCrashTracker(context, logger)
 
 	private val statePersistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -342,6 +349,16 @@ class PluginManager private constructor(
 
 	fun setSnippetRefreshListener(listener: ((String) -> Unit)?) {
 		this.snippetRefreshListener = listener
+	}
+
+	fun setLanguageContributionsListener(listener: (() -> Unit)?) {
+		this.languageContributionsListener = listener
+	}
+
+	private fun notifyLanguageContributionsChanged(plugin: IPlugin) {
+		if (plugin is LanguageExtension) {
+			languageContributionsListener?.invoke()
+		}
 	}
 
 	// Helper methods for cleaner error handling
@@ -552,14 +569,7 @@ class PluginManager private constructor(
 				return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
 			}
 
-			// Validate sidebar slots BEFORE loading plugin code
 			if (manifest.sidebarItems > 0) {
-				val available = SidebarSlotManager.getAvailableSlotsForPlugins()
-				if (manifest.sidebarItems > available) {
-					return Result.failure(
-						SidebarSlotExceededException(manifest.sidebarItems, available, manifest.id),
-					)
-				}
 				SidebarSlotManager.reservePluginSlots(manifest.id, manifest.sidebarItems)
 				reservedSlotsPluginId = manifest.id
 			}
@@ -638,7 +648,7 @@ class PluginManager private constructor(
 				return Result.failure(RuntimeException("Failed to create plugin context for: ${manifest.id}"))
 			}
 
-			val pluginContext = createPluginContextWithResources(manifest.id, classLoader, permissions, ctx)
+			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
 			val initResult =
@@ -719,6 +729,7 @@ class PluginManager private constructor(
 			}
 			buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
 			lifecycleDispatcher.notifyActivated(manifest.id)
+			notifyLanguageContributionsChanged(plugin)
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
 			loadedPlugin.isEnabled = false
@@ -798,6 +809,10 @@ class PluginManager private constructor(
 			if (commandService is IdeCommandServiceImpl) {
 				commandService.cancelAllCommands()
 			}
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) {
+				terminalService.cancelAll()
+			}
 
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) {
@@ -833,6 +848,7 @@ class PluginManager private constructor(
 				if (dir.exists()) dir.deleteRecursively()
 			}
 
+			notifyLanguageContributionsChanged(loadedPlugin.plugin)
 			logger.info("Unloaded plugin: $pluginId")
 			return true
 		} catch (e: Exception) {
@@ -1005,6 +1021,61 @@ class PluginManager private constructor(
 			.map { it.plugin }
 			.filterIsInstance<EditorDecorationProvider>()
 
+	fun getEnabledLanguageContributions(): List<PluginLanguageContribution> =
+		loadedPlugins.entries
+			.filter { it.value.isEnabled && it.value.plugin is LanguageExtension }
+			.flatMap { (pluginId, loaded) ->
+				val definitions =
+					executeWithErrorHandling("get language definitions", pluginId) {
+						(loaded.plugin as LanguageExtension).getLanguages()
+					}.getOrDefault(emptyList())
+				val assets = PluginFragmentHelper.getPluginContext(pluginId)?.assets
+				if (assets == null) {
+					logger.error("No resource context registered for plugin $pluginId; ignoring its languages")
+					return@flatMap emptyList()
+				}
+				val nativeLibraryDir =
+					File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).takeIf { it.isDirectory }
+				definitions
+					.filter { definition -> isLanguageAllowed(pluginId, loaded.manifest, definition, nativeLibraryDir) }
+					.map { definition -> PluginLanguageContribution(pluginId, definition, assets, nativeLibraryDir) }
+			}
+
+	private fun isLanguageAllowed(
+		pluginId: String,
+		manifest: PluginManifest,
+		definition: LanguageDefinition,
+		nativeLibraryDir: File?,
+	): Boolean {
+		if (definition.server?.command?.isEmpty() == true) {
+			logger.error("Plugin $pluginId declares a language server for '${definition.languageId}' with no command")
+			return false
+		}
+		if (definition.server != null && PluginPermission.SYSTEM_COMMANDS.key !in manifest.permissions) {
+			logger.error(
+				"Plugin $pluginId declares a language server for '${definition.languageId}' without the " +
+					"'${PluginPermission.SYSTEM_COMMANDS.key}' permission",
+			)
+			return false
+		}
+		val invalidVariable =
+			definition.server?.environment?.entries?.firstOrNull { (name, value) ->
+				name.isEmpty() || '=' in name || '\u0000' in name || '\u0000' in value
+			}
+		if (invalidVariable != null) {
+			logger.error(
+				"Plugin $pluginId declares an invalid environment variable '${invalidVariable.key}' for the " +
+					"'${definition.languageId}' language server",
+			)
+			return false
+		}
+		if (definition.grammar != null && nativeLibraryDir == null) {
+			logger.error("Plugin $pluginId declares a grammar for '${definition.languageId}' but bundles no native libraries")
+			return false
+		}
+		return true
+	}
+
 	fun notifyFileOpened(file: File) {
 		getEnabledFileOpenExtensions().forEach { extension ->
 			executeWithErrorHandling("notify file opened") {
@@ -1061,6 +1132,8 @@ class PluginManager private constructor(
 			return true
 		}
 
+		// The services outlive a disable, which closed the terminal service.
+		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
@@ -1088,6 +1161,7 @@ class PluginManager private constructor(
 			loadedPlugin.isEnabled = false
 			savePluginState(pluginId, false)
 			lifecycleDispatcher.notifyDeactivated(pluginId)
+			notifyLanguageContributionsChanged(loadedPlugin.plugin)
 
 			logger.info("Disabled plugin: $pluginId")
 			true
@@ -1110,6 +1184,7 @@ class PluginManager private constructor(
 		loadedPlugin.isEnabled = false
 		savePluginState(pluginId, false)
 		lifecycleDispatcher.notifyDeactivated(pluginId)
+		notifyLanguageContributionsChanged(loadedPlugin.plugin)
 		logger.warn("Force-disabled plugin due to crashes: $pluginId")
 	}
 
@@ -1127,6 +1202,10 @@ class PluginManager private constructor(
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
 		}.onFailure { logger.error("Failed to cancel commands for: $pluginId", it) }
+		runCatching {
+			val terminalService = loadedPlugin.context.services.get(IdeTerminalService::class.java)
+			if (terminalService is IdeTerminalServiceImpl) terminalService.cancelAll()
+		}.onFailure { logger.error("Failed to cancel terminal commands for: $pluginId", it) }
 		runCatching {
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
@@ -1331,6 +1410,7 @@ class PluginManager private constructor(
 	 */
 	private fun createPluginContextWithResources(
 		pluginId: String,
+		pluginName: String,
 		classLoader: ClassLoader,
 		permissions: Set<PluginPermission>,
 		resourceContext: Context,
@@ -1379,7 +1459,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(
@@ -1560,6 +1640,21 @@ class PluginManager private constructor(
 			)
 		}
 
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
+			IdeTerminalService::class.java,
+			pluginId,
+			"terminal",
+		) {
+			IdeTerminalServiceImpl(
+				pluginId = pluginId,
+				sessionLabel = pluginName.ifBlank { pluginId },
+				permissions = permissions,
+				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+				appFilesDir = context.filesDir,
+			)
+		}
+
 		// Note: Phase 2 services (IdeFileService, IdeProjectService, IdeResourceService)
 		// have been removed. Use existing services instead:
 		// - IdeFileService for file operations (now includes listFiles)
@@ -1638,7 +1733,7 @@ class PluginManager private constructor(
 			pluginId,
 			"build",
 		) {
-			IdeBuildServiceImpl.getInstance()
+			PluginBuildService(pluginId, permissions)
 		}
 
 		registerServiceWithErrorHandling(

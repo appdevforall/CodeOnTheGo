@@ -36,19 +36,20 @@ internal class KtLibraryModule(
 	override val isSdk: Boolean = false,
 	private val jvmTarget: JvmTarget = DEFAULT_JVM_TARGET,
 	override val librarySources: KaLibrarySourceModule? = null,
-) : KaLibraryModule,
-	AbstractKtModule(
+) : AbstractKtModule(
 		project,
-		dependencies
-	) {
-
+		dependencies,
+	),
+	KaLibraryModule {
 	class Builder(
 		private val project: Project,
 		private val applicationEnvironment: CoreApplicationEnvironment,
 	) {
 		lateinit var id: String
 		private val contentRoots = mutableSetOf<Path>()
-		private val dependencies = mutableListOf<KtModule>()
+
+		// A set, like KtSourceModule.Builder: no module is a dependency twice.
+		private val dependencies = linkedSetOf<KtModule>()
 		var isSdk: Boolean = false
 		var jvmTarget: JvmTarget = DEFAULT_JVM_TARGET
 		var librarySources: KaLibrarySourceModule? = null
@@ -61,31 +62,37 @@ internal class KtLibraryModule(
 			dependencies.add(dep)
 		}
 
-		fun build(): KtLibraryModule = KtLibraryModule(
-			project = project,
-			id = id,
-			contentRoots = contentRoots.toSet(),
-			dependencies = dependencies.toList(),
-			applicationEnvironment = applicationEnvironment,
-			isSdk = isSdk,
-			jvmTarget = jvmTarget,
-			librarySources = librarySources,
-		)
+		fun build(): KtLibraryModule =
+			KtLibraryModule(
+				project = project,
+				id = id,
+				contentRoots = contentRoots.toSet(),
+				dependencies = dependencies.toList(),
+				applicationEnvironment = applicationEnvironment,
+				isSdk = isSdk,
+				jvmTarget = jvmTarget,
+				librarySources = librarySources,
+			)
 	}
 
 	@OptIn(KaImplementationDetail::class)
 	override fun computeFiles(extended: Boolean): Sequence<VirtualFile> {
-		val roots = if (isSdk) project.read {
-			LibraryUtils.findClassesFromJdkHome(
-				contentRoots.first(),
-				isJre = false
-			)
-		}
-		else contentRoots
+		val roots =
+			if (isSdk) {
+				project.read {
+					LibraryUtils.findClassesFromJdkHome(
+						contentRoots.first(),
+						isJre = false,
+					)
+				}
+			} else {
+				contentRoots
+			}
 
-		val notExtendedFiles = roots
-			.asSequence()
-			.mapNotNull { getVirtualFileForLibraryRoot(it, applicationEnvironment, project) }
+		val notExtendedFiles =
+			roots
+				.asSequence()
+				.mapNotNull { getVirtualFileForLibraryRoot(it, applicationEnvironment, project) }
 
 		if (!extended) return notExtendedFiles
 
@@ -97,17 +104,11 @@ internal class KtLibraryModule(
 	override val baseContentScope: GlobalSearchScope by lazy {
 		val virtualFileUrls = computeFiles(extended = true).map { it.url }.toSet()
 		object : GlobalSearchScope(project) {
-			override fun contains(vf: VirtualFile): Boolean {
-				return vf.url in virtualFileUrls
-			}
+			override fun contains(vf: VirtualFile): Boolean = vf.url in virtualFileUrls
 
-			override fun isSearchInModuleContent(module: Module): Boolean {
-				return false
-			}
+			override fun isSearchInModuleContent(module: Module): Boolean = false
 
-			override fun isSearchInLibraries(): Boolean {
-				return true
-			}
+			override fun isSearchInLibraries(): Boolean = true
 		}
 	}
 
@@ -136,6 +137,7 @@ internal fun buildKtLibraryModule(
 ): KtLibraryModule = KtLibraryModule.Builder(project, applicationEnvironment).apply(init).build()
 
 private const val JAR_SEPARATOR = "!/"
+
 private fun getVirtualFileForLibraryRoot(
 	root: Path,
 	environment: CoreApplicationEnvironment,

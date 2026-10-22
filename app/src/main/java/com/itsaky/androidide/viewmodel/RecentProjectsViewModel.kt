@@ -19,6 +19,7 @@ import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
+import com.itsaky.androidide.utils.isDeletedProjectDirectory
 import com.itsaky.androidide.utils.readProjectLanguage
 import com.itsaky.androidide.utils.reconcileRecentProjectLocations
 import kotlinx.coroutines.CancellationException
@@ -109,9 +110,22 @@ class RecentProjectsViewModel(
 						emptyList()
 					}
 				}
-			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
+			allProjects =
+				withoutDeletedProjects(projectsFromDb).map { ProjectFile(it.location, it.createdAt, it.lastModified) }
 			applyFilters()
 		}
+
+	private suspend fun withoutDeletedProjects(projects: List<RecentProject>): List<RecentProject> {
+		val (deleted, present) = projects.partition { File(it.location).isDeletedProjectDirectory() }
+		if (deleted.isNotEmpty()) {
+			try {
+				recentProjectDao.deleteByIds(deleted.map { it.id })
+			} catch (e: SQLException) {
+				logger.error("Failed to remove deleted projects from Recents", e)
+			}
+		}
+		return present
+	}
 
 	private suspend fun loadProjectsFromDatabase(): List<RecentProject> {
 		if (projectLocationsReconciled) {
