@@ -12,6 +12,9 @@ import org.json.JSONException
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Implementation of [TemplateRepository].
@@ -143,7 +146,15 @@ class TemplateRepositoryImpl(
 			}
 		}
 
-	override suspend fun uninstallTemplate(item: CgtFileItem): Result<Unit> =
+	/**
+	 * On a post-copy delete failure: rolls back (deletes the Downloads copy this call created) when
+	 * `overwrite` was false, but leaves the Downloads copy in place when `overwrite` was true, since
+	 * the pre-existing content there was already replaced and can't be recovered either way.
+	 */
+	override suspend fun uninstallTemplate(
+		item: CgtFileItem,
+		overwrite: Boolean,
+	): Result<Unit> =
 		withContext(Dispatchers.IO) {
 			try {
 				check(item.installed) { "'${item.name}' is not installed" }
@@ -153,12 +164,40 @@ class TemplateRepositoryImpl(
 
 				// Restore a copy to Downloads BEFORE removing it from the store: if the restore
 				// throws, the store copy below is never touched, so the user's only copy survives.
-				val restored = File(downloadDir, item.file.name)
-				check(!restored.exists()) { "A download named '${restored.name}' already exists in $downloadDir" }
-				item.file.copyTo(restored, overwrite = false)
+				// The existing-file lookup ignores case, like scanTemplates: a twin differing only in
+				// case is hidden from the list, so it must still raise the Replace prompt.
+				val existingDownload =
+					downloadDir.listFiles()?.firstOrNull { file ->
+						file.isFile && file.name.equals(item.file.name, ignoreCase = true)
+					}
+				val restored = existingDownload ?: File(downloadDir, item.file.name)
+				val hadExistingDownload = existingDownload != null
+				if (hadExistingDownload && !overwrite) {
+					// Not thrown, so it skips the catch blocks below - log it here instead, or a
+					// repeated replace-conflict leaves no trace for support to find.
+					logger.warn(
+						"Uninstall of '{}' would overwrite an existing Downloads file; asking for confirmation",
+						item.name,
+					)
+					return@withContext Result.failure(TemplateReplaceConflictException(restored.name))
+				}
+				// hadExistingDownload is only true here because the !overwrite case above already
+				// returned - replacement is confirmed exactly when a pre-existing file was found.
+				copyThroughTempFile(item.file, restored, replaceExisting = hadExistingDownload)
 				if (!item.file.delete()) {
-					restored.delete()
-					throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
+					// Only roll back a copy this call created itself. When `overwrite` replaced a
+					// pre-existing Downloads file, that original content is already gone - deleting
+					// `restored` here would destroy the new copy too and leave the user with nothing,
+					// whereas the still-installed source (its delete just failed) means leaving the
+					// new copy in place costs nothing and loses no data.
+					if (!hadExistingDownload) {
+						restored.delete()
+						throw IOException("Failed to delete source file after copying: ${item.file.absolutePath}")
+					}
+					throw IOException(
+						"Replaced '${restored.name}' in Downloads, but failed to delete the installed copy at " +
+							"${item.file.absolutePath} - the template now exists in both places",
+					)
 				}
 				ITemplateProvider.getInstance(reload = true)
 				Result.success(Unit)
@@ -172,6 +211,41 @@ class TemplateRepositoryImpl(
 				Result.failure(e)
 			}
 		}
+
+	/**
+	 * Copies [source] to [target] via a temp file renamed into place, so a copy that fails partway
+	 * (storage full, I/O error) leaves an existing [target] intact and no truncated file behind.
+	 * `copyTo(overwrite = true)` deletes the target before copying, which would lose it.
+	 *
+	 * [replaceExisting] must be true only when the caller already confirmed overwriting [target];
+	 * when false, a [target] that exists anyway (e.g. created after the caller's own check, between
+	 * that check and this call) fails with [TemplateReplaceConflictException] instead of being
+	 * silently replaced.
+	 */
+	private fun copyThroughTempFile(
+		source: File,
+		target: File,
+		replaceExisting: Boolean,
+	) {
+		// Not a .cgt name, so a leftover is never listed as a template.
+		val temp = File(target.parentFile, ".${target.name}.part")
+		try {
+			source.copyTo(temp, overwrite = true)
+			// Files.move, not File.renameTo: renameTo leaves replacing an existing target
+			// unspecified, and a confirmed Replace always has one.
+			try {
+				if (replaceExisting) {
+					Files.move(temp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+				} else {
+					Files.move(temp.toPath(), target.toPath())
+				}
+			} catch (e: FileAlreadyExistsException) {
+				throw TemplateReplaceConflictException(target.name)
+			}
+		} finally {
+			temp.delete()
+		}
+	}
 
 	override suspend fun deleteDownloadFile(item: CgtFileItem): Result<Unit> =
 		withContext(Dispatchers.IO) {
