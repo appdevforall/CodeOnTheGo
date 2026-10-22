@@ -277,7 +277,7 @@ Build and install `:app:assembleV8Debug` from this branch - Quick Build has not 
 
 | Flag file              | Effect                                                       |
 | ---------------------- | ------------------------------------------------------------ |
-| `CodeOnTheGo.exp`      | the experiments flag; required - without it the lightning-bolt button does not appear |
+| `CodeOnTheGo.exp`      | the experiments flag; required - `Experiment.QUICK_BUILD` rides on it, and without it the lightning-bolt button does not appear. Tap the homepage title to confirm Quick Build is listed ([EXPERIMENTS.md](../EXPERIMENTS.md)) |
 | `CodeOnTheGo.qbbench`  | adds the adb entry point and the `bench-events.jsonl` event log; **debug builds only** - the benchmark code lives in `app/src/debug/` and is absent from a release APK |
 | `CodeOnTheGo.qbnoseed` | suppresses the post-provisioning warm compile so an A/B runs against the same installed build; inert without `.qbbench`, never on in a shipping build |
 

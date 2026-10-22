@@ -198,11 +198,9 @@ interface IdeEditorService {
 	 * allowed roots.
 	 *
 	 * The default body is a convenience for the host's own implementers, not a compatibility
-	 * shim: this module sets no `-Xjvm-default`, so it compiles to an abstract interface method
-	 * plus a `DefaultImpls` static rather than a Java default method. An older IDE ships an
-	 * `IdeEditorService` with no `saveFile` at all, so a call there fails with
-	 * `NoSuchMethodError`. Floor `plugin.min_ide_version` at the release that introduced this -
-	 * see PLUGIN_API_CHANGELOG.md.
+	 * shim for callers: an older IDE ships an `IdeEditorService` with no `saveFile` at all, so a
+	 * call there fails with `NoSuchMethodError`. Floor `plugin.min_ide_version` at the release
+	 * that introduced this - see PLUGIN_API_CHANGELOG.md.
 	 */
 	suspend fun saveFile(file: File): Boolean = false
 
@@ -409,9 +407,9 @@ interface IdeBuildService {
 	 * Non-empty [arguments] need the `system.commands` permission (`--init-script` runs any code
 	 * in the IDE's Gradle daemon); without it this throws [SecurityException].
 	 *
-	 * The default body is not a compatibility shim: this module sets no `-Xjvm-default`, so an
-	 * IDE older than 26.41 has no such method and the call fails with `NoSuchMethodError`. Floor
-	 * `plugin.min_ide_version` at 26.41 to use it.
+	 * The default body is not a compatibility shim: an IDE older than 26.41 has no such method
+	 * and the call fails with `NoSuchMethodError`. Floor `plugin.min_ide_version` at 26.41 to use
+	 * it.
 	 */
 	fun executeTasks(
 		tasks: List<String>,
