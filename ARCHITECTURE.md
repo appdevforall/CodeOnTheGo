@@ -4,7 +4,7 @@
 
 ## Overview
 
-Code On The Go (CoGo) is a full Android IDE that runs **on the device** — it edits, builds, and deploys real Android apps offline, embedding a Termux toolchain and running an actual Gradle build in a separate process via the `tooling-api`. It is the maintained successor to AndroidIDE, so the codebase namespace is still `com.itsaky.androidide`.
+Code On The Go (CoGo) is a full Android IDE that runs **on the device** — it edits, builds, and deploys real Android apps offline, embedding a Termux toolchain and running an actual Gradle build in a separate process via the `tooling-api`. It is the maintained successor to AndroidIDE; its application id and namespace are `org.appdevforall.codeonthego` ([ADR 0017](docs/adr/0017-rename-to-appdevforall-codeonthego-namespace.md)).
 
 There is **no single architectural philosophy** across the whole app. This large, layered application is still **predominantly View-based**: newer feature surfaces (plugin manager, AI agent, git, project list) follow a deliberate **Unidirectional Data Flow (UDF)** with Koin DI, `ViewModel` + `StateFlow`, sealed UI-state/effect types, and repositories, while older surfaces still use `LiveData` and talk to GreenRobot EventBus directly. New work follows the UDF pattern documented below, and new UI is built in **Jetpack Compose** ([ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)) — Compose replaces the view layer only; the UDF stack (ViewModel + `StateFlow`, Koin, repositories) is unchanged. Existing XML/View screens remain until substantially reworked. The first production example is the **Manager** screen (`PluginManagerActivity`) — merged Plugins/Templates tabs built with `Scaffold`/`TabRow`/`HorizontalPager` (ADFA-4928).
 
