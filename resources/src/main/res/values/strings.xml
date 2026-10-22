@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-
+<!-- test stuff  -->
 	<!-- Code on the Go -->
 	<string name="copy" tools:override="true">Copy</string>
 	<string name="terminal_more">More…</string>
