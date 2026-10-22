@@ -50,8 +50,11 @@ object ProjectSyncHelper {
 	 * Bump this whenever a persisted proto schema changes incompatibly. A stored version that
 	 * differs from this one discards the sync files and forces a full sync. The models are
 	 * produced and consumed only by the IDE and hold no user data, so discarding them is safe.
+	 *
+	 * Also bump it when the models' absolute paths move: "3" marks the application id change to
+	 * org.appdevforall.codeonthego, whose data dir differs from the one "2" caches point into.
 	 */
-	const val SYNC_META_VERSION = "2"
+	const val SYNC_META_VERSION = "3"
 
 	private val logger = LoggerFactory.getLogger(ProjectSyncHelper::class.java)
 

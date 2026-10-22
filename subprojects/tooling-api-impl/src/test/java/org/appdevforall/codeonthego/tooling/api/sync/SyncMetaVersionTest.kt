@@ -56,6 +56,17 @@ class SyncMetaVersionTest {
 	}
 
 	@Test
+	fun `a cache synced under the old application id is resynced`() {
+		val projectDir = seedProject()
+		// "2" is what every build before the org.appdevforall.codeonthego id change wrote; its
+		// models point into the old app's data dir.
+		seedSyncFiles(projectDir, metaVersion = "2")
+
+		assertThat(runBlocking { ProjectSyncHelper.checkSyncNeeded(projectDir) }).isTrue()
+		assertSyncFilesDiscarded(projectDir)
+	}
+
+	@Test
 	fun `sync is needed and the stale files are discarded when the stored meta is unreadable`() {
 		val projectDir = seedProject()
 		seedSyncFiles(projectDir, ProjectSyncHelper.SYNC_META_VERSION)
