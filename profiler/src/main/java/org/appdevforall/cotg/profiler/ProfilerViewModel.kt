@@ -212,11 +212,16 @@ class ProfilerViewModel(
 
 	private fun onStopProfiling() {
 		when (val current = _state.value) {
-			is ProfilerUiState.Profiling.CpuSampling ->
+			is ProfilerUiState.Profiling.CpuSampling -> {
 				// While finalizing the report the same button acts as "Cancel": abort the in-flight
 				// report generation instead of (re-)starting it.
 				if (current.finalizing) cancelCpuReport() else finalizeCpuProfiling(current.process)
-			is ProfilerUiState.Profiling.HeapDump -> cancelHeapDump()
+			}
+
+			is ProfilerUiState.Profiling.HeapDump -> {
+				cancelHeapDump()
+			}
+
 			else -> {} // not profiling — nothing to stop
 		}
 	}

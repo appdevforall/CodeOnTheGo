@@ -124,21 +124,25 @@ private fun ColumnScope.ProfilerControls(
 				)
 			}
 
-			is ProfilerUiState.ChooseProcess ->
+			is ProfilerUiState.ChooseProcess -> {
 				ControlButton(R.string.profiler_cancel) { onIntent(ProfilerIntent.Reset) }
+			}
 
-			is ProfilerUiState.Profiling.HeapDump ->
+			is ProfilerUiState.Profiling.HeapDump -> {
 				ControlButton(R.string.profiler_cancel) { onIntent(ProfilerIntent.StopProfiling) }
+			}
 
-			is ProfilerUiState.Profiling.CpuSampling ->
+			is ProfilerUiState.Profiling.CpuSampling -> {
 				// While sampling the button stops & generates the report; while the report is being
 				// generated the same button cancels it (see ProfilerViewModel.onStopProfiling).
 				ControlButton(
 					if (state.finalizing) R.string.profiler_cancel else R.string.profiler_cpu_stop,
 				) { onIntent(ProfilerIntent.StopProfiling) }
+			}
 
-			is ProfilerUiState.Completed, is ProfilerUiState.Failed ->
+			is ProfilerUiState.Completed, is ProfilerUiState.Failed -> {
 				ControlButton(R.string.profiler_start_another) { onIntent(ProfilerIntent.Reset) }
+			}
 		}
 	}
 }
@@ -161,10 +165,11 @@ private fun ProfilerContent(
 	onIntent: (ProfilerIntent) -> Unit,
 ) {
 	when (state) {
-		ProfilerUiState.Idle ->
+		ProfilerUiState.Idle -> {
 			CenteredMessage(stringResource(R.string.profiler_empty))
+		}
 
-		is ProfilerUiState.ChooseProcess ->
+		is ProfilerUiState.ChooseProcess -> {
 			Column(
 				modifier = Modifier.fillMaxSize(),
 				verticalArrangement = Arrangement.spacedBy(Dimens.paddingSm),
@@ -184,31 +189,38 @@ private fun ProfilerContent(
 					emptyMessage = stringResource(R.string.profiler_no_processes),
 				)
 			}
+		}
 
-		is ProfilerUiState.Profiling.HeapDump ->
+		is ProfilerUiState.Profiling.HeapDump -> {
 			Loading(stringResource(R.string.profiler_running, state.process.label))
+		}
 
-		is ProfilerUiState.Profiling.CpuSampling ->
+		is ProfilerUiState.Profiling.CpuSampling -> {
 			if (state.finalizing) {
 				Loading(stringResource(R.string.profiler_cpu_processing))
 			} else {
 				CpuUsageGraph(samples = state.samples, modifier = Modifier.fillMaxSize())
 			}
+		}
 
-		is ProfilerUiState.Completed ->
+		is ProfilerUiState.Completed -> {
 			when (val report = state.report) {
-				is ProfilerReport.HeapDump ->
+				is ProfilerReport.HeapDump -> {
 					HeapResultView(profile = report.profile, modifier = Modifier.fillMaxSize())
+				}
 
-				is ProfilerReport.CpuSampling ->
+				is ProfilerReport.CpuSampling -> {
 					CpuResultView(profile = report.profile, modifier = Modifier.fillMaxSize())
+				}
 			}
+		}
 
-		is ProfilerUiState.Failed ->
+		is ProfilerUiState.Failed -> {
 			CenteredMessage(
 				message = state.message,
 				color = MaterialTheme.colorScheme.error,
 			)
+		}
 	}
 }
 

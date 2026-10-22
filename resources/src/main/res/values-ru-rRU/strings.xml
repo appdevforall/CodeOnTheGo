@@ -467,3 +467,4 @@
   <string name="idepref_jdkVersion_title">Версия JDK</string>
   <string name="idepref_jdkVersion_summary">Выбрано: %1$s (перезапустите приложение после изменения)</string>
 </resources>
+

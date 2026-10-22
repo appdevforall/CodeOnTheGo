@@ -465,3 +465,4 @@
   <string name="idepref_jdkVersion_title">JDK sürümü</string>
   <string name="idepref_jdkVersion_summary">Seçili olan: %1$s (değiştirildiğinde uygulamayı yeniden başlatmalısınız)</string>
 </resources>
+
