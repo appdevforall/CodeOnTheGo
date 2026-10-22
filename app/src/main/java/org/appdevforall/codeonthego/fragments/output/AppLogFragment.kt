@@ -20,7 +20,7 @@ package org.appdevforall.codeonthego.fragments.output
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.activityViewModels
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.preferences.internal.DevOpsPreferences
 import org.appdevforall.codeonthego.viewmodel.AppLogsViewModel

@@ -21,7 +21,6 @@ import android.content.Context
 import com.github.javaparser.StaticJavaParser
 import com.github.javaparser.ast.Modifier
 import com.github.javaparser.ast.body.ConstructorDeclaration
-import com.itsaky.androidide.resources.R.string
 import io.github.rosemoe.sora.widget.CodeEditor
 import openjdk.source.tree.ClassTree
 import openjdk.source.tree.VariableTree
@@ -45,6 +44,7 @@ import org.appdevforall.codeonthego.lsp.java.utils.ShortTypePrinter.NO_PACKAGE
 import org.appdevforall.codeonthego.models.Range
 import org.appdevforall.codeonthego.preferences.utils.indentationString
 import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.StopWatch
 import org.appdevforall.codeonthego.utils.flashError

@@ -2,7 +2,6 @@ package org.appdevforall.codeonthego.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -27,6 +26,7 @@ import org.appdevforall.codeonthego.git.core.models.GitBranch
 import org.appdevforall.codeonthego.git.core.models.GitStatus
 import org.appdevforall.codeonthego.preferences.internal.GitPreferences
 import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.isNetworkConnected
 import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.PullResult

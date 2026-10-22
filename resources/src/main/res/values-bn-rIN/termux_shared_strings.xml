@@ -72,7 +72,7 @@
 		Code on the Go অ্যাপ্লিকেশান এবং %1$s অ্যাপ্লিকেশান উভয়েরই আলাদা APK স্বাক্ষর রয়েছে কারণ আপনি বিভিন্ন উত্স থেকে উভয়
 		অ্যাপ ইনস্টল করতে পরিচালনা করেছেন৷
 		এটাও হতে পারে কারণ Code on the Go $PREFIX ডিরেক্টরি
-		\"/data/data/com.itsaky.androidide/files/usr\" নেই বা পড়া নেই,
+		\"/data/data/org.appdevforall.codeonthego/files/usr\" নেই বা পড়া নেই,
 		লিখুন এবং অনুমতি কার্যকর করুন।.</string>
 	<!-- Miscellaneous -->
 	<string name="action_share">শেয়ার করুন</string>

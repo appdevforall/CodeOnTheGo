@@ -22,9 +22,9 @@ import android.graphics.drawable.Drawable
 import android.widget.EditText
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.editor.adapters.IdeEditorAdapter
 import org.appdevforall.codeonthego.editor.ui.IDEEditor
+import org.appdevforall.codeonthego.resources.R
 
 /** @author Akash Yadav */
 abstract class BaseEditorAction : EditorActionItem {

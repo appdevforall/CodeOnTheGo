@@ -9,8 +9,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnAttach
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updatePadding
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.ContentEditorBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.ContentEditorBinding
 
 data class InitialPadding(
 	val left: Int,

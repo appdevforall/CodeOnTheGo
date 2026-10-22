@@ -79,7 +79,8 @@
 		Hal ini mungkin karena Anda belum menginstal atau menyiapkan aplikasi Code on the Go, atau
 		aplikasi Code on the Go dan aplikasi %1$s memiliki tanda tangan APK yang berbeda karena keduanya diinstal dari sumber yang
 		berbeda.
-		Hal ini juga bisa terjadi karena direktori $PREFIX Code on the Go \"/data/data/com.itsaky.androidide/files/usr\" tidak
+		Hal ini juga bisa terjadi karena direktori $PREFIX Code on the Go \"/data/data/org.appdevforall.codeonthego/files/usr\"
+		tidak
 		ada atau tidak
 		memiliki izin baca, tulis, dan eksekusi.</string>
 

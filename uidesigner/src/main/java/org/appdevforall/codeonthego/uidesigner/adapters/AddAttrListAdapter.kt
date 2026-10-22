@@ -21,8 +21,8 @@ import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.uidesigner.databinding.LayoutAddAttrItemBinding
 import org.appdevforall.codeonthego.uidesigner.adapters.AddAttrListAdapter.VH
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutAddAttrItemBinding
 
 /**
  * Adapter to show the list of attributes that can be added to the selected view in the UI designer.

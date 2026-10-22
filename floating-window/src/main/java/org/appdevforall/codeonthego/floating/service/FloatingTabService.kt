@@ -26,7 +26,7 @@ import org.appdevforall.codeonthego.floating.model.DockingManager
 import org.appdevforall.codeonthego.floating.model.FloatingTab
 import org.appdevforall.codeonthego.floating.window.FloatingWindow
 import org.slf4j.LoggerFactory
-import com.itsaky.androidide.resources.R as ResR
+import org.appdevforall.codeonthego.resources.R as ResR
 
 /**
  * Foreground service that owns the live floating overlay windows. It reconciles its set of

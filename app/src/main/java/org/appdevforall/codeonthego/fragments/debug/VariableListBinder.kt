@@ -9,9 +9,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.text.PrecomputedTextCompat
 import androidx.core.widget.TextViewCompat
-import com.itsaky.androidide.databinding.DebuggerSetVariableValueBinding
-import com.itsaky.androidide.databinding.DebuggerVariableItemBinding
-import com.itsaky.androidide.resources.R
 import io.github.dingyi222666.view.treeview.TreeNode
 import io.github.dingyi222666.view.treeview.TreeNodeEventListener
 import io.github.dingyi222666.view.treeview.TreeView
@@ -22,10 +19,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.databinding.DebuggerSetVariableValueBinding
+import org.appdevforall.codeonthego.databinding.DebuggerVariableItemBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_OUTPUT_VARIABLES
 import org.appdevforall.codeonthego.lsp.debug.model.VariableDescriptor
 import org.appdevforall.codeonthego.lsp.debug.model.VariableKind
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.isSystemInDarkMode

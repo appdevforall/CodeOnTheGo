@@ -28,8 +28,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
-import com.itsaky.androidide.resources.R;
 import io.github.rosemoe.sora.widget.base.EditorPopupWindow;
+import org.appdevforall.codeonthego.resources.R;
 import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 
 /**

@@ -17,11 +17,11 @@
 
 package org.appdevforall.codeonthego.uidesigner.utils
 
-import com.itsaky.androidide.uidesigner.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.LAYOUTS
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.IViewAdapterIndex
 import org.appdevforall.codeonthego.inflater.internal.utils.simpleName
+import org.appdevforall.codeonthego.uidesigner.R.string
 import org.appdevforall.codeonthego.uidesigner.models.UiWidgetCategory
 
 internal object Widgets {

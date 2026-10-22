@@ -14,7 +14,7 @@
  *  You should have received a copy of the GNU General Public License
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
@@ -41,7 +41,7 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 		 * the Quick Build sources are allowed newer AGP APIs. Pinned to the real class by
 		 * `QuickBuildPluginTest`.
 		 */
-		internal const val QUICK_BUILD_PLUGIN_CLASS = "com.itsaky.androidide.gradle.QuickBuildPlugin"
+		internal const val QUICK_BUILD_PLUGIN_CLASS = "org.appdevforall.codeonthego.gradle.QuickBuildPlugin"
 	}
 
 	override fun apply(target: Project) {

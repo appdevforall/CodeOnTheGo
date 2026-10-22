@@ -29,7 +29,7 @@ import android.view.View;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
-import com.itsaky.androidide.R;
+import org.appdevforall.codeonthego.R;
 import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 
 public class EmptyView extends RelativeLayout {

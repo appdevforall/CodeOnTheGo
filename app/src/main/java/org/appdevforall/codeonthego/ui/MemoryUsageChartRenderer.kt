@@ -27,7 +27,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IAxisValueFormatter
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.utils.MemoryUsageWatcher
 import org.appdevforall.codeonthego.utils.MemoryUsageWatcher.ProcessMemoryInfo

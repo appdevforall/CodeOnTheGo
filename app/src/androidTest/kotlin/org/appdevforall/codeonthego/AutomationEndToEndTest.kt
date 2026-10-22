@@ -4,8 +4,8 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.SplashActivity
 import org.appdevforall.codeonthego.helper.advancePastWelcomeScreen
 import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByText

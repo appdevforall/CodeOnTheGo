@@ -18,8 +18,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.google.android.material.tabs.TabLayoutMediator
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.FragmentDebuggerBinding
 import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -29,6 +27,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.shizuku.manager.ShizukuState
 import moe.shizuku.manager.model.ServiceStatus
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.FragmentDebuggerBinding
 import org.appdevforall.codeonthego.fragments.EmptyStateFragment
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_NOT_CONNECTED

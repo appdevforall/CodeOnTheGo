@@ -280,7 +280,7 @@ Dernier projet ouvert : \n%s</string>
   <string name="xml_formatting_options">XML formatting options</string>
   <string name="xml_formatting_options_summary">Configurer le formateur XML</string>
   <string name="idepref_customFont_title">Use custom font</string>
-  <string name="idepref_customFont_summary">Si activé le font : \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" sera utilisé comme font d\'éditeur par défaut.</string>
+  <string name="idepref_customFont_summary">Si activé le font : \"/data/data/org.appdevforall.codeonthego/files/home/.cg/ui/font.ttf\" sera utilisé comme font d\'éditeur par défaut.</string>
   <string name="msg_installing_apk">Installation de l\'application...</string>
   <string name="msg_action_open_application">Voulez-vous ouvrir l\'application ?</string>
   <string name="title_gradle_service_notification_channel">Gradle Build Service d\'Code on the Go</string>

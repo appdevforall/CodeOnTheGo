@@ -17,12 +17,12 @@
 
 package org.appdevforall.codeonthego.editor.language
 
-import com.itsaky.androidide.editor.R
 import io.github.rosemoe.sora.lang.format.AsyncFormatter
 import io.github.rosemoe.sora.text.CharPosition
 import io.github.rosemoe.sora.text.Content
 import io.github.rosemoe.sora.text.TextRange
 import org.appdevforall.codeonthego.app.BaseApplication
+import org.appdevforall.codeonthego.editor.R
 import org.appdevforall.codeonthego.lsp.api.ILanguageServer
 import org.appdevforall.codeonthego.lsp.models.CodeFormatException
 import org.appdevforall.codeonthego.lsp.models.CodeFormatResult

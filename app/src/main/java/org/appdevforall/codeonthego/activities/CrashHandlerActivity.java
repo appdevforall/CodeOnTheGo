@@ -20,8 +20,8 @@ package org.appdevforall.codeonthego.activities;
 import android.os.Bundle;
 import android.view.View;
 import androidx.annotation.NonNull;
-import com.itsaky.androidide.databinding.ActivityCrashHandlerBinding;
 import org.appdevforall.codeonthego.app.IDEActivity;
+import org.appdevforall.codeonthego.databinding.ActivityCrashHandlerBinding;
 import org.appdevforall.codeonthego.fragments.CrashReportFragment;
 
 public class CrashHandlerActivity extends IDEActivity {

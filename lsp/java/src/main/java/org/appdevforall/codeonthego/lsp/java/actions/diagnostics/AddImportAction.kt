@@ -20,7 +20,6 @@ import android.content.Context
 import android.view.View
 import android.widget.ListView
 import com.google.common.collect.Iterables.toArray
-import com.itsaky.androidide.resources.R
 import jdkx.tools.Diagnostic
 import jdkx.tools.JavaFileObject
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +45,7 @@ import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.projects.util.StringSearch
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively
 import org.appdevforall.codeonthego.utils.flashError
 import org.slf4j.LoggerFactory

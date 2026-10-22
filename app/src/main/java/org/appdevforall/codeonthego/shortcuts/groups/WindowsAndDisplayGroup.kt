@@ -2,11 +2,11 @@ package org.appdevforall.codeonthego.shortcuts.groups
 
 import android.content.Context
 import android.view.KeyEvent
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.main.OpenTerminalAction
 import org.appdevforall.codeonthego.actions.main.PreferencesAction
 import org.appdevforall.codeonthego.actions.sidebar.PreferencesSidebarAction
 import org.appdevforall.codeonthego.actions.sidebar.TerminalSidebarAction
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.shortcuts.KeyShortcut
 import org.appdevforall.codeonthego.shortcuts.ShortcutCategory
 import org.appdevforall.codeonthego.shortcuts.ShortcutContext

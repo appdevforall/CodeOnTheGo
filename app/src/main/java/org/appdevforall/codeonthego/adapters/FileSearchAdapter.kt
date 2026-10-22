@@ -10,7 +10,7 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.databinding.LayoutFileSearchItemBinding
+import org.appdevforall.codeonthego.databinding.LayoutFileSearchItemBinding
 import org.appdevforall.codeonthego.models.FileExtension
 import org.appdevforall.codeonthego.utils.FileMatch
 import java.io.File

@@ -8,7 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
 import android.widget.TextView
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag

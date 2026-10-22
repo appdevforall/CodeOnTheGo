@@ -11,12 +11,12 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.DebuggerCallstackItemBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.DebuggerCallstackItemBinding
 import org.appdevforall.codeonthego.fragments.RecyclerViewFragment
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.DEBUG_OUTPUT_CALLSTACK

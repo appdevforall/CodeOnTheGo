@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego.utils
 
 import android.content.Context
-import com.itsaky.androidide.R
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.git.core.GitRepositoryManager
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.tasks.executeAsyncProvideError

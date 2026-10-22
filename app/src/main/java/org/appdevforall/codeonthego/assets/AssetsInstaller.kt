@@ -2,7 +2,7 @@ package org.appdevforall.codeonthego.assets
 
 import android.content.Context
 import androidx.annotation.WorkerThread
-import com.itsaky.androidide.BuildConfig
+import org.appdevforall.codeonthego.BuildConfig
 import org.appdevforall.codeonthego.app.configuration.CpuArch
 import java.nio.file.Path
 

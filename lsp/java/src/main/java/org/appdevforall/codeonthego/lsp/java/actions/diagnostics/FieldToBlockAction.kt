@@ -16,7 +16,6 @@
  */
 package org.appdevforall.codeonthego.lsp.java.actions.diagnostics
 
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
@@ -29,6 +28,7 @@ import org.appdevforall.codeonthego.lsp.java.rewrite.ConvertFieldToBlock
 import org.appdevforall.codeonthego.lsp.java.utils.CodeActionUtils.findPosition
 import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
 import org.appdevforall.codeonthego.projects.IProjectManager
+import org.appdevforall.codeonthego.resources.R
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */

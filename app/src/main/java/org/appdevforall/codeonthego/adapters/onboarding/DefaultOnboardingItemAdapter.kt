@@ -22,7 +22,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.databinding.LayoutOnboardingItemBinding
+import org.appdevforall.codeonthego.databinding.LayoutOnboardingItemBinding
 import org.appdevforall.codeonthego.models.OnboardingItem
 
 /**

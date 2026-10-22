@@ -22,7 +22,7 @@ import android.graphics.PorterDuff.Mode.SRC_ATOP
 import android.graphics.PorterDuffColorFilter
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
-import com.itsaky.androidide.preferences.R
+import org.appdevforall.codeonthego.preferences.R
 import org.appdevforall.codeonthego.utils.resolveAttr
 
 /**

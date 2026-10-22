@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle.quickbuild
+package org.appdevforall.codeonthego.gradle.quickbuild
 
 import com.google.common.truth.Truth.assertThat
 import groovy.json.JsonSlurper

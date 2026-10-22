@@ -19,12 +19,12 @@ package org.appdevforall.codeonthego.actions.file
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.EditorRelatedAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.models.SaveResult
 import org.appdevforall.codeonthego.quickbuild.GenerateSourcesDeferral
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.flashError
 import org.appdevforall.codeonthego.utils.flashSuccess
 import org.slf4j.LoggerFactory

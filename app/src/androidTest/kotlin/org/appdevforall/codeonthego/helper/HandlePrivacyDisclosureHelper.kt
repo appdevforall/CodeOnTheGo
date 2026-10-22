@@ -8,7 +8,7 @@ import org.appdevforall.codeonthego.preferences.internal.StatPreferences
 import org.appdevforall.codeonthego.preferences.internal.TelemetryConsent
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import com.itsaky.androidide.resources.R as ResourcesR
+import org.appdevforall.codeonthego.resources.R as ResourcesR
 
 private const val TAG = "PrivacyDisclosure"
 

@@ -18,8 +18,8 @@
 package org.appdevforall.codeonthego.app.configuration
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.BuildConfig.ABI_ARM64_V8A
-import com.itsaky.androidide.BuildConfig.ABI_ARMEABI_V7A
+import org.appdevforall.codeonthego.BuildConfig.ABI_ARM64_V8A
+import org.appdevforall.codeonthego.BuildConfig.ABI_ARMEABI_V7A
 import org.junit.Test
 
 /**

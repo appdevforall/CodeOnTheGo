@@ -22,9 +22,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.viewModels
-import com.itsaky.androidide.uidesigner.databinding.FragmentUiWidgetsBinding
 import org.appdevforall.codeonthego.fragments.BaseFragment
 import org.appdevforall.codeonthego.uidesigner.adapters.WidgetsCategoryAdapter
+import org.appdevforall.codeonthego.uidesigner.databinding.FragmentUiWidgetsBinding
 import org.appdevforall.codeonthego.uidesigner.utils.Widgets
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 

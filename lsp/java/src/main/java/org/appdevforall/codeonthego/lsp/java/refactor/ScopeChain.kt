@@ -6,7 +6,7 @@ import org.appdevforall.codeonthego.lsp.refactor.TextSpan
 import org.appdevforall.codeonthego.lsp.refactor.leadingIndentAt
 
 import androidx.annotation.StringRes
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import openjdk.source.tree.BlockTree
 import openjdk.source.tree.CaseTree
 import openjdk.source.tree.CatchTree

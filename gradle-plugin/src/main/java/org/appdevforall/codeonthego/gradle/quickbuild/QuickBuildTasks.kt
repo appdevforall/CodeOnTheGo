@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle.quickbuild
+package org.appdevforall.codeonthego.gradle.quickbuild
 
 import com.android.build.api.variant.BuiltArtifact
 import com.android.build.api.variant.BuiltArtifactsLoader

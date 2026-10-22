@@ -95,7 +95,7 @@ abstract class GenerateInitScriptTask : DefaultTask() {
 					}
 				}
 
-				apply plugin: com.itsaky.androidide.gradle.AndroidIDEInitScriptPlugin
+				apply plugin: org.appdevforall.codeonthego.gradle.AndroidIDEInitScriptPlugin
 				""".trimIndent(),
 			)
 		}

@@ -4,10 +4,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.core.graphics.Insets
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import org.appdevforall.codeonthego.FeedbackButtonManager
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.app.EdgeToEdgeIDEActivity
+import org.appdevforall.codeonthego.databinding.ActivityPluginManagerBinding
 import org.appdevforall.codeonthego.ui.compose.ManagerScreen
 import org.appdevforall.codeonthego.ui.compose.theme.ManagerTheme
 import org.appdevforall.codeonthego.utils.flashError

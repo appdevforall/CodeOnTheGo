@@ -21,9 +21,9 @@ import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.common.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import org.appdevforall.codeonthego.common.R
 import org.appdevforall.codeonthego.tasks.cancelIfActive
 import org.appdevforall.codeonthego.ui.themes.IThemeManager
 import org.appdevforall.codeonthego.utils.OrientationUtilities

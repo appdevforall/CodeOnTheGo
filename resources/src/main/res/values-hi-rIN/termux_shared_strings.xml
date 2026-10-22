@@ -54,7 +54,8 @@
 	<string name="error_termux_prefix_dir_path_not_accessible">Code on the Go ऐप $PREFIX डायरेक्टरी %1$s ऐप द्वारा पहुंच योग्य नहीं है। ऐसा इसलिए हो सकता है
 		क्योंकि आपने Code on the Go इंस्टॉल या सेटअप नहीं किया है; या Code on the Go ऐप और %1$s ऐप दोनों के एपीके
 		हस्ताक्षर अलग-अलग हैं क्योंकि आप दोनों ऐप को अलग-अलग स्रोतों से इंस्टॉल करने में कामयाब रहे हैं। ऐसा इसलिए भी हो
-		सकता है क्योंकि Code on the Go $PREFIX निर्देशिका \"/data/data/com.itsaky.androidide/files/usr\" मौजूद नहीं है
+		सकता है क्योंकि Code on the Go $PREFIX निर्देशिका \"/data/data/org.appdevforall.codeonthego/files/usr\" मौजूद
+		नहीं है
 		या पढ़ा नहीं है, अनुमतियाँ लिखें और निष्पादित करें।</string>
 	<!-- Miscellaneous -->
 	<string name="action_share">साझा करें</string>

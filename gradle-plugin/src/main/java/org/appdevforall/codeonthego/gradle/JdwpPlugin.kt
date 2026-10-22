@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension

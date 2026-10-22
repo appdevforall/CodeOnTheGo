@@ -18,10 +18,10 @@
 package org.appdevforall.codeonthego.editor.ui
 
 import android.view.LayoutInflater
-import com.itsaky.androidide.editor.databinding.LayoutEditorFindReplaceBinding
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.editor.databinding.LayoutEditorFindReplaceBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.idetooltips.attachTooltip
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.slf4j.LoggerFactory
 

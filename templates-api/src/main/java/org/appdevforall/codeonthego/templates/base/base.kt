@@ -29,7 +29,7 @@ import org.appdevforall.codeonthego.templates.ParameterConstraint.NONEMPTY
 import org.appdevforall.codeonthego.templates.ProjectTemplate
 import org.appdevforall.codeonthego.templates.ProjectTemplateData
 import org.appdevforall.codeonthego.templates.ProjectVersionData
-import com.itsaky.androidide.templates.R
+import org.appdevforall.codeonthego.templates.R
 import org.appdevforall.codeonthego.templates.SpinnerWidget
 import org.appdevforall.codeonthego.templates.StringParameter
 import org.appdevforall.codeonthego.templates.TextFieldWidget

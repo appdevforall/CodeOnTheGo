@@ -49,7 +49,7 @@ public final class LogSender extends ILogSender.Stub implements ServiceConnectio
 	/**
 	 * AndroidIDE's package name.
 	 */
-	public static final String PACKAGE_ANDROIDIDE = "com.itsaky.androidide";
+	public static final String PACKAGE_ANDROIDIDE = "org.appdevforall.codeonthego";
 
 	private final AtomicBoolean isBinding = new AtomicBoolean(false);
 

@@ -26,11 +26,11 @@ import android.view.View;
 import android.widget.LinearLayout;
 import androidx.transition.ChangeImageTransform;
 import androidx.transition.TransitionManager;
-import com.itsaky.androidide.databinding.LayoutFiletreeItemBinding;
-import com.itsaky.androidide.resources.R;
 import com.unnamed.b.atv.model.TreeNode;
 import java.io.File;
+import org.appdevforall.codeonthego.databinding.LayoutFiletreeItemBinding;
 import org.appdevforall.codeonthego.models.FileExtension;
+import org.appdevforall.codeonthego.resources.R;
 import org.appdevforall.codeonthego.utils.ContextUtilsKt;
 
 public class FileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {

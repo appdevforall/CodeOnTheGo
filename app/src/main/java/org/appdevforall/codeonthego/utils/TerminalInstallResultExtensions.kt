@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.utils
 
 import android.content.Context
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import java.io.IOException
 
 /**

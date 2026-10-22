@@ -3,7 +3,6 @@ package org.appdevforall.codeonthego.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +11,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.repositories.TemplateRepository
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
 import org.appdevforall.codeonthego.templates.manager.models.displayName
 import org.appdevforall.codeonthego.ui.models.TemplateManagerUiEffect

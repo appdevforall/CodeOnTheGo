@@ -7,7 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.text.SpannableStringBuilder
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.slf4j.LoggerFactory
 
 object OverlayPermissionGuide {

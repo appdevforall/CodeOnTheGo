@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.quickbuild
 
 import androidx.annotation.StringRes
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 
 /**
  * The reasons Quick Build refuses a project up front, as string resources.

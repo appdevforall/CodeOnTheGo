@@ -23,9 +23,6 @@ import android.widget.LinearLayout
 import androidx.annotation.UiThread
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.FragmentLogBinding
-import com.itsaky.androidide.databinding.LayoutLogFilterBarBinding
 import io.github.rosemoe.sora.event.ClickEvent
 import io.github.rosemoe.sora.util.IntPair
 import io.github.rosemoe.sora.widget.REGION_TEXT
@@ -37,7 +34,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
+import org.appdevforall.codeonthego.databinding.FragmentLogBinding
+import org.appdevforall.codeonthego.databinding.LayoutLogFilterBarBinding
 import org.appdevforall.codeonthego.editor.language.treesitter.LogLanguage
 import org.appdevforall.codeonthego.editor.language.treesitter.TreeSitterLanguageProvider
 import org.appdevforall.codeonthego.editor.schemes.IDEColorScheme

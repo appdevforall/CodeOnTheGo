@@ -8,7 +8,6 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.application
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,6 +22,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.adapters.RecentProjectsAdapter
 import org.appdevforall.codeonthego.models.ProjectFile
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProject
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProjectDao
 import org.appdevforall.codeonthego.roomData.recentproject.RecentProjectMaintenance

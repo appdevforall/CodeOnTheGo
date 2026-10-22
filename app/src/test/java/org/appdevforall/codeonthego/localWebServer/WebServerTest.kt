@@ -440,7 +440,7 @@ class WebServerTest {
 		// carries both a filesystem path and SQL, the two things worth not sending.
 		every { db.rawQuery(match { it.contains("FROM Content AS C") }, any()) } throws
 			IllegalStateException(
-				"unable to open database file /data/user/0/com.itsaky.androidide/databases/documentation.db " +
+				"unable to open database file /data/user/0/org.appdevforall.codeonthego/databases/documentation.db " +
 					"(while compiling: SELECT C.content FROM Content AS C JOIN ContentTypes)",
 			)
 
@@ -474,7 +474,7 @@ class WebServerTest {
 		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns db
 		every { db.rawQuery(match { it.contains("FROM   Content") }, any()) } throws
 			IllegalStateException(
-				"unable to open database file /data/user/0/com.itsaky.androidide/databases/documentation.db " +
+				"unable to open database file /data/user/0/org.appdevforall.codeonthego/databases/documentation.db " +
 					"(while compiling: SELECT C.content FROM Content C)",
 			)
 

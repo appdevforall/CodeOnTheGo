@@ -28,19 +28,19 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.databinding.FragmentSearchResultsReplaceBarBinding
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
 import org.appdevforall.codeonthego.adapters.SearchListAdapter
+import org.appdevforall.codeonthego.databinding.FragmentSearchResultsReplaceBarBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.models.SearchResult
 import org.appdevforall.codeonthego.search.replace.ReplaceHost
 import org.appdevforall.codeonthego.search.replace.ReplaceSession
 import org.appdevforall.codeonthego.viewmodel.EditorViewModel
 import java.io.File
-import com.itsaky.androidide.resources.R as ResR
+import org.appdevforall.codeonthego.resources.R as ResR
 
 class SearchResultFragment : RecyclerViewFragment<SearchListAdapter>() {
 	override val fragmentTooltipTag: String? = TooltipTag.PROJECT_SEARCH_RESULTS

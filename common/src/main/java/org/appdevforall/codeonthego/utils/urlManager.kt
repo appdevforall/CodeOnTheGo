@@ -7,7 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.preference.PreferenceManager
 import org.appdevforall.codeonthego.app.BaseApplication
-import com.itsaky.androidide.common.R
+import org.appdevforall.codeonthego.common.R
 
 object UrlManager {
 	private const val PREF_EXTERNAL_URL_WHITELIST = "external_url_whitelist"

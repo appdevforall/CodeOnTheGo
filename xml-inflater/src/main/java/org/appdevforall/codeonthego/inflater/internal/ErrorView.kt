@@ -24,7 +24,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.resolveAttr
 
 /**

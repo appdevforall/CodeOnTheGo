@@ -15,7 +15,7 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import com.itsaky.androidide.buildinfo.BuildInfo
 import org.adfa.constants.COGO_GRADLE_PLUGIN_JAR_NAME

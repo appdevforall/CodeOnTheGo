@@ -23,8 +23,8 @@ package org.appdevforall.codeonthego.adapters;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import androidx.recyclerview.widget.RecyclerView;
-import com.itsaky.androidide.databinding.LayoutOptionssheetItemBinding;
 import java.util.List;
+import org.appdevforall.codeonthego.databinding.LayoutOptionssheetItemBinding;
 import org.appdevforall.codeonthego.models.SheetOption;
 
 public class OptionsSheetAdapter extends RecyclerView.Adapter<OptionsSheetAdapter.VH> {

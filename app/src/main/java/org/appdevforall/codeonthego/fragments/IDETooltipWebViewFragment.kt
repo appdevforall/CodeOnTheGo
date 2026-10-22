@@ -31,7 +31,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.documentation.DocumentationRequestInterceptor
 
 class IDETooltipWebviewFragment : Fragment() {

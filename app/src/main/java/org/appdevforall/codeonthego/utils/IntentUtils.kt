@@ -22,7 +22,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.ShareCompat
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.utils.ImageUtils.ImageType.TYPE_UNKNOWN
 import org.slf4j.LoggerFactory
 import rikka.shizuku.Shizuku

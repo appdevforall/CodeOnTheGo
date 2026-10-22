@@ -5,7 +5,7 @@ import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 
 /**
  * A custom view that displays a label and a value in a vertical layout.

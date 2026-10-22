@@ -20,13 +20,13 @@ package org.appdevforall.codeonthego.activities.editor
 import android.content.Intent
 import androidx.core.content.IntentCompat
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.databinding.ActivityEditorBinding
-import com.itsaky.androidide.databinding.ContentEditorBinding
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import org.appdevforall.codeonthego.app.BaseApplication
+import org.appdevforall.codeonthego.databinding.ActivityEditorBinding
+import org.appdevforall.codeonthego.databinding.ContentEditorBinding
 import org.appdevforall.codeonthego.deeplink.PendingDeepLinkOpen
 import org.appdevforall.codeonthego.models.PendingFileRequest
 import org.appdevforall.codeonthego.projects.IProjectManager

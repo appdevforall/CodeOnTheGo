@@ -7,8 +7,8 @@ import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.ItemGitBranchBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.ItemGitBranchBinding
 import org.appdevforall.codeonthego.git.core.models.GitBranch
 
 /**

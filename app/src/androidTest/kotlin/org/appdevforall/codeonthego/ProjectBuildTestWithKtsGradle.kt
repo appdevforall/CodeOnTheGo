@@ -1,8 +1,8 @@
 package org.appdevforall.codeonthego
 
 import androidx.test.platform.app.InstrumentationRegistry
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.helper.initializeProjectAndCancelBuild
 import org.appdevforall.codeonthego.helper.navigateToMainScreen
 import org.appdevforall.codeonthego.helper.selectProjectTemplate

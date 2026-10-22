@@ -56,7 +56,7 @@ class NavigateToMainScreenScenario : Scenario() {
 		// If the privacy dialog is showing, accept it
 		step("Accept privacy dialog (if showing)") {
 			val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-			val accept = ctx.getString(com.itsaky.androidide.resources.R.string.privacy_disclosure_accept)
+			val accept = ctx.getString(org.appdevforall.codeonthego.resources.R.string.privacy_disclosure_accept)
 			val btn = d.findObject(UiSelector().text(accept))
 			if (btn.waitForExists(1_000)) {
 				logOnboardingNavigation("Privacy dialog visible — accepting")
@@ -70,7 +70,7 @@ class NavigateToMainScreenScenario : Scenario() {
 			val permScreen = d.findObject(UiSelector().resourceIdMatches(".*:id/onboarding_items"))
 			if (permScreen.waitForExists(2_000)) {
 				val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-				val grantText = ctx.getString(com.itsaky.androidide.R.string.title_grant)
+				val grantText = ctx.getString(org.appdevforall.codeonthego.R.string.title_grant)
 				val grantBtn = d.findObject(UiSelector().text(grantText))
 				if (grantBtn.exists()) {
 					logOnboardingNavigation("Permission list visible with ungranted permissions — granting")

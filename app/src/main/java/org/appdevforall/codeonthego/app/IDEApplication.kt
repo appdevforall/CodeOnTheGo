@@ -26,7 +26,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.work.Configuration
-import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.topjohnwu.superuser.Shell
 import io.sentry.Sentry
@@ -41,6 +40,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.BuildConfig
 import org.appdevforall.codeonthego.di.coreModule
 import org.appdevforall.codeonthego.di.pluginModule
 import org.appdevforall.codeonthego.di.quickBuildModule

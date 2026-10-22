@@ -24,8 +24,8 @@ import androidx.appcompat.view.ContextThemeWrapper
 import androidx.core.widget.ImageViewCompat
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutMemUsageBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.LayoutMemUsageBinding
 import org.appdevforall.codeonthego.utils.MemoryUsageWatcher
 import org.appdevforall.codeonthego.utils.NetworkUsageWatcher
 import org.appdevforall.codeonthego.utils.PowerUsageWatcher

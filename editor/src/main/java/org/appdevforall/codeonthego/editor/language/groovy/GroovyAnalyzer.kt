@@ -17,7 +17,6 @@
 
 package org.appdevforall.codeonthego.editor.language.groovy
 
-import com.itsaky.androidide.lexers.groovy.GroovyLexer
 import io.github.rosemoe.sora.lang.analysis.IncrementalAnalyzeManager.LineTokenizeResult
 import io.github.rosemoe.sora.lang.styling.Span
 import io.github.rosemoe.sora.lang.styling.SpanFactory
@@ -25,6 +24,7 @@ import io.github.rosemoe.sora.lang.styling.TextStyle
 import org.appdevforall.codeonthego.editor.language.incremental.BaseIncrementalAnalyzeManager
 import org.appdevforall.codeonthego.editor.language.incremental.IncrementalToken
 import org.appdevforall.codeonthego.editor.language.incremental.LineState
+import org.appdevforall.codeonthego.lexers.groovy.GroovyLexer
 import org.appdevforall.codeonthego.syntax.colorschemes.SchemeAndroidIDE
 
 /** @author Akash Yadav */

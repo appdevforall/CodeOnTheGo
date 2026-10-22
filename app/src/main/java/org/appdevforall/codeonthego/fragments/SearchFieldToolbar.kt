@@ -11,8 +11,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import androidx.core.graphics.drawable.toDrawable
-import com.itsaky.androidide.common.R
-import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +28,8 @@ import org.appdevforall.codeonthego.actions.editor.PasteAction
 import org.appdevforall.codeonthego.actions.editor.SelectAllAction
 import org.appdevforall.codeonthego.actions.file.ShowTooltipAction
 import org.appdevforall.codeonthego.actions.internal.DefaultActionsRegistry
+import org.appdevforall.codeonthego.common.R
+import org.appdevforall.codeonthego.editor.databinding.LayoutPopupMenuItemBinding
 import org.appdevforall.codeonthego.utils.dpToPx
 import org.appdevforall.codeonthego.utils.resolveAttr
 

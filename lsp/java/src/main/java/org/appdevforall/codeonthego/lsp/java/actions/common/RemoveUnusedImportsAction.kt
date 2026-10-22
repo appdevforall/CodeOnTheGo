@@ -2,7 +2,6 @@ package org.appdevforall.codeonthego.lsp.java.actions.common
 
 import com.google.googlejavaformat.java.FormatterException
 import com.google.googlejavaformat.java.RemoveUnusedImports
-import com.itsaky.androidide.resources.R.string
 import io.github.rosemoe.sora.widget.CodeEditor
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
@@ -10,6 +9,7 @@ import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.actions.requireEditor
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lsp.java.actions.BaseJavaCodeAction
+import org.appdevforall.codeonthego.resources.R.string
 import org.slf4j.LoggerFactory
 
 class RemoveUnusedImportsAction : BaseJavaCodeAction() {

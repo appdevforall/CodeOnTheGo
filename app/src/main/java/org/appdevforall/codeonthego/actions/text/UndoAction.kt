@@ -19,10 +19,10 @@ package org.appdevforall.codeonthego.actions.text
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.EditorRelatedAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
 
 /** @author Akash Yadav */
 class UndoAction(

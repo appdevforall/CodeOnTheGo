@@ -20,7 +20,7 @@ package org.appdevforall.codeonthego.preferences
 import android.content.Intent
 import org.appdevforall.codeonthego.activities.AboutActivity
 import org.appdevforall.codeonthego.idetooltips.TooltipTag.PREFS_ABOUT
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 
 private const val KEY_ABOUT = "idepref_about"
 

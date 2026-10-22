@@ -2,7 +2,7 @@ package org.appdevforall.cotg.quickbuild.daemon.dex
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
-import com.itsaky.androidide.gradle.quickbuild.ClassOpener
+import org.appdevforall.codeonthego.gradle.quickbuild.ClassOpener
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.nio.file.Files

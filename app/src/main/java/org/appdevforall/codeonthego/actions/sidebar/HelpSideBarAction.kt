@@ -20,11 +20,11 @@ package org.appdevforall.codeonthego.actions.sidebar
 import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
 import kotlin.reflect.KClass
 
 /**

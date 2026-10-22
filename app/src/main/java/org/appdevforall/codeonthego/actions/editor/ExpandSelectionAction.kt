@@ -19,11 +19,11 @@ package org.appdevforall.codeonthego.actions.editor
 
 import android.content.Context
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.EditorRelatedAction
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
 
 /**
  * Expands the current selection using the language server set in editor.

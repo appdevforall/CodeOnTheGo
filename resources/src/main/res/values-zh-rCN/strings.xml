@@ -482,7 +482,7 @@
 	<string name="xml_formatting_options">XML 格式化选项</string>
 	<string name="xml_formatting_options_summary">设置 XML 文件的格式化偏好 </string>
 	<string name="idepref_customFont_title">使用自定义字体</string>
-	<string name="idepref_customFont_summary">启用后，将使用 “/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf” 作为编辑器字体 </string>
+	<string name="idepref_customFont_summary">启用后，将使用 “/data/data/org.appdevforall.codeonthego/files/home/.cg/ui/font.ttf” 作为编辑器字体 </string>
 	<string name="msg_installing_apk">正在安装 APK…</string>
 	<string name="msg_action_open_application">你的应用已安装 是否要启动该应用？</string>
 	<string name="msg_action_open_title_application">应用已安装</string>

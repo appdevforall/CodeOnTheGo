@@ -20,7 +20,6 @@ package org.appdevforall.codeonthego.utils
 import android.content.Context
 import android.system.Os
 import android.system.OsConstants
-import com.itsaky.androidide.resources.R
 import com.termux.app.TermuxInstaller
 import com.termux.shared.android.PackageUtils
 import com.termux.shared.errors.Error
@@ -37,6 +36,7 @@ import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipFile
+import org.appdevforall.codeonthego.resources.R
 import org.slf4j.LoggerFactory
 import java.io.BufferedReader
 import java.io.File

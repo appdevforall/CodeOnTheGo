@@ -23,9 +23,9 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import com.itsaky.androidide.databinding.LayoutDiagnosticGroupBinding;
 import java.util.List;
 import java.util.Objects;
+import org.appdevforall.codeonthego.databinding.LayoutDiagnosticGroupBinding;
 import org.appdevforall.codeonthego.interfaces.DiagnosticClickListener;
 import org.appdevforall.codeonthego.models.DiagnosticGroup;
 

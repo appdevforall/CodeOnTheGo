@@ -18,7 +18,6 @@
 package org.appdevforall.codeonthego.uidesigner.utils
 
 import android.content.Context
-import com.itsaky.androidide.uidesigner.R
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.IViewGroup
 import org.appdevforall.codeonthego.inflater.internal.ViewGroupImpl
@@ -26,6 +25,7 @@ import org.appdevforall.codeonthego.inflater.internal.ViewImpl
 import org.appdevforall.codeonthego.lsp.xml.utils.XMLBuilder
 import org.appdevforall.codeonthego.tasks.executeAsyncProvideError
 import org.appdevforall.codeonthego.tasks.runOnUiThread
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.utils.DialogUtils
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture

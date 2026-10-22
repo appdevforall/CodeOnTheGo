@@ -24,14 +24,14 @@ import android.view.ViewConfiguration.get
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import androidx.fragment.app.viewModels
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.databinding.FragmentDesignerWorkspaceBinding
 import org.appdevforall.codeonthego.fragments.BaseFragment
 import org.appdevforall.codeonthego.inflater.IView
 import org.appdevforall.codeonthego.inflater.internal.LayoutFile
 import org.appdevforall.codeonthego.inflater.utils.endParse
 import org.appdevforall.codeonthego.inflater.utils.startParse
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.UIDesignerActivity
+import org.appdevforall.codeonthego.uidesigner.databinding.FragmentDesignerWorkspaceBinding
 import org.appdevforall.codeonthego.uidesigner.drag.WidgetDragListener
 import org.appdevforall.codeonthego.uidesigner.drag.WidgetTouchListener
 import org.appdevforall.codeonthego.uidesigner.drawable.UiViewLayeredForeground

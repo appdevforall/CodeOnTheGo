@@ -23,7 +23,7 @@ import android.view.View
 import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.core.widget.ImageViewCompat
-import com.itsaky.androidide.databinding.FragmentOnboardingInfoBinding
+import org.appdevforall.codeonthego.databinding.FragmentOnboardingInfoBinding
 import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 
 /**

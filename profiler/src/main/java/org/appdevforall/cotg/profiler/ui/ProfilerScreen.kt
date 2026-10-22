@@ -29,7 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.profiler.R
+import org.appdevforall.codeonthego.profiler.R
 import org.appdevforall.cotg.flamegraph.FlameOrientation
 import org.appdevforall.cotg.flamegraph.Flamegraph
 import org.appdevforall.cotg.flamegraph.rememberFlamegraphState

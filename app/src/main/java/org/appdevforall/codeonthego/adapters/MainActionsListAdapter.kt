@@ -22,8 +22,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
-import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
 import org.appdevforall.codeonthego.actions.ActionItem
+import org.appdevforall.codeonthego.databinding.LayoutMainActionItemBinding
 
 /**
  * Adapter for the actions available on the main screen.

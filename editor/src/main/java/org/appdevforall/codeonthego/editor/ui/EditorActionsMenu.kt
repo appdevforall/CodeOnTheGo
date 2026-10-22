@@ -34,8 +34,6 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
-import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
-import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.event.HandleStateChangeEvent
 import io.github.rosemoe.sora.event.ScrollEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
@@ -52,6 +50,7 @@ import org.appdevforall.codeonthego.actions.EditorActionItem
 import org.appdevforall.codeonthego.actions.FillMenuParams
 import org.appdevforall.codeonthego.actions.TextTarget
 import org.appdevforall.codeonthego.editor.adapters.IdeEditorAdapter
+import org.appdevforall.codeonthego.editor.databinding.LayoutPopupMenuItemBinding
 import org.appdevforall.codeonthego.editor.ui.EditorActionsMenu.ActionsListAdapter.VH
 import org.appdevforall.codeonthego.idetooltips.TooltipCategory
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
@@ -63,6 +62,7 @@ import org.appdevforall.codeonthego.lsp.models.DiagnosticItem
 import org.appdevforall.codeonthego.lsp.models.DiagnosticsInSelection
 import org.appdevforall.codeonthego.lsp.util.DiagnosticUtil
 import org.appdevforall.codeonthego.lsp.xml.XMLLanguageServer
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.dpToPx
 import org.appdevforall.codeonthego.utils.resolveAttr
 import org.slf4j.LoggerFactory

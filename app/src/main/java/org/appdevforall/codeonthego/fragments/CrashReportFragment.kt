@@ -33,8 +33,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.databinding.LayoutCrashReportBinding
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.databinding.LayoutCrashReportBinding
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.BasicBuildInfo
 import org.appdevforall.codeonthego.utils.resolveAttr
 
@@ -108,7 +108,7 @@ class CrashReportFragment : Fragment() {
 		// Get crash message with placeholder
 		val supportText = context.getString(R.string.contact_support_team)
 		val fullText = context.getString(R.string.msg_crash_info, supportText)
-		val linkColor = requireContext().resolveAttr(com.itsaky.androidide.R.attr.colorOnSurface)
+		val linkColor = requireContext().resolveAttr(org.appdevforall.codeonthego.R.attr.colorOnSurface)
 		val spannable = SpannableString(fullText)
 
 		// Find clickable phrase in text

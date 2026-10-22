@@ -10,9 +10,9 @@ import android.os.Looper
 import android.view.PixelCopy
 import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
-import com.itsaky.androidide.common.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.common.R
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileOutputStream

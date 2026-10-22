@@ -7,7 +7,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import com.google.android.material.snackbar.Snackbar
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 
 class CustomSnackbar(
 	private val context: Context,

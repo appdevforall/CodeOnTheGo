@@ -3,7 +3,7 @@ package org.appdevforall.codeonthego.quickbuild
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.junit.Test
 import org.junit.runner.RunWith

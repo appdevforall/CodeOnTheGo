@@ -19,7 +19,7 @@ package org.appdevforall.codeonthego.utils
 
 import android.os.SystemClock
 import androidx.annotation.StringRes
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.string
 
 /**
  * Records significant events for the metrics charts to annotate (ADFA-5486).

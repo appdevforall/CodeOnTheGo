@@ -23,9 +23,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineDataSet
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.R
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.utils.MetricsAnnotationStore
 import org.appdevforall.codeonthego.utils.resolveAttr
 import org.junit.Test
@@ -45,7 +45,7 @@ class MetricsAnnotationRenderingTest {
 	private val context: Context =
 		ContextThemeWrapper(
 			ApplicationProvider.getApplicationContext(),
-			com.itsaky.androidide.R.style.Theme_AndroidIDE,
+			org.appdevforall.codeonthego.R.style.Theme_AndroidIDE,
 		)
 
 	/** A minimal renderer, so the placement is tested without a particular page's data. */

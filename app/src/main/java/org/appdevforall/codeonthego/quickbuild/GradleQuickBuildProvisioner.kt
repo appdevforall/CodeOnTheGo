@@ -2,7 +2,6 @@ package org.appdevforall.codeonthego.quickbuild
 
 import android.content.Context
 import androidx.annotation.StringRes
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -13,6 +12,7 @@ import org.appdevforall.codeonthego.projects.IProjectManager
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.projects.isPluginProject
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.services.builder.GradleBuildService
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig
 import org.appdevforall.codeonthego.tooling.api.messages.BuildRunType

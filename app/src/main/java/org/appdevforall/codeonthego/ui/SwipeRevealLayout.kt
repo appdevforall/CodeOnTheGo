@@ -29,7 +29,7 @@ import androidx.annotation.IdRes
 import androidx.core.content.withStyledAttributes
 import androidx.customview.widget.ViewDragHelper
 import com.google.android.material.shape.MaterialShapeDrawable
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import kotlin.math.max
 import kotlin.math.min
 

@@ -1,7 +1,7 @@
 package org.appdevforall.codeonthego.models
 
 import android.content.Context
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.formatDate
 import java.io.File
 import java.util.UUID

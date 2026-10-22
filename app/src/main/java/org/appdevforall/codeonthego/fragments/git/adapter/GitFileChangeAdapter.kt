@@ -6,8 +6,8 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.ItemGitFileChangeBinding
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.ItemGitFileChangeBinding
 import org.appdevforall.codeonthego.git.core.models.ChangeType
 import org.appdevforall.codeonthego.git.core.models.FileChange
 

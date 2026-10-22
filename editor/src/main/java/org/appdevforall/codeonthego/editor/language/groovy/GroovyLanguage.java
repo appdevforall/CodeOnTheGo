@@ -18,7 +18,6 @@ package org.appdevforall.codeonthego.editor.language.groovy;
 
 import android.os.Bundle;
 import androidx.annotation.NonNull;
-import com.itsaky.androidide.lexers.groovy.GroovyLexer;
 import io.github.rosemoe.sora.lang.analysis.AnalyzeManager;
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException;
 import io.github.rosemoe.sora.lang.completion.CompletionPublisher;
@@ -32,6 +31,7 @@ import org.antlr.v4.runtime.Token;
 import org.appdevforall.codeonthego.editor.language.IDELanguage;
 import org.appdevforall.codeonthego.editor.language.newline.BracketsNewlineHandler;
 import org.appdevforall.codeonthego.editor.language.utils.CommonSymbolPairs;
+import org.appdevforall.codeonthego.lexers.groovy.GroovyLexer;
 import org.appdevforall.codeonthego.utils.CharSequenceReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

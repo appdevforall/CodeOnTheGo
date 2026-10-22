@@ -5,7 +5,6 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.SplashActivity
 import org.appdevforall.codeonthego.app.configuration.IJdkDistributionProvider
 import org.appdevforall.codeonthego.helper.FakeInstalledPackages

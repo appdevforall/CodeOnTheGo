@@ -19,7 +19,7 @@ package org.appdevforall.codeonthego.services.builder
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.tooling.api.messages.result.TaskExecutionResult
 import org.junit.Test
 import org.junit.runner.RunWith

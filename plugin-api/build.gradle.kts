@@ -31,7 +31,7 @@ kotlin {
 }
 
 apiValidation {
-	ignoredClasses.add("com.itsaky.androidide.plugins.api.BuildConfig")
+	ignoredClasses.add("org.appdevforall.codeonthego.plugins.api.BuildConfig")
 	nonPublicMarkers.add("org.appdevforall.codeonthego.plugins.base.InternalPluginApi")
 }
 

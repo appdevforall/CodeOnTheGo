@@ -21,7 +21,6 @@ import androidx.annotation.RestrictTo
 import androidx.annotation.VisibleForTesting
 import com.google.auto.service.AutoService
 import com.google.common.collect.ImmutableList
-import com.itsaky.androidide.projects.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -43,6 +42,7 @@ import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.memprof.Memprof
 import org.appdevforall.codeonthego.project.AndroidModels
 import org.appdevforall.codeonthego.project.GradleModels
+import org.appdevforall.codeonthego.projects.R
 import org.appdevforall.codeonthego.projects.api.AndroidModule
 import org.appdevforall.codeonthego.projects.api.GradleProject
 import org.appdevforall.codeonthego.projects.api.JavaModule

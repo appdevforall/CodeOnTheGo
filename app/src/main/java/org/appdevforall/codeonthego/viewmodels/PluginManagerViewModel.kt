@@ -6,7 +6,6 @@ import android.provider.DocumentsContract
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +21,7 @@ import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.appdevforall.codeonthego.plugins.PluginInfo
 import org.appdevforall.codeonthego.repositories.PluginRepository
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.ui.models.PluginInstallSource
 import org.appdevforall.codeonthego.ui.models.PluginManagerUiEffect
 import org.appdevforall.codeonthego.ui.models.PluginManagerUiEvent

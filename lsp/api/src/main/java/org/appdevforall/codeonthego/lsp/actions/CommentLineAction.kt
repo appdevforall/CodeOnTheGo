@@ -18,7 +18,6 @@ package org.appdevforall.codeonthego.lsp.actions
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import com.itsaky.androidide.resources.R
 import io.github.rosemoe.sora.text.batchEdit
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
@@ -28,6 +27,7 @@ import org.appdevforall.codeonthego.actions.markInvisible
 import org.appdevforall.codeonthego.actions.requireContext
 import org.appdevforall.codeonthego.actions.requireEditor
 import org.appdevforall.codeonthego.actions.requireFile
+import org.appdevforall.codeonthego.resources.R
 import java.io.File
 
 /** @author Akash Yadav */

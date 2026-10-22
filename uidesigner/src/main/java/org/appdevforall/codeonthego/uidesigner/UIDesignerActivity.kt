@@ -29,15 +29,15 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.core.view.GravityCompat
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.databinding.ActivityUiDesignerBinding
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem.Location.UI_DESIGNER_TOOLBAR
 import org.appdevforall.codeonthego.actions.ActionsRegistry
 import org.appdevforall.codeonthego.actions.FillMenuParams
 import org.appdevforall.codeonthego.app.BaseIDEActivity
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.actions.clearUiDesignerActions
 import org.appdevforall.codeonthego.uidesigner.actions.registerUiDesignerActions
+import org.appdevforall.codeonthego.uidesigner.databinding.ActivityUiDesignerBinding
 import org.appdevforall.codeonthego.uidesigner.fragments.DesignerWorkspaceFragment
 import org.appdevforall.codeonthego.uidesigner.utils.ViewToXml
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel

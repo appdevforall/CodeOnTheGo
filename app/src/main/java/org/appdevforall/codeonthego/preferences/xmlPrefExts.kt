@@ -20,7 +20,7 @@ package org.appdevforall.codeonthego.preferences
 import androidx.preference.Preference
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.preferences.internal.XmlPreferences
-import com.itsaky.androidide.resources.R.string
+import org.appdevforall.codeonthego.resources.R.string
 import kotlinx.parcelize.Parcelize
 import org.eclipse.lemminx.dom.builder.EmptyElements
 

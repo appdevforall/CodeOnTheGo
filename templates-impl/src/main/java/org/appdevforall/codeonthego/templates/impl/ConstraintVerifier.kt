@@ -17,8 +17,6 @@
 
 package org.appdevforall.codeonthego.templates.impl
 
-import com.itsaky.androidide.templates.impl.R
-import com.itsaky.androidide.templates.impl.R.string
 import jdkx.lang.model.SourceVersion
 import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.templates.ParameterConstraint
@@ -32,6 +30,8 @@ import org.appdevforall.codeonthego.templates.ParameterConstraint.MODULE_NAME
 import org.appdevforall.codeonthego.templates.ParameterConstraint.NONEMPTY
 import org.appdevforall.codeonthego.templates.ParameterConstraint.PACKAGE
 import org.appdevforall.codeonthego.templates.base.util.isValidModuleName
+import org.appdevforall.codeonthego.templates.impl.R
+import org.appdevforall.codeonthego.templates.impl.R.string
 import org.appdevforall.codeonthego.utils.AndroidUtils
 import java.io.File
 

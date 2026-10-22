@@ -20,7 +20,7 @@ import android.app.ProgressDialog
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import com.itsaky.androidide.common.R
+import org.appdevforall.codeonthego.common.R
 import org.slf4j.LoggerFactory
 import java.util.concurrent.Callable
 import java.util.concurrent.CompletableFuture

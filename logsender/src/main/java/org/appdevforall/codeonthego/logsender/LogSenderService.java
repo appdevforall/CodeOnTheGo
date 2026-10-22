@@ -31,7 +31,6 @@ import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.IBinder;
 import android.widget.Toast;
-import com.itsaky.androidide.logsender.R;
 import org.appdevforall.codeonthego.logsender.utils.Logger;
 
 /**

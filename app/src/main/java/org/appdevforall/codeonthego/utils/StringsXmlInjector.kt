@@ -1,9 +1,9 @@
 package org.appdevforall.codeonthego.utils
 
 import androidx.annotation.StringRes
-import com.itsaky.androidide.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.projects.IProjectManager
 import org.slf4j.LoggerFactory
 import org.w3c.dom.Element

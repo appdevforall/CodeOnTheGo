@@ -22,7 +22,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-import com.itsaky.androidide.common.databinding.LayoutSimpleIconTextBinding;
+import org.appdevforall.codeonthego.common.databinding.LayoutSimpleIconTextBinding;
 
 /**
  * A RecyclerView.Adapter which can be used to show a list with an icon and a text.

@@ -18,7 +18,7 @@
 package org.appdevforall.codeonthego.models
 
 import androidx.annotation.DrawableRes
-import com.itsaky.androidide.resources.R
+import org.appdevforall.codeonthego.resources.R
 import java.io.File
 
 /**

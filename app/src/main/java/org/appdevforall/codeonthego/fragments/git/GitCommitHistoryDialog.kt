@@ -9,10 +9,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.DialogGitCommitHistoryBinding
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.databinding.DialogGitCommitHistoryBinding
 import org.appdevforall.codeonthego.fragments.git.adapter.GitCommitHistoryAdapter
 import org.appdevforall.codeonthego.git.core.GitCredentialsManager
 import org.appdevforall.codeonthego.git.core.models.CommitHistoryUiState

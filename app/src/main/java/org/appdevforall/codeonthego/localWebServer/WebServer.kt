@@ -45,7 +45,7 @@ data class ServerConfig(
 		getExternalStorageDirectory().toString() +
 			"/Download/CodeOnTheGo.webserver.cs0",
 	// Yes, this is hack code.
-	val projectDatabasePath: String = "/data/data/com.itsaky.androidide/databases/RecentProject_database",
+	val projectDatabasePath: String = "/data/data/org.appdevforall.codeonthego/databases/RecentProject_database",
 	// ADFA-5175: how often the sdcard debug database may be stat'ed. It lives on FUSE-backed
 	// emulated storage, and it is a developer-only override, so once a second is plenty.
 	val debugDatabaseCheckIntervalMs: Long = 1000,

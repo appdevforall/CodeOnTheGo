@@ -10,8 +10,8 @@ import org.junit.Test
 class FileProviderUtilsTest {
 	@Test
 	fun `fileProviderAuthorityFor appends the fixed suffix to the package name`() {
-		assertThat(fileProviderAuthorityFor("com.itsaky.androidide"))
-			.isEqualTo("com.itsaky.androidide.providers.fileprovider")
+		assertThat(fileProviderAuthorityFor("org.appdevforall.codeonthego"))
+			.isEqualTo("org.appdevforall.codeonthego.providers.fileprovider")
 	}
 
 	@Test
@@ -23,9 +23,9 @@ class FileProviderUtilsTest {
 	@Test
 	fun `Context fileProviderAuthority delegates to the context's package name`() {
 		val context = mockk<Context>()
-		every { context.packageName } returns "com.itsaky.androidide"
+		every { context.packageName } returns "org.appdevforall.codeonthego"
 
 		assertThat(context.fileProviderAuthority())
-			.isEqualTo(fileProviderAuthorityFor("com.itsaky.androidide"))
+			.isEqualTo(fileProviderAuthorityFor("org.appdevforall.codeonthego"))
 	}
 }

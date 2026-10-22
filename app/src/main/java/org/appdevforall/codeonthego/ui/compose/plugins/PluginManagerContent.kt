@@ -38,8 +38,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import com.itsaky.androidide.R
 import kotlinx.parcelize.Parcelize
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.plugins.PluginMetadata

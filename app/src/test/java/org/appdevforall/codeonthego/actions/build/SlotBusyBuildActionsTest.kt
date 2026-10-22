@@ -3,7 +3,6 @@ package org.appdevforall.codeonthego.actions.build
 import android.app.Activity
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.resources.R
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
@@ -19,6 +18,7 @@ import org.appdevforall.codeonthego.fragments.RunTasksDialogFragment
 import org.appdevforall.codeonthego.lookup.Lookup
 import org.appdevforall.codeonthego.projects.builder.BuildService
 import org.appdevforall.codeonthego.quickbuild.FakeBuildService
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.flashInfoLong
 import org.junit.After
 import org.junit.Before

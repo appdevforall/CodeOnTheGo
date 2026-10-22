@@ -21,8 +21,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.uidesigner.databinding.LayoutUiWidgetsCategoryBinding
 import org.appdevforall.codeonthego.uidesigner.adapters.WidgetsCategoryAdapter.VH
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutUiWidgetsCategoryBinding
 import org.appdevforall.codeonthego.uidesigner.models.UiWidgetCategory
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 

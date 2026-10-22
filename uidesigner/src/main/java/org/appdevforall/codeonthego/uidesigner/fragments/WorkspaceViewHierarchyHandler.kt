@@ -19,9 +19,9 @@ package org.appdevforall.codeonthego.uidesigner.fragments
 
 import androidx.transition.ChangeBounds
 import androidx.transition.TransitionManager
-import com.itsaky.androidide.uidesigner.R
 import org.appdevforall.codeonthego.inflater.IViewGroup
 import org.appdevforall.codeonthego.inflater.viewGroup
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.models.PlaceholderView
 import org.appdevforall.codeonthego.uidesigner.undo.ViewAddedAction
 import org.appdevforall.codeonthego.uidesigner.undo.ViewMovedAction

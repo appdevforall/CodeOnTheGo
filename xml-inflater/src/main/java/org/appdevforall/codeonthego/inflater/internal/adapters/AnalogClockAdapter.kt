@@ -23,12 +23,12 @@ import android.graphics.BlendMode
 import android.os.Build.VERSION_CODES
 import android.widget.AnalogClock
 import androidx.annotation.RequiresApi
-import com.itsaky.androidide.resources.R.drawable
-import com.itsaky.androidide.resources.R.string
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner
 import org.appdevforall.codeonthego.annotations.uidesigner.IncludeInDesigner.Group.WIDGETS
 import org.appdevforall.codeonthego.inflater.AttributeHandlerScope
 import org.appdevforall.codeonthego.inflater.models.UiWidget
+import org.appdevforall.codeonthego.resources.R.drawable
+import org.appdevforall.codeonthego.resources.R.string
 
 /**
  * Attribute adapter for [AnalogClock].

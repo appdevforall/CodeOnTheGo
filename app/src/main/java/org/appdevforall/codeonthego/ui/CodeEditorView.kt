@@ -30,7 +30,6 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import androidx.appcompat.widget.LinearLayoutCompat
 import androidx.core.view.isVisible
-import com.itsaky.androidide.editor.databinding.LayoutCodeEditorBinding
 import io.github.rosemoe.sora.event.ClickEvent
 import io.github.rosemoe.sora.event.InterceptTarget
 import io.github.rosemoe.sora.event.TextSizeChangeEvent
@@ -55,6 +54,7 @@ import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.appdevforall.codeonthego.activities.editor.BaseEditorActivity
 import org.appdevforall.codeonthego.editor.api.IEditor
+import org.appdevforall.codeonthego.editor.databinding.LayoutCodeEditorBinding
 import org.appdevforall.codeonthego.editor.events.FileUpdateEvent
 import org.appdevforall.codeonthego.editor.events.LanguageUpdateEvent
 import org.appdevforall.codeonthego.editor.language.IDELanguage

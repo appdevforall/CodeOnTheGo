@@ -6,7 +6,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.app.IDEActivity
 import org.appdevforall.codeonthego.app.IDEApplication
 import org.appdevforall.codeonthego.plugins.manager.fragment.PluginFragmentFactory

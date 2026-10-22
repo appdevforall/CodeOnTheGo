@@ -8,8 +8,6 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.setFragmentResult
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.FragmentFileTreeSelectionBinding
 import com.unnamed.b.atv.model.TreeNode
 import com.unnamed.b.atv.view.AndroidTreeView
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +15,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.adapters.viewholders.MultiSelectFileTreeViewHolder
+import org.appdevforall.codeonthego.databinding.FragmentFileTreeSelectionBinding
 import org.appdevforall.codeonthego.projects.IProjectManager
 import java.io.File
 

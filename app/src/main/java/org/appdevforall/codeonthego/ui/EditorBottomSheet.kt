@@ -48,17 +48,16 @@ import com.google.android.material.tabs.TabLayout.OnTabSelectedListener
 import com.google.android.material.tabs.TabLayout.Tab
 import com.google.android.material.tabs.TabLayoutMediator
 import com.google.android.material.transition.MaterialSharedAxis
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.LayoutEditorBottomSheetBinding
-import com.itsaky.androidide.resources.R.string
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.adapters.DiagnosticsAdapter
 import org.appdevforall.codeonthego.adapters.EditorBottomSheetTabAdapter
 import org.appdevforall.codeonthego.adapters.SearchListAdapter
+import org.appdevforall.codeonthego.databinding.LayoutEditorBottomSheetBinding
 import org.appdevforall.codeonthego.fragments.EmptyStateFragment
 import org.appdevforall.codeonthego.fragments.output.SearchableOutputFragment
 import org.appdevforall.codeonthego.fragments.output.ShareableOutputFragment
@@ -69,6 +68,7 @@ import org.appdevforall.codeonthego.idetooltips.TooltipTag
 import org.appdevforall.codeonthego.lsp.IDELanguageClientImpl
 import org.appdevforall.codeonthego.models.LogLine
 import org.appdevforall.codeonthego.preferences.internal.EditorPreferences
+import org.appdevforall.codeonthego.resources.R.string
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.DiagnosticsFormatter
 import org.appdevforall.codeonthego.utils.IntentUtils.shareFile

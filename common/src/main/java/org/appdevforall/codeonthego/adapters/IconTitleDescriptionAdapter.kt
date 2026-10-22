@@ -20,7 +20,7 @@ package org.appdevforall.codeonthego.adapters
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.common.databinding.LayoutIconTitleDescriptionBinding
+import org.appdevforall.codeonthego.common.databinding.LayoutIconTitleDescriptionBinding
 import org.appdevforall.codeonthego.models.IconTitleDescriptionItem
 
 /**

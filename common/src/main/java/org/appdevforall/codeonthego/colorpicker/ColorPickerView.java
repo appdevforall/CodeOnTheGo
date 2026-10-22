@@ -35,8 +35,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import com.google.android.material.slider.Slider;
-import com.itsaky.androidide.common.R;
-import com.itsaky.androidide.common.databinding.LayoutColorPickerBinding;
+import org.appdevforall.codeonthego.common.R;
+import org.appdevforall.codeonthego.common.databinding.LayoutColorPickerBinding;
 
 /**
  * A color picker view.

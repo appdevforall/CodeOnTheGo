@@ -8,7 +8,6 @@ import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetBehavior
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,6 +25,7 @@ import org.appdevforall.codeonthego.plugins.manager.build.RegisteredBuildAction
 import org.appdevforall.codeonthego.plugins.manager.core.PluginManager
 import org.appdevforall.codeonthego.plugins.manager.ui.PluginDrawableResolver
 import org.appdevforall.codeonthego.plugins.services.IdeCommandService
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.utils.resolveAttr
 import org.appdevforall.codeonthego.viewmodel.BottomSheetViewModel
 

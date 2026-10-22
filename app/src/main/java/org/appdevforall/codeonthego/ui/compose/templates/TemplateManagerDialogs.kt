@@ -18,7 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.templates.manager.models.CgtFileItem
 import org.appdevforall.codeonthego.templates.manager.models.TemplateMetadata
 import org.appdevforall.codeonthego.templates.manager.models.displayName

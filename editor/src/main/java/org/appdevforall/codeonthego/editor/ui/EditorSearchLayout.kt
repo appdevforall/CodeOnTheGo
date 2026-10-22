@@ -32,13 +32,13 @@ import android.widget.PopupWindow
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
-import com.itsaky.androidide.editor.databinding.LayoutFindInFileBinding
-import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.resources.databinding.SearchOptionsPopupMenuBinding
 import io.github.rosemoe.sora.widget.EditorSearcher.SearchOptions
+import org.appdevforall.codeonthego.editor.databinding.LayoutFindInFileBinding
 import org.appdevforall.codeonthego.editor.ui.ReplaceAction.doReplace
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 import org.appdevforall.codeonthego.idetooltips.TooltipTag
+import org.appdevforall.codeonthego.resources.R
+import org.appdevforall.codeonthego.resources.databinding.SearchOptionsPopupMenuBinding
 import org.appdevforall.codeonthego.utils.KeyboardUtils
 import org.appdevforall.codeonthego.utils.SingleTextWatcher
 import org.appdevforall.codeonthego.utils.applyLongPressRecursively

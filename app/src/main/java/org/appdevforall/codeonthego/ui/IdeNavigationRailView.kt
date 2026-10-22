@@ -7,7 +7,7 @@ import androidx.core.view.marginTop
 import androidx.core.widget.NestedScrollView
 import com.google.android.material.navigation.NavigationBarMenuView
 import com.google.android.material.navigationrail.NavigationRailView
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 
 class IdeNavigationRailView
 	@JvmOverloads

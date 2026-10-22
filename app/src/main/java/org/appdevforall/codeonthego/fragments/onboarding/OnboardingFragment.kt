@@ -22,7 +22,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.text.method.LinkMovementMethodCompat
 import androidx.core.view.updateLayoutParams
-import com.itsaky.androidide.databinding.FragmentOnboardingBinding
+import org.appdevforall.codeonthego.databinding.FragmentOnboardingBinding
 import org.appdevforall.codeonthego.fragments.FragmentWithBinding
 
 open class OnboardingFragment : FragmentWithBinding<FragmentOnboardingBinding>(FragmentOnboardingBinding::inflate) {

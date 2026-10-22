@@ -28,8 +28,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.itsaky.androidide.BuildConfig
-import com.itsaky.androidide.resources.R
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
@@ -40,6 +38,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.BuildConfig
 import org.appdevforall.codeonthego.analytics.IAnalyticsManager
 import org.appdevforall.codeonthego.analytics.gradle.BuildCompletedMetric
 import org.appdevforall.codeonthego.analytics.gradle.BuildStartedMetric
@@ -55,6 +54,7 @@ import org.appdevforall.codeonthego.preferences.internal.BuildPreferences
 import org.appdevforall.codeonthego.preferences.internal.DevOpsPreferences
 import org.appdevforall.codeonthego.projects.ProjectManagerImpl
 import org.appdevforall.codeonthego.projects.builder.BuildService
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.services.ToolingServerNotStartedException
 import org.appdevforall.codeonthego.services.builder.ToolingServerRunner.OnServerStartListener
 import org.appdevforall.codeonthego.tasks.ifCancelledOrInterrupted

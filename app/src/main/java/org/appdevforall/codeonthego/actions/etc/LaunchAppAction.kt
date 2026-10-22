@@ -20,8 +20,8 @@ package org.appdevforall.codeonthego.actions.etc
 import android.content.Context
 import android.view.MenuItem
 import androidx.core.content.ContextCompat
-import com.itsaky.androidide.R
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.EditorActivityAction
 import org.appdevforall.codeonthego.actions.markInvisible

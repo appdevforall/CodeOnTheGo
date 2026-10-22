@@ -27,13 +27,13 @@ import androidx.annotation.ColorInt
 import androidx.annotation.DrawableRes
 import androidx.annotation.FloatRange
 import androidx.annotation.StringRes
-import com.itsaky.androidide.resources.R
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.flashbar.Flashbar
 import org.appdevforall.codeonthego.flashbar.Flashbar.Gravity.TOP
+import org.appdevforall.codeonthego.resources.R
 import org.appdevforall.codeonthego.tasks.runOnUiThread
 import org.appdevforall.codeonthego.utils.FlashType.ERROR
 import org.appdevforall.codeonthego.utils.FlashType.INFO

@@ -3,10 +3,10 @@ package org.appdevforall.codeonthego.screens
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiObject
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.resources.R
 import com.kaspersky.kaspresso.screens.KScreen
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import org.appdevforall.codeonthego.helper.clickFirstAccessibilityNodeByText
+import org.appdevforall.codeonthego.resources.R
 import org.junit.Assert.assertTrue
 
 private const val FIRST_BUILD_NOTICE_TIMEOUT_MS = 3_000L

@@ -11,10 +11,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputLayout
-import com.itsaky.androidide.R
-import com.itsaky.androidide.databinding.FragmentCloneRepositoryBinding
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.activities.MainActivity
+import org.appdevforall.codeonthego.databinding.FragmentCloneRepositoryBinding
 import org.appdevforall.codeonthego.dnd.handleGitUrlDrop
 import org.appdevforall.codeonthego.git.core.models.CloneRepoUiState
 import org.appdevforall.codeonthego.idetooltips.TooltipManager

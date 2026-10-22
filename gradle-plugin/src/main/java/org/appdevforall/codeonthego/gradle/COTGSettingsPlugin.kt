@@ -1,4 +1,4 @@
-package com.itsaky.androidide.gradle
+package org.appdevforall.codeonthego.gradle
 
 import org.adfa.constants.MAVEN_LOCAL_REPOSITORY
 import org.appdevforall.codeonthego.tooling.api.GradlePluginConfig._PROPERTY_IS_TEST_ENV

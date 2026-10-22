@@ -3,12 +3,12 @@ package org.appdevforall.codeonthego.adapters.viewholders;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
-import com.itsaky.androidide.R;
-import com.itsaky.androidide.databinding.LayoutFiletreeItemSelectableBinding;
 import com.unnamed.b.atv.model.TreeNode;
 import java.io.File;
 import java.util.List;
 import java.util.Set;
+import org.appdevforall.codeonthego.R;
+import org.appdevforall.codeonthego.databinding.LayoutFiletreeItemSelectableBinding;
 import org.appdevforall.codeonthego.models.FileExtension;
 
 public class MultiSelectFileTreeViewHolder extends TreeNode.BaseNodeViewHolder<File> {

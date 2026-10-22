@@ -45,10 +45,6 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.tabs.TabLayout
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
-import com.itsaky.androidide.R
-import com.itsaky.androidide.R.string
-import com.itsaky.androidide.databinding.FileActionPopupWindowBinding
-import com.itsaky.androidide.databinding.FileActionPopupWindowItemBinding
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +52,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.adfa.constants.CONTENT_KEY
+import org.appdevforall.codeonthego.R
+import org.appdevforall.codeonthego.R.string
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionItem.Location.EDITOR_TOOLBAR
@@ -74,6 +72,8 @@ import org.appdevforall.codeonthego.app.BaseApplication
 import org.appdevforall.codeonthego.app.EditorEvents
 import org.appdevforall.codeonthego.app.EditorProviderImpl
 import org.appdevforall.codeonthego.app.IDEApplication
+import org.appdevforall.codeonthego.databinding.FileActionPopupWindowBinding
+import org.appdevforall.codeonthego.databinding.FileActionPopupWindowItemBinding
 import org.appdevforall.codeonthego.deeplink.PendingDeepLinkOpen
 import org.appdevforall.codeonthego.di.APPLICATION_SCOPE
 import org.appdevforall.codeonthego.editor.floating.MetricsCarouselDockableContent

@@ -22,7 +22,7 @@ import android.graphics.PorterDuff.Mode.SRC_ATOP
 import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat.getDrawable
-import com.itsaky.androidide.uidesigner.R
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.drawable.UiViewLayeredForeground
 import org.appdevforall.codeonthego.utils.resolveAttr
 

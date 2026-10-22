@@ -1,11 +1,11 @@
 package org.appdevforall.codeonthego.lsp.java.refactor
 
 import com.google.common.truth.Truth.assertThat
-import com.itsaky.androidide.resources.R
 import org.appdevforall.codeonthego.lsp.refactor.BlockAnchor
 import org.appdevforall.codeonthego.lsp.refactor.BracelessBody
 import org.appdevforall.codeonthego.lsp.refactor.RewriteSpan
 import org.appdevforall.codeonthego.lsp.refactor.TextSpan
+import org.appdevforall.codeonthego.resources.R
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4

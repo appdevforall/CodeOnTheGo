@@ -25,7 +25,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import com.itsaky.androidide.profiler.R
+import org.appdevforall.codeonthego.profiler.R
 import org.appdevforall.cotg.profiler.model.ProcessInfo
 import org.appdevforall.cotg.profiler.ui.theme.Dimens
 import org.appdevforall.cotg.profiler.ui.theme.ProfilerTheme

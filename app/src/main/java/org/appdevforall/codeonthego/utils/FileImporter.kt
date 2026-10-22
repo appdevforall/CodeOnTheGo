@@ -2,7 +2,7 @@ package org.appdevforall.codeonthego.utils
 
 import android.content.ClipData
 import android.content.Context
-import com.itsaky.androidide.R
+import org.appdevforall.codeonthego.R
 import org.appdevforall.codeonthego.dnd.toImportableExternalUris
 import java.io.File
 

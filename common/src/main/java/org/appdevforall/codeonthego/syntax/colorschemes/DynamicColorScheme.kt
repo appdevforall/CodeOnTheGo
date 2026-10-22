@@ -20,7 +20,7 @@ package org.appdevforall.codeonthego.syntax.colorschemes
 import android.content.Context
 import android.graphics.Color
 import androidx.core.graphics.toColorInt
-import com.itsaky.androidide.common.R.attr
+import org.appdevforall.codeonthego.common.R.attr
 import org.appdevforall.codeonthego.utils.isSystemInDarkMode
 import org.appdevforall.codeonthego.utils.resolveAttr
 

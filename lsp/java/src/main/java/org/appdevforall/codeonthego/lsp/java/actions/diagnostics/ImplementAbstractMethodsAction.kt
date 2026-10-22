@@ -16,7 +16,6 @@
  */
 package org.appdevforall.codeonthego.lsp.java.actions.diagnostics
 
-import com.itsaky.androidide.resources.R
 import jdkx.tools.Diagnostic
 import jdkx.tools.JavaFileObject
 import org.appdevforall.codeonthego.actions.ActionData
@@ -27,6 +26,7 @@ import org.appdevforall.codeonthego.javac.services.util.JavaDiagnosticUtils
 import org.appdevforall.codeonthego.lsp.java.actions.BaseJavaCodeAction
 import org.appdevforall.codeonthego.lsp.java.models.DiagnosticCode
 import org.appdevforall.codeonthego.lsp.java.rewrite.ImplementAbstractMethods
+import org.appdevforall.codeonthego.resources.R
 import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */

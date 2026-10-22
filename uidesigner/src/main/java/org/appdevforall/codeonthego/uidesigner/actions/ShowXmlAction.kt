@@ -21,10 +21,10 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.itsaky.androidide.uidesigner.R
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.hasRequiredData
 import org.appdevforall.codeonthego.actions.markInvisible
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.ShowXmlActivity
 import org.appdevforall.codeonthego.uidesigner.utils.ViewToXml
 import org.appdevforall.codeonthego.utils.flashError

@@ -18,7 +18,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
   <queries>
-    <package android:name="com.itsaky.androidide" />
+    <package android:name="org.appdevforall.codeonthego" />
   </queries>
 
   <uses-permission android:name="android.permission.INTERNET" />

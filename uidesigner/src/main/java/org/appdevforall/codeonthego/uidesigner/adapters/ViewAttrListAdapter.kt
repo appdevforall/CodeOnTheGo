@@ -23,10 +23,10 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.uidesigner.R
-import com.itsaky.androidide.uidesigner.databinding.LayoutViewattrItemBinding
 import org.appdevforall.codeonthego.inflater.IView.SingleAttributeChangeListener
+import org.appdevforall.codeonthego.uidesigner.R
 import org.appdevforall.codeonthego.uidesigner.adapters.ViewAttrListAdapter.VH
+import org.appdevforall.codeonthego.uidesigner.databinding.LayoutViewattrItemBinding
 import org.appdevforall.codeonthego.uidesigner.models.UiAttribute
 import org.appdevforall.codeonthego.uidesigner.viewmodel.WorkspaceViewModel
 import org.appdevforall.codeonthego.utils.DialogUtils

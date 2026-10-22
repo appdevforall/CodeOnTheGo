@@ -4,11 +4,11 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.appcompat.widget.TooltipCompat
 import androidx.recyclerview.widget.RecyclerView
-import com.itsaky.androidide.editor.databinding.LayoutPopupMenuItemBinding
 import org.appdevforall.codeonthego.actions.ActionData
 import org.appdevforall.codeonthego.actions.ActionItem
 import org.appdevforall.codeonthego.actions.ActionsRegistry
 import org.appdevforall.codeonthego.actions.internal.DefaultActionsRegistry
+import org.appdevforall.codeonthego.editor.databinding.LayoutPopupMenuItemBinding
 import org.appdevforall.codeonthego.idetooltips.TooltipManager
 
 /**
