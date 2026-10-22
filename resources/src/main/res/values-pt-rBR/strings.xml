@@ -784,6 +784,7 @@
   <string name="msg_launch_failure_no_app_module">Não é possível executar o aplicativo. Nenhum módulo de aplicativo encontrado no projeto.</string>
   <string name="title_launch_app">Iniciar aplicativo</string>
   <string name="title_experiment_flavor">Experimental</string>
+  <string name="title_experiments_on">Experimentos ativados</string>
   <string name="msg_experimental_flavor">Você está usando a variante %1$s do Code on the Go em um dispositivo %2$s. Esta configuração pode funcionar, mas resultará em desempenho reduzido e possíveis vulnerabilidades de segurança. Por favor, evite usar essa configuração sempre que possível.</string>
   <string name="idepref_editor_pinLineNumbers_title">Fixar números de linha</string>
   <string name="idepref_editor_pinLineNumbers_summary">Mantém os números de linha fixos na visualização para que permaneçam visíveis ao rolar horizontalmente.</string>
