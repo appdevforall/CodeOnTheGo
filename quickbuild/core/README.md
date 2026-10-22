@@ -13,7 +13,7 @@ first. This file only covers what is inside this module.
 `androidx.*`, and nothing there takes a `Context`. Every Android capability the module needs is
 declared as an interface - a *port*. The **Context-bound** implementations live in `:app`, wired in
 one Koin module
-([`QuickBuildModule.kt`](../../app/src/main/java/com/itsaky/androidide/di/QuickBuildModule.kt));
+([`QuickBuildModule.kt`](../../app/src/main/java/org/appdevforall/codeonthego/di/QuickBuildModule.kt));
 `data/` also holds in-module Android adapters that need no `Context`, such as
 [`AndroidProjectWatcher`](src/main/java/org/appdevforall/cotg/quickbuild/data/AndroidProjectWatcher.kt),
 the file-watch port's `FileObserver` implementation. Adding the next file-watch adapter beside it

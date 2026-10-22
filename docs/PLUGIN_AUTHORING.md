@@ -108,7 +108,7 @@ classpath, so a root without AGP fails configuration with
 All plugin metadata is declared as `<meta-data>` tags inside
 `<application>` in `src/main/AndroidManifest.xml`. The loader reads
 these in `PluginLoader.getPluginMetadata()`
-(`plugin-manager/src/main/kotlin/com/itsaky/androidide/plugins/manager/loaders/PluginLoader.kt`).
+(`plugin-manager/src/main/kotlin/org/appdevforall/codeonthego/plugins/manager/loaders/PluginLoader.kt`).
 
 | Key                       | Type                    | Required | Notes                                                                 |
 |---------------------------|-------------------------|----------|-----------------------------------------------------------------------|
@@ -331,7 +331,7 @@ up.
 ## Permissions
 
 Declare permissions as a comma-separated list in `plugin.permissions`.
-Defined by `PluginPermission` in `plugin-api/src/main/kotlin/com/itsaky/androidide/plugins/IPlugin.kt`:
+Defined by `PluginPermission` in `plugin-api/src/main/kotlin/org/appdevforall/codeonthego/plugins/IPlugin.kt`:
 
 | Key                      | Grants                                                                          |
 |--------------------------|---------------------------------------------------------------------------------|

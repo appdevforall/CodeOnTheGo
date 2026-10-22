@@ -164,7 +164,7 @@ order - 1 and 2 are not negotiable against the rest.
   subclass (`Proxy<N><Type> extends <userClass>`), and a `final` class cannot be extended, so
   covering it would mean rewriting library bytecode inside an offline on-device build - which
   buys nothing given the two lines above. Because
-  [`ComponentProxiabilityResolver`](../../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/quickbuild/ComponentProxiabilityResolver.kt)
+  [`ComponentProxiabilityResolver`](../../gradle-plugin/src/main/java/org/appdevforall/codeonthego/gradle/quickbuild/ComponentProxiabilityResolver.kt)
   reads `ACC_FINAL` off the variant's dependency artifacts at manifest-transform time, a future
   `final` library component needs no CoGo release; a class it cannot find there is assumed
   project-owned and proxied.
@@ -286,7 +286,7 @@ restart rule and the skew guard.
   spanning processes; none of that exists.
 
   The failure is loud and early rather than a late loss of behavior:
-  [`QuickBuildManifestTransformer`](../../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/quickbuild/QuickBuildManifestTransformer.kt)
+  [`QuickBuildManifestTransformer`](../../gradle-plugin/src/main/java/org/appdevforall/codeonthego/gradle/quickbuild/QuickBuildManifestTransformer.kt)
   rejects a non-blank `android:process` on any component (and `android:isolatedProcess` on a
   service, `android:multiprocess` on a provider), naming the component and pointing at Standard
   Run, so provisioning fails outright. What the user does *not* get is an in-app explanation:

@@ -8,14 +8,14 @@ Every claim here was checked against the source on this branch. Where a class na
 
 | #   | Step                             | Module                                              | Open first                                                   |
 | --- | -------------------------------- | --------------------------------------------------- | ------------------------------------------------------------ |
-| 1   | Proxy app build                  | `:gradle-plugin`, inside the project's Gradle build | [QuickBuildPlugin.kt](../../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/QuickBuildPlugin.kt) |
+| 1   | Proxy app build                  | `:gradle-plugin`, inside the project's Gradle build | [QuickBuildPlugin.kt](../../gradle-plugin/src/main/java/org/appdevforall/codeonthego/gradle/QuickBuildPlugin.kt) |
 | 2   | Session control and provisioning | `:quickbuild:core` `service/` + `:app` adapters     | [QuickBuildSessionManager.kt](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/session/QuickBuildSessionManager.kt) |
 | 3   | Watch and normalize              | `:quickbuild:core` `data/` + `domain/`              | [AndroidProjectWatcher.kt](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/AndroidProjectWatcher.kt) |
 | 4   | Live reload orchestration        | `:quickbuild:core` `domain/` + `service/`           | [LiveReloadOrchestrator.kt](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/reload/LiveReloadOrchestrator.kt) |
 | 5   | Compile daemon                   | `:quickbuild:daemon`, a separate JVM child process  | [DaemonService.kt](../daemon/src/main/kotlin/org/appdevforall/cotg/quickbuild/daemon/DaemonService.kt) |
-| 6   | Deploy and reload                | `:quickbuild:runtime`, inside the proxy app         | [QuickBuildRuntime.java](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/QuickBuildRuntime.java) |
+| 6   | Deploy and reload                | `:quickbuild:runtime`, inside the proxy app         | [QuickBuildRuntime.java](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildRuntime.java) |
 | 7   | Proxy app rebuild and recovery   | reducer recovery states + session control           | [ProxyAppBuildRunner.kt](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/provision/ProxyAppBuildRunner.kt) |
-| 8   | Observability                    | `domain/QuickBuildMetricsSink` port + `:app` sinks  | [CompositeQuickBuildMetricsSink.kt](../../app/src/main/java/com/itsaky/androidide/quickbuild/CompositeQuickBuildMetricsSink.kt) |
+| 8   | Observability                    | `domain/QuickBuildMetricsSink` port + `:app` sinks  | [CompositeQuickBuildMetricsSink.kt](../../app/src/main/java/org/appdevforall/codeonthego/quickbuild/CompositeQuickBuildMetricsSink.kt) |
 
 Steps 1, 2 and 7 run once per baseline. Steps 3-6 are the per-save loop. Step 8 watches all of them.
 
@@ -176,7 +176,7 @@ flowchart TB
 - Fails the build immediately if `-Pcotg.quickbuild.runtimeAar` is missing or does not point at a file. The runtime AAR is added to the variant's **runtime** configuration only, never the compile classpath.
 - Compose is detected in `finalizeDsl`, from either `buildFeatures.compose` or the `org.jetbrains.kotlin.plugin.compose` plugin, and reported to the daemon through `setup.json`.
 
-Five `DefaultTask` classes, all in one file, [QuickBuildTasks.kt](../../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/quickbuild/QuickBuildTasks.kt):
+Five `DefaultTask` classes, all in one file, [QuickBuildTasks.kt](../../gradle-plugin/src/main/java/org/appdevforall/codeonthego/gradle/quickbuild/QuickBuildTasks.kt):
 
 | Task                             | What it produces                                             |
 | -------------------------------- | ------------------------------------------------------------ |
@@ -188,9 +188,9 @@ Five `DefaultTask` classes, all in one file, [QuickBuildTasks.kt](../../gradle-p
 
 Manifest and proxy-source detail, if the symptom is a wrong or missing proxy:
 
-- [QuickBuildManifestTransformer](../../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/quickbuild/QuickBuildManifestTransformer.kt) names proxies `Proxy<N><Type>` (`proxySimpleName`), **fails the build** on any `android:process` and on a provider with `android:multiprocess="true"`, neutralizes `android:backupAgent`, and keeps everything else the merged manifest said.
-- [ComponentProxiabilityResolver](../../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/quickbuild/ComponentProxiabilityResolver.kt) is the single authority on whether a component gets a proxy: a name list first, then the class file's `ACC_FINAL` flag read off the variant's dependency artifacts. A class it cannot find is assumed project-owned and proxiable.
-- [ProxySourceGenerator](../../gradle-plugin/src/main/java/com/itsaky/androidide/gradle/quickbuild/ProxySourceGenerator.kt) emits a subclass, not a delegate. Activity proxies add the `getClassLoader()` override; services, receivers and providers are empty; the Application entry gets no proxy at all.
+- [QuickBuildManifestTransformer](../../gradle-plugin/src/main/java/org/appdevforall/codeonthego/gradle/quickbuild/QuickBuildManifestTransformer.kt) names proxies `Proxy<N><Type>` (`proxySimpleName`), **fails the build** on any `android:process` and on a provider with `android:multiprocess="true"`, neutralizes `android:backupAgent`, and keeps everything else the merged manifest said.
+- [ComponentProxiabilityResolver](../../gradle-plugin/src/main/java/org/appdevforall/codeonthego/gradle/quickbuild/ComponentProxiabilityResolver.kt) is the single authority on whether a component gets a proxy: a name list first, then the class file's `ACC_FINAL` flag read off the variant's dependency artifacts. A class it cannot find is assumed project-owned and proxiable.
+- [ProxySourceGenerator](../../gradle-plugin/src/main/java/org/appdevforall/codeonthego/gradle/quickbuild/ProxySourceGenerator.kt) emits a subclass, not a delegate. Activity proxies add the `getClassLoader()` override; services, receivers and providers are empty; the Application entry gets no proxy at all.
 - The payload dex's min API is `max(variant.minSdk, 30)` (`MIN_PAYLOAD_API`). That is the dex floor, not the device floor - Quick Build runs on API 28+.
 
 ## Step 2: Session control and provisioning (`:quickbuild:core` `service/` + `:app`)
@@ -307,7 +307,7 @@ Who starts what:
 | Trigger                  | Path                                                         |
 | ------------------------ | ------------------------------------------------------------ |
 | project open             | `ProjectHandlerActivity` calls `QuickBuildSessionManager.prebuild()` -> `SessionEvent.PrebuildRequested` -> `SessionEffect.StartProxyAppPrebuild` |
-| lightning-bolt tap       | [QuickBuildAction](../../app/src/main/java/com/itsaky/androidide/actions/build/QuickBuildAction.kt) -> `QuickBuildTapped` / `CancelRequested` |
+| lightning-bolt tap       | [QuickBuildAction](../../app/src/main/java/org/appdevforall/codeonthego/actions/build/QuickBuildAction.kt) -> `QuickBuildTapped` / `CancelRequested` |
 | build finished elsewhere | a completed Standard Run build raises `InvalidationDetected(EXTERNAL_FULL_BUILD)`, which refreshes a live baseline (step 7) |
 
 Provisioning, in the order it happens. [ProxyAppBuildRunner](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/provision/ProxyAppBuildRunner.kt) runs the build -> install -> launch as a stateless verdict; the daemon is torn down before Gradle so the two never share a low-spec device's memory:
@@ -356,8 +356,8 @@ flowchart TB
 
 Step 7's rebuild fallback re-enters the same runner through `rebuildProxyApp`.
 
-1. [QuickBuildArtifactStager](../../app/src/main/java/com/itsaky/androidide/quickbuild/QuickBuildArtifactStager.kt) extracts the runtime AAR and the daemon zip from CoGo's APK assets into `<ANDROIDIDE_HOME>/quickbuild/`. It re-extracts on **every** provision on purpose: a version-keyed marker serves a stale bundle when content changes without a version bump.
-2. [GradleQuickBuildProvisioner](../../app/src/main/java/com/itsaky/androidide/quickbuild/GradleQuickBuildProvisioner.kt) runs the proxy app build through CoGo's existing `BuildService.executeTasks`, then parses `setup.json` into [ProxyAppInfo](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/ProxyAppInfo.kt).
+1. [QuickBuildArtifactStager](../../app/src/main/java/org/appdevforall/codeonthego/quickbuild/QuickBuildArtifactStager.kt) extracts the runtime AAR and the daemon zip from CoGo's APK assets into `<ANDROIDIDE_HOME>/quickbuild/`. It re-extracts on **every** provision on purpose: a version-keyed marker serves a stale bundle when content changes without a version bump.
+2. [GradleQuickBuildProvisioner](../../app/src/main/java/org/appdevforall/codeonthego/quickbuild/GradleQuickBuildProvisioner.kt) runs the proxy app build through CoGo's existing `BuildService.executeTasks`, then parses `setup.json` into [ProxyAppInfo](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/ProxyAppInfo.kt).
 3. [QuickBuildScratch](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/QuickBuildScratch.kt) creates `noBackupFilesDir/quickbuild-scratch/<projectKey>/{work,out}` and enforces the free-space floor. It must stay on app-private storage - see the README's "Build Scratch Lives in Faster Private Storage".
 4. [QuickBuildClobberCheck](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/provision/QuickBuildClobberCheck.kt) plus [RealIdInstall](../core/src/main/java/org/appdevforall/cotg/quickbuild/domain/reload/RealIdInstall.kt) read the installed package's `android:appComponentFactory` to decide whether the tap clobbers a Standard Run install. Stateless: an install or uninstall outside CoGo cannot leave it stale.
 5. [ProxyAppInstaller](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/provision/ProxyAppInstaller.kt) sha256's the built APK against the installed one and **skips the install entirely when the bytes match**. That is what keeps rebuilds free of reinstall prompts. Verdicts arrive as real PackageInstaller broadcasts (`InstallBroadcast`), not uid polling; a failure broadcast with no package name is accepted as ours.
@@ -755,22 +755,22 @@ sequenceDiagram
 - [QuickBuildHostService](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/deploy/QuickBuildHostService.kt) is **exported**, so the uid gate is the whole trust boundary: every inbound call must come from the uid PackageManager reported for the installed proxy app at session start.
 - [DeployChannel](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/deploy/DeployChannel.kt) is an interface so the executor stays JVM-testable.
 - [BuildStatusJson](../core/src/main/java/org/appdevforall/cotg/quickbuild/service/deploy/BuildStatusJson.kt) encodes `onBuildStatus`; the schema, its string-only rule and its defaults are in [the protocol reference](../protocol/README.md#build-status-json-iquickbuildtargetonbuildstatus).
-- The AIDL lives with the runtime: `quickbuild/runtime/src/main/aidl/com/itsaky/androidide/quickbuild/{IQuickBuildHost,IQuickBuildTarget}.aidl`.
+- The AIDL lives with the runtime: `quickbuild/runtime/src/main/aidl/org/appdevforall/codeonthego/quickbuild/{IQuickBuildHost,IQuickBuildTarget}.aidl`.
 
 Inside the app:
 
 | Concern                                                    | Class                                                        |
 | ---------------------------------------------------------- | ------------------------------------------------------------ |
-| coordinator; installed at Application instantiation        | [QuickBuildRuntime](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/QuickBuildRuntime.java) |
-| the bind back to CoGo                                      | [QuickBuildClient](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/QuickBuildClient.java) |
-| instantiate every component from the current generation    | [QuickBuildAppComponentFactory](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/QuickBuildAppComponentFactory.java) + [LoaderRouter](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/LoaderRouter.java) |
-| the loader proxy activities return from `getClassLoader()` | [QuickBuildClassLoaders](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/QuickBuildClassLoaders.java) |
-| current generation + its loader, process-wide              | [PayloadStore](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/PayloadStore.java) |
-| newest generation on disk                                  | [PayloadPersistence](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/PayloadPersistence.java) |
-| resource and asset overrides                               | [ResourceStore](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/ResourceStore.java) + [ResourceSwapStrategy](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/ResourceSwapStrategy.java) |
-| which activity to recreate                                 | [ActivityTracker](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/ActivityTracker.java) |
-| the error banner                                           | [StatusOverlay](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/StatusOverlay.java) |
-| the generation acceptance rule, stated once                | [Generations](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/Generations.java) |
+| coordinator; installed at Application instantiation        | [QuickBuildRuntime](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildRuntime.java) |
+| the bind back to CoGo                                      | [QuickBuildClient](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildClient.java) |
+| instantiate every component from the current generation    | [QuickBuildAppComponentFactory](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildAppComponentFactory.java) + [LoaderRouter](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/LoaderRouter.java) |
+| the loader proxy activities return from `getClassLoader()` | [QuickBuildClassLoaders](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/QuickBuildClassLoaders.java) |
+| current generation + its loader, process-wide              | [PayloadStore](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/PayloadStore.java) |
+| newest generation on disk                                  | [PayloadPersistence](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/PayloadPersistence.java) |
+| resource and asset overrides                               | [ResourceStore](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/ResourceStore.java) + [ResourceSwapStrategy](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/ResourceSwapStrategy.java) |
+| which activity to recreate                                 | [ActivityTracker](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/ActivityTracker.java) |
+| the error banner                                           | [StatusOverlay](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/StatusOverlay.java) |
+| the generation acceptance rule, stated once                | [Generations](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/Generations.java) |
 
 Behavior worth knowing before changing any of it:
 
@@ -779,7 +779,7 @@ Behavior worth knowing before changing any of it:
 - `PayloadStore` loads the dex through `InMemoryDexClassLoader` with the APK loader as parent. Framework and androidx resolve from the APK, user classes exist only in the payload, so parent-first delegation cannot serve a stale user class. At boot it loads the baked baseline dex at the generation stamped beside it (`baseline-generation.txt`; a missing or malformed stamp reads 0, so an old-plugin APK behaves as before), then swaps in a persisted generation only if it is strictly newer than the stamp.
 - `PayloadPersistence` writes `payload.dex`, `resources.arsc`, `assets.zip` and `meta.json` temp-then-rename, with `meta.json` last, so a crash mid-persist leaves the store claiming an **older** generation than it serves. That is the safe direction. It discards the store when the stored baseline fingerprint no longer matches the running baseline.
 - `BIND_AUTO_CREATE` keeps the binding alive across a CoGo service restart; `onServiceConnected` re-runs connect with the current running generation, which is how a relaunched proxy app catches up.
-- Resource swap by API level: 30+ swaps one long-lived `ResourcesLoader`'s provider, loaded with `loadFromApk` because `loadFromTable` does not serve file-based resources; 28/29 take the [LegacyResourceSwap](../runtime/src/main/java/com/itsaky/androidide/quickbuild/runtime/LegacyResourceSwap.java) `addAssetPath` shim; below 28 resource payloads are ignored, which is unreachable in practice.
+- Resource swap by API level: 30+ swaps one long-lived `ResourcesLoader`'s provider, loaded with `loadFromApk` because `loadFromTable` does not serve file-based resources; 28/29 take the [LegacyResourceSwap](../runtime/src/main/java/org/appdevforall/codeonthego/quickbuild/runtime/LegacyResourceSwap.java) `addAssetPath` shim; below 28 resource payloads are ignored, which is unreachable in practice.
 - Assets have no in-memory API, so the changed-assets zip is merged into one cumulative cache dir (`AssetExtractor.extractCumulative`) and served through a `DirectoryAssetsProvider` on the same `ResourcesLoader` (API 30+), so plain `AssetManager.open()` sees new and modified assets after the recreate. The dir is keyed to the baseline fingerprint and cleared on mismatch - the same trigger that discards a persisted payload - so assets never outlive their baseline. The overlay can add and replace but not hide: a deleted asset stays readable until the next proxy app build. Below API 30 there is no loader to hang the provider on, so the classifier routes any asset-bearing changed set to a full Gradle build rather than deploying assets nothing would read.
 
 ## Step 7: Proxy app rebuild and recovery (reducer states + session control)
@@ -875,12 +875,12 @@ flowchart TB
 
 | Sink                 | When it runs                   | File                                                         |
 | -------------------- | ------------------------------ | ------------------------------------------------------------ |
-| fan-out              | always                         | [CompositeQuickBuildMetricsSink](../../app/src/main/java/com/itsaky/androidide/quickbuild/CompositeQuickBuildMetricsSink.kt) |
-| Firebase analytics   | always (shipping)              | [AnalyticsQuickBuildMetricsSink](../../app/src/main/java/com/itsaky/androidide/analytics/quickbuild/AnalyticsQuickBuildMetricsSink.kt) + [QuickBuildMetrics](../../app/src/main/java/com/itsaky/androidide/analytics/quickbuild/QuickBuildMetrics.kt) |
-| benchmark JSON lines | behind the `qbbench` flag file | [BenchQuickBuildMetricsSink](../../app/src/debug/java/com/itsaky/androidide/quickbuild/BenchQuickBuildMetricsSink.kt) + [BenchEventsFile](../../app/src/debug/java/com/itsaky/androidide/quickbuild/BenchEventsFile.kt) |
-| session-state mirror | behind the same flag           | [BenchStateRecorder](../../app/src/debug/java/com/itsaky/androidide/quickbuild/BenchStateRecorder.kt) |
+| fan-out              | always                         | [CompositeQuickBuildMetricsSink](../../app/src/main/java/org/appdevforall/codeonthego/quickbuild/CompositeQuickBuildMetricsSink.kt) |
+| Firebase analytics   | always (shipping)              | [AnalyticsQuickBuildMetricsSink](../../app/src/main/java/org/appdevforall/codeonthego/analytics/quickbuild/AnalyticsQuickBuildMetricsSink.kt) + [QuickBuildMetrics](../../app/src/main/java/org/appdevforall/codeonthego/analytics/quickbuild/QuickBuildMetrics.kt) |
+| benchmark JSON lines | behind the `qbbench` flag file | [BenchQuickBuildMetricsSink](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/BenchQuickBuildMetricsSink.kt) + [BenchEventsFile](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/BenchEventsFile.kt) |
+| session-state mirror | behind the same flag           | [BenchStateRecorder](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/BenchStateRecorder.kt) |
 
 - The composite overrides **every** method, including the interface's defaulted ones, so a defaulted event still reaches the delegates that implement it.
 - `QuickBuildMetrics.MAX_EVENT_PARAMS = 25` is Firebase's hard cap, pinned by the unit test `the reload-timing bundle stays within Firebase's per-event parameter cap` in `AnalyticsQuickBuildMetricsSinkTest`. What it costs a new stat: [the protocol reference](../protocol/README.md#adding-a-numeric-stat-touches-five-places-and-the-codec-is-not-one-of-them).
 - `reload_timeline` is the load-bearing bench event. Its fields and its residual arithmetic are in [debugging.md](debugging.md#reload_timeline-and-why-the-residual-is-the-point).
-- [QuickBuildBenchActivity](../../app/src/debug/java/com/itsaky/androidide/quickbuild/QuickBuildBenchActivity.kt) replaces the human's first tap for unattended runs. It is exported by necessity and double-gated on the experiments and bench flags; it accepts only an existing directory inside `Environment.PROJECTS_DIR`.
+- [QuickBuildBenchActivity](../../app/src/debug/java/org/appdevforall/codeonthego/quickbuild/QuickBuildBenchActivity.kt) replaces the human's first tap for unattended runs. It is exported by necessity and double-gated on the experiments and bench flags; it accepts only an existing directory inside `Environment.PROJECTS_DIR`.

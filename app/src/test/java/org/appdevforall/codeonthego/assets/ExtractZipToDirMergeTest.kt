@@ -87,7 +87,7 @@ class ExtractZipToDirMergeTest {
 			}
 		try {
 			AssetsInstallationHelper.extractZipToDir(
-				zipOf("com/itsaky/androidide/plugin-api/1.0.0/plugin-api-1.0.0.jar" to "fat"),
+				zipOf("org/appdevforall/codeonthego/plugin-api/1.0.0/plugin-api-1.0.0.jar" to "fat"),
 				dest,
 			)
 
@@ -97,7 +97,7 @@ class ExtractZipToDirMergeTest {
 			)
 			assertEquals(
 				"fat",
-				String(Files.readAllBytes(dest.resolve("com/itsaky/androidide/plugin-api/1.0.0/plugin-api-1.0.0.jar"))),
+				String(Files.readAllBytes(dest.resolve("org/appdevforall/codeonthego/plugin-api/1.0.0/plugin-api-1.0.0.jar"))),
 			)
 		} finally {
 			dest.deleteRecursivelyWithoutFollowingLinks()
