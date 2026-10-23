@@ -34,7 +34,8 @@ import org.robolectric.RobolectricTestRunner
  * Both methods therefore guard with `if (!isAdded || activity == null) return`. These tests
  * assert that a detached fragment does NOT crash and returns the safe no-op values; drop the
  * guard and each call forces the activityViewModels delegate -> requireActivity() ->
- * IllegalStateException, taking the test RED.
+ * IllegalStateException, taking the test RED. [BuildOutputFragment.appendOutput] only queues into
+ * the fragment's own buffer, so it needs no guard; the last test pins that it stays safe.
  */
 @RunWith(RobolectricTestRunner::class)
 class BuildOutputFragmentDetachedTest {
@@ -66,5 +67,15 @@ class BuildOutputFragmentDetachedTest {
 		val content = fragment.getShareableContent()
 
 		assertThat(content).isEmpty()
+	}
+
+	/** Verifies appendOutput() is a safe no-op on a detached fragment instead of crashing. */
+	@Test
+	fun `appendOutput on a detached fragment does not crash`() {
+		val fragment = BuildOutputFragment()
+
+		assertThat(fragment.isAdded).isFalse()
+
+		fragment.appendOutput("build output")
 	}
 }
