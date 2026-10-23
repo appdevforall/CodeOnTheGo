@@ -65,6 +65,7 @@ import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ifNotEmpty
 import io.sentry.Sentry
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -98,8 +99,15 @@ class KotlinLanguageServer : ILanguageServer {
 	private var _client: ILanguageClient? = null
 	private var _settings: IServerSettings? = null
 
+	/*
+	 * A rebuild can close the compiler a file-event launch is still working on, so a failure there is
+	 * logged, not left to crash the app.
+	 */
 	private val scope =
-		CoroutineScope(SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!))
+		CoroutineScope(
+			SupervisorJob() + CoroutineName(KotlinLanguageServer::class.simpleName!!) +
+				CoroutineExceptionHandler { _, t -> logger.warn("Uncaught exception in Kotlin language server coroutine", t) },
+		)
 	private val session = CompilerSession(scope, ProjectCompilerLifecycle())
 	private val compiler: Compiler?
 		get() = session.current

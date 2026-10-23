@@ -75,6 +75,16 @@ class CompilationEnvironmentCloseTest : KtLspTest() {
 		}
 	}
 
+	@Test
+	fun `evicting a file of a closed environment does not touch the disposed project`() {
+		val path = createSourceFile("Evicted.kt", "fun evicted() = 0").virtualFile.toNioPath()
+		env.closeInWriteAction()
+
+		env.ktSymbolIndex.evictDiskCopy(path)
+
+		assertThat(env.project.isDisposed).isTrue()
+	}
+
 	// Starts the close, gives it time to dispose if it is going to, then lets the blocker finish.
 	private fun closeWhileBlocked(release: CountDownLatch) {
 		val closer = thread { env.closeInWriteAction() }
