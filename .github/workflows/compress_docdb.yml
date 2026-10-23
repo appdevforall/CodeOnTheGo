@@ -171,6 +171,7 @@ jobs:
           repository: appdevforall/OfflineDocumentationTools
           ref: c040d1d5e7fb708a9ddf468a636adec46b7a869a
           path: odt
+          persist-credentials: false
 
       - name: Install uv
         if: steps.checksum.outputs.skip != 'true'
