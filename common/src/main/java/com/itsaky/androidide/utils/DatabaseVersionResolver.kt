@@ -27,6 +27,13 @@ object DatabaseVersionResolver {
 	// tooltip tables have the earlier shape, which this build neither reads nor writes.
 	const val MAJOR_VERSION_WITH_KEYED_TOOLTIPS = 3
 
+	// From this MAJOR version on (ADFA-3305), every Templates row is Brotli-compressed against
+	// CompressionDictionary, as brotli Content rows are. No row says so: the pipeline compresses
+	// every template when it builds the database, and nothing on the device writes Templates.
+	// Below it templates are plain UTF-8, and are still read that way: an app update never replaces
+	// the installed database, so a 2.x file has to keep rendering its templated pages.
+	const val MAJOR_VERSION_WITH_COMPRESSED_TEMPLATES = 3
+
 	private const val QUERY_VERSION_TABLE_EXISTS = """
 		SELECT 1
 		FROM   sqlite_master

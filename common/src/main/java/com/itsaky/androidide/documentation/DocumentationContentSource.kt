@@ -24,6 +24,7 @@ import com.google.gson.GsonBuilder
 import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import com.itsaky.androidide.utils.expectsCompressedTemplates
 import com.itsaky.androidide.utils.loadCompressionDictionary
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.error.PebbleException
@@ -70,6 +71,12 @@ fun joinChunks(chunks: List<ByteArray>): ByteArray {
 	}
 	return joined
 }
+
+/** A `Templates` row's text, Brotli-decoded with [codec], the active database's. */
+private fun decompressTemplate(
+	codec: BrotliDictionaryCodec,
+	body: ByteArray,
+): ByteArray = codec.decompress(ByteArrayInputStream(body))
 
 /**
  * One row of documentation content, decoded and rendered, ready to send.
@@ -141,17 +148,30 @@ data class RequestLookup(
  * One pipeline with two callers (ADFA-5176): `WebServer`, which wraps it in HTTP, and
  * [DocumentationRequestInterceptor], which answers a WebView in-process with no socket at all. A row
  * that is a Pebble template context is rendered here too, so both transports serve a finished page
- * and neither needs the template engine itself.
+ * and neither needs the template engine itself. From documentation version 3 (ADFA-3305) templates
+ * are Brotli-compressed against the same dictionary as the rows; an earlier database's are plain
+ * UTF-8 and are read as they are, since an app update never replaces the installed database.
  *
  * Thread-safe: [lookup] and [withDatabase] hold a read lock for the whole read, and the swap takes
  * the write lock, since swapping closes the handle a reader could be using. Readers never block
  * each other.
+ *
+ * @param decodeTemplate Turns a `Templates` row's bytes into the template's text, given the codec
+ * for the database it came from. A seam for `:common`'s tests only, which have no brotli4j desktop
+ * native (see common/build.gradle.kts); the public constructor always Brotli-decodes.
  */
-class DocumentationContentSource(
+class DocumentationContentSource internal constructor(
 	private val databaseFile: File,
 	private val debugDatabaseFile: File,
-	debugCheckIntervalMs: Long = 1_000,
+	debugCheckIntervalMs: Long,
+	private val decodeTemplate: (BrotliDictionaryCodec, ByteArray) -> ByteArray,
 ) : Closeable {
+	constructor(
+		databaseFile: File,
+		debugDatabaseFile: File,
+		debugCheckIntervalMs: Long = 1_000,
+	) : this(databaseFile, debugDatabaseFile, debugCheckIntervalMs, ::decompressTemplate)
+
 	private val log = LoggerFactory.getLogger(DocumentationContentSource::class.java)
 
 	private val databaseLock = ReentrantReadWriteLock()
@@ -206,10 +226,19 @@ class DocumentationContentSource(
 	private var codec: BrotliDictionaryCodec? = null
 	private var codecStale = true
 
+	// Whether the active database's templates are Brotli-compressed (documentation version 3 on), or
+	// null until its first render asks. Cleared on every swap: the next database may be either kind.
+	@Volatile
+	private var templatesCompressed: Boolean? = null
+
 	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
 	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
 	// by several pages is compiled once, and dropping a database means invalidating that cache too.
-	private val templateLoader = DatabaseTemplateLoader { database }
+	// A compressed row is decoded with the active database's codec, the one its Content rows use.
+	private val templateLoader =
+		DatabaseTemplateLoader({ database }) { database, body ->
+			if (templatesCompressed(database)) decodeTemplate(codec(database), body) else body
+		}
 
 	private val pebbleEngine =
 		PebbleEngine
@@ -570,6 +599,10 @@ class DocumentationContentSource(
 		contextJson: ByteArray,
 		path: String,
 	): ByteArray {
+		// Resolved here, before the engine runs, so a failure to read the version arrives as itself
+		// rather than inside the loader, which would report it as a template that does not decode.
+		templatesCompressed(database)
+
 		val contextString = contextJson.toString(Charsets.UTF_8)
 		if (contextString.isBlank() || contextString.trim() == "null") {
 			throw TemplateRenderException("Template '$name' has empty or null JSON context, for path '$path'")
@@ -596,6 +629,13 @@ class DocumentationContentSource(
 			)
 		}
 	}
+
+	/**
+	 * Whether [database]'s templates are Brotli-compressed, from the version it declares; asked once
+	 * per database. A failure to read the version is not cached, so the next render asks again.
+	 */
+	private fun templatesCompressed(database: SQLiteDatabase): Boolean =
+		templatesCompressed ?: expectsCompressedTemplates(database).also { templatesCompressed = it }
 
 	/**
 	 * Resolves a template id to the name the engine loads it by.
@@ -818,6 +858,9 @@ class DocumentationContentSource(
 		// reused.
 		codec = null
 		codecStale = true
+		// The new database may store its templates the other way, and against its own dictionary:
+		// the compiled templates go with the cache clear below.
+		templatesCompressed = null
 		clearTemplateCache()
 		generation++
 
