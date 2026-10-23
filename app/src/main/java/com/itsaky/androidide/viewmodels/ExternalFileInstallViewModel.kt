@@ -116,7 +116,17 @@ class ExternalFileInstallViewModel(
 	/** Call once, from `Activity.onCreate()`/`onNewIntent()`, with the VIEW intent's data [Uri]. */
 	fun onReceived(uri: Uri) {
 		if (!receivedUriGate.consume(uri)) return
+		process(uri)
+	}
 
+	/**
+	 * Call with a file the user just picked in the Manager screen. Unlike [onReceived] this is not
+	 * gated: a pick is never redelivered across a rotation, and picking the same file again (say,
+	 * after cancelling its confirmation) must open the dialog again rather than do nothing.
+	 */
+	fun onPicked(uri: Uri) = process(uri)
+
+	private fun process(uri: Uri) {
 		val generation = ++currentRequestGeneration
 
 		viewModelScope.launch {

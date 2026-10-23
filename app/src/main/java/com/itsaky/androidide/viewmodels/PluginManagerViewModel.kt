@@ -519,7 +519,15 @@ class PluginManagerViewModel(
 	private suspend fun deleteSourceDocument(uri: Uri) {
 		withContext(Dispatchers.IO) {
 			try {
-				if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
+				// A pick from the Manager screen's Downloads list is a file:// URI, which
+				// DocumentsContract cannot delete (ADFA-6729).
+				val deleted =
+					if (uri.scheme == ContentResolver.SCHEME_FILE) {
+						File(checkNotNull(uri.path) { "file URI without a path: $uri" }).delete()
+					} else {
+						DocumentsContract.deleteDocument(contentResolver, uri)
+					}
+				if (!deleted) {
 					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 					)
@@ -539,7 +547,8 @@ class PluginManagerViewModel(
 	 * Validate the picked plugin file's name off the main thread (querying a `content://` URI's
 	 * display name is a `ContentResolver` IPC call) and route to install confirmation or an error.
 	 *
-	 * A SAF pick is always a `content://` URI, so it becomes a [PluginInstallSource.ContentUri];
+	 * A user pick (`content://` from SAF, or `file://` from the Downloads list) becomes a
+	 * [PluginInstallSource.ContentUri];
 	 * the forwarded-file path emits [PluginManagerUiEffect.ShowInstallConfirmation] with a
 	 * [PluginInstallSource.LocalFile] directly and never comes through here.
 	 */

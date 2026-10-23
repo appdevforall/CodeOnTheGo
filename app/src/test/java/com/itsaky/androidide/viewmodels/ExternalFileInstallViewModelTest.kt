@@ -16,9 +16,12 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -403,4 +406,49 @@ class ExternalFileInstallViewModelTest {
 	private fun stubTemplatesFeatureAvailable(available: Boolean) {
 		every { templateCollectionRepository.isTemplatesFeatureAvailable() } returns available
 	}
+
+	// The gate exists for an intent redelivered across a rotation: the same Uri twice is one
+	// request. Collected with a real-time timeout because processing hops to Dispatchers.IO.
+	@Test
+	fun `onReceived ignores a repeat of the same uri`() =
+		runTest {
+			val uri = sourceUriFor("notes.txt")
+
+			// Sequential, like a real repeat: a request still in flight is superseded by a newer one.
+			viewModel.onReceived(uri)
+			assertThat(collectErrors(maxEffects = 2)).hasSize(1)
+
+			viewModel.onReceived(uri)
+			assertThat(collectErrors(maxEffects = 2)).isEmpty()
+		}
+
+	// A user pick is never a redelivery: picking the same file again must be handled again.
+	@Test
+	fun `onPicked handles a repeat of the same uri`() =
+		runTest {
+			val uri = sourceUriFor("notes.txt")
+
+			viewModel.onPicked(uri)
+			assertThat(collectErrors(maxEffects = 2)).hasSize(1)
+
+			viewModel.onPicked(uri)
+			assertThat(collectErrors(maxEffects = 2)).hasSize(1)
+		}
+
+	/**
+	 * The ShowError effects among up to [maxEffects] effects, stopping early once none arrives
+	 * within [perEffectMillis] of real time.
+	 */
+	private suspend fun collectErrors(
+		maxEffects: Int,
+		perEffectMillis: Long = 2_000,
+	): List<ExternalFileInstallUiEffect.ShowError> =
+		withContext(Dispatchers.Default) {
+			buildList {
+				repeat(maxEffects) {
+					val next = withTimeoutOrNull(perEffectMillis) { viewModel.uiEffect.first() } ?: return@buildList
+					if (next is ExternalFileInstallUiEffect.ShowError) add(next)
+				}
+			}
+		}
 }

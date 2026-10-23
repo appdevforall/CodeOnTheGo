@@ -1315,6 +1315,13 @@
 	<string name="msg_unsupported_plugin_file">Unsupported file type. Please select a .cgp file</string>
 	<string name="msg_unsupported_extension_file">Unsupported file type. Please select a .cgp plugin or .cgt template file</string>
 	<string name="msg_no_file_manager">No file manager found</string>
+	<!-- The Manager screen's + picker: add-on files in Downloads (ADFA-6729). -->
+	<string name="title_choose_plugin_file">Choose a plugin</string>
+	<string name="title_choose_template_file">Choose templates</string>
+	<string name="msg_no_download_files">No %1$s files in Download.</string>
+	<string name="action_browse_other_folders">Browse other folders</string>
+	<!-- %1$s is a file size such as "5.5 MB", %2$s a date such as "Oct 21". -->
+	<string name="label_download_file_details">%1$s · %2$s</string>
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="action_discover_plugins">Discover plugins</string>
