@@ -37,13 +37,21 @@ import java.io.StringReader
  * Names are `Templates.name` values, matched exactly: the table is a flat namespace with no
  * directories, so there is no prefix, suffix or relative path to apply.
  *
+ * A row's bytes pass through [decode] before the engine sees them: from documentation version 3
+ * (ADFA-3305) every template is Brotli-compressed against the database's dictionary, while an
+ * earlier database stores them as plain UTF-8. Every template the engine loads comes through here,
+ * `include`d ones too.
+ *
  * @param database Supplies the database to read, or null when none is open. Called on every
  * resolution rather than captured, because the source swaps the handle when a newer database
  * appears; callers resolve under the read lock that a swap excludes, so the handle cannot change
  * mid-render.
+ * @param decode Turns a row's stored bytes, read from the given database, into the template's
+ * UTF-8 text.
  */
 internal class DatabaseTemplateLoader(
 	private val database: () -> SQLiteDatabase?,
+	private val decode: (SQLiteDatabase, ByteArray) -> ByteArray,
 ) : Loader<String> {
 	override fun getReader(name: String): Reader {
 		val database = database() ?: throw LoaderException(null, "No documentation database is open, for template '$name'")
@@ -83,7 +91,18 @@ internal class DatabaseTemplateLoader(
 				throw LoaderException(e, "Cannot read template '$name' from the database")
 			}
 
-		return StringReader(body.toString(Charsets.UTF_8))
+		// Exception, not RuntimeException: a Brotli decode failure is an IOException. Rewrapped for
+		// the same reason as above, and so the failure names the template it belongs to. Logged here
+		// with the database, which the exception's message leaves out: it reaches HTTP responses.
+		val text =
+			try {
+				decode(database, body)
+			} catch (e: Exception) {
+				log.error("Template '{}' in '{}' does not decode; the page using it fails", name, database.path, e)
+				throw LoaderException(e, "Cannot decode template '$name'")
+			}
+
+		return StringReader(text.toString(Charsets.UTF_8))
 	}
 
 	override fun resourceExists(name: String): Boolean {
@@ -119,7 +138,7 @@ internal class DatabaseTemplateLoader(
 		anchorPath: String,
 	): String = relativePath
 
-	/** Template bodies are stored as UTF-8 blobs, so the engine's charset setting does not apply. */
+	/** Template bodies decode to UTF-8, so the engine's charset setting does not apply. */
 	override fun setCharset(charset: String) = Unit
 
 	/** Names are exact `Templates.name` values; decorating them would stop them matching. */
