@@ -61,6 +61,8 @@ dependencies {
 	testImplementation(libs.tests.kotlinx.coroutines)
 	testImplementation(libs.tests.google.truth)
 	testImplementation(libs.tests.mockk)
+	// Directly, not through projects.testing.unit, which depends on this module.
+	testImplementation(libs.tests.robolectric)
 	androidTestImplementation(projects.testing.android)
 
 	// brotli4j
