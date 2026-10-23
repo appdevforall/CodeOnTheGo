@@ -383,7 +383,7 @@ class DocumentationContentSource(
 		name: String,
 		path: String,
 		contextJson: (SQLiteDatabase) -> ByteArray,
-	): ByteArray = withDatabase { database -> renderNamed(name, contextJson(database), path) }
+	): ByteArray = withDatabase { database -> renderNamed(database, name, contextJson(database), path) }
 
 	/**
 	 * Clears all cached templates, compiled and by name.
@@ -526,7 +526,7 @@ class DocumentationContentSource(
 			if (pageTemplate != HM_TOPIC_TEMPLATE || !templateLoader.resourceExists(JSTOPIC_TEMPLATE)) return null
 
 			val json = decodeRow(database, pagePath, cursor.getBlob(0), cursor.getString(2))
-			return DocumentationLookup.Found(DocumentationContent(renderNamed(JSTOPIC_TEMPLATE, json, path), JSTOPIC_MIME_TYPE))
+			return DocumentationLookup.Found(DocumentationContent(renderNamed(database, JSTOPIC_TEMPLATE, json, path), JSTOPIC_MIME_TYPE))
 		}
 	}
 
@@ -549,7 +549,7 @@ class DocumentationContentSource(
 				templateName(database, templateId, path)
 			}
 
-		return renderNamed(name, contextJson, path)
+		return renderNamed(database, name, contextJson, path)
 	}
 
 	/**
@@ -558,12 +558,14 @@ class DocumentationContentSource(
 	 * Callers hold the read lock, since the loader the engine resolves through reads the active
 	 * database -- for this template and for every one it references.
 	 *
+	 * @param database The active database, which every template is loaded from.
 	 * @param name The template's `Templates.name`.
 	 * @param contextJson The JSON-encoded context supplied to the template.
 	 * @param path The content path associated with the rendering request.
 	 * @return The rendered template content encoded as UTF-8 bytes.
 	 */
 	private fun renderNamed(
+		database: SQLiteDatabase,
 		name: String,
 		contextJson: ByteArray,
 		path: String,
