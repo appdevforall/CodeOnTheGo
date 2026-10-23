@@ -21,6 +21,12 @@ object DatabaseVersionResolver {
 	// rows are plain Brotli.
 	const val MAJOR_VERSION_WITH_COMPRESSION_DICTIONARY = 2
 
+	// From this MAJOR version on (ADFA-3305), Tooltips is a WITHOUT ROWID table keyed by
+	// (categoryId, tag) whose text is in TooltipTexts, and TooltipButtons is keyed by (tooltipId,
+	// buttonNumberId) with its text in TooltipButtonDescriptions and TooltipButtonUris. Below it the
+	// tooltip tables have the earlier shape, which this build neither reads nor writes.
+	const val MAJOR_VERSION_WITH_KEYED_TOOLTIPS = 3
+
 	private const val QUERY_VERSION_TABLE_EXISTS = """
 		SELECT 1
 		FROM   sqlite_master
@@ -132,6 +138,20 @@ object DatabaseVersionResolver {
 			} else {
 				cursor.getInt(0)
 			}
+		}
+	}
+
+	/**
+	 * Throws [IllegalStateException] unless [db] declares at least [MAJOR_VERSION_WITH_KEYED_TOOLTIPS],
+	 * naming the version it does declare. Tooltip readers and writers call it first, so a database
+	 * with the earlier tooltip tables fails with that reason rather than on a missing table or
+	 * column partway through.
+	 */
+	fun requireKeyedTooltips(db: SQLiteDatabase) {
+		val major = resolveMajorVersion(db)
+		check(major != null && major >= MAJOR_VERSION_WITH_KEYED_TOOLTIPS) {
+			"documentation.db declares documentation version ${major ?: "none"}; its tooltip tables need " +
+				"$MAJOR_VERSION_WITH_KEYED_TOOLTIPS or later"
 		}
 	}
 

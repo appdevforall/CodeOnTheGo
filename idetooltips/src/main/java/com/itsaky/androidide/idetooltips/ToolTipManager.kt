@@ -57,18 +57,13 @@ object TooltipManager {
 	private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
 			"/Download/documentation.db")
 
-	private const val QUERY_TOOLTIP_BUTTONS = """
-		SELECT description, uri
-		FROM TooltipButtons
-		WHERE tooltipId = ?
-		ORDER BY buttonNumberId
-	"""
-
 	suspend fun getTooltip(context: Context, category: String, tag: String): IDETooltipItem? {
 		Log.d(TAG, "In getTooltip() for category='$category', tag='$tag'.")
 
 		return withContext(Dispatchers.IO) {
 			var dbPath = Environment.DOC_DB.absolutePath
+			// Named in the error log: a refused database could be either file, and only the log says which.
+			var dbSource = "installed database"
 
 			// TODO: The debug database code should only exist in a debug build. --DS, 30-Jul-2025
 			val debugDatabaseTimestamp =
@@ -77,6 +72,7 @@ object TooltipManager {
 			if (debugDatabaseTimestamp > databaseTimestamp) {
 				// Switch to the debug database.
 				dbPath = debugDatabaseFile.absolutePath
+				dbSource = "debug database"
 			}
 
 			try {
@@ -88,41 +84,7 @@ object TooltipManager {
 						"n/a"
 					}
 
-					queryTooltip(database, category = category, tag = tag).use { c ->
-						when (c.count) {
-							// A missing tag is a normal outcome (e.g. a Gradle task with no
-							// authored tooltip). Honor the nullable contract so the caller
-							// shows nothing rather than an "n/a" popup.
-							0 -> throw NoTooltipFoundException(category, tag)
-							1 -> { /* Expected case, continue processing */
-							}
-
-							else -> throw DatabaseCorruptionException(
-								"Multiple tooltips found for category='$category', tag='$tag' (found ${c.count} rows). " +
-										"Each category/tag combination should be unique."
-							)
-						}
-
-						c.moveToFirst()
-						val rowId = c.getInt(0)
-						val tooltipId = c.getInt(1)
-						val summary = c.getString(2)
-						val detail = c.getString(3)
-
-						val buttons = ArrayList<Pair<String, String>>()
-						database.rawQuery(QUERY_TOOLTIP_BUTTONS, arrayOf(tooltipId.toString())).use { bc ->
-							while (bc.moveToNext()) {
-								buttons.add(
-									Pair(
-										bc.getString(0),
-										"http://localhost:6174/" + bc.getString(1)
-									)
-								)
-							}
-						}
-
-						IDETooltipItem(rowId, tooltipId, category, tag, summary, detail, buttons, lastChange)
-					}
+					readTooltip(database, category = category, tag = tag, lastChange = lastChange)
 				}
 			} catch (e: NoTooltipFoundException) {
 				Log.d(TAG, "No tooltip found for category='$category', tag='$tag'")
@@ -133,7 +95,7 @@ object TooltipManager {
 			} catch (e: Exception) {
 				Log.e(
 					TAG,
-					"Error getting tooltip for category='$category', tag='$tag': ${e.message}"
+					"Error getting tooltip for category='$category', tag='$tag' from the $dbSource '$dbPath': ${e.message}"
 				)
 				null
 			}
