@@ -1,8 +1,8 @@
 package com.itsaky.androidide.quickbuild
 
 import com.google.common.truth.Truth.assertThat
-import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
