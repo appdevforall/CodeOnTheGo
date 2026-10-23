@@ -180,6 +180,9 @@ jobs:
       # uv's 3.12 build lacks the dbstat table rebuild_database.py --pack reads.
       - name: Re-mint the dictionary and pack the database
         if: steps.checksum.outputs.skip != 'true'
+        env:
+          # The ODT scripts' PEP 723 deps are unpinned; resolve only releases published before this.
+          UV_EXCLUDE_NEWER: '2026-10-22T00:00:00Z'
         run: |
           rm -f pre_remint.db copy.db final.db
           cp documentation.db pre_remint.db
