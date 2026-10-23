@@ -518,4 +518,106 @@ class JGitRepositoryTest {
 			assertTrue(statusAfter.isClean)
 			assertTrue(statusAfter.unstaged.isEmpty())
 		}
+
+	@Test
+	fun testRenamePathFolderMultipleTimes() =
+		runBlocking {
+			val subDir = File(repoDir, "subDir")
+			subDir.mkdir()
+			val file = File(subDir, "test.txt")
+			file.writeText("hello from subDir")
+			jgitRepo.stageFiles(listOf(file))
+			jgitRepo.commit("Initial commit with subDir", "User", "user@test.com")
+
+			// 1st Rename: subDir -> SubDir
+			val tempDir = File(repoDir, "subDir_temp")
+			val newDir = File(repoDir, "SubDir")
+			assertTrue(subDir.renameTo(tempDir))
+			assertTrue(tempDir.renameTo(newDir))
+
+			val renamed1 = jgitRepo.renamePath(subDir, newDir)
+			assertTrue(renamed1)
+
+			val status1 = jgitRepo.getStatus()
+			val staged1 = status1.staged.find { it.path == "SubDir/test.txt" }
+			assertNotNull("Should be staged as renamed", staged1)
+			assertEquals(ChangeType.RENAMED, staged1!!.type)
+			assertEquals("subDir/test.txt", staged1.oldPath)
+			assertTrue("Unstaged should be empty", status1.unstaged.isEmpty())
+			assertTrue("Untracked should be empty", status1.untracked.isEmpty())
+
+			jgitRepo.commit("Rename 1: subDir -> SubDir", "User", "user@test.com")
+			assertTrue(jgitRepo.getStatus().isClean)
+
+			// 2nd Rename: SubDir -> subDir
+			assertTrue(newDir.renameTo(tempDir))
+			assertTrue(tempDir.renameTo(subDir))
+
+			val renamed2 = jgitRepo.renamePath(newDir, subDir)
+			assertTrue(renamed2)
+
+			val status2 = jgitRepo.getStatus()
+			val staged2 = status2.staged.find { it.path == "subDir/test.txt" }
+			assertNotNull("Should be staged as renamed on 2nd rename", staged2)
+			assertEquals(ChangeType.RENAMED, staged2!!.type)
+			assertEquals("SubDir/test.txt", staged2.oldPath)
+			assertTrue("Unstaged should be empty", status2.unstaged.isEmpty())
+			assertTrue("Untracked should be empty", status2.untracked.isEmpty())
+
+			jgitRepo.commit("Rename 2: SubDir -> subDir", "User", "user@test.com")
+			assertTrue(jgitRepo.getStatus().isClean)
+
+			// 3rd Rename: subDir -> SubDir
+			assertTrue(subDir.renameTo(tempDir))
+			assertTrue(tempDir.renameTo(newDir))
+
+			val renamed3 = jgitRepo.renamePath(subDir, newDir)
+			assertTrue(renamed3)
+
+			val status3 = jgitRepo.getStatus()
+			val staged3 = status3.staged.find { it.path == "SubDir/test.txt" }
+			assertNotNull("Should be staged as renamed on 3rd rename", staged3)
+			assertEquals(ChangeType.RENAMED, staged3!!.type)
+			assertEquals("subDir/test.txt", staged3.oldPath)
+		}
+
+	@Test
+	fun testRenamePathFile() =
+		runBlocking {
+			val file = File(repoDir, "myFile.txt")
+			file.writeText("hello")
+			jgitRepo.stageFiles(listOf(file))
+			jgitRepo.commit("Initial commit with myFile.txt", "User", "user@test.com")
+
+			// 1st Rename: myFile.txt -> MyFile.txt
+			val tempFile = File(repoDir, "myFile_temp.txt")
+			val newFile = File(repoDir, "MyFile.txt")
+			assertTrue(file.renameTo(tempFile))
+			assertTrue(tempFile.renameTo(newFile))
+
+			val renamed1 = jgitRepo.renamePath(file, newFile)
+			assertTrue(renamed1)
+
+			val status1 = jgitRepo.getStatus()
+			val staged1 = status1.staged.find { it.path == "MyFile.txt" }
+			assertNotNull(staged1)
+			assertEquals(ChangeType.RENAMED, staged1!!.type)
+			assertEquals("myFile.txt", staged1.oldPath)
+
+			jgitRepo.commit("Rename myFile to MyFile", "User", "user@test.com")
+			assertTrue(jgitRepo.getStatus().isClean)
+
+			// 2nd Rename: MyFile.txt -> myFile.txt
+			assertTrue(newFile.renameTo(tempFile))
+			assertTrue(tempFile.renameTo(file))
+
+			val renamed2 = jgitRepo.renamePath(newFile, file)
+			assertTrue(renamed2)
+
+			val status2 = jgitRepo.getStatus()
+			val staged2 = status2.staged.find { it.path == "myFile.txt" }
+			assertNotNull(staged2)
+			assertEquals(ChangeType.RENAMED, staged2!!.type)
+			assertEquals("MyFile.txt", staged2.oldPath)
+		}
 }

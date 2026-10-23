@@ -300,6 +300,52 @@ class JGitRepository(
 			Unit
 		}
 
+	override suspend fun renamePath(
+		oldFile: File,
+		newFile: File,
+	): Boolean =
+		withContext(Dispatchers.IO) {
+			val oldRel = oldFile.toRelativeString(rootDir).replace('\\', '/')
+			val newRel = newFile.toRelativeString(rootDir).replace('\\', '/')
+			if (oldRel == newRel || oldRel.startsWith("..") || newRel.startsWith("..")) {
+				return@withContext false
+			}
+
+			val dirCache = repository.readDirCache()
+			val oldPrefix = "$oldRel/"
+			val newPrefix = "$newRel/"
+
+			val entriesToRemove = mutableSetOf<String>()
+			for (i in 0 until dirCache.entryCount) {
+				val path = dirCache.getEntry(i).pathString
+				if (path == oldRel ||
+					path.startsWith(oldPrefix) ||
+					path.equals(oldRel, ignoreCase = true) ||
+					path.startsWith(oldPrefix, ignoreCase = true) ||
+					path.equals(newRel, ignoreCase = true) ||
+					path.startsWith(newPrefix, ignoreCase = true)
+				) {
+					entriesToRemove.add(path)
+				}
+			}
+
+			if (entriesToRemove.isEmpty()) {
+				return@withContext false
+			}
+
+			val rmCommand = git.rm().setCached(true)
+			entriesToRemove.forEach { rmCommand.addFilepattern(it) }
+			rmCommand.call()
+
+			if (newFile.exists()) {
+				val addCommand = git.add()
+				addCommand.addFilepattern(newRel)
+				addCommand.call()
+			}
+
+			true
+		}
+
 	override suspend fun isCommitWatermarkEnabled(): Boolean =
 		withContext(Dispatchers.IO) {
 			configMutex.withLock {

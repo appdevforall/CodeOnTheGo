@@ -56,6 +56,21 @@ interface GitRepository : Closeable {
 	// Commit Operations
 	suspend fun stageFiles(files: List<File>)
 
+	/**
+	 * Renames a tracked file or directory in Git's index cache.
+	 *
+	 * Evicts any entries matching [oldFile] (including case-insensitive variants or duplicate index entries)
+	 * and stages the newly renamed [newFile] in the index.
+	 *
+	 * @param oldFile The original file or directory.
+	 * @param newFile The new file or directory after rename.
+	 * @return `true` if any tracked index entries were renamed, `false` otherwise.
+	 */
+	suspend fun renamePath(
+		oldFile: File,
+		newFile: File,
+	): Boolean
+
 	// Git commit watermark configurations
 	suspend fun isCommitWatermarkEnabled(): Boolean
 

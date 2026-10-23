@@ -773,7 +773,19 @@ class GitBottomSheetViewModel(
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onFileRenamed(event: FileRenameEvent) {
-		refreshStatus()
+		viewModelScope.launch {
+			withGuardedGitOperation {
+				try {
+					currentRepository?.renamePath(event.file, event.newFile)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to update git on file rename", e)
+				} finally {
+					refreshStatus()
+				}
+			}
+		}
 	}
 
 	fun abortMerge(onSuccess: (() -> Unit)? = null) {
