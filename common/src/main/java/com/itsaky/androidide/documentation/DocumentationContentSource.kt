@@ -209,10 +209,12 @@ class DocumentationContentSource(
 	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
 	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
 	// by several pages is compiled once, and dropping a database means invalidating that cache too.
+	private val templateLoader = DatabaseTemplateLoader { database }
+
 	private val pebbleEngine =
 		PebbleEngine
 			.Builder()
-			.loader(DatabaseTemplateLoader { database })
+			.loader(templateLoader)
 			.maxRenderedSize(MAX_RENDERED_CHARS)
 			.build()
 
@@ -253,7 +255,24 @@ class DocumentationContentSource(
 	 * @return The matching content, or an outcome indicating that no match was found,
 	 * an ambiguous match exists, or reading failed.
 	 */
-	fun lookup(path: String): DocumentationLookup {
+	fun lookup(path: String): DocumentationLookup = readLocked(path) { database -> readContent(database, path) }
+
+	/**
+	 * A Help+Manual `jstopics` file rendered from its page, or [DocumentationLookup.NotFound]. An
+	 * [DocumentationLookup.Ambiguous] result names the page, whose rows are the duplicated ones, so
+	 * the path a caller reports is one whose query reproduces them.
+	 */
+	private fun lookupJsTopic(path: String): RequestLookup {
+		val match = JSTOPIC_PATH.matchEntire(path) ?: return RequestLookup(path, DocumentationLookup.NotFound)
+		val pagePath = match.groupValues[1] + match.groupValues[2] + ".html"
+		val lookup = readLocked(path) { database -> renderJsTopic(database, path, pagePath) ?: DocumentationLookup.NotFound }
+		return RequestLookup(if (lookup is DocumentationLookup.Ambiguous) pagePath else path, lookup)
+	}
+
+	private fun readLocked(
+		path: String,
+		block: (SQLiteDatabase) -> DocumentationLookup,
+	): DocumentationLookup {
 		// Both of these take the write lock when they act, so they run before the read lock below:
 		// a ReentrantReadWriteLock does not upgrade.
 		if (!openIfNeeded()) return DocumentationLookup.NotFound
@@ -263,7 +282,7 @@ class DocumentationContentSource(
 			val database = database ?: return@read DocumentationLookup.NotFound
 
 			try {
-				readContent(database, path)
+				block(database)
 			} catch (e: Exception) {
 				log.error("Cannot read '{}'", path, e)
 				DocumentationLookup.Failed(e)
@@ -273,6 +292,8 @@ class DocumentationContentSource(
 
 	/**
 	 * Looks up a request path, retrying with a percent-decoded path when the raw path is not found.
+	 * When both stored forms miss, a Help+Manual `jstopics/X.js` is rendered from its page `X.html`,
+	 * raw form first (see [lookupJsTopic]); for a duplicated page, the path returned is the page's.
 	 *
 	 * @param rawPath The request path as received from the client.
 	 * @return The path used for the successful lookup and its result.
@@ -282,9 +303,15 @@ class DocumentationContentSource(
 		if (raw !is DocumentationLookup.NotFound) return RequestLookup(rawPath, raw)
 
 		val decodedPath = decodeRequestPath(rawPath)
-		if (decodedPath == rawPath) return RequestLookup(rawPath, raw)
+		if (decodedPath != rawPath) {
+			val decoded = lookup(decodedPath)
+			if (decoded !is DocumentationLookup.NotFound) return RequestLookup(decodedPath, decoded)
+		}
 
-		return RequestLookup(decodedPath, lookup(decodedPath))
+		// Only once both stored forms miss, so a stored jstopics row wins under either (ADFA-6618).
+		val rendered = lookupJsTopic(rawPath)
+		if (rendered.lookup !is DocumentationLookup.NotFound || decodedPath == rawPath) return rendered
+		return lookupJsTopic(decodedPath)
 	}
 
 	/**
@@ -356,7 +383,7 @@ class DocumentationContentSource(
 		name: String,
 		path: String,
 		contextJson: (SQLiteDatabase) -> ByteArray,
-	): ByteArray = withDatabase { database -> renderNamed(name, contextJson(database), path) }
+	): ByteArray = withDatabase { database -> renderNamed(database, name, contextJson(database), path) }
 
 	/**
 	 * Clears all cached templates, compiled and by name.
@@ -456,11 +483,50 @@ class DocumentationContentSource(
 			val compression = cursor.getString(2)
 			val templateId = cursor.getInt(3)
 
-			val chunks = readChunks(database, path, firstChunk)
-			val decoded = if (compression == "brotli") decompressBrotli(database, chunks) else joinChunks(chunks)
+			val decoded = decodeRow(database, path, firstChunk, compression)
 			val bytes = if (templateId > 0) render(database, templateId, decoded, path) else decoded
 
 			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType))
+		}
+	}
+
+	/** A row's content: its chunks joined, and Brotli-decoded when its content type says so. */
+	private fun decodeRow(
+		database: SQLiteDatabase,
+		path: String,
+		firstChunk: ByteArray,
+		compression: String,
+	): ByteArray {
+		val chunks = readChunks(database, path, firstChunk)
+		return if (compression == "brotli") decompressBrotli(database, chunks) else joinChunks(chunks)
+	}
+
+	/**
+	 * Help+Manual's in-page navigation loads `jstopics/X.js`, a JavaScript copy of topic `X`. The
+	 * documentation pipeline stores each topic once, as the JSON its page `X.html` renders from
+	 * through [HM_TOPIC_TEMPLATE], and drops the copies (ADFA-6618), so a miss for one is rendered
+	 * from that JSON with [JSTOPIC_TEMPLATE].
+	 *
+	 * @param pagePath The page [path] is the `jstopics` file of.
+	 * @return The rendered copy; [DocumentationLookup.Ambiguous] when the page row is duplicated; or
+	 * null -- the request stays a plain miss -- when the page has no row or is not a
+	 * [HM_TOPIC_TEMPLATE] page, or the database has no [JSTOPIC_TEMPLATE].
+	 */
+	private fun renderJsTopic(
+		database: SQLiteDatabase,
+		path: String,
+		pagePath: String,
+	): DocumentationLookup? {
+		database.rawQuery(CONTENT_QUERY, arrayOf(pagePath)).use { cursor ->
+			if (cursor.count > 1) return DocumentationLookup.Ambiguous(cursor.count)
+			if (!cursor.moveToFirst()) return null
+			val templateId = cursor.getInt(3)
+			if (templateId <= 0) return null
+			val pageTemplate = templateNames.getOrPut(templateId) { templateName(database, templateId, pagePath) }
+			if (pageTemplate != HM_TOPIC_TEMPLATE || !templateLoader.resourceExists(JSTOPIC_TEMPLATE)) return null
+
+			val json = decodeRow(database, pagePath, cursor.getBlob(0), cursor.getString(2))
+			return DocumentationLookup.Found(DocumentationContent(renderNamed(database, JSTOPIC_TEMPLATE, json, path), JSTOPIC_MIME_TYPE))
 		}
 	}
 
@@ -483,7 +549,7 @@ class DocumentationContentSource(
 				templateName(database, templateId, path)
 			}
 
-		return renderNamed(name, contextJson, path)
+		return renderNamed(database, name, contextJson, path)
 	}
 
 	/**
@@ -492,12 +558,14 @@ class DocumentationContentSource(
 	 * Callers hold the read lock, since the loader the engine resolves through reads the active
 	 * database -- for this template and for every one it references.
 	 *
+	 * @param database The active database, which every template is loaded from.
 	 * @param name The template's `Templates.name`.
 	 * @param contextJson The JSON-encoded context supplied to the template.
 	 * @param path The content path associated with the rendering request.
 	 * @return The rendered template content encoded as UTF-8 bytes.
 	 */
 	private fun renderNamed(
+		database: SQLiteDatabase,
 		name: String,
 		contextJson: ByteArray,
 		path: String,
@@ -787,5 +855,11 @@ class DocumentationContentSource(
 		"""
 
 		private const val CHUNK_QUERY = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
+
+		// A Help+Manual topic's JavaScript copy, beside its page: i/jstopics/X.js for i/X.html.
+		private val JSTOPIC_PATH = Regex("""(.*/)?jstopics/([^/]+)\.js""")
+		private const val HM_TOPIC_TEMPLATE = "helpmanual-topic.peb"
+		private const val JSTOPIC_TEMPLATE = "helpmanual-jstopic.peb"
+		private const val JSTOPIC_MIME_TYPE = "text/javascript"
 	}
 }
