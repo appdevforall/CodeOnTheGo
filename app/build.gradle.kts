@@ -11,7 +11,7 @@ import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
-import org.adfa.constants.KOTLIN_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
@@ -519,14 +519,14 @@ evaluationDependsOn(":quickbuild:daemon")
 // in under exactly these names, which is what the daemon jar's manifest Class-Path expects.
 val quickBuildDistLinkedJars =
 	listOf(
-		"kotlin-compiler-embeddable-$KOTLIN_VERSION.jar",
-		"kotlin-stdlib-$KOTLIN_VERSION.jar",
-		"kotlin-build-tools-impl-$KOTLIN_VERSION.jar",
-		"kotlin-daemon-embeddable-$KOTLIN_VERSION.jar",
-		"kotlin-script-runtime-$KOTLIN_VERSION.jar",
-		"kotlin-reflect-$KOTLIN_VERSION.jar",
-		// These three carry their own version rather than KOTLIN_VERSION, pinned in
-		// libs.versions.toml to what the distribution ships so they can be linked from there.
+		"kotlin-compiler-embeddable-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-stdlib-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-build-tools-impl-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-daemon-embeddable-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-script-runtime-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-reflect-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		// These three carry their own version rather than GRADLE_DISTRIBUTION_KOTLIN_VERSION,
+		// pinned in libs.versions.toml to what the distribution ships so they can be linked from there.
 		"kotlinx-coroutines-core-jvm-${libs.kotlinx.coroutines.core.jvm.quickBuildDaemon.get().version}.jar",
 		"gson-${libs.gson.quickBuildDaemon.get().version}.jar",
 		"asm-${libs.ow2.asm.get().version}.jar",

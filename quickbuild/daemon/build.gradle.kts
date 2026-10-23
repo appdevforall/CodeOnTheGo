@@ -1,4 +1,4 @@
-import org.adfa.constants.KOTLIN_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
 
 plugins {
 	id("java-library")
@@ -104,9 +104,10 @@ dependencies {
 	// against one protocol definition. api: the router/handler signatures expose them.
 	api(projects.quickbuild.protocol)
 
-	// The Kotlin artifacts below take KOTLIN_VERSION, not a catalog version: ADFA-4931 links the
-	// on-device Gradle distribution's compiler, so the two must match by construction.
-	implementation("${libs.kotlin.buildToolsApi.get().module}:$KOTLIN_VERSION")
+	// The Kotlin artifacts below take GRADLE_DISTRIBUTION_KOTLIN_VERSION, not a catalog version:
+	// ADFA-4931 links the on-device Gradle distribution's compiler, so the two must match by
+	// construction.
+	implementation("${libs.kotlin.buildToolsApi.get().module}:$GRADLE_DISTRIBUTION_KOTLIN_VERSION")
 	// Pinned to the on-device Gradle distribution's version, not the app's, because ADFA-4931
 	// links gson from the distribution instead of shipping it in the APK.
 	implementation(libs.gson.quickBuildDaemon)
@@ -121,20 +122,20 @@ dependencies {
 		}
 		// kotlin-compiler-embeddable's POM asks for 1.6.10; the distribution's compiler runs on its
 		// own 2.3.21 copy, which ADFA-4931 links instead of shipping an older one.
-		runtimeOnly("org.jetbrains.kotlin:kotlin-reflect:$KOTLIN_VERSION") {
+		runtimeOnly("org.jetbrains.kotlin:kotlin-reflect:$GRADLE_DISTRIBUTION_KOTLIN_VERSION") {
 			because("the on-device Gradle distribution ships this version, which ADFA-4931 links")
 		}
 	}
 	// kotlin-compiler-runner only drives a separate compile-daemon JVM over RMI, which this
 	// daemon never does; do not also exclude kotlin-daemon-embeddable or kotlin-reflect, which
 	// look just as unused but break every real compile.
-	runtimeOnly("${libs.kotlin.buildToolsImpl.get().module}:$KOTLIN_VERSION") {
+	runtimeOnly("${libs.kotlin.buildToolsImpl.get().module}:$GRADLE_DISTRIBUTION_KOTLIN_VERSION") {
 		exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-runner")
 	}
 
 	// Staged next to the daemon jar on device and passed as -Xplugin when the user
 	// project uses Compose.
-	composeCompilerPlugin("${libs.kotlin.composeCompilerPluginEmbeddable.get().module}:$KOTLIN_VERSION")
+	composeCompilerPlugin("${libs.kotlin.composeCompilerPluginEmbeddable.get().module}:$GRADLE_DISTRIBUTION_KOTLIN_VERSION")
 	// The compose compile tests resolve a classpath from this; classes.jar is extracted
 	// from the AAR at build time and never shipped. Names the -android artifact rather
 	// than the KMP umbrella, which redirects via available-at - a redirect a

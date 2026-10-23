@@ -130,7 +130,7 @@ mid-construction cannot leave a fingerprint describing snapshots that were never
   `QuickBuildArtifactStager` links the on-device Gradle distribution's copies in under the same
   names, which the manifest `Class-Path` matches by exact file name. So the daemon's Kotlin version
   must equal the distribution's, which is why `build.gradle.kts` takes the Kotlin artifacts at
-  `KOTLIN_VERSION` rather than a catalog version.
+  `GRADLE_DISTRIBUTION_KOTLIN_VERSION` rather than a catalog version.
 - **`kotlin-daemon-embeddable` and `kotlin-reflect` look like dead weight and are not.**
   Excluding either throws `NoClassDefFoundError` from inside the in-process path. `build.gradle.kts`
   records which exclusion is safe and why. (`kotlin-daemon-client`, which this bullet used to name,

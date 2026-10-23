@@ -2,7 +2,7 @@ package com.itsaky.androidide.quickbuild
 
 import com.google.common.truth.Truth.assertThat
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
-import org.adfa.constants.KOTLIN_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -22,8 +22,8 @@ class QuickBuildArtifactStagerDistLinkTest {
 	/** Stand-ins for the build-generated list, with two entries so a partial link step shows up. */
 	private val jarNames =
 		listOf(
-			"kotlin-compiler-embeddable-$KOTLIN_VERSION.jar",
-			"kotlin-stdlib-$KOTLIN_VERSION.jar",
+			"kotlin-compiler-embeddable-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+			"kotlin-stdlib-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
 		)
 
 	/** A staged daemon dir whose list names [names], as the build's list task writes it. */
