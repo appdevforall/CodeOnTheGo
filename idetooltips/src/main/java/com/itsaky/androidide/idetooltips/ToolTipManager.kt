@@ -16,11 +16,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.AnimationUtils
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
 import android.widget.PopupWindow
 import android.widget.TextView
+import android.widget.Toast
 import android.os.Handler
 import android.os.Looper
 import android.view.InputDevice
@@ -28,6 +31,7 @@ import android.view.MotionEvent
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat.getColor
 import com.itsaky.androidide.activities.editor.HelpActivity
+import com.itsaky.androidide.documentation.OffDeviceRequests
 import com.itsaky.androidide.utils.DatabaseVersionResolver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FeedbackManager
@@ -52,15 +56,6 @@ object TooltipManager {
 	private val databaseTimestamp: Long = File(Environment.DOC_DB.absolutePath).lastModified()
 	private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
 			"/Download/documentation.db")
-
-	private const val QUERY_TOOLTIP = """
-		SELECT T.rowid, T.id, T.summary, T.detail
-		FROM Tooltips AS T, TooltipCategories AS TC
-		WHERE T.categoryId = TC.id
-		AND T.tag = ?
-		AND TC.category = ?
-	"""
-
 
 	private const val QUERY_TOOLTIP_BUTTONS = """
 		SELECT description, uri
@@ -93,7 +88,7 @@ object TooltipManager {
 						"n/a"
 					}
 
-					database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
+					queryTooltip(database, category = category, tag = tag).use { c ->
 						when (c.count) {
 							// A missing tag is a normal outcome (e.g. a Gradle task with no
 							// authored tooltip). Honor the nullable contract so the caller
@@ -362,8 +357,25 @@ object TooltipManager {
 			context.getString(R.string.tooltip_html_template, bodyColorHex, tooltipHtmlContent, linkColorHex)
 
 		webView.webViewClient = object : WebViewClient() {
+			// The tooltip's text is HTML from the database: it must not fetch anything off the device.
+			override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+				OffDeviceRequests.block(request) ?: super.shouldInterceptRequest(view, request)
+
 			override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
 				url?.let { clickedUrl ->
+					// A link in the tooltip's own text can name any site: ask, then open it outside
+					// the app, rather than load it in Help. The question needs an Activity; with
+					// none, keep the popup open and say so rather than drop the tap.
+					if (OffDeviceRequests.isOffDevice(clickedUrl)) {
+						val activity = OffDeviceRequests.activityFor(context, anchorView.context)
+						if (activity == null) {
+							Toast.makeText(context, ResR.string.tooltip_link_cannot_open, Toast.LENGTH_LONG).show()
+						} else {
+							popupWindow.dismiss()
+							OffDeviceRequests.openWithConsent(activity, clickedUrl)
+						}
+						return true
+					}
 					popupWindow.dismiss()
 					// Find the button label for this URL to use as title
 					val buttonLabel = tooltipItem.buttons.find { it.second == clickedUrl }?.first
@@ -375,6 +387,7 @@ object TooltipManager {
 		}
 
 		webView.settings.javaScriptEnabled = true
+		OffDeviceRequests.keepOnDevice(webView.settings)
 		webView.setBackgroundColor(Color.TRANSPARENT)
 		webView.loadDataWithBaseURL(null, styledHtml, "text/html", "UTF-8", null)
 
@@ -451,13 +464,15 @@ object TooltipManager {
 			setColorFilter(iconTintColor)
 		}
 
+		// The consent dialog needs an Activity: without one (the debugger overlay runs in a Service),
+		// UrlManager would open the link unasked, so the button is not offered there.
+		val sponsorActivity = OffDeviceRequests.activityFor(context, anchorView.context)
 		val sponsorButton = popupView.findViewById<ImageButton>(R.id.sponsor_button)
 		sponsorButton.apply {
-			visibility = if (level >= 1) View.VISIBLE else View.GONE
+			visibility = if (level >= 1 && sponsorActivity != null) View.VISIBLE else View.GONE
 			setColorFilter(iconTintColor)
 			setOnClickListener {
-				val sponsorUrl = context.getString(ResR.string.github_sponsors_url)
-				UrlManager.openUrl(sponsorUrl, null, context)
+				sponsorActivity?.let { UrlManager.openUrl(context.getString(ResR.string.github_sponsors_url), null, it) }
 			}
 		}
 
