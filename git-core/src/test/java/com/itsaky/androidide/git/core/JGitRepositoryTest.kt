@@ -410,7 +410,7 @@ class JGitRepositoryTest {
 		}
 
 	@Test
-	fun testMissingOldCaseReportedAndStagedWhenNewCaseCommittedExternally() =
+	fun testStatusCleanWhenNewCaseCommittedExternally() =
 		runBlocking {
 			val subDir = File(repoDir, "java")
 			subDir.mkdir()
@@ -440,20 +440,11 @@ class JGitRepositoryTest {
 				git.commit().setMessage("terminal commit only new case").call()
 			}
 
-			// The old case is reported as deleted in unstaged, allowing the user to stage the deletion
+			// Verify status is clean after terminal commit (ghost old case is not shown as deleted)
 			val statusAfter = jgitRepo.getStatus()
-			val deletedOldCase = statusAfter.unstaged.find { it.path == "java/MainActivity.java" }
-			assertNotNull("Old case should be reported as DELETED in unstaged", deletedOldCase)
-			assertEquals(ChangeType.DELETED, deletedOldCase!!.type)
-
-			// Stage the deletion of the old casing and commit
-			jgitRepo.stageFiles(listOf(File(repoDir, "java/MainActivity.java")))
-			jgitRepo.commit("Remove old case from index", "User", "user@test.com")
-
-			val statusFinal = jgitRepo.getStatus()
-			assertTrue("Status should be clean after staging deletion", statusFinal.isClean)
-			assertTrue(statusFinal.unstaged.isEmpty())
-			assertTrue(statusFinal.staged.isEmpty())
+			assertTrue("Status should be clean after terminal commit", statusAfter.isClean)
+			assertTrue("Unstaged should be empty", statusAfter.unstaged.isEmpty())
+			assertTrue("Staged should be empty", statusAfter.staged.isEmpty())
 			assertTrue(File(repoDir, "Java/MainActivity.java").exists())
 		}
 
@@ -465,11 +456,24 @@ class JGitRepositoryTest {
 			jgitRepo.stageFiles(listOf(file))
 			jgitRepo.commit("Initial commit with file.txt", "User", "user@test.com")
 
-			// Perform case-only rename via terminal using git mv: file.txt -> File.txt
-			val p1 = ProcessBuilder("git", "mv", "-f", "file.txt", "File.txt").directory(repoDir).start()
-			assertEquals(0, p1.waitFor())
-			val p2 = ProcessBuilder("git", "commit", "-m", "Commit message").directory(repoDir).start()
-			assertEquals(0, p2.waitFor())
+			// Perform case-only rename: file.txt -> File.txt
+			val tempFile = File(repoDir, "temp.txt")
+			val newFile = File(repoDir, "File.txt")
+			assertTrue(file.renameTo(tempFile))
+			assertTrue(tempFile.renameTo(newFile))
+
+			// User is on Git tab: getStatus() is called on jgitRepo
+			val statusBefore = jgitRepo.getStatus()
+			val renamed = statusBefore.unstaged.find { it.path == "File.txt" }
+			assertNotNull("Should show 1 change - renamed file", renamed)
+			assertEquals(ChangeType.RENAMED, renamed!!.type)
+			assertEquals("file.txt", renamed.oldPath)
+
+			// External commit that stages new casing
+			Git.open(repoDir).use { git ->
+				git.add().addFilepattern("File.txt").call()
+				git.commit().setMessage("terminal commit file rename").call()
+			}
 
 			// User comes back to Git tab: getStatus() is called again on the same jgitRepo instance
 			val statusAfter = jgitRepo.getStatus()
@@ -477,6 +481,22 @@ class JGitRepositoryTest {
 			assertTrue("Unstaged should be empty", statusAfter.unstaged.isEmpty())
 			assertTrue("Staged should be empty", statusAfter.staged.isEmpty())
 		}
+
+	@Test
+	fun testFindRealCasingOnDisk() {
+		val subDir = File(repoDir, "myPackage")
+		subDir.mkdir()
+		val file = File(subDir, "MyClass.java")
+		file.writeText("class MyClass {}")
+
+		// Query with different case for directory and file
+		val resolved = jgitRepo.findRealCasingOnDisk(repoDir, "mypackage/myclass.java")
+		assertEquals("myPackage/MyClass.java", resolved)
+
+		// Query non-existent file
+		val notFound = jgitRepo.findRealCasingOnDisk(repoDir, "myPackage/NonExistent.java")
+		assertNull(notFound)
+	}
 
 	@Test
 	fun testStageFilesStandardDeletion() =
