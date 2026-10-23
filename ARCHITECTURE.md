@@ -83,7 +83,7 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 **Dependency rules (enforced):**
 
 - **`app` depends inward; libraries never depend on `app`.** Subsystems are consumed by `app`, not vice versa.
-- **Vendored forks are substituted, not imported ad hoc.** `composite-builds/build-deps` and `build-deps-common` provide forked `javac`/`jdt`/`layoutlib`/etc.; `settings.gradle.kts` substitutes them in for `com.itsaky.androidide.build:*`. Don't add a Maven coordinate for something already substituted.
+- **Vendored forks are substituted, not imported ad hoc.** `composite-builds/build-deps` and `build-deps-common` provide forked `javac`/`jdt`/`layoutlib`/etc.; `settings.gradle.kts` substitutes them in for `com.itsaky.androidide.build:*`. Don't add a Maven coordinate for something already substituted. Pebble is likewise built from source, as `subprojects:pebble`, for a lexer fix Android needs (its `NOTICE` says what changed); depend on `projects.subprojects.pebble`, not `io.pebbletemplates:pebble`.
 - **All module config flows through `composite-builds/build-logic`.** Every Android module gets the `v7`/`v8` ABI flavors centrally (`AndroidModuleConf.kt`) — there is no flavorless `assembleDebug`. `:plugin-api` is intentionally excluded from flavors.
 - **`RepositoriesMode.FAIL_ON_PROJECT_REPOS`** — repositories are declared once in `settings.gradle.kts`; modules must not declare their own.
 - **Avoid new dependencies.** Check `gradle/libs.versions.toml` first; the build almost certainly already has it.
