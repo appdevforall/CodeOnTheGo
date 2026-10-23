@@ -83,7 +83,7 @@ object FeatureFlags {
 	 * backgrounded. Toggling a flag needs a force-stop, not a relaunch from Recents, and any
 	 * test step that flips one has to say so.
 	 */
-	val isExperimentsEnabled: Boolean
+	internal val isExperimentsEnabled: Boolean
 		get() = flags.experimentsEnabled
 
 	/**
