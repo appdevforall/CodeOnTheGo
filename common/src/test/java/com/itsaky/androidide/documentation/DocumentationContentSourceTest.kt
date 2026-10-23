@@ -2,7 +2,9 @@ package com.itsaky.androidide.documentation
 
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.utils.BrotliDictionaryCodec
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -15,6 +17,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 
 /**
  * Covers the pipeline both documentation transports read through (ADFA-5176): what a lookup reports,
@@ -46,7 +49,19 @@ class DocumentationContentSourceTest {
 		unmockkAll()
 	}
 
-	private fun source(debugCheckIntervalMs: Long = 1_000) = DocumentationContentSource(installedFile, debugFile, debugCheckIntervalMs)
+	// The template rows these tests store are plain text, and :common's tests have no brotli4j native
+	// to compress them with, so the decode is the identity unless a test says otherwise. The Brotli
+	// decode itself is covered in :app, by CompressedTemplateTest.
+	private fun source(
+		debugCheckIntervalMs: Long = 1_000,
+		decode: (BrotliDictionaryCodec, ByteArray) -> ByteArray = { _, body -> body },
+	) = DocumentationContentSource(installedFile, debugFile, debugCheckIntervalMs, decode)
+
+	private val reversing: (BrotliDictionaryCodec, ByteArray) -> ByteArray = { _, body -> body.reversedArray() }
+
+	// For non-ASCII text, whose UTF-8 bytes reversed are not UTF-8: reverses the characters instead.
+	private val reversingChars: (BrotliDictionaryCodec, ByteArray) -> ByteArray =
+		{ _, body -> body.toString(Charsets.UTF_8).reversed().toByteArray(Charsets.UTF_8) }
 
 	/** A Content row as the source's query sees it. */
 	private fun contentCursor(
@@ -77,17 +92,7 @@ class DocumentationContentSourceTest {
 	): SQLiteDatabase =
 		mockk<SQLiteDatabase>(relaxed = true) {
 			every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns contentCursor
-			every {
-				rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
-			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (declaredMajorVersion != null) }
-			if (declaredMajorVersion != null) {
-				every { rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) } returns
-					mockk<Cursor>(relaxed = true) {
-						every { moveToFirst() } returns true
-						every { isNull(0) } returns false
-						every { getInt(0) } returns declaredMajorVersion
-					}
-			}
+			declaresMajorVersion(declaredMajorVersion)
 			every {
 				rawQuery(match { it.contains("FROM sqlite_master") && it.contains("CompressionDictionary") }, null)
 			} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (dictionary != null) }
@@ -97,6 +102,21 @@ class DocumentationContentSourceTest {
 					every { getBlob(0) } returns dictionary
 				}
 		}
+
+	/** Stubs ADFA-5220's version table on this mock: declaring [major], or no table when null. */
+	private fun SQLiteDatabase.declaresMajorVersion(major: Int?) {
+		every {
+			rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
+		} returns mockk<Cursor>(relaxed = true) { every { moveToFirst() } returns (major != null) }
+		if (major != null) {
+			every { rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) } returns
+				mockk<Cursor>(relaxed = true) {
+					every { moveToFirst() } returns true
+					every { isNull(0) } returns false
+					every { getInt(0) } returns major
+				}
+		}
+	}
 
 	// ADFA-5220: the dictionary is gated on the version the database declares, not on whether a
 	// CompressionDictionary table happens to exist. These three cover the gate that WebServerTest
@@ -426,6 +446,178 @@ class DocumentationContentSourceTest {
 		assertThat(source().lookup("k/html/basic-syntax.html")).isInstanceOf(DocumentationLookup.Failed::class.java)
 	}
 
+	// ADFA-6618: the pipeline drops Help+Manual's jstopics copies, and the page's JSON stands in.
+	@Test
+	fun `a missing jstopics file is rendered from its page's JSON with the jstopics template`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase()
+
+		val lookup = jsTopic("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("""hmLoadTopic({hmTitle:"Enable the debugger"});""")
+		assertThat(lookup.content.mimeType).isEqualTo("text/javascript")
+	}
+
+	@Test
+	fun `a stored jstopics row is served as it is, with no rendering`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			jsTopicDatabase(storedCopies = mapOf("i/jstopics/debug-enable.js" to "stored"))
+
+		val lookup = jsTopic("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("stored")
+	}
+
+	// The raw form misses and its page would render, but the decoded form has a stored row: it wins.
+	@Test
+	fun `a stored jstopics row under the decoded path wins over rendering the raw one`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			jsTopicDatabase(page = "i/a%20b.html", storedCopies = mapOf("i/jstopics/a b.js" to "stored"))
+
+		val lookup = jsTopic("i/jstopics/a%20b.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("stored")
+	}
+
+	@Test
+	fun `a jstopics file is rendered from a page found only under the decoded path`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(page = "i/a b.html")
+
+		val result = source().lookupRequestPath("i/jstopics/a%20b.js")
+
+		assertThat(result.queriedPath).isEqualTo("i/jstopics/a b.js")
+		assertThat((result.lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("""hmLoadTopic({hmTitle:"Enable the debugger"});""")
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when the database has no jstopics template`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(jsTopicTemplate = null)
+
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when its page is plain HTML`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageTemplateId = 0)
+
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when its page uses another template`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageTemplate = "page.peb")
+
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	@Test
+	fun `a jstopics miss stays not found when it has no page`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase()
+
+		assertThat(jsTopic("i/jstopics/no-such-topic.js")).isEqualTo(DocumentationLookup.NotFound)
+	}
+
+	// The path is the page's: WebServer quotes it in its "Corrupt database" answer, so a bug report
+	// carries a query that returns the duplicated rows, not the jstopics path, which has none.
+	@Test
+	fun `a duplicated page row is reported as ambiguous, under the page's path`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageRows = 2)
+
+		val result = source().lookupRequestPath("i/jstopics/debug-enable.js")
+
+		assertThat(result.lookup).isEqualTo(DocumentationLookup.Ambiguous(2))
+		assertThat(result.queriedPath).isEqualTo("i/debug-enable.html")
+	}
+
+	// Every shipped page is Brotli-compressed: bytes marked brotli that are not fail the decode,
+	// where joining them as they are would have parsed as JSON and rendered. A successful decode
+	// needs brotli4j's desktop native, which only :app's tests load: see BrotliContentSourceTest.
+	@Test
+	fun `a page marked brotli is decoded before it is rendered`() {
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns jsTopicDatabase(pageCompression = "brotli")
+
+		assertThat(jsTopic("i/jstopics/debug-enable.js")).isInstanceOf(DocumentationLookup.Failed::class.java)
+	}
+
+	@Test
+	fun `a page split across rows is read whole before it is rendered`() {
+		val json = """{"hmTitle": "Enable the debugger", "pad": "${"x".repeat(DocumentationContentSource.CONTENT_CHUNK_SIZE)}"}"""
+		val bytes = json.toByteArray()
+		val first = bytes.copyOfRange(0, DocumentationContentSource.CONTENT_CHUNK_SIZE)
+		val rest = bytes.copyOfRange(DocumentationContentSource.CONTENT_CHUNK_SIZE, bytes.size)
+		val database = jsTopicDatabase(pageBytes = first)
+		every { database.rawQuery(match { it.startsWith("SELECT content FROM Content") }, arrayOf("i/debug-enable.html-1")) } returns
+			mockk(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns rest
+			}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = jsTopic("i/jstopics/debug-enable.js") as DocumentationLookup.Found
+
+		assertThat(lookup.content.bytes.toString(Charsets.UTF_8)).isEqualTo("""hmLoadTopic({hmTitle:"Enable the debugger"});""")
+	}
+
+	@Test
+	fun `a miss outside jstopics is not looked up as a page`() {
+		val database = jsTopicDatabase()
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		assertThat(jsTopic("i/js/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		assertThat(jsTopic("i/jstopics/sub/debug-enable.js")).isEqualTo(DocumentationLookup.NotFound)
+		verify(exactly = 0) { database.rawQuery(match { it.contains("FROM   Content") }, match { it[0].endsWith(".html") }) }
+	}
+
+	/** The lookup both transports make for a request path. */
+	private fun jsTopic(path: String) = source().lookupRequestPath(path).lookup
+
+	/**
+	 * A database whose [page] row is templated with [pageTemplateId], named [pageTemplate], and
+	 * holds a topic's JSON; [storedCopies] are stored jstopics rows by path; [jsTopicTemplate] is
+	 * the `helpmanual-jstopic.peb` body, if the database has one. Every other Content path misses.
+	 */
+	private fun jsTopicDatabase(
+		page: String = "i/debug-enable.html",
+		pageTemplateId: Int = 5,
+		pageTemplate: String = "helpmanual-topic.peb",
+		pageRows: Int = 1,
+		pageCompression: String = "none",
+		pageBytes: ByteArray = """{"hmTitle": "Enable the debugger"}""".toByteArray(),
+		jsTopicTemplate: String? = """hmLoadTopic({hmTitle:"{{ hmTitle }}"});""",
+		storedCopies: Map<String, String> = emptyMap(),
+	): SQLiteDatabase =
+		mockk<SQLiteDatabase>(relaxed = true) {
+			every { rawQuery(match { it.contains("FROM   Content") }, any()) } answers { missingRowCursor() }
+			every { rawQuery(match { it.contains("FROM   Content") }, arrayOf(page)) } answers {
+				contentCursor(bytes = pageBytes, compression = pageCompression, templateId = pageTemplateId, rowCount = pageRows)
+			}
+			for ((path, body) in storedCopies) {
+				every { rawQuery(match { it.contains("FROM   Content") }, arrayOf(path)) } answers {
+					contentCursor(bytes = body.toByteArray(), mimeType = "text/javascript")
+				}
+			}
+			every { rawQuery(match { it.contains("WHERE id = ?") }, arrayOf(pageTemplateId.toString())) } answers {
+				mockk(relaxed = true) {
+					every { count } returns 1
+					every { moveToFirst() } returns true
+					every { getString(0) } returns pageTemplate
+				}
+			}
+			// One cursor answers both the loader's existence count and its read of the body.
+			every { rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("helpmanual-jstopic.peb")) } answers {
+				if (jsTopicTemplate == null) {
+					missingRowCursor()
+				} else {
+					mockk(relaxed = true) {
+						every { count } returns 1
+						every { moveToFirst() } returns true
+						every { getInt(0) } returns 1
+						every { getBlob(0) } returns jsTopicTemplate.toByteArray()
+					}
+				}
+			}
+		}
+
 	@Test
 	fun `a newer debug database is swapped in, and the generation says so`() {
 		val installed = database(contentCursor(bytes = "installed".toByteArray()))
@@ -470,13 +662,139 @@ class DocumentationContentSourceTest {
 			.isEqualTo("Goodbye Kotlin!")
 	}
 
+	// ADFA-3305: from documentation version 3 every template is Brotli-compressed; below it they are
+	// plain UTF-8, and still read that way, since an app update never replaces the installed file.
+	// The decode here reverses the bytes, so a test can tell whether a template went through it.
+	@Test
+	fun `a database below version 3 has its templates read as plain text, without the decode`() {
+		val database = templatedDatabase("page.peb" to "Hello {{ who }}!", declaredMajorVersion = 2)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversing).lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8)).isEqualTo("Hello Kotlin!")
+	}
+
+	@Test
+	fun `a database declaring no version is read the same way`() {
+		val database = templatedDatabase("page.peb" to "Hello {{ who }}!", declaredMajorVersion = null)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversing).lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8)).isEqualTo("Hello Kotlin!")
+	}
+
+	@Test
+	fun `a version 3 database has its templates decoded`() {
+		val database = templatedDatabase("page.peb" to "Hello {{ who }}!".reversed())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversing).lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8)).isEqualTo("Hello Kotlin!")
+	}
+
+	// Most real templates hold non-ASCII text, U+00A0 above all. Compared as the page's bytes, so a
+	// template read in any charset but UTF-8, plain or decoded, fails here.
+	@Test
+	fun `a version 2 template's non-ASCII text renders as UTF-8`() {
+		val database = templatedDatabase("page.peb" to "$NON_ASCII {{ who }}", declaredMajorVersion = 2)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversing).lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes)
+			.isEqualTo("$NON_ASCII Kotlin".toByteArray(Charsets.UTF_8))
+	}
+
+	@Test
+	fun `a version 3 template's non-ASCII text renders as UTF-8`() {
+		val database = templatedDatabase("page.peb" to "$NON_ASCII {{ who }}".reversed())
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversingChars).lookup("k/html/basic-syntax.html")
+
+		assertThat((lookup as DocumentationLookup.Found).content.bytes)
+			.isEqualTo("$NON_ASCII Kotlin".toByteArray(Charsets.UTF_8))
+	}
+
+	// Never rendered as whatever the bytes happen to be: the page fails, naming the template.
+	@Test
+	fun `a version 3 template that does not decode fails its page, naming the template`() {
+		val database = templatedDatabase("page.peb" to "Hello {{ who }}!")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = { _, _ -> throw IOException("Brotli decoder failed") }).lookup("p")
+
+		assertThat(lookup).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((lookup as DocumentationLookup.Failed).cause).isInstanceOf(TemplateRenderException::class.java)
+		assertThat(lookup.cause).hasMessageThat().isEqualTo("Cannot decode template 'page.peb'")
+	}
+
+	// The version is read before the engine runs. Read inside the loader instead, a database error
+	// would arrive as a template that does not decode -- the wrong diagnosis, and a template failure,
+	// whose message both transports send.
+	@Test
+	fun `a failure to read the version is reported as itself, not as a template that does not decode`() {
+		val database = templatedDatabase("page.peb" to "Hello {{ who }}!")
+		every { database.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) } throws
+			SQLiteException("disk I/O error (code 10)")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source(decode = reversing).lookup("p") as DocumentationLookup.Failed
+
+		assertThat(lookup.cause).isInstanceOf(SQLiteException::class.java)
+	}
+
+	@Test
+	fun `a swap from a version 2 file to a version 3 file decodes the new one's templates`() {
+		val installed = templatedDatabase("page.peb" to "Hello {{ who }}!", declaredMajorVersion = 2)
+		val debug = templatedDatabase("page.peb" to "Goodbye {{ who }}!".reversed())
+		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } returns installed
+		every { SQLiteDatabase.openDatabase(debugFile.absolutePath, isNull(), any()) } returns debug
+		val source = source(debugCheckIntervalMs = 0, decode = reversing)
+
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Hello Kotlin!")
+
+		debugFile.writeText("newer")
+		debugFile.setLastModified(installedFile.lastModified() + 60_000)
+
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Goodbye Kotlin!")
+	}
+
+	@Test
+	fun `a swap from a version 3 file to a version 2 file reads the new one's templates as plain text`() {
+		val installed = templatedDatabase("page.peb" to "Hello {{ who }}!".reversed())
+		val debug = templatedDatabase("page.peb" to "Goodbye {{ who }}!", declaredMajorVersion = 2)
+		every { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) } returns installed
+		every { SQLiteDatabase.openDatabase(debugFile.absolutePath, isNull(), any()) } returns debug
+		val source = source(debugCheckIntervalMs = 0, decode = reversing)
+
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Hello Kotlin!")
+
+		debugFile.writeText("newer")
+		debugFile.setLastModified(installedFile.lastModified() + 60_000)
+
+		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
+			.isEqualTo("Goodbye Kotlin!")
+	}
+
 	/**
 	 * A database whose single Content row is templated with id 7, and whose `Templates` rows are
 	 * [templates] as name-to-body pairs. Template id 7 is the first pair; the rest are reachable
-	 * only by name, which is how one template references another.
+	 * only by name, which is how one template references another. It declares
+	 * [declaredMajorVersion], by default 3, the first whose templates this build reads.
 	 */
-	private fun templatedDatabase(vararg templates: Pair<String, String>): SQLiteDatabase =
+	private fun templatedDatabase(
+		vararg templates: Pair<String, String>,
+		declaredMajorVersion: Int? = 3,
+	): SQLiteDatabase =
 		mockk<SQLiteDatabase>(relaxed = true) {
+			declaresMajorVersion(declaredMajorVersion)
 			every { rawQuery(match { it.contains("FROM   Content") }, any()) } returns
 				contentCursor(bytes = """{"who": "Kotlin"}""".toByteArray(), templateId = 7)
 			every { rawQuery(match { it.contains("WHERE id = ?") }, arrayOf("7")) } returns
@@ -670,5 +988,10 @@ class DocumentationContentSourceTest {
 
 		assertThat(source.lookup("p")).isEqualTo(DocumentationLookup.NotFound)
 		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
+	private companion object {
+		// A no-break space (in Latin-1) and an em dash and an ellipsis (outside it), as real templates hold.
+		const val NON_ASCII = "a b — c…"
 	}
 }
