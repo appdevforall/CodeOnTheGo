@@ -1,6 +1,7 @@
 package com.itsaky.androidide.viewmodel
 
 import android.content.Context
+import android.content.pm.PackageInstaller
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.utils.ApkInstaller
@@ -46,10 +47,15 @@ class ApkInstallationViewModel : ViewModel() {
 		) : SessionState()
 	}
 
+	private lateinit var packageInstaller: PackageInstaller
+
 	private val callback =
 		object : SingleSessionCallback() {
 			override fun onCreated(sessionId: Int) {
 				logger.debug("onCreated: sessionId={}", sessionId)
+				if (packageInstaller.mySessions.none { it.sessionId == sessionId }) {
+					return
+				}
 
 				setSessionState(SessionState.InProgress(sessionId = sessionId, progress = 0))
 			}
@@ -59,6 +65,9 @@ class ApkInstallationViewModel : ViewModel() {
 				progress: Float,
 			) {
 				logger.debug("onProgressChanged: sessionId={}, progress={}", sessionId, progress)
+				if (!isTrackedSession(sessionId)) {
+					return
+				}
 
 				setSessionState(
 					SessionState.InProgress(
@@ -73,10 +82,15 @@ class ApkInstallationViewModel : ViewModel() {
 				success: Boolean,
 			) {
 				logger.debug("onFinished: sessionId={}, success={}", sessionId, success)
+				if (!isTrackedSession(sessionId)) {
+					return
+				}
 
 				setSessionState(SessionState.Finished(sessionId = sessionId, isSuccess = success))
 			}
 		}
+
+	private fun isTrackedSession(sessionId: Int): Boolean = (sessionState.value as? SessionState.InProgress)?.sessionId == sessionId
 
 	private val _sessionState = MutableStateFlow<SessionState>(SessionState.Idle)
 
@@ -112,7 +126,7 @@ class ApkInstallationViewModel : ViewModel() {
 		apk: File,
 		launchInDebugMode: Boolean,
 	) {
-		val packageInstaller = context.packageManager.packageInstaller
+		packageInstaller = context.applicationContext.packageManager.packageInstaller
 		packageInstaller.unregisterSessionCallback(callback)
 		packageInstaller.registerSessionCallback(callback)
 
