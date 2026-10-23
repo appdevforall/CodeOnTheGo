@@ -13,12 +13,12 @@ Assumed already read, and not repeated here:
   full version of that list. Section 3 here owns the tag convention itself, with the
   filters.
 
-Two flags recur. `CodeOnTheGo.exp` in `Download/` turns Quick Build on at all.
+Two flags recur. `CodeOnTheGo.exp` in `Download/` turns experiments on, `Experiment.QUICK_BUILD` among them - tap the homepage title to confirm ([EXPERIMENTS.md](../../EXPERIMENTS.md)).
 `CodeOnTheGo.qbbench`, alongside it, turns on the session event log and the adb entry point -
 sections 5 and 6 need it, sections 1 to 4 do not.
 
-**Flag files are read once per process.** `FeatureFlags.initialize()` caches on first call and
-never re-reads disk, so creating or deleting a flag file changes nothing until CoGo restarts
+**Flag files are read once per process.** `FeatureFlags.initialize()` caches on first call; only
+startup (`refresh()` after unlock) and tests re-read, so creating or deleting a flag file changes nothing until CoGo restarts
 ([`FeatureFlags.kt`](../../common/src/main/java/com/itsaky/androidide/utils/FeatureFlags.kt)).
 
 ## 1. My edit did not show up: work down this list

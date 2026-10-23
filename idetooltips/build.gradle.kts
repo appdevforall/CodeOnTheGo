@@ -28,4 +28,5 @@ dependencies {
 	implementation(projects.common)
 
 	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.robolectric)
 }

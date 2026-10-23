@@ -1,0 +1,42 @@
+name: Stale Experiments Report
+
+# Reports every Experiment entry whose Jira ticket is Done: that experiment's
+# decision is made, so its gate should be graduated or removed (EXPERIMENTS.md).
+# Report-only; never fails.
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    name: Report experiments whose ticket is Done
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check each experiment's ticket
+        env:
+          AUTH: ${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}
+          ENUM: common/src/main/java/com/itsaky/androidide/utils/Experiment.kt
+        run: |
+          [ "$AUTH" != ":" ] || { echo "::warning::Jira credentials missing"; exit 0; }
+          stale=0
+          for key in $(grep -oE '"ADFA-[0-9]+"' "$ENUM" | tr -d '"' | sort -u); do
+            resp=$(curl -sS -f --max-time 30 -u "$AUTH" \
+              "https://appdevforall.atlassian.net/rest/api/3/issue/$key?fields=status") \
+              || { echo "::warning::Could not read $key"; continue; }
+            status=$(jq -r '.fields.status.name' <<< "$resp")
+            echo "$key: $status"
+            if [ "$status" = "Done" ]; then
+              stale=$((stale + 1))
+              entry=$(grep -E "\"$key\"" "$ENUM" | grep -oE '^\s*[A-Z_]+' | tr -d '[:space:]')
+              echo "::warning::Experiment.$entry ($key) is Done - graduate or remove it"
+              echo "- \`Experiment.$entry\` - [$key](https://appdevforall.atlassian.net/browse/$key) is Done" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          [ "$stale" -gt 0 ] || echo "No stale experiments." >> "$GITHUB_STEP_SUMMARY"

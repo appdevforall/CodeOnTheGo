@@ -929,9 +929,11 @@ val pluginApiKeepRules =
 
 // proguardFiles (not dependsOn) so Gradle infers the dependency for every
 // consumer: R8 and lint both read this list, and wiring only R8 fails validation
-// in a real release build. Debug variants stay off the fat jar entirely.
-androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
-	variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+// in a real release build. Unminified variants skip the rules.
+androidComponents.onVariants { variant ->
+	if (variant.isMinifyEnabled) {
+		variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+	}
 }
 
 // Dependency-free POM for the fat plugin-api coordinate: it is compile-only/provided,
@@ -1602,71 +1604,51 @@ fun signApk(apkFile: File) {
 	}
 }
 
-val scpServer: String = propOrEnv("SCP_HOST")
+val devAssetsBaseUrl = "https://dev-assets.appdevforall.org"
 
 // git lfs avoidance
 data class Asset(
 	val localPath: String,
 	val url: String,
-	val remotePath: String,
-	val variant: String,
 )
 
 val debugAssets =
 	listOf(
 		Asset(
 			"assets/android-sdk-arm64-v8a.zip",
-			"https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip",
-			"android-sdk-arm64-v8a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/android-sdk-arm64-v8a.zip",
 		),
 		Asset(
 			"assets/android-sdk-armeabi-v7a.zip",
-			"https://appdevforall.org/dev-assets/debug/android-sdk-armeabi-v7a.zip",
-			"android-sdk-armeabi-v7a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/android-sdk-armeabi-v7a.zip",
 		),
 		Asset(
 			"assets/bootstrap-arm64-v8a.zip",
-			"https://appdevforall.org/dev-assets/debug/bootstrap-arm64-v8a.zip",
-			"bootstrap-arm64-v8a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/bootstrap-arm64-v8a.zip",
 		),
 		Asset(
 			"assets/bootstrap-armeabi-v7a.zip",
-			"https://appdevforall.org/dev-assets/debug/bootstrap-armeabi-v7a.zip",
-			"bootstrap-armeabi-v7a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/bootstrap-armeabi-v7a.zip",
 		),
 		Asset(
 			"assets/documentation.db",
-			"https://appdevforall.org/dev-assets/debug/documentation.db",
-			"documentation.db",
-			"debug",
+			"$devAssetsBaseUrl/debug/documentation.db",
 		),
 		Asset(
 			"assets/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
-			"https://appdevforall.org/dev-assets/debug/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
-			"$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
-			"debug",
+			"$devAssetsBaseUrl/debug/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
 		),
 		Asset(
 			"assets/$GRADLE_API_NAME_JAR_ZIP",
-			"https://appdevforall.org/dev-assets/debug/$GRADLE_API_NAME_JAR_ZIP",
-			"$GRADLE_API_NAME_JAR_ZIP",
-			"debug",
+			"$devAssetsBaseUrl/debug/$GRADLE_API_NAME_JAR_ZIP",
 		),
 		Asset(
 			"assets/localMvnRepository.zip",
-			"https://appdevforall.org/dev-assets/debug/localMvnRepository.zip",
-			"localMvnRepository.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/localMvnRepository.zip",
 		),
 		Asset(
 			"assets/core.cgt",
-			"https://appdevforall.org/dev-assets/debug/core.cgt",
-			"core.cgt",
-			"debug",
+			"$devAssetsBaseUrl/debug/core.cgt",
 		),
 	)
 
@@ -1674,139 +1656,73 @@ val releaseAssets =
 	listOf(
 		Asset(
 			"assets/release/common/data/common/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
-			"https://appdevforall.org/dev-assets/release/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
-			"$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
-			"release",
+			"$devAssetsBaseUrl/release/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
 		),
 		Asset(
 			"assets/release/common/data/common/$GRADLE_API_NAME_JAR_BR",
-			"https://appdevforall.org/dev-assets/release/$GRADLE_API_NAME_JAR_BR",
-			"$GRADLE_API_NAME_JAR_BR",
-			"release",
+			"$devAssetsBaseUrl/release/$GRADLE_API_NAME_JAR_BR",
 		),
 		Asset(
 			"assets/release/common/data/common/localMvnRepository.zip.br",
-			"https://appdevforall.org/dev-assets/release/localMvnRepository.zip.br",
-			"localMvnRepository.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/localMvnRepository.zip.br",
 		),
 		Asset(
 			"assets/release/common/database/documentation.db.br",
-			"https://appdevforall.org/dev-assets/release/documentation.db.br",
-			"documentation.db.br",
-			"release",
+			"$devAssetsBaseUrl/release/documentation.db.br",
 		),
 		Asset(
 			"assets/release/v7/data/common/android-sdk.zip.br",
-			"https://appdevforall.org/dev-assets/release/v7/android-sdk.zip.br",
-			"v7/android-sdk.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v7/android-sdk.zip.br",
 		),
 		Asset(
 			"assets/release/v7/data/common/bootstrap.zip.br",
-			"https://appdevforall.org/dev-assets/release/v7/bootstrap.zip.br",
-			"v7/bootstrap.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v7/bootstrap.zip.br",
 		),
 		Asset(
 			"assets/release/v8/data/common/android-sdk.zip.br",
-			"https://appdevforall.org/dev-assets/release/v8/android-sdk.zip.br",
-			"v8/android-sdk.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v8/android-sdk.zip.br",
 		),
 		Asset(
 			"assets/release/v8/data/common/bootstrap.zip.br",
-			"https://appdevforall.org/dev-assets/release/v8/bootstrap.zip.br",
-			"v8/bootstrap.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v8/bootstrap.zip.br",
 		),
 		Asset(
 			"assets/release/common/data/common/core.cgt.br",
-			"https://appdevforall.org/dev-assets/release/core.cgt.br",
-			"core.cgt.br",
-			"release",
+			"$devAssetsBaseUrl/release/core.cgt.br",
 		),
 	)
-
-fun assetsBatch(
-	projectDir: File,
-	project: Project,
-	variant: String,
-) {
-	if (isCiCd) {
-		val tmpDir = File(projectDir, ".tmp/assets")
-		tmpDir.mkdirs()
-		project.logger.lifecycle("Downloading $variant assets → ${tmpDir.absolutePath}")
-		@Suppress("DEPRECATION")
-		project.exec {
-			commandLine(
-				"scp",
-				"-r",
-				"$scpServer:public_html/dev-assets/$variant/",
-				tmpDir.absolutePath,
-			)
-		}
-		project.logger.lifecycle("SCP batch downloaded $variant assets → ${tmpDir.absolutePath}")
-	}
-}
-
-fun stagedFileFor(
-	asset: Asset,
-	projectDir: File,
-): File {
-	val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
-	return File(variantDir, asset.remotePath)
-}
-
-fun stagedChecksumFor(
-	asset: Asset,
-	projectDir: File,
-): File {
-	val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
-	return File(variantDir, asset.remotePath + ".md5")
-}
 
 fun assetsFileDownload(
 	asset: Asset,
 	target: File,
 ) {
-	if (isCiCd) {
-		val stagedFile = stagedFileFor(asset, rootProject.projectDir)
-		if (!stagedFile.exists()) {
-			throw GradleException("Staged file not found: ${stagedFile.absolutePath}")
-		}
-		target.parentFile.mkdirs()
-		stagedFile.copyTo(target, overwrite = true)
-		project.logger.lifecycle("Copied staged ${stagedFile.absolutePath} → ${target.absolutePath}")
-	} else {
-		val url = URL(asset.url)
-		val conn = url.openConnection() as HttpURLConnection
-		conn.requestMethod = "GET"
-		conn.setRequestProperty(
-			"User-Agent",
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-		)
-		conn.setRequestProperty("Accept", "*/*")
-		conn.setRequestProperty("Connection", "keep-alive")
-		conn.instanceFollowRedirects = true
-		conn.connectTimeout = 10_000
-		conn.readTimeout = 60_000
+	val url = URL(asset.url)
+	val conn = url.openConnection() as HttpURLConnection
+	conn.requestMethod = "GET"
+	conn.setRequestProperty(
+		"User-Agent",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	)
+	conn.setRequestProperty("Accept", "*/*")
+	conn.setRequestProperty("Connection", "keep-alive")
+	conn.instanceFollowRedirects = true
+	conn.connectTimeout = 10_000
+	conn.readTimeout = 60_000
 
-		try {
-			val status = conn.responseCode
-			if (status == HttpURLConnection.HTTP_OK) {
-				conn.inputStream.use { input ->
-					target.outputStream().use { output ->
-						input.copyTo(output)
-					}
+	try {
+		val status = conn.responseCode
+		if (status == HttpURLConnection.HTTP_OK) {
+			conn.inputStream.use { input ->
+				target.outputStream().use { output ->
+					input.copyTo(output)
 				}
-				project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
-			} else {
-				throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
 			}
-		} finally {
-			conn.disconnect()
+			project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
+		} else {
+			throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
 		}
+	} finally {
+		conn.disconnect()
 	}
 }
 
@@ -1823,36 +1739,28 @@ fun fileMd5(file: File): String {
 }
 
 fun assetsFileChecksum(asset: Asset): String {
-	val checksum =
-		if (isCiCd) {
-			val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
-			if (!stagedChecksum.exists()) {
-				throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
-			}
-			stagedChecksum.readText().trim()
-		} else {
-			val checksumUrl = asset.url + ".md5"
-			val conn = URL(checksumUrl).openConnection() as HttpURLConnection
-			conn.requestMethod = "GET"
-			conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-			conn.instanceFollowRedirects = true
-			conn.connectTimeout = 10_000
-			conn.readTimeout = 10_000
+	val checksumUrl = asset.url + ".md5"
+	val conn = URL(checksumUrl).openConnection() as HttpURLConnection
+	conn.requestMethod = "GET"
+	conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+	conn.instanceFollowRedirects = true
+	conn.connectTimeout = 10_000
+	conn.readTimeout = 10_000
 
-			try {
-				val status = conn.responseCode
-				if (status != HttpURLConnection.HTTP_OK) {
-					throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
-				}
-				conn.inputStream.bufferedReader().use { it.readText().trim() }
-			} finally {
-				conn.disconnect()
+	val checksum =
+		try {
+			val status = conn.responseCode
+			if (status != HttpURLConnection.HTTP_OK) {
+				throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
 			}
+			conn.inputStream.bufferedReader().use { it.readText().trim() }
+		} finally {
+			conn.disconnect()
 		}
 
 	if (!checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
 		throw GradleException(
-			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(
+			"Invalid MD5 checksum for ${asset.url} (got: '${checksum.take(
 				50,
 			)}') - the server may be returning an error page instead of the checksum",
 		)
@@ -1864,7 +1772,18 @@ fun assetsDownload(
 	assets: List<Asset>,
 	projectDir: File,
 ) {
+	val skipped = (project.findProperty("assetsSkip") as String?)?.split(',').orEmpty()
+	val unknown = skipped - assets.map { it.localPath }.toSet()
+	if (unknown.isNotEmpty()) {
+		throw GradleException("assetsSkip names paths that are not assets of this task: ${unknown.joinToString()}")
+	}
+
 	assets.forEach { asset ->
+		if (asset.localPath in skipped) {
+			project.logger.lifecycle("Skipping ${asset.localPath} (assetsSkip).")
+			return@forEach
+		}
+
 		val target = File(projectDir, asset.localPath)
 		target.parentFile.mkdirs()
 
@@ -1891,7 +1810,6 @@ tasks.register("assetsDownloadDebug") {
 	group = "setup"
 	description = "Download and verify debug assets"
 	doLast {
-		assetsBatch(rootProject.projectDir, project, "debug")
 		assetsDownload(debugAssets, rootProject.projectDir)
 	}
 }
@@ -1900,7 +1818,6 @@ tasks.register("assetsDownloadRelease") {
 	group = "setup"
 	description = "Download and verify release assets"
 	doLast {
-		assetsBatch(rootProject.projectDir, project, "release")
 		assetsDownload(releaseAssets, rootProject.projectDir)
 	}
 }
