@@ -57,15 +57,6 @@ object TooltipManager {
 	private val debugDatabaseFile: File = File(android.os.Environment.getExternalStorageDirectory().toString() +
 			"/Download/documentation.db")
 
-	private const val QUERY_TOOLTIP = """
-		SELECT T.rowid, T.id, T.summary, T.detail
-		FROM Tooltips AS T, TooltipCategories AS TC
-		WHERE T.categoryId = TC.id
-		AND T.tag = ?
-		AND TC.category = ?
-	"""
-
-
 	private const val QUERY_TOOLTIP_BUTTONS = """
 		SELECT description, uri
 		FROM TooltipButtons
@@ -97,7 +88,7 @@ object TooltipManager {
 						"n/a"
 					}
 
-					database.rawQuery(QUERY_TOOLTIP, arrayOf(tag, category)).use { c ->
+					queryTooltip(database, category = category, tag = tag).use { c ->
 						when (c.count) {
 							// A missing tag is a normal outcome (e.g. a Gradle task with no
 							// authored tooltip). Honor the nullable contract so the caller
