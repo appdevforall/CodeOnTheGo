@@ -96,7 +96,13 @@ class GitFileChangeAdapter(
 		}
 
 		fun bind(change: FileChange) {
-			binding.filePath.text = change.path
+			val isRenamed = change.type == ChangeType.RENAMED && !change.oldPath.isNullOrBlank()
+			binding.filePath.text =
+				if (isRenamed) {
+					"${change.oldPath} -> ${change.path}"
+				} else {
+					change.path
+				}
 
 			val isConflicted = change.type == ChangeType.CONFLICTED
 
