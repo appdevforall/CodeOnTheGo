@@ -60,35 +60,44 @@ jobs:
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
-      - name: Download latest documentation.db from Google Drive
+      # Ship the bytes release.yml ships: compress_docdb's re-minted, packed .br, not the raw master.
+      - name: Download documentation.db.br from Google Drive
         run: |
-          DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
-          if [ -z "DB_FILE_ID" ]; then
-            echo "ERROR: DOCUMENTATION_DB_FILE_ID secret not set"
-            echo "Please set the DOCUMENTATION_DB_FILE_ID secret in repository settings"
+          if [ -z "$BR_FILE_ID" ]; then
+            echo "ERROR: DOCUMENTATION_BR_FILE_ID secret not set"
+            echo "Please set the DOCUMENTATION_BR_FILE_ID secret in repository settings"
             exit 1
           fi
 
-          echo "Downloading documentation.db from Google Drive..."
+          sudo apt-get update && sudo apt-get install -y brotli sqlite3
+
+          echo "Downloading documentation.db.br from Google Drive..."
 
           mkdir -p assets
-          curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
-            -o assets/documentation.db
+          curl -sL --fail -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${BR_FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
+            -o documentation.db.br
 
-          if [ ! -f assets/documentation.db ]; then
-            echo "ERROR: Failed to download documentation.db"
-            exit 1
-          fi
+          brotli -d -f -o assets/documentation.db documentation.db.br
+          rm -f documentation.db.br
 
           FILE_SIZE_BYTES=$(stat -c%s assets/documentation.db 2>/dev/null || stat -f%z assets/documentation.db 2>/dev/null)
           FILE_SIZE_HUMAN=$(du -h assets/documentation.db | cut -f1)
 
           if [ "$FILE_SIZE_BYTES" -lt 1000000 ]; then
-            echo "ERROR: Downloaded file is too small ($FILE_SIZE_HUMAN)"
+            echo "ERROR: Decompressed file is too small ($FILE_SIZE_HUMAN)"
             echo "This usually means the file was not found or service account lacks access"
+            exit 1
+          fi
+
+          VERSION=$(sqlite3 assets/documentation.db "SELECT major||'.'||minor||'.'||patch FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1;" || true)
+          echo "documentation.db declares version: ${VERSION:-none}"
+
+          if [ "${VERSION%%.*}" != "3" ]; then
+            echo "ERROR: documentation.db must declare schema 3.x"
             exit 1
           fi
 
