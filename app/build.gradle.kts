@@ -10,8 +10,8 @@ import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
-import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
