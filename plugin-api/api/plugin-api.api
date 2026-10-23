@@ -409,9 +409,9 @@ public final class com/itsaky/androidide/plugins/extensions/BuildActionCategory 
 
 public abstract interface class com/itsaky/androidide/plugins/extensions/BuildActionExtension : com/itsaky/androidide/plugins/IPlugin {
 	public abstract fun getBuildActions ()Ljava/util/List;
-	public abstract fun onActionCompleted (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CommandResult;)V
-	public abstract fun onActionStarted (Ljava/lang/String;)V
-	public abstract fun toolbarActionsToHide ()Ljava/util/Set;
+	public fun onActionCompleted (Ljava/lang/String;Lcom/itsaky/androidide/plugins/extensions/CommandResult;)V
+	public fun onActionStarted (Ljava/lang/String;)V
+	public fun toolbarActionsToHide ()Ljava/util/Set;
 }
 
 public final class com/itsaky/androidide/plugins/extensions/BuildActionExtension$DefaultImpls {
@@ -743,11 +743,11 @@ public final class com/itsaky/androidide/plugins/extensions/DiagnosticSeverity :
 }
 
 public abstract interface class com/itsaky/androidide/plugins/extensions/DocumentationExtension : com/itsaky/androidide/plugins/IPlugin {
-	public abstract fun getTier3DocsAssetPath ()Ljava/lang/String;
+	public fun getTier3DocsAssetPath ()Ljava/lang/String;
 	public abstract fun getTooltipCategory ()Ljava/lang/String;
 	public abstract fun getTooltipEntries ()Ljava/util/List;
-	public abstract fun onDocumentationInstall ()Z
-	public abstract fun onDocumentationUninstall ()V
+	public fun onDocumentationInstall ()Z
+	public fun onDocumentationUninstall ()V
 }
 
 public final class com/itsaky/androidide/plugins/extensions/DocumentationExtension$DefaultImpls {
@@ -768,10 +768,10 @@ public abstract interface class com/itsaky/androidide/plugins/extensions/EditorE
 }
 
 public abstract interface class com/itsaky/androidide/plugins/extensions/EditorTabExtension : com/itsaky/androidide/plugins/IPlugin {
-	public abstract fun canCloseEditorTab (Ljava/lang/String;)Z
-	public abstract fun getMainEditorTabs ()Ljava/util/List;
-	public abstract fun onEditorTabClosed (Ljava/lang/String;)V
-	public abstract fun onEditorTabSelected (Ljava/lang/String;Landroidx/fragment/app/Fragment;)V
+	public fun canCloseEditorTab (Ljava/lang/String;)Z
+	public fun getMainEditorTabs ()Ljava/util/List;
+	public fun onEditorTabClosed (Ljava/lang/String;)V
+	public fun onEditorTabSelected (Ljava/lang/String;Landroidx/fragment/app/Fragment;)V
 }
 
 public final class com/itsaky/androidide/plugins/extensions/EditorTabExtension$DefaultImpls {
@@ -836,11 +836,11 @@ public final class com/itsaky/androidide/plugins/extensions/FabAction {
 }
 
 public abstract interface class com/itsaky/androidide/plugins/extensions/FileOpenExtension : com/itsaky/androidide/plugins/IPlugin {
-	public abstract fun canHandleFileOpen (Ljava/io/File;)Z
-	public abstract fun getFileTabMenuItems (Ljava/io/File;)Ljava/util/List;
-	public abstract fun handleFileOpen (Ljava/io/File;)Z
-	public abstract fun onFileClosed (Ljava/io/File;)V
-	public abstract fun onFileOpened (Ljava/io/File;)V
+	public fun canHandleFileOpen (Ljava/io/File;)Z
+	public fun getFileTabMenuItems (Ljava/io/File;)Ljava/util/List;
+	public fun handleFileOpen (Ljava/io/File;)Z
+	public fun onFileClosed (Ljava/io/File;)V
+	public fun onFileOpened (Ljava/io/File;)V
 }
 
 public final class com/itsaky/androidide/plugins/extensions/FileOpenExtension$DefaultImpls {
@@ -854,6 +854,8 @@ public final class com/itsaky/androidide/plugins/extensions/FileOpenExtension$De
 public final class com/itsaky/androidide/plugins/extensions/FileTabMenuItem {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILjava/lang/String;Lkotlin/jvm/functions/Function0;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILjava/lang/String;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZILkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/Integer;
@@ -978,6 +980,7 @@ public final class com/itsaky/androidide/plugins/extensions/MenuItem {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZLkotlin/jvm/functions/Function0;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ZZLjava/lang/String;Ljava/util/List;Lkotlin/jvm/functions/Function0;Ljava/lang/String;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -1022,6 +1025,8 @@ public final class com/itsaky/androidide/plugins/extensions/ModuleType : java/la
 public final class com/itsaky/androidide/plugins/extensions/NavigationItem {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILjava/lang/String;Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;ZZLjava/lang/String;ILkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()Ljava/lang/Integer;
@@ -1094,6 +1099,8 @@ public final class com/itsaky/androidide/plugins/extensions/PluginSettingsEntry 
 }
 
 public final class com/itsaky/androidide/plugins/extensions/PluginTooltipButton {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;I)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;IZ)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -1274,7 +1281,7 @@ public final class com/itsaky/androidide/plugins/extensions/ProjectType : java/l
 }
 
 public abstract interface class com/itsaky/androidide/plugins/extensions/SettingsExtension : com/itsaky/androidide/plugins/IPlugin {
-	public abstract fun getSettingsEntries ()Ljava/util/List;
+	public fun getSettingsEntries ()Ljava/util/List;
 }
 
 public final class com/itsaky/androidide/plugins/extensions/SettingsExtension$DefaultImpls {
@@ -1335,6 +1342,8 @@ public abstract interface class com/itsaky/androidide/plugins/extensions/SyntaxH
 }
 
 public final class com/itsaky/androidide/plugins/extensions/TabItem {
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZI)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/jvm/functions/Function0;ZZILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -1457,13 +1466,13 @@ public final class com/itsaky/androidide/plugins/extensions/TreeSitterGrammar {
 }
 
 public abstract interface class com/itsaky/androidide/plugins/extensions/UIExtension : com/itsaky/androidide/plugins/IPlugin {
-	public abstract fun getContextMenuItems (Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;)Ljava/util/List;
-	public abstract fun getEditorTabs ()Ljava/util/List;
-	public abstract fun getFabActions ()Ljava/util/List;
-	public abstract fun getHiddenToolbarActionIds ()Ljava/util/Set;
-	public abstract fun getMainMenuItems ()Ljava/util/List;
-	public abstract fun getSideMenuItems ()Ljava/util/List;
-	public abstract fun getToolbarActions ()Ljava/util/List;
+	public fun getContextMenuItems (Lcom/itsaky/androidide/plugins/extensions/ContextMenuContext;)Ljava/util/List;
+	public fun getEditorTabs ()Ljava/util/List;
+	public fun getFabActions ()Ljava/util/List;
+	public fun getHiddenToolbarActionIds ()Ljava/util/Set;
+	public fun getMainMenuItems ()Ljava/util/List;
+	public fun getSideMenuItems ()Ljava/util/List;
+	public fun getToolbarActions ()Ljava/util/List;
 }
 
 public final class com/itsaky/androidide/plugins/extensions/UIExtension$DefaultImpls {
@@ -1741,6 +1750,7 @@ public final class com/itsaky/androidide/plugins/services/GradleTaskResult$Succe
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeArchiveService {
 	public abstract fun extract (Ljava/io/InputStream;Lcom/itsaky/androidide/plugins/services/ArchiveFormat;Ljava/io/File;Lkotlin/jvm/functions/Function2;)Lcom/itsaky/androidide/plugins/services/ExtractResult;
+	public static synthetic fun extract$default (Lcom/itsaky/androidide/plugins/services/IdeArchiveService;Ljava/io/InputStream;Lcom/itsaky/androidide/plugins/services/ArchiveFormat;Ljava/io/File;Lkotlin/jvm/functions/Function2;ILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/ExtractResult;
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeArchiveService$DefaultImpls {
@@ -1749,20 +1759,21 @@ public final class com/itsaky/androidide/plugins/services/IdeArchiveService$Defa
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeBuildService {
 	public abstract fun addBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
-	public abstract fun cancelBuild ()Ljava/util/concurrent/CompletableFuture;
-	public abstract fun cancelQuickBuild ()Ljava/util/concurrent/CompletableFuture;
-	public abstract fun executeTasks (Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
-	public abstract fun executeTasks ([Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
-	public abstract fun getBuildOutput ()Ljava/lang/String;
-	public abstract fun getQuickBuildAvailability ()Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability;
-	public abstract fun getQuickBuildStatus ()Lcom/itsaky/androidide/plugins/services/QuickBuildState;
-	public abstract fun getTasks ()Ljava/util/List;
+	public fun cancelBuild ()Ljava/util/concurrent/CompletableFuture;
+	public fun cancelQuickBuild ()Ljava/util/concurrent/CompletableFuture;
+	public fun executeTasks (Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public fun executeTasks ([Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun executeTasks$default (Lcom/itsaky/androidide/plugins/services/IdeBuildService;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
+	public fun getBuildOutput ()Ljava/lang/String;
+	public fun getQuickBuildAvailability ()Lcom/itsaky/androidide/plugins/services/QuickBuildAvailability;
+	public fun getQuickBuildStatus ()Lcom/itsaky/androidide/plugins/services/QuickBuildState;
+	public fun getTasks ()Ljava/util/List;
 	public abstract fun isBuildInProgress ()Z
 	public abstract fun isToolingServerStarted ()Z
 	public abstract fun removeBuildStatusListener (Lcom/itsaky/androidide/plugins/services/BuildStatusListener;)V
-	public abstract fun runApp (Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
-	public abstract fun startQuickBuild ()Ljava/util/concurrent/CompletableFuture;
-	public abstract fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V
+	public fun runApp (Lcom/itsaky/androidide/plugins/services/BuildAndLaunchCallback;)V
+	public fun startQuickBuild ()Ljava/util/concurrent/CompletableFuture;
+	public fun triggerGradleSync (Lcom/itsaky/androidide/plugins/services/GradleSyncCallback;)V
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeBuildService$DefaultImpls {
@@ -1783,6 +1794,7 @@ public final class com/itsaky/androidide/plugins/services/IdeBuildService$Defaul
 public abstract interface class com/itsaky/androidide/plugins/services/IdeCommandService {
 	public abstract fun cancelCommand (Ljava/lang/String;)Z
 	public abstract fun executeCommand (Lcom/itsaky/androidide/plugins/extensions/CommandSpec;J)Lcom/itsaky/androidide/plugins/services/CommandExecution;
+	public static synthetic fun executeCommand$default (Lcom/itsaky/androidide/plugins/services/IdeCommandService;Lcom/itsaky/androidide/plugins/extensions/CommandSpec;JILjava/lang/Object;)Lcom/itsaky/androidide/plugins/services/CommandExecution;
 	public abstract fun getRunningCommandCount ()I
 	public abstract fun isCommandRunning (Ljava/lang/String;)Z
 }
@@ -1792,12 +1804,12 @@ public final class com/itsaky/androidide/plugins/services/IdeCommandService$Defa
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorService {
-	public abstract fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun addFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
 	public abstract fun appendToLine (Ljava/io/File;ILjava/lang/String;)Z
-	public abstract fun clearPeerCursors (Ljava/io/File;)V
+	public fun clearPeerCursors (Ljava/io/File;)V
 	public abstract fun deleteLine (Ljava/io/File;I)Z
-	public abstract fun dismissInlineSuggestion ()V
+	public fun dismissInlineSuggestion ()V
 	public abstract fun getCurrentCursorPosition ()Lcom/itsaky/androidide/plugins/services/CursorPosition;
 	public abstract fun getCurrentFile ()Ljava/io/File;
 	public abstract fun getCurrentFileContent ()Ljava/lang/String;
@@ -1812,7 +1824,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun getModifiedFiles ()Ljava/util/List;
 	public abstract fun getOpenFiles ()Ljava/util/List;
 	public abstract fun getWordAtCursor ()Ljava/lang/String;
-	public abstract fun hidePeerCursor (Ljava/io/File;Ljava/lang/String;)Z
+	public fun hidePeerCursor (Ljava/io/File;Ljava/lang/String;)Z
 	public abstract fun insertLineBefore (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun insertTextAtCursor (Ljava/lang/String;)Z
 	public abstract fun isFileModified (Ljava/io/File;)Z
@@ -1820,15 +1832,15 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun openFile (Ljava/io/File;)Z
 	public abstract fun openFileAt (Ljava/io/File;II)Z
 	public abstract fun prependToLine (Ljava/io/File;ILjava/lang/String;)Z
-	public abstract fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun removeFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
 	public abstract fun replaceLine (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun replaceRange (Ljava/io/File;Lcom/itsaky/androidide/plugins/services/SelectionRange;Ljava/lang/String;)Z
 	public abstract fun replaceSelection (Ljava/lang/String;)Z
 	public abstract fun saveCurrentFile ()Z
-	public abstract fun saveFile (Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun showInlineSuggestion (Ljava/lang/String;)V
-	public abstract fun showPeerCursor (Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
+	public fun saveFile (Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun showInlineSuggestion (Ljava/lang/String;)V
+	public fun showPeerCursor (Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeEditorService$DefaultImpls {
@@ -1866,6 +1878,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeFileSe
 	public abstract fun delete (Ljava/io/File;)Z
 	public abstract fun insertAfterPattern (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;)Z
 	public abstract fun listFiles (Ljava/io/File;Z)Ljava/util/List;
+	public static synthetic fun listFiles$default (Lcom/itsaky/androidide/plugins/services/IdeFileService;Ljava/io/File;ZILjava/lang/Object;)Ljava/util/List;
 	public abstract fun readFile (Ljava/io/File;)Ljava/lang/String;
 	public abstract fun replaceInFile (Ljava/io/File;Ljava/lang/String;Ljava/lang/String;)Z
 	public abstract fun writeBinary (Ljava/io/File;[B)Z
@@ -1882,9 +1895,9 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeLogSer
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeProjectManipulationService {
-	public abstract fun addDependency (Ljava/lang/String;Ljava/lang/String;)Z
-	public abstract fun addStringResource (Ljava/lang/String;Ljava/lang/String;)Z
-	public abstract fun deleteFile (Ljava/lang/String;)Z
+	public fun addDependency (Ljava/lang/String;Ljava/lang/String;)Z
+	public fun addStringResource (Ljava/lang/String;Ljava/lang/String;)Z
+	public fun deleteFile (Ljava/lang/String;)Z
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeProjectManipulationService$DefaultImpls {
@@ -1896,9 +1909,9 @@ public final class com/itsaky/androidide/plugins/services/IdeProjectManipulation
 public abstract interface class com/itsaky/androidide/plugins/services/IdeProjectService {
 	public abstract fun getAllProjects ()Ljava/util/List;
 	public abstract fun getCurrentProject ()Lcom/itsaky/androidide/plugins/extensions/IProject;
-	public abstract fun getModuleContext (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
+	public fun getModuleContext (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
 	public abstract fun getProjectByPath (Ljava/io/File;)Lcom/itsaky/androidide/plugins/extensions/IProject;
-	public abstract fun openProject (Ljava/io/File;)Z
+	public fun openProject (Ljava/io/File;)Z
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeProjectService$DefaultImpls {
@@ -1934,7 +1947,9 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeTermin
 	public abstract fun isTerminalReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun readCommand (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun runInTerminal (Ljava/lang/String;Ljava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun runInTerminal$default (Lcom/itsaky/androidide/plugins/services/IdeTerminalService;Ljava/lang/String;Ljava/lang/String;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun stopCommand (Ljava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun stopCommand$default (Lcom/itsaky/androidide/plugins/services/IdeTerminalService;Ljava/lang/String;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeTerminalService$Companion {
@@ -1966,8 +1981,9 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeUIServ
 	public static final field EXTRA_TITLE Ljava/lang/String;
 	public abstract fun getCurrentActivity ()Landroid/app/Activity;
 	public abstract fun isUIAvailable ()Z
-	public abstract fun openPluginScreen (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
-	public abstract fun refreshToolbarActions ()V
+	public fun openPluginScreen (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z
+	public static synthetic fun openPluginScreen$default (Lcom/itsaky/androidide/plugins/services/IdeUIService;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Z
+	public fun refreshToolbarActions ()V
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeUIService$Companion {

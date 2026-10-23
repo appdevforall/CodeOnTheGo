@@ -98,7 +98,6 @@ import com.itsaky.androidide.search.replace.ReplaceHost
 import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.search.replace.SkipReason
 import com.itsaky.androidide.services.builder.GradleBuildService
-import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.BuildId
@@ -122,7 +121,8 @@ import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
@@ -241,8 +241,6 @@ abstract class ProjectHandlerActivity :
 	}
 
 	protected val mBuildEventListener = EditorBuildEventListener()
-
-	private val buildServiceConnection = GradleBuildServiceConnnection()
 
 	// True once onCreate() has completed past its isFinishing check -- mirrors
 	// EditorHandlerActivity.didCompleteLiveOnCreate. super.onCreate() (BaseEditorActivity) may
@@ -451,7 +449,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	private fun quickBuildOutputNarrator(): QuickBuildOutputNarrator? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildOutputNarrator>() }
@@ -892,7 +890,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	protected fun quickBuildClobberCheck(): QuickBuildClobberCheck? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildClobberCheck>() }
@@ -1220,10 +1218,18 @@ abstract class ProjectHandlerActivity :
 		}
 
 		if (didCompleteLiveOnCreate && IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.shutdown()
+			if (isDestroying) {
+				IDELanguageClientImpl.shutdown()
+			} else {
+				IDELanguageClientImpl.getInstance().setActivity(null)
+			}
 		}
 
 		super.preDestroy()
+
+		if (didCompleteLiveOnCreate && !isDestroying) {
+			editorViewModel.clearBuildServiceCallback()
+		}
 
 		if (didCompleteLiveOnCreate && isDestroying) {
 			try {
@@ -1233,10 +1239,9 @@ abstract class ProjectHandlerActivity :
 			}
 
 			try {
-				unbindService(buildServiceConnection)
-				buildServiceConnection.onConnected = {}
-			} catch (_: Throwable) {
-				log.error("Unable to unbind service")
+				editorViewModel.unbindBuildService()
+			} catch (err: IllegalArgumentException) {
+				log.error("Unable to unbind service", err)
 			} finally {
 				Lookup.getDefault().apply {
 					(lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService?)
@@ -1246,7 +1251,6 @@ abstract class ProjectHandlerActivity :
 				}
 
 				mBuildEventListener.release()
-				editorViewModel.isBoundToBuildSerice = false
 			}
 		}
 	}
@@ -1319,21 +1323,14 @@ abstract class ProjectHandlerActivity :
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as GradleBuildService?
 		if (editorViewModel.isBoundToBuildSerice && service != null) {
 			log.info("Reusing already started Gradle build service")
+			attachLanguageClient()
 			onGradleBuildServiceConnected(service)
 			return
 		} else {
 			log.info("Binding to Gradle build service...")
 		}
 
-		buildServiceConnection.onConnected = this::onGradleBuildServiceConnected
-
-		if (
-			bindService(
-				Intent(this, GradleBuildService::class.java),
-				buildServiceConnection,
-				BIND_AUTO_CREATE or BIND_IMPORTANT,
-			)
-		) {
+		if (editorViewModel.bindBuildService(this, this::onGradleBuildServiceConnected)) {
 			log.info("Bind request for Gradle build service was successful...")
 		} else {
 			log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
@@ -1550,7 +1547,7 @@ abstract class ProjectHandlerActivity :
 	protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
 		log.info("Connected to Gradle build service")
 
-		buildServiceConnection.onConnected = null
+		editorViewModel.clearBuildServiceCallback()
 		editorViewModel.isBoundToBuildSerice = true
 		Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, service)
 		service.setEventListener(mBuildEventListener)
@@ -2243,12 +2240,19 @@ abstract class ProjectHandlerActivity :
 		startActivity(intent)
 	}
 
-	private suspend fun initLspClient() {
-		if (!IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.initialize(this as EditorHandlerActivity)
+	private fun attachLanguageClient() {
+		val activity = this as EditorHandlerActivity
+		if (IDELanguageClientImpl.isInitialized()) {
+			IDELanguageClientImpl.getInstance().setActivity(activity)
+		} else {
+			IDELanguageClientImpl.initialize(activity)
 		}
 
 		connectClient(IDELanguageClientImpl.getInstance())
+	}
+
+	private suspend fun initLspClient() {
+		attachLanguageClient()
 
 		val results =
 			try {
