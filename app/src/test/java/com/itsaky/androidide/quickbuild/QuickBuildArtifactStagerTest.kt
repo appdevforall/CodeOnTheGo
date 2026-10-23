@@ -2,7 +2,7 @@ package com.itsaky.androidide.quickbuild
 
 import com.google.common.truth.Truth.assertThat
 import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
-import org.adfa.constants.KOTLIN_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -104,7 +104,7 @@ class QuickBuildArtifactStagerTest {
 	}
 
 	/** The one jar [daemonZip]'s linked-jars list names. */
-	private val linkedJar = "kotlin-compiler-embeddable-$KOTLIN_VERSION.jar"
+	private val linkedJar = "kotlin-compiler-embeddable-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar"
 
 	/** A fake `gradle-dists/` for the link to point at, since the real one is unset off-device. */
 	private val gradleDists: File by lazy {
