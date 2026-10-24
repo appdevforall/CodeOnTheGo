@@ -25,6 +25,7 @@ import android.os.Build
 import android.os.Build.VERSION_CODES
 import android.os.Bundle
 import android.os.PersistableBundle
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -35,6 +36,7 @@ import androidx.core.view.OnApplyWindowInsetsListener
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnAttach
+import com.itsaky.androidide.security.SecurityController
 import com.itsaky.androidide.utils.EdgeToEdgeUtils
 import com.itsaky.androidide.utils.getSystemBarInsets
 import org.slf4j.LoggerFactory
@@ -47,145 +49,202 @@ import org.slf4j.LoggerFactory
  * @author Akash Yadav
  */
 abstract class EdgeToEdgeIDEActivity : IDEActivity() {
+	/**
+	 * Whether edge-to-edge should be applied to the activity.
+	 */
+	protected open var edgeToEdgeEnabled = true
 
-    /**
-     * Whether edge-to-edge should be applied to the activity.
-     */
-    protected open var edgeToEdgeEnabled = true
+	/**
+	 * Whether the decor view padding should be updated to match the system bars in landscape orientation.
+	 */
+	protected open var eteUpdateDecorViewPaddingInLandscape = true
 
-    /**
-     * Whether the decor view padding should be updated to match the system bars in landscape orientation.
-     */
-    protected open var eteUpdateDecorViewPaddingInLandscape = true
+	/**
+	 * Style for the status bar.
+	 */
+	protected open val statusBarStyle = EdgeToEdgeUtils.DEFAULT_STATUS_BAR_STYLE!!
 
-    /**
-     * Style for the status bar.
-     */
-    protected open val statusBarStyle = EdgeToEdgeUtils.DEFAULT_STATUS_BAR_STYLE!!
+	/**
+	 * Style for the navigation bar.
+	 */
+	protected open val navigationBarStyle = EdgeToEdgeUtils.DEFAULT_NAVIGATION_BAR_STYLE!!
 
-    /**
-     * Style for the navigation bar.
-     */
-    protected open val navigationBarStyle = EdgeToEdgeUtils.DEFAULT_NAVIGATION_BAR_STYLE!!
+	/**
+	 * Original padding of the window's decor view.
+	 */
+	protected open var decorViewPadding: Rect? = null
 
-    /**
-     * Original padding of the window's decor view.
-     */
-    protected open var decorViewPadding: Rect? = null
+	/**
+	 * Last window insets.
+	 */
+	protected open var systemBarInsets: Insets? = null
 
-    /**
-     * Last window insets.
-     */
-    protected open var systemBarInsets: Insets? = null
+	override var enableSystemBarTheming: Boolean
+		get() = false
+		set(
+			@Suppress("UNUSED_PARAMETER") value,
+		) {
+			throw UnsupportedOperationException("Use edgeToEdgeEnabled and systemBarStyles instead")
+		}
 
-    override var enableSystemBarTheming: Boolean
-        get() = false
-        set(@Suppress("UNUSED_PARAMETER") value) {
-            throw UnsupportedOperationException("Use edgeToEdgeEnabled and systemBarStyles instead")
-        }
+	private val log = LoggerFactory.getLogger(EdgeToEdgeIDEActivity::class.java)
 
-    private val log = LoggerFactory.getLogger(EdgeToEdgeIDEActivity::class.java)
+	@SuppressLint("WrongConstant")
+	private val onApplyWindowInsetsListener =
+		OnApplyWindowInsetsListener { view, insets ->
+			onApplyWindowInsets(insets)
+			if (!eteUpdateDecorViewPaddingInLandscape ||
+				view.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
+			) {
+				decorViewPadding?.also { p ->
+					// when switching from landscape to portrait, restore the original padding
+					view.setPadding(p.left, p.top, p.right, p.bottom)
+				}
+				return@OnApplyWindowInsetsListener insets
+			}
 
-    @SuppressLint("WrongConstant")
-    private val onApplyWindowInsetsListener = OnApplyWindowInsetsListener { view, insets ->
-        onApplyWindowInsets(insets)
-        if (!eteUpdateDecorViewPaddingInLandscape ||
-            view.resources.configuration.orientation != Configuration.ORIENTATION_LANDSCAPE
-        ) {
-            decorViewPadding?.also { p ->
-                // when switching from landscape to portrait, restore the original padding
-                view.setPadding(p.left, p.top, p.right, p.bottom)
-            }
-            return@OnApplyWindowInsetsListener insets
-        }
+			if (decorViewPadding == null) {
+				Rect()
+					.apply {
+						left = view.paddingLeft
+						top = view.paddingTop
+						right = view.paddingRight
+						bottom = view.paddingBottom
+					}.also { paddings ->
+						decorViewPadding = paddings
+					}
+			}
 
-        if (decorViewPadding == null) {
-            Rect().apply {
-                left = view.paddingLeft
-                top = view.paddingTop
-                right = view.paddingRight
-                bottom = view.paddingBottom
-            }.also { paddings ->
-                decorViewPadding = paddings
-            }
-        }
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+				val systemBarInsets = insets.getInsets(WindowInsets.Type.systemBars())
+				view.setPadding(
+					systemBarInsets.left,
+					0,
+					systemBarInsets.right,
+					systemBarInsets.bottom,
+				)
+			} else {
+				@Suppress("DEPRECATION")
+				view.setPadding(
+					insets.stableInsetLeft,
+					0,
+					insets.stableInsetRight,
+					insets.stableInsetBottom,
+				)
+			}
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val systemBarInsets = insets.getInsets(WindowInsets.Type.systemBars())
-            view.setPadding(
-                systemBarInsets.left,
-                0,
-                systemBarInsets.right,
-                systemBarInsets.bottom
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            view.setPadding(
-                insets.stableInsetLeft,
-                0,
-                insets.stableInsetRight,
-                insets.stableInsetBottom
-            )
-        }
+			insets
+		}
 
-        insets
-    }
+	override fun onCreate(savedInstanceState: Bundle?) {
+		applyEdgeToEdge()
+		super.onCreate(savedInstanceState)
+	}
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        applyEdgeToEdge()
-        super.onCreate(savedInstanceState)
-    }
+	override fun onCreate(
+		savedInstanceState: Bundle?,
+		persistentState: PersistableBundle?,
+	) {
+		applyEdgeToEdge()
+		super.onCreate(savedInstanceState, persistentState)
+	}
 
-    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
-        applyEdgeToEdge()
-        super.onCreate(savedInstanceState, persistentState)
-    }
+	@SuppressLint("RestrictedApi")
+	private fun applyEdgeToEdge() {
+		this.window!!.apply {
+			addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+			@Suppress("DEPRECATION")
+			clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
+			if (Build.VERSION.SDK_INT >= VERSION_CODES.P) {
+				attributes =
+					attributes.apply {
+						layoutInDisplayCutoutMode =
+							WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+					}
+			}
+		}
 
-    @SuppressLint("RestrictedApi")
-    private fun applyEdgeToEdge() {
-        this.window!!.apply {
-            addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-            @Suppress("DEPRECATION")
-            clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION)
-            if (Build.VERSION.SDK_INT >= VERSION_CODES.P) {
-                attributes = attributes.apply {
-                    layoutInDisplayCutoutMode =
-                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                }
-            }
-        }
+		EdgeToEdgeUtils.applyEdgeToEdge(this, this.statusBarStyle, this.navigationBarStyle)
 
-        EdgeToEdgeUtils.applyEdgeToEdge(this, this.statusBarStyle, this.navigationBarStyle)
+		ViewCompat.setOnApplyWindowInsetsListener(
+			this.window.decorView,
+			this.onApplyWindowInsetsListener,
+		)
 
-        ViewCompat.setOnApplyWindowInsetsListener(
-            this.window.decorView,
-            this.onApplyWindowInsetsListener
-        )
+		this.window.decorView.doOnAttach { onApplySystemBarInsets(getSystemBarInsets(it)) }
+	}
 
-        this.window.decorView.doOnAttach { onApplySystemBarInsets(getSystemBarInsets(it)) }
-    }
+	/**
+	 * Called when the window insets change.
+	 *
+	 * @param insets The window insets. These insets are not expected to be consumed.
+	 */
+	@CallSuper
+	protected open fun onApplyWindowInsets(insets: WindowInsetsCompat) {
+		this.systemBarInsets = getSystemBarInsets(insets)
+	}
 
-    /**
-     * Called when the window insets change.
-     *
-     * @param insets The window insets. These insets are not expected to be consumed.
-     */
-    @CallSuper
-    protected open fun onApplyWindowInsets(insets: WindowInsetsCompat) {
-        this.systemBarInsets = getSystemBarInsets(insets)
-    }
+	/**
+	 * Called with the system bar insets when the decor view is attached to the window.
+	 */
+	protected open fun onApplySystemBarInsets(insets: Insets) {}
 
-    /**
-     * Called with the system bar insets when the decor view is attached to the window.
-     */
-    protected open fun onApplySystemBarInsets(insets: Insets) {}
+	fun closeKeyboard() {
+		// Get the current focused view; if none, create a new one so that we have a valid window token
+		val view = currentFocus ?: View(this)
+		// Retrieve the input method manager service
+		val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+		// Request to hide the keyboard from the window
+		inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
+	}
 
-    fun closeKeyboard() {
-        // Get the current focused view; if none, create a new one so that we have a valid window token
-        val view = currentFocus ?: View(this)
-        // Retrieve the input method manager service
-        val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        // Request to hide the keyboard from the window
-        inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
-    }
+	/**
+	 * Instant Hide (ADFA-40) trigger controller. Mounted on every edge-to-edge IDE screen so the
+	 * three-finger tap / screen-off / face-down / inactivity triggers and the FLAG_SECURE policy are
+	 * available wherever the user is working.
+	 */
+	private val securityController by lazy { SecurityController(this) }
+
+	/**
+	 * Whether Instant Hide gesture/sensor triggers fire on this screen. The security Settings screen
+	 * overrides this to false so arming or practising the feature does not immediately hide it;
+	 * FLAG_SECURE masking still applies regardless.
+	 */
+	protected open fun isInstantHideGesturesEnabled(): Boolean = true
+
+	/**
+	 * Re-applies the FLAG_SECURE policy immediately, for callers that change the armed state while a
+	 * screen is already resumed (arming the toggle in Settings). Without this the new policy would not
+	 * take effect until the next [onResume], leaving the current window screenshotable in between.
+	 */
+	internal fun applyInstantHideScreenSecurity() {
+		securityController.applyScreenSecurity()
+	}
+
+	override fun onResume() {
+		super.onResume()
+		securityController.applyScreenSecurity()
+		if (isInstantHideGesturesEnabled()) {
+			securityController.onResume()
+		}
+	}
+
+	override fun onPause() {
+		if (isInstantHideGesturesEnabled()) {
+			securityController.onPause()
+		}
+		super.onPause()
+	}
+
+	override fun onDestroy() {
+		securityController.onDestroy()
+		super.onDestroy()
+	}
+
+	override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+		if (ev != null && isInstantHideGesturesEnabled()) {
+			securityController.onTouchEvent(ev)
+		}
+		return super.dispatchTouchEvent(ev)
+	}
 }

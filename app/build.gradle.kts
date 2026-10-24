@@ -434,6 +434,7 @@ dependencies {
 	implementation(projects.lookup)
 	implementation(projects.preferences)
 	implementation(projects.resources)
+	implementation(projects.security)
 	implementation(projects.treeview)
 	implementation(projects.templatesApi)
 	implementation(projects.templatesImpl)
