@@ -323,6 +323,10 @@ open class JvmSymbolIndex(
 		backing.optimize()
 	}
 
+	/** Whether the backing index still serves reads and writes. */
+	val isOpen: Boolean
+		get() = backing.isOpen
+
 	override fun close() {
 		indexer.close()
 		super.close()
