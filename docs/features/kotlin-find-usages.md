@@ -97,7 +97,7 @@ The last row unions **every match-set member's** module, not just the target's, 
 
 The first three rows need the declaration's path. The file the user is editing is a live `KtFile` built from the editor buffer, whose `virtualFile` is a non-physical `LightVirtualFile`, so the path comes from `backingFilePath` first and the VFS only as a fallback - go-to-definition's derivation. A target that still has no path cannot be confined to one file, but it is still unreferenceable outside its own module, so it falls back to the `internal` row rather than to the last one.
 
-`internal` needs no widening for test sources. There is no test module to widen to - `collectKtModules` builds one `KtSourceModule` per Gradle module from `mainSourceSet` only, and `directFriendDependencies` is empty everywhere.
+`internal` needs no widening for test sources. There is no test module to widen to - `KotlinModuleLayout.toKtModules` builds one `KtSourceModule` per Gradle module from `mainSourceSet` only, and `directFriendDependencies` is empty everywhere.
 
 **R5 - Candidate discovery.** Two tiers, because find usages is run *while* editing and unsaved text must not be invisible:
 
