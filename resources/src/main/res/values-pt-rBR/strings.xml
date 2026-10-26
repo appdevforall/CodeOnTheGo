@@ -1061,7 +1061,7 @@
   <string name="quick_build_status_failed">A Compilação rápida falhou; veja a Saída da compilação</string>
   <string name="quick_build_status_deploy_failed">Compilação rápida: falha na entrega; veja a Saída da compilação</string>
   <string name="quick_build_status_app_not_running">Compilação rápida: compilado; toque para iniciar o aplicativo</string>
-  <string name="quick_build_status_needs_full_build">Compilação rápida: toque novamente para recompilar</string>
+  <string name="quick_build_status_needs_full_build">Compilação rápida: iniciando uma compilação completa…</string>
   <string name="quick_build_status_rebuild_failed">A Compilação rápida falhou; veja a Saída da compilação</string>
   <string name="quick_build_status_start_failed">Compilação rápida: falha na configuração; toque para tentar novamente</string>
   <string name="quick_build_flash_failed">A Compilação rápida falhou. Consulte o painel Saída da compilação para mais detalhes.</string>
