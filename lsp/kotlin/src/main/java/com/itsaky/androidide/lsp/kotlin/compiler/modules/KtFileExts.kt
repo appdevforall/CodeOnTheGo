@@ -126,6 +126,8 @@ internal inline fun <R> analyzeMaybeDangling(
 	crossinline action: KaSession.() -> R,
 ): R =
 	withAnalysisLock(priority, cancelChecker) {
+		// A rebuild disposes the old environment under this lock; a request still holding it ends here.
+		if (useSiteElement.project.isDisposed) throw CancellationException("Kotlin analysis environment was disposed")
 		if (useSiteElement is KtFile && useSiteElement.isDangling && useSiteElement.copyOrigin != null) {
 			analyzeCopy(useSiteElement, KaDanglingFileResolutionMode.PREFER_SELF, action)
 		} else {

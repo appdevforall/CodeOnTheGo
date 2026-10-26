@@ -18,8 +18,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
+import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadata
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
@@ -31,6 +33,7 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.junit.After
 import org.junit.Test
 import java.nio.file.Path
+import java.time.Instant
 import java.util.Collections
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
@@ -52,7 +55,7 @@ class IndexWorkerPhaseLifecycleTest {
 		unmockkAll()
 	}
 
-	private fun worker(): IndexWorker {
+	private fun worker(fileIndex: KtFileMetadataIndex = KtFileMetadataIndex(InMemoryIndex(KtFileMetadataDescriptor))): IndexWorker {
 		val project = mockk<Project>()
 		every { project.isDisposed } returns false
 		every { project.getUserData(any<Key<ReentrantReadWriteLock>>()) } returns ReentrantReadWriteLock()
@@ -66,7 +69,7 @@ class IndexWorkerPhaseLifecycleTest {
 		return IndexWorker(
 			project = project,
 			queue = WorkerQueue(),
-			fileIndex = KtFileMetadataIndex(InMemoryIndex(KtFileMetadataDescriptor)),
+			fileIndex = fileIndex,
 			sourceIndex = sourceIndex,
 			scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
 		)
@@ -203,6 +206,7 @@ class IndexWorkerPhaseLifecycleTest {
 			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } answers {
 				if (++attempts == 1) throw AnalysisPreemptedException()
 				sink.events += "indexed retry"
+				true
 			}
 			val worker = worker()
 
@@ -233,7 +237,10 @@ class IndexWorkerPhaseLifecycleTest {
 		runBlocking {
 			Memprof.sink = sink
 			mockkStatic("com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexerKt")
-			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } answers { sink.events += "indexed edit" }
+			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } answers {
+				sink.events += "indexed edit"
+				true
+			}
 			val editedFile = mockk<KtFile>()
 			every { editedFile.getUserData(any<Key<Path>>()) } returns Path.of("/project/src/Edited.kt")
 			val worker = worker()
@@ -252,6 +259,55 @@ class IndexWorkerPhaseLifecycleTest {
 			}
 
 			assertThat(sink.values["source_index_complete.indexed"]).isEqualTo(0L)
+		}
+
+	@Test
+	fun `a file whose index pass writes nothing is not counted`(): Unit =
+		runBlocking {
+			Memprof.sink = sink
+			mockPsiManager(ktFile = mockk())
+			mockkStatic("com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexerKt")
+			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } returns false
+			val worker = worker()
+
+			worker.submitCommand(IndexCommand.SourceScanningStarted(pass = 1))
+			worker.submitCommand(IndexCommand.SourceScanningComplete(pass = 1))
+			worker.submitCommand(IndexCommand.IndexSourceFile(sourceFile(), pass = 1))
+			worker.submitCommand(IndexCommand.IndexingComplete(pass = 1))
+			worker.submitCommand(IndexCommand.Stop)
+
+			withTimeout(5_000) { worker.start() }
+
+			assertThat(sink.values["source_index_complete.indexed"]).isEqualTo(0L)
+		}
+
+	@Test
+	fun `a scan upsert into a closed index is not counted`(): Unit =
+		runBlocking {
+			Memprof.sink = sink
+			mockPsiManager(ktFile = mockk())
+			mockkStatic("com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexerKt")
+			every { any<KtFile>().toMetadata(any(), any()) } returns
+				KtFileMetadata(
+					filePath = "/project/src/Sample.kt",
+					packageFqName = "sample",
+					lastModified = Instant.EPOCH,
+					modificationStamp = 1L,
+				)
+			val closedIndex =
+				object : Index<KtFileMetadata> by InMemoryIndex(KtFileMetadataDescriptor) {
+					override val isOpen = false
+				}
+			val worker = worker(fileIndex = KtFileMetadataIndex(closedIndex))
+
+			worker.submitCommand(IndexCommand.SourceScanningStarted(pass = 1))
+			worker.submitCommand(IndexCommand.ScanSourceFile(sourceFile()))
+			worker.submitCommand(IndexCommand.SourceScanningComplete(pass = 1))
+			worker.submitCommand(IndexCommand.Stop)
+
+			withTimeout(5_000) { worker.start() }
+
+			assertThat(sink.values["source_scan_complete.files"]).isEqualTo(0L)
 		}
 
 	private fun mockPsiManager(ktFile: KtFile?) {
