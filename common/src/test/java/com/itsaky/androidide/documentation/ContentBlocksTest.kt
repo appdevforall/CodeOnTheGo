@@ -47,7 +47,7 @@ class ContentBlocksTest {
 
 	@Test
 	fun `blocks are evicted once their plain bytes pass the budget`() {
-		val cache = ContentBlockCache(maxBytes = 10)
+		val cache = ContentBlockCache<Long>(maxBytes = 10)
 		assertThat(cache.put(1, ByteArray(4))).isEqualTo(4L)
 		assertThat(cache.put(2, ByteArray(4))).isEqualTo(8L)
 
@@ -60,7 +60,7 @@ class ContentBlocksTest {
 
 	@Test
 	fun `a block filling the budget exactly is kept`() {
-		val cache = ContentBlockCache(maxBytes = 10)
+		val cache = ContentBlockCache<Long>(maxBytes = 10)
 		cache.put(1, ByteArray(4))
 
 		assertThat(cache.put(2, ByteArray(10))).isEqualTo(10L)
@@ -71,7 +71,7 @@ class ContentBlocksTest {
 
 	@Test
 	fun `the least recently used block goes first, not the oldest`() {
-		val cache = ContentBlockCache(maxBytes = 9)
+		val cache = ContentBlockCache<Long>(maxBytes = 9)
 		cache.put(1, ByteArray(3))
 		cache.put(2, ByteArray(3))
 		cache.put(3, ByteArray(3))
@@ -88,7 +88,7 @@ class ContentBlocksTest {
 	// OfflineDocumentationTools closes a block before it passes 4 MiB decoded, so that two fit here.
 	@Test
 	fun `the app's budget holds two blocks at the 4 MiB cap`() {
-		val cache = ContentBlockCache(ContentBlockCache.MAX_PLAIN_BYTES)
+		val cache = ContentBlockCache<Long>(ContentBlockCache.MAX_PLAIN_BYTES)
 		cache.put(1, ByteArray(4 * 1024 * 1024))
 		cache.put(2, ByteArray(4 * 1024 * 1024))
 
@@ -98,7 +98,7 @@ class ContentBlocksTest {
 
 	@Test
 	fun `a block over the whole budget is not cached and evicts nothing`() {
-		val cache = ContentBlockCache(maxBytes = 10)
+		val cache = ContentBlockCache<Long>(maxBytes = 10)
 		cache.put(1, ByteArray(4))
 
 		assertThat(cache.put(2, ByteArray(11))).isEqualTo(4L)
@@ -109,7 +109,7 @@ class ContentBlocksTest {
 
 	@Test
 	fun `caching a block again replaces it and counts it once`() {
-		val cache = ContentBlockCache(maxBytes = 10)
+		val cache = ContentBlockCache<Long>(maxBytes = 10)
 		cache.put(1, ByteArray(4))
 
 		assertThat(cache.put(1, ByteArray(6))).isEqualTo(6L)
@@ -119,7 +119,7 @@ class ContentBlocksTest {
 
 	@Test
 	fun `clear drops every block and its bytes`() {
-		val cache = ContentBlockCache(maxBytes = 10)
+		val cache = ContentBlockCache<Long>(maxBytes = 10)
 		cache.put(1, ByteArray(4))
 		cache.put(2, ByteArray(4))
 
@@ -136,7 +136,7 @@ class ContentBlocksTest {
 	// it or throw ConcurrentModificationException; the byte count must also stay within the budget.
 	@Test
 	fun `concurrent requests keep the cache within its budget`() {
-		val cache = ContentBlockCache(maxBytes = 64)
+		val cache = ContentBlockCache<Long>(maxBytes = 64)
 		val threads = 8
 		val pool = Executors.newFixedThreadPool(threads)
 		val start = CountDownLatch(1)

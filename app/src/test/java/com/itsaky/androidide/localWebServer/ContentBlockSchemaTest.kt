@@ -2,9 +2,12 @@ package com.itsaky.androidide.localWebServer
 
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import com.aayushatharva.brotli4j.encoder.Encoder
 import com.itsaky.androidide.documentation.DocumentationContentSource
 import com.itsaky.androidide.documentation.DocumentationLookup
 import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -13,12 +16,13 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import kotlin.random.Random
 
 /**
  * The documentation version 4 schema (ADFA-6683) in a real SQLite file, read through
  * [DocumentationContentSource]. ContentBlockSourceTest's mocks never run the SQL; this does: the
- * join to ContentBlockItems, its quoted `offset` column, and SQLite's own error for a version 4
- * file without the block tables.
+ * join to ContentBlockItems, its quoted `offset` column, SQLite's own error for a version 4 file
+ * without the block tables, and a large block read in `substr()` pieces.
  */
 @RunWith(RobolectricTestRunner::class)
 class ContentBlockSchemaTest {
@@ -66,14 +70,42 @@ class ContentBlockSchemaTest {
 		assertEquals("<p>Row</p>", text(source(file).lookup("j/one.html")))
 	}
 
+	// Noise, so the block stays over 2 MiB compressed, which no CursorWindow row holds whole: it is
+	// read in 1 MiB pieces. The 4.0.0 build's largest block is 559,581 bytes.
+	@Test
+	fun `a block over 2 MiB compressed is read in pieces and served`() {
+		val noise = Random(6683).nextBytes(2_500_000)
+		val tail = "<p>Tail</p>"
+		val data = fastBrotli(noise + tail.toByteArray())
+		assertTrue(data.size.toString(), data.size > 2 * 1024 * 1024)
+		val file =
+			database(major = 4, blockTables = true) {
+				block(1, data)
+				row(10, "j/noise.bin", blocked = true)
+				row(11, "j/tail.html", blocked = true)
+				item(10, blockId = 1, offset = 0, length = noise.size.toLong())
+				item(11, blockId = 1, offset = noise.size.toLong(), length = tail.length.toLong())
+			}
+		val source = source(file)
+
+		assertEquals(tail, text(source.lookup("j/tail.html")))
+		assertArrayEquals(noise, bytes(source.lookup("j/noise.bin")))
+	}
+
 	private val codec = BrotliDictionaryCodec(null)
+
+	// Quality 1: the pipeline's 11 takes seconds over megabytes of noise.
+	private fun fastBrotli(bytes: ByteArray): ByteArray {
+		Brotli4jLoader.ensureAvailability()
+		return Encoder.compress(bytes, Encoder.Parameters().setQuality(1))
+	}
 
 	private fun source(file: File) = DocumentationContentSource(file, File(folder.root, "debug-documentation.db"), 0)
 
-	private fun text(lookup: DocumentationLookup): String =
-		((lookup as? DocumentationLookup.Found) ?: throw AssertionError("expected Found, got $lookup"))
-			.content.bytes
-			.toString(Charsets.UTF_8)
+	private fun text(lookup: DocumentationLookup): String = bytes(lookup).toString(Charsets.UTF_8)
+
+	private fun bytes(lookup: DocumentationLookup): ByteArray =
+		((lookup as? DocumentationLookup.Found) ?: throw AssertionError("expected Found, got $lookup")).content.bytes
 
 	/** A file declaring [major], with one Brotli content type, no dictionary, and [fill]'s rows. */
 	private fun database(
@@ -113,7 +145,12 @@ class ContentBlockSchemaTest {
 	private fun SQLiteDatabase.block(
 		id: Long,
 		text: String,
-	) = execSQL("INSERT INTO ContentBlocks (id, data) VALUES (?, ?)", arrayOf<Any>(id, codec.compress(text.toByteArray())))
+	) = block(id, codec.compress(text.toByteArray()))
+
+	private fun SQLiteDatabase.block(
+		id: Long,
+		data: ByteArray,
+	) = execSQL("INSERT INTO ContentBlocks (id, data) VALUES (?, ?)", arrayOf<Any>(id, data))
 
 	/** A Content row: [text] Brotli-compressed, or the empty content a blocked row has. */
 	private fun SQLiteDatabase.row(

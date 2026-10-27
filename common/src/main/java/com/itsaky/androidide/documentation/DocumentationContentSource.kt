@@ -163,7 +163,8 @@ data class RequestLookup(
  * Thread-safe: [lookup] and [withDatabase] hold a read lock for the whole read, and the swap takes
  * the write lock, since swapping closes the handle a reader could be using. Readers never block
  * each other. A block is decoded and cached under the read lock, and a swap clears the cache under
- * the write lock, so a block decoded from one database is never served from another.
+ * the write lock, so a block decoded from one database is never served from another. A file
+ * rewritten in place before the swap check notices is caught by the cache's key (see [decodedBlock]).
  *
  * @param decodeTemplate Turns a `Templates` row's bytes into the template's text, given the codec
  * for the database it came from. A seam for `:common`'s tests only, which have no brotli4j desktop
@@ -246,9 +247,11 @@ class DocumentationContentSource internal constructor(
 	@Volatile
 	private var contentBlocks: Boolean? = null
 
-	private val blockCache = ContentBlockCache(ContentBlockCache.MAX_PLAIN_BYTES)
+	// Keyed by the file's state as well as the block id: see FileState.
+	private val blockCache = ContentBlockCache<BlockKey>(ContentBlockCache.MAX_PLAIN_BYTES)
 
-	// Its own tag, so logcat can be filtered to the block decodes and cache hits alone.
+	// Its own tag, so logcat can be filtered to the block decodes alone. A cache hit is not logged:
+	// IdeLogger has debug on in every build, and a hit happens for most requests a page makes.
 	private val blockLog = LoggerFactory.getLogger("DocBlocks")
 
 	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
@@ -523,6 +526,7 @@ class DocumentationContentSource internal constructor(
 			log.warn("Could not prime the compression dictionary; will retry on the next read: {}", e.message)
 		}
 
+		val fileBefore = activeFileState()
 		queryContent(database, path).use { cursor ->
 			if (cursor.count == 0) return DocumentationLookup.NotFound
 			if (cursor.count != 1) return DocumentationLookup.Ambiguous(cursor.count)
@@ -531,7 +535,7 @@ class DocumentationContentSource internal constructor(
 			val mimeType = cursor.getString(1)
 			val templateId = cursor.getInt(3)
 
-			val decoded = rowBytes(database, path, cursor)
+			val decoded = rowBytes(database, path, cursor, fileBefore)
 			val bytes = if (templateId > 0) render(database, templateId, decoded, path) else decoded
 
 			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType))
@@ -562,11 +566,14 @@ class DocumentationContentSource internal constructor(
 	/**
 	 * The plain bytes of the row [cursor] is on, a [queryContent] result: the row's slice of its
 	 * decoded block when it has one, else its own content decoded (see [decodeRow]).
+	 *
+	 * @param fileBefore The active file's state, taken before [cursor]'s query ran (see [decodedBlock]).
 	 */
 	private fun rowBytes(
 		database: SQLiteDatabase,
 		path: String,
 		cursor: Cursor,
+		fileBefore: FileState,
 	): ByteArray {
 		val blocked = contentBlocks(database)
 		if (!blocked || cursor.isNull(BLOCK_ID_COLUMN)) {
@@ -581,44 +588,55 @@ class DocumentationContentSource internal constructor(
 			return decodeRow(database, path, content, compression)
 		}
 		val blockId = cursor.getLong(BLOCK_ID_COLUMN)
+		// Version 4 empties a blocked row's content (x''). Bytes there as well mean the file is not
+		// what it declares, and nothing says which copy is the page.
+		check(cursor.getBlob(0)?.isEmpty() != false) {
+			"Content row '$path' has a ContentBlockItems row in block $blockId and content of its own"
+		}
 		// Both NOT NULL in the schema; read as 0 they would slice an empty page out of the block.
 		check(!cursor.isNull(BLOCK_ID_COLUMN + 1) && !cursor.isNull(BLOCK_ID_COLUMN + 2)) {
 			"ContentBlockItems row for '$path' in block $blockId has no offset or length"
 		}
 		val offset = cursor.getLong(BLOCK_ID_COLUMN + 1)
 		val length = cursor.getLong(BLOCK_ID_COLUMN + 2)
-		return sliceBlockItem(decodedBlock(database, blockId, path), blockId, offset, length)
+		return sliceBlockItem(decodedBlock(database, blockId, path, fileBefore), blockId, offset, length)
 	}
 
 	/**
 	 * Block [blockId] decoded, from the cache or else read and Brotli-decoded with the codec the
 	 * database's Content rows use, then cached.
 	 *
-	 * @param path The page being served, for the failure and the log lines.
-	 * @throws IllegalStateException When the database has no such block, or it has no data.
+	 * Served only if the active file is still in [fileBefore], the state it was in before the row
+	 * naming the block was read, and cached under that state. An installer rewrites the installed
+	 * file in place, under the open handle, which then reads the new file's rows until the rewrite
+	 * check reopens it, up to a check interval later. A block cached from the old file is under the
+	 * old state, so it is never sliced for a row of the new one; and a rewrite that lands between the
+	 * row and its block fails the read, since the two may come from different files.
+	 *
+	 * @param path The page being served, for the failure and the log line.
+	 * @throws IllegalStateException When the database has no such block, or it has no data, or the
+	 * file changed during the read.
 	 * @throws IOException When the block does not decode.
 	 */
 	private fun decodedBlock(
 		database: SQLiteDatabase,
 		blockId: Long,
 		path: String,
+		fileBefore: FileState,
 	): ByteArray {
-		blockCache.get(blockId)?.let { block ->
-			if (blockLog.isDebugEnabled) blockLog.debug("hit block={} path={} plain={}", blockId, path, block.size)
+		val key = BlockKey(blockId, fileBefore)
+		blockCache.get(key)?.let { block ->
+			checkFileUnchanged(fileBefore, path)
 			return block
 		}
 
-		val compressed =
-			database.rawQuery(BLOCK_QUERY, arrayOf(blockId.toString())).use { cursor ->
-				check(cursor.moveToFirst()) { "Content block $blockId not found, for path '$path'" }
-				checkNotNull(cursor.getBlob(0)) { "Content block $blockId has no data, for path '$path'" }
-			}
+		val compressed = readContentBlock(database, blockId, path)
 
 		val codec = codec(database)
 		val started = System.nanoTime()
 		val block =
 			try {
-				codec.decompress(ByteArrayInputStream(compressed))
+				codec.decompress(chunksAsStream(compressed))
 			} catch (e: Exception) {
 				// Logged with the database, as a template that does not decode is: the message leaves
 				// it out, and a debug database on the sdcard is the usual suspect.
@@ -626,14 +644,15 @@ class DocumentationContentSource internal constructor(
 				throw IOException("Content block $blockId does not decode, for path '$path'", e)
 			}
 		val decodeNanos = System.nanoTime() - started
-		val cached = blockCache.put(blockId, block)
+		checkFileUnchanged(fileBefore, path)
+		val cached = blockCache.put(key, block)
 
 		if (blockLog.isDebugEnabled) {
 			blockLog.debug(
 				"decode block={} path={} compressed={} plain={} decodeMs={} cachePlain={}",
 				blockId,
 				path,
-				compressed.size,
+				compressed.sumOf { it.size },
 				block.size,
 				String.format(Locale.ROOT, "%.3f", decodeNanos / 1_000_000.0),
 				cached,
@@ -641,6 +660,22 @@ class DocumentationContentSource internal constructor(
 		}
 		return block
 	}
+
+	/** The active file's state now: see [FileState]. Two stat calls, cheap beside the query. */
+	private fun activeFileState(): FileState {
+		val file = File(checkNotNull(activeDatabasePath) { "no documentation database is active" })
+		return FileState(file.length(), file.lastModified())
+	}
+
+	/** Fails the read when the active file is no longer in [before]: see [decodedBlock]. */
+	private fun checkFileUnchanged(
+		before: FileState,
+		path: String,
+	) = check(activeFileState() == before) { "The documentation database changed while '$path' was read" }
+
+	/** The decoded bytes the block cache holds now. */
+	@VisibleForTesting
+	fun cachedBlockBytes(): Long = blockCache.plainBytes()
 
 	/** A row's content: its chunks joined, and Brotli-decoded when its content type says so. */
 	private fun decodeRow(
@@ -669,6 +704,7 @@ class DocumentationContentSource internal constructor(
 		path: String,
 		pagePath: String,
 	): DocumentationLookup? {
+		val fileBefore = activeFileState()
 		queryContent(database, pagePath).use { cursor ->
 			if (cursor.count > 1) return DocumentationLookup.Ambiguous(cursor.count)
 			if (!cursor.moveToFirst()) return null
@@ -677,7 +713,7 @@ class DocumentationContentSource internal constructor(
 			val pageTemplate = templateNames.getOrPut(templateId) { templateName(database, templateId, pagePath) }
 			if (pageTemplate != HM_TOPIC_TEMPLATE || !templateLoader.resourceExists(JSTOPIC_TEMPLATE)) return null
 
-			val json = rowBytes(database, pagePath, cursor)
+			val json = rowBytes(database, pagePath, cursor, fileBefore)
 			return DocumentationLookup.Found(DocumentationContent(renderNamed(database, JSTOPIC_TEMPLATE, json, path), JSTOPIC_MIME_TYPE))
 		}
 	}
@@ -1005,6 +1041,21 @@ class DocumentationContentSource internal constructor(
 		blockCache.clear()
 	}
 
+	/**
+	 * The active file's length and modification time, as the file system reports them: what an
+	 * installer's rewrite in place changes. The rewrite check relies on the modification time moving
+	 * too; neither installer sets it.
+	 */
+	private data class FileState(
+		val length: Long,
+		val lastModified: Long,
+	)
+
+	private data class BlockKey(
+		val blockId: Long,
+		val file: FileState,
+	)
+
 	companion object {
 		const val CONTENT_CHUNK_SIZE = 1024 * 1024
 
@@ -1043,8 +1094,6 @@ class DocumentationContentSource internal constructor(
 		"""
 
 		private const val BLOCK_ID_COLUMN = 4
-
-		private const val BLOCK_QUERY = "SELECT data FROM ContentBlocks WHERE id = ?"
 
 		private const val CHUNK_QUERY = "SELECT content FROM Content WHERE path = ? AND languageId = 1"
 

@@ -171,6 +171,12 @@ class DocumentationContentSourceTest {
 		assertContentQuery(declaredMajorVersion = 4, blocked = true)
 	}
 
+	// The gate is a floor, not a match: a later major is read as 4.
+	@Test
+	fun `a database declaring a version above 4 reads its rows with their block items`() {
+		assertContentQuery(declaredMajorVersion = 5, blocked = true)
+	}
+
 	@Test
 	fun `a database declaring version 3 reads its rows as they are`() {
 		assertContentQuery(declaredMajorVersion = 3, blocked = false)

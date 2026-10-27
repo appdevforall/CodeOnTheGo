@@ -232,7 +232,6 @@ class ContentBlockSourceTest {
 		assertTrue(cause.toString(), cause is IllegalStateException)
 	}
 
-	// Narrowed to Int unchecked, 2^32 would wrap to 0 and serve the first item's bytes instead.
 	// Read as 0, a NULL length would slice an empty page out of the block.
 	@Test
 	fun `an item with no length fails the page rather than serving an empty one`() {
@@ -244,6 +243,7 @@ class ContentBlockSourceTest {
 		assertEquals("ContentBlockItems row for 'j/x.html' in block 1 has no offset or length", cause.message)
 	}
 
+	// Narrowed to Int unchecked, 2^32 would wrap to 0 and serve the first item's bytes instead.
 	@Test
 	fun `an item past Int range fails the page rather than serving another item's bytes`() {
 		val items = listOf(Item("j/x.html", "<p>X</p>"), Item("j/y.html", "<p>Y</p>", offset = 1L shl 32))
@@ -265,6 +265,76 @@ class ContentBlockSourceTest {
 		assertEquals("Content row 'j/x.html' is empty and has no ContentBlockItems row", cause.message)
 	}
 
+	// Version 4 empties a blocked row's content; a row with both is not what the file declares.
+	@Test
+	fun `a row with an item and content of its own in a version 4 database fails the page`() {
+		opens(database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>Block</p>", rowText = "<p>Row</p>")))))
+
+		val cause = failure("j/x.html")
+
+		assertTrue(cause.toString(), cause is IllegalStateException)
+		assertEquals("Content row 'j/x.html' has a ContentBlockItems row in block 1 and content of its own", cause.message)
+	}
+
+	// Every gate is a floor: a later major is read as 4, blocks and all.
+	@Test
+	fun `a version 5 database serves its pages from their blocks`() {
+		opens(database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>X</p>"))), declaredMajorVersion = 5))
+
+		assertEquals("<p>X</p>", text(found("j/x.html")))
+	}
+
+	@Test
+	fun `close drops the cached blocks`() {
+		opens(database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>X</p>")))))
+		val source = source()
+		found("j/x.html", source)
+		assertEquals(8L, source.cachedBlockBytes())
+
+		source.close()
+
+		assertEquals(0L, source.cachedBlockBytes())
+	}
+
+	// An installer rewrites the installed file in place, under the open handle, which then reads the
+	// new file until the rewrite check reopens it: here, not for a minute. The new file's block 1 is
+	// another block, and the old file's block 1 is still cached.
+	@Test
+	fun `a file rewritten in place before the rewrite check is not sliced from the old file's cached block`() {
+		val file =
+			RewrittenInPlace(
+				database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>Before</p>")))),
+				database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>After</p>"), Item("j/y.html", "<p>Y</p>")))),
+			)
+		val source = DocumentationContentSource(installedFile, debugFile, 60_000)
+		assertEquals("<p>Before</p>", text(found("j/x.html", source)))
+
+		file.rewrite()
+
+		assertEquals("<p>After</p>", text(found("j/x.html", source)))
+		assertEquals("<p>Y</p>", text(found("j/y.html", source)))
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
+	// The rewrite lands between a row and its block, so the row is the old file's and the block the
+	// new one's: the page fails rather than serving a slice of the wrong block, which is not cached.
+	@Test
+	fun `a file rewritten in place between a row and its block fails the page`() {
+		RewrittenInPlace(
+			database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>Before</p>")))),
+			database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>After</p>"), Item("j/y.html", "<p>Y</p>")))),
+			rewriteOnBlockRead = true,
+		)
+		val source = DocumentationContentSource(installedFile, debugFile, 60_000)
+
+		val cause = failure("j/x.html", source)
+
+		assertTrue(cause.toString(), cause is IllegalStateException)
+		assertEquals("The documentation database changed while 'j/x.html' was read", cause.message)
+		assertEquals(0L, source.cachedBlockBytes())
+		assertEquals("<p>After</p>", text(found("j/x.html", source)))
+	}
+
 	@Test
 	fun `a swap between version 4 files with the same block ids serves the new blocks`() {
 		opens(database(blocks = mapOf(1L to listOf(page("a/one.html", "Old")))), installedFile)
@@ -275,6 +345,8 @@ class ContentBlockSourceTest {
 		swapToDebugDatabase()
 
 		assertEquals("<h1>New</h1>", text(found("a/one.html", source)))
+		// The new file's block alone: the swap dropped the old one.
+		assertEquals("""{"title": "New"}""".length.toLong(), source.cachedBlockBytes())
 	}
 
 	@Test
@@ -314,6 +386,7 @@ class ContentBlockSourceTest {
 		installedFile.setLastModified(installedFile.lastModified() + 60_000)
 
 		assertEquals("<p>After</p>", text(found("j/x.html", source)))
+		assertEquals("<p>After</p>".length.toLong(), source.cachedBlockBytes())
 	}
 
 	// The read holds the read lock from its query to the block's cache insert, and the swap waits on
@@ -352,8 +425,9 @@ class ContentBlockSourceTest {
 		}
 	}
 
+	// IdeLogger has debug on in every build, so a line per hit would reach logcat for most requests.
 	@Test
-	fun `a decode is logged at debug with its sizes and time, and so is a hit`() {
+	fun `a decode is logged at debug with its sizes and time, and a hit is not logged`() {
 		opens(database(blocks = mapOf(4L to listOf(Item("j/x.html", "<p>X</p>"), Item("j/y.html", "<p>Y</p>")))))
 		val lines = mutableListOf<Pair<Level, String>>()
 		val sink = IdeLogRouter.ExternalSink { level, name, message, _ -> if (name == "DocBlocks") lines += level to message }
@@ -366,13 +440,12 @@ class ContentBlockSourceTest {
 			IdeLogRouter.removeSink(sink)
 		}
 
-		assertEquals(lines.toString(), 2, lines.size)
+		assertEquals(lines.toString(), 1, lines.size)
 		val (decodeLevel, decode) = lines[0]
 		assertEquals(Level.DEBUG, decodeLevel)
 		val compressed = codec(null).compress("<p>X</p><p>Y</p>".toByteArray()).size
 		assertTrue(decode, decode.startsWith("decode block=4 path=j/x.html compressed=$compressed plain=16 decodeMs="))
 		assertTrue(decode, Regex("""decodeMs=\d+\.\d{3} cachePlain=16$""").containsMatchIn(decode))
-		assertEquals(Level.DEBUG to "hit block=4 path=j/y.html plain=16", lines[1])
 	}
 
 	private class Item(
@@ -435,6 +508,37 @@ class ContentBlockSourceTest {
 		debugFile.setLastModified(installedFile.lastModified() + 60_000)
 	}
 
+	/**
+	 * The installed file's one handle, reading [before] until [rewrite] and [after] from then on, as
+	 * SQLite's handle does when an installer truncates and rewrites the file under it. With
+	 * [rewriteOnBlockRead], the first block read rewrites the file just before it is answered.
+	 */
+	private inner class RewrittenInPlace(
+		before: SQLiteDatabase,
+		private val after: SQLiteDatabase,
+		rewriteOnBlockRead: Boolean = false,
+	) {
+		private var current = before
+
+		init {
+			val handle =
+				mockk<SQLiteDatabase>(relaxed = true) {
+					every { rawQuery(any(), any()) } answers {
+						val sql = firstArg<String>()
+						if (rewriteOnBlockRead && current !== after && sql.contains("FROM ContentBlocks")) rewrite()
+						current.rawQuery(sql, secondArg<Array<String>?>())
+					}
+				}
+			opens(handle)
+		}
+
+		fun rewrite() {
+			installedFile.writeText("rewritten in place")
+			installedFile.setLastModified(installedFile.lastModified() + 60_000)
+			current = after
+		}
+	}
+
 	private fun codec(dictionary: String?) = BrotliDictionaryCodec(dictionary?.let { toDirectByteBuffer(it.toByteArray()) })
 
 	// Quality 1, for a block too big to compress at the pipeline's 11 in reasonable time.
@@ -470,6 +574,7 @@ class ContentBlockSourceTest {
 		val codec = codec(dictionary)
 		val blockedQuery: (String) -> Boolean = { it.contains("LEFT JOIN ContentBlockItems") }
 		val plainQuery: (String) -> Boolean = { it.contains("FROM   Content") && !it.contains("ContentBlockItems") }
+		val stored = mutableMapOf<Long, ByteArray>()
 		return mockk(relaxed = true) {
 			every { rawQuery(match { it.contains("FROM   Content") }, any()) } answers { cursor(count = 0) }
 			if (!hasBlockTables) {
@@ -509,10 +614,12 @@ class ContentBlockSourceTest {
 					// Proof the stream matched into the dictionary: without it, the block cannot decode.
 					assertThrows(IOException::class.java) { codec(null).decompress(ByteArrayInputStream(data)) }
 				}
-				every { rawQuery(match { it.contains("FROM ContentBlocks") }, arrayOf(blockId.toString())) } answers {
-					onBlockRead()
-					if (blockId in missingBlocks) cursor(count = 0) else cursor { every { getBlob(0) } returns data }
-				}
+				if (blockId !in missingBlocks) stored[blockId] = data
+			}
+			every { rawQuery(match { it.contains("FROM ContentBlocks") }, any()) } answers {
+				onBlockRead()
+				val args = secondArg<Array<String>>()
+				stored[args.last().toLong()]?.let { blockCursor(firstArg(), args, it) } ?: cursor(count = 0)
 			}
 
 			for ((path, text) in unblocked) {
@@ -589,6 +696,29 @@ class ContentBlockSourceTest {
 		every { getString(2) } returns "brotli"
 		every { getInt(3) } returns templateId
 		columns()
+	}
+
+	/**
+	 * What SQLite answers [sql], one of the reader's two block queries, for a block of [data]: its
+	 * length and first piece, or the piece at [args]' start, which counts from 1 as substr() does.
+	 * The piece size is the next to last argument of either.
+	 */
+	private fun blockCursor(
+		sql: String,
+		args: Array<String>,
+		data: ByteArray,
+	): Cursor {
+		val first = sql.contains("length(data)")
+		val start = if (first) 0 else args[0].toInt() - 1
+		val piece = data.copyOfRange(start, minOf(start + args[args.size - 2].toInt(), data.size))
+		return if (first) {
+			cursor {
+				every { getLong(0) } returns data.size.toLong()
+				every { getBlob(1) } returns piece
+			}
+		} else {
+			cursor { every { getBlob(0) } returns piece }
+		}
 	}
 
 	private fun cursor(

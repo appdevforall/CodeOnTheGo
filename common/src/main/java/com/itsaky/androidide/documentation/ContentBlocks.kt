@@ -17,6 +17,8 @@
 
 package com.itsaky.androidide.documentation
 
+import android.database.sqlite.SQLiteDatabase
+
 /**
  * One item of a decoded content block (ADFA-6683, documentation version 4): bytes
  * `[offset, offset + length)`.
@@ -41,39 +43,91 @@ internal fun sliceBlockItem(
 }
 
 /**
- * Decoded content blocks by `ContentBlocks.id`, least recently used out once their plain bytes would
- * pass [maxBytes]. A block larger than the whole budget is not cached.
+ * Block [blockId]'s compressed bytes, in pieces of at most [pieceBytes], to be decoded back to back
+ * (see [chunksAsStream]).
+ *
+ * A cursor holds its row in a CursorWindow, 2 MiB on Android, and a row that does not fit fails the
+ * read. Only a block's decoded size is capped, not its compressed size, so a block over [pieceBytes]
+ * is read a piece per query with `substr()`, which counts a BLOB's bytes from 1. SQLite loads the
+ * whole blob for each of those queries, so a block of n pieces costs n reads of it; the largest
+ * block in the 4.0.0 build, 559,581 bytes, is one piece and one query.
+ *
+ * @param path The page being served, for the failure.
+ * @throws IllegalStateException When the database has no such block, or it has no data.
+ */
+internal fun readContentBlock(
+	database: SQLiteDatabase,
+	blockId: Long,
+	path: String,
+	pieceBytes: Int = DocumentationContentSource.CONTENT_CHUNK_SIZE,
+): List<ByteArray> {
+	val id = blockId.toString()
+	val pieces = mutableListOf<ByteArray>()
+	val size =
+		database.rawQuery(BLOCK_QUERY, arrayOf(pieceBytes.toString(), id)).use { cursor ->
+			check(cursor.moveToFirst()) { "Content block $blockId not found, for path '$path'" }
+			check(!cursor.isNull(0)) { "Content block $blockId has no data, for path '$path'" }
+			// substr() of an empty blob is NULL; that block then fails to decode, naming itself.
+			pieces += cursor.getBlob(1) ?: ByteArray(0)
+			cursor.getLong(0)
+		}
+	var read = pieces[0].size.toLong()
+	while (read < size) {
+		val piece =
+			database.rawQuery(BLOCK_PIECE_QUERY, arrayOf((read + 1).toString(), pieceBytes.toString(), id)).use { cursor ->
+				check(cursor.moveToFirst()) { "Content block $blockId not found, for path '$path'" }
+				cursor.getBlob(0) ?: ByteArray(0)
+			}
+		// Empty only when the blob shrank under the read, which would otherwise loop for good.
+		check(piece.isNotEmpty()) { "Content block $blockId ended at byte $read of $size, for path '$path'" }
+		pieces += piece
+		read += piece.size
+	}
+	return pieces
+}
+
+// The block's size and its first piece in one query, so a block of one piece costs one.
+private const val BLOCK_QUERY = "SELECT length(data), substr(data, 1, ?) FROM ContentBlocks WHERE id = ?"
+
+private const val BLOCK_PIECE_QUERY = "SELECT substr(data, ?, ?) FROM ContentBlocks WHERE id = ?"
+
+/**
+ * Decoded content blocks by key, least recently used out once their plain bytes would pass
+ * [maxBytes]. A block larger than the whole budget is not cached.
  *
  * Thread-safe: every access holds this object's monitor. A caller decodes outside it, so a decode
  * never blocks another request's hit; two requests that miss the same block both decode it, and the
  * second [put] replaces the first.
+ *
+ * @param K What names a block: its `ContentBlocks.id`, and whatever else tells two files' blocks of
+ * that id apart.
  */
-internal class ContentBlockCache(
+internal class ContentBlockCache<K : Any>(
 	private val maxBytes: Long,
 ) {
 	// Access order, so iteration starts at the least recently used block.
-	private val blocks = LinkedHashMap<Long, ByteArray>(16, 0.75f, true)
+	private val blocks = LinkedHashMap<K, ByteArray>(16, 0.75f, true)
 
 	private var plainBytes = 0L
 
 	/** The cached block, now the most recently used; null on a miss. */
 	@Synchronized
-	fun get(blockId: Long): ByteArray? = blocks[blockId]
+	fun get(key: K): ByteArray? = blocks[key]
 
 	/**
-	 * Caches [plain] as [blockId]'s decoded block and evicts least recently used blocks to fit.
+	 * Caches [plain] as [key]'s decoded block and evicts least recently used blocks to fit.
 	 *
 	 * @return The plain bytes cached after the insert.
 	 */
 	@Synchronized
 	fun put(
-		blockId: Long,
+		key: K,
 		plain: ByteArray,
 	): Long {
-		blocks.remove(blockId)?.let { plainBytes -= it.size }
+		blocks.remove(key)?.let { plainBytes -= it.size }
 		if (plain.size > maxBytes) return plainBytes
 
-		blocks[blockId] = plain
+		blocks[key] = plain
 		plainBytes += plain.size
 		// Never reaches the block just added: it is the newest, and it fits alone.
 		val eldest = blocks.values.iterator()
