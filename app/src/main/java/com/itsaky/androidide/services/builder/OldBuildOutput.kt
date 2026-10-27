@@ -16,19 +16,23 @@ object OldBuildOutput {
 	const val REMOVED_FILE = "old-output-removed"
 
 	/**
-	 * The stale folders of a relocated project: the `build/` of each project the synced model lists,
-	 * and the Gradle and Kotlin caches of the root and of `buildSrc`. Only folders Gradle makes by
-	 * default, inside [rootDir] once symlinks are resolved, so a linked module folder cannot lead the
+	 * The stale folders of a relocated project: the `build/` of each project the synced model put in
+	 * [tree], and the Gradle and Kotlin caches of the root and of `buildSrc`. For a project in [tree],
+	 * `build/` was Gradle's default before the move; a project whose build script sets its own build
+	 * directory stays where it was, so a `build/` folder in it was never Gradle's and is kept. Only
+	 * folders inside [rootDir] once symlinks are resolved, so a linked module folder cannot lead the
 	 * deletion out of the project. Left alone: a symlink; a folder that is a project's directory or
 	 * holds one; a folder that holds or lies in a build directory the model still uses; and
 	 * `buildSrc/.gradle/` and an included build's `.gradle/` and `.kotlin/`, which builds still use.
 	 *
 	 * @param rootDir the root project's directory.
+	 * @param tree the project's tree, from [BuildOutputLocation.treeFor].
 	 * @param projectDirs the directory of every project in the synced model.
 	 * @param buildDirs the build directory of every project in the synced model.
 	 */
 	fun find(
 		rootDir: File,
+		tree: File,
 		projectDirs: List<File>,
 		buildDirs: List<File>,
 	): List<File> {
@@ -36,8 +40,9 @@ object OldBuildOutput {
 		val canonicalRoot = canonicalOrNull(root) ?: return emptyList()
 		val projects = projectDirs.map { it.absoluteFile.normalize() }
 		val inUse = buildDirs.map { it.absoluteFile.normalize() }
+		val relocated = projects.zip(inUse).filter { (_, buildDir) -> BuildOutputLocation.isRelocated(buildDir, tree) }
 		val candidates =
-			projects.map { File(it, "build") } +
+			relocated.map { (projectDir, _) -> File(projectDir, "build") } +
 				listOf(".gradle", ".kotlin", "buildSrc/build", "buildSrc/.kotlin").map { File(root, it) }
 		return candidates.distinct().filter { dir ->
 			canonicalOrNull(dir)?.startsWith(canonicalRoot) == true &&
@@ -63,7 +68,7 @@ object OldBuildOutput {
 	): Int {
 		val marker = File(tree, REMOVED_FILE)
 		if (marker.exists()) return 0
-		val stale = find(rootDir, projectDirs, buildDirs)
+		val stale = find(rootDir, tree, projectDirs, buildDirs)
 		val removed = stale.count { deleteWithoutFollowingLinks(it) }
 		if (removed == stale.size) {
 			try {

@@ -22,7 +22,7 @@ class OldBuildOutputTest {
 		val tree = tmp.newFolder("tree")
 		dirs(root, "build", "app/build", ".gradle", ".kotlin", "buildSrc/build", "buildSrc/.kotlin", "buildSrc/.gradle", ".cxx")
 
-		val found = OldBuildOutput.find(root, listOf(root, File(root, "app")), listOf(File(tree, "root"), File(tree, "app")))
+		val found = OldBuildOutput.find(root, tree, listOf(root, File(root, "app")), listOf(File(tree, "root"), File(tree, "app")))
 
 		assertThat(found.map { it.relativeTo(root).path }).containsExactly(
 			"build",
@@ -40,7 +40,7 @@ class OldBuildOutputTest {
 		val tree = tmp.newFolder("tree")
 		val module = dirs(root, "build/src").first().parentFile
 
-		val found = OldBuildOutput.find(root, listOf(root, module), listOf(File(tree, "root"), File(tree, "build")))
+		val found = OldBuildOutput.find(root, tree, listOf(root, module), listOf(File(tree, "root"), File(tree, "build")))
 
 		assertThat(found).isEmpty()
 	}
@@ -52,7 +52,7 @@ class OldBuildOutputTest {
 		dirs(root, "build/custom", "app/build")
 
 		// The root project set its own build directory, overriding the relocation.
-		val found = OldBuildOutput.find(root, listOf(root, File(root, "app")), listOf(File(root, "build/custom"), File(tree, "app")))
+		val found = OldBuildOutput.find(root, tree, listOf(root, File(root, "app")), listOf(File(root, "build/custom"), File(tree, "app")))
 
 		assertThat(found.map { it.relativeTo(root).path }).containsExactly("app/build")
 	}
@@ -66,7 +66,7 @@ class OldBuildOutputTest {
 		val elsewhere = tmp.newFolder("elsewhere")
 		Files.createSymbolicLink(File(root, "build").toPath(), elsewhere.toPath())
 
-		val found = OldBuildOutput.find(root, listOf(root, outside), listOf(File(tree, "root"), File(tree, "lib")))
+		val found = OldBuildOutput.find(root, tree, listOf(root, outside), listOf(File(tree, "root"), File(tree, "lib")))
 
 		assertThat(found).isEmpty()
 	}
@@ -114,7 +114,7 @@ class OldBuildOutputTest {
 		// The module's folder is a link out of the project; its build folder itself is real.
 		Files.createSymbolicLink(File(root, "app").toPath(), shared.toPath())
 
-		val found = OldBuildOutput.find(root, listOf(root, File(root, "app")), listOf(File(tree, "root"), File(tree, "app")))
+		val found = OldBuildOutput.find(root, tree, listOf(root, File(root, "app")), listOf(File(tree, "root"), File(tree, "app")))
 
 		assertThat(found).isEmpty()
 		assertThat(File(shared, "build/outputs").isDirectory).isTrue()
@@ -139,5 +139,21 @@ class OldBuildOutputTest {
 		assertThat(OldBuildOutput.removeOnce(tree, root, projects, buildDirs)).isEqualTo(1)
 		assertThat(File(root, "app/build").exists()).isFalse()
 		assertThat(File(tree, OldBuildOutput.REMOVED_FILE).exists()).isTrue()
+	}
+
+	@Test
+	fun `a build folder in a project with its own build directory is the user's`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		dirs(root, "app/build", "lib/out", "lib/build")
+		val notes = File(root, "lib/build/notes.txt").apply { writeText("mine") }
+		val projects = listOf(root, File(root, "app"), File(root, "lib"))
+		// :lib sets layout.buildDirectory = file("out"), which overrides the relocation.
+		val buildDirs = listOf(File(tree, "root"), File(tree, "app"), File(root, "lib/out"))
+
+		assertThat(OldBuildOutput.find(root, tree, projects, buildDirs).map { it.relativeTo(root).path })
+			.containsExactly("app/build")
+		OldBuildOutput.removeOnce(tree, root, projects, buildDirs)
+		assertThat(notes.readText()).isEqualTo("mine")
 	}
 }
