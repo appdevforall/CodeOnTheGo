@@ -248,4 +248,20 @@ class DeepLinkBuildUrlTest {
 		assertThat(DeepLinkRequest.buildUrl("P", "a".repeat(513 - prefixLength))).isNull()
 		assertThat(DeepLinkRequest.buildUrl("P", "a".repeat(600))).isNull()
 	}
+
+	@Test
+	fun `a wildcard is never written, whatever the arguments`() {
+		assertThat(DeepLinkRequest.buildUrl(DeepLinkRequest.WILDCARD_PROJECT)).isNull()
+		assertThat(DeepLinkRequest.buildUrl(DeepLinkRequest.WILDCARD_PROJECT, "a.kt", 1, 1)).isNull()
+	}
+
+	@Test
+	fun `the whole angle-bracket namespace is refused as a project name`() {
+		assertThat(DeepLinkRequest.buildUrl("<x>")).isNull()
+		assertThat(DeepLinkRequest.isLinkableProjectName("<x>")).isFalse()
+		assertThat(DeepLinkRequest.isLinkableProjectName("<*>")).isFalse()
+		// Only a name shaped like a selector is reserved.
+		assertThat(DeepLinkRequest.isLinkableProjectName("<x")).isTrue()
+		assertThat(DeepLinkRequest.isLinkableProjectName("x>")).isTrue()
+	}
 }

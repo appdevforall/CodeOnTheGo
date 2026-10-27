@@ -60,6 +60,7 @@ import com.itsaky.androidide.analytics.DeepLinkMetric
 import com.itsaky.androidide.analytics.DeepLinkOutcome
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.depth
+import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.app.EditorEvents
@@ -2946,6 +2947,8 @@ open class EditorHandlerActivity :
 		val isProjectSwitchIntent =
 			(
 				deepLinkRequest != null &&
+					// A wildcard is never a switch: it names the project already open, or nothing.
+					!deepLinkRequest.isCurrentProject &&
 					!isDeepLinkTargetOfOpenProject(
 						IProjectManager.getInstance().projectDirPath,
 						deepLinkRequest.projectName,
@@ -3005,6 +3008,14 @@ open class EditorHandlerActivity :
 		// out of order with this one -- mirrors MainActivity.latestDeepLinkRequest's identical race.
 		latestDeepLinkRequest = request
 
+		// The wildcard is answered from the live project, never by a lookup under projectsRoot (the
+		// open project may live anywhere), and never through switchToProject, whose finishing and
+		// blank-path branches arm a hand-off to a project path that does not exist for a wildcard.
+		if (request.isCurrentProject) {
+			openInCurrentProject(request)
+			return
+		}
+
 		lifecycleScope.launch(Dispatchers.IO) {
 			val lookup = resolveDeepLinkProject(projectsRoot(), request.projectName)
 			if (lookup !is DeepLinkProjectLookup.Found) {
@@ -3014,12 +3025,13 @@ open class EditorHandlerActivity :
 				analyticsManager.trackDeepLink(
 					DeepLinkMetric(
 						request.depth(),
-						if (lookup is DeepLinkProjectLookup.NotFound) {
-							DeepLinkOutcome.PROJECT_NOT_FOUND
-						} else {
-							DeepLinkOutcome.PROJECT_UNVERIFIABLE
+						when (lookup) {
+							DeepLinkProjectLookup.NotFound -> DeepLinkOutcome.PROJECT_NOT_FOUND
+							DeepLinkProjectLookup.NoProjectOpen -> DeepLinkOutcome.NO_PROJECT_OPEN
+							else -> DeepLinkOutcome.PROJECT_UNVERIFIABLE
 						},
-						request.projectName,
+						request.projectName.takeUnless { request.isCurrentProject },
+						request.selector(),
 					),
 				)
 				// No such project, so the switch this intent announced is never going to happen. Without
@@ -3062,6 +3074,28 @@ open class EditorHandlerActivity :
 				switchToProject(lookup.projectDir.absolutePath, request.fileRequest)
 			}
 		}
+	}
+
+	/**
+	 * Handles a wildcard link ([DeepLinkRequest.WILDCARD_PROJECT]): shows [request]'s file in whatever
+	 * project this editor has open.
+	 *
+	 * Runs on the main thread and reads the project path synchronously, so the answer is the project
+	 * open at the moment the link arrived. If there is none -- this instance is finishing because a
+	 * switch was confirmed, no project has loaded into it, or its views are gone -- the link has
+	 * nothing to apply to and says so. It must not be handed to [switchToProject], which would arm a
+	 * hand-off for it (see the call site).
+	 */
+	private fun openInCurrentProject(request: DeepLinkRequest) {
+		val projectPath = IProjectManager.getInstance().projectDirPath
+		if (isFinishing || projectPath.isBlank() || contentOrNull == null) {
+			analyticsManager.trackDeepLink(
+				DeepLinkMetric(request.depth(), DeepLinkOutcome.NO_PROJECT_OPEN, selector = request.selector()),
+			)
+			if (!isDestroyed) flashError(getString(string.msg_deeplink_no_project_open))
+			return
+		}
+		navigateWithinOpenProject(request.fileRequest)
 	}
 
 	override fun postProjectInit(
@@ -3187,48 +3221,7 @@ open class EditorHandlerActivity :
 			// "already in this project" case even mid-sync, instead of falling through to the
 			// disruptive close-and-reopen confirmation below for a no-op.
 			newProjectPath == currentProjectPath -> {
-				// Gates both applying now and draining the intent's own copy below: a request
-				// arriving while the project is still syncing (workspace == null) must stay armed for
-				// postProjectInit's deferred retry once that sync completes, or it's lost for good --
-				// applyDeepLinkFileRequest resolves against files a still-in-progress sync may not
-				// have settled yet.
-				val projectReady = IProjectManager.getInstance().workspace != null
-				if (confirmCloseInProgress) {
-					// A close-confirmation dialog for a *different* project switch is already
-					// showing -- navigating underneath it now would just get silently discarded if
-					// the user goes on to confirm that close.
-					flashError(getString(string.msg_project_close_in_progress))
-					// Drop only THIS request's own copy of the extra (the plain-switch path arms it
-					// on the intent before this runs). The extra can instead be an older,
-					// still-unapplied request for this staying project -- armed by the mid-sync
-					// branch below on an earlier call -- which has nothing to do with the in-flight
-					// close and which postProjectInit must still apply if the user cancels it;
-					// draining unconditionally here destroyed that older request along with this one.
-					val armedRequest =
-						IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
-					if (fileRequest != null && fileRequest == armedRequest) {
-						drainPendingFileRequest()
-					}
-				} else if (projectReady) {
-					fileRequest?.let {
-						applyDeepLinkFileRequest(it)
-						// This request supersedes whatever onNewIntent's carry-forward guard just
-						// re-armed onto the intent from the PREVIOUS, still-unconsumed request --
-						// leaving it in place would have postProjectInit silently jump back to that
-						// stale target once the current sync completes, discarding this newer
-						// navigation.
-						drainPendingFileRequest()
-					}
-				} else {
-					// Mid-sync: arm the request on the intent so postProjectInit's deferred retry
-					// finds it once the sync completes -- this branch is the "must stay armed"
-					// case the projectReady comment above describes, and without the put the
-					// request dies with this call while onNewIntent's carry-forward has already
-					// re-armed the PREVIOUS, still-unconsumed request, sending the editor to that
-					// stale target instead (ADFA-5067 review). The arm also supersedes that
-					// carried-forward value, so this branch needs no drain.
-					fileRequest?.let { armPendingFileRequest(intent, it) }
-				}
+				navigateWithinOpenProject(fileRequest)
 			}
 
 			else -> {
@@ -3247,6 +3240,57 @@ open class EditorHandlerActivity :
 					)
 				}
 			}
+		}
+	}
+
+	/**
+	 * Shows [fileRequest] in the project this editor already has open: the same-project half of
+	 * [switchToProject], shared with wildcard links ([openInCurrentProject]), which never switch.
+	 * Handles the three states that project can be in -- a close dialog already up, ready, or still
+	 * syncing.
+	 */
+	private fun navigateWithinOpenProject(fileRequest: PendingFileRequest?) {
+		// Gates both applying now and draining the intent's own copy below: a request
+		// arriving while the project is still syncing (workspace == null) must stay armed for
+		// postProjectInit's deferred retry once that sync completes, or it's lost for good --
+		// applyDeepLinkFileRequest resolves against files a still-in-progress sync may not
+		// have settled yet.
+		val projectReady = IProjectManager.getInstance().workspace != null
+		if (confirmCloseInProgress) {
+			// A close-confirmation dialog for a *different* project switch is already
+			// showing -- navigating underneath it now would just get silently discarded if
+			// the user goes on to confirm that close.
+			flashError(getString(string.msg_project_close_in_progress))
+			// Drop only THIS request's own copy of the extra (the plain-switch path arms it
+			// on the intent before this runs). The extra can instead be an older,
+			// still-unapplied request for this staying project -- armed by the mid-sync
+			// branch below on an earlier call -- which has nothing to do with the in-flight
+			// close and which postProjectInit must still apply if the user cancels it;
+			// draining unconditionally here destroyed that older request along with this one.
+			val armedRequest =
+				IntentCompat.getParcelableExtra(intent, PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
+			if (fileRequest != null && fileRequest == armedRequest) {
+				drainPendingFileRequest()
+			}
+		} else if (projectReady) {
+			fileRequest?.let {
+				applyDeepLinkFileRequest(it)
+				// This request supersedes whatever onNewIntent's carry-forward guard just
+				// re-armed onto the intent from the PREVIOUS, still-unconsumed request --
+				// leaving it in place would have postProjectInit silently jump back to that
+				// stale target once the current sync completes, discarding this newer
+				// navigation.
+				drainPendingFileRequest()
+			}
+		} else {
+			// Mid-sync: arm the request on the intent so postProjectInit's deferred retry
+			// finds it once the sync completes -- this branch is the "must stay armed"
+			// case the projectReady comment above describes, and without the put the
+			// request dies with this call while onNewIntent's carry-forward has already
+			// re-armed the PREVIOUS, still-unconsumed request, sending the editor to that
+			// stale target instead (ADFA-5067 review). The arm also supersedes that
+			// carried-forward value, so this branch needs no drain.
+			fileRequest?.let { armPendingFileRequest(intent, it) }
 		}
 	}
 
@@ -3288,7 +3332,13 @@ open class EditorHandlerActivity :
 				// window. Same race onNewIntent already guards against.
 				if (isFinishing || isDestroyed) return@withContext
 				if (file == null) {
-					flashError(getString(string.msg_deeplink_file_not_found, request.filePath))
+					flashError(
+						if (request.viaWildcard) {
+							getString(string.msg_deeplink_file_not_found_in_project, request.filePath, projectDir.name)
+						} else {
+							getString(string.msg_deeplink_file_not_found, request.filePath)
+						},
+					)
 					return@withContext
 				}
 
@@ -3310,6 +3360,11 @@ open class EditorHandlerActivity :
 				// it hands back two distinct Positions -- passing one instance as both ends gives
 				// EditorFeatures.validateRange a Range whose clamps move each other.
 				openFileAndSelect(file, Range.pointRange(Position(line, column)))
+
+				// The link is a request to look at this file, so get the bottom sheet out of the way. A
+				// course shown in that sheet used to do this itself, by reflection, even when this
+				// link was then rejected.
+				hideBottomSheet()
 			}
 		}
 	}
