@@ -233,4 +233,75 @@ class WildcardDeepLinkEditorTest {
 		assertThat(activity.intent.hasExtra(PendingFileRequest.EXTRA_KEY)).isFalse()
 		verify(exactly = 0) { pending.arm(any(), any()) }
 	}
+
+	private fun EditorHandlerActivity.field(name: String) =
+		EditorHandlerActivity::class.java.getDeclaredField(name).apply { isAccessible = true }
+
+	private fun EditorHandlerActivity.captureForSwitch() {
+		field("capturedPendingFileRequestBeforeSwitch").setBoolean(this, true)
+		field("pendingFileRequestBeforeSwitch").set(this, PendingFileRequest("staying/A.kt", null, null))
+		field("stayingProjectPathBeforeSwitch").set(this, "/anywhere/MyApp")
+	}
+
+	private fun EditorHandlerActivity.deliver(request: DeepLinkRequest) {
+		EditorHandlerActivity::class.java
+			.getDeclaredMethod("onNewIntent", Intent::class.java)
+			.apply { isAccessible = true }
+			.invoke(this, Intent().putExtra(DeepLinkRequest.EXTRA_KEY, request))
+	}
+
+	// A named switch still resolving has captured the staying project's state. A wildcard supersedes
+	// it, so that lookup exits as "superseded" and restores nothing -- the wildcard has to roll the
+	// capture back, or the next real switch skips its own.
+	@Test
+	fun `a wildcard superseding a resolving switch clears that switch's capture`() {
+		projectManager("/anywhere/MyApp", ready = true)
+		val activity = activity()
+		activity.captureForSwitch()
+
+		activity.deliver(wildcard)
+
+		assertThat(activity.field("capturedPendingFileRequestBeforeSwitch").getBoolean(activity)).isFalse()
+		assertThat(activity.field("stayingProjectPathBeforeSwitch").get(activity)).isNull()
+	}
+
+	@Test
+	fun `a wildcard leaves the capture alone while a close dialog owns it`() {
+		projectManager("/anywhere/MyApp", ready = true)
+		val activity = activity()
+		activity.captureForSwitch()
+		activity.field("confirmCloseInProgress").setBoolean(activity, true)
+
+		activity.deliver(wildcard)
+
+		assertThat(activity.field("capturedPendingFileRequestBeforeSwitch").getBoolean(activity)).isTrue()
+		assertThat(activity.field("stayingProjectPathBeforeSwitch").get(activity)).isEqualTo("/anywhere/MyApp")
+	}
+
+	// The project path is read once, on the calling thread: a switch landing before the IO thread
+	// starts must not change which project the file is resolved against.
+	@Test
+	fun `the project path is read on the calling thread, not inside the IO coroutine`() {
+		val readers = java.util.concurrent.CopyOnWriteArrayList<Thread>()
+		mockkObject(IProjectManager.Companion)
+		val manager = mockk<IProjectManager>(relaxed = true)
+		every { manager.projectDirPath } answers {
+			readers.add(Thread.currentThread())
+			"/anywhere/MyApp"
+		}
+		every { manager.workspace } returns mockk(relaxed = true)
+		every { IProjectManager.getInstance() } returns manager
+		val activity = activity()
+
+		EditorHandlerActivity::class.java
+			.getDeclaredMethod("applyDeepLinkFileRequest", PendingFileRequest::class.java)
+			.apply { isAccessible = true }
+			.invoke(activity, file)
+		Thread.sleep(500)
+		org.robolectric.shadows.ShadowLooper
+			.idleMainLooper()
+
+		assertThat(readers).isNotEmpty()
+		assertThat(readers.toSet()).containsExactly(Thread.currentThread())
+	}
 }

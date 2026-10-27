@@ -3018,6 +3018,12 @@ open class EditorHandlerActivity :
 		// open project may live anywhere), and never through switchToProject, whose finishing and
 		// blank-path branches arm a hand-off to a project path that does not exist for a wildcard.
 		if (request.isCurrentProject) {
+			// A named switch still resolving has already captured the staying project's pending state
+			// (see the capture above), and this wildcard supersedes it: that lookup will now exit as
+			// "superseded" without restoring anything, so nothing else ever clears the capture and the
+			// next real switch would skip its own. Roll it back here. When a close dialog is already up
+			// for that switch it owns the capture, and its cancel or confirm path is what resolves it.
+			if (!confirmCloseInProgress) restoreIntentToStayingProject()
 			openInCurrentProject(request)
 			return
 		}
@@ -3310,8 +3316,12 @@ open class EditorHandlerActivity :
 	 * main thread the two call sites (`onNewIntent`, [postProjectInit]) invoke this from.
 	 */
 	private fun applyDeepLinkFileRequest(request: PendingFileRequest) {
+		// Read here, on the main thread, not inside the coroutine: callers have just decided what to
+		// do based on this project, and a switch landing before the IO thread gets going would
+		// otherwise resolve the file against a different one.
+		val projectDirPath = IProjectManager.getInstance().projectDirPath
 		lifecycleScope.launch(Dispatchers.IO) {
-			val projectDir = File(IProjectManager.getInstance().projectDirPath)
+			val projectDir = File(projectDirPath)
 			val file =
 				try {
 					resolveWithinDirectory(projectDir, request.filePath)?.takeIf { it.isFile }
@@ -3336,6 +3346,9 @@ open class EditorHandlerActivity :
 				// first flips true, so this continuation can otherwise still run and touch a dying
 				// window. Same race onNewIntent already guards against.
 				if (isFinishing || isDestroyed) return@withContext
+				// Another project took over while the file was being resolved: the file belongs to the
+				// old one, and opening it here would put it in the new project's editor.
+				if (IProjectManager.getInstance().projectDirPath != projectDirPath) return@withContext
 				if (file == null) {
 					flashError(
 						if (request.viaWildcard) {
