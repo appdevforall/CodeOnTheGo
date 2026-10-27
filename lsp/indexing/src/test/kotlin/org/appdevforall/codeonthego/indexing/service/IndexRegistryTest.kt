@@ -218,6 +218,30 @@ class IndexRegistryTest {
 	}
 
 	@Test
+	fun `registerIfAbsent after the session ended does not create and throws`() {
+		val registry = IndexRegistry()
+		registry.lifetime.end()
+		var created = false
+
+		assertThrows(IndexRegistryClosedException::class.java) {
+			registry.registerIfAbsent(keyA) {
+				created = true
+				"created"
+			}
+		}
+
+		assertThat(created).isFalse()
+	}
+
+	@Test
+	fun `require of a missing index after the session ended throws the closed exception`() {
+		val registry = IndexRegistry()
+		registry.lifetime.end()
+
+		assertThrows(IndexRegistryClosedException::class.java) { registry.require(keyA) }
+	}
+
+	@Test
 	fun `register after close closes the given index and throws`() {
 		val registry = IndexRegistry()
 		registry.close()

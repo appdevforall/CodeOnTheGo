@@ -31,9 +31,14 @@ class IndexRegistry(
 	@Volatile
 	private var closed = false
 
-	/** Whether [close] has been called. */
+	/**
+	 * Whether [close] has been called or this registry's session has ended.
+	 *
+	 * The lifetime ends as soon as the manager closes, while [close] runs later in the background, so
+	 * an ended lifetime already counts as closed.
+	 */
 	val isClosed: Boolean
-		get() = closed
+		get() = closed || lifetime.isEnded
 
 	/**
 	 * Register an index. Replaces any previously registered index
@@ -48,13 +53,13 @@ class IndexRegistry(
 		key: IndexKey<T>,
 		index: T,
 	) {
-		if (closed) {
+		if (isClosed) {
 			(index as? Closeable)?.close()
 			throw closedException(key)
 		}
 
 		val old = indexes.put(key.name, index)
-		if (closed) {
+		if (isClosed) {
 			// close() may have drained the map before this entry landed; whoever removes it closes it.
 			if (indexes.remove(key.name, index)) (index as? Closeable)?.close()
 			throw closedException(key)
@@ -92,11 +97,11 @@ class IndexRegistry(
 		key: IndexKey<T>,
 		create: () -> T,
 	): T {
-		if (closed) throw closedException(key)
+		if (isClosed) throw closedException(key)
 
 		var created: T? = null
 		val index = indexes.computeIfAbsent(key.name) { create().also { created = it } }
-		if (closed) {
+		if (isClosed) {
 			// close() may have drained the map before this entry landed; whoever removes it closes it.
 			if (indexes.remove(key.name, index)) (index as? Closeable)?.close()
 			throw closedException(key)
@@ -121,7 +126,7 @@ class IndexRegistry(
 	 * @throws IllegalStateException if the registry is open but nothing is registered for [key].
 	 */
 	fun <T : Any> require(key: IndexKey<T>): T =
-		get(key) ?: if (closed) {
+		get(key) ?: if (isClosed) {
 			throw closedException(key)
 		} else {
 			throw IllegalStateException(
