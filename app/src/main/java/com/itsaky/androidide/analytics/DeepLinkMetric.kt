@@ -77,9 +77,10 @@ class DeepLinkMetric(
 	private val depth: DeepLinkDepth,
 	private val outcome: DeepLinkOutcome,
 	/**
-	 * The project's real name. For a wildcard link this is the name the wildcard resolved to, or
-	 * `null` while it is unresolved -- never the wildcard token, which would hash to one value for
-	 * every project and could not be joined with `project_opened`.
+	 * The project's real name, or `null` when there is none to hash. Callers pass `null` for a
+	 * wildcard link, whose name is never resolved on a path that reports a metric -- and never the
+	 * wildcard token itself, which would hash to one value for every project and could not be joined
+	 * with `project_opened`.
 	 */
 	private val projectName: String? = null,
 	/** Whether the link named its project (`name`) or used the wildcard (`current`). */

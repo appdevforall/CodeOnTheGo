@@ -2960,7 +2960,13 @@ open class EditorHandlerActivity :
 		// Preserve a not-yet-applied file-navigation request from the previous intent -- postProjectInit
 		// reads it lazily once a sync completes, and setIntent() below would otherwise silently drop it
 		// if this onNewIntent call is for something unrelated to that pending request.
-		if (!isProjectSwitchIntent && !intent.hasExtra(PendingFileRequest.EXTRA_KEY)) {
+		//
+		// Not for a wildcard arriving under an open close dialog: the intent being replaced is then the
+		// pending switch's, carrying the OTHER project's file request, and re-arming that onto this
+		// wildcard intent would apply it to the staying project if the user cancels the close. The
+		// staying project's own request is restored from pendingFileRequestBeforeSwitch on cancel.
+		val wildcardUnderCloseDialog = deepLinkRequest?.isCurrentProject == true && confirmCloseInProgress
+		if (!isProjectSwitchIntent && !wildcardUnderCloseDialog && !intent.hasExtra(PendingFileRequest.EXTRA_KEY)) {
 			IntentCompat
 				.getParcelableExtra(getIntent(), PendingFileRequest.EXTRA_KEY, PendingFileRequest::class.java)
 				?.let { armPendingFileRequest(intent, it) }
@@ -3025,13 +3031,12 @@ open class EditorHandlerActivity :
 				analyticsManager.trackDeepLink(
 					DeepLinkMetric(
 						request.depth(),
-						when (lookup) {
-							DeepLinkProjectLookup.NotFound -> DeepLinkOutcome.PROJECT_NOT_FOUND
-							DeepLinkProjectLookup.NoProjectOpen -> DeepLinkOutcome.NO_PROJECT_OPEN
-							else -> DeepLinkOutcome.PROJECT_UNVERIFIABLE
+						if (lookup is DeepLinkProjectLookup.NotFound) {
+							DeepLinkOutcome.PROJECT_NOT_FOUND
+						} else {
+							DeepLinkOutcome.PROJECT_UNVERIFIABLE
 						},
-						request.projectName.takeUnless { request.isCurrentProject },
-						request.selector(),
+						request.projectName,
 					),
 				)
 				// No such project, so the switch this intent announced is never going to happen. Without
@@ -3361,10 +3366,11 @@ open class EditorHandlerActivity :
 				// EditorFeatures.validateRange a Range whose clamps move each other.
 				openFileAndSelect(file, Range.pointRange(Position(line, column)))
 
-				// The link is a request to look at this file, so get the bottom sheet out of the way. A
-				// course shown in that sheet used to do this itself, by reflection, even when this
-				// link was then rejected.
-				hideBottomSheet()
+				// A wildcard link comes from content shown IN the bottom sheet (the LLM Course plugin), which
+				// used to collapse the sheet itself, by reflection, even when this link was then rejected.
+				// Named links come from outside the editor and must leave a sheet someone is reading
+				// (build output, logs) alone.
+				if (request.viaWildcard) hideBottomSheet()
 			}
 		}
 	}

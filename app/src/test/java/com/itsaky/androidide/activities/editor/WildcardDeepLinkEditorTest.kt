@@ -210,4 +210,27 @@ class WildcardDeepLinkEditorTest {
 		verify(exactly = 0) { pending.arm(any(), any()) }
 		assertNoProjectOpenReported()
 	}
+
+	// A different project's switch is waiting on its close dialog, so the intent being replaced
+	// carries THAT project's file request. A wildcard must not re-arm it onto its own intent, or
+	// cancelling the close would apply the other project's file inside the staying one.
+	@Test
+	fun `a wildcard under an open close dialog does not inherit the pending switch's file request`() {
+		projectManager("/anywhere/MyApp", ready = true)
+		val activity = activity()
+		EditorHandlerActivity::class.java
+			.getDeclaredField("confirmCloseInProgress")
+			.apply { isAccessible = true }
+			.setBoolean(activity, true)
+		activity.intent.putExtra(PendingFileRequest.EXTRA_KEY, PendingFileRequest("other/B.kt", null, null))
+
+		val incoming = Intent().putExtra(DeepLinkRequest.EXTRA_KEY, wildcard)
+		EditorHandlerActivity::class.java
+			.getDeclaredMethod("onNewIntent", Intent::class.java)
+			.apply { isAccessible = true }
+			.invoke(activity, incoming)
+
+		assertThat(activity.intent.hasExtra(PendingFileRequest.EXTRA_KEY)).isFalse()
+		verify(exactly = 0) { pending.arm(any(), any()) }
+	}
 }

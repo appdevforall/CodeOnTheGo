@@ -754,6 +754,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 							request.selector(),
 						),
 					)
+					if (lookup is DeepLinkProjectLookup.NoProjectOpen) {
+						flashError(getString(string.msg_deeplink_no_project_open))
+					}
 					// Consumed even though nothing opened: the project does not exist, so retrying on
 					// every recreate only re-shows "No project named X was found" indefinitely. Recorded
 					// only when this request is still the current one, so a superseded slow resolve
