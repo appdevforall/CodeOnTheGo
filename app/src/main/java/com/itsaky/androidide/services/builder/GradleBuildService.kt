@@ -787,6 +787,7 @@ class GradleBuildService :
 			log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
 			return emptyList()
 		}
+		BuildOutputLocation.recordRelocatingSync(tree)
 		return BuildOutputLocation.gradleArgs(tree)
 	}
 

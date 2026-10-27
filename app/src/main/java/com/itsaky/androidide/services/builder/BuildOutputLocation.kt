@@ -22,9 +22,9 @@ import java.io.IOException
  * up to about twice as fast on the devices measured.
  *
  * The synced project model is the record of where output goes. Every sync relocates; a build
- * follows the model's root build directory ([modelRelocated]), so it writes where the model (APK
- * listing file, classpath) looks, and a sync that fails leaves both as they were. An existing
- * project's cached model builds into the project folder until its next sync ([syncPending]).
+ * follows the model ([modelRelocated]), so it writes where the model (APK listing file, classpath)
+ * looks, and a sync that fails leaves both as they were. An existing project's cached model builds
+ * into the project folder until its next sync ([syncPending]).
  */
 object BuildOutputLocation {
 	/** Parent of every project's tree, under `noBackupFilesDir`. */
@@ -32,6 +32,9 @@ object BuildOutputLocation {
 
 	/** Holds the project's canonical path, so a sweep can find trees whose project is gone. */
 	const val PROJECT_PATH_FILE = "project-path"
+
+	/** Written in a tree by every sync that relocates; see [syncCanRelocate]. */
+	const val RELOCATING_SYNC_FILE = "relocating-sync"
 
 	private const val KOTLIN_PERSISTENT_DIR = "kotlin.project.persistent.dir"
 	private const val WATCH_FS = "--watch-fs"
@@ -208,9 +211,9 @@ object BuildOutputLocation {
 
 	/**
 	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the
-	 * model relocated build output.
+	 * model relocated that project's build output.
 	 *
-	 * @param modelBuildDir the root project's build directory in the synced model.
+	 * @param modelBuildDir a project's build directory in the synced model.
 	 * @param tree the project's tree, from [treeFor].
 	 */
 	fun isRelocated(
@@ -219,7 +222,11 @@ object BuildOutputLocation {
 	): Boolean = modelBuildDir.absoluteFile.normalize().startsWith(tree.absoluteFile.normalize())
 
 	/**
-	 * [isRelocated] for the synced model of the open project, or null when no model is loaded.
+	 * Whether the synced model of the open project was produced by a relocating sync, or null when no
+	 * model is loaded: [isRelocated] for any of its projects. A build script that sets its own build
+	 * directory overrides the relocation for that project alone, the root's included, while the
+	 * model still puts every other project's output in the tree; a build must relocate then too, or
+	 * it writes where the model does not look.
 	 *
 	 * @param noBackupDir the app's `noBackupFilesDir`.
 	 * @param projectDir the open project's root directory.
@@ -229,7 +236,11 @@ object BuildOutputLocation {
 		noBackupDir: File,
 		projectDir: File,
 		workspace: Workspace? = ProjectManagerImpl.getInstance().workspace,
-	): Boolean? = workspace?.let { isRelocated(it.rootProject.buildDir, treeFor(noBackupDir, projectDir)) }
+	): Boolean? =
+		workspace?.let { model ->
+			val tree = treeFor(noBackupDir, projectDir)
+			(listOf(model.rootProject) + model.subProjects).any { isRelocated(it.buildDir, tree) }
+		}
 
 	/**
 	 * Whether the synced model still builds into the project folder, so the next sync would move the
@@ -238,4 +249,26 @@ object BuildOutputLocation {
 	 * @param modelRelocated [modelRelocated] for the open project.
 	 */
 	fun syncPending(modelRelocated: Boolean?): Boolean = modelRelocated == false
+
+	/** Records in [tree] that a relocating sync ran. A failure is ignored: the offer then repeats. */
+	fun recordRelocatingSync(tree: File) {
+		try {
+			File(tree, RELOCATING_SYNC_FILE).createNewFile()
+		} catch (e: IOException) {
+			// Unrecorded; the next sync tries again.
+		}
+	}
+
+	/**
+	 * Whether a sync could still move the build output of a project whose model builds into the
+	 * project folder ([syncPending]), so offering one is worth it. Not when a relocating sync already
+	 * ran ([recordRelocatingSync]) and its model still did not relocate, as when every build script
+	 * sets its own build directory; and not when [tree] cannot be written, as a sync then keeps the
+	 * output in the project folder. Offering then would repeat after every sync and every open.
+	 * Creates [tree] when it is missing ([prepare]); runs on a background thread.
+	 */
+	fun syncCanRelocate(
+		tree: File,
+		projectDir: File,
+	): Boolean = !File(tree, RELOCATING_SYNC_FILE).exists() && prepare(tree, projectDir)
 }

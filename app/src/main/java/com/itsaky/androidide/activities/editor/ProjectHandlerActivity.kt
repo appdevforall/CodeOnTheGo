@@ -1238,7 +1238,8 @@ abstract class ProjectHandlerActivity :
 	/**
 	 * ADFA-4930: an existing project's cached model builds into the project folder until its next
 	 * sync, and opening it does not sync, so offer one, once, and withdraw the offer once the synced
-	 * model is relocated. This is the first thing an existing project shows after the update.
+	 * model is relocated, or once a sync can no longer relocate it. This is the first thing an
+	 * existing project shows after the update.
 	 *
 	 * @param afterInit whether a project initialization just finished. It applied any Gradle file
 	 *   changes too, so the banner can go even when it also stands for those.
@@ -1248,7 +1249,15 @@ abstract class ProjectHandlerActivity :
 			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
 			val projectDir = File(path)
 			val modelRelocated = BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir)
-			val pending = BuildOutputLocation.syncPending(modelRelocated)
+			val pending =
+				BuildOutputLocation.syncPending(modelRelocated) &&
+					withContext(Dispatchers.IO) {
+						BuildOutputLocation.syncCanRelocate(BuildOutputLocation.treeFor(noBackupFilesDir, projectDir), projectDir)
+					}.also { canRelocate ->
+						if (!canRelocate) {
+							log.info("No relocation sync offered for {}: one already ran, or its tree cannot be written", projectDir)
+						}
+					}
 			withContext(Dispatchers.Main) {
 				if (!pending) {
 					val banner = buildOutputSyncBanner

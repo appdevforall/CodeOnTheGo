@@ -50,7 +50,7 @@ Measured 2026-10-14 with the IDE's Gradle arguments, same template project on bo
    Sync (`RootModelBuilder.kt:207`) and builds (`ToolingApiServerImpl.kt:313`) both take their arguments from `prepareBuild`, so this one change covers both. `prepareBuild` already reads the project path (`GradleBuildService.kt:552`).
 2. **Gradle side.** `AndroidIDEInitScriptPlugin.apply` (`gradle-plugin`) reads the property from `gradle.startParameter.projectProperties` and, in `beforeProject`, sets `project.layout.buildDirectory`. This runs before any build script, so AGP, Kotlin and Quick Build's plugin all see the new location. The prototype init script did exactly this (`gradle.allprojects { p -> p.layout.buildDirectory.set(...) }`), with 33 builds and no output under the project.
 3. **Flag.** A `BuildPreferences` switch, default off, shown only with experiments enabled (`FeatureFlags.isExperimentsEnabled`, REVIEW.md section 12) until validation passes. Removed after review: every sync relocates.
-4. **Sync applies it.** A sync reads the switch; the model it produces is the record. A build relocates exactly when the model's root build directory is in the tree, so its output is always where the model (APK listing file, classpath) looks, and a failed sync changes neither. When the switch and the model disagree, the editor offers a sync after the project initializes and on resume, once per change, and withdraws the offer when they agree again.
+4. **Sync applies it.** A sync reads the switch; the model it produces is the record. A build relocates exactly when the model's root build directory is in the tree (after review: any project's build directory, as a root script can set its own), so its output is always where the model (APK listing file, classpath) looks, and a failed sync changes neither. When the switch and the model disagree, the editor offers a sync after the project initializes and on resume, once per change, and withdraws the offer when they agree again.
 
 ### What reads build output
 
@@ -88,7 +88,7 @@ Each PR compiles and passes tests on its own; the flag stays off until PR 4.
 3. **Lifecycle and UX.** Delete-with-project, the orphan sweep, Export APK, strings. About 6 files.
 4. **Default on.** Flip the flag after validation. Update `ARCHITECTURE.md` (storage layout) and any user docs.
    Validation (2026-10-15/16, posted on ADFA-4930): warm edit builds 48% faster on a 288-source project (Pixel 6 Pro); on an itel A667L, clean builds about 50% faster and small edits unchanged. PR 4 also drops the experiments gate, so the switch and Export APK show for everyone, and gives the sync banner its own wording for a relocation change.
-   After review (Hal Eisen on #2155) the switch is gone: every sync relocates, and the banner only offers an existing project's first relocating sync.
+   After review (Hal Eisen on #2155) the switch is gone: every sync relocates, and the banner only offers an existing project's first relocating sync. A second review round (Hal Eisen) stopped the banner returning when a sync cannot relocate (a relocating sync already ran, or the tree cannot be written), and took old `build/` folders only from projects the model relocated, so a project with its own build directory keeps its `build/`.
 
 ## Validation before default-on
 
