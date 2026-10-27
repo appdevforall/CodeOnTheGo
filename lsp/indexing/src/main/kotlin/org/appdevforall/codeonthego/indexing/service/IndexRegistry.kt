@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.indexing.service
 
+import org.appdevforall.codeonthego.indexing.IndexSessionLifetime
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 
@@ -20,7 +21,10 @@ data class IndexKey<T : Any>(
  * Once closed, it refuses new indexes and [require] throws [IndexRegistryClosedException], so work
  * for an ended project session stops instead of opening indexes nothing would close.
  */
-class IndexRegistry : Closeable {
+class IndexRegistry(
+	/** The project session these indexes belong to; ended when that session closes. */
+	val lifetime: IndexSessionLifetime = IndexSessionLifetime(),
+) : Closeable {
 	private val indexes = ConcurrentHashMap<String, Any>()
 	private val listeners = ConcurrentHashMap<String, MutableList<(Any) -> Unit>>()
 

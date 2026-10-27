@@ -119,6 +119,22 @@ class IndexingServiceManagerTest {
 	}
 
 	@Test
+	fun `close ends the session lifetime before it returns`() {
+		val manager = IndexingServiceManager()
+
+		manager.close()
+
+		assertThat(manager.registry.lifetime.isEnded).isTrue()
+	}
+
+	@Test
+	fun `a new manager's lifetime is live after the previous manager closed`() {
+		IndexingServiceManager().close()
+
+		assertThat(IndexingServiceManager().registry.lifetime.isEnded).isFalse()
+	}
+
+	@Test
 	fun `close after close does not throw`() {
 		val manager = IndexingServiceManager()
 		manager.close()

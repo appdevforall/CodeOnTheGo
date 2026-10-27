@@ -177,6 +177,7 @@ class IndexingServiceManager(
 	 */
 	override fun close() {
 		log.info("Shutting down indexing services")
+		registry.lifetime.end()
 
 		// Called from ProjectHandlerActivity.onPause on the main thread, so the
 		// closes (SERVICE_CLOSE_TIMEOUT only bounds cooperative ones; SQLiteIndex and
