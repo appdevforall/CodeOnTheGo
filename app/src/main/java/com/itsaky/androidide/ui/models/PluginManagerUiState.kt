@@ -22,10 +22,12 @@ data class PluginManagerUiState(
 }
 
 /**
- * Where a plugin archive to install comes from - either a `content://` [Uri] the user picked via
- * SAF (any provider, including third-party ones), or a plain [File] this process already owns
- * (the forwarded-`.cgp` case from [com.itsaky.androidide.activities.ExternalFileInstallActivity],
- * which needs no [android.content.ContentResolver] round-trip since it's already a private file).
+ * Where a plugin archive to install comes from - either a [Uri] the user picked, or a plain [File]
+ * this process already owns. A picked [Uri] is `content://` from SAF (any provider, including
+ * third-party ones) or `file://` from the Manager screen's Downloads list; either way it is the
+ * user's own file, deleted only after a successful install they asked to clean up. The [File] is
+ * the forwarded-`.cgp` case from [com.itsaky.androidide.activities.ExternalFileInstallActivity],
+ * which needs no [android.content.ContentResolver] round-trip since it's already a private file.
  *
  * [Parcelable] so the Compose install-confirmation dialog can hold one in `rememberSaveable` and
  * survive rotation. [Uri] is Parcelable outright; [File] is [java.io.Serializable], which
@@ -73,7 +75,8 @@ sealed class PluginManagerUiEvent {
 	) : PluginManagerUiEvent()
 
 	/**
-	 * The SAF picker returned a `.cgp` document. Always a `content://` [Uri] - the forwarded-file
+	 * The user picked a `.cgp`: a `content://` [Uri] from the SAF picker, or a `file://` one from
+	 * the Manager screen's Downloads list. The forwarded-file
 	 * entry point goes straight to [PluginManagerUiEffect.ShowInstallConfirmation] with a
 	 * [PluginInstallSource.LocalFile] instead, since it needs no picker round-trip.
 	 */
