@@ -7,7 +7,9 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.indexing.service.IndexRegistryClosedException
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
@@ -48,6 +50,14 @@ internal class KotlinProjectModel(
 
 	val generatedIndex: JvmSymbolIndex?
 		get() = registry.get(JVM_GENERATED_SYMBOL_INDEX)
+
+	/**
+	 * Returns the index registered for [key].
+	 *
+	 * @throws IndexRegistryClosedException if this model's project session has closed.
+	 * @throws IllegalStateException if the session is open but nothing is registered for [key].
+	 */
+	fun <T : Any> requireIndex(key: IndexKey<T>): T = registry.require(key)
 
 	/**
 	 * The kind of change that occurred.

@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.indexing.service.IndexRegistryClosedException
 import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.slf4j.LoggerFactory
 
@@ -83,7 +84,11 @@ internal class CompilerSession<C : Any>(
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Throwable) {
-					logger.error("Kotlin project update failed", e)
+					if (e.isProjectClosed()) {
+						logger.info("Project closed during a Kotlin update; dropping it")
+					} else {
+						logger.error("Kotlin project update failed", e)
+					}
 				}
 			}
 		}
@@ -147,6 +152,8 @@ internal class CompilerSession<C : Any>(
 	}
 
 	private fun isStopped() = synchronized(lock) { isShutDown }
+
+	private fun Throwable.isProjectClosed() = generateSequence(this) { it.cause }.any { it is IndexRegistryClosedException }
 
 	private fun awaitClosed(): Boolean {
 		if (lifecycle.awaitClosed()) return true

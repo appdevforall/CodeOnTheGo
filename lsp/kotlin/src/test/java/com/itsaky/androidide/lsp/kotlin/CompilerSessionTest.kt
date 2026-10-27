@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import com.itsaky.androidide.lsp.kotlin.compiler.KotlinModuleLayout
 import com.itsaky.androidide.lsp.kotlin.fixtures.gradleProject
 import com.itsaky.androidide.projects.api.GradleProject
@@ -12,9 +13,12 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.appdevforall.codeonthego.indexing.service.IndexRegistryClosedException
 import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
+import org.slf4j.event.Level
 import java.nio.file.Path
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -26,9 +30,17 @@ class CompilerSessionTest {
 	private val scope = CoroutineScope(SupervisorJob())
 	private val lifecycle = FakeLifecycle()
 	private val session = CompilerSession(scope, lifecycle)
+	private val logs: MutableList<Pair<Level, String>> = CopyOnWriteArrayList()
+	private val sink = IdeLogRouter.ExternalSink { level, _, message, _ -> logs += level to message }
+
+	@Before
+	fun installSink() {
+		IdeLogRouter.addSink(sink)
+	}
 
 	@After
 	fun tearDown() {
+		IdeLogRouter.removeSink(sink)
 		lifecycle.gates.values.forEach { it.complete(Unit) }
 		lifecycle.awaitClosedGate?.complete(Unit)
 		lifecycle.prepareGate?.complete(Unit)
@@ -179,6 +191,42 @@ class CompilerSessionTest {
 		}
 
 	@Test
+	fun `a build that hits the closed registry logs no error`(): Unit =
+		runBlocking {
+			lifecycle.closedBuilds += 1
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("build failed c1")
+			delay(SETTLE_MILLIS)
+
+			assertThat(updateFailures()).isEmpty()
+			assertThat(logs.filter { it.first == Level.INFO && "Project closed" in it.second }).hasSize(1)
+		}
+
+	@Test
+	fun `a wrapped closed-registry failure logs no error`(): Unit =
+		runBlocking {
+			lifecycle.wrappedClosedBuilds += 1
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("build failed c1")
+			delay(SETTLE_MILLIS)
+
+			assertThat(updateFailures()).isEmpty()
+		}
+
+	@Test
+	fun `a failed build still logs an error`(): Unit =
+		runBlocking {
+			lifecycle.failingBuilds += 1
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("build failed c1")
+			delay(SETTLE_MILLIS)
+
+			assertThat(updateFailures()).hasSize(1)
+		}
+
+	private fun updateFailures() = logs.filter { it.first == Level.ERROR && "Kotlin project update failed" in it.second }
+
+	@Test
 	fun `an update binds one manager for prepare and build`(): Unit =
 		runBlocking {
 			session.submit(workspace(LAYOUT_A))
@@ -224,6 +272,8 @@ class CompilerSessionTest {
 		val layouts: MutableMap<Workspace, KotlinModuleLayout> = Collections.synchronizedMap(IdentityHashMap())
 		val gates = ConcurrentHashMap<Int, CompletableDeferred<Unit>>()
 		val failingBuilds: MutableSet<Int> = Collections.synchronizedSet(mutableSetOf())
+		val closedBuilds: MutableSet<Int> = Collections.synchronizedSet(mutableSetOf())
+		val wrappedClosedBuilds: MutableSet<Int> = Collections.synchronizedSet(mutableSetOf())
 		val awaitClosedResults = ConcurrentLinkedDeque<Boolean>()
 
 		@Volatile
@@ -272,6 +322,14 @@ class CompilerSessionTest {
 			if (n in failingBuilds) {
 				events += "build failed c$n"
 				throw IllegalStateException("build $n failed")
+			}
+			if (n in closedBuilds) {
+				events += "build failed c$n"
+				throw IndexRegistryClosedException("registry closed during build $n")
+			}
+			if (n in wrappedClosedBuilds) {
+				events += "build failed c$n"
+				throw RuntimeException("build $n failed", IndexRegistryClosedException("registry closed during build $n"))
 			}
 			events += "build c$n for ${LAYOUT_NAMES.getValue(layout)}"
 			return "c$n"
