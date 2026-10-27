@@ -180,7 +180,7 @@ android {
 			excludes += "intellij.java.frontback.psi.impl.xml"
 			// jgit's OSGi bundle localization data; unused outside an OSGi runtime.
 			excludes += "OSGI-INF/l10n/plugin.properties"
-			// kotlinx-coroutines debug-agent resource (the instrumented DebugProbesKt class); nothing here installs DebugProbes or runs a java agent.
+			// kotlinx-coroutines debug-agent resource; no DebugProbes.install() or java agent in this repo.
 			excludes += "DebugProbesKt.bin"
 
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
