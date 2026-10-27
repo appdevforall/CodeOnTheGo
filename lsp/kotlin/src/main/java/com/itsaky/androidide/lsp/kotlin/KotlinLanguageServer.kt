@@ -133,8 +133,8 @@ class KotlinLanguageServer : ILanguageServer {
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 
 		/**
-		 * Runs every Compiler.close(), which blocks draining workers and is reached from
-		 * ProjectHandlerActivity.onDestroy on the main thread. One thread serializes closes; the next
+		 * Runs every Compiler.close(), which blocks draining workers and is reached from the editor's
+		 * project teardown in ProjectHandlerActivity.onPause, on the main thread. One thread serializes closes; the next
 		 * build waits so a new compiler never starts while the previous one is still disposing.
 		 */
 		private val closeExecutor =
