@@ -335,6 +335,93 @@ class ContentBlockSourceTest {
 		assertEquals("<p>After</p>", text(found("j/x.html", source)))
 	}
 
+	// What the old file's version said is not the new file's either. Read as version 3, the new
+	// file's blocked row would be decoded as its own content, which is empty.
+	@Test
+	fun `a file rewritten in place from version 3 to version 4 before the rewrite check serves the new file's blocks`() {
+		assertServedAcrossRewrite(
+			database(unblocked = mapOf("j/x.html" to "<p>Before</p>"), declaredMajorVersion = 3, hasBlockTables = false),
+			database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>After</p>")))),
+			before = mapOf("j/x.html" to "<p>Before</p>"),
+			after = mapOf("j/x.html" to "<p>After</p>"),
+		)
+	}
+
+	// Read as version 4, the new file would get the query joining tables it does not have.
+	@Test
+	fun `a file rewritten in place from version 4 to version 3 before the rewrite check serves the new file's rows`() {
+		assertServedAcrossRewrite(
+			database(blocks = mapOf(1L to listOf(Item("j/x.html", "<p>Before</p>")))),
+			database(unblocked = mapOf("j/x.html" to "<p>After</p>"), declaredMajorVersion = 3, hasBlockTables = false),
+			before = mapOf("j/x.html" to "<p>Before</p>"),
+			after = mapOf("j/x.html" to "<p>After</p>"),
+		)
+	}
+
+	// Decoded against the old file's dictionary, the new file's pages fail or come out as other bytes.
+	@Test
+	fun `a file rewritten in place with another dictionary before the rewrite check decodes with the new one`() {
+		val before = "<p>$SHARED</p>".repeat(3)
+		val after = "<li>$SHARED</li>".repeat(3)
+		assertServedAcrossRewrite(
+			database(
+				blocks = mapOf(1L to listOf(Item("j/x.html", before))),
+				unblocked = mapOf("j/y.html" to before),
+				dictionary = "$SHARED interface companion object ".repeat(400),
+			),
+			database(
+				blocks = mapOf(1L to listOf(Item("j/x.html", after))),
+				unblocked = mapOf("j/y.html" to after),
+				dictionary = "$SHARED sealed class data object val ".repeat(400),
+			),
+			before = mapOf("j/x.html" to before, "j/y.html" to before),
+			after = mapOf("j/x.html" to after, "j/y.html" to after),
+		)
+	}
+
+	// Templates are compressed from version 3, so a template first compiled after the rewrite is
+	// decoded by what the new file declares. One compiled before it is the old file's until the reopen.
+	@Test
+	fun `a file rewritten in place from version 2 to version 3 before the rewrite check decodes the new file's templates`() {
+		assertServedAcrossRewrite(
+			ownRowDatabase(page("a/one.html", "One"), declaredMajorVersion = 2),
+			ownRowDatabase(topic("i/topic.html", "Topic"), declaredMajorVersion = 3),
+			before = mapOf("a/one.html" to "<h1>One</h1>"),
+			after = mapOf("i/topic.html" to "<h1>Topic</h1>"),
+		)
+	}
+
+	@Test
+	fun `a file rewritten in place from version 3 to version 2 before the rewrite check reads the new file's templates as plain text`() {
+		assertServedAcrossRewrite(
+			ownRowDatabase(page("a/one.html", "One"), declaredMajorVersion = 3),
+			ownRowDatabase(topic("i/topic.html", "Topic"), declaredMajorVersion = 2),
+			before = mapOf("a/one.html" to "<h1>One</h1>"),
+			after = mapOf("i/topic.html" to "<h1>Topic</h1>"),
+		)
+	}
+
+	/**
+	 * Serves [before]'s pages from [old], then rewrites the file in place to [new] and serves
+	 * [after]'s from it, through the same handle: the rewrite check is a minute off, as in
+	 * production it can be up to a second.
+	 */
+	private fun assertServedAcrossRewrite(
+		old: SQLiteDatabase,
+		new: SQLiteDatabase,
+		before: Map<String, String>,
+		after: Map<String, String>,
+	) {
+		val file = RewrittenInPlace(old, new)
+		val source = DocumentationContentSource(installedFile, debugFile, 60_000)
+		for ((path, expected) in before) assertEquals(expected, text(found(path, source)))
+
+		file.rewrite()
+
+		for ((path, expected) in after) assertEquals(expected, text(found(path, source)))
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
 	@Test
 	fun `a swap between version 4 files with the same block ids serves the new blocks`() {
 		opens(database(blocks = mapOf(1L to listOf(page("a/one.html", "Old")))), installedFile)
@@ -465,6 +552,22 @@ class ContentBlockSourceTest {
 		path: String,
 		title: String,
 	) = Item(path, """{"title": "$title"}""", templateId = PAGE_ID)
+
+	/** A Help+Manual topic page, rendered through [HM_TOPIC_ID]. */
+	private fun topic(
+		path: String,
+		title: String,
+	) = Item(path, """{"hmTitle": "$title"}""", templateId = HM_TOPIC_ID)
+
+	/** A database below version 4, with no block tables, whose one row is [item] holding its own content. */
+	private fun ownRowDatabase(
+		item: Item,
+		declaredMajorVersion: Int,
+	) = database(
+		blocks = mapOf(1L to listOf(Item(item.path, item.text, item.templateId, rowText = item.text))),
+		declaredMajorVersion = declaredMajorVersion,
+		hasBlockTables = false,
+	)
 
 	private fun source() = DocumentationContentSource(installedFile, debugFile, 0)
 

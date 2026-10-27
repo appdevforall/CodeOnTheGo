@@ -164,7 +164,11 @@ data class RequestLookup(
  * the write lock, since swapping closes the handle a reader could be using. Readers never block
  * each other. A block is decoded and cached under the read lock, and a swap clears the cache under
  * the write lock, so a block decoded from one database is never served from another. A file
- * rewritten in place before the swap check notices is caught by the cache's key (see [decodedBlock]).
+ * rewritten in place before the swap check notices is caught by keying on the file's state: each
+ * cached block (see [decodedBlock]), and what the file's version and dictionary said (see
+ * [FileBound]). Compiled templates and template names are not keyed so, as that would mean
+ * clearing the engine's caches under the read lock or keying them in the loader; until the swap
+ * check reopens the file, they are the old file's.
  *
  * @param decodeTemplate Turns a `Templates` row's bytes into the template's text, given the codec
  * for the database it came from. A seam for `:common`'s tests only, which have no brotli4j desktop
@@ -230,22 +234,21 @@ class DocumentationContentSource internal constructor(
 
 	// Decodes Content's brotli rows against the shared dictionary they were compressed with (see
 	// ADFA-5153). Built on the first read that needs it after a swap rather than eagerly, then
-	// cached for that database. Holds no dictionary -- and so decodes plain brotli -- when the
+	// cached for that file. Holds no dictionary -- and so decodes plain brotli -- when the
 	// active database declares a version below the dictionary migration. Access only through
 	// [codec], which rebuilds it when stale.
-	private var codec: BrotliDictionaryCodec? = null
-	private var codecStale = true
+	private var codec: FileBound<BrotliDictionaryCodec>? = null
 
-	// Whether the active database's templates are Brotli-compressed (documentation version 3 on), or
+	// Whether the active file's templates are Brotli-compressed (documentation version 3 on), or
 	// null until its first render asks. Cleared on every swap: the next database may be either kind.
 	@Volatile
-	private var templatesCompressed: Boolean? = null
+	private var templatesCompressed: FileBound<Boolean>? = null
 
-	// Whether the active database stores pages in content blocks (documentation version 4 on), or
-	// null until its first read asks. Cleared with the blocks cached from the previous database: a
-	// block id names a different block in another database.
+	// Whether the active file stores pages in content blocks (documentation version 4 on), or null
+	// until its first read asks. Cleared with the blocks cached from the previous database: a block
+	// id names a different block in another database.
 	@Volatile
-	private var contentBlocks: Boolean? = null
+	private var contentBlocks: FileBound<Boolean>? = null
 
 	// Keyed by the file's state as well as the block id: see FileState.
 	private val blockCache = ContentBlockCache<BlockKey>(ContentBlockCache.MAX_PLAIN_BYTES)
@@ -258,9 +261,11 @@ class DocumentationContentSource internal constructor(
 	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
 	// by several pages is compiled once, and dropping a database means invalidating that cache too.
 	// A compressed row is decoded with the active database's codec, the one its Content rows use.
+	// Both are the file's as it is now, which a rewrite in place may have changed since the page's row.
 	private val templateLoader =
 		DatabaseTemplateLoader({ database }) { database, body ->
-			if (templatesCompressed(database)) decodeTemplate(codec(database), body) else body
+			val file = activeFileState()
+			if (templatesCompressed(database, file)) decodeTemplate(codec(database, file), body) else body
 		}
 
 	private val pebbleEngine =
@@ -435,7 +440,11 @@ class DocumentationContentSource internal constructor(
 		name: String,
 		path: String,
 		contextJson: (SQLiteDatabase) -> ByteArray,
-	): ByteArray = withDatabase { database -> renderNamed(database, name, contextJson(database), path) }
+	): ByteArray =
+		withDatabase { database ->
+			val file = activeFileState()
+			renderNamed(database, name, contextJson(database), path, file)
+		}
 
 	/**
 	 * Clears all cached templates, compiled and by name.
@@ -513,21 +522,25 @@ class DocumentationContentSource internal constructor(
 	): DocumentationLookup {
 		// Primed before the row is read, not inside decompressBrotli, so a database's dictionary is
 		// loaded on its first content fetch (ADFA-5153's contract) rather than on the first fetch
-		// that happens to be Brotli-compressed. Still at most once per database.
+		// that happens to be Brotli-compressed. Still at most once per database and file state.
 		//
 		// Best-effort, unlike the call inside the decode: this is an optimisation, and letting a
 		// transient failure here propagate would fail *every* lookup -- including rows with
-		// compression = 'none', which need no dictionary at all. The staleness flag is left set, so
-		// the next read retries, and a brotli row that genuinely cannot resolve its dictionary still
-		// fails loudly from decompressBrotli.
+		// compression = 'none', which need no dictionary at all. Nothing is cached, so the next read
+		// retries, and a brotli row that genuinely cannot resolve its dictionary still fails loudly
+		// from decompressBrotli.
+		//
+		// The file's state is taken before any of its reads, so everything this read decides from
+		// the file is keyed by a state no later than the one it read (see FileBound).
+		val fileBefore = activeFileState()
 		try {
-			codec(database)
+			codec(database, fileBefore)
 		} catch (e: Exception) {
 			log.warn("Could not prime the compression dictionary; will retry on the next read: {}", e.message)
 		}
 
-		val fileBefore = activeFileState()
-		queryContent(database, path).use { cursor ->
+		val blocked = contentBlocks(database, fileBefore)
+		queryContent(database, path, blocked).use { cursor ->
 			if (cursor.count == 0) return DocumentationLookup.NotFound
 			if (cursor.count != 1) return DocumentationLookup.Ambiguous(cursor.count)
 
@@ -535,47 +548,54 @@ class DocumentationContentSource internal constructor(
 			val mimeType = cursor.getString(1)
 			val templateId = cursor.getInt(3)
 
-			val decoded = rowBytes(database, path, cursor, fileBefore)
-			val bytes = if (templateId > 0) render(database, templateId, decoded, path) else decoded
+			val decoded = rowBytes(database, path, cursor, fileBefore, blocked)
+			val bytes = if (templateId > 0) render(database, templateId, decoded, path, fileBefore) else decoded
 
 			return DocumentationLookup.Found(DocumentationContent(bytes, mimeType))
 		}
 	}
 
 	/**
-	 * [path]'s Content row: content, MIME type, compression and template id, then -- in a database
-	 * declaring content blocks -- the row's block id, offset and length, NULL when it has no block.
+	 * [path]'s Content row: content, MIME type, compression and template id, then -- when [blocked],
+	 * the file declaring content blocks -- the row's block id, offset and length, NULL when it has no
+	 * block.
 	 *
-	 * Such a database always gets the blocked query: one missing the block tables fails the read with
+	 * Such a file always gets the blocked query: one missing the block tables fails the read with
 	 * SQLite's error rather than serving its blocked rows' empty content.
 	 */
 	private fun queryContent(
 		database: SQLiteDatabase,
 		path: String,
-	): Cursor = database.rawQuery(if (contentBlocks(database)) BLOCKED_CONTENT_QUERY else CONTENT_QUERY, arrayOf(path))
+		blocked: Boolean,
+	): Cursor = database.rawQuery(if (blocked) BLOCKED_CONTENT_QUERY else CONTENT_QUERY, arrayOf(path))
 
 	/**
-	 * Whether [database] stores pages in content blocks, from the version it declares; asked once per
-	 * database. A failure to read the version is not cached, so it fails this read and the next read
-	 * asks again.
+	 * Whether the active file, in state [file], stores pages in content blocks, from the version it
+	 * declares; asked once per file state (see [FileBound]). A read asks once, before its query, and
+	 * both picks the query and decodes the row by that one answer. A failure to read the version is
+	 * not cached, so it fails this read and the next read asks again.
 	 */
-	private fun contentBlocks(database: SQLiteDatabase): Boolean =
-		contentBlocks
-			?: expectsContentBlocks(database).also { contentBlocks = it }
+	private fun contentBlocks(
+		database: SQLiteDatabase,
+		file: FileState,
+	): Boolean =
+		contentBlocks.valueFor(file)
+			?: expectsContentBlocks(database).also { contentBlocks = FileBound(file, it) }
 
 	/**
 	 * The plain bytes of the row [cursor] is on, a [queryContent] result: the row's slice of its
 	 * decoded block when it has one, else its own content decoded (see [decodeRow]).
 	 *
 	 * @param fileBefore The active file's state, taken before [cursor]'s query ran (see [decodedBlock]).
+	 * @param blocked What [contentBlocks] said for [fileBefore], which picked [cursor]'s query.
 	 */
 	private fun rowBytes(
 		database: SQLiteDatabase,
 		path: String,
 		cursor: Cursor,
 		fileBefore: FileState,
+		blocked: Boolean,
 	): ByteArray {
-		val blocked = contentBlocks(database)
 		if (!blocked || cursor.isNull(BLOCK_ID_COLUMN)) {
 			val content = cursor.getBlob(0)
 			val compression = cursor.getString(2)
@@ -585,7 +605,7 @@ class DocumentationContentSource internal constructor(
 			check(!(blocked && compression == "brotli" && content.isEmpty())) {
 				"Content row '$path' is empty and has no ContentBlockItems row"
 			}
-			return decodeRow(database, path, content, compression)
+			return decodeRow(database, path, content, compression, fileBefore)
 		}
 		val blockId = cursor.getLong(BLOCK_ID_COLUMN)
 		// Version 4 empties a blocked row's content (x''). Bytes there as well mean the file is not
@@ -632,7 +652,7 @@ class DocumentationContentSource internal constructor(
 
 		val compressed = readContentBlock(database, blockId, path)
 
-		val codec = codec(database)
+		val codec = codec(database, fileBefore)
 		val started = System.nanoTime()
 		val block =
 			try {
@@ -677,15 +697,19 @@ class DocumentationContentSource internal constructor(
 	@VisibleForTesting
 	fun cachedBlockBytes(): Long = blockCache.plainBytes()
 
-	/** A row's content: its chunks joined, and Brotli-decoded when its content type says so. */
+	/**
+	 * A row's content: its chunks joined, and Brotli-decoded when its content type says so, with the
+	 * codec for [file], the active file's state before the row was read.
+	 */
 	private fun decodeRow(
 		database: SQLiteDatabase,
 		path: String,
 		firstChunk: ByteArray,
 		compression: String,
+		file: FileState,
 	): ByteArray {
 		val chunks = readChunks(database, path, firstChunk)
-		return if (compression == "brotli") decompressBrotli(database, chunks) else joinChunks(chunks)
+		return if (compression == "brotli") decompressBrotli(database, chunks, file) else joinChunks(chunks)
 	}
 
 	/**
@@ -705,7 +729,8 @@ class DocumentationContentSource internal constructor(
 		pagePath: String,
 	): DocumentationLookup? {
 		val fileBefore = activeFileState()
-		queryContent(database, pagePath).use { cursor ->
+		val blocked = contentBlocks(database, fileBefore)
+		queryContent(database, pagePath, blocked).use { cursor ->
 			if (cursor.count > 1) return DocumentationLookup.Ambiguous(cursor.count)
 			if (!cursor.moveToFirst()) return null
 			val templateId = cursor.getInt(3)
@@ -713,8 +738,9 @@ class DocumentationContentSource internal constructor(
 			val pageTemplate = templateNames.getOrPut(templateId) { templateName(database, templateId, pagePath) }
 			if (pageTemplate != HM_TOPIC_TEMPLATE || !templateLoader.resourceExists(JSTOPIC_TEMPLATE)) return null
 
-			val json = rowBytes(database, pagePath, cursor, fileBefore)
-			return DocumentationLookup.Found(DocumentationContent(renderNamed(database, JSTOPIC_TEMPLATE, json, path), JSTOPIC_MIME_TYPE))
+			val json = rowBytes(database, pagePath, cursor, fileBefore, blocked)
+			val rendered = renderNamed(database, JSTOPIC_TEMPLATE, json, path, fileBefore)
+			return DocumentationLookup.Found(DocumentationContent(rendered, JSTOPIC_MIME_TYPE))
 		}
 	}
 
@@ -723,6 +749,7 @@ class DocumentationContentSource internal constructor(
 	 *
 	 * @param templateId The identifier of the template to render.
 	 * @param contextJson The JSON-encoded context supplied to the template.
+	 * @param file The active file's state, taken before the row holding [contextJson] was read.
 	 * @return The rendered template content encoded as UTF-8 bytes.
 	 */
 	private fun render(
@@ -730,6 +757,7 @@ class DocumentationContentSource internal constructor(
 		templateId: Int,
 		contextJson: ByteArray,
 		path: String,
+		file: FileState,
 	): ByteArray {
 		val name =
 			templateNames.getOrPut(templateId) {
@@ -737,7 +765,7 @@ class DocumentationContentSource internal constructor(
 				templateName(database, templateId, path)
 			}
 
-		return renderNamed(database, name, contextJson, path)
+		return renderNamed(database, name, contextJson, path, file)
 	}
 
 	/**
@@ -750,6 +778,7 @@ class DocumentationContentSource internal constructor(
 	 * @param name The template's `Templates.name`.
 	 * @param contextJson The JSON-encoded context supplied to the template.
 	 * @param path The content path associated with the rendering request.
+	 * @param file The active file's state, taken before this render's database reads.
 	 * @return The rendered template content encoded as UTF-8 bytes.
 	 */
 	private fun renderNamed(
@@ -757,10 +786,11 @@ class DocumentationContentSource internal constructor(
 		name: String,
 		contextJson: ByteArray,
 		path: String,
+		file: FileState,
 	): ByteArray {
 		// Resolved here, before the engine runs, so a failure to read the version arrives as itself
 		// rather than inside the loader, which would report it as a template that does not decode.
-		templatesCompressed(database)
+		templatesCompressed(database, file)
 
 		val contextString = contextJson.toString(Charsets.UTF_8)
 		if (contextString.isBlank() || contextString.trim() == "null") {
@@ -790,11 +820,16 @@ class DocumentationContentSource internal constructor(
 	}
 
 	/**
-	 * Whether [database]'s templates are Brotli-compressed, from the version it declares; asked once
-	 * per database. A failure to read the version is not cached, so the next render asks again.
+	 * Whether the active file's templates, in state [file], are Brotli-compressed, from the version it
+	 * declares; asked once per file state (see [FileBound]). A failure to read the version is not
+	 * cached, so the next render asks again.
 	 */
-	private fun templatesCompressed(database: SQLiteDatabase): Boolean =
-		templatesCompressed ?: expectsCompressedTemplates(database).also { templatesCompressed = it }
+	private fun templatesCompressed(
+		database: SQLiteDatabase,
+		file: FileState,
+	): Boolean =
+		templatesCompressed.valueFor(file)
+			?: expectsCompressedTemplates(database).also { templatesCompressed = FileBound(file, it) }
 
 	/**
 	 * Resolves a template id to the name the engine loads it by.
@@ -876,33 +911,34 @@ class DocumentationContentSource internal constructor(
 	 *
 	 * @param database The database used to obtain the Brotli dictionary.
 	 * @param chunks The compressed content chunks.
+	 * @param file The active file's state, taken before the row was read.
 	 * @return The decompressed content.
 	 */
 	private fun decompressBrotli(
 		database: SQLiteDatabase,
 		chunks: List<ByteArray>,
-	): ByteArray = codec(database).decompress(chunksAsStream(chunks))
+		file: FileState,
+	): ByteArray = codec(database, file).decompress(chunksAsStream(chunks))
 
 	/**
-	 * The codec for the active database, (re)built on the first use after a swap.
+	 * The codec for the active file in state [file], (re)built on the first use after a swap or a
+	 * change of state (see [FileBound]): a file rewritten in place may carry another dictionary.
 	 *
-	 * Only clears the staleness flag on a clean build -- a definitive dictionary or a definitive
-	 * absence, per [loadCompressionDictionary]'s contract -- so an unexpected exception leaves it
-	 * set and the next read retries, rather than caching a transient failure as "no dictionary"
-	 * for the rest of this database's lifetime.
+	 * Only cached on a clean build -- a definitive dictionary or a definitive absence, per
+	 * [loadCompressionDictionary]'s contract -- so an unexpected exception caches nothing and the
+	 * next read retries, rather than caching a transient failure as "no dictionary" for the rest of
+	 * this file's lifetime.
 	 *
 	 * @param database The active documentation database.
-	 * @return The codec holding that database's dictionary, dictionary-free when it declares none.
+	 * @return The codec holding that file's dictionary, dictionary-free when it declares none.
 	 */
-	private fun codec(database: SQLiteDatabase): BrotliDictionaryCodec =
+	private fun codec(
+		database: SQLiteDatabase,
+		file: FileState,
+	): BrotliDictionaryCodec =
 		synchronized(this) {
-			var current = codec
-			if (codecStale || current == null) {
-				current = BrotliDictionaryCodec(loadCompressionDictionary(database))
-				codec = current
-				codecStale = false
-			}
-			current
+			codec.valueFor(file)
+				?: BrotliDictionaryCodec(loadCompressionDictionary(database)).also { codec = FileBound(file, it) }
 		}
 
 	/**
@@ -1026,12 +1062,10 @@ class DocumentationContentSource internal constructor(
 	 * reopen of the rewritten installed file -- and on [close]. Callers hold the write lock.
 	 */
 	private fun forgetDatabaseState() {
-		// Nulled as well as marked stale: a different database can carry a different dictionary
-		// (or none), and decoding its rows against the previous one can succeed with wrong bytes
-		// rather than fail (see BrotliDictionaryCodec). A null codec can only be rebuilt, never
-		// reused.
+		// A different database can carry a different dictionary (or none), and decoding its rows
+		// against the previous one can succeed with wrong bytes rather than fail (see
+		// BrotliDictionaryCodec). A null codec can only be rebuilt, never reused.
 		codec = null
-		codecStale = true
 		// The new database may store its templates the other way, and against its own dictionary:
 		// the compiled templates go with the cache clear below.
 		templatesCompressed = null
@@ -1050,6 +1084,22 @@ class DocumentationContentSource internal constructor(
 		val length: Long,
 		val lastModified: Long,
 	)
+
+	/**
+	 * [value], read from the active file while it was in state [file]. An installer rewrites the
+	 * installed file in place, under the open handle, which reads the new file at once; the swap
+	 * check reopens it, dropping everything read from the old one, up to a check interval later. In
+	 * between, a value read from the old file -- its version, its dictionary -- is not the new one's,
+	 * and acting on it fails the new file's pages or decodes them wrong. Kept with the state it was
+	 * read in, it is read again when the state moves.
+	 */
+	private class FileBound<T : Any>(
+		val file: FileState,
+		val value: T,
+	)
+
+	/** This value, if it was read while the active file was in state [file]: see [FileBound]. */
+	private fun <T : Any> FileBound<T>?.valueFor(file: FileState): T? = this?.takeIf { it.file == file }?.value
 
 	private data class BlockKey(
 		val blockId: Long,
