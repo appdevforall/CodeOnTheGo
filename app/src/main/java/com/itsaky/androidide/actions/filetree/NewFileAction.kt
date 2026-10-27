@@ -85,7 +85,8 @@ class NewFileAction(
 		const val LAYOUT_RES_PATH_REGEX = "/.*/src/.*/res/layout"
 		const val MENU_RES_PATH_REGEX = "/.*/src/.*/res/menu"
 		const val DRAWABLE_RES_PATH_REGEX = "/.*/src/.*/res/drawable"
-		const val JAVA_PATH_REGEX = "/.*/src/.*/java"
+		const val JAVA_PATH_REGEX = "/.*/src/[^/]+/java(?:/|$)"
+		const val KOTLIN_PATH_REGEX = "/.*/src/[^/]+/kotlin(?:/|$)"
 		const val CPP_PATH_REGEX = "/.*/src/[^/]+/cpp(/.*)?$"
 		private const val MAX_FILE_NAME_LENGTH = 40
 
@@ -266,13 +267,12 @@ class NewFileAction(
 		val fileName = if (name.endsWith(extension)) name else "$name$extension"
 		val className = if (!name.contains(".")) name else name.substring(0, name.lastIndexOf("."))
 
+		// At a source root, getPackageName infers the package from the directories below,
+		// so the file belongs in that package directory rather than the root.
 		val sourceFileDirectory =
-			if (pkgName == "com") {
-				val subDir = File(file, "com")
-				if (subDir.exists() && subDir.isDirectory) subDir else file
-			} else {
-				file
-			}
+			File(file, pkgName.orEmpty().replace('.', File.separatorChar))
+				.takeIf { !pkgName.isNullOrEmpty() && file.name in setOf("java", "kotlin") && it.isDirectory }
+				?: file
 
 		when (id) {
 			binding.typeClass.id -> {
@@ -328,8 +328,7 @@ class NewFileAction(
 		}
 
 		if (autoLayout) {
-			val packagePath = pkgName.toString().replace(".", "/")
-			createAutoLayout(context, sourceFileDirectory, name, packagePath, isKotlin)
+			createAutoLayout(context, sourceFileDirectory, name, isKotlin)
 		}
 	}
 
@@ -470,10 +469,12 @@ class NewFileAction(
 		context: Context,
 		directory: File,
 		fileName: String,
-		packagePath: String,
 		isKotlin: Boolean = false,
 	) {
-		val dir = directory.toString().replace("java/$packagePath", "res/layout/")
+		val dir =
+			Regex("^(.*?/src/[^/]+)/(?:java|kotlin)(?:/.*)?$").replace(directory.absolutePath) {
+				"${it.groupValues[1]}/res/layout"
+			}
 		val sourceExtension = if (isKotlin) ".kt" else ".java"
 		val layoutName = ProjectWriter.createLayoutName(fileName.replace(sourceExtension, ".xml"))
 		val newFileLayout = File(dir, layoutName)
@@ -667,7 +668,7 @@ internal fun sourceDialogFor(
 	fun matches(regex: String) = Pattern.compile(Pattern.quote(projectDir) + regex).matcher(path).find()
 	return when {
 		matches(NewFileAction.CPP_PATH_REGEX) -> SourceDialog.CPP
-		matches(NewFileAction.JAVA_PATH_REGEX) -> SourceDialog.JAVA
+		matches(NewFileAction.JAVA_PATH_REGEX) || matches(NewFileAction.KOTLIN_PATH_REGEX) -> SourceDialog.JAVA
 		else -> null
 	}
 }

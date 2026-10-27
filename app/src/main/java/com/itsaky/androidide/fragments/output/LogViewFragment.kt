@@ -177,6 +177,7 @@ abstract class LogViewFragment<V : LogViewModel> :
 		_binding?.editor?.setText("")?.also {
 			// An active filter keeps the content layout (and the filter bar) reachable.
 			updateEmptyState(isSourceEmpty = true, isFilterActive = isFilterActive)
+			onContentReplaced()
 		}
 	}
 

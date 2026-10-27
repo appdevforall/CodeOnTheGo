@@ -1,5 +1,6 @@
 package com.itsaky.androidide
 
+import androidx.lifecycle.lifecycleScope
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -12,7 +13,7 @@ import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.isExperimentsFlagSet
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.setAccessibilityEditText
-import com.itsaky.androidide.helper.setExperimentsFlagForTest
+import com.itsaky.androidide.helper.setExperimentForTest
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.quickbuild.AndroidInstalledPackages
@@ -33,9 +34,12 @@ import com.itsaky.androidide.screens.QuickBuildScreen.dismissQuickBuildDropdown
 import com.itsaky.androidide.screens.QuickBuildScreen.longPressOpensQuickBuildDropdown
 import com.itsaky.androidide.screens.QuickBuildScreen.restartSessionViaDropdown
 import com.itsaky.androidide.screens.QuickBuildScreen.tapQuickBuildButton
+import com.itsaky.androidide.utils.Experiment
 import com.itsaky.androidide.utils.flashError
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -78,7 +82,7 @@ private const val BANNER_MESSAGE = "Quick Build smoke: injected error banner"
  * - the indefinite error banner (the surface `userMessages` renders through `flashError`)
  *   and its three dismiss paths: Dismiss button, tap-anywhere, swipe;
  * - the confirm-on-switch ("proxy app rebuild / reinstall") dialog, driven through
- *   [EditorHandlerActivity.ensureQuickBuildClobberConfirmed] with a fake
+ *   [EditorHandlerActivity.awaitQuickBuildClobberConfirmed] with a fake
  *   [InstalledPackages] so it renders deterministically without installing anything;
  * - a real tap on the button: the session leaves Idle (status -> Provisioning) and the
  *   button flips to the stop affordance, then the dropdown's "Restart session" restarts it
@@ -111,14 +115,14 @@ class QuickBuildSmokeTest : TestCase() {
 			// the pre-test flag state so the after-block restores it - a dev device may
 			// legitimately have experiments enabled outside this test.
 			hadExperimentsFlag = isExperimentsFlagSet()
-			setExperimentsFlagForTest(true)
+			setExperimentForTest(Experiment.QUICK_BUILD, true)
 			// On an already-provisioned device, OnboardingActivity skips its async
 			// JDK-distribution reload in test mode (onResume), so isSetupCompleted()
 			// would stay false and the app would park on the welcome slide forever.
 			// Load synchronously up front; harmless when run after EndToEndTest.
 			IJdkDistributionProvider.getInstance().loadDistributions()
 		}.after {
-			setExperimentsFlagForTest(hadExperimentsFlag)
+			setExperimentForTest(Experiment.QUICK_BUILD, hadExperimentsFlag)
 			// Leave no live session behind: harmless no-op from Idle.
 			runCatching { GlobalContext.get().get<QuickBuildSessionManager>().restartSession() }
 			if (clobberCheckOverridden) {
@@ -215,14 +219,18 @@ class QuickBuildSmokeTest : TestCase() {
 				val confirmed = AtomicBoolean(false)
 
 				instrumentation.runOnMainSync {
-					activity.ensureQuickBuildClobberConfirmed { confirmed.set(true) }
+					activity.lifecycleScope.launch(Dispatchers.Main.immediate) {
+						if (activity.awaitQuickBuildClobberConfirmed()) confirmed.set(true)
+					}
 				}
 				assertClobberConfirmShown()
 				declineClobberConfirm()
 				assertFalse("Decline must not run the confirmed continuation", confirmed.get())
 
 				instrumentation.runOnMainSync {
-					activity.ensureQuickBuildClobberConfirmed { confirmed.set(true) }
+					activity.lifecycleScope.launch(Dispatchers.Main.immediate) {
+						if (activity.awaitQuickBuildClobberConfirmed()) confirmed.set(true)
+					}
 				}
 				assertClobberConfirmShown()
 				acceptClobberConfirm()
