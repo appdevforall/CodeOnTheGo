@@ -12,6 +12,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.junit.After
 import org.junit.Test
 import java.nio.file.Path
@@ -177,6 +178,31 @@ class CompilerSessionTest {
 			assertThat(session.current).isEqualTo("c1")
 		}
 
+	@Test
+	fun `an update binds one manager for prepare and build`(): Unit =
+		runBlocking {
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("ready c1")
+
+			assertThat(lifecycle.obtainedManagers).hasSize(1)
+			assertThat(lifecycle.preparedWith.single()).isSameInstanceAs(lifecycle.builtWith.single())
+		}
+
+	@Test
+	fun `shutdown before binding obtains no manager`(): Unit =
+		runBlocking {
+			val gate = CompletableDeferred<Unit>()
+			lifecycle.awaitClosedGate = gate
+			session.submit(workspace(LAYOUT_A))
+			awaitEvent("awaitClosed")
+
+			session.shutdown()
+			gate.complete(Unit)
+			delay(SETTLE_MILLIS)
+
+			assertThat(lifecycle.obtainedManagers).isEmpty()
+		}
+
 	private fun workspace(layout: KotlinModuleLayout): Workspace =
 		Workspace(
 			rootProject = GradleProject(gradleProject(":")),
@@ -211,7 +237,17 @@ class CompilerSessionTest {
 		@Volatile
 		var prepareGate: CompletableDeferred<Unit>? = null
 
-		override fun prepare(workspace: Workspace) {
+		val obtainedManagers: MutableList<IndexingServiceManager> = CopyOnWriteArrayList()
+		val preparedWith: MutableList<IndexingServiceManager> = CopyOnWriteArrayList()
+		val builtWith: MutableList<IndexingServiceManager> = CopyOnWriteArrayList()
+
+		override fun currentManager() = IndexingServiceManager().also { obtainedManagers += it }
+
+		override fun prepare(
+			workspace: Workspace,
+			manager: IndexingServiceManager,
+		) {
+			preparedWith += manager
 			events += "prepare"
 			prepareGate?.let { runBlocking { it.await() } }
 		}
@@ -227,7 +263,9 @@ class CompilerSessionTest {
 		override fun build(
 			workspace: Workspace,
 			layout: KotlinModuleLayout,
+			manager: IndexingServiceManager,
 		): String {
+			builtWith += manager
 			val n = ++builds
 			events += "building c$n"
 			gates[n]?.let { runBlocking { it.await() } }
