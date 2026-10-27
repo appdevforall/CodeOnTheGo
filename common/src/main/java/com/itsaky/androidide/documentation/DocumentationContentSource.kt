@@ -26,6 +26,7 @@ import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
 import com.itsaky.androidide.utils.BrotliDictionaryCodec
 import com.itsaky.androidide.utils.expectsCompressedTemplates
+import com.itsaky.androidide.utils.expectsContentBlocks
 import com.itsaky.androidide.utils.loadCompressionDictionary
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.error.PebbleException
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.Closeable
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.io.SequenceInputStream
 import java.io.StringWriter
@@ -153,13 +155,15 @@ data class RequestLookup(
  * are Brotli-compressed against the same dictionary as the rows; an earlier database's are plain
  * UTF-8 and are read as they are, since an app update never replaces the installed database.
  *
- * A database with a `ContentBlockItems` table (the ADFA-6683 prototype) stores some pages N to a
- * Brotli block: such a row's own content is empty, and its bytes are a slice of the decoded block,
- * which is then served exactly as a decoded row would be. Decoded blocks are cached per database.
+ * From documentation version 4 (ADFA-6683) some pages are stored up to 64 to a Brotli block: such a
+ * row's own content is empty, and its bytes are a slice of the decoded block, which is then served
+ * exactly as a decoded row would be. A block that is missing or does not decode, or an item outside
+ * its block, fails the page. Below 4 every row holds its own content, whatever tables the file has.
  *
  * Thread-safe: [lookup] and [withDatabase] hold a read lock for the whole read, and the swap takes
  * the write lock, since swapping closes the handle a reader could be using. Readers never block
- * each other.
+ * each other. A block is decoded and cached under the read lock, and a swap clears the cache under
+ * the write lock, so a block decoded from one database is never served from another.
  *
  * @param decodeTemplate Turns a `Templates` row's bytes into the template's text, given the codec
  * for the database it came from. A seam for `:common`'s tests only, which have no brotli4j desktop
@@ -236,15 +240,15 @@ class DocumentationContentSource internal constructor(
 	@Volatile
 	private var templatesCompressed: Boolean? = null
 
-	// Whether the active database has a ContentBlockItems table, or null until its first read asks.
-	// Cleared on every swap, with the blocks cached from the previous database: a block id names a
-	// different block in another database.
+	// Whether the active database stores pages in content blocks (documentation version 4 on), or
+	// null until its first read asks. Cleared with the blocks cached from the previous database: a
+	// block id names a different block in another database.
 	@Volatile
-	private var hasContentBlocks: Boolean? = null
+	private var contentBlocks: Boolean? = null
 
 	private val blockCache = ContentBlockCache(ContentBlockCache.MAX_PLAIN_BYTES)
 
-	// Its own tag, so the phone measurement can filter logcat to these lines alone.
+	// Its own tag, so logcat can be filtered to the block decodes and cache hits alone.
 	private val blockLog = LoggerFactory.getLogger("DocBlocks")
 
 	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
@@ -472,7 +476,7 @@ class DocumentationContentSource internal constructor(
 				log.error("Cannot close the documentation database", e)
 			}
 			database = null
-			blockCache.clear()
+			forgetDatabaseState()
 		}
 	}
 
@@ -536,20 +540,24 @@ class DocumentationContentSource internal constructor(
 
 	/**
 	 * [path]'s Content row: content, MIME type, compression and template id, then -- in a database
-	 * with content blocks -- the row's block id, offset and length, NULL when it has no block.
+	 * declaring content blocks -- the row's block id, offset and length, NULL when it has no block.
+	 *
+	 * Such a database always gets the blocked query: one missing the block tables fails the read with
+	 * SQLite's error rather than serving its blocked rows' empty content.
 	 */
 	private fun queryContent(
 		database: SQLiteDatabase,
 		path: String,
-	): Cursor = database.rawQuery(if (hasContentBlocks(database)) BLOCKED_CONTENT_QUERY else CONTENT_QUERY, arrayOf(path))
+	): Cursor = database.rawQuery(if (contentBlocks(database)) BLOCKED_CONTENT_QUERY else CONTENT_QUERY, arrayOf(path))
 
 	/**
-	 * Whether [database] has a `ContentBlockItems` table; asked once per database. A failure to ask is
-	 * not cached, so it fails this read and the next read asks again.
+	 * Whether [database] stores pages in content blocks, from the version it declares; asked once per
+	 * database. A failure to read the version is not cached, so it fails this read and the next read
+	 * asks again.
 	 */
-	private fun hasContentBlocks(database: SQLiteDatabase): Boolean =
-		hasContentBlocks
-			?: database.rawQuery(BLOCK_TABLE_QUERY, null).use { it.moveToFirst() }.also { hasContentBlocks = it }
+	private fun contentBlocks(database: SQLiteDatabase): Boolean =
+		contentBlocks
+			?: expectsContentBlocks(database).also { contentBlocks = it }
 
 	/**
 	 * The plain bytes of the row [cursor] is on, a [queryContent] result: the row's slice of its
@@ -560,10 +568,23 @@ class DocumentationContentSource internal constructor(
 		path: String,
 		cursor: Cursor,
 	): ByteArray {
-		if (!hasContentBlocks(database) || cursor.isNull(BLOCK_ID_COLUMN)) {
-			return decodeRow(database, path, cursor.getBlob(0), cursor.getString(2))
+		val blocked = contentBlocks(database)
+		if (!blocked || cursor.isNull(BLOCK_ID_COLUMN)) {
+			val content = cursor.getBlob(0)
+			val compression = cursor.getString(2)
+			// A blocked row's own content is empty, and every blocked row is Brotli. Such a row with
+			// no item has lost its way to its bytes; an empty Brotli row is never valid anyway, so the
+			// read fails here, naming the likely cause. An empty uncompressed row is an empty file.
+			check(!(blocked && compression == "brotli" && content.isEmpty())) {
+				"Content row '$path' is empty and has no ContentBlockItems row"
+			}
+			return decodeRow(database, path, content, compression)
 		}
 		val blockId = cursor.getLong(BLOCK_ID_COLUMN)
+		// Both NOT NULL in the schema; read as 0 they would slice an empty page out of the block.
+		check(!cursor.isNull(BLOCK_ID_COLUMN + 1) && !cursor.isNull(BLOCK_ID_COLUMN + 2)) {
+			"ContentBlockItems row for '$path' in block $blockId has no offset or length"
+		}
 		val offset = cursor.getLong(BLOCK_ID_COLUMN + 1)
 		val length = cursor.getLong(BLOCK_ID_COLUMN + 2)
 		return sliceBlockItem(decodedBlock(database, blockId, path), blockId, offset, length)
@@ -573,7 +594,9 @@ class DocumentationContentSource internal constructor(
 	 * Block [blockId] decoded, from the cache or else read and Brotli-decoded with the codec the
 	 * database's Content rows use, then cached.
 	 *
-	 * @param path The page being served, for the log lines only.
+	 * @param path The page being served, for the failure and the log lines.
+	 * @throws IllegalStateException When the database has no such block, or it has no data.
+	 * @throws IOException When the block does not decode.
 	 */
 	private fun decodedBlock(
 		database: SQLiteDatabase,
@@ -593,19 +616,29 @@ class DocumentationContentSource internal constructor(
 
 		val codec = codec(database)
 		val started = System.nanoTime()
-		val block = codec.decompress(ByteArrayInputStream(compressed))
+		val block =
+			try {
+				codec.decompress(ByteArrayInputStream(compressed))
+			} catch (e: Exception) {
+				// Logged with the database, as a template that does not decode is: the message leaves
+				// it out, and a debug database on the sdcard is the usual suspect.
+				log.error("Content block {} in '{}' does not decode; page '{}' fails", blockId, database.path, path, e)
+				throw IOException("Content block $blockId does not decode, for path '$path'", e)
+			}
 		val decodeNanos = System.nanoTime() - started
 		val cached = blockCache.put(blockId, block)
 
-		blockLog.info(
-			"decode block={} path={} compressed={} plain={} decodeMs={} cachePlain={}",
-			blockId,
-			path,
-			compressed.size,
-			block.size,
-			String.format(Locale.ROOT, "%.3f", decodeNanos / 1_000_000.0),
-			cached,
-		)
+		if (blockLog.isDebugEnabled) {
+			blockLog.debug(
+				"decode block={} path={} compressed={} plain={} decodeMs={} cachePlain={}",
+				blockId,
+				path,
+				compressed.size,
+				block.size,
+				String.format(Locale.ROOT, "%.3f", decodeNanos / 1_000_000.0),
+				cached,
+			)
+		}
 		return block
 	}
 
@@ -942,6 +975,21 @@ class DocumentationContentSource internal constructor(
 		database = opened
 		activeDatabasePath = path
 		databaseTimestamp = timestamp
+		forgetDatabaseState()
+		generation++
+
+		try {
+			previous?.close()
+		} catch (e: Exception) {
+			log.error("Cannot close previous database", e)
+		}
+	}
+
+	/**
+	 * Drops everything read from the active database, on every swap -- to the debug database, or a
+	 * reopen of the rewritten installed file -- and on [close]. Callers hold the write lock.
+	 */
+	private fun forgetDatabaseState() {
 		// Nulled as well as marked stale: a different database can carry a different dictionary
 		// (or none), and decoding its rows against the previous one can succeed with wrong bytes
 		// rather than fail (see BrotliDictionaryCodec). A null codec can only be rebuilt, never
@@ -952,15 +1000,9 @@ class DocumentationContentSource internal constructor(
 		// the compiled templates go with the cache clear below.
 		templatesCompressed = null
 		clearTemplateCache()
-		hasContentBlocks = null
+		// It may store its pages the other way too, and its block ids name different blocks.
+		contentBlocks = null
 		blockCache.clear()
-		generation++
-
-		try {
-			previous?.close()
-		} catch (e: Exception) {
-			log.error("Cannot close previous database", e)
-		}
 	}
 
 	companion object {
@@ -989,8 +1031,9 @@ class DocumentationContentSource internal constructor(
 			AND    C.path = ?
 		"""
 
-		// CONTENT_QUERY's four columns, then the row's block; a row with no block joins to NULLs. The
-		// item's key is ContentBlockItems' primary key, so the join cannot duplicate a row.
+		// CONTENT_QUERY's four columns, then the row's item; a row with no item joins to NULLs. The
+		// item's key is ContentBlockItems' primary key, so the join cannot duplicate a row. "offset"
+		// is quoted because OFFSET is an SQL keyword.
 		private const val BLOCKED_CONTENT_QUERY = """
 			SELECT C.content, CT.value, CT.compression, C.templateId, CBI.blockId, CBI."offset", CBI.length
 			FROM   Content C
@@ -1000,8 +1043,6 @@ class DocumentationContentSource internal constructor(
 		"""
 
 		private const val BLOCK_ID_COLUMN = 4
-
-		private const val BLOCK_TABLE_QUERY = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ContentBlockItems'"
 
 		private const val BLOCK_QUERY = "SELECT data FROM ContentBlocks WHERE id = ?"
 

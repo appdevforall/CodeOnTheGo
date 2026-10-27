@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 /**
  * The pure logic of the ADFA-6683 content blocks: slicing an item out of a decoded block, and the
  * cache of decoded blocks. Serving a page from a real Brotli block is covered in :app, by
- * BrotliContentSourceTest, since this module's tests have no brotli4j native.
+ * ContentBlockSourceTest, since this module's tests have no brotli4j native.
  */
 class ContentBlocksTest {
 	private val block = "firstsecondthird".toByteArray()
@@ -83,6 +83,17 @@ class ContentBlocksTest {
 		assertThat(cache.get(1)).isNotNull()
 		assertThat(cache.get(3)).isNotNull()
 		assertThat(cache.get(4)).isNotNull()
+	}
+
+	// OfflineDocumentationTools closes a block before it passes 4 MiB decoded, so that two fit here.
+	@Test
+	fun `the app's budget holds two blocks at the 4 MiB cap`() {
+		val cache = ContentBlockCache(ContentBlockCache.MAX_PLAIN_BYTES)
+		cache.put(1, ByteArray(4 * 1024 * 1024))
+		cache.put(2, ByteArray(4 * 1024 * 1024))
+
+		assertThat(cache.get(1)).isNotNull()
+		assertThat(cache.get(2)).isNotNull()
 	}
 
 	@Test

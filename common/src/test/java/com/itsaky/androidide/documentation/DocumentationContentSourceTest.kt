@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -77,6 +78,8 @@ class DocumentationContentSourceTest {
 		every { getString(1) } returns mimeType
 		every { getString(2) } returns compression
 		every { getInt(3) } returns templateId
+		// No ContentBlockItems row, for the query that joins it; the other query has no column 4.
+		every { isNull(4) } returns true
 	}
 
 	private fun database(contentCursor: Cursor): SQLiteDatabase =
@@ -158,6 +161,91 @@ class DocumentationContentSourceTest {
 			database.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
 		}
 	}
+
+	// ADFA-6683: from documentation version 4 some rows are stored in content blocks, which only the
+	// query joining ContentBlockItems finds. The declared version picks the query, never the tables:
+	// these mocks would answer either. Blocked rows themselves are served in :app, by
+	// ContentBlockSourceTest, since a block is Brotli.
+	@Test
+	fun `a database declaring version 4 reads its rows with their block items`() {
+		assertContentQuery(declaredMajorVersion = 4, blocked = true)
+	}
+
+	@Test
+	fun `a database declaring version 3 reads its rows as they are`() {
+		assertContentQuery(declaredMajorVersion = 3, blocked = false)
+	}
+
+	@Test
+	fun `a database declaring no version reads its rows as they are`() {
+		assertContentQuery(declaredMajorVersion = null, blocked = false)
+	}
+
+	@Test
+	fun `the version that picks the query is read once per database`() {
+		val database = database(contentCursor(bytes = "page".toByteArray()), declaredMajorVersion = 4)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source()
+		source.lookup("a/page.html")
+		clearMocks(database, answers = false, recordedCalls = true)
+
+		repeat(3) { assertThat(text(source.lookup("a/page.html"))).isEqualTo("page") }
+
+		verify(exactly = 0) { database.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) }
+		verify(exactly = 3) { database.rawQuery(match { it.contains("LEFT JOIN ContentBlockItems") }, any()) }
+	}
+
+	// Never read as "no blocks", which would serve every blocked row's empty content, and not cached:
+	// the next read asks again.
+	@Test
+	fun `a failure to read the version fails the read, and the next read asks again`() {
+		val database = database(contentCursor(bytes = "page".toByteArray()), declaredMajorVersion = 4)
+		var versionReadable = false
+		every { database.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) } answers {
+			if (!versionReadable) throw SQLiteException("disk I/O error (code 10)")
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { isNull(0) } returns false
+				every { getInt(0) } returns 4
+			}
+		}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source()
+
+		val failed = source.lookup("a/page.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause).isInstanceOf(SQLiteException::class.java)
+		verify(exactly = 0) { database.rawQuery(match { it.contains("FROM   Content") }, any()) }
+
+		versionReadable = true
+
+		assertThat(text(source.lookup("a/page.html"))).isEqualTo("page")
+		verify(exactly = 1) { database.rawQuery(match { it.contains("LEFT JOIN ContentBlockItems") }, any()) }
+	}
+
+	private fun assertContentQuery(
+		declaredMajorVersion: Int?,
+		blocked: Boolean,
+	) {
+		val database = database(contentCursor(bytes = "page".toByteArray()), declaredMajorVersion)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().use { it.lookup("a/page.html") }
+
+		assertThat(text(lookup)).isEqualTo("page")
+		verify(exactly = if (blocked) 1 else 0) {
+			database.rawQuery(match { it.contains("LEFT JOIN ContentBlockItems") }, any())
+		}
+		verify(exactly = if (blocked) 0 else 1) {
+			database.rawQuery(match { it.contains("FROM   Content") && !it.contains("ContentBlockItems") }, any())
+		}
+	}
+
+	private fun text(lookup: DocumentationLookup): String =
+		((lookup as? DocumentationLookup.Found) ?: throw AssertionError("expected Found, got $lookup"))
+			.content.bytes
+			.toString(Charsets.UTF_8)
 
 	@Test
 	fun `lookup returns the row for a path`() {

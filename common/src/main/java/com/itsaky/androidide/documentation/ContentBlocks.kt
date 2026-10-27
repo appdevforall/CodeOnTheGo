@@ -18,7 +18,8 @@
 package com.itsaky.androidide.documentation
 
 /**
- * One item of a decoded content block (ADFA-6683 prototype): bytes `[offset, offset + length)`.
+ * One item of a decoded content block (ADFA-6683, documentation version 4): bytes
+ * `[offset, offset + length)`.
  *
  * The range is checked as 64-bit before it is narrowed to an index: `ContentBlockItems` columns are
  * SQLite INTEGERs, and an offset past [Int.MAX_VALUE] would otherwise wrap and slice the wrong bytes
