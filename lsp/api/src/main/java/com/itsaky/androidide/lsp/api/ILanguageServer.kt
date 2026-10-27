@@ -76,8 +76,8 @@ interface ILanguageServer {
 	 * Called by client to notify the server to shutdown. Language servers must release all the
 	 * resources in use.
 	 *
-	 * Called once when the project closes, from the editor's `onPause` while it finishes, and never
-	 * on an activity recreation. It must not block. The project's indexes may close at any time after
+	 * Called once when the project closes (normally from the editor's `onPause` while it finishes) or
+	 * when the server is unregistered, and never on an activity recreation. It must not block. The project's indexes may close at any time after
 	 * it returns; reads of a closed index return empty results. After this is called, clients must
 	 * re-initialize the server.
 	 */

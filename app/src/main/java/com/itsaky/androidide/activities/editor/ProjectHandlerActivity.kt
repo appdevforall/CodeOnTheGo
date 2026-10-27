@@ -1162,7 +1162,7 @@ abstract class ProjectHandlerActivity :
 		if (!isDestroying) return
 
 		if (didCompleteLiveOnCreate) {
-			sessionCloser.closeOnPause()
+			sessionCloser.close()
 		} else {
 			// A doomed instance must not stop the servers a live sibling uses; preDestroy gates them the same way.
 			closeProjectState()
@@ -1180,7 +1180,7 @@ abstract class ProjectHandlerActivity :
 		// of the project
 		ProjectManagerImpl.getInstance().destroy()
 
-		// ADFA-4128: the Quick Build session manager is a process-wide Koin
+		// The Quick Build session manager is a process-wide Koin
 		// singleton that outlives this activity, and its provisioner reads
 		// IProjectManager.getInstance().projectDirPath fresh at build time rather
 		// than a snapshot. Without this, closing a project while its eager prebuild
@@ -1252,7 +1252,7 @@ abstract class ProjectHandlerActivity :
 		}
 
 		if (didCompleteLiveOnCreate && isDestroying) {
-			sessionCloser.closeOnDestroy()
+			sessionCloser.close()
 
 			try {
 				editorViewModel.unbindBuildService()

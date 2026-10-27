@@ -14,25 +14,18 @@ class ProjectSessionCloserTest {
 	fun `teardown runs once across repeated calls`() {
 		recordCurrent(first)
 
-		closer.closeOnPause()
-		closer.closeOnPause()
-		closer.closeOnDestroy()
+		closer.close()
+		closer.close()
+		closer.close()
 
 		assertThat(teardowns).isEqualTo(1)
 	}
 
 	@Test
-	fun `pause with nothing recorded tears down as today`() {
-		closer.closeOnPause()
+	fun `nothing recorded tears down as before`() {
+		closer.close()
 
 		assertThat(teardowns).isEqualTo(1)
-	}
-
-	@Test
-	fun `destroy with nothing recorded skips`() {
-		closer.closeOnDestroy()
-
-		assertThat(teardowns).isEqualTo(0)
 	}
 
 	@Test
@@ -40,17 +33,17 @@ class ProjectSessionCloserTest {
 		recordCurrent(first)
 		current = second
 
-		closer.closeOnPause()
-		closer.closeOnDestroy()
+		closer.close()
+		closer.close()
 
 		assertThat(teardowns).isEqualTo(0)
 	}
 
 	@Test
-	fun `destroy fallback runs when pause never closed`() {
+	fun `an editor that still owns its session tears it down`() {
 		recordCurrent(first)
 
-		closer.closeOnDestroy()
+		closer.close()
 
 		assertThat(teardowns).isEqualTo(1)
 	}
@@ -64,10 +57,10 @@ class ProjectSessionCloserTest {
 
 	@Test
 	fun `record after teardown is ignored`() {
-		closer.closeOnPause()
+		closer.close()
 		recordCurrent(second)
 
-		closer.closeOnDestroy()
+		closer.close()
 
 		assertThat(teardowns).isEqualTo(1)
 	}

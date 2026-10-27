@@ -13,8 +13,10 @@ import org.slf4j.LoggerFactory
  * too, for a `finish()` that arrives while already paused.
  *
  * Servers, the project manager and Quick Build are process-wide, so the teardown is skipped when the
- * current session is not the one [record]ed, which means another editor already owns them. The
- * check only tells sessions apart when a new manager was created between them.
+ * current session is not the one [record]ed, which means another editor already owns them. With
+ * nothing recorded (the project never finished opening, or a recreated editor skipped it) it tears
+ * down as before recording existed. The check only tells sessions apart when a new manager was
+ * created between them.
  *
  * @param currentSession Returns the current session without creating one.
  * @param teardown Stops the servers and destroys the project.
@@ -36,17 +38,10 @@ internal class ProjectSessionCloser<S : Any>(
 		recorded = session
 	}
 
-	/** Tears down when nothing was recorded (as before recording existed) or this editor still owns the session. */
-	fun closeOnPause() {
-		if (recorded == null || ownsCurrent()) runTeardown() else skip("pause")
+	/** Tears down when nothing was recorded or this editor still owns the current session. */
+	fun close() {
+		if (recorded == null || currentSession() === recorded) runTeardown() else skip()
 	}
-
-	/** Tears down only when this editor recorded a session and still owns it. */
-	fun closeOnDestroy() {
-		if (recorded != null && ownsCurrent()) runTeardown() else skip("destroy")
-	}
-
-	private fun ownsCurrent() = currentSession() === recorded
 
 	private fun runTeardown() {
 		if (tornDown) return
@@ -54,7 +49,7 @@ internal class ProjectSessionCloser<S : Any>(
 		teardown()
 	}
 
-	private fun skip(caller: String) {
-		if (!tornDown) log.info("Skipping project teardown on {}: this editor does not own the current session", caller)
+	private fun skip() {
+		if (!tornDown) log.info("Skipping project teardown: this editor does not own the current session")
 	}
 }
