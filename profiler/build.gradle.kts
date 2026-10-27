@@ -50,7 +50,9 @@ dependencies {
 	implementation(libs.google.protobuf.java)
 
 	implementation(libs.rikka.hidden.compat)
-	implementation(libs.rikka.hidden.stub)
+	// compileOnly: packaged stubs make R8 treat framework interfaces as unimplemented app classes
+	// and rewrite calls through them to throws.
+	compileOnly(libs.rikka.hidden.stub)
 
 	implementation(platform(libs.compose.bom))
 	implementation(libs.compose.runtime)

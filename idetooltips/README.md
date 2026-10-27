@@ -13,7 +13,7 @@ This module provides functionalities such as:
 
 *   **Dynamic Tooltip Display:** Show tooltips anchored to specific UI elements or coordinates.
 *   **Rich Content:** Supports HTML content within tooltips for flexible formatting, including links.
-*   **Database Integration:** Fetches tooltip content and metadata from the Room database - `IDETooltipDatabase`.
+*   **Database Integration:** Reads tooltip content read-only from `documentation.db` with raw SQLite (`TooltipQuery.kt`), the database described in [docs/documentation-database.md](../docs/documentation-database.md).
 *   **"See More" Functionality:** Handles expanding content or navigating to detailed documentation.
 *   **Custom callbacks:** Customizable action callbacks for link clicks.
 

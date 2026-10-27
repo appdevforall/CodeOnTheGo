@@ -4,9 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtLibraryModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtSourceModule
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
-import com.itsaky.androidide.project.AndroidModels
-import com.itsaky.androidide.project.GradleModels
-import com.itsaky.androidide.project.JavaModels
+import com.itsaky.androidide.lsp.kotlin.fixtures.gradleProject
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.GradleProject
 import com.itsaky.androidide.projects.api.JavaModule
@@ -36,7 +34,7 @@ class CollectKtModulesTest : KtLspTest() {
 	fun `modules sharing a compile classpath jar share one library module`() {
 		val libJar = tempJar("lib.jar")
 
-		val sourceModules = collect(listOf(":a", ":b").map { JavaModule(gradleProject(it, compileJar = libJar)) })
+		val sourceModules = collect(listOf(":a", ":b").map { JavaModule(gradleProject(it, compileJars = listOf(libJar))) })
 
 		val libJarDeps = sourceModules.map { it.libraryDeps(libJar) }
 		libJarDeps.forEach { assertThat(it).hasSize(1) }
@@ -53,7 +51,7 @@ class CollectKtModulesTest : KtLspTest() {
 			collect(
 				listOf(
 					AndroidModule(gradleProject(":a", bootClassPath = androidJar)),
-					JavaModule(gradleProject(":j", compileJar = androidJar)),
+					JavaModule(gradleProject(":j", compileJars = listOf(androidJar))),
 				),
 			)
 
@@ -71,45 +69,10 @@ class CollectKtModulesTest : KtLspTest() {
 			rootProject = GradleProject(gradleProject(":")),
 			subProjects = subProjects,
 			syncIssues = emptyList(),
-		).collectKtModules(env.project, env.applicationEnv)
+		).kotlinModuleLayout()
+			.toKtModules(env.project, env.applicationEnv)
 			.filterIsInstance<KtSourceModule>()
 
 	private fun KtSourceModule.libraryDeps(jar: Path) =
 		directRegularDependencies.filterIsInstance<KtLibraryModule>().filter { it.id == jar.pathString }
-
-	private fun gradleProject(
-		path: String,
-		bootClassPath: Path? = null,
-		compileJar: Path? = null,
-	): GradleModels.GradleProject {
-		val dir = "/tmp/collect-kt-modules${path.replace(':', '/')}"
-		return GradleModels.GradleProject
-			.newBuilder()
-			.setName(path.trimStart(':'))
-			.setPath(path)
-			.setProjectDirPath(dir)
-			.setBuildDirPath("$dir/build")
-			.setBuildScriptPath("$dir/build.gradle")
-			.apply {
-				if (bootClassPath != null) {
-					setAndroidProject(
-						AndroidModels.AndroidProject
-							.newBuilder()
-							.setProjectType(AndroidModels.ProjectType.LibraryProject)
-							.addBootClassPaths(bootClassPath.pathString),
-					)
-				}
-				if (compileJar != null) {
-					setJavaProject(
-						JavaModels.JavaProject.newBuilder().addDependency(
-							JavaModels.JavaDependency
-								.newBuilder()
-								.setJarFilePath(compileJar.pathString)
-								.setScope(JavaModule.SCOPE_COMPILE)
-								.setExternalLibrary(JavaModels.JavaExternalLibraryDependency.getDefaultInstance()),
-						),
-					)
-				}
-			}.build()
-	}
 }
