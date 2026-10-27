@@ -16,10 +16,20 @@ data class IndexKey<T : Any>(
 /**
  * Central registry where [IndexingService]s publish their indexes
  * and consumers (LSPs, etc.) retrieve them.
+ *
+ * Once closed, it refuses new indexes and [require] throws [IndexRegistryClosedException], so work
+ * for an ended project session stops instead of opening indexes nothing would close.
  */
 class IndexRegistry : Closeable {
 	private val indexes = ConcurrentHashMap<String, Any>()
 	private val listeners = ConcurrentHashMap<String, MutableList<(Any) -> Unit>>()
+
+	@Volatile
+	private var closed = false
+
+	/** Whether [close] has been called. */
+	val isClosed: Boolean
+		get() = closed
 
 	/**
 	 * Register an index. Replaces any previously registered index
@@ -27,12 +37,24 @@ class IndexRegistry : Closeable {
 	 *
 	 * If there are listeners waiting for this key, they are notified
 	 * immediately.
+	 *
+	 * @throws IndexRegistryClosedException if the registry is closed; [index] is closed first.
 	 */
 	fun <T : Any> register(
 		key: IndexKey<T>,
 		index: T,
 	) {
+		if (closed) {
+			(index as? Closeable)?.close()
+			throw closedException(key)
+		}
+
 		val old = indexes.put(key.name, index)
+		if (closed) {
+			// close() may have drained the map before this entry landed; whoever removes it closes it.
+			if (indexes.remove(key.name, index)) (index as? Closeable)?.close()
+			throw closedException(key)
+		}
 
 		// Close the old index if it's Closeable
 		if (old is Closeable && old !== index) {
@@ -59,13 +81,22 @@ class IndexRegistry : Closeable {
 	 * left with a closed index. [create] runs only when no index is registered, and listeners are
 	 * notified only when it ran. [create] runs inside the registry's map update, so it must not call
 	 * back into this registry.
+	 *
+	 * @throws IndexRegistryClosedException if the registry is closed; [create] is then not called.
 	 */
 	fun <T : Any> registerIfAbsent(
 		key: IndexKey<T>,
 		create: () -> T,
 	): T {
+		if (closed) throw closedException(key)
+
 		var created: T? = null
 		val index = indexes.computeIfAbsent(key.name) { create().also { created = it } }
+		if (closed) {
+			// close() may have drained the map before this entry landed; whoever removes it closes it.
+			if (indexes.remove(key.name, index)) (index as? Closeable)?.close()
+			throw closedException(key)
+		}
 
 		created?.let { notifyListeners(key, it) }
 
@@ -81,12 +112,19 @@ class IndexRegistry : Closeable {
 
 	/**
 	 * Retrieve an index, throwing if not available.
+	 *
+	 * @throws IndexRegistryClosedException if the registry is closed.
+	 * @throws IllegalStateException if the registry is open but nothing is registered for [key].
 	 */
 	fun <T : Any> require(key: IndexKey<T>): T =
-		get(key) ?: throw IllegalStateException(
-			"Index '${key.name}' is not registered. " +
-				"Has the corresponding IndexingService been initialized?",
-		)
+		get(key) ?: if (closed) {
+			throw closedException(key)
+		} else {
+			throw IllegalStateException(
+				"Index '${key.name}' is not registered. " +
+					"Has the corresponding IndexingService been initialized?",
+			)
+		}
 
 	/**
 	 * Execute a block if the index is available.
@@ -138,13 +176,16 @@ class IndexRegistry : Closeable {
 	fun registeredKeys(): Set<String> = indexes.keys.toSet()
 
 	/**
-	 * Close and remove all registered indexes.
+	 * Close and remove all registered indexes, and refuse new ones from now on.
 	 */
 	override fun close() {
-		indexes.values.forEach { index ->
-			if (index is Closeable) index.close()
+		closed = true
+		// Removed one by one so an index a racing registerIfAbsent adds is closed exactly once.
+		for (name in indexes.keys.toList()) {
+			(indexes.remove(name) as? Closeable)?.close()
 		}
-		indexes.clear()
 		listeners.clear()
 	}
+
+	private fun closedException(key: IndexKey<*>) = IndexRegistryClosedException("Index registry is closed; cannot provide '${key.name}'")
 }
