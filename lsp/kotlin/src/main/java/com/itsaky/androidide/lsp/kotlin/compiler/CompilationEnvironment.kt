@@ -15,7 +15,6 @@ import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
-import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
@@ -65,7 +64,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class CompilationEnvironment(
 	name: String,
 	kind: CompilationKind,
-	private val workspace: Workspace,
+	private val layout: KotlinModuleLayout,
 	val ktProject: KotlinProjectModel,
 	intellijPluginRoot: Path,
 	jdkHome: Path,
@@ -161,7 +160,7 @@ internal class CompilationEnvironment(
 	private fun buildModules(
 		project: MockProject,
 		applicationEnv: KotlinCoreApplicationEnvironment,
-	): List<KtModule> = workspace.collectKtModules(project, applicationEnv)
+	): List<KtModule> = layout.toKtModules(project, applicationEnv)
 
 	override fun createServiceRegistrars() = listOf(LspAnalysisApiServiceRegistrar(AnalysisApiServiceProviders.Production))
 
@@ -215,7 +214,7 @@ internal class CompilationEnvironment(
 
 	fun refreshSources() {
 		Sentry.addBreadcrumb("refreshSources (env=$name, modules=${modules.size})")
-		project.write {
+		project.writeUnlessDisposed {
 			Sentry.addBreadcrumb("refreshSources(env=$name): in-progress")
 			ResolutionScopeProvider.getInstance(project).invalidateAll()
 			modules
@@ -252,7 +251,7 @@ internal class CompilationEnvironment(
 		// Resolve PSI/module structure under the read lock; driving psiManager.findFile /
 		// structureProvider concurrently with an `analyze` read section otherwise races.
 		val (ktFile, module) =
-			project.read {
+			project.readUnlessDisposed {
 				val structureProvider = ProjectStructureProvider.getInstance(project)
 				val ktFile =
 					path.toVirtualFileOrNull()?.let {
@@ -266,9 +265,9 @@ internal class CompilationEnvironment(
 					) as? AbstractKtModule
 
 				ktFile to module
-			}
+			} ?: return
 
-		project.write {
+		project.writeUnlessDisposed {
 			// Must run under the write lock so the session mutation can't race a concurrent
 			// `analyze` (which only holds the read lock); see KtSymbolIndex.refreshToCurrent.
 			if (ktFile != null) {
@@ -299,18 +298,20 @@ internal class CompilationEnvironment(
 	}
 
 	suspend fun onFileChangedOnDisk(path: Path) {
-		if (FileManager.isActive(path)) return
+		if (project.isDisposed || FileManager.isActive(path)) return
 		ktSymbolIndex.evictDiskCopy(path)
 		notifyElementModifiedForPath(path) { KaElementModificationType.Unknown }
 		ktSymbolIndex.submitForIndexing(path)
 	}
 
 	suspend fun onFileCreated(path: Path) {
+		if (project.isDisposed) return
 		notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
 		ktSymbolIndex.submitForIndexing(path)
 	}
 
 	suspend fun onFileRemoved(path: Path) {
+		if (project.isDisposed) return
 		notifyElementModifiedForPath(path) { ktFile ->
 			KaElementModificationType.ElementRemoved(ktFile)
 		}
