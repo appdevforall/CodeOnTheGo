@@ -87,7 +87,7 @@ class TemplateRepositoryImpl(
 		file: File,
 		installed: Boolean,
 	): CgtFileItem? {
-		val templates =
+		val contents =
 			try {
 				file.inputStream().use(CgtTemplateReader::readTemplates)
 			} catch (e: CancellationException) {
@@ -105,13 +105,14 @@ class TemplateRepositoryImpl(
 				logger.warn("Failed to parse {}", file.absolutePath, e)
 				return null
 			}
-		if (templates.isEmpty()) return null
+		if (contents.templates.isEmpty()) return null
 		return CgtFileItem(
 			file = file,
 			name = file.name,
-			templates = templates,
+			templates = contents.templates,
 			installed = installed,
 			provenance = provenanceOf(file.name),
+			manifestDisplayName = contents.displayName,
 		)
 	}
 

@@ -336,6 +336,7 @@ object TooltipTag {
 	const val GIT_PUSH = "git.action.push"
 	const val GIT_PULL = "git.action.pull"
 	const val GIT_BRANCHES = "project.git.branchmgt"
+	const val GIT_REFRESH = "git.action.refresh"
 
 	// Editor metrics carousel (ADFA-5510). Unprefixed like every other tag here: the lookup is by
 	// tag AND category, and the category column already carries "ide".

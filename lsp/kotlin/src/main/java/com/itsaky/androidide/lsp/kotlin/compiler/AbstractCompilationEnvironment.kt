@@ -1,6 +1,8 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisScheduler
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
@@ -10,6 +12,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.util.SLF4JLogger
+import com.itsaky.androidide.progress.ICancelChecker
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.kotlin.K1Deprecation
@@ -78,6 +81,7 @@ import org.jetbrains.kotlin.load.kotlin.MetadataFinderFactory
 import org.jetbrains.kotlin.load.kotlin.VirtualFileFinderFactory
 import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
 import org.jetbrains.kotlin.psi.KtPsiFactory
+import org.slf4j.LoggerFactory
 import java.nio.file.Path
 import kotlin.io.path.pathString
 import kotlin.time.Duration.Companion.seconds
@@ -101,6 +105,12 @@ internal abstract class AbstractCompilationEnvironment(
 	companion object {
 		/** Max time close() will block the (main) thread draining background workers before disposal. */
 		val CLOSE_DRAIN_TIMEOUT = 2.seconds
+
+		/** Max time close() waits for analyses and project reads to finish before disposing anyway. */
+		private val DISPOSE_WAIT = 10.seconds
+		private const val DISPOSE_RETRY_MILLIS = 10L
+
+		private val logger = LoggerFactory.getLogger(AbstractCompilationEnvironment::class.java)
 
 		init {
 			System.setProperty("java.awt.headless", "true")
@@ -190,12 +200,11 @@ internal abstract class AbstractCompilationEnvironment(
 				applicationEnvironmentMode = applicationEnvironmentMode,
 				compilerConfiguration = configuration,
 			)
+		project.registerRWLock()
 
 		if (applicationEnvironmentMode == KotlinCoreApplicationEnvironmentMode.Production) {
 			KotlinApplicationEnvironmentPin.ensure(configuration)
 		}
-
-		project.registerRWLock()
 
 		val serviceRegistrars = createServiceRegistrars()
 		ApplicationServiceRegistration.registerWithCustomRegistration(
@@ -359,6 +368,36 @@ internal abstract class AbstractCompilationEnvironment(
 			runBlocking { withTimeoutOrNull(CLOSE_DRAIN_TIMEOUT) { ktSymbolIndex.close() } }
 		}
 
-		Disposer.dispose(disposable)
+		if (!::projectEnv.isInitialized) {
+			Disposer.dispose(disposable)
+			return
+		}
+
+		disposeWhenIdle()
+	}
+
+	/*
+	 * A rebuild disposes a compiler while the editor is live, so wait for analyses and project reads in
+	 * flight. Both locks are needed and must never be waited on while holding the other: an analysis
+	 * takes project.read under the analysis lock, and indexing takes the analysis lock under
+	 * project.read. Hence the analysis lock is taken, the write lock only tried, and both dropped on a
+	 * miss. Past [DISPOSE_WAIT] it disposes anyway, as it did before this wait existed.
+	 */
+	private fun disposeWhenIdle() {
+		val deadline = System.nanoTime() + DISPOSE_WAIT.inWholeNanoseconds
+		while (true) {
+			val disposed =
+				AnalysisScheduler.withLock(AnalysisPriority.INTERACTIVE, ICancelChecker.NOOP, onPreempt = {}) {
+					project.tryWrite { Disposer.dispose(disposable) }
+				}
+			if (disposed) return
+
+			if (System.nanoTime() > deadline) {
+				logger.warn("Disposing '{}' while project reads are still running after {}", name, DISPOSE_WAIT)
+				Disposer.dispose(disposable)
+				return
+			}
+			Thread.sleep(DISPOSE_RETRY_MILLIS)
+		}
 	}
 }

@@ -5,7 +5,8 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.ProjectStorageKey
 import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.isDeletedProjectDirectory
@@ -38,8 +39,8 @@ object BuildOutputLocation {
 	/** Where Android mounts storage volumes: internal storage, and each SD card or USB drive. */
 	private val STORAGE_ROOT = File("/storage")
 
-	/** Whether the switch exists at all: early access only (REVIEW.md section 12). */
-	fun isAvailable(): Boolean = FeatureFlags.isExperimentsEnabled
+	/** Whether the switch exists at all: early access only (EXPERIMENTS.md). */
+	fun isAvailable(): Boolean = Experiments.isOn(Experiment.BUILD_OUTPUT_RELOCATION)
 
 	/** Whether the user currently asks for relocation; applied at the next sync. */
 	fun isRequested(): Boolean = isAvailable() && BuildPreferences.relocateBuildOutput
