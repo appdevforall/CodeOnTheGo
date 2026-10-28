@@ -12,6 +12,8 @@ import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.isDeletedProjectDirectory
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
 
 /**
  * Where a project's Gradle build output goes when it is moved off the FUSE-backed project folder
@@ -157,7 +159,10 @@ object BuildOutputLocation {
 		noBackupDir: File,
 		isOrphan: (File) -> Boolean,
 	): Int {
-		val trees = File(noBackupDir, DIR_NAME).listFiles { file -> file.isDirectory } ?: return 0
+		// A link among the trees is not a tree; following it would delete what it points to.
+		val trees =
+			File(noBackupDir, DIR_NAME).listFiles { file -> Files.isDirectory(file.toPath(), LinkOption.NOFOLLOW_LINKS) }
+				?: return 0
 		return trees.count { tree ->
 			val project = projectOf(tree)
 			project != null && isOrphan(project) && deleteTree(tree)
@@ -166,12 +171,13 @@ object BuildOutputLocation {
 
 	/**
 	 * Deletes [tree] with its marker last: a deletion that stops part-way keeps the marker, so the
-	 * next sweep can still tell whose tree it is and finish the job.
+	 * next sweep can still tell whose tree it is and finish the job. A build can leave symlinks in its
+	 * output, so the deletion never follows one out of the tree.
 	 */
 	private fun deleteTree(tree: File): Boolean {
 		val marker = File(tree, PROJECT_PATH_FILE)
 		val contents = tree.listFiles() ?: return false
-		val deleted = contents.filter { it != marker }.map { it.deleteRecursively() }.all { it }
+		val deleted = contents.filter { it != marker }.map { deleteWithoutFollowingLinks(it) }.all { it }
 		return deleted && (!marker.exists() || marker.delete()) && tree.delete()
 	}
 
