@@ -17,13 +17,15 @@ object OldBuildOutput {
 
 	/**
 	 * The stale folders of a relocated project: the `build/` of each project the synced model put in
-	 * [tree], and the Gradle and Kotlin caches of the root and of `buildSrc`. For a project in [tree],
+	 * [tree], the root's `.gradle/` and `.kotlin/`, and `buildSrc/.kotlin/`. For a project in [tree],
 	 * `build/` was Gradle's default before the move; a project whose build script sets its own build
 	 * directory stays where it was, so a `build/` folder in it was never Gradle's and is kept. Only
 	 * folders inside [rootDir] once symlinks are resolved, so a linked module folder cannot lead the
 	 * deletion out of the project. Left alone: a symlink; a folder that is a project's directory or
-	 * holds one; a folder that holds or lies in a build directory the model still uses; and
-	 * `buildSrc/.gradle/` and an included build's `.gradle/` and `.kotlin/`, which builds still use.
+	 * holds one; a folder that holds or lies in a build directory the model still uses;
+	 * `buildSrc/build/`, as `buildSrc` is not in the model, so whether it kept that default cannot be
+	 * told; and `buildSrc/.gradle/` and an included build's `.gradle/` and `.kotlin/`, which builds
+	 * still use.
 	 *
 	 * @param rootDir the root project's directory.
 	 * @param tree the project's tree, from [BuildOutputLocation.treeFor].
@@ -43,7 +45,7 @@ object OldBuildOutput {
 		val relocated = projects.zip(inUse).filter { (_, buildDir) -> BuildOutputLocation.isRelocated(buildDir, tree) }
 		val candidates =
 			relocated.map { (projectDir, _) -> File(projectDir, "build") } +
-				listOf(".gradle", ".kotlin", "buildSrc/build", "buildSrc/.kotlin").map { File(root, it) }
+				listOf(".gradle", ".kotlin", "buildSrc/.kotlin").map { File(root, it) }
 		return candidates.distinct().filter { dir ->
 			canonicalOrNull(dir)?.startsWith(canonicalRoot) == true &&
 				Files.isDirectory(dir.toPath(), LinkOption.NOFOLLOW_LINKS) &&

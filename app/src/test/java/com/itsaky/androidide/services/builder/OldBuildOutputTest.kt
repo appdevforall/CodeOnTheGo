@@ -17,7 +17,7 @@ class OldBuildOutputTest {
 	): List<File> = paths.map { File(root, it).apply { mkdirs() } }
 
 	@Test
-	fun `finds each project's build folder and the root's and buildSrc's caches`() {
+	fun `finds each relocated project's build folder and the Gradle and Kotlin caches`() {
 		val root = tmp.newFolder("project")
 		val tree = tmp.newFolder("tree")
 		dirs(root, "build", "app/build", ".gradle", ".kotlin", "buildSrc/build", "buildSrc/.kotlin", "buildSrc/.gradle", ".cxx")
@@ -29,7 +29,6 @@ class OldBuildOutputTest {
 			"app/build",
 			".gradle",
 			".kotlin",
-			"buildSrc/build",
 			"buildSrc/.kotlin",
 		)
 	}
@@ -150,6 +149,22 @@ class OldBuildOutputTest {
 		val projects = listOf(root, File(root, "app"), File(root, "lib"))
 		// :lib sets layout.buildDirectory = file("out"), which overrides the relocation.
 		val buildDirs = listOf(File(tree, "root"), File(tree, "app"), File(root, "lib/out"))
+
+		assertThat(OldBuildOutput.find(root, tree, projects, buildDirs).map { it.relativeTo(root).path })
+			.containsExactly("app/build")
+		OldBuildOutput.removeOnce(tree, root, projects, buildDirs)
+		assertThat(notes.readText()).isEqualTo("mine")
+	}
+
+	@Test
+	fun `buildSrc's build folder is kept, as the model cannot show where buildSrc builds`() {
+		val root = tmp.newFolder("project")
+		val tree = tmp.newFolder("tree")
+		// buildSrc may set its own build directory, such as buildSrc/out; its build/ is then the user's.
+		dirs(root, "buildSrc/out", "buildSrc/build", "app/build")
+		val notes = File(root, "buildSrc/build/notes.txt").apply { writeText("mine") }
+		val projects = listOf(root, File(root, "app"))
+		val buildDirs = listOf(File(tree, "root"), File(tree, "app"))
 
 		assertThat(OldBuildOutput.find(root, tree, projects, buildDirs).map { it.relativeTo(root).path })
 			.containsExactly("app/build")
