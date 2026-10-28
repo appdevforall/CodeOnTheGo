@@ -366,6 +366,60 @@ override fun getLanguages() = listOf(
 - Files that are already open switch to the language when the plugin is loaded, enabled or disabled; the user does not need to reopen them.
 - File extensions the IDE already handles cannot be claimed. Set `plugin.min_ide_version` to `26.41` or later.
 
+## Porting an Android Studio plugin
+
+Code on the Go cannot load Android Studio or IntelliJ plugins ([ADR 0018](adr/0018-android-studio-plugins-are-ported-not-run.md)): they are built on Swing and on IntelliJ's IDE layer, neither of which exists here. A port keeps the plugin's logic and replaces what touches the platform. Swing UI becomes Android `Fragment`s, and each `plugin.xml` extension maps to an extension interface or service:
+
+| Android Studio (`plugin.xml`) | Code on the Go |
+|---|---|
+| `<action>` in a main-menu group | `UIExtension.getMainMenuItems()` returning `MenuItem`s |
+| `<action>` in a toolbar group | `UIExtension.getToolbarActions()` returning `ToolbarAction`s |
+| `<action>` in the editor-tab popup menu | `FileOpenExtension.getFileTabMenuItems()` |
+| `toolWindow` (`ToolWindowFactory`) | `UIExtension.getEditorTabs()` for a tab in the editor's bottom sheet, or `getSideMenuItems()` for a sidebar entry |
+| `fileEditorProvider` | `FileOpenExtension.canHandleFileOpen`/`handleFileOpen`, showing the file in an `EditorTabExtension` tab selected with `IdeEditorTabService.selectPluginTab` - `apk-viewer-plugin` does this |
+| `applicationConfigurable` / `projectConfigurable` | `SettingsExtension` returning a `PluginSettingsEntry` that names your settings `Fragment` |
+| `DialogWrapper` or another full-screen Swing UI | A `Fragment` opened with `IdeUIService.openPluginScreen` |
+| `defaultLiveTemplates` | `SnippetExtension` returning `SnippetContribution`s. Bodies use TextMate syntax: rewrite `$NAME$` variables as `${1:NAME}` and `$END$` as `$0` |
+| `fileType`, `lang.parserDefinition`, `lang.syntaxHighlighterFactory` | `LanguageExtension` with a `TreeSitterGrammar` - see [Contributing a language](#contributing-a-language) |
+| `completion.contributor`, `annotator`, `localInspection`, `gotoDeclarationHandler`, `lang.formatter` | A language server in `LanguageServerDefinition`. The IDE uses its completion, diagnostics, go-to-definition, references, signature help, selection expansion and formatting |
+| Highlighting layered over a language (e.g. rainbow brackets) | `EditorDecorationProvider`, which adds foreground colours only |
+| `searchEverywhereContributor` | `ProjectSearchExtension`, which appends sections to Search Results |
+| `runConfigurationType`, external tools | `BuildActionExtension` returning `PluginBuildAction`s that run a `CommandSpec` |
+| Project or module wizard | A `.cgt` template, built with `IdeTemplateService.createTemplateBuilder` and added with `registerTemplate` |
+| `applicationService` / `projectService` | Objects your plugin owns. Offer one to other plugins with `PluginContext.registerService`; reach IDE services with `PluginContext.services.get(...)` |
+
+No equivalent yet:
+
+- **Editor context-menu actions.** `UIExtension.getContextMenuItems()` exists, but the IDE does not call it.
+- **Quick fixes, intention actions and hover documentation.** The language-server bridge does not request code actions or hover.
+- **Message-bus listeners** (`applicationListeners`, `projectListeners`). `PluginContext.eventBus` is the IDE's EventBus, typed `Any`; its events are not part of the [plugin API contract](plugin-api.md), so a subscriber can break on any release.
+- **Anything that depends on the Android plugin** bundled with Android Studio (`org.jetbrains.android`).
+
+## Porting a VS Code extension
+
+Code on the Go does not host VS Code's extension API ([ADR 0019](adr/0019-vscode-extensions-are-ported-not-hosted.md)): extensions run on Node.js, which Code on the Go's package repository does not carry, against a `vscode` API that does not exist here. A port keeps the open standards the extension is built on and rewrites the rest. Much of what `package.json` declares maps to an extension interface:
+
+| VS Code (`package.json` / API) | Code on the Go |
+|---|---|
+| A language client that starts a language server | `LanguageServerDefinition` with the server's command - see [Contributing a language](#contributing-a-language). The server must run on the device: a native Termux build, or a Java or Python server on the bundled runtimes. Node.js servers do not run |
+| `contributes.languages`, `contributes.grammars` | `LanguageExtension` with a `TreeSitterGrammar`. TextMate grammars are not supported; use the language's tree-sitter grammar |
+| `contributes.snippets` | `SnippetExtension`. The body syntax is the same; map each entry's `prefix`, `body` and `description`, adding one `SnippetContribution` per prefix when `prefix` is a list. Set `scope` to one the target language defines, such as Kotlin's `global` |
+| `contributes.commands` in `menus.commandPalette` or `menus["editor/title"]` | `UIExtension.getMainMenuItems()` or `getToolbarActions()` |
+| `menus["editor/title/context"]` | `FileOpenExtension.getFileTabMenuItems()` |
+| `contributes.viewsContainers`, `contributes.views` | `UIExtension.getSideMenuItems()` for a sidebar entry, or `getEditorTabs()` for a tab in the editor's bottom sheet |
+| `contributes.customEditors` | `FileOpenExtension` plus an `EditorTabExtension` tab, as for an Android Studio `fileEditorProvider` |
+| `window.createWebviewPanel` | A `Fragment` hosting an Android `WebView`, shown as an `EditorTabExtension` tab - `markdown-preview-plugin` does this |
+| `contributes.configuration` | `SettingsExtension`, storing values with `PluginContext.getPluginSharedPreferences` |
+| `contributes.taskDefinitions` | `BuildActionExtension` returning `PluginBuildAction`s that run a `CommandSpec` |
+
+No equivalent yet:
+
+- **Colour themes** (`contributes.themes`). Colour schemes are built in; a plugin cannot add one.
+- **Debuggers** (`contributes.debuggers`). The IDE's debugger does not speak the Debug Adapter Protocol.
+- **Explorer and editor context menus** (`menus["explorer/context"]`, `menus["editor/context"]`). `UIExtension.getContextMenuItems()` exists, but the IDE does not call it.
+- **In-process language providers** (`languages.registerCompletionItemProvider` and the like). Put the logic in a language server instead.
+- **Workspace events** (`workspace.onDidSaveTextDocument` and the like). As for Android Studio's message-bus listeners, `PluginContext.eventBus` is not part of the plugin API contract.
+
 ## Troubleshooting
 
 **Install fails with "Missing icon_day and icon_night for debug plugin"**

@@ -1,5 +1,52 @@
 # Retrospective Log
 
+## 2026-10-13 - ADFA-95/96: Android Studio plugins and VS Code extensions are ported, not run (ADRs 0018, 0019)
+
+### Time Breakdown
+
+| Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
+|---------|-------|-----------------|---------------|----------|
+| Oct 13 6:49pm | ADFA-95 research and plan | █ 8m | █ 12m | ⚠ an unchecked claim reached the user |
+| Oct 13 7:01pm | ADFA-95 build: ADR 0018, porting guide, PR #2139 | █ 6m | █████ 47m | ⚠ DEX string grep misled; needed dexdump |
+| Oct 13 7:48pm | Uncalled plugin-API members, ADFA-6523 | █ 10m | █ 10m | ⚠ `--exclude-dir=build` false negative |
+| Oct 13 7:58pm | ADFA-6510 reminder, ADFA-6524, ADFA-96 research | █ 7m | ██ 21m | |
+| Oct 13 8:19pm | ADFA-96 build: ADR 0019, PR #2141 | █ 5m | █ 5m | ⚠ 4 claims corrected before commit |
+| Oct 13 8:24pm | Doc review, Done, merges, close-out | █ 7m | █ 7m | ⚠ 460-line file printed in chat, interrupted |
+
+### Metrics
+
+| Metric | Duration |
+|--------|----------|
+| Total wall-clock | 1.7 hours (103 min) |
+| Hands-on | 55 min (53%) - script estimate; ~9 min of it is "reading" a file dump interrupted after 40 s |
+| Automated agent time + idle | 48 min (47%) - the script does not separate them |
+| Retro analysis time | 2 min |
+| Estimated cost | $28.61 at API list prices, not a bill. The first run printed $145 from the script's stale price table, fixed in this retro. |
+
+### Key Observations
+
+- A one-word "proceed" was enough for each ticket: research, ADR, porting guide, PR. Checking the artifacts themselves - `dexdump` over the APK, the apt package index, the plugin sources - caught seven wrong claims before they shipped.
+- Two claims still reached the user unchecked, both in research answers rather than PRs: "the bundled IntelliJ core has no extension registry", and "code-server is VS Code's server edition". "Verify before you claim" was written around PRs.
+- Two tooling traps: `grep --exclude-dir=build` skips source packages named `build`, and grepping DEX bytes counts references, not definitions.
+- Ambiguity resolved by checking, not asking: ".notice" was confirmed to mean `.nowipe` by grepping the ADFA-6510 branch.
+- Both tickets were moved to Done while their PRs were still open. The user's call; no rule proposed.
+
+### Feedback
+
+**What worked:** "You did good research and gave me good options."
+**What didn't:** "Printing the MD file was slow."
+
+### Actions Taken
+
+| Issue | Action Type | Change |
+|-------|-------------|--------|
+| Unchecked claims in research answers | CLAUDE.md | "Verify before you claim": research answers and plans make claims too - check, or label unverified |
+| `--exclude-dir=build` hid `manager/build/` callers | Doc | learnings.md "Searching the codebase"; the private memory note it duplicated is retired |
+| DEX grep counted references as classes | Doc | learnings.md "Reverse-engineering a library": use `dexdump` class descriptors |
+| Whole 460-line file printed in chat | Global CLAUDE.md | Show the part asked about, not the whole file |
+| Cost figure read as a bill; script priced all Opus at $15/$75 and every cache write at the 5-minute rate | Skill | `analyze_transcript.py`: per-model list prices from the claude-api skill (cached 2026-10-06), 1-hour writes at 2x, unpriced models flagged instead of guessed, output labelled "not a bill" |
+| One long session for several tickets | No action | Starting sessions is the user's call; one data point |
+
 ## 2026-08-24 - Documentation transports, the Brotli dictionary migration, and 24 review threads
 
 ### Time Breakdown

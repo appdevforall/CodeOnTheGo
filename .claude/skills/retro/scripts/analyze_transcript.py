@@ -16,10 +16,12 @@ Hands-on time model (for parallel-session users):
   Buffer:   1 min per turn (context switch overhead)
   Merge:    consecutive turns with overlapping buffers merge into one block
 
-Pricing (per million tokens, as of 2026-04):
-  Opus:   input $15, cache-read $1.50, cache-write $18.75, output $75
-  Sonnet: input $3,  cache-read $0.30, cache-write $3.75,  output $15
-  Haiku:  input $0.80, cache-read $0.08, cache-write $1,   output $4
+Pricing: an estimate at Anthropic's first-party API list prices, per model (see
+PRICING) - not a bill. A Claude subscription is not charged per token. Prices are
+from the claude-api skill's model table, cached 2026-10-06. Cache writes cost 1.25x
+input (5-minute TTL) or 2x (1-hour TTL). Model IDs not in PRICING are reported as
+unpriced and left out of totals rather than guessed. Not modelled: fast mode, and
+Haiku 5.5's higher rate for prompts over 100K tokens.
 
 Filters out system-injected messages:
   - Skill injections ("Base directory for this skill:")
@@ -52,11 +54,30 @@ ASSISTANT_PREVIEW_LIMIT = 150
 
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 
+# Per million tokens, keyed by model_family(). cache_read is per model because it
+# is not a fixed fraction of input: 0.1x on most, 0.05x on Opus 5.5, 0.025x on Fable 5.1.
+_OPUS_5 = {"input": 5.0, "cache_read": 0.50, "output": 25.0}
+_SONNET_5 = {"input": 2.0, "cache_read": 0.20, "output": 10.0}
+_FABLE_5_1 = {"input": 10.0, "cache_read": 0.25, "output": 50.0}
+_FABLE_5 = {"input": 10.0, "cache_read": 1.0, "output": 50.0}
 PRICING = {
-    "opus": {"input": 15.0, "cache_read": 1.50, "cache_write": 18.75, "output": 75.0},
-    "sonnet": {"input": 3.0, "cache_read": 0.30, "cache_write": 3.75, "output": 15.0},
-    "haiku": {"input": 0.80, "cache_read": 0.08, "cache_write": 1.0, "output": 4.0},
+    "fable-5-1": _FABLE_5_1,
+    "mythos-5-1": _FABLE_5_1,
+    "fable-5": _FABLE_5,
+    "mythos-5": _FABLE_5,
+    "opus-5-5": {"input": 4.0, "cache_read": 0.20, "output": 20.0},
+    "opus-5": _OPUS_5,
+    "opus-4-8": _OPUS_5,
+    "opus-4-7": _OPUS_5,
+    "opus-4-6": _OPUS_5,
+    "sonnet-5-5": _SONNET_5,
+    "sonnet-5": _SONNET_5,
+    "sonnet-4-6": {"input": 3.0, "cache_read": 0.30, "output": 15.0},
+    "haiku-5-5": {"input": 0.10, "cache_read": 0.01, "output": 0.50},
+    "haiku-4-5": {"input": 1.0, "cache_read": 0.10, "output": 5.0},
 }
+CACHE_WRITE_5M = 1.25
+CACHE_WRITE_1H = 2.0
 
 SYSTEM_MESSAGE_PATTERNS = [
     re.compile(r"^Base directory for this skill:"),
@@ -70,15 +91,20 @@ SYSTEM_MESSAGE_PATTERNS = [
 # --- Cost tracking ---
 
 
+_MODEL_RE = re.compile(r"(opus|sonnet|haiku|fable|mythos)-(\d{1,2})(?!\d)(?:-(\d)(?!\d))?")
+
+
 def model_family(model_str: str) -> str:
-    m = model_str.lower()
-    if "opus" in m:
-        return "opus"
-    if "sonnet" in m:
-        return "sonnet"
-    if "haiku" in m:
-        return "haiku"
-    return "unknown"
+    """Pricing key for a model ID: "claude-opus-4-5-20251101" -> "opus-4-5".
+
+    A single digit after the major version is the minor version; a longer run is a
+    date suffix ("claude-opus-4-20250514" -> "opus-4").
+    """
+    m = _MODEL_RE.search(model_str.lower())
+    if not m:
+        return "unknown"
+    family, major, minor = m.groups()
+    return f"{family}-{major}-{minor}" if minor else f"{family}-{major}"
 
 
 @dataclass
@@ -86,6 +112,7 @@ class TokenBucket:
     input_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    cache_write_1h_tokens: int = 0
     output_tokens: int = 0
     api_calls: int = 0
 
@@ -93,19 +120,24 @@ class TokenBucket:
         self.input_tokens += usage.get("input_tokens", 0)
         self.output_tokens += usage.get("output_tokens", 0)
         self.cache_read_tokens += usage.get("cache_read_input_tokens", 0)
-        cr = usage.get("cache_creation_input_tokens", 0)
-        if not cr:
-            cc = usage.get("cache_creation", {})
-            cr = cc.get("ephemeral_1h_input_tokens", 0) + cc.get("ephemeral_5m_input_tokens", 0)
+        cc = usage.get("cache_creation") or {}
+        w1h = cc.get("ephemeral_1h_input_tokens", 0)
+        cr = usage.get("cache_creation_input_tokens", 0) or w1h + cc.get("ephemeral_5m_input_tokens", 0)
         self.cache_write_tokens += cr
+        self.cache_write_1h_tokens += min(w1h, cr)
         self.api_calls += 1
 
     def cost(self, family: str) -> float:
-        p = PRICING.get(family, PRICING["opus"])
+        """List-price estimate; 0.0 for a model not in PRICING (see is_priced)."""
+        p = PRICING.get(family)
+        if p is None:
+            return 0.0
+        write_5m = self.cache_write_tokens - self.cache_write_1h_tokens
         return (
             self.input_tokens * p["input"]
             + self.cache_read_tokens * p["cache_read"]
-            + self.cache_write_tokens * p["cache_write"]
+            + write_5m * p["input"] * CACHE_WRITE_5M
+            + self.cache_write_1h_tokens * p["input"] * CACHE_WRITE_1H
             + self.output_tokens * p["output"]
         ) / 1_000_000
 
@@ -113,6 +145,7 @@ class TokenBucket:
         self.input_tokens += other.input_tokens
         self.cache_read_tokens += other.cache_read_tokens
         self.cache_write_tokens += other.cache_write_tokens
+        self.cache_write_1h_tokens += other.cache_write_1h_tokens
         self.output_tokens += other.output_tokens
         self.api_calls += other.api_calls
 
@@ -469,6 +502,17 @@ def _fmt_tokens(n: int) -> str:
     return str(n)
 
 
+def _cost_cell(family: str, bucket: TokenBucket) -> str:
+    return _fmt_cost(bucket.cost(family)) if family in PRICING else "unpriced"
+
+
+def _unpriced_note(buckets: dict[str, TokenBucket]) -> list[str]:
+    unpriced = sorted(f for f in buckets if f not in PRICING)
+    if not unpriced:
+        return []
+    return [f"Unpriced models, left out of the total: {', '.join(unpriced)}"]
+
+
 def _fmt_cost(c: float) -> str:
     if c < 0.01:
         return "<$0.01"
@@ -492,8 +536,7 @@ def format_markdown(turns: list[Turn], stats: TimingStats) -> str:
     if total_calls > 0:
         lines.append("## Cost Summary")
         lines.append("")
-        lines.append(f"**Total estimated cost: {_fmt_cost(total_cost)}** | API calls: {total_calls} | Output tokens: {_fmt_tokens(total_output)}")
-        lines.append("")
+        lines.append(f"**Total estimated cost at API list prices (not a bill): {_fmt_cost(total_cost)}** | API calls: {total_calls} | Output tokens: {_fmt_tokens(total_output)}")
 
         # Model breakdown
         model_agg: dict[str, TokenBucket] = {}
@@ -502,6 +545,8 @@ def format_markdown(turns: list[Turn], stats: TimingStats) -> str:
                 if fam not in model_agg:
                     model_agg[fam] = TokenBucket()
                 model_agg[fam].merge(b)
+        lines.extend(_unpriced_note(model_agg))
+        lines.append("")
 
         lines.append("| Model | Calls | Input | Cache Read | Cache Write | Output | Cost |")
         lines.append("|-------|-------|-------|------------|-------------|--------|------|")
@@ -510,7 +555,7 @@ def format_markdown(turns: list[Turn], stats: TimingStats) -> str:
             lines.append(
                 f"| {fam} | {b.api_calls} | {_fmt_tokens(b.input_tokens)} "
                 f"| {_fmt_tokens(b.cache_read_tokens)} | {_fmt_tokens(b.cache_write_tokens)} "
-                f"| {_fmt_tokens(b.output_tokens)} | {_fmt_cost(b.cost(fam))} |"
+                f"| {_fmt_tokens(b.output_tokens)} | {_cost_cell(fam, b)} |"
             )
         lines.append("")
 
@@ -578,7 +623,7 @@ def format_markdown(turns: list[Turn], stats: TimingStats) -> str:
         f"(overlapping turns merged, single buffer per group)"
     )
     if total_calls > 0:
-        lines.append(f"**Estimated cost: {_fmt_cost(total_cost)}**")
+        lines.append(f"**Estimated cost at API list prices (not a bill): {_fmt_cost(total_cost)}**")
 
     return "\n".join(lines)
 
@@ -739,7 +784,7 @@ def format_scan_report(sessions: list[SessionCost], hours: float) -> str:
     grand_input = sum(s.total_input_tokens() for s in sessions)
     grand_calls = sum(s.total_api_calls() for s in sessions)
 
-    lines.append(f"**Total estimated cost: {_fmt_cost(grand_cost)}**")
+    lines.append(f"**Total estimated cost at API list prices (not a bill): {_fmt_cost(grand_cost)}**")
     lines.append(f"API calls: {grand_calls} | Input: {_fmt_tokens(grand_input)} | Output: {_fmt_tokens(grand_output)}")
     lines.append(f"Sessions: {len(sessions)}")
     lines.append("")
@@ -757,6 +802,7 @@ def format_scan_report(sessions: list[SessionCost], hours: float) -> str:
                     model_totals[fam] = TokenBucket()
                 model_totals[fam].merge(bucket)
 
+    lines.extend(_unpriced_note(model_totals))
     lines.append("## By Model")
     lines.append("")
     lines.append("| Model | API Calls | Input | Cache Read | Cache Write | Output | Est. Cost |")
@@ -766,7 +812,7 @@ def format_scan_report(sessions: list[SessionCost], hours: float) -> str:
         lines.append(
             f"| {fam} | {b.api_calls} | {_fmt_tokens(b.input_tokens)} "
             f"| {_fmt_tokens(b.cache_read_tokens)} | {_fmt_tokens(b.cache_write_tokens)} "
-            f"| {_fmt_tokens(b.output_tokens)} | {_fmt_cost(b.cost(fam))} |"
+            f"| {_fmt_tokens(b.output_tokens)} | {_cost_cell(fam, b)} |"
         )
     lines.append("")
 

@@ -107,6 +107,8 @@
 	<string name="error_installation_failed">Failed to install assets</string>
 	<string name="err_asset_entry_not_found">Entry \'%1$s\' not found in assets zip file</string>
 	<string name="err_missing_or_corrupt_assets">Missing installation files. %1$s installation might be corrupt or incomplete.</string>
+	<!-- Debug and profileable builds only, which install from a separately downloaded assets zip. %1$s is the zip file name, %2$s the folder it must be copied to, %3$s the app name. -->
+	<string name="err_missing_split_assets_zip">Assets file \'%1$s\' not found. Copy it to %2$s, then restart %3$s.</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>
@@ -876,6 +878,7 @@
 	<string name="msg_launch_failure_no_app_module">Cannot run application. No application modules found in project.</string>
 	<string name="title_launch_app">Launch app</string>
 	<string name="title_experiment_flavor">Experimental</string>
+	<string name="title_experiments_on">Experiments on</string>
 	<string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
 	<string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
 	<string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
@@ -1203,6 +1206,7 @@
 	<string name="quick_build_wont_stay_up_message">Quick Build built your changes, but your app closes before it can receive them - usually a crash while it starts up. Saving again will not help, and neither will reopening the app. Restarting the session rebuilds and reinstalls it from your current code.</string>
 	<string name="quick_build_wont_stay_up_restart">Restart session</string>
 	<string name="quick_build_wont_stay_up_dismiss">Not now</string>
+	<string name="quick_build_tap_in_flight">Quick Build is already starting.</string>
 	<string name="quick_build_unsupported_plugin_project">Quick Build isn\'t available for plugin projects - the build output is a .cgp package, not a runnable app. Use Run/Debug to build the plugin instead.</string>
 	<string name="quick_build_no_launchable_activity">Quick Build needs a launchable Activity in this project - none was found. Use Run/Debug to build and inspect it instead.</string>
 	<string name="quick_build_waiting_for_sync">Quick Build is still waiting for this project to finish syncing. Try again once the sync completes.</string>
@@ -1525,7 +1529,6 @@
 	<string name="no_templates_found_hint">Templates you download show up here for installing</string>
 	<string name="status_template_installed">Installed</string>
 	<string name="status_template_not_installed">Not installed</string>
-	<string name="template_provenance_bundled">Bundled</string>
 	<string name="template_provenance_plugin">From plugin</string>
 	<string name="template_provenance_user">Imported</string>
 	<plurals name="template_contains_count">
@@ -1560,6 +1563,7 @@
 	<string name="url_consent_cancel">Cancel</string>
 	<string name="url_consent_proceed">Proceed</string>
 	<string name="url_consent_dont_ask">Don\'t ask again</string>
+	<string name="tooltip_link_cannot_open">This link can\'t be opened from here.</string>
 
 	<!-- Documentation urls -->
 	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
@@ -1610,6 +1614,7 @@
     <string name="cloning_repo">Cloning repository…</string>
     <string name="pick_folder">Pick folder</string>
     <string name="git_title">Git</string>
+    <string name="git_refresh">Refresh</string>
     <string name="no_uncommitted_changes">No uncommitted changes</string>
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>
