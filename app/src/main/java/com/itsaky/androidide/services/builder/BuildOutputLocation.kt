@@ -5,7 +5,8 @@ import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.ProjectStorageKey
 import java.io.File
 import java.io.IOException
@@ -33,8 +34,8 @@ object BuildOutputLocation {
 	private const val NO_WATCH_FS = "--no-watch-fs"
 	private const val PROJECT_CACHE_DIR = "--project-cache-dir"
 
-	/** Whether the switch exists at all: early access only (REVIEW.md section 12). */
-	fun isAvailable(): Boolean = FeatureFlags.isExperimentsEnabled
+	/** Whether the switch exists at all: early access only (EXPERIMENTS.md). */
+	fun isAvailable(): Boolean = Experiments.isOn(Experiment.BUILD_OUTPUT_RELOCATION)
 
 	/** Whether the user currently asks for relocation; applied at the next sync. */
 	fun isRequested(): Boolean = isAvailable() && BuildPreferences.relocateBuildOutput
