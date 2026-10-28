@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProject
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProviderBase
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaNotUnderContentRootModule
+import org.jetbrains.kotlin.analysis.api.projectStructure.copyOrigin
 import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
@@ -79,8 +80,14 @@ internal class ProjectStructureProvider :
 		element: PsiElement,
 		useSiteModule: KaModule?,
 	): KaModule {
+		// A copy in its original's source module makes FIR see every declaration twice; give it a dangling module.
+		val containingFile = element.containingFile
+		if (containingFile is KtFile && containingFile.copyOrigin != null) {
+			computeSpecialModule(containingFile)?.let { return it }
+		}
+
 		val virtualFile =
-			element.containingFile?.virtualFile
+			containingFile?.virtualFile
 				?: return notUnderContentRootModuleWithoutPsiFile
 
 		// Fast path: in-memory file registered by onFileContentChanged.
