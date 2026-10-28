@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory
  * heap and Metaspace sizes, worker count, daemon idle timeout, caching and Kotlin compiler mode.
  *
  * These settings reach a build only when the Experiments switch is on. [GradleBuildService] calls
- * the tuner behind `FeatureFlags.isExperimentsEnabled` and, with the switch off, passes Gradle
+ * the tuner behind `Experiment.GRADLE_AUTO_TUNE` and, with the switch off, passes Gradle
  * nothing but the IDE's usual extra arguments, so Gradle keeps its own defaults. So the 384m
  * Metaspace floor (see [BalancedStrategy.GRADLE_METASPACE_MB], which fixes builds that died in
  * OutOfMemoryError: Metaspace) and the tiered daemon idle timeouts that keep the daemon resident

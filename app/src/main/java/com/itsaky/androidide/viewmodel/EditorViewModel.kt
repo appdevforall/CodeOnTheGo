@@ -16,6 +16,8 @@
  */
 package com.itsaky.androidide.viewmodel
 
+import android.content.Context
+import android.content.Intent
 import android.view.Gravity.CENTER
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
@@ -30,6 +32,8 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.quickbuild.QuickBuildFlashes
 import com.itsaky.androidide.search.replace.ReplaceSession
+import com.itsaky.androidide.services.builder.GradleBuildService
+import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.ILogger
@@ -220,6 +224,41 @@ class EditorViewModel : ViewModel() {
 		set(value) {
 			_isBoundToBuildService.value = value
 		}
+
+	private val buildServiceConnection = GradleBuildServiceConnnection()
+
+	private var buildServiceContext: Context? = null
+
+	fun bindBuildService(
+		context: Context,
+		onConnected: (GradleBuildService) -> Unit,
+	): Boolean {
+		val appContext = context.applicationContext
+		buildServiceConnection.onConnected = onConnected
+		buildServiceContext = appContext
+		return appContext.bindService(
+			Intent(appContext, GradleBuildService::class.java),
+			buildServiceConnection,
+			Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT,
+		)
+	}
+
+	fun clearBuildServiceCallback() {
+		buildServiceConnection.onConnected = null
+	}
+
+	fun unbindBuildService() {
+		val context = buildServiceContext ?: return
+		buildServiceContext = null
+		buildServiceConnection.onConnected = null
+		isBoundToBuildSerice = false
+		context.unbindService(buildServiceConnection)
+	}
+
+	override fun onCleared() {
+		unbindBuildService()
+		super.onCleared()
+	}
 
 	var isBuildInProgress: Boolean
 		get() = _isBuildInProgress.value ?: false

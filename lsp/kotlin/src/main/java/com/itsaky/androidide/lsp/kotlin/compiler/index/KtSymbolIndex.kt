@@ -11,6 +11,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.write
+import com.itsaky.androidide.lsp.kotlin.compiler.writeUnlessDisposed
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.DocumentUtils
@@ -318,8 +319,9 @@ internal class KtSymbolIndex(
 
 	fun evictDiskCopy(path: Path) {
 		ktFileCache.invalidate(path)
+		if (project.isDisposed) return
 		val vf = path.toVirtualFileOrNull() ?: return
-		project.write {
+		project.writeUnlessDisposed {
 			ApplicationManager.getApplication().runWriteAction {
 				(PsiManagerEx.getInstanceEx(project).fileManager as FileManagerImpl).setViewProvider(vf, null)
 			}

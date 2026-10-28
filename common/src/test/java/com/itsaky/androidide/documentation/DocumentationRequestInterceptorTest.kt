@@ -46,6 +46,7 @@ class DocumentationRequestInterceptorTest {
 	private fun request(
 		url: String = "http://localhost:6174/i/index.html",
 		method: String = "GET",
+		headers: Map<String, String> = emptyMap(),
 	): WebResourceRequest {
 		// Uri is a framework class, so stand in for the three parts the interceptor reads. Only
 		// encodedPath is stubbed, not path: a call to the decoded form should fail the test.
@@ -60,6 +61,7 @@ class DocumentationRequestInterceptorTest {
 		return mockk {
 			every { this@mockk.method } returns method
 			every { this@mockk.url } returns uri
+			every { requestHeaders } returns headers
 		}
 	}
 
@@ -135,9 +137,30 @@ class DocumentationRequestInterceptorTest {
 	@Test
 	fun `reports what it has served`() {
 		val interceptor = DocumentationRequestInterceptor(source)
-		repeat(3) { interceptor.contentFor(request()) }
+		repeat(3) { interceptor.replyFor(request()) }
 
 		assertThat(interceptor.servedSummary()).isEqualTo("3 requests, 12 bytes served in-process")
+	}
+
+	// For a 206 the WebView sends the range, not the row: a player's 100-byte probe of a 1.2 MB clip
+	// once counted as the whole clip.
+	@Test
+	fun `counts what a range sends, not the whole row`() {
+		val interceptor = DocumentationRequestInterceptor(source)
+		val (_, reply) = interceptor.replyFor(request(headers = mapOf("Range" to "bytes=1-2")))!!
+
+		assertThat(reply.status).isEqualTo(206)
+		assertThat(interceptor.servedSummary()).isEqualTo("1 requests, 2 bytes served in-process")
+	}
+
+	// The WebView fails an unsatisfiable range before anything reaches the page.
+	@Test
+	fun `does not count a request the WebView fails`() {
+		val interceptor = DocumentationRequestInterceptor(source)
+		val (_, reply) = interceptor.replyFor(request(headers = mapOf("Range" to "bytes=99-")))!!
+
+		assertThat(reply.rejected).isTrue()
+		assertThat(interceptor.servedSummary()).isEqualTo("0 requests, 0 bytes served in-process")
 	}
 
 	@Test

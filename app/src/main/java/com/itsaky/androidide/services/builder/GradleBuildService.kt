@@ -72,7 +72,8 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.ResourceUtils
 import com.itsaky.androidide.utils.ZipUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
@@ -564,7 +565,7 @@ class GradleBuildService :
 				)
 
 			var buildParams =
-				if (FeatureFlags.isExperimentsEnabled) {
+				if (Experiments.isOn(Experiment.GRADLE_AUTO_TUNE)) {
 					runCatching {
 						newTuningConfig =
 							GradleBuildTuner.autoTune(

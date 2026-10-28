@@ -6,8 +6,12 @@ import com.itsaky.androidide.progress.ICancelChecker
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
+import org.appdevforall.codeonthego.indexing.api.Index
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor
+import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.appdevforall.codeonthego.indexing.util.BackgroundIndexer
 import org.junit.Test
 import java.io.FileNotFoundException
@@ -20,6 +24,8 @@ class SourceFileIndexerTest : KtLspTest() {
 			override fun visibleSourceIds(): Collection<String>? = null
 		}
 	}
+
+	private fun buildFileIndex() = KtFileMetadataIndex(InMemoryIndex(KtFileMetadataDescriptor))
 
 	@Test
 	fun `indexer ignores local property inside function body`(): Unit =
@@ -92,6 +98,47 @@ class SourceFileIndexerTest : KtLspTest() {
 
 			val names = symbolsIndex.findByPrefix("").map { it.shortName }.toSet()
 			assertThat(names).containsExactly("globalConfig", "compute")
+		}
+
+	@Test
+	fun `indexing a new file reports a write`(): Unit =
+		runBlocking {
+			val file = createSourceFile("Fresh.kt", "fun fresh() = 0")
+
+			val wrote = indexSourceFile(env.project, file, buildFileIndex(), buildSymbolIndex(), ICancelChecker.NOOP)
+
+			assertThat(wrote).isTrue()
+		}
+
+	@Test
+	fun `indexing an unchanged file reports no write`(): Unit =
+		runBlocking {
+			val file = createSourceFile("Unchanged.kt", "fun unchanged() = 0")
+			val fileIndex = buildFileIndex()
+			val symbolsIndex = buildSymbolIndex()
+			indexSourceFile(env.project, file, fileIndex, symbolsIndex, ICancelChecker.NOOP)
+
+			val wrote = indexSourceFile(env.project, file, fileIndex, symbolsIndex, ICancelChecker.NOOP)
+
+			assertThat(wrote).isFalse()
+		}
+
+	@Test
+	fun `indexing into a closed symbol index reports no write`(): Unit =
+		runBlocking {
+			val file = createSourceFile("Closed.kt", "fun closed() = 0")
+			val closedBacking =
+				object : Index<JvmSymbol> by InMemoryIndex(JvmSymbolDescriptor) {
+					override val isOpen = false
+				}
+			val symbolsIndex =
+				object : JvmSymbolIndex(closedBacking, BackgroundIndexer(closedBacking)) {
+					override fun visibleSourceIds(): Collection<String>? = null
+				}
+
+			val wrote = indexSourceFile(env.project, file, buildFileIndex(), symbolsIndex, ICancelChecker.NOOP)
+
+			assertThat(wrote).isFalse()
 		}
 
 	@Test
