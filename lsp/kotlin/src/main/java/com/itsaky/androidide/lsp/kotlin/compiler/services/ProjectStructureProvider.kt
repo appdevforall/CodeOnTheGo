@@ -21,12 +21,12 @@ import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.pathString
 
-internal class ProjectStructureProvider : KtLspService, KotlinProjectStructureProviderBase() {
-
+internal class ProjectStructureProvider :
+	KotlinProjectStructureProviderBase(),
+	KtLspService {
 	companion object {
-		fun getInstance(project: Project): ProjectStructureProvider {
-			return KotlinProjectStructureProvider.getInstance(project) as ProjectStructureProvider
-		}
+		fun getInstance(project: Project): ProjectStructureProvider =
+			KotlinProjectStructureProvider.getInstance(project) as ProjectStructureProvider
 	}
 
 	private lateinit var modules: List<KtModule>
@@ -35,7 +35,10 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 	private val inMemoryVfToModule = ConcurrentHashMap<VirtualFile, KaModule>()
 	private val pathToInMemoryVf = ConcurrentHashMap<String, VirtualFile>()
 
-	fun registerInMemoryFile(sourcePath: String, vf: VirtualFile) {
+	fun registerInMemoryFile(
+		sourcePath: String,
+		vf: VirtualFile,
+	) {
 		pathToInMemoryVf.remove(sourcePath)?.let { inMemoryVfToModule.remove(it) }
 
 		val module = findModuleForSourceId(sourcePath) ?: return
@@ -61,7 +64,7 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 		project: MockProject,
 		index: KtSymbolIndex,
 		modules: List<KtModule>,
-		libraryRoots: List<JavaRoot>
+		libraryRoots: List<JavaRoot>,
 	) {
 		this.modules = modules
 		this.project = project
@@ -69,22 +72,24 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 
 	override fun getModule(
 		element: PsiElement,
-		useSiteModule: KaModule?
+		useSiteModule: KaModule?,
 	): KaModule = getModuleImpl(element, useSiteModule)
 
 	private fun getModuleImpl(
 		element: PsiElement,
-		useSiteModule: KaModule?
+		useSiteModule: KaModule?,
 	): KaModule {
-		val virtualFile = element.containingFile?.virtualFile
-			?: return notUnderContentRootModuleWithoutPsiFile
+		val virtualFile =
+			element.containingFile?.virtualFile
+				?: return notUnderContentRootModuleWithoutPsiFile
 
 		// Fast path: in-memory file registered by onFileContentChanged.
 		inMemoryVfToModule[virtualFile]?.let { return it }
 
-		val backingFilePath = (element.containingFile as? KtFile)?.let {
-			it.backingFilePath ?: it.originalKtFile?.backingFilePath
-		}
+		val backingFilePath =
+			(element.containingFile as? KtFile)?.let {
+				it.backingFilePath ?: it.originalKtFile?.backingFilePath
+			}
 
 		if (backingFilePath != null) {
 			findModuleForSourceId(backingFilePath.pathString)?.let { return it }
@@ -148,14 +153,12 @@ internal class ProjectStructureProvider : KtLspService, KotlinProjectStructurePr
 	}
 
 	@OptIn(KaPlatformInterface::class)
-	override fun getNotUnderContentRootModule(project: Project): KaNotUnderContentRootModule {
-		return notUnderContentRootModuleWithoutPsiFile
-	}
+	override fun getNotUnderContentRootModule(project: Project): KaNotUnderContentRootModule = notUnderContentRootModuleWithoutPsiFile
 
 	private fun searchVirtualFileInModule(
 		vf: VirtualFile,
 		module: KaModule,
-		visited: MutableSet<KaModule>
+		visited: MutableSet<KaModule>,
 	): KaModule? {
 		if (visited.contains(module)) return null
 		if (module.contentScope.contains(vf)) return module
