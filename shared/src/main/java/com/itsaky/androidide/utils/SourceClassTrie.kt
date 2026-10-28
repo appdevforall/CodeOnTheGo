@@ -28,153 +28,192 @@ import kotlin.io.path.nameWithoutExtension
  *
  * @author Akash Yadav
  */
-open class SourceClassTrie(root: SourcePackageNode = SourcePackageNode()) : ClassTrie(root) {
+open class SourceClassTrie(
+	root: SourcePackageNode = SourcePackageNode(),
+) : ClassTrie(root) {
+	companion object {
+		@JvmStatic
+		private val pkgNameMethod by lazy {
+			Class
+				.forName("com.itsaky.androidide.projects.util.StringSearch")
+				.getDeclaredMethod("packageName", Path::class.java)
+		}
 
-  companion object {
-    @JvmStatic
-    private val pkgNameMethod by lazy {
-      Class.forName("com.itsaky.androidide.projects.util.StringSearch")
-        .getDeclaredMethod("packageName", Path::class.java)
-    }
+		@JvmStatic
+		private fun packageName(file: Path): String =
+			try {
+				pkgNameMethod.invoke(null, file) as String
+			} catch (error: Throwable) {
+				throw RuntimeException(error)
+			}
+	}
 
-    @JvmStatic
-    private fun packageName(file: Path): String {
-      return try {
-        pkgNameMethod.invoke(null, file) as String
-      } catch (error: Throwable) {
-        throw RuntimeException(error)
-      }
-    }
-  }
+	override fun append(name: String): Node = throw UnsupportedOperationException("Method not supported!")
 
-  override fun append(name: String): Node {
-    throw UnsupportedOperationException("Method not supported!")
-  }
+	open fun append(
+		path: Path,
+		sourceDir: Path,
+	): SourceNode {
+		val modified = Files.getLastModifiedTime(path).toInstant()
+		val packageName = packageName(path)
+		val segments = segments(packageName)
+		var node: SourcePackageNode = root as SourcePackageNode
+		var currentPath = sourceDir
+		for ((index, segment) in segments.withIndex()) {
+			if (segment.isEmpty() || !segment[0].isJavaIdentifierStart()) {
+				continue
+			}
 
-  open fun append(path: Path, sourceDir: Path): SourceNode {
-    val modified = Files.getLastModifiedTime(path).toInstant()
-    val packageName = packageName(path)
-    val segments = segments(packageName)
-    var node: SourcePackageNode = root as SourcePackageNode
-    var currentPath = sourceDir
-    for ((index, segment) in segments.withIndex()) {
-      if (segment.isEmpty() || !segment[0].isJavaIdentifierStart()) {
-        continue
-      }
+			currentPath = currentPath.resolve(segment)
+			node = createNode(currentPath, node, segment, segments, index)
+		}
+		node.isClass = false
 
-      currentPath = currentPath.resolve(segment)
-      node = createNode(currentPath, node, segment, segments, index)
-    }
-    node.isClass = false
+		val name = path.nameWithoutExtension
+		val klass =
+			SourceNode(
+				file = path,
+				packageName = packageName,
+				modified = modified,
+				parent = node,
+				name = name,
+			)
+		klass.isClass = true
+		node.addSource(klass)
+		return klass
+	}
 
-    val name = path.nameWithoutExtension
-    val klass =
-      SourceNode(
-        file = path,
-        packageName = packageName,
-        modified = modified,
-        parent = node,
-        name = name
-      )
-    klass.isClass = true
-    node.children[name] = klass
-    return klass
-  }
+	open fun createNode(
+		dir: Path,
+		node: SourcePackageNode,
+		segment: String,
+		segments: List<String>,
+		index: Int,
+	) = node.createChild(dir, segment, segments.subList(0, index + 1).joinToString(separator = "."))
 
-  open fun createNode(
-    dir: Path,
-    node: SourcePackageNode,
-    segment: String,
-    segments: List<String>,
-    index: Int
-  ) = node.createChild(dir, segment, segments.subList(0, index + 1).joinToString(separator = "."))
+	override fun createNode(
+		node: Node,
+		segment: String,
+		segments: List<String>,
+		index: Int,
+	): Node = throw UnsupportedOperationException("Method not supported")
 
-  override fun createNode(node: Node, segment: String, segments: List<String>, index: Int): Node {
-    throw UnsupportedOperationException("Method not supported")
-  }
+	open fun allSources(): List<SourceNode> = allClassNodes().filterIsInstance(SourceNode::class.java)
 
-  open fun allSources(): List<SourceNode> {
-    return allClassNodes().filterIsInstance(SourceNode::class.java)
-  }
+	fun findSource(file: Path): SourceNode? = findSourceInNode(file, root)
 
-  fun findSource(file: Path): SourceNode? {
-    return findSourceInNode(file, root)
-  }
+	fun findDirNode(
+		dir: Path,
+		node: Node,
+	): SourcePackageNode? {
+		var dirNode: SourcePackageNode? = null
+		for (child in node.children.values) {
+			if (
+				child !is SourceNode &&
+				child is SourcePackageNode &&
+				DocumentUtils.isSameFile(child.dir, dir)
+			) {
+				dirNode = child
+			}
 
-  fun findDirNode(dir: Path, node: Node): SourcePackageNode? {
-    var dirNode: SourcePackageNode? = null
-    for (child in node.children.values) {
-      if (
-        child !is SourceNode &&
-          child is SourcePackageNode &&
-          DocumentUtils.isSameFile(child.dir, dir)
-      ) {
-        dirNode = child
-      }
+			dirNode = dirNode ?: findDirNode(dir, child)
 
-      dirNode = dirNode ?: findDirNode(dir, child)
+			if (dirNode != null) {
+				break
+			}
+		}
+		return dirNode
+	}
 
-      if (dirNode != null) {
-        break
-      }
-    }
-    return dirNode
-  }
+	fun getSourceFilesInDir(dir: Path): List<SourceNode> {
+		val dirNode = findDirNode(dir, root) ?: return emptyList()
+		return dirNode.children.values.filterIsInstance(SourceNode::class.java)
+	}
 
-  fun getSourceFilesInDir(dir: Path): List<SourceNode> {
-    val dirNode = findDirNode(dir, root) ?: return emptyList()
-    return dirNode.children.values.filterIsInstance(SourceNode::class.java)
-  }
+	private fun findSourceInNode(
+		file: Path,
+		node: Node,
+	): SourceNode? {
+		if (node is SourceNode && DocumentUtils.isSameFile(file, node.file)) {
+			return node
+		}
 
-  private fun findSourceInNode(file: Path, node: Node): SourceNode? {
+		for (child in node.children.values) {
+			if (child is SourceNode && DocumentUtils.isSameFile(file, child.file)) {
+				return child
+			}
 
-    if (node is SourceNode && DocumentUtils.isSameFile(file, node.file)) {
-      return node
-    }
+			val childResult = findSourceInNode(file, child)
+			if (childResult != null) {
+				return childResult
+			}
+		}
+		return null
+	}
 
-    for (child in node.children.values) {
-      if (child is SourceNode && DocumentUtils.isSameFile(file, child.file)) {
-        return child
-      }
+	open class SourceNode(
+		val file: Path,
+		val packageName: String,
+		val modified: Instant,
+		parent: SourcePackageNode? = null,
+		name: String,
+	) : Node(name = name, qualifiedName = "$packageName.$name", parent = parent) {
+		override fun createChild(
+			name: String,
+			qualifiedName: String,
+		): Node = throw UnsupportedOperationException("Method not supported!")
+	}
 
-      val childResult = findSourceInNode(file, child)
-      if (childResult != null) {
-        return childResult
-      }
-    }
-    return null
-  }
+	open class SourcePackageNode(
+		val dir: Path,
+		parent: SourcePackageNode? = null,
+		name: String,
+		qualifiedName: String,
+	) : Node(name, qualifiedName, parent) {
+		internal constructor() : this(Paths.get(""), null, "", "")
 
-  open class SourceNode(
-    val file: Path,
-    val packageName: String,
-    val modified: Instant,
-    parent: SourcePackageNode? = null,
-    name: String
-  ) : Node(name = name, qualifiedName = "$packageName.$name", parent = parent) {
+		override fun createChild(
+			name: String,
+			qualifiedName: String,
+		): Node = throw UnsupportedOperationException("Method not suported!")
 
-    override fun createChild(name: String, qualifiedName: String): Node {
-      throw UnsupportedOperationException("Method not supported!")
-    }
-  }
+		open fun createChild(
+			dir: Path,
+			name: String,
+			qualifiedName: String,
+		): SourcePackageNode =
+			synchronized(this) {
+				when (val existing = children[name]) {
+					is SourcePackageNode -> {
+						existing
+					}
 
-  open class SourcePackageNode(
-    val dir: Path,
-    parent: SourcePackageNode? = null,
-    name: String,
-    qualifiedName: String
-  ) : Node(name, qualifiedName, parent) {
+					is SourceNode -> {
+						children[existing.file.fileName.toString()] = existing
+						SourcePackageNode(dir, this, name, qualifiedName).also { children[name] = it }
+					}
 
-    internal constructor() : this(Paths.get(""), null, "", "")
+					null -> {
+						SourcePackageNode(dir, this, name, qualifiedName).also { children[name] = it }
+					}
 
-    override fun createChild(name: String, qualifiedName: String): Node {
-      throw UnsupportedOperationException("Method not suported!")
-    }
+					else -> {
+						error("Unexpected ${existing.javaClass.name} at '$qualifiedName'")
+					}
+				}
+			}
 
-    open fun createChild(dir: Path, name: String, qualifiedName: String): SourcePackageNode {
-      return this.children.computeIfAbsent(name) {
-        SourcePackageNode(dir, this, name, qualifiedName)
-      } as SourcePackageNode
-    }
-  }
+		fun addSource(source: SourceNode) {
+			synchronized(this) {
+				val key = if (children[source.name] is SourcePackageNode) source.file.fileName.toString() else source.name
+				children[key] = source
+			}
+		}
+
+		override fun removeChild(child: Node) {
+			synchronized(this) {
+				children.values.remove(child)
+			}
+		}
+	}
 }

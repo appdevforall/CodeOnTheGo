@@ -198,11 +198,9 @@ interface IdeEditorService {
 	 * allowed roots.
 	 *
 	 * The default body is a convenience for the host's own implementers, not a compatibility
-	 * shim: this module sets no `-Xjvm-default`, so it compiles to an abstract interface method
-	 * plus a `DefaultImpls` static rather than a Java default method. An older IDE ships an
-	 * `IdeEditorService` with no `saveFile` at all, so a call there fails with
-	 * `NoSuchMethodError`. Floor `plugin.min_ide_version` at the release that introduced this -
-	 * see PLUGIN_API_CHANGELOG.md.
+	 * shim for callers: an older IDE ships an `IdeEditorService` with no `saveFile` at all, so a
+	 * call there fails with `NoSuchMethodError`. Floor `plugin.min_ide_version` at the release
+	 * that introduced this - see PLUGIN_API_CHANGELOG.md.
 	 */
 	suspend fun saveFile(file: File): Boolean = false
 
@@ -409,9 +407,9 @@ interface IdeBuildService {
 	 * Non-empty [arguments] need the `system.commands` permission (`--init-script` runs any code
 	 * in the IDE's Gradle daemon); without it this throws [SecurityException].
 	 *
-	 * The default body is not a compatibility shim: this module sets no `-Xjvm-default`, so an
-	 * IDE older than 26.41 has no such method and the call fails with `NoSuchMethodError`. Floor
-	 * `plugin.min_ide_version` at 26.41 to use it.
+	 * The default body is not a compatibility shim: an IDE older than 26.41 has no such method
+	 * and the call fails with `NoSuchMethodError`. Floor `plugin.min_ide_version` at 26.41 to use
+	 * it.
 	 */
 	fun executeTasks(
 		tasks: List<String>,
@@ -459,6 +457,43 @@ interface IdeBuildService {
 	 * Floor `plugin.min_ide_version` at 26.41 to use it (see [executeTasks]).
 	 */
 	fun getTasks(): List<GradleTaskInfo> = emptyList()
+
+	/**
+	 * Whether [startQuickBuild] can run for the open project, and if not, why. Needs no permission.
+	 *
+	 * The default body is not a compatibility shim (see [executeTasks]): floor
+	 * `plugin.min_ide_version` at 26.42 to use the Quick Build methods.
+	 */
+	fun getQuickBuildAvailability(): QuickBuildAvailability =
+		QuickBuildAvailability.Unavailable(QuickBuildUnavailableReason.NOT_SUPPORTED, "Quick Build is not supported")
+
+	/**
+	 * Starts Quick Build exactly as a tap on its toolbar button does: open files are saved first,
+	 * the user is asked before an app installed under the project's application ID is replaced,
+	 * and the run shows in the toolbar, Build Output and on-screen messages like any other.
+	 *
+	 * The future completes once, with a [QuickBuildResult]. It completes with
+	 * [QuickBuildResult.Refused] at once when Quick Build is unavailable
+	 * ([getQuickBuildAvailability]), another build or Quick Build is running, or no editor is in
+	 * the foreground. A run that has not settled after 30 minutes completes with
+	 * [QuickBuildResult.Failed], or [QuickBuildResult.Cancelled] if it was asked to stop. Needs no
+	 * permission, like [runApp].
+	 */
+	fun startQuickBuild(): CompletableFuture<QuickBuildResult> =
+		CompletableFuture.completedFuture(QuickBuildResult.Refused("Quick Build is not supported"))
+
+	/**
+	 * Asks the running Quick Build to stop, whoever started it, as a tap on its stop icon does, or
+	 * drops a [startQuickBuild] still saving the open files or asking the user. Completes with true
+	 * if one was running and was asked to stop. Its [startQuickBuild] future, if any, reports what
+	 * actually happened: usually [QuickBuildResult.Cancelled], but a stop that comes too late
+	 * to stop the build lets it finish, as [QuickBuildResult.Reloaded] for example. Needs the
+	 * `system.commands` permission, like [cancelBuild]; without it this throws [SecurityException].
+	 */
+	fun cancelQuickBuild(): CompletableFuture<Boolean> = CompletableFuture.completedFuture(false)
+
+	/** What the Quick Build button shows now. Needs no permission. */
+	fun getQuickBuildStatus(): QuickBuildState = QuickBuildState.UNAVAILABLE
 }
 
 /**

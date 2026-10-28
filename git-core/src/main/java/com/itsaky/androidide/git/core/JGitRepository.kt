@@ -60,6 +60,9 @@ class JGitRepository(
 
 	private val git: Git = Git(repository)
 
+	override val gitDir: File
+		get() = repository.directory ?: File(rootDir, ".git")
+
 	private fun getHeadTree(repository: Repository): AbstractTreeIterator {
 		val head = repository.resolve(Constants.HEAD) ?: return EmptyTreeIterator()
 		val treeParser = CanonicalTreeParser()
@@ -93,21 +96,82 @@ class JGitRepository(
 			}
 
 			// 2. Staged files (Added, Changed, Removed)
-			jgitStatus.added.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.ADDED)) }
-			jgitStatus.changed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.MODIFIED)) }
-			jgitStatus.removed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.DELETED)) }
+			val stagedAdded = jgitStatus.added.toMutableSet()
+			val stagedRemoved = jgitStatus.removed.toMutableSet()
+			val stagedRenames = mutableMapOf<String, String>()
 
-			// 3. Unstaged files (Modified, Missing)
+			stagedAdded.forEach { addedPath ->
+				val matchingRemoved =
+					stagedRemoved.find { it.equals(addedPath, ignoreCase = true) && it != addedPath }
+				if (matchingRemoved != null) {
+					stagedRenames[addedPath] = matchingRemoved
+				}
+			}
+			stagedRenames.forEach { (newPath, oldPath) ->
+				stagedAdded.remove(newPath)
+				stagedRemoved.remove(oldPath)
+				if (processedPaths.add(newPath)) {
+					processedPaths.add(oldPath)
+					staged.add(FileChange(path = newPath, type = ChangeType.RENAMED, oldPath = oldPath))
+				}
+			}
+
+			stagedAdded.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.ADDED)) }
+			jgitStatus.changed.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.MODIFIED)) }
+			stagedRemoved.forEach { if (processedPaths.add(it)) staged.add(FileChange(it, ChangeType.DELETED)) }
+
+			// 3. Unstaged files (Modified, Missing) & Untracked
+			val missingSet = jgitStatus.missing.toMutableSet()
+			val untrackedSet = jgitStatus.untracked.toMutableSet()
+			val unstagedRenames = mutableMapOf<String, String>()
+
+			untrackedSet.forEach { untrackedPath ->
+				val matchingMissing =
+					missingSet.find { it.equals(untrackedPath, ignoreCase = true) && it != untrackedPath }
+				if (matchingMissing != null) {
+					unstagedRenames[untrackedPath] = matchingMissing
+				}
+			}
+			unstagedRenames.forEach { (newPath, oldPath) ->
+				untrackedSet.remove(newPath)
+				missingSet.remove(oldPath)
+				if (processedPaths.add(newPath)) {
+					processedPaths.add(oldPath)
+					unstaged.add(FileChange(path = newPath, type = ChangeType.RENAMED, oldPath = oldPath))
+				}
+			}
+
+			// Filter out ghost missing entries where the file exists on disk with different casing
+			// (e.g. after a case-only folder/file rename was committed externally or via terminal)
+			if (missingSet.isNotEmpty()) {
+				val dirCache = repository.readDirCache()
+				val trackedPaths = (0 until dirCache.entryCount).map { dirCache.getEntry(it).pathString }
+
+				missingSet.removeAll { missingPath ->
+					val counterpart =
+						trackedPaths.find {
+							it.equals(missingPath, ignoreCase = true) && it != missingPath
+						}
+					if (counterpart != null && File(rootDir, counterpart).exists()) {
+						true
+					} else {
+						val realCasing = findRealCasingOnDisk(rootDir, missingPath)
+						realCasing != null && realCasing != missingPath
+					}
+				}
+			}
+
 			jgitStatus.modified.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.MODIFIED)) }
-			jgitStatus.missing.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.DELETED)) }
+			missingSet.forEach { if (processedPaths.add(it)) unstaged.add(FileChange(it, ChangeType.DELETED)) }
 
 			// 4. Untracked files
-			jgitStatus.untracked.forEach { if (processedPaths.add(it)) untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
+			untrackedSet.forEach { if (processedPaths.add(it)) untracked.add(FileChange(it, ChangeType.UNTRACKED)) }
 
 			val isMerging = repository.repositoryState == RepositoryState.MERGING
+			val isClean = staged.isEmpty() && unstaged.isEmpty() && untracked.isEmpty() && conflicted.isEmpty()
 
 			GitStatus(
-				isClean = jgitStatus.isClean,
+				isClean = isClean,
 				hasConflicts = conflicted.isNotEmpty(),
 				isMerging = isMerging,
 				staged = staged,
@@ -204,23 +268,82 @@ class JGitRepository(
 	override suspend fun stageFiles(files: List<File>) =
 		withContext(Dispatchers.IO) {
 			val addCommand = git.add()
-			val rmCommand = git.rm()
+			val rmCommand = git.rm().setCached(true)
 			var hasAdds = false
 			var hasRms = false
 
+			val status = git.status().call()
+			val missingFiles = status.missing
+
 			files.forEach { file ->
 				val relativePath = file.toRelativeString(rootDir).replace('\\', '/')
-				if (file.exists()) {
-					addCommand.addFilepattern(relativePath)
-					hasAdds = true
-				} else {
+				val isMissing =
+					missingFiles.contains(relativePath) ||
+						missingFiles.any { it.startsWith("$relativePath/") }
+				if (isMissing || !file.exists()) {
 					rmCommand.addFilepattern(relativePath)
 					hasRms = true
+				} else {
+					// If this existing file corresponds to a case-only rename of a missing file, evict old casing
+					val caseRenamedOldPath =
+						missingFiles.find { it.equals(relativePath, ignoreCase = true) && it != relativePath }
+					if (caseRenamedOldPath != null) {
+						rmCommand.addFilepattern(caseRenamedOldPath)
+						hasRms = true
+					}
+					addCommand.addFilepattern(relativePath)
+					hasAdds = true
 				}
 			}
-			if (hasAdds) addCommand.call()
 			if (hasRms) rmCommand.call()
+			if (hasAdds) addCommand.call()
 			Unit
+		}
+
+	override suspend fun renamePath(
+		oldFile: File,
+		newFile: File,
+	): Boolean =
+		withContext(Dispatchers.IO) {
+			val oldRel = oldFile.toRelativeString(rootDir).replace('\\', '/')
+			val newRel = newFile.toRelativeString(rootDir).replace('\\', '/')
+			if (oldRel == newRel || oldRel.startsWith("..") || newRel.startsWith("..")) {
+				return@withContext false
+			}
+
+			val dirCache = repository.readDirCache()
+			val oldPrefix = "$oldRel/"
+			val newPrefix = "$newRel/"
+
+			val entriesToRemove = mutableSetOf<String>()
+			for (i in 0 until dirCache.entryCount) {
+				val path = dirCache.getEntry(i).pathString
+				if (path == oldRel ||
+					path.startsWith(oldPrefix) ||
+					path.equals(oldRel, ignoreCase = true) ||
+					path.startsWith(oldPrefix, ignoreCase = true) ||
+					path.equals(newRel, ignoreCase = true) ||
+					path.startsWith(newPrefix, ignoreCase = true)
+				) {
+					entriesToRemove.add(path)
+				}
+			}
+
+			if (entriesToRemove.isEmpty()) {
+				return@withContext false
+			}
+
+			val rmCommand = git.rm().setCached(true)
+			entriesToRemove.forEach { rmCommand.addFilepattern(it) }
+			rmCommand.call()
+
+			if (newFile.exists()) {
+				val addCommand = git.add()
+				addCommand.addFilepattern(newRel)
+				addCommand.call()
+			}
+
+			true
 		}
 
 	override suspend fun isCommitWatermarkEnabled(): Boolean =
@@ -517,6 +640,43 @@ class JGitRepository(
 	private data class NewBranch(
 		val name: String,
 	) : BranchResolution
+
+	internal fun findRealCasingOnDisk(
+		rootDir: File,
+		relativePath: String,
+	): String? {
+		val segments = relativePath.split('/').filter { it.isNotEmpty() }
+		if (segments.isEmpty()) return null
+
+		var current = rootDir
+		val realSegments = ArrayList<String>(segments.size)
+
+		for (segment in segments) {
+			val direct = File(current, segment)
+			if (direct.exists()) {
+				val children = current.list()
+				val exactOnDisk = children?.find { it == segment }
+				if (exactOnDisk != null) {
+					realSegments.add(exactOnDisk)
+					current = direct
+					continue
+				}
+				val caseMatch = children?.find { it.equals(segment, ignoreCase = true) }
+				if (caseMatch != null) {
+					realSegments.add(caseMatch)
+					current = File(current, caseMatch)
+					continue
+				}
+			}
+
+			val children = current.list() ?: return null
+			val caseMatch = children.find { it.equals(segment, ignoreCase = true) } ?: return null
+			realSegments.add(caseMatch)
+			current = File(current, caseMatch)
+		}
+
+		return if (current.isFile) realSegments.joinToString("/") else null
+	}
 
 	override fun close() {
 		repository.close()

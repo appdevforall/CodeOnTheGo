@@ -98,7 +98,6 @@ import com.itsaky.androidide.search.replace.ReplaceHost
 import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.search.replace.SkipReason
 import com.itsaky.androidide.services.builder.GradleBuildService
-import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.BuildId
@@ -122,7 +121,8 @@ import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
@@ -241,8 +241,6 @@ abstract class ProjectHandlerActivity :
 	}
 
 	protected val mBuildEventListener = EditorBuildEventListener()
-
-	private val buildServiceConnection = GradleBuildServiceConnnection()
 
 	// True once onCreate() has completed past its isFinishing check -- mirrors
 	// EditorHandlerActivity.didCompleteLiveOnCreate. super.onCreate() (BaseEditorActivity) may
@@ -451,7 +449,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	private fun quickBuildOutputNarrator(): QuickBuildOutputNarrator? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildOutputNarrator>() }
@@ -892,7 +890,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	protected fun quickBuildClobberCheck(): QuickBuildClobberCheck? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildClobberCheck>() }
@@ -903,32 +901,18 @@ abstract class ProjectHandlerActivity :
 	/**
 	 * Quick Build install gate (ADFA-4128): the proxy app installs under the project's real
 	 * applicationId. When a different build (the Standard Run app) currently occupies that
-	 * id, installing the proxy app replaces it, so confirm first and run [onConfirmed] only on
-	 * accept; otherwise [onConfirmed] runs immediately. A third-party occupant (different
-	 * signing cert) is caught authoritatively by the provisioner's signature check, which
-	 * refuses rather than clobbers.
+	 * id, installing the proxy app replaces it, so confirm first. A third-party occupant
+	 * (different signing cert) is caught authoritatively by the provisioner's signature check,
+	 * which refuses rather than clobbers.
+	 *
+	 * Call on the main thread: true when the build may proceed, false when the user declined to
+	 * replace the installed app.
 	 */
-	fun ensureQuickBuildClobberConfirmed(onConfirmed: () -> Unit) {
+	suspend fun awaitQuickBuildClobberConfirmed(): Boolean {
 		// No check means the feature is off, and with it off no proxy app can exist to be
 		// replaced - the only branch here that may skip the confirmation.
-		val clobberCheck = quickBuildClobberCheck()
-		if (clobberCheck == null) {
-			onConfirmed()
-			return
-		}
-		// The check reads the PackageManager, which is IO and suspends. Callers of this gate
-		// are ordinary click handlers, so the coroutine is owned here rather than pushed onto
-		// them; Main.immediate keeps the common case (nothing to confirm) in the same frame.
-		lifecycleScope.launch(Dispatchers.Main.immediate) {
-			ensureQuickBuildClobberConfirmedNow(clobberCheck, onConfirmed)
-		}
-	}
-
-	private suspend fun ensureQuickBuildClobberConfirmedNow(
-		clobberCheck: QuickBuildClobberCheck,
-		onConfirmed: () -> Unit,
-	) {
-		when (
+		val clobberCheck = quickBuildClobberCheck() ?: return true
+		return when (
 			val decision =
 				quickBuildClobberConfirmation(
 					projectRealApplicationId(),
@@ -936,20 +920,18 @@ abstract class ProjectHandlerActivity :
 				)
 		) {
 			QuickBuildClobberConfirmation.NotNeeded -> {
-				onConfirmed()
+				true
 			}
 
 			QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
-				if (confirmUnknownOccupantSwitch()) onConfirmed()
+				confirmUnknownOccupantSwitch()
 			}
 
 			is QuickBuildClobberConfirmation.Needed -> {
-				val confirmed =
-					awaitBuildTypeSwitchConfirmation(
-						getString(string.quick_build_switch_to_quick_title),
-						getString(string.quick_build_switch_to_quick_message, decision.applicationId),
-					)
-				if (confirmed) onConfirmed()
+				awaitBuildTypeSwitchConfirmation(
+					getString(string.quick_build_switch_to_quick_title),
+					getString(string.quick_build_switch_to_quick_message, decision.applicationId),
+				)
 			}
 		}
 	}
@@ -1236,10 +1218,18 @@ abstract class ProjectHandlerActivity :
 		}
 
 		if (didCompleteLiveOnCreate && IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.shutdown()
+			if (isDestroying) {
+				IDELanguageClientImpl.shutdown()
+			} else {
+				IDELanguageClientImpl.getInstance().setActivity(null)
+			}
 		}
 
 		super.preDestroy()
+
+		if (didCompleteLiveOnCreate && !isDestroying) {
+			editorViewModel.clearBuildServiceCallback()
+		}
 
 		if (didCompleteLiveOnCreate && isDestroying) {
 			try {
@@ -1249,10 +1239,9 @@ abstract class ProjectHandlerActivity :
 			}
 
 			try {
-				unbindService(buildServiceConnection)
-				buildServiceConnection.onConnected = {}
-			} catch (_: Throwable) {
-				log.error("Unable to unbind service")
+				editorViewModel.unbindBuildService()
+			} catch (err: IllegalArgumentException) {
+				log.error("Unable to unbind service", err)
 			} finally {
 				Lookup.getDefault().apply {
 					(lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService?)
@@ -1262,7 +1251,6 @@ abstract class ProjectHandlerActivity :
 				}
 
 				mBuildEventListener.release()
-				editorViewModel.isBoundToBuildSerice = false
 			}
 		}
 	}
@@ -1335,21 +1323,14 @@ abstract class ProjectHandlerActivity :
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as GradleBuildService?
 		if (editorViewModel.isBoundToBuildSerice && service != null) {
 			log.info("Reusing already started Gradle build service")
+			attachLanguageClient()
 			onGradleBuildServiceConnected(service)
 			return
 		} else {
 			log.info("Binding to Gradle build service...")
 		}
 
-		buildServiceConnection.onConnected = this::onGradleBuildServiceConnected
-
-		if (
-			bindService(
-				Intent(this, GradleBuildService::class.java),
-				buildServiceConnection,
-				BIND_AUTO_CREATE or BIND_IMPORTANT,
-			)
-		) {
+		if (editorViewModel.bindBuildService(this, this::onGradleBuildServiceConnected)) {
 			log.info("Bind request for Gradle build service was successful...")
 		} else {
 			log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
@@ -1566,7 +1547,7 @@ abstract class ProjectHandlerActivity :
 	protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
 		log.info("Connected to Gradle build service")
 
-		buildServiceConnection.onConnected = null
+		editorViewModel.clearBuildServiceCallback()
 		editorViewModel.isBoundToBuildSerice = true
 		Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, service)
 		service.setEventListener(mBuildEventListener)
@@ -2259,12 +2240,19 @@ abstract class ProjectHandlerActivity :
 		startActivity(intent)
 	}
 
-	private suspend fun initLspClient() {
-		if (!IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.initialize(this as EditorHandlerActivity)
+	private fun attachLanguageClient() {
+		val activity = this as EditorHandlerActivity
+		if (IDELanguageClientImpl.isInitialized()) {
+			IDELanguageClientImpl.getInstance().setActivity(activity)
+		} else {
+			IDELanguageClientImpl.initialize(activity)
 		}
 
 		connectClient(IDELanguageClientImpl.getInstance())
+	}
+
+	private suspend fun initLspClient() {
+		attachLanguageClient()
 
 		val results =
 			try {

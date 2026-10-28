@@ -2,6 +2,8 @@ package com.itsaky.androidide.helper
 
 import android.os.ParcelFileDescriptor
 import androidx.test.platform.app.InstrumentationRegistry
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -16,37 +18,25 @@ private const val EXPERIMENTS_FLAG_PATH = "/sdcard/Download/CodeOnTheGo.exp"
 fun isExperimentsFlagSet(): Boolean = java.io.File(EXPERIMENTS_FLAG_PATH).exists()
 
 /**
- * Flips [FeatureFlags.isExperimentsEnabled] for a test. The flag is a sentinel file in
- * Downloads that [FeatureFlags.initialize] reads exactly once per process, so this
- * (un)creates the file via shell (independent of the app's storage permission) and then
- * resets the cached flags via reflection so a re-initialize actually re-reads disk.
- * Reflection is deliberate: FeatureFlags has no test seam, and a loud reflection failure
- * here beats a production-only test hook.
+ * Turns [experiment] on or off for a test. Every experiment shares one sentinel file in
+ * Downloads, so this (un)creates it via shell (independent of the app's storage permission)
+ * and then [FeatureFlags.refresh]es, since the startup read is cached for the process.
  */
-fun setExperimentsFlagForTest(enabled: Boolean) {
+fun setExperimentForTest(
+	experiment: Experiment,
+	enabled: Boolean,
+) {
 	val instrumentation = InstrumentationRegistry.getInstrumentation()
 	val command = if (enabled) "touch $EXPERIMENTS_FLAG_PATH" else "rm -f $EXPERIMENTS_FLAG_PATH"
 	// Drain the output stream to EOF so the command has finished before we re-read flags.
 	val fd = instrumentation.uiAutomation.executeShellCommand(command)
 	ParcelFileDescriptor.AutoCloseInputStream(fd).use { it.readBytes() }
 
-	val flagsField =
-		FeatureFlags::class.java
-			.getDeclaredField("flags")
-			.apply { isAccessible = true }
-	val defaultFlags =
-		Class
-			.forName("com.itsaky.androidide.utils.FlagsCache")
-			.getDeclaredField("DEFAULT")
-			.apply { isAccessible = true }
-			.get(null)
-	// initialize() only touches disk while the cache is the DEFAULT singleton instance.
-	flagsField.set(FeatureFlags, defaultFlags)
-	runBlocking { FeatureFlags.initialize() }
+	runBlocking { FeatureFlags.refresh() }
 
 	assertEquals(
-		"FeatureFlags did not pick up $EXPERIMENTS_FLAG_PATH (is all-files access granted?)",
+		"$experiment did not follow $EXPERIMENTS_FLAG_PATH (is all-files access granted?)",
 		enabled,
-		FeatureFlags.isExperimentsEnabled,
+		Experiments.isOn(experiment),
 	)
 }

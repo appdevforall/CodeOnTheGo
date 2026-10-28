@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import android.net.TrafficStats
+import android.os.Build
 import android.os.Process
 import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.tasks.cancelIfActive
@@ -46,6 +47,13 @@ import kotlin.coroutines.CoroutineContext
  * Gradle's downloads show up here -- the Gradle Tooling and daemon processes share it. No socket
  * tagging is involved, so there is deliberately no per-feature breakdown.
  *
+ * The UID counters include loopback, and those processes talk to each other over 127.0.0.1: every
+ * build streams its output and progress events from the Gradle daemon to the Tooling API client
+ * that way, and each byte counts once as sent and once as received. Plotted raw, that IPC reads
+ * as network traffic during every build, airplane mode included (ADFA-5760). So each interval is
+ * capped at the device's off-loopback traffic for the same interval, which is zero when nothing
+ * left the device.
+ *
  * The platform counters are cumulative since boot, so what is recorded is the *delta* between
  * consecutive samples: bytes transferred during that interval. A sampler that reported the raw
  * counters would draw a monotonically rising line that says nothing about current activity.
@@ -54,6 +62,9 @@ import kotlin.coroutines.CoroutineContext
  * @param uid The UID to account for. Defaults to this process's own; injectable for tests.
  * @param readRxBytes Reads the cumulative received byte count. Injectable for tests.
  * @param readTxBytes Reads the cumulative transmitted byte count. Injectable for tests.
+ * @param readDeviceRxBytes Reads the device's cumulative received bytes on every interface but
+ * loopback, or [TrafficStats.UNSUPPORTED] to leave the UID delta uncapped. Injectable for tests.
+ * @param readDeviceTxBytes The transmitted counterpart of [readDeviceRxBytes].
  */
 class NetworkUsageWatcher
 	@OptIn(ExperimentalCoroutinesApi::class, DelicateCoroutinesApi::class)
@@ -62,6 +73,8 @@ class NetworkUsageWatcher
 		private val uid: Int = Process.myUid(),
 		private val readRxBytes: (Int) -> Long = TrafficStats::getUidRxBytes,
 		private val readTxBytes: (Int) -> Long = TrafficStats::getUidTxBytes,
+		private val readDeviceRxBytes: () -> Long = { offLoopback(TrafficStats::getTotalRxBytes, TrafficStats::getRxBytes) },
+		private val readDeviceTxBytes: () -> Long = { offLoopback(TrafficStats::getTotalTxBytes, TrafficStats::getTxBytes) },
 		// Injectable so a test can drive the sampling loop on a virtual clock. Waiting on the wall
 		// clock instead is what hung the test executor the first time this was attempted.
 		private val coroutineDispatcher: CoroutineContext = newSingleThreadContext("NetworkUsageWatcher"),
@@ -143,6 +156,8 @@ class NetworkUsageWatcher
 		 */
 		private var lastRx: Long? = null
 		private var lastTx: Long? = null
+		private var lastDeviceRx: Long? = null
+		private var lastDeviceTx: Long? = null
 
 		/**
 		 * Whether the platform reports traffic for this UID at all. Cleared permanently if a read comes
@@ -199,8 +214,7 @@ class NetworkUsageWatcher
 				received.clear()
 				transmitted.clear()
 				sampleTimes.clear()
-				lastRx = null
-				lastTx = null
+				clearBaselines()
 			}
 		}
 
@@ -267,8 +281,7 @@ class NetworkUsageWatcher
 			// background a Gradle download for three minutes and the chart reads hundreds of MB/s.
 			// The next sample re-establishes it, which is what the null baseline means.
 			synchronized(historyLock) {
-				lastRx = null
-				lastTx = null
+				clearBaselines()
 			}
 			samplingGeneration.incrementAndGet()
 			samplingJob?.cancel()
@@ -302,6 +315,8 @@ class NetworkUsageWatcher
 
 			val rx = readRxBytes(uid)
 			val tx = readTxBytes(uid)
+			val deviceRx = readDeviceRxBytes()
+			val deviceTx = readDeviceTxBytes()
 
 			if (rx == UNSUPPORTED || tx == UNSUPPORTED) {
 				// Not transient: the platform either accounts for this UID or it does not.
@@ -317,37 +332,62 @@ class NetworkUsageWatcher
 			synchronized(historyLock) {
 				sampleTimes[0] = nowMillis()
 				sampleTimes.shift(1)
-				record(received, previous = lastRx, current = rx)
-				record(transmitted, previous = lastTx, current = tx)
+				record(received, delta(lastRx, rx), deviceDelta(lastDeviceRx, deviceRx))
+				record(transmitted, delta(lastTx, tx), deviceDelta(lastDeviceTx, deviceTx))
 				lastRx = rx
 				lastTx = tx
+				lastDeviceRx = deviceRx
+				lastDeviceTx = deviceTx
 			}
 		}
 
+		private fun clearBaselines() {
+			lastRx = null
+			lastTx = null
+			lastDeviceRx = null
+			lastDeviceTx = null
+		}
+
 		/**
-		 * Appends the delta between [previous] and [current] to [history].
+		 * Appends [uidDelta] to [history], capped at [deviceDelta] when that is known.
+		 *
+		 * ponytail: the cap is device-wide, so this app's loopback IPC still shows while another app
+		 * is moving real traffic, up to that app's volume. Exact per-UID off-loopback counts need
+		 * NetworkStatsManager, which buckets far too coarsely for a 1s chart.
+		 */
+		private fun record(
+			history: MutableShiftedLongArray,
+			uidDelta: Long,
+			deviceDelta: Long?,
+		) {
+			// Newest entry goes in at index 0 and the shift makes it the last element, so
+			// history[size - 1] is always the newest. Same convention as MemoryUsageWatcher.
+			history[0] = if (deviceDelta == null) uidDelta else minOf(uidDelta, deviceDelta)
+			history.shift(1)
+		}
+
+		/** [delta] for the device counters, or `null` when the platform cannot provide them. */
+		private fun deviceDelta(
+			previous: Long?,
+			current: Long,
+		): Long? = if (current == UNSUPPORTED || previous == UNSUPPORTED) null else delta(previous, current)
+
+		/**
+		 * The delta between [previous] and [current].
 		 *
 		 * A negative delta means the counter went backwards, which happens when it is reset -- the
 		 * device rebooted, or the platform re-based its accounting. Treated as a fresh baseline (zero
 		 * for this interval) rather than plotted as negative traffic.
 		 */
-		private fun record(
-			history: MutableShiftedLongArray,
+		private fun delta(
 			previous: Long?,
 			current: Long,
-		) {
-			val delta =
-				when {
-					previous == null -> 0L
-					current < previous -> 0L
-					else -> current - previous
-				}
-
-			// Newest entry goes in at index 0 and the shift makes it the last element, so
-			// history[size - 1] is always the newest. Same convention as MemoryUsageWatcher.
-			history[0] = delta
-			history.shift(1)
-		}
+		): Long =
+			when {
+				previous == null -> 0L
+				current < previous -> 0L
+				else -> current - previous
+			}
 
 		/**
 		 * Bytes transferred per sampling interval, oldest first.
@@ -409,6 +449,22 @@ class NetworkUsageWatcher
 			/** [TrafficStats.UNSUPPORTED] widened to [Long], which is what the getters return. */
 			private const val UNSUPPORTED = TrafficStats.UNSUPPORTED.toLong()
 
+			private const val LOOPBACK_IFACE = "lo"
+
 			private val log = LoggerFactory.getLogger(NetworkUsageWatcher::class.java)
+
+			/**
+			 * A device-wide total minus the loopback interface, or [UNSUPPORTED] where the
+			 * per-interface counters (API 31) are missing or either read fails.
+			 */
+			private fun offLoopback(
+				total: () -> Long,
+				perIface: (String) -> Long,
+			): Long {
+				if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return UNSUPPORTED
+				val all = total()
+				val loopback = perIface(LOOPBACK_IFACE)
+				return if (all == UNSUPPORTED || loopback == UNSUPPORTED) UNSUPPORTED else all - loopback
+			}
 		}
 	}

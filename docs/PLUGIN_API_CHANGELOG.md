@@ -35,6 +35,59 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.43 — unreleased
+- **tooling — Interface bodies are Java default methods again** _(ADFA-6560)_ **[verified]**
+  Since ADFA-4058 (May 2026) pinned `languageVersion`, `plugin-api` compiled each Kotlin interface
+  body as an abstract method plus a `DefaultImpls` static. Plugins built against an earlier
+  `plugin-api` call the interface method itself, so they failed with `AbstractMethodError` (the
+  April Keystore Generator left the editor blank on `UIExtension.getToolbarActions()`), and their
+  calls to `IdeArchiveService.extract` and `IdeCommandService.executeCommand` that omit a defaulted
+  argument failed with `NoSuchMethodError`. `plugin-api` now sets `jvmDefault = ENABLE`: each body
+  is a Java default method, the `$default` helpers are back on the interfaces, and `DefaultImpls`
+  stays for plugins built since May. A plugin that implements an interface now inherits the body
+  of a method added after it was built instead of failing with `AbstractMethodError`.
+
+  A plugin built against this `plugin-api` calls those bodies on the interface, and an IDE built
+  between ADFA-4058 and 26.42 has none: there, any interface method the plugin does not override
+  fails with `AbstractMethodError`. Floor `plugin.min_ide_version` at `26.43`, or override every
+  method of the interfaces you implement.
+
+### 26.42 — unreleased
+- **added — Tell whether a server is on this device, the local network or the internet** _(ADFA-6536)_ **[verified]**
+  `net.ServerUrl.parse(url)` returns `ServerUrlParseResult.Valid(url)` or `Invalid(reason)`, where
+  `Invalid.Reason` is `BLANK`, `MALFORMED`, `UNSUPPORTED_SCHEME` or `NO_HOST` (more may be added). A
+  `ServerUrl` has `scheme` (`HTTP`/`HTTPS`, each with its URL `id` and `isEncrypted`), `host`, `port`, `isCleartext` and a `NetworkLocality`:
+  `LOOPBACK` (`localhost`, `127.0.0.0/8`, `::1`, `0.0.0.0`, `::`), `PRIVATE_NETWORK` (RFC 1918, link-local, IPv6
+  unique-local, `.local` and dotless names) or `PUBLIC`. It reads the URL as typed and never resolves
+  a name, so it is safe on the main thread. It only classifies; each plugin decides what it allows
+  for each locality. Floor `plugin.min_ide_version` at `26.42` to use it.
+- **added — Start Quick Build and get its result** _(ADFA-6493)_ **[verified]**
+  `IdeBuildService.getQuickBuildAvailability()` returns `QuickBuildAvailability.Available`, or
+  `Unavailable(reason, message)` with a `QuickBuildUnavailableReason`: `EXPERIMENTS_DISABLED`,
+  `NO_PROJECT`, `PROJECT_SYNCING`, `PLUGIN_PROJECT`, `NO_APP_MODULE`, `RELEASE_VARIANT`, or
+  `NOT_SUPPORTED` from a host without Quick Build. `startQuickBuild()` runs the same tap as the
+  toolbar button: it saves open files, asks the user before replacing an app installed under the
+  project's application ID, and shows in the toolbar and Build Output as usual. It completes once
+  with a `QuickBuildResult`: `Reloaded(durationMillis, restarted)`, `UpToDate` (nothing to build),
+  `AppNotRunning(message)`, `Failed(reason, output)`, `Refused(reason)` (unavailable, another build
+  or Quick Build running, no editor in the foreground), `Declined` (the user kept the installed app),
+  or `Cancelled`. `cancelQuickBuild()` asks a running Quick Build to stop like the stop icon, or
+  drops a plugin's start still saving or asking the user; the start's future reports what actually
+  happened, usually `Cancelled`. It needs `system.commands`. `getQuickBuildStatus()` returns a `QuickBuildState`: `READY`, `BUILDING`,
+  `FULL_BUILD_NEXT`, `RECONNECTING`, `ERROR`, or `UNAVAILABLE`. Floor `plugin.min_ide_version` at
+  `26.42`: an older IDE has none of these methods or classes.
+- **added — Context window and typed failures for LLM backends** _(ADFA-6493)_ **[verified]**
+  `LlmInferenceService.ContextWindowReportingBackend.getContextWindowTokens()` lets a backend report
+  the tokens one request may hold (for a local model, the context actually allocated), or 0 while
+  unknown; a consumer asks with `instanceof`. `FailureKind` (`OTHER`, `CONTEXT_TOO_LONG`) says why a
+  generation failed without matching its user-facing wording: `LlmResponse.failure(error, kind)`, a
+  constructor taking `failureKind` for a failure that keeps its partial text and token count, and
+  `LlmResponse.failureKind` (null on success, `OTHER` when the backend did not say), and a default
+  `onError(error, kind)` that falls back to `onError(error)`, so consumers built before it still hear
+  every failure. It lives on a new `ErrorCallback` that `StreamCallback` and `ToolStreamCallback`
+  both extend, so one class can still implement both. Floor
+  `plugin.min_ide_version` at `26.42` to call or implement any of them.
+
 ### 26.41 — unreleased
 - **added — Terminal readiness and visible terminal commands** _(ADFA-6373, ADFA-6385)_ **[verified]**
   `IdeTerminalService.isTerminalReady()` reports whether the terminal environment is installed
@@ -538,7 +591,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   Contribute new-project templates in the `.cgt` format.
   `IdeTemplateService`, `CgtTemplateBuilder`.
 - **added — Feature-flag access** _(ADFA-2808, `d924652`)_ **[reconstructed]**
-  `IdeFeatureFlagService.isExperimentsEnabled()`.
+  `IdeFeatureFlagService.isExperimentsEnabled()` - the overall experiments switch; individual experiments are not exposed ([EXPERIMENTS.md](../EXPERIMENTS.md#plugins)).
 
 ### 26.12 — 2026-03-12
 - **added — File-open handling** _(ADFA-3162, `0681d66`)_ **[reconstructed]**
