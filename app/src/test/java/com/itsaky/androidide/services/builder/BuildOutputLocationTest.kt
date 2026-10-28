@@ -223,6 +223,20 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
+	fun `the sweep does not follow a link among the trees`() {
+		val noBackup = tmp.newFolder("no_backup")
+		// A folder outside gradle-build whose marker names a deleted project, reached through a link.
+		val elsewhere = tmp.newFolder("elsewhere")
+		File(elsewhere, BuildOutputLocation.PROJECT_PATH_FILE).writeText(File(tmp.newFolder("projects"), "gone").path)
+		val precious = File(elsewhere, "precious.txt").apply { writeText("keep me") }
+		Files.createSymbolicLink(File(File(noBackup, BuildOutputLocation.DIR_NAME).apply { mkdirs() }, "link").toPath(), elsewhere.toPath())
+
+		assertThat(BuildOutputLocation.sweep(noBackup, tmp.root)).isEqualTo(0)
+
+		assertThat(precious.readText()).isEqualTo("keep me")
+	}
+
+	@Test
 	fun `a tree recorded under another spelling of the project path is still found`() {
 		val noBackup = tmp.newFolder("no_backup")
 		val app = tmp.newFolder("storage", "app")

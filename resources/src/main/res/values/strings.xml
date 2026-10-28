@@ -896,6 +896,7 @@
 	<string name="msg_export_apk_quick_build">The latest APK is Quick Build\'s live-reload app. Run the app once to build a regular APK, then export it.</string>
 	<string name="msg_export_build_running">A build is running. Export when it finishes.</string>
 	<string name="title_experiment_flavor">Experimental</string>
+	<string name="title_experiments_on">Experiments on</string>
 	<string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
 	<string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
 	<string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
@@ -1580,6 +1581,7 @@
 	<string name="url_consent_cancel">Cancel</string>
 	<string name="url_consent_proceed">Proceed</string>
 	<string name="url_consent_dont_ask">Don\'t ask again</string>
+	<string name="tooltip_link_cannot_open">This link can\'t be opened from here.</string>
 
 	<!-- Documentation urls -->
 	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
@@ -1630,6 +1632,7 @@
     <string name="cloning_repo">Cloning repository…</string>
     <string name="pick_folder">Pick folder</string>
     <string name="git_title">Git</string>
+    <string name="git_refresh">Refresh</string>
     <string name="no_uncommitted_changes">No uncommitted changes</string>
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>

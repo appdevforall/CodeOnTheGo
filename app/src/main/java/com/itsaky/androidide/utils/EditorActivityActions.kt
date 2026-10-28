@@ -93,7 +93,7 @@ class EditorActivityActions {
 			// Quick Build (ADFA-4128): next to the Run button; experimental. Available
 			// from API 28 - on 28/29 resource reloads take the degraded addAssetPath
 			// shim (ResourceSwapStrategy in :quickbuild:runtime); 30+ uses ResourcesLoader.
-			if (FeatureFlags.isExperimentsEnabled) {
+			if (Experiments.isOn(Experiment.QUICK_BUILD)) {
 				registry.registerAction(QuickBuildAction(context, order++))
 			}
 			registry.registerAction(ProjectSyncAction(context, order++))
@@ -142,7 +142,7 @@ class EditorActivityActions {
 			registry.registerAction(HelpAction(context, ORDER_HELP))
 
 			// Profiler actions
-			if (FeatureFlags.isExperimentsEnabled) {
+			if (Experiments.isOn(Experiment.PROFILER)) {
 				registry.registerAction(ProfilerAction(context, ORDER_PROFILER))
 			}
 		}

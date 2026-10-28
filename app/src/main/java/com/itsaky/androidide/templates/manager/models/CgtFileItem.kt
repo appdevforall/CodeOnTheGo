@@ -36,6 +36,9 @@ enum class TemplateProvenance {
  * holds every template the archive bundles (see [TemplateMetadata]); [installed] is true when
  * [file] lives in `Environment.TEMPLATES_DIR` (the store Gradle reads templates from) rather
  * than the Downloads folder, and [provenance] (see [TemplateProvenance]) says who put it there.
+ * [manifestDisplayName] is the archive's own name from its root `templates.json`, when it has
+ * one (see [CgtTemplateReader.CgtArchiveContents] - ADFA-6570); null for most archives today,
+ * in which case the card falls back to its first template's name (see [effectiveDisplayName]).
  */
 data class CgtFileItem(
 	val file: File,
@@ -43,11 +46,21 @@ data class CgtFileItem(
 	val templates: List<TemplateMetadata>,
 	val installed: Boolean,
 	val provenance: TemplateProvenance,
+	val manifestDisplayName: String? = null,
 )
 
-/** The first template's metadata, used to populate the card's title/description/version. */
+/** The first template's metadata, used to populate the card's description/version. */
 val CgtFileItem.primaryTemplate: TemplateMetadata
 	get() = templates.firstOrNull() ?: TemplateMetadata(name = "", description = "", version = "")
+
+/**
+ * The name to show for this card: [manifestDisplayName] when the archive declares one, else the
+ * first template's name, else the filename (see [displayName]). Multi-template archives with no
+ * `templates.json` still fall back to whichever template happened to be read first - this is
+ * exactly the case ADFA-6570 adds an explicit tag for.
+ */
+val CgtFileItem.effectiveDisplayName: String
+	get() = manifestDisplayName ?: primaryTemplate.name.ifBlank { displayName }
 
 /** True when this .cgt file bundles more than one template. */
 val CgtFileItem.hasMultipleTemplates: Boolean

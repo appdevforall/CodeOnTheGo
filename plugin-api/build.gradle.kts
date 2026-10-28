@@ -27,6 +27,7 @@ kotlin {
 		// This jar ships in the plugin-api coordinate on-device plugins compile against.
 		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
 		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+		jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.ENABLE)
 	}
 }
 
@@ -59,6 +60,7 @@ dependencies {
 	// need the framework on the JVM.
 	testImplementation(libs.tests.robolectric)
 	testImplementation(libs.tests.google.truth)
+	testRuntimeOnly("androidx.fragment:fragment-ktx:1.6.2")
 }
 
 tasks.register<Copy>("createPluginApiJar") {

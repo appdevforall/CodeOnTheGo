@@ -16,123 +16,146 @@ import com.itsaky.androidide.templates.booleanParameter
 import com.itsaky.androidide.templates.impl.TemplateWarning
 import com.itsaky.androidide.templates.projectNameParameter
 import com.itsaky.androidide.templates.stringParameter
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiments
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.zip.ZipFile
 
 object ZipTemplateReader {
-    private val log = LoggerFactory.getLogger(ZipTemplateReader::class.java)
+	private val log = LoggerFactory.getLogger(ZipTemplateReader::class.java)
 
-    private val gson = Gson()
+	private val gson = Gson()
 
-    fun read(
-        zipFile: File,
-        warnings: MutableList<TemplateWarning>,
-        recipeFactory: (TemplateJson, MutableMap<String, Parameter<*>>, String, ProjectTemplateData, ModuleTemplateData) -> TemplateRecipe<ProjectTemplateRecipeResult>
-    ): List<ProjectTemplate> {
+	fun read(
+		zipFile: File,
+		warnings: MutableList<TemplateWarning>,
+		recipeFactory: (
+			TemplateJson,
+			MutableMap<String, Parameter<*>>,
+			String,
+			ProjectTemplateData,
+			ModuleTemplateData,
+		) -> TemplateRecipe<ProjectTemplateRecipeResult>,
+	): List<ProjectTemplate> {
+		val templates = mutableListOf<ProjectTemplate>()
 
-        val templates = mutableListOf<ProjectTemplate>()
+		try {
+			ZipFile(zipFile).use { zip ->
 
-        try {
-            ZipFile(zipFile).use { zip ->
+				val indexEntry =
+					requireNotNull(zip.getEntry(ARCHIVE_JSON)) {
+						warnings.add(
+							TemplateWarning(
+								R.string.template_read_error_archive_json,
+								listOf(zip.name, ARCHIVE_JSON),
+							),
+						)
+						ARCHIVE_JSON
+					}
 
-                val indexEntry = requireNotNull(zip.getEntry(ARCHIVE_JSON)) {
-                    warnings.add(TemplateWarning(R.string.template_read_error_archive_json,
-                        listOf(zip.name, ARCHIVE_JSON)))
-                    ARCHIVE_JSON
-                }
+				val indexJson =
+					zip.getInputStream(indexEntry).bufferedReader().use {
+						gson.fromJson(it, TemplatesIndex::class.java)
+					}
 
-                val indexJson = zip.getInputStream(indexEntry).bufferedReader().use {
-                    gson.fromJson(it, TemplatesIndex::class.java)
-                }
+				for (templateRef in indexJson.templates) {
+					try {
+						val basePath = templateRef.path
+						log.debug("basePath: $basePath")
 
-                for (templateRef in indexJson.templates) {
-                    try {
+						if (templateRef.experimental && !Experiments.enabled) {
+							log.debug("Skipping experimental template: $basePath")
+							continue
+						}
 
-                        val basePath = templateRef.path
-                        log.debug("basePath: $basePath")
+						val metaEntry = zip.getEntry("$basePath/$META_FOLDER/$META_JSON") ?: continue
 
-                        if (templateRef.experimental && !FeatureFlags.isExperimentsEnabled) {
-                            log.debug("Skipping experimental template: $basePath")
-                            continue
-                        }
+						val metaJsonString =
+							zip.getInputStream(metaEntry).bufferedReader().use { reader ->
+								reader.readText()
+							}
 
-                        val metaEntry = zip.getEntry("$basePath/$META_FOLDER/$META_JSON") ?: continue
+						val metaJson = gson.fromJson(metaJsonString, TemplateJson::class.java)
 
-                        val metaJsonString = zip.getInputStream(metaEntry).bufferedReader().use { reader ->
-                            reader.readText()
-                        }
+						val thumbEntry = zip.getEntry("$basePath/$META_FOLDER/$META_THUMBNAIL")
+						val thumbData = thumbEntry?.let { zip.getInputStream(it).use { s -> s.readBytes() } }
 
-                        val metaJson = gson.fromJson(metaJsonString, TemplateJson::class.java)
+						val userWidgets = mutableListOf<Widget<*>>()
+						val params = mutableMapOf<String, Parameter<*>>()
 
-                        val thumbEntry = zip.getEntry("$basePath/$META_FOLDER/$META_THUMBNAIL")
-                        val thumbData = thumbEntry?.let { zip.getInputStream(it).use { s -> s.readBytes() } }
+						metaJson.parameters?.user?.text?.forEach { textParam ->
+							val param =
+								stringParameter {
+									name = 0
+									nameStr = textParam.label ?: ""
+									default = textParam.default ?: ""
+								}
+							userWidgets.add(TextFieldWidget(param))
+							params[textParam.identifier] = param
+						}
 
-                        val userWidgets = mutableListOf<Widget<*>>()
-                        val params = mutableMapOf<String, Parameter<*>>()
+						metaJson.parameters?.user?.checkbox?.forEach { checkboxParam ->
+							val param =
+								booleanParameter {
+									name = 0
+									nameStr = checkboxParam.label ?: ""
+									default = checkboxParam.default ?: false
+								}
+							userWidgets.add(CheckBoxWidget(param))
+							params[checkboxParam.identifier] = param
+						}
 
-                        metaJson.parameters?.user?.text?.forEach { textParam ->
-                            val param = stringParameter {
-                                name = 0
-                                nameStr = textParam.label ?: ""
-                                default = textParam.default ?: ""
-                            }
-                            userWidgets.add(TextFieldWidget(param))
-                            params[textParam.identifier] = param
-                        }
+						val project =
+							baseZipProject(
+								projectName =
+									projectNameParameter {
+										metaJson.defaultAppName?.let { default = it }
+									},
+								showLanguage = (metaJson.parameters?.optional?.language != null),
+								showMinSdk = (metaJson.parameters?.optional?.minsdk != null),
+								showPackageName = (metaJson.parameters?.required?.packageName != null),
+								defaultSaveLocation = metaJson.defaultSaveLocation,
+							) {
+								this.templateNameStr = metaJson.name
+								this.tooltipTag = metaJson.tooltipTag
+								this.thumbData = thumbData
 
-                        metaJson.parameters?.user?.checkbox?.forEach { checkboxParam ->
-                            val param = booleanParameter {
-                                name = 0
-                                nameStr = checkboxParam.label ?: ""
-                                default = checkboxParam.default ?: false
-                            }
-                            userWidgets.add(CheckBoxWidget(param))
-                            params[checkboxParam.identifier] = param
-                        }
+								this.templateName = 0
+								this.thumb = R.drawable.template_no_activity
 
-                        val project = baseZipProject(
-                            projectName = projectNameParameter {
-                                metaJson.defaultAppName?.let { default = it }
-                            },
-                            showLanguage = (metaJson.parameters?.optional?.language != null),
-                            showMinSdk = (metaJson.parameters?.optional?.minsdk != null),
-                            showPackageName = (metaJson.parameters?.required?.packageName != null),
-                            defaultSaveLocation = metaJson.defaultSaveLocation
-                        ) {
+								for (widget in userWidgets) {
+									widgets(widget)
+								}
 
-                            this.templateNameStr = metaJson.name
-                            this.tooltipTag = metaJson.tooltipTag
-                            this.thumbData = thumbData
+								this.recipe =
+									TemplateRecipe { executor ->
+										val innerRecipe = recipeFactory(metaJson, params, basePath, data, defModule)
+										innerRecipe.execute(executor)
+									}
+							}
 
-                            this.templateName = 0
-                            this.thumb = R.drawable.template_no_activity
+						templates.add(project)
+					} catch (e: Exception) {
+						warnings.add(
+							TemplateWarning(
+								R.string.template_read_error_template_load,
+								listOf(templateRef.path, e.message),
+							),
+						)
+						log.error("Failed to load template at ${templateRef.path}", e)
+					}
+				}
+			}
+		} catch (e: Exception) {
+			warnings.add(
+				TemplateWarning(
+					R.string.template_read_error_archive_load,
+					listOf(zipFile, e.message),
+				),
+			)
+			log.error("Failed to read zip file $zipFile", e)
+		}
 
-                            for (widget in userWidgets) {
-                                widgets(widget)
-                            }
-
-                            this.recipe = TemplateRecipe { executor ->
-                                val innerRecipe = recipeFactory(metaJson, params, basePath, data, defModule)
-                                innerRecipe.execute(executor)
-                            }
-                        }
-
-                        templates.add(project)
-                    } catch (e: Exception) {
-                        warnings.add(TemplateWarning(R.string.template_read_error_template_load,
-                            listOf(templateRef.path, e.message)))
-                        log.error("Failed to load template at ${templateRef.path}", e)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            warnings.add(TemplateWarning(R.string.template_read_error_archive_load,
-                listOf(zipFile, e.message)))
-            log.error("Failed to read zip file $zipFile", e)
-        }
-
-        return templates
-    }
+		return templates
+	}
 }
