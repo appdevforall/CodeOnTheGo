@@ -33,7 +33,7 @@ object BuildOutputLocation {
 	/** Holds the project's canonical path, so a sweep can find trees whose project is gone. */
 	const val PROJECT_PATH_FILE = "project-path"
 
-	/** Written in a tree by every sync that relocates; see [syncCanRelocate]. */
+	/** Written in a tree once a sync has succeeded and its model is loaded; see [syncCanRelocate]. */
 	const val RELOCATING_SYNC_FILE = "relocating-sync"
 
 	private const val KOTLIN_PERSISTENT_DIR = "kotlin.project.persistent.dir"
@@ -74,6 +74,17 @@ object BuildOutputLocation {
 			"-P$KOTLIN_PERSISTENT_DIR=${File(tree, "kotlin").absolutePath}",
 			NO_WATCH_FS,
 		)
+
+	/**
+	 * The arguments a sync passes so it relocates, or none when [tree] cannot be written ([prepare]);
+	 * the sync then keeps output in the project folder. Records nothing: the sync has not run yet,
+	 * and one that fails or is cancelled leaves the model as it was, so the offer of another must
+	 * stand. Its success is recorded after its model loads ([recordRelocatingSync]).
+	 */
+	fun syncArgs(
+		tree: File,
+		projectDir: File,
+	): List<String> = if (prepare(tree, projectDir)) gradleArgs(tree) else emptyList()
 
 	/** Whether a sync's or build's arguments relocate its output, from [gradleArgs]. */
 	fun isRelocating(args: List<String>): Boolean = args.any { it.startsWith("-P$PROPERTY_BUILD_OUTPUT_DIR=") }
@@ -250,7 +261,11 @@ object BuildOutputLocation {
 	 */
 	fun syncPending(modelRelocated: Boolean?): Boolean = modelRelocated == false
 
-	/** Records in [tree] that a relocating sync ran. A failure is ignored: the offer then repeats. */
+	/**
+	 * Records in [tree] that a sync succeeded, once its model is loaded. Every sync relocates when
+	 * [tree] can be written ([syncArgs]), so after one succeeds another changes nothing. A failure to
+	 * write is ignored: the offer then repeats.
+	 */
 	fun recordRelocatingSync(tree: File) {
 		try {
 			File(tree, RELOCATING_SYNC_FILE).createNewFile()
@@ -261,8 +276,8 @@ object BuildOutputLocation {
 
 	/**
 	 * Whether a sync could still move the build output of a project whose model builds into the
-	 * project folder ([syncPending]), so offering one is worth it. Not when a relocating sync already
-	 * ran ([recordRelocatingSync]) and its model still did not relocate, as when every build script
+	 * project folder ([syncPending]), so offering one is worth it. Not when a sync already succeeded
+	 * ([recordRelocatingSync]) and its model still did not relocate, as when every build script
 	 * sets its own build directory; and not when [tree] cannot be written, as a sync then keeps the
 	 * output in the project folder. Offering then would repeat after every sync and every open.
 	 * Creates [tree] when it is missing ([prepare]); runs on a background thread.

@@ -146,7 +146,7 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `no sync is offered once a relocating sync ran without relocating`() {
+	fun `no sync is offered once a sync succeeded without relocating`() {
 		val noBackup = tmp.newFolder("no_backup")
 		val project = tmp.newFolder("projects", "app")
 		val tree = BuildOutputLocation.treeFor(noBackup, project)
@@ -156,6 +156,19 @@ class BuildOutputLocationTest {
 
 		BuildOutputLocation.recordRelocatingSync(tree)
 		assertThat(BuildOutputLocation.syncCanRelocate(tree, project)).isFalse()
+	}
+
+	@Test
+	fun `a sync that fails leaves the offer available`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val project = tmp.newFolder("projects", "app")
+		val tree = BuildOutputLocation.treeFor(noBackup, project)
+
+		// The sync starts with relocating arguments, then fails or is cancelled before its model
+		// loads, so nothing records it.
+		assertThat(BuildOutputLocation.isRelocating(BuildOutputLocation.syncArgs(tree, project))).isTrue()
+
+		assertThat(BuildOutputLocation.syncCanRelocate(tree, project)).isTrue()
 	}
 
 	@Test

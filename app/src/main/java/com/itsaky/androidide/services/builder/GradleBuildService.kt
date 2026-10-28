@@ -783,12 +783,9 @@ class GradleBuildService :
 			return BuildOutputLocation.gradleArgs(tree)
 		}
 
-		if (!BuildOutputLocation.prepare(tree, projectDir)) {
-			log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
-			return emptyList()
-		}
-		BuildOutputLocation.recordRelocatingSync(tree)
-		return BuildOutputLocation.gradleArgs(tree)
+		val args = BuildOutputLocation.syncArgs(tree, projectDir)
+		if (args.isEmpty()) log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
+		return args
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =

@@ -1638,7 +1638,7 @@ abstract class ProjectHandlerActivity :
 				return@whenCompleteAsync
 			}
 
-			onProjectInitialized(result as InitializeResult.Success)
+			onProjectInitialized(result as InitializeResult.Success, synced = needsSync)
 		}
 	}
 
@@ -1759,7 +1759,11 @@ abstract class ProjectHandlerActivity :
 		}
 	}
 
-	protected open fun onProjectInitialized(result: InitializeResult.Success) {
+	/** @param synced whether this initialization ran a Gradle sync, rather than reading the cached model. */
+	protected open fun onProjectInitialized(
+		result: InitializeResult.Success,
+		synced: Boolean,
+	) {
 		Memprof.mark("sync_complete")
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()
@@ -1795,6 +1799,13 @@ abstract class ProjectHandlerActivity :
 			}
 
 			manager.setup(gradleBuildResult.getOrThrow())
+			// ADFA-4930: only now that the synced model is loaded. A sync that fails or is cancelled
+			// leaves the model as it was, so the relocation offer must stand.
+			if (synced) {
+				manager.projectDirPath.takeIf { it.isNotBlank() }?.let { path ->
+					BuildOutputLocation.recordRelocatingSync(BuildOutputLocation.treeFor(noBackupFilesDir, File(path)))
+				}
+			}
 			manager.notifyProjectUpdate()
 			updateBuildVariants(manager.androidBuildVariants)
 
