@@ -21,6 +21,10 @@ const val ANDROID_GRADLE_PLUGIN_VERSION = "9.3.1"
 const val GRADLE_DISTRIBUTION_VERSION = "9.6.1"
 const val KOTLIN_VERSION = "2.3.21"
 
+// The Kotlin the bundled Gradle distribution carries in lib/. Quick Build links those jars, so this
+// follows GRADLE_DISTRIBUTION_VERSION; KOTLIN_VERSION is what new projects are generated with.
+const val GRADLE_DISTRIBUTION_KOTLIN_VERSION = "2.3.21"
+
 val TARGET_SDK_VERSION = Sdk.Baklava
 val COMPILE_SDK_VERSION = Sdk.Baklava
 val COMPOSE_SDK_VERSION = Sdk.Baklava

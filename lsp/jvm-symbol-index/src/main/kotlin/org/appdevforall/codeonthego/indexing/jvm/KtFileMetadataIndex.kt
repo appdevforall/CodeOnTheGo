@@ -152,5 +152,9 @@ class KtFileMetadataIndex(
 	/** Remove all records from the index. */
 	suspend fun clear() = backing.clear()
 
+	/** Whether the backing index still serves reads and writes. */
+	val isOpen: Boolean
+		get() = backing.isOpen
+
 	override fun close() = backing.close()
 }

@@ -1,12 +1,17 @@
 @file:Suppress("UnstableApiUsage")
 
+import com.aayushatharva.brotli4j.Brotli4jLoader
+import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.desugaring.utils.JavaIOReplacements.applyJavaIOReplacements
 import com.itsaky.androidide.plugins.AndroidIDEAssetsPlugin
+import com.itsaky.androidide.plugins.conf.hasBundledAssets
 import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import org.adfa.constants.GRADLE_API_NAME_JAR_BR
 import org.adfa.constants.GRADLE_API_NAME_JAR_ZIP
 import org.adfa.constants.GRADLE_DISTRIBUTION_ARCHIVE_NAME
+import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
+import org.adfa.constants.GRADLE_DISTRIBUTION_NAME
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.json.JSONObject
 import java.io.BufferedOutputStream
@@ -27,6 +32,7 @@ import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 plugins {
@@ -507,16 +513,166 @@ dependencies {
 evaluationDependsOn(":quickbuild:runtime")
 evaluationDependsOn(":quickbuild:daemon")
 
+// ADFA-4931: jars the daemon loads from the on-device Gradle distribution instead of shipping its
+// own copy, since `gradle-dists/` and `quickbuild/` both sit under <ANDROIDIDE_HOME>.
+// quickBuildDaemonZip leaves these out and QuickBuildArtifactStager links the distribution's copy
+// in under exactly these names, which is what the daemon jar's manifest Class-Path expects.
+val quickBuildDistLinkedJars =
+	listOf(
+		"kotlin-compiler-embeddable-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-stdlib-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-build-tools-impl-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-daemon-embeddable-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-script-runtime-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		"kotlin-reflect-$GRADLE_DISTRIBUTION_KOTLIN_VERSION.jar",
+		// These three carry their own version rather than GRADLE_DISTRIBUTION_KOTLIN_VERSION,
+		// pinned in libs.versions.toml to what the distribution ships so they can be linked from there.
+		"kotlinx-coroutines-core-jvm-${libs.kotlinx.coroutines.core.jvm.quickBuildDaemon.get().version}.jar",
+		"gson-${libs.gson.quickBuildDaemon.get().version}.jar",
+		"asm-${libs.ow2.asm.get().version}.jar",
+	)
+
+// A broken link surfaces on device as a NoClassDefFoundError partway into the user's first
+// compile, far from the change that caused it, so check both ends at build time: the daemon must
+// resolve each name, and the distribution this build packages must carry each one.
+val quickBuildReleaseDistribution =
+	rootProject.file("assets/release/common/data/common/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br")
+
+val quickBuildDistJarCheck =
+	tasks.register("quickBuildDistJarCheck") {
+		// Without the ordering, a build that downloads a new distribution can check the old one.
+		mustRunAfter("assetsDownloadDebug", "assetsDownloadRelease")
+		val expected = quickBuildDistLinkedJars
+		val distName = GRADLE_DISTRIBUTION_NAME
+		val archiveName = GRADLE_DISTRIBUTION_ARCHIVE_NAME
+		val debugArchive = rootProject.file("assets/$archiveName")
+		val releaseArchive = quickBuildReleaseDistribution
+		val classpath =
+			files(
+				rootProject
+					.project(":quickbuild:daemon")
+					.configurations
+					.named("runtimeClasspath"),
+			)
+		inputs.files(classpath)
+		inputs
+			.files(debugArchive)
+			.withPropertyName("debugDistribution")
+			.optional(true)
+		inputs
+			.files(releaseArchive)
+			.withPropertyName("releaseDistribution")
+			.optional(true)
+		doLast {
+			val resolved = classpath.files.associateBy { it.name }
+			expected.sorted().forEach { name ->
+				if (name !in resolved) {
+					throw GradleException(
+						"$name is linked from the Gradle distribution but is not on the daemon's " +
+							"runtime classpath, so quickBuildDaemonZip's exclusion of that name " +
+							"matches nothing and the zip carries a copy the stager then links over. " +
+							"Point quickBuildDistLinkedJars at the name the daemon now resolves. " +
+							"Resolved: ${resolved.keys.sorted()}",
+					)
+				}
+			}
+
+			/** Fails unless every linked jar sits in the distribution's lib/ inside [archive]. */
+			fun requireLinkedJars(
+				entries: Set<String>,
+				archive: File,
+			) {
+				expected.forEach { name ->
+					val entryName = "$distName/lib/$name"
+					if (entryName !in entries) {
+						throw GradleException(
+							"$entryName is missing from ${archive.name}. quickBuildDaemonZip " +
+								"excludes $name on the promise that the distribution supplies it, so " +
+								"the daemon would start with no copy at all. Either drop it from " +
+								"quickBuildDistLinkedJars and let the zip carry it, or correct the name.",
+						)
+					}
+				}
+				logger.lifecycle(
+					"quickBuildDistJarCheck: found ${expected.size} of ${expected.size} linked jars " +
+						"in $distName/lib of ${archive.name}",
+				)
+			}
+
+			if (debugArchive.isFile) {
+				val entries =
+					ZipFile(debugArchive).use { zip ->
+						zip
+							.entries()
+							.asSequence()
+							.map { it.name }
+							.toSet()
+					}
+				requireLinkedJars(entries, debugArchive)
+			}
+			if (releaseArchive.isFile) {
+				Brotli4jLoader.ensureAvailability()
+				val entries = mutableSetOf<String>()
+				ZipInputStream(BrotliInputStream(releaseArchive.inputStream().buffered())).use { zip ->
+					generateSequence { zip.nextEntry }.forEach { entries += it.name }
+				}
+				requireLinkedJars(entries, releaseArchive)
+			}
+			if (!debugArchive.isFile && !releaseArchive.isFile) {
+				logger.lifecycle(
+					"quickBuildDistJarCheck: NOT PACKAGED - 0 of ${expected.size} linked jars looked " +
+						"up. No Gradle distribution archive is on disk; a debug APK gets it from the " +
+						"assets zip, which ./gradlew :app:assetsDownloadDebug fetches to check.",
+				)
+			}
+		}
+	}
+
+// A variant that bundles the distribution must not package the daemon zip until the check
+// above has read it. Wired per variant below rather than inferred from task names.
+val quickBuildBundledDistGate =
+	tasks.register("quickBuildBundledDistGate") {
+		dependsOn(quickBuildDistJarCheck)
+		val releaseArchive = quickBuildReleaseDistribution
+		doLast {
+			if (!releaseArchive.isFile) {
+				throw GradleException(
+					"${releaseArchive.absolutePath} is absent, so quickBuildDistJarCheck cannot read " +
+						"the Gradle distribution this variant packages. Run " +
+						":app:assetsDownloadRelease first.",
+				)
+			}
+		}
+	}
+
+// The names the stager links, travelling with the zip so the device side reads the build's
+// list rather than repeating it.
+val quickBuildDistLinkedJarList =
+	tasks.register("quickBuildDistLinkedJarList") {
+		val names = quickBuildDistLinkedJars.sorted()
+		val listFile = layout.buildDirectory.file("intermediates/quickbuild/dist-linked-jars.txt")
+		inputs.property("names", names)
+		outputs.file(listFile)
+		doLast {
+			listFile.get().asFile.writeText(names.joinToString("\n", postfix = "\n"))
+		}
+	}
+
 val quickBuildDaemonZip =
 	tasks.register<Zip>("quickBuildDaemonZip") {
 		archiveFileName.set("quickbuild-daemon.zip")
 		destinationDirectory.set(layout.buildDirectory.dir("intermediates/quickbuild"))
+		dependsOn(quickBuildDistJarCheck)
 		val daemonProject = rootProject.project(":quickbuild:daemon")
 		dependsOn(daemonProject.tasks.named("daemonJar"))
 		from(daemonProject.tasks.named("daemonJar"))
 		// The daemon jar's manifest Class-Path names these by file name; they must sit
 		// next to the jar after extraction.
-		from(daemonProject.configurations.named("runtimeClasspath"))
+		// ADFA-4931: except the ones the distribution already carries; the stager links those
+		// in at provision time. Scoped to this spec so it cannot filter the other from()s.
+		val linked = quickBuildDistLinkedJars.toSet()
+		from(daemonProject.configurations.named("runtimeClasspath")) { exclude { it.name in linked } }
+		from(quickBuildDistLinkedJarList)
 		// Compose compiler plugin, version-matched to the daemon's compiler; the stable
 		// name is the contract EnvironmentQuickBuildPaths.composeCompilerPlugin reads.
 		from(daemonProject.configurations.named("composeCompilerPlugin")) {
@@ -551,9 +707,14 @@ androidComponents.onVariants { variant ->
 		AddFileToAssetsTask::outputDirectory,
 	)
 
+	// The same test that adds assets/release, and the distribution in it, to this variant.
+	val bundlesDistribution = hasBundledAssets(variant)
 	val copyDaemonZip =
 		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildDaemonZip") {
 			dependsOn(quickBuildDaemonZip)
+			if (bundlesDistribution) {
+				dependsOn(quickBuildBundledDistGate)
+			}
 			inputFile.set(quickBuildDaemonZip.flatMap { it.archiveFile })
 			baseAssetsPath.set("data/common")
 		}
@@ -768,9 +929,11 @@ val pluginApiKeepRules =
 
 // proguardFiles (not dependsOn) so Gradle infers the dependency for every
 // consumer: R8 and lint both read this list, and wiring only R8 fails validation
-// in a real release build. Debug variants stay off the fat jar entirely.
-androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
-	variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+// in a real release build. Unminified variants skip the rules.
+androidComponents.onVariants { variant ->
+	if (variant.isMinifyEnabled) {
+		variant.proguardFiles.add(pluginApiKeepRules.flatMap { it.keepRules })
+	}
 }
 
 // Dependency-free POM for the fat plugin-api coordinate: it is compile-only/provided,
@@ -1441,71 +1604,51 @@ fun signApk(apkFile: File) {
 	}
 }
 
-val scpServer: String = propOrEnv("SCP_HOST")
+val devAssetsBaseUrl = "https://dev-assets.appdevforall.org"
 
 // git lfs avoidance
 data class Asset(
 	val localPath: String,
 	val url: String,
-	val remotePath: String,
-	val variant: String,
 )
 
 val debugAssets =
 	listOf(
 		Asset(
 			"assets/android-sdk-arm64-v8a.zip",
-			"https://appdevforall.org/dev-assets/debug/android-sdk-arm64-v8a.zip",
-			"android-sdk-arm64-v8a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/android-sdk-arm64-v8a.zip",
 		),
 		Asset(
 			"assets/android-sdk-armeabi-v7a.zip",
-			"https://appdevforall.org/dev-assets/debug/android-sdk-armeabi-v7a.zip",
-			"android-sdk-armeabi-v7a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/android-sdk-armeabi-v7a.zip",
 		),
 		Asset(
 			"assets/bootstrap-arm64-v8a.zip",
-			"https://appdevforall.org/dev-assets/debug/bootstrap-arm64-v8a.zip",
-			"bootstrap-arm64-v8a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/bootstrap-arm64-v8a.zip",
 		),
 		Asset(
 			"assets/bootstrap-armeabi-v7a.zip",
-			"https://appdevforall.org/dev-assets/debug/bootstrap-armeabi-v7a.zip",
-			"bootstrap-armeabi-v7a.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/bootstrap-armeabi-v7a.zip",
 		),
 		Asset(
 			"assets/documentation.db",
-			"https://appdevforall.org/dev-assets/debug/documentation.db",
-			"documentation.db",
-			"debug",
+			"$devAssetsBaseUrl/debug/documentation.db",
 		),
 		Asset(
 			"assets/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
-			"https://appdevforall.org/dev-assets/debug/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
-			"$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
-			"debug",
+			"$devAssetsBaseUrl/debug/$GRADLE_DISTRIBUTION_ARCHIVE_NAME",
 		),
 		Asset(
 			"assets/$GRADLE_API_NAME_JAR_ZIP",
-			"https://appdevforall.org/dev-assets/debug/$GRADLE_API_NAME_JAR_ZIP",
-			"$GRADLE_API_NAME_JAR_ZIP",
-			"debug",
+			"$devAssetsBaseUrl/debug/$GRADLE_API_NAME_JAR_ZIP",
 		),
 		Asset(
 			"assets/localMvnRepository.zip",
-			"https://appdevforall.org/dev-assets/debug/localMvnRepository.zip",
-			"localMvnRepository.zip",
-			"debug",
+			"$devAssetsBaseUrl/debug/localMvnRepository.zip",
 		),
 		Asset(
 			"assets/core.cgt",
-			"https://appdevforall.org/dev-assets/debug/core.cgt",
-			"core.cgt",
-			"debug",
+			"$devAssetsBaseUrl/debug/core.cgt",
 		),
 	)
 
@@ -1513,139 +1656,73 @@ val releaseAssets =
 	listOf(
 		Asset(
 			"assets/release/common/data/common/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
-			"https://appdevforall.org/dev-assets/release/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
-			"$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
-			"release",
+			"$devAssetsBaseUrl/release/$GRADLE_DISTRIBUTION_ARCHIVE_NAME.br",
 		),
 		Asset(
 			"assets/release/common/data/common/$GRADLE_API_NAME_JAR_BR",
-			"https://appdevforall.org/dev-assets/release/$GRADLE_API_NAME_JAR_BR",
-			"$GRADLE_API_NAME_JAR_BR",
-			"release",
+			"$devAssetsBaseUrl/release/$GRADLE_API_NAME_JAR_BR",
 		),
 		Asset(
 			"assets/release/common/data/common/localMvnRepository.zip.br",
-			"https://appdevforall.org/dev-assets/release/localMvnRepository.zip.br",
-			"localMvnRepository.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/localMvnRepository.zip.br",
 		),
 		Asset(
 			"assets/release/common/database/documentation.db.br",
-			"https://appdevforall.org/dev-assets/release/documentation.db.br",
-			"documentation.db.br",
-			"release",
+			"$devAssetsBaseUrl/release/documentation.db.br",
 		),
 		Asset(
 			"assets/release/v7/data/common/android-sdk.zip.br",
-			"https://appdevforall.org/dev-assets/release/v7/android-sdk.zip.br",
-			"v7/android-sdk.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v7/android-sdk.zip.br",
 		),
 		Asset(
 			"assets/release/v7/data/common/bootstrap.zip.br",
-			"https://appdevforall.org/dev-assets/release/v7/bootstrap.zip.br",
-			"v7/bootstrap.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v7/bootstrap.zip.br",
 		),
 		Asset(
 			"assets/release/v8/data/common/android-sdk.zip.br",
-			"https://appdevforall.org/dev-assets/release/v8/android-sdk.zip.br",
-			"v8/android-sdk.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v8/android-sdk.zip.br",
 		),
 		Asset(
 			"assets/release/v8/data/common/bootstrap.zip.br",
-			"https://appdevforall.org/dev-assets/release/v8/bootstrap.zip.br",
-			"v8/bootstrap.zip.br",
-			"release",
+			"$devAssetsBaseUrl/release/v8/bootstrap.zip.br",
 		),
 		Asset(
 			"assets/release/common/data/common/core.cgt.br",
-			"https://appdevforall.org/dev-assets/release/core.cgt.br",
-			"core.cgt.br",
-			"release",
+			"$devAssetsBaseUrl/release/core.cgt.br",
 		),
 	)
-
-fun assetsBatch(
-	projectDir: File,
-	project: Project,
-	variant: String,
-) {
-	if (isCiCd) {
-		val tmpDir = File(projectDir, ".tmp/assets")
-		tmpDir.mkdirs()
-		project.logger.lifecycle("Downloading $variant assets → ${tmpDir.absolutePath}")
-		@Suppress("DEPRECATION")
-		project.exec {
-			commandLine(
-				"scp",
-				"-r",
-				"$scpServer:public_html/dev-assets/$variant/",
-				tmpDir.absolutePath,
-			)
-		}
-		project.logger.lifecycle("SCP batch downloaded $variant assets → ${tmpDir.absolutePath}")
-	}
-}
-
-fun stagedFileFor(
-	asset: Asset,
-	projectDir: File,
-): File {
-	val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
-	return File(variantDir, asset.remotePath)
-}
-
-fun stagedChecksumFor(
-	asset: Asset,
-	projectDir: File,
-): File {
-	val variantDir = File(projectDir, ".tmp/assets/${asset.variant}")
-	return File(variantDir, asset.remotePath + ".md5")
-}
 
 fun assetsFileDownload(
 	asset: Asset,
 	target: File,
 ) {
-	if (isCiCd) {
-		val stagedFile = stagedFileFor(asset, rootProject.projectDir)
-		if (!stagedFile.exists()) {
-			throw GradleException("Staged file not found: ${stagedFile.absolutePath}")
-		}
-		target.parentFile.mkdirs()
-		stagedFile.copyTo(target, overwrite = true)
-		project.logger.lifecycle("Copied staged ${stagedFile.absolutePath} → ${target.absolutePath}")
-	} else {
-		val url = URL(asset.url)
-		val conn = url.openConnection() as HttpURLConnection
-		conn.requestMethod = "GET"
-		conn.setRequestProperty(
-			"User-Agent",
-			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-		)
-		conn.setRequestProperty("Accept", "*/*")
-		conn.setRequestProperty("Connection", "keep-alive")
-		conn.instanceFollowRedirects = true
-		conn.connectTimeout = 10_000
-		conn.readTimeout = 60_000
+	val url = URL(asset.url)
+	val conn = url.openConnection() as HttpURLConnection
+	conn.requestMethod = "GET"
+	conn.setRequestProperty(
+		"User-Agent",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	)
+	conn.setRequestProperty("Accept", "*/*")
+	conn.setRequestProperty("Connection", "keep-alive")
+	conn.instanceFollowRedirects = true
+	conn.connectTimeout = 10_000
+	conn.readTimeout = 60_000
 
-		try {
-			val status = conn.responseCode
-			if (status == HttpURLConnection.HTTP_OK) {
-				conn.inputStream.use { input ->
-					target.outputStream().use { output ->
-						input.copyTo(output)
-					}
+	try {
+		val status = conn.responseCode
+		if (status == HttpURLConnection.HTTP_OK) {
+			conn.inputStream.use { input ->
+				target.outputStream().use { output ->
+					input.copyTo(output)
 				}
-				project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
-			} else {
-				throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
 			}
-		} finally {
-			conn.disconnect()
+			project.logger.lifecycle("Downloaded ${asset.url} → ${target.absolutePath}")
+		} else {
+			throw GradleException("Failed to download ${asset.url} (HTTP $status: ${conn.responseMessage})")
 		}
+	} finally {
+		conn.disconnect()
 	}
 }
 
@@ -1662,36 +1739,28 @@ fun fileMd5(file: File): String {
 }
 
 fun assetsFileChecksum(asset: Asset): String {
-	val checksum =
-		if (isCiCd) {
-			val stagedChecksum = stagedChecksumFor(asset, rootProject.projectDir)
-			if (!stagedChecksum.exists()) {
-				throw GradleException("Failed to find checksum in ${stagedChecksum.absolutePath}")
-			}
-			stagedChecksum.readText().trim()
-		} else {
-			val checksumUrl = asset.url + ".md5"
-			val conn = URL(checksumUrl).openConnection() as HttpURLConnection
-			conn.requestMethod = "GET"
-			conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-			conn.instanceFollowRedirects = true
-			conn.connectTimeout = 10_000
-			conn.readTimeout = 10_000
+	val checksumUrl = asset.url + ".md5"
+	val conn = URL(checksumUrl).openConnection() as HttpURLConnection
+	conn.requestMethod = "GET"
+	conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+	conn.instanceFollowRedirects = true
+	conn.connectTimeout = 10_000
+	conn.readTimeout = 10_000
 
-			try {
-				val status = conn.responseCode
-				if (status != HttpURLConnection.HTTP_OK) {
-					throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
-				}
-				conn.inputStream.bufferedReader().use { it.readText().trim() }
-			} finally {
-				conn.disconnect()
+	val checksum =
+		try {
+			val status = conn.responseCode
+			if (status != HttpURLConnection.HTTP_OK) {
+				throw GradleException("Failed to fetch checksum from $checksumUrl (HTTP $status: ${conn.responseMessage})")
 			}
+			conn.inputStream.bufferedReader().use { it.readText().trim() }
+		} finally {
+			conn.disconnect()
 		}
 
 	if (!checksum.matches(Regex("^[a-fA-F0-9]{32}$"))) {
 		throw GradleException(
-			"Invalid MD5 checksum for ${asset.remotePath} (got: '${checksum.take(
+			"Invalid MD5 checksum for ${asset.url} (got: '${checksum.take(
 				50,
 			)}') - the server may be returning an error page instead of the checksum",
 		)
@@ -1703,7 +1772,18 @@ fun assetsDownload(
 	assets: List<Asset>,
 	projectDir: File,
 ) {
+	val skipped = (project.findProperty("assetsSkip") as String?)?.split(',').orEmpty()
+	val unknown = skipped - assets.map { it.localPath }.toSet()
+	if (unknown.isNotEmpty()) {
+		throw GradleException("assetsSkip names paths that are not assets of this task: ${unknown.joinToString()}")
+	}
+
 	assets.forEach { asset ->
+		if (asset.localPath in skipped) {
+			project.logger.lifecycle("Skipping ${asset.localPath} (assetsSkip).")
+			return@forEach
+		}
+
 		val target = File(projectDir, asset.localPath)
 		target.parentFile.mkdirs()
 
@@ -1730,7 +1810,6 @@ tasks.register("assetsDownloadDebug") {
 	group = "setup"
 	description = "Download and verify debug assets"
 	doLast {
-		assetsBatch(rootProject.projectDir, project, "debug")
 		assetsDownload(debugAssets, rootProject.projectDir)
 	}
 }
@@ -1739,7 +1818,6 @@ tasks.register("assetsDownloadRelease") {
 	group = "setup"
 	description = "Download and verify release assets"
 	doLast {
-		assetsBatch(rootProject.projectDir, project, "release")
 		assetsDownload(releaseAssets, rootProject.projectDir)
 	}
 }

@@ -35,6 +35,23 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.43 — unreleased
+- **tooling — Interface bodies are Java default methods again** _(ADFA-6560)_ **[verified]**
+  Since ADFA-4058 (May 2026) pinned `languageVersion`, `plugin-api` compiled each Kotlin interface
+  body as an abstract method plus a `DefaultImpls` static. Plugins built against an earlier
+  `plugin-api` call the interface method itself, so they failed with `AbstractMethodError` (the
+  April Keystore Generator left the editor blank on `UIExtension.getToolbarActions()`), and their
+  calls to `IdeArchiveService.extract` and `IdeCommandService.executeCommand` that omit a defaulted
+  argument failed with `NoSuchMethodError`. `plugin-api` now sets `jvmDefault = ENABLE`: each body
+  is a Java default method, the `$default` helpers are back on the interfaces, and `DefaultImpls`
+  stays for plugins built since May. A plugin that implements an interface now inherits the body
+  of a method added after it was built instead of failing with `AbstractMethodError`.
+
+  A plugin built against this `plugin-api` calls those bodies on the interface, and an IDE built
+  between ADFA-4058 and 26.42 has none: there, any interface method the plugin does not override
+  fails with `AbstractMethodError`. Floor `plugin.min_ide_version` at `26.43`, or override every
+  method of the interfaces you implement.
+
 ### 26.42 — unreleased
 - **added — Tell whether a server is on this device, the local network or the internet** _(ADFA-6536)_ **[verified]**
   `net.ServerUrl.parse(url)` returns `ServerUrlParseResult.Valid(url)` or `Invalid(reason)`, where
@@ -574,7 +591,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   Contribute new-project templates in the `.cgt` format.
   `IdeTemplateService`, `CgtTemplateBuilder`.
 - **added — Feature-flag access** _(ADFA-2808, `d924652`)_ **[reconstructed]**
-  `IdeFeatureFlagService.isExperimentsEnabled()`.
+  `IdeFeatureFlagService.isExperimentsEnabled()` - the overall experiments switch; individual experiments are not exposed ([EXPERIMENTS.md](../EXPERIMENTS.md#plugins)).
 
 ### 26.12 — 2026-03-12
 - **added — File-open handling** _(ADFA-3162, `0681d66`)_ **[reconstructed]**

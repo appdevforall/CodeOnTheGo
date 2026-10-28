@@ -33,6 +33,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
 import com.itsaky.androidide.templates.manager.models.displayName
+import com.itsaky.androidide.templates.manager.models.effectiveDisplayName
 import com.itsaky.androidide.templates.manager.models.hasMultipleTemplates
 import com.itsaky.androidide.templates.manager.models.primaryTemplate
 import com.itsaky.androidide.templates.manager.models.versionLabel
@@ -73,7 +74,7 @@ fun TemplateListItem(
 	) {
 		Row(modifier = Modifier.padding(16.dp)) {
 			Column(modifier = Modifier.weight(1f)) {
-				Text(primary.name.ifBlank { item.displayName }, style = MaterialTheme.typography.titleMedium)
+				Text(item.effectiveDisplayName, style = MaterialTheme.typography.titleMedium)
 				Text(
 					primary.description,
 					style = MaterialTheme.typography.bodySmall,
