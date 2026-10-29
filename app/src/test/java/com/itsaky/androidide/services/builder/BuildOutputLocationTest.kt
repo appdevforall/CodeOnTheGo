@@ -118,7 +118,7 @@ class BuildOutputLocationTest {
 	}
 
 	@Test
-	fun `the open project's model is read through its root project's build directory`() {
+	fun `the open project's model is read through its projects' build directories`() {
 		val noBackup = tmp.newFolder("no_backup")
 		val project = File(tmp.root, "projects/app")
 		val tree = BuildOutputLocation.treeFor(noBackup, project)
@@ -126,6 +126,20 @@ class BuildOutputLocationTest {
 		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace(File(tree, "main/root-5678")))).isTrue()
 		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace(File(project, "build")))).isFalse()
 		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace = null)).isNull()
+	}
+
+	@Test
+	fun `a model is relocated when only the root sets its own build directory`() {
+		val noBackup = tmp.newFolder("no_backup")
+		val project = File(tmp.root, "projects/app")
+		val tree = BuildOutputLocation.treeFor(noBackup, project)
+
+		// The root script set layout.buildDirectory; :app's output is still in the tree, so builds
+		// must relocate too, or :app builds where the model does not look.
+		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace(File(project, "out"), File(tree, "main/app-1234"))))
+			.isTrue()
+		assertThat(BuildOutputLocation.modelRelocated(noBackup, project, workspace(File(project, "out"), File(project, "app/out"))))
+			.isFalse()
 	}
 
 	@Test
@@ -281,9 +295,14 @@ class BuildOutputLocationTest {
 			File(it, "main/app-1234/outputs").mkdirs()
 		}
 
-	private fun workspace(rootBuildDir: File): Workspace {
-		val root = mockk<GradleProject>()
-		every { root.buildDirPath } returns rootBuildDir.path
-		return mockk<Workspace>().also { every { it.rootProject } returns root }
+	private fun workspace(
+		rootBuildDir: File,
+		vararg subprojectBuildDirs: File,
+	): Workspace {
+		fun project(buildDir: File) = mockk<GradleProject>().also { every { it.buildDirPath } returns buildDir.path }
+		return mockk<Workspace>().also {
+			every { it.rootProject } returns project(rootBuildDir)
+			every { it.subProjects } returns subprojectBuildDirs.map(::project)
+		}
 	}
 }
