@@ -72,6 +72,19 @@ object LauncherAliasManager {
 		return stealthVariationIndex(signature, STEALTH_ALIASES.size)
 	}
 
+	/**
+	 * The icon of this device's stealth alias, for the disguise's Recents entry; 0 when it cannot be
+	 * read, which leaves the system default.
+	 */
+	fun stealthIcon(context: Context): Int =
+		runCatching {
+			val alias = ComponentName(context, STEALTH_ALIASES[getStealthVariationIndex(context)])
+			context.packageManager.getActivityInfo(alias, PackageManager.MATCH_DISABLED_COMPONENTS).iconResource
+		}.getOrElse {
+			Log.e(TAG, "Failed to read the stealth alias icon", it)
+			0
+		}
+
 	fun isStealthModeActive(context: Context): Boolean {
 		val defaultComponent = ComponentName(context, DEFAULT_ALIAS)
 		return context.packageManager.getComponentEnabledSetting(defaultComponent) ==
