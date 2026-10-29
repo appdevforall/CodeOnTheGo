@@ -9,14 +9,17 @@ import java.nio.file.Path
 import kotlin.io.path.pathString
 
 /**
- * Builds a minimal Gradle project model at [path], an Android library when [bootClassPath] is set,
- * a Java project with [compileJars] on its compile classpath (in order) otherwise.
+ * Builds a minimal Gradle project model at [path], an Android library when [bootClassPath] or
+ * [projectDeps] is set, a Java project with [compileJars] on its compile classpath (in order) otherwise.
+ *
+ * [projectDeps] are Gradle paths of the projects the Android library compiles against.
  */
 internal fun gradleProject(
 	path: String,
 	bootClassPath: Path? = null,
 	compileJars: List<Path> = emptyList(),
 	jvmTarget: String? = null,
+	projectDeps: List<String> = emptyList(),
 ): GradleModels.GradleProject {
 	val dir = "/tmp/collect-kt-modules${path.replace(':', '/')}"
 	return GradleModels.GradleProject
@@ -27,12 +30,13 @@ internal fun gradleProject(
 		.setBuildDirPath("$dir/build")
 		.setBuildScriptPath("$dir/build.gradle")
 		.apply {
-			if (bootClassPath != null) {
+			if (bootClassPath != null || projectDeps.isNotEmpty()) {
 				setAndroidProject(
 					AndroidModels.AndroidProject
 						.newBuilder()
 						.setProjectType(AndroidModels.ProjectType.LibraryProject)
-						.addBootClassPaths(bootClassPath.pathString),
+						.apply { bootClassPath?.let { addBootClassPaths(it.pathString) } }
+						.setVariantDependencies(projectDependencies(projectDeps)),
 				)
 			}
 			if (compileJars.isNotEmpty() || jvmTarget != null) {
@@ -56,4 +60,32 @@ internal fun gradleProject(
 				)
 			}
 		}.build()
+}
+
+/** Encodes [projectPaths] as root `Project` libraries of the main artifact's compile graph, as the tooling layer does. */
+private fun projectDependencies(projectPaths: List<String>): AndroidModels.VariantDependencies {
+	val graph = AndroidModels.DependencyGraph.newBuilder()
+	val variantDeps = AndroidModels.VariantDependencies.newBuilder().setName("debug")
+	for (projectPath in projectPaths) {
+		val key = "project$projectPath"
+		graph.addRoot(graph.nodeCount)
+		graph.addNode(AndroidModels.GraphNode.newBuilder().setKeyId(graph.keyCount))
+		graph.addKey(key)
+		variantDeps.putLibraries(
+			key,
+			AndroidModels.Library
+				.newBuilder()
+				.setKey(key)
+				.setType(AndroidModels.LibraryType.Project)
+				.setProjectInfo(
+					AndroidModels.ProjectInfo
+						.newBuilder()
+						.setBuildId(":")
+						.setProjectPath(projectPath),
+				).build(),
+		)
+	}
+	return variantDeps
+		.setMainArtifact(AndroidModels.ArtifactDependencies.newBuilder().setCompileGraph(graph))
+		.build()
 }
