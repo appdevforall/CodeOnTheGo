@@ -136,6 +136,7 @@ class IDEEditorAccessibilityTest {
 
 	@Test
 	fun `accessibility click requests soft keyboard when editable`() {
+		editor.isDisableSoftKbdIfHardKbdAvailable = false
 		val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
 		val clickHandled = editor.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)

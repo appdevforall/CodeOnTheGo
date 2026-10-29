@@ -19,6 +19,7 @@ package com.itsaky.androidide.editor.ui
 
 import android.content.Context
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -32,7 +33,6 @@ import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
@@ -92,10 +92,10 @@ import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import io.github.rosemoe.sora.event.ContentChangeEvent
-import io.github.rosemoe.sora.event.DoubleClickEvent
 import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.lang.EmptyLanguage
 import io.github.rosemoe.sora.lang.Language
+import io.github.rosemoe.sora.util.IntPair
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.EditorRenderer
 import io.github.rosemoe.sora.widget.EditorSearcher
@@ -664,32 +664,6 @@ open class IDEEditor
 			}
 		}
 
-		override fun showSoftInput() {
-			if (isReleased || !isEnabled || !editable) {
-				return
-			}
-			if (!isFocused) {
-				requestFocus()
-			}
-			super.showSoftInput()
-			val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-			imm?.showSoftInput(this, 0)
-			post {
-				if (!isReleased && isEnabled && editable) {
-					val manager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-					manager?.showSoftInput(this, 0)
-				}
-			}
-		}
-
-		override fun performClick(): Boolean {
-			val handled = super.performClick()
-			if (!isReleased && isEnabled && editable) {
-				showSoftInput()
-			}
-			return handled
-		}
-
 		// region Accessibility (screen reader) cursor synchronization
 		//
 		// The base CodeEditor exposes its whole content to accessibility services as a single
@@ -777,7 +751,6 @@ open class IDEEditor
 			return super.dispatchHoverEvent(event)
 		}
 
-		@Suppress("DEPRECATION")
 		private fun handleHoverExploration(
 			x: Float,
 			y: Float,
@@ -788,7 +761,7 @@ open class IDEEditor
 			if (count <= 0) return
 
 			val packed = getPointPositionOnScreen(x, y)
-			val line = (packed ushr 32).toInt().coerceIn(0, count - 1)
+			val line = IntPair.getFirst(packed).coerceIn(0, count - 1)
 			if (line != lastExploredLine) {
 				lastExploredLine = line
 				val lineContent = currentText.getLine(line).toString().trimEnd('\r', '\n')
@@ -840,9 +813,9 @@ open class IDEEditor
 			val (targetLine, targetCol) =
 				if (!lastHoverX.isNaN() && !lastHoverY.isNaN()) {
 					val packed = getPointPositionOnScreen(lastHoverX, lastHoverY)
-					val line = (packed ushr 32).toInt().coerceIn(0, count - 1)
+					val line = IntPair.getFirst(packed).coerceIn(0, count - 1)
 					val maxCol = currentText.getColumnCount(line)
-					val col = (packed and 0xffffffffL).toInt().coerceIn(0, maxCol)
+					val col = IntPair.getSecond(packed).coerceIn(0, maxCol)
 					line to col
 				} else {
 					val cur = cursor
@@ -963,15 +936,22 @@ open class IDEEditor
 			}
 		}
 
+		private fun obtainAccessibilityEvent(eventType: Int): AccessibilityEvent =
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+				AccessibilityEvent(eventType)
+			} else {
+				@Suppress("DEPRECATION")
+				AccessibilityEvent.obtain(eventType)
+			}
+
 		/**
 		 * Emits a [AccessibilityEvent.TYPE_VIEW_CLICKED] event so accessibility services receive
 		 * click notifications regardless of view attachment state in unit tests.
 		 */
-		@Suppress("DEPRECATION")
 		private fun sendClickAccessibilityEvent() {
 			val manager = accessibilityManager ?: return
 			if (!manager.isEnabled) return
-			val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_CLICKED)
+			val event = obtainAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_CLICKED)
 			onInitializeAccessibilityEvent(event)
 			if (parent != null) {
 				sendAccessibilityEventUnchecked(event)
@@ -984,7 +964,6 @@ open class IDEEditor
 		 * Emits a [AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY] event so the
 		 * screen reader announces the character/word/line the caret just traversed.
 		 */
-		@Suppress("DEPRECATION") // AccessibilityEvent(int) requires API 30; obtain() works on minSdk 28.
 		private fun sendTextTraversedEvent(
 			fromIndex: Int,
 			toIndex: Int,
@@ -994,7 +973,7 @@ open class IDEEditor
 			val manager = accessibilityManager ?: return
 			if (!manager.isEnabled) return
 			val event =
-				AccessibilityEvent.obtain(
+				obtainAccessibilityEvent(
 					AccessibilityEvent.TYPE_VIEW_TEXT_TRAVERSED_AT_MOVEMENT_GRANULARITY,
 				)
 			onInitializeAccessibilityEvent(event)
@@ -1014,12 +993,11 @@ open class IDEEditor
 		 * navigation (lines/paragraphs in particular) and to mirror standard [EditText] behaviour.
 		 * Called on every selection change; cheap no-op when no accessibility service is running.
 		 */
-		@Suppress("DEPRECATION")
 		fun sendSelectionChangedAccessibilityEvent() {
 			val manager = accessibilityManager ?: return
 			if (!manager.isEnabled) return
 			val cur = cursor ?: return
-			val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)
+			val event = obtainAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED)
 			onInitializeAccessibilityEvent(event)
 			event.className = EditText::class.java.name
 			val content = text.toString()
@@ -1036,7 +1014,6 @@ open class IDEEditor
 		 * change from [AccessibilityEvent.getFromIndex], added/removed counts, the current text and
 		 * [AccessibilityEvent.getBeforeText]. Cheap no-op when no accessibility service is running.
 		 */
-		@Suppress("DEPRECATION")
 		fun sendTextChangedAccessibilityEvent(changeEvent: ContentChangeEvent) {
 			val manager = accessibilityManager ?: return
 			if (!manager.isEnabled) return
@@ -1046,7 +1023,7 @@ open class IDEEditor
 			val changed = changeEvent.changedText
 			val changedLen = changed.length
 
-			val event = AccessibilityEvent.obtain(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
+			val event = obtainAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)
 			onInitializeAccessibilityEvent(event)
 			event.className = EditText::class.java.name
 			event.fromIndex = fromIndex
@@ -1079,7 +1056,6 @@ open class IDEEditor
 		/**
 		 * Announces the current cursor position and line content to screen readers after a tap/click.
 		 */
-		@Suppress("DEPRECATION")
 		private fun announceCursorPosition(
 			line: Int,
 			column: Int,
@@ -1456,13 +1432,6 @@ open class IDEEditor
 					selectionChangeHandler.removeCallbacks(it)
 					selectionChangeHandler.postDelayed(it, SELECTION_CHANGE_DELAY)
 				}
-			}
-
-			subscribeEvent(DoubleClickEvent::class.java) { _, _ ->
-				if (isReleased || !isEnabled || !editable) {
-					return@subscribeEvent
-				}
-				showSoftInput()
 			}
 
 			EventBus.getDefault().register(this)
