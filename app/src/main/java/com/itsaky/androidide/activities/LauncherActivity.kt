@@ -33,7 +33,7 @@ import kotlin.system.exitProcess
 /**
  * @author Akash Yadav
  */
-class SplashActivity : Activity() {
+class LauncherActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 

@@ -40,7 +40,7 @@ import java.io.File
 
 /**
  * A deep link must not walk past setup. Both of DeepLinkActivity's targets sit beyond
- * SplashActivity and OnboardingActivity, which are the only things enforcing terms, permissions,
+ * LauncherActivity and OnboardingActivity, which are the only things enforcing terms, permissions,
  * the JDK and SDK install, the low-storage check and the x86 exit -- so a link arriving on a fresh
  * install used to land the user in an editor that could not build (ADFA-5067 review).
  *
@@ -60,7 +60,7 @@ class DeepLinkSetupGateTest {
 
 		val next = shadowOf(activity).nextStartedActivity
 		assertThat(next).isNotNull()
-		assertThat(next.component?.className).isEqualTo(SplashActivity::class.java.name)
+		assertThat(next.component?.className).isEqualTo(LauncherActivity::class.java.name)
 		assertThat(activity.isFinishing).isTrue()
 	}
 
@@ -76,7 +76,7 @@ class DeepLinkSetupGateTest {
 		val activity = Robolectric.buildActivity(DeepLinkActivity::class.java, intent).create().get()
 
 		val next = shadowOf(activity).nextStartedActivity
-		assertThat(next.component?.className).isEqualTo(SplashActivity::class.java.name)
+		assertThat(next.component?.className).isEqualTo(LauncherActivity::class.java.name)
 		assertThat(activity.isFinishing).isTrue()
 	}
 
