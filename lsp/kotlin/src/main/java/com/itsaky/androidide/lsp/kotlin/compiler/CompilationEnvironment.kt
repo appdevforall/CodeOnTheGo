@@ -28,7 +28,10 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.indexing.jvm.JVM_LIBRARY_SYMBOL_INDEX
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.platform.analysisMessageBus
@@ -111,19 +114,19 @@ internal class CompilationEnvironment(
 		get() = ktProject.libraryIndex
 
 	val requireLibraryIndex: JvmSymbolIndex
-		get() = checkNotNull(libraryIndex)
+		get() = ktProject.requireIndex(JVM_LIBRARY_SYMBOL_INDEX)
 
 	val sourceIndex: JvmSymbolIndex?
 		get() = ktProject.sourceIndex
 
 	val requireSourceIndex: JvmSymbolIndex
-		get() = checkNotNull(sourceIndex)
+		get() = ktProject.requireIndex(KT_SOURCE_FILE_INDEX_KEY)
 
 	val fileIndex: KtFileMetadataIndex?
 		get() = ktProject.fileIndex
 
 	val requireFileIndex: KtFileMetadataIndex
-		get() = checkNotNull(fileIndex)
+		get() = ktProject.requireIndex(KT_SOURCE_FILE_META_INDEX_KEY)
 
 	val generatedIndex: JvmSymbolIndex?
 		get() = ktProject.generatedIndex
@@ -139,7 +142,21 @@ internal class CompilationEnvironment(
 		}
 
 	init {
-		initialize(::buildModules, ::buildKtSymbolIndex)
+		try {
+			initialize(::buildModules, ::buildKtSymbolIndex)
+		} catch (failure: Throwable) {
+			releaseAfterFailedInit(failure)
+			throw failure
+		}
+	}
+
+	/*
+	 * A throwing constructor never hands this instance to anyone who would close it, so the project
+	 * environment initialize() already created would leak. super.close() rather than close(): the
+	 * fields this class declares after its init block are still unset.
+	 */
+	private fun releaseAfterFailedInit(failure: Throwable) {
+		runCatching { super.close() }.exceptionOrNull()?.let(failure::addSuppressed)
 	}
 
 	@OptIn(KaImplementationDetail::class)
