@@ -1,18 +1,40 @@
 package org.appdevforall.codeonthego.indexing.service
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.slf4j.event.Level
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @RunWith(JUnit4::class)
 class IndexingServiceManagerTest {
+	private val errors: MutableList<String> = Collections.synchronizedList(mutableListOf())
+	private val sink =
+		IdeLogRouter.ExternalSink { level, _, message, _ ->
+			if (level == Level.ERROR) errors += message
+		}
+
+	@Before
+	fun installSink() {
+		IdeLogRouter.addSink(sink)
+	}
+
+	@After
+	fun removeSink() {
+		IdeLogRouter.removeSink(sink)
+	}
+
 	class TestService(
 		override val id: String,
 	) : IndexingService {
@@ -116,6 +138,22 @@ class IndexingServiceManagerTest {
 		manager.register(TestService("a"))
 		manager.onSourceChanged()
 		manager.close()
+	}
+
+	@Test
+	fun `close ends the session lifetime before it returns`() {
+		val manager = IndexingServiceManager()
+
+		manager.close()
+
+		assertThat(manager.registry.lifetime.isEnded).isTrue()
+	}
+
+	@Test
+	fun `a new manager's lifetime is live after the previous manager closed`() {
+		IndexingServiceManager().close()
+
+		assertThat(IndexingServiceManager().registry.lifetime.isEnded).isFalse()
 	}
 
 	@Test
@@ -256,6 +294,58 @@ class IndexingServiceManagerTest {
 		}
 	}
 
+	@Test
+	fun `a close during initialization stops quietly`() {
+		val calls = AtomicInteger()
+		val manager = IndexingServiceManager()
+		repeat(2) { n ->
+			manager.register(
+				object : IndexingService {
+					override val id = "closing-$n"
+					override val providedKeys = emptyList<IndexKey<*>>()
+
+					override suspend fun initialize(registry: IndexRegistry) {
+						calls.incrementAndGet()
+						registry.close()
+						registry.register(IndexKey<String>("k$n"), "v")
+					}
+				},
+			)
+		}
+
+		manager.onProjectSynced()
+		Thread.sleep(SETTLE_MILLIS)
+
+		assertThat(calls.get()).isEqualTo(1)
+		assertThat(errors).isEmpty()
+		manager.close()
+		runBlocking { withTimeout(5_000) { IndexingServiceManager.awaitPendingClose() } }
+	}
+
+	@Test
+	fun `a sync with no services does not latch initialized`() {
+		val manager = IndexingServiceManager()
+		manager.onProjectSynced()
+		Thread.sleep(SETTLE_MILLIS)
+
+		val initialized = CountDownLatch(1)
+		manager.register(
+			object : IndexingService {
+				override val id = "late"
+				override val providedKeys = emptyList<IndexKey<*>>()
+
+				override suspend fun initialize(registry: IndexRegistry) {
+					initialized.countDown()
+				}
+			},
+		)
+		manager.onProjectSynced()
+
+		assertThat(initialized.await(5, TimeUnit.SECONDS)).isTrue()
+		manager.close()
+		runBlocking { withTimeout(5_000) { IndexingServiceManager.awaitPendingClose() } }
+	}
+
 	/** A manager whose only service blocks in close() until [release] opens. */
 	private fun blockingManager(release: CountDownLatch) =
 		IndexingServiceManager().apply {
@@ -282,5 +372,10 @@ class IndexingServiceManagerTest {
 		closer.start()
 		closer.join(millis)
 		return !closer.isAlive
+	}
+
+	private companion object {
+		/** Long enough for a launched initialization to finish. */
+		const val SETTLE_MILLIS = 200L
 	}
 }
