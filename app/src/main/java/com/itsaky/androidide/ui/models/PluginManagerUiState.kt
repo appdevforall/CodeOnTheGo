@@ -88,12 +88,12 @@ sealed class PluginManagerUiEvent {
 
 sealed class PluginManagerUiEffect {
 	data class ShowError(
-		@StringRes val messageResId: Int,
+		@param:StringRes @get:StringRes val messageResId: Int,
 		val formatArgs: List<Any> = emptyList(),
 	) : PluginManagerUiEffect()
 
 	data class ShowSuccess(
-		@StringRes val messageResId: Int,
+		@param:StringRes @get:StringRes val messageResId: Int,
 	) : PluginManagerUiEffect()
 
 	data class ShowPluginDetails(

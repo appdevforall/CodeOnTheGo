@@ -91,4 +91,22 @@ class CreateLinkActionTest {
 			.endsWith("/file/Main.kt/line/1/column/1")
 		assertThat(DeepLinkRequest.buildUrl("MyApp", "Main.kt", 0, 0)).isNull()
 	}
+
+	// Create link is for handing a link to another person, who has their own open project: a
+	// wildcard in it would open THEIR project's file, not the one the sender meant. Wildcards are
+	// hand-authored only.
+	@Test
+	fun `a project literally named like the wildcard gets no link`() {
+		val wildcardNamed = File("/storage/emulated/0/CodeOnTheGoProjects/<*>")
+		val relative = projectRelativePathOrNull(wildcardNamed, File(wildcardNamed, "Main.kt"))
+		assertThat(relative).isEqualTo("Main.kt")
+		assertThat(DeepLinkRequest.buildUrl(wildcardNamed.name, relative, 1, 1)).isNull()
+	}
+
+	@Test
+	fun `a generated link never contains the wildcard`() {
+		val url = DeepLinkRequest.buildUrl("MyApp", "app/Main.kt", 3, 4)!!
+		assertThat(url).doesNotContain("%3C")
+		assertThat(url).doesNotContain("<")
+	}
 }

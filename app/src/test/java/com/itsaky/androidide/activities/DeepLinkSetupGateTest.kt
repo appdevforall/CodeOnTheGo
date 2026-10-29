@@ -64,6 +64,22 @@ class DeepLinkSetupGateTest {
 		assertThat(activity.isFinishing).isTrue()
 	}
 
+	// The gate runs before the link is even parsed, so a wildcard link -- which has no project name
+	// to look up -- must be held back by it exactly like a named one.
+	@Test
+	fun `a wildcard link arriving before setup is finished goes to the launcher chain too`() {
+		val intent =
+			Intent(
+				Intent.ACTION_VIEW,
+				Uri.parse("https://appdevforall.org/device/open/project/%3C%2A%3E/file/a.kt/line/1"),
+			)
+		val activity = Robolectric.buildActivity(DeepLinkActivity::class.java, intent).create().get()
+
+		val next = shadowOf(activity).nextStartedActivity
+		assertThat(next.component?.className).isEqualTo(SplashActivity::class.java.name)
+		assertThat(activity.isFinishing).isTrue()
+	}
+
 	@Test
 	fun `the setup predicate is false when no toolchain is installed`() {
 		val context = ApplicationProvider.getApplicationContext<android.content.Context>()

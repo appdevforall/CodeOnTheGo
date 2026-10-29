@@ -30,19 +30,19 @@ import com.itsaky.androidide.resources.R
  *
  * @author Akash Yadav
  */
-class ExpandSelectionAction(context: Context, override val order: Int) : EditorRelatedAction() {
-    override val id: String = "ide.editor.code.actions.expandSelection"
-    override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
+class ExpandSelectionAction(
+	context: Context,
+	override val order: Int,
+) : EditorRelatedAction() {
+	override val id: String = "ide.editor.code.actions.expandSelection"
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_TEXT_ACTIONS
 
-    init {
-        label = context.getString(R.string.action_expand_selection)
-        icon = ContextCompat.getDrawable(context, R.drawable.ic_expand_selection)
-    }
+	init {
+		label = context.getString(R.string.action_expand_selection)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_expand_selection)
+	}
 
-    override suspend fun execAction(data: ActionData): Any {
-        return data.getEditor()?.expandSelection() ?: false
-    }
+	override suspend fun execAction(data: ActionData): Any = data.getEditor()?.expandSelection() ?: false
 
-    override fun retrieveTooltipTag(isAlternateContext: Boolean) =
-        TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_EXPAND_SELECTION
 }
