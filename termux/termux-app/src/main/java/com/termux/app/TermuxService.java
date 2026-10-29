@@ -118,9 +118,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     public void onCreate() {
         Logger.logVerbose(LOG_TAG, "onCreate");
 
-        // Get Termux app SharedProperties without loading from disk since TermuxApplication handles
-        // load and TermuxActivity handles reloads
-        mProperties = TermuxAppSharedProperties.getProperties();
+        mProperties = TermuxAppSharedProperties.init(getApplicationContext());
 
         // Use init() instead of getShellManager() so the singleton is lazily created if the
         // OS auto-restarted the service after process death (TermuxApplication.onCreate did not
