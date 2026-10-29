@@ -31,8 +31,10 @@ import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
 import com.itsaky.androidide.di.quickBuildModule
 import com.itsaky.androidide.di.templateModule
+import com.itsaky.androidide.floating.model.DockingManager
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.utils.RecyclableObjectPool
 import com.itsaky.androidide.utils.VMUtils
@@ -196,6 +198,11 @@ class IDEApplication :
 
 		super.onCreate()
 		registerActivityLifecycleCallbacks(this)
+		// Instant Hide (ADFA-40) on every activity. A hide closes the floating windows, which draw over
+		// other apps and would otherwise stay on top of the disguise.
+		InstantHide.register(this) {
+			DockingManager.windows.value.forEach { tab -> DockingManager.close(tab.id) }
+		}
 
 		// @devs: looking to initialize a component at application startup?
 		// first, decide whether the component you want to initialize can be

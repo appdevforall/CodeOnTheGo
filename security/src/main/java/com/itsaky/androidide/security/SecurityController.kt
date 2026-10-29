@@ -31,29 +31,35 @@ import android.os.Looper
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
-import com.itsaky.androidide.preferences.internal.SecurityPreferences
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.itsaky.androidide.resources.R as ResR
 
 /**
- * Drives the Instant Hide (ADFA-40) triggers for a host IDE activity: the three-finger tap, the
- * screen-off broadcast, the face-down sensor pair, and the inactivity timer. Any of them engages the
+ * Drives the Instant Hide (ADFA-40) triggers for one IDE activity: the three-finger tap, the
+ * screen-off broadcast, the face-down sensor, and the inactivity timer. Any of them engages the
  * disguise. It also applies FLAG_SECURE while Instant Hide is armed (masking the IDE in Recents and
  * blocking screenshots), unless the testing override file is present, in which case it leaves
  * screenshots working and warns once.
  *
- * The host forwards its lifecycle and touch events; see `EdgeToEdgeIDEActivity`.
+ * [InstantHide] mounts one on every activity and forwards its lifecycle and input.
+ *
+ * @param gesturesEnabled false where the triggers must not fire; FLAG_SECURE still applies.
+ * @param onHide runs on every hide, before the disguise starts.
  */
-class SecurityController(
+internal class SecurityController(
 	private val activity: Activity,
+	private val gesturesEnabled: Boolean,
+	private val onHide: (Context) -> Unit,
+	private val state: HideState,
 ) {
 	companion object {
 		private const val INACTIVITY_TIMEOUT_MS = 60_000L
-
-		// Android gravity Z goes negative when the screen faces down (~-9.8 when fully inverted).
-		private const val FACE_DOWN_Z_THRESHOLD = -6.0f
 	}
 
-	private val enabled: Boolean get() = SecurityPreferences.instantHideEnabled
+	private val enabled: Boolean get() = state.armed
+
+	private val triggersOn: Boolean get() = enabled && gesturesEnabled
 
 	private var hideDetector: GestureDetectorHelper.ThreeFingerTapDetector? = null
 	private var screenOffReceiver: BroadcastReceiver? = null
@@ -62,22 +68,22 @@ class SecurityController(
 	private val gravitySensor =
 		sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
 			?: sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-	private var isFaceDown = false
+	private val faceDown = FaceDownDetector()
 
 	private val inactivityHandler = Handler(Looper.getMainLooper())
-	private val inactivityRunnable = Runnable { triggerInstantHide() }
+	private val inactivityRunnable =
+		Runnable {
+			if (userMayBeActive()) resetInactivityTimer() else triggerInstantHide()
+		}
 
 	private var advisoryShown = false
 
 	private val sensorListener =
 		object : SensorEventListener {
 			override fun onSensorChanged(event: SensorEvent?) {
-				if (event == null || !enabled) return
+				if (event == null || !triggersOn) return
 				if (event.sensor.type != Sensor.TYPE_GRAVITY && event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
-				val faceDownNow = event.values[2] <= FACE_DOWN_Z_THRESHOLD
-				// Fire once on the flip into face-down, not repeatedly while it stays inverted.
-				if (faceDownNow && !isFaceDown) triggerInstantHide()
-				isFaceDown = faceDownNow
+				if (faceDown.onGravityZ(event.values[2])) triggerInstantHide()
 			}
 
 			override fun onAccuracyChanged(
@@ -101,6 +107,7 @@ class SecurityController(
 	}
 
 	fun onResume() {
+		if (!gesturesEnabled) return
 		// The screen-off receiver must survive onPause (the pause races the screen-off broadcast), so
 		// it is registered once here and torn down only in onDestroy.
 		if (screenOffReceiver == null) {
@@ -118,6 +125,7 @@ class SecurityController(
 
 		if (enabled) {
 			hideDetector = GestureDetectorHelper.ThreeFingerTapDetector(activity) { triggerInstantHide() }
+			faceDown.reset()
 			gravitySensor?.let { sensorManager?.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI) }
 			resetInactivityTimer()
 		} else {
@@ -140,22 +148,41 @@ class SecurityController(
 	}
 
 	fun onTouchEvent(ev: MotionEvent) {
-		if (!enabled) return
+		if (!triggersOn) return
 		resetInactivityTimer()
 		hideDetector?.onTouchEvent(ev)
 	}
 
+	/** Any input other than a touch on the activity's window: a key, a mouse or trackball move. */
+	fun onUserInput() {
+		if (triggersOn) resetInactivityTimer()
+	}
+
 	private fun resetInactivityTimer() {
 		stopInactivityTimer()
-		if (enabled) inactivityHandler.postDelayed(inactivityRunnable, INACTIVITY_TIMEOUT_MS)
+		if (triggersOn) inactivityHandler.postDelayed(inactivityRunnable, INACTIVITY_TIMEOUT_MS)
+	}
+
+	/**
+	 * Whether the user may still be at the screen although no input reached its window: typing on the
+	 * soft keyboard, whose touches go to the keyboard's window, or working in a dialog or popup, which
+	 * holds the focus. A phone left like that still hides when its screen times out, through the
+	 * screen-off trigger.
+	 */
+	private fun userMayBeActive(): Boolean {
+		val insets = ViewCompat.getRootWindowInsets(activity.window.decorView)
+		return insets?.isVisible(WindowInsetsCompat.Type.ime()) == true || !activity.hasWindowFocus()
 	}
 
 	private fun stopInactivityTimer() = inactivityHandler.removeCallbacks(inactivityRunnable)
 
 	private fun triggerInstantHide() {
 		if (!enabled || activity.isFinishing) return
-		SecurityPreferences.isHiddenStateActive = true
+		state.hidden = true
 		LauncherAliasManager.setStealthMode(activity, true)
+		// Floating windows and notifications outlive the activity; they must not show the IDE.
+		runCatching { onHide(activity.applicationContext) }
+		runCatching { NeutralNotifications.mask(activity) }
 		activity.startActivity(
 			Intent(activity, CryptogramActivity::class.java).apply {
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

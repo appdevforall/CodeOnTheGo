@@ -17,13 +17,14 @@
 
 package com.itsaky.androidide.preferences
 
+import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.preference.Preference
-import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.idetooltips.TooltipTag.PREFS_SECURITY
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
+import com.itsaky.androidide.security.InstantHide
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -72,21 +73,21 @@ class InstantHide(
 		// contract is that screenshots/Recents are masked the moment Instant Hide is on, but
 		// applyScreenSecurity() otherwise only runs on the next onResume, leaving a gap right after
 		// arming. Also clears the flag immediately when the user turns it back off.
-		preference.context.findIDEActivity()?.applyInstantHideScreenSecurity()
+		preference.context.findActivity()?.let(InstantHide::applyScreenSecurity)
 		return true
 	}
 }
 
 /**
- * The hosting [EdgeToEdgeIDEActivity], or null. A preference's context is whatever the host passed
+ * The hosting [Activity], or null. A preference's context is whatever the host passed
  * when the row was built -- today the Activity itself, but unwrapping the [ContextWrapper] chain
  * keeps this correct if a themed wrapper is ever interposed, since a missed call would silently
  * leave the window screenshotable.
  */
-private fun Context.findIDEActivity(): EdgeToEdgeIDEActivity? {
+private fun Context.findActivity(): Activity? {
 	var ctx: Context? = this
 	while (ctx is ContextWrapper) {
-		if (ctx is EdgeToEdgeIDEActivity) return ctx
+		if (ctx is Activity) return ctx
 		ctx = ctx.baseContext
 	}
 	return null
