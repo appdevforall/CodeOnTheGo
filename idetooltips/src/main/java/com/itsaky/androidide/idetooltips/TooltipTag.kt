@@ -225,6 +225,7 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_FIND_IN_FILE = "editor.find.in.file"
 	const val EDITOR_TOOLBAR_SYNC = "project.sync"
 	const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
+	const val EDITOR_TOOLBAR_EXPORT_APK = "project.export.apk"
 	const val EDITOR_TOOLBAR_UNDO = "editor.undo"
 	const val EDITOR_TOOLBAR_REDO = "editor.redo"
 	const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
