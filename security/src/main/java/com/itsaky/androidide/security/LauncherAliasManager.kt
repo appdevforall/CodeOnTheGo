@@ -31,11 +31,12 @@ import android.util.Log
  * disguise icon/label.
  *
  * The aliases targeted here are declared in the app's `AndroidManifest.xml`, all pointing at the
- * launcher activity (`SplashActivity`).
+ * launcher activity (`LauncherActivity`). The default alias is named `.activities.SplashActivity`,
+ * the launcher component from before Instant Hide, so pinned home-screen icons survive the update.
  */
 object LauncherAliasManager {
 	private const val TAG = "LauncherAliasManager"
-	private const val DEFAULT_ALIAS = "com.itsaky.androidide.DefaultAliasActivity"
+	private const val DEFAULT_ALIAS = "com.itsaky.androidide.activities.SplashActivity"
 
 	private val STEALTH_ALIASES =
 		listOf(
