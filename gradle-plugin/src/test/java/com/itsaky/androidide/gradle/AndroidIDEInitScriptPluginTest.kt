@@ -19,6 +19,7 @@ package com.itsaky.androidide.gradle
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.tooling.api.GradlePluginConfig
 import org.gradle.testkit.runner.BuildResult
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
@@ -85,6 +86,62 @@ class AndroidIDEInitScriptPluginTest {
 		assertIdePluginApplied(result)
 		assertThat(result.output).doesNotContain("Applying LogSenderPlugin")
 		assertThat(result.output).doesNotContain("Adding LogSender dependency")
+	}
+
+	@Test
+	fun `test build output is relocated when the IDE asks for it`(
+		@TempDir dir: File,
+	) {
+		val result =
+			buildProject(configureArgs = {
+				it += "-P${GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR}=${dir.absolutePath}"
+				it += "--info"
+			})
+
+		assertIdePluginApplied(result)
+		for (path in listOf(":", ":app")) {
+			// The main build's directory does not depend on its root, so any File will do.
+			val expected = BuildOutputRedirect.buildDirFor(dir, false, dir, path)
+			assertThat(result.output).contains("Build directory of project '$path' relocated to $expected")
+		}
+	}
+
+	@Test
+	fun `test an included build's output is relocated too`(
+		@TempDir dir: File,
+	) {
+		val project = File(dir, "composite")
+		File(
+			project,
+			"settings.gradle.kts",
+		).also { it.parentFile.mkdirs() }.writeText("rootProject.name = \"composite\"\nincludeBuild(\"lib\")\n")
+		File(project, "build.gradle.kts").writeText("")
+		val lib = File(project, "lib").apply { mkdirs() }
+		File(lib, "settings.gradle.kts").writeText("rootProject.name = \"lib\"\n")
+		File(lib, "build.gradle.kts").writeText("")
+		val output = File(dir, "output")
+
+		val result =
+			buildProject(
+				task = ":lib:help",
+				projectDir = project.toPath(),
+				configureArgs = {
+					it += "-P${GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR}=${output.absolutePath}"
+					it += "--info"
+				},
+			)
+
+		// An included build gets no project properties of its own, so it reads the root build's.
+		val expected = BuildOutputRedirect.buildDirFor(output, true, lib.canonicalFile, ":")
+		assertThat(result.output).contains("Build directory of project ':' relocated to $expected")
+	}
+
+	@Test
+	fun `test build output stays put by default`() {
+		val result = buildProject(configureArgs = { it += "--info" })
+
+		assertIdePluginApplied(result)
+		assertThat(result.output).doesNotContain("relocated to")
 	}
 
 	@Disabled(
