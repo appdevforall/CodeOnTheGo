@@ -205,7 +205,9 @@ class BuildOutputLocationTest {
 		val app = tmp.newFolder("storage", "app")
 		val link = File(tmp.root, "sdcard").toPath()
 		Files.createSymbolicLink(link, app.parentFile.toPath())
-		val tree = treeOf(noBackup, File(link.toFile(), "app"))
+		val tree = treeOf(noBackup, app)
+		// A marker written before the canonical path was recorded holds the alias spelling.
+		File(tree, BuildOutputLocation.PROJECT_PATH_FILE).writeText(File(link.toFile(), "app").path)
 
 		assertThat(BuildOutputLocation.removeTreesOf(noBackup, app)).isEqualTo(1)
 		assertThat(tree.exists()).isFalse()
