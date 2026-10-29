@@ -99,9 +99,9 @@ object BuildOutputLocation {
 
 	/**
 	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the
-	 * model relocated build output.
+	 * model relocated that project's build output.
 	 *
-	 * @param modelBuildDir the root project's build directory in the synced model.
+	 * @param modelBuildDir a project's build directory in the synced model.
 	 * @param tree the project's tree, from [treeFor].
 	 */
 	fun isRelocated(
@@ -110,7 +110,11 @@ object BuildOutputLocation {
 	): Boolean = modelBuildDir.absoluteFile.normalize().startsWith(tree.absoluteFile.normalize())
 
 	/**
-	 * [isRelocated] for the synced model of the open project, or null when no model is loaded.
+	 * Whether the synced model of the open project was produced by a relocating sync, or null when no
+	 * model is loaded: [isRelocated] for any of its projects. A build script that sets its own build
+	 * directory overrides the relocation for that project alone, the root's included, while the
+	 * model still puts every other project's output in the tree; a build must relocate then too, or
+	 * it writes where the model does not look.
 	 *
 	 * @param noBackupDir the app's `noBackupFilesDir`.
 	 * @param projectDir the open project's root directory.
@@ -120,7 +124,11 @@ object BuildOutputLocation {
 		noBackupDir: File,
 		projectDir: File,
 		workspace: Workspace? = ProjectManagerImpl.getInstance().workspace,
-	): Boolean? = workspace?.let { isRelocated(it.rootProject.buildDir, treeFor(noBackupDir, projectDir)) }
+	): Boolean? =
+		workspace?.let { model ->
+			val tree = treeFor(noBackupDir, projectDir)
+			(listOf(model.rootProject) + model.subProjects).any { isRelocated(it.buildDir, tree) }
+		}
 
 	/**
 	 * Whether the switch (or the experiments flag) disagrees with the synced model, so the next
