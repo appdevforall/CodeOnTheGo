@@ -320,4 +320,72 @@ class DeepLinkRequestTest {
 				),
 			)
 	}
+
+	@Test
+	fun `the plugin's exact wildcard URL parses as the current project`() {
+		val request =
+			parse(
+				"https://appdevforall.org/device/open/project/%3C%2A%3E/file/" +
+					"src/main/kotlin/org/appdevforall/llmcourse/course/SourceLink.kt/line/11/column/5",
+			)!!
+		assertThat(request.isCurrentProject).isTrue()
+		assertThat(request.projectName).isEqualTo(DeepLinkRequest.WILDCARD_PROJECT)
+		assertThat(request.fileRequest)
+			.isEqualTo(
+				PendingFileRequest(
+					filePath = "src/main/kotlin/org/appdevforall/llmcourse/course/SourceLink.kt",
+					lineRaw = "11",
+					columnRaw = "5",
+					viaWildcard = true,
+				),
+			)
+	}
+
+	@Test
+	fun `every spelling of the wildcard decodes to the same token`() {
+		for (segment in listOf("%3C%2A%3E", "%3C*%3E", "%3c%2a%3e", "<*>")) {
+			val request = parse("https://appdevforall.org/device/open/project/$segment")
+			assertThat(request).isEqualTo(DeepLinkRequest(projectName = DeepLinkRequest.WILDCARD_PROJECT))
+			assertThat(request!!.isCurrentProject).isTrue()
+		}
+	}
+
+	@Test
+	fun `a wildcard with no file is a plain project link`() {
+		val request = parse("https://appdevforall.org/device/open/project/%3C%2A%3E")!!
+		assertThat(request.isCurrentProject).isTrue()
+		assertThat(request.fileRequest).isNull()
+	}
+
+	@Test
+	fun `a named project is not the current project and its file request is not wildcard`() {
+		val request = parse("https://appdevforall.org/device/open/project/MyApp/file/a.kt")!!
+		assertThat(request.isCurrentProject).isFalse()
+		assertThat(request.fileRequest!!.viaWildcard).isFalse()
+	}
+
+	@Test
+	fun `an unknown selector is an invalid link`() {
+		for (segment in listOf("%3Cx%3E", "%3C.%2A%3E", "%3C%3E", "%3C%2A%2A%3E")) {
+			assertThat(parse("https://appdevforall.org/device/open/project/$segment/file/a.kt")).isNull()
+		}
+	}
+
+	@Test
+	fun `a name that only starts or ends with an angle bracket is still a project name`() {
+		assertThat(parse("https://appdevforall.org/device/open/project/%3Cmy")!!.projectName).isEqualTo("<my")
+		assertThat(parse("https://appdevforall.org/device/open/project/my%3E")!!.projectName).isEqualTo("my>")
+	}
+
+	@Test
+	fun `a wildcard is not confused with a project or directory named line`() {
+		val request = parse("https://appdevforall.org/device/open/project/%3C%2A%3E/file/line/Notes.txt/line/3")!!
+		assertThat(request.isCurrentProject).isTrue()
+		assertThat(request.fileRequest!!.filePath).isEqualTo("line/Notes.txt")
+		assertThat(request.fileRequest!!.lineRaw).isEqualTo("3")
+
+		val named = parse("https://appdevforall.org/device/open/project/line/file/a.kt/line/3")!!
+		assertThat(named.projectName).isEqualTo("line")
+		assertThat(named.isCurrentProject).isFalse()
+	}
 }

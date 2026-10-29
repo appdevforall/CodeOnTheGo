@@ -24,5 +24,5 @@ class OutlineSidebarAction(
 		icon = ContextCompat.getDrawable(context, R.drawable.ic_outline)
 	}
 
-	override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.OUTLINE_SIDEBAR
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.OUTLINE_SIDEBAR
 }

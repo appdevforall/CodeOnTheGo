@@ -15,6 +15,10 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+// readWriteContext is a CloseableCoroutineDispatcher, which is experimental; every use site
+// would otherwise need its own opt-in.
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package com.itsaky.androidide.ui
 
 import android.annotation.SuppressLint
@@ -126,7 +130,7 @@ class CodeEditorView(
 	 * read from or written to at a time, but not both. If in future we add support for anything like
 	 * that, the number of thread should probably be increased.
 	 */
-	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+	@OptIn(DelicateCoroutinesApi::class)
 	private val readWriteContext = newSingleThreadContext("CodeEditorView")
 
 	private val binding: LayoutCodeEditorBinding

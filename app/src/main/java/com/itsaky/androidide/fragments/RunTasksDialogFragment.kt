@@ -22,7 +22,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
-import android.util.DisplayMetrics
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -267,9 +266,7 @@ class RunTasksDialogFragment : BottomSheetDialogFragment() {
 					?.bounds
 					?.height()!!
 			} else {
-				val displayMetrics = DisplayMetrics()
-				activity?.windowManager?.defaultDisplay?.getMetrics(displayMetrics)
-				displayMetrics.heightPixels
+				resources.displayMetrics.heightPixels
 			}
 		return height
 	}
