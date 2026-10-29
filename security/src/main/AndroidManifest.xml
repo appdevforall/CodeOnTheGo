@@ -5,6 +5,8 @@
 		<activity
 			android:name=".CryptogramActivity"
 			android:exported="false"
+			android:icon="@drawable/ic_launcher_stealth_1"
+			android:label="@string/stealth_app_name"
 			android:theme="@style/Theme.Material3.DayNight.NoActionBar"
 			android:windowSoftInputMode="adjustResize" />
 		<activity

@@ -23,11 +23,13 @@ import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Full-screen host for the safe Instant Wipe gesture rehearsal (ADFA-6510). Shows a
- * [WipePracticeOverlayView] and finishes once the circle is recognised (or on back). Deliberately a
- * plain activity -- not an `EdgeToEdgeIDEActivity`, the disguise, or the terminal -- so the real wipe
- * trigger is never mounted here and a practice gesture cannot destroy anything.
+ * [WipePracticeOverlayView] and finishes once the circle is recognised (or on back). It is
+ * [InstantHide.GesturesExempt], so the real wipe trigger does not fire here and a practice gesture
+ * cannot destroy anything.
  */
-class WipePracticeActivity : AppCompatActivity() {
+class WipePracticeActivity :
+	AppCompatActivity(),
+	InstantHide.GesturesExempt {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val overlay =

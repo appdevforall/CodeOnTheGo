@@ -18,28 +18,23 @@
 package com.itsaky.androidide.activities
 
 import android.app.Activity
-import android.content.Intent
 import android.os.Bundle
-import com.itsaky.androidide.security.CryptogramActivity
+import com.itsaky.androidide.security.InstantHide
 
 /**
  * Launcher entry for the stealth "Code Breaker" activity-aliases (ADFA-40 / ADFA-6510).
  *
- * Separate from [SplashActivity] purely so its splash theme can avoid the real Code On The Go
+ * Separate from [LauncherActivity] purely so its splash theme can avoid the real Code On The Go
  * branding: the OS paints the system starting window from the launched activity's theme before any
- * app code runs, so routing the stealth aliases through [SplashActivity] (whose `AppTheme.Splash`
+ * app code runs, so routing the stealth aliases through [LauncherActivity] (whose `AppTheme.Splash`
  * shows the IDE logo) flashed that logo for ~200ms before the disguise appeared. A stealth alias is
  * only ever enabled while the disguise is engaged, so tapping it must show only the game -- this
- * forwards straight to the cryptogram, never the IDE.
+ * forwards straight to the cryptogram, never the IDE, reusing a running one so the puzzle survives.
  */
 class StealthSplashActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		startActivity(
-			Intent(this, CryptogramActivity::class.java).apply {
-				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-			},
-		)
+		startActivity(InstantHide.disguiseIntent(this))
 		finish()
 	}
 }

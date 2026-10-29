@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.compose.ui.platform.ComposeView
 import com.itsaky.androidide.app.IDEActivity
+import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
@@ -29,11 +30,14 @@ class ExternalFileInstallActivity : IDEActivity() {
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+		// Instant Hide (ADFA-40): a file opened while disguised must not start an install.
+		if (InstantHide.redirectIfHidden(this)) return
 		handleIntent()
 	}
 
 	override fun onNewIntent(intent: Intent) {
 		super.onNewIntent(intent)
+		if (InstantHide.redirectIfHidden(this)) return
 		setIntent(intent)
 		handleIntent()
 	}

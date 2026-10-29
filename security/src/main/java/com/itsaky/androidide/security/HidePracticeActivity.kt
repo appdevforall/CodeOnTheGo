@@ -24,10 +24,12 @@ import androidx.appcompat.app.AppCompatActivity
 /**
  * Full-screen host for the safe Instant Hide gesture rehearsal (ADFA-40), launched when the user arms
  * Instant Hide. Shows a [HidePracticeOverlayView] and finishes once both gestures are rehearsed (or on
- * back). A plain activity, so the real hide triggers are not mounted here and practice never engages
- * the disguise for real.
+ * back). It is [InstantHide.GesturesExempt], so the real hide triggers do not fire here and practice
+ * never engages the disguise for real.
  */
-class HidePracticeActivity : AppCompatActivity() {
+class HidePracticeActivity :
+	AppCompatActivity(),
+	InstantHide.GesturesExempt {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 		val overlay =

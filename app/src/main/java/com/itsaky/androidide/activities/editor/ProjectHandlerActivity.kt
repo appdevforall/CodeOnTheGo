@@ -202,6 +202,12 @@ abstract class ProjectHandlerActivity :
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+
+	private val sessionCloser =
+		ProjectSessionCloser(
+			currentSession = { ProjectManagerImpl.getInstance().currentIndexingServiceManager },
+			teardown = ::closeProjectSession,
+		)
 	private val Throwable?.isFileNotFound: Boolean
 		get() =
 			this is FileNotFoundException ||
@@ -1171,29 +1177,46 @@ abstract class ProjectHandlerActivity :
 
 	override fun onPause() {
 		super.onPause()
-		if (isDestroying) {
-			// reset these values here
-			// sometimes, when the IDE closed and reopened instantly, these values prevent initialization
-			// of the project
-			ProjectManagerImpl.getInstance().destroy()
+		if (!isDestroying) return
 
-			// ADFA-4128: the Quick Build session manager is a process-wide Koin
-			// singleton that outlives this activity, and its provisioner reads
-			// IProjectManager.getInstance().projectDirPath fresh at build time rather
-			// than a snapshot. Without this, closing a project while its eager prebuild
-			// (or a live session) is still in flight lets that work silently keep
-			// running once projectPath flips to whatever project opens next - either
-			// racing the next project's own prebuild() into a permanent no-op (the
-			// reducer treats a second PrebuildRequested while already Prebuilding as a
-			// no-op) or building against the wrong directory. restartSession() is a
-			// verified no-op when nothing is live (SessionReducerTest: "idle plus
-			// SessionRestartRequested is a no-op").
-			quickBuildSessionManager()?.restartSession()
-
-			editorViewModel.isInitializing = false
-			editorViewModel.isBuildInProgress = false
-			editorViewModel.isInternalBuildInProgress = false
+		if (didCompleteLiveOnCreate) {
+			// The teardown below destroys the project, so a sync finishing after it must not set one up again.
+			initializingFuture?.cancel(true)
+			initializingFuture = null
+			sessionCloser.close()
+		} else {
+			// A doomed instance must not stop the servers a live sibling uses; preDestroy gates them the same way.
+			closeProjectState()
 		}
+	}
+
+	private fun closeProjectSession() {
+		stopLanguageServers()
+		closeProjectState()
+	}
+
+	private fun closeProjectState() {
+		// reset these values here
+		// sometimes, when the IDE closed and reopened instantly, these values prevent initialization
+		// of the project
+		ProjectManagerImpl.getInstance().destroy()
+
+		// The Quick Build session manager is a process-wide Koin
+		// singleton that outlives this activity, and its provisioner reads
+		// IProjectManager.getInstance().projectDirPath fresh at build time rather
+		// than a snapshot. Without this, closing a project while its eager prebuild
+		// (or a live session) is still in flight lets that work silently keep
+		// running once projectPath flips to whatever project opens next - either
+		// racing the next project's own prebuild() into a permanent no-op (the
+		// reducer treats a second PrebuildRequested while already Prebuilding as a
+		// no-op) or building against the wrong directory. restartSession() is a
+		// verified no-op when nothing is live (SessionReducerTest: "idle plus
+		// SessionRestartRequested is a no-op").
+		quickBuildSessionManager()?.restartSession()
+
+		editorViewModel.isInitializing = false
+		editorViewModel.isBuildInProgress = false
+		editorViewModel.isInternalBuildInProgress = false
 	}
 
 	override fun onResume() {
@@ -1372,11 +1395,7 @@ abstract class ProjectHandlerActivity :
 		}
 
 		if (didCompleteLiveOnCreate && isDestroying) {
-			try {
-				stopLanguageServers()
-			} catch (_: Exception) {
-				log.error("Failed to stop editor services.")
-			}
+			sessionCloser.close()
 
 			try {
 				editorViewModel.unbindBuildService()
@@ -1765,6 +1784,11 @@ abstract class ProjectHandlerActivity :
 		result: InitializeResult.Success,
 		synced: Boolean,
 	) {
+		// A callback queued before onPause cancelled the future still lands here after the teardown.
+		if (!sessionCloser.record { ProjectManagerImpl.getInstance().indexingServiceManager }) {
+			log.info("Project closed before its initialization finished, skipping its setup")
+			return
+		}
 		Memprof.mark("sync_complete")
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()

@@ -33,7 +33,7 @@ import org.junit.Test
  * failure fail hidden.
  */
 class LauncherAliasReconcileTest {
-	private val defaultAlias = "com.itsaky.androidide.DefaultAliasActivity"
+	private val defaultAlias = "com.itsaky.androidide.activities.SplashActivity"
 	private val activeStealth = "com.itsaky.androidide.StealthAliasActivity3"
 
 	@Test
