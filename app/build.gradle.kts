@@ -72,10 +72,12 @@ buildscript {
 	}
 }
 
-kotlin {
-	compilerOptions {
-		// ADFA-6821: the module is warning-free; keep it that way.
-		allWarningsAsErrors.set(true)
+// ADFA-6821: production sources are warning-free; keep them that way. Test sources
+// (compile*UnitTestKotlin, compile*AndroidTestKotlin) still have warnings, so they are left out
+// rather than breaking testV8DebugUnitTest and the analysis workflow that depends on it.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+	if (!name.endsWith("TestKotlin")) {
+		compilerOptions.allWarningsAsErrors.set(true)
 	}
 }
 

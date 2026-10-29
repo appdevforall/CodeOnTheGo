@@ -69,10 +69,5 @@ class MainActionsListAdapter
 					onLongClick?.invoke(action, it) ?: true
 				}
 			}
-			// binding.root is a MaterialButton; its icon is drawn by the button itself,
-			// but a platform ImageView with this id may exist on some API levels.
-			binding.root
-				.findViewById<View>(com.google.android.material.R.id.icon)
-				?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
 		}
 	}
