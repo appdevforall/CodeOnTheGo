@@ -100,17 +100,6 @@ internal class ToolingApiServerImpl(
 	@Volatile
 	private var lastWrapperDistribution: String? = null
 
-	/**
-	 * Whether the open connection has failed a build in a way that suggests it is dead.
-	 *
-	 * Reconnecting is driven from here rather than by dropping the pair at the point of failure,
-	 * so the replacement goes through [getOrConnectProject], which disconnects the old connector
-	 * before it opens a new one.
-	 */
-	@Volatile
-	@VisibleForTesting
-	internal var connectionSuspect: Boolean = false
-
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _buildCancellationToken: CancellationTokenSource? = null
 
@@ -221,31 +210,8 @@ internal class ToolingApiServerImpl(
 	internal fun canReuseConnector(params: InitializeProjectParams): Boolean =
 		connector != null &&
 			connection != null &&
-			!connectionSuspect &&
 			describesSameConnection(lastInitParams, params) &&
 			wrapperStillMatches(params, lastWrapperDistribution)
-
-	/**
-	 * The connection to build on, reconnecting first when the last build said it was dead.
-	 *
-	 * @throws IllegalStateException If nothing has been initialized, which is the caller's bug.
-	 */
-	@VisibleForTesting
-	internal fun connectionForBuild(): ProjectConnection {
-		val params = lastInitParams
-		if (connectionSuspect && params != null) {
-			log.info("Reconnecting to Gradle: the previous build reported a dead connection")
-			return getOrConnectProject(
-				projectDir = File(params.directory),
-				forceConnect = true,
-				initParams = params,
-			).second
-		}
-
-		return checkNotNull(this.connection) {
-			"ProjectConnection has not been initialized. Cannot execute tasks."
-		}
-	}
 
 	@VisibleForTesting
 	internal fun getOrConnectProject(
@@ -289,7 +255,6 @@ internal class ToolingApiServerImpl(
 
 			this.connector = connector
 			this.connection = connection
-			this.connectionSuspect = false
 			this.lastWrapperDistribution =
 				if (gradleDist.type == GradleDistributionType.GRADLE_WRAPPER) {
 					wrapperDistributionUrl(projectDir.path)
@@ -310,8 +275,6 @@ internal class ToolingApiServerImpl(
 		return runBuild(
 			onFailure = { err ->
 				log.error("Failed to initialize project", err)
-				// No suspicion of the connection from here. A sync failure is about the project or
-				// its model, and condemning the connection over one costs a cold daemon start.
 				InitializeResult.Failure(
 					notifyBuildFailure(params.buildId, emptyList(), start, err),
 				)
@@ -464,11 +427,10 @@ internal class ToolingApiServerImpl(
 
 			Main.checkGradleWrapper()
 
-			// Reconnects rather than asserting, when the last build said the connection was dead.
-			// A reconnect can itself throw -- an unreachable distribution, a bad installation dir --
-			// and runBuild's catch is what turns that into a classified failure instead of an
-			// exceptionally-completed future.
-			val connection = connectionForBuild()
+			val connection =
+				checkNotNull(this.connection) {
+					"ProjectConnection has not been initialized. Cannot execute tasks."
+				}
 
 			val builder = connection.newBuild()
 
@@ -489,17 +451,6 @@ internal class ToolingApiServerImpl(
 
 			try {
 				builder.run()
-			} catch (error: Throwable) {
-				// Marked here, not in runBuild's catch. That catch covers the whole action, which
-				// is what makes a setup failure into a classified result instead of an escaped
-				// exception -- but classifyTaskFailure reads *any* IllegalStateException as
-				// CONNECTION_CLOSED, so marking from there condemned the connection over a throw
-				// from checkGradleWrapper, doPrepareBuild or configureFrom. The next build then
-				// disconnected, which sends the running daemon StopWhenIdle: this ticket's own bug,
-				// reached from a setup failure. A build that actually ran against the connection is
-				// the only failure that says anything about it.
-				markSuspectIfConnectionFailure(error)
-				throw error
 			} finally {
 				// On both paths. Only the success path cleared it, so every failed build left a
 				// token behind for a source that was already finished. The next Stop then
@@ -723,20 +674,7 @@ internal class ToolingApiServerImpl(
 			null
 		}
 
-	/**
-	 * Classifies [error]. Pure: it reads nothing and changes nothing.
-	 *
-	 * It briefly marked the connection suspect, which was wrong twice over. The classification is
-	 * deliberately broad -- any [IllegalStateException] reads as CONNECTION_CLOSED -- and
-	 * `initialize`'s catch routes every sync failure through it, so a model builder throwing an
-	 * IllegalStateException condemned a connection that had just been opened successfully. And the
-	 * penalty was never the "one extra reconnect" its comment claimed: reconnecting calls
-	 * `GradleConnector.disconnect()`, which sends the running daemon `StopWhenIdle` -- the cold
-	 * start this whole ticket exists to prevent, on a new trigger.
-	 *
-	 * Recovery now lives at the one site that can tell a dead connection from a bad project: a
-	 * build that failed against it. See [executeTasks].
-	 */
+	/** Classifies [error]. Pure: it reads nothing and changes nothing. */
 	@VisibleForTesting
 	internal fun getTaskFailureType(error: Throwable): Failure =
 		when (error) {
@@ -749,18 +687,6 @@ internal class ToolingApiServerImpl(
 			is java.lang.IllegalStateException -> CONNECTION_CLOSED
 			else -> UNKNOWN
 		}
-
-	/**
-	 * Marks the connection suspect when [error] says it may be dead, so the next build replaces it
-	 * rather than reusing it. Only [executeTasks]'s build call reaches this; see the note there.
-	 */
-	private fun markSuspectIfConnectionFailure(error: Throwable) {
-		val failure = getTaskFailureType(error)
-		if (failure == CONNECTION_CLOSED || failure == CONNECTION_ERROR) {
-			log.warn("Marking the Gradle connection suspect after {}; the next build reconnects", failure)
-			connectionSuspect = true
-		}
-	}
 
 	private inline fun <T : Any?> supplyAsync(crossinline action: () -> T): CompletableFuture<T> =
 		CompletableFuture.supplyAsync {
