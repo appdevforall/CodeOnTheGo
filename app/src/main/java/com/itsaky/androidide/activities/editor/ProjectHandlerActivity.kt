@@ -2343,7 +2343,9 @@ abstract class ProjectHandlerActivity :
 							// getNow() skips futures still pending after the timeout; orEmpty()
 							// guards a Java plugin completing with a null list.
 							.flatMap { future -> future.getNow(emptyList()).orEmpty() }
-							.mapNotNull { section -> section?.toSearchResultSection() }
+							// The nullable type is deliberate: the plugin API promises non-null
+							// sections, but a Java plugin can still hand one back as null.
+							.mapNotNull { section: ProjectSearchSection? -> section?.toSearchResultSection() }
 					} catch (cancellation: CancellationException) {
 						throw cancellation
 					} catch (error: Exception) {
@@ -2367,8 +2369,9 @@ abstract class ProjectHandlerActivity :
 		val grouped =
 			results
 				// mapNotNull guards a Java plugin returning null elements; a bare map() would
-				// NPE in toSearchResult() and take down the whole fan-out.
-				.mapNotNull { it?.toSearchResult() }
+				// NPE in toSearchResult() and take down the whole fan-out. The nullable type is
+				// deliberate: the API promises non-null elements, but Java code can violate that.
+				.mapNotNull { result: ProjectSearchResult? -> result?.toSearchResult() }
 				.groupBy { it.file }
 		return grouped
 			.takeIf { it.isNotEmpty() }

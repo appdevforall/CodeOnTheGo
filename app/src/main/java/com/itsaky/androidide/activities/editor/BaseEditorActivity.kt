@@ -1372,7 +1372,7 @@ abstract class BaseEditorActivity :
 	override fun onTabReselected(tab: Tab) {
 		val position = tab.position
 		if (this is EditorHandlerActivity && isPluginTab(position)) {
-			(this as EditorHandlerActivity).showPluginTabPopup(tab)
+			showPluginTabPopup(tab)
 			return
 		}
 
