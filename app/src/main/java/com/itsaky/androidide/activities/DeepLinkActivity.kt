@@ -27,6 +27,7 @@ import com.itsaky.androidide.analytics.DeepLinkMetric
 import com.itsaky.androidide.analytics.DeepLinkOutcome
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.depth
+import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.resources.R.string
@@ -94,7 +95,14 @@ class DeepLinkActivity : Activity() {
 		// The one place every accepted link passes through, whichever activity ends up handling it.
 		// Paired with a terminal outcome logged wherever the request is finally resolved, so a link
 		// that is accepted here and then quietly goes nowhere shows up as a gap between the two.
-		analyticsManager.trackDeepLink(DeepLinkMetric(request.depth(), DeepLinkOutcome.RECEIVED, request.projectName))
+		analyticsManager.trackDeepLink(
+			DeepLinkMetric(
+				request.depth(),
+				DeepLinkOutcome.RECEIVED,
+				request.projectName.takeUnless { request.isCurrentProject },
+				request.selector(),
+			),
+		)
 
 		// ActionContextProvider tracks the live EditorHandlerActivity instance (set in its onCreate
 		// and re-asserted in onResume, cleared in onDestroy) -- this reflects "is an editor instance
