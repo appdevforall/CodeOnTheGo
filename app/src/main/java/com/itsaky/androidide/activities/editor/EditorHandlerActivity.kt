@@ -2421,7 +2421,7 @@ open class EditorHandlerActivity :
 	}
 
 	fun showPluginTabPopup(tab: TabLayout.Tab) {
-		val anchorView = tab.view ?: return
+		val anchorView = tab.view
 
 		// Check if this plugin tab can actually be closed
 		val position = tab.position

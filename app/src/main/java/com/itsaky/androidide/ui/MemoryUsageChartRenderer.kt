@@ -171,7 +171,7 @@ class MemoryUsageChartRenderer(
 		var dataChanged = false
 		memoryUsage.forEachValue { proc ->
 			val datasetIdx = pidToDatasetIdx.getOrDefault(proc.pid, -1)
-			val dataset = chart.data?.getDataSetByIndex(datasetIdx) as LineDataSet?
+			val dataset = chart.data.getDataSetByIndex(datasetIdx) as LineDataSet?
 			if (dataset == null) {
 				// The chart's datasets no longer describe the watched processes. Rebuild rather than
 				// dropping this process's samples on the floor, as the previous code did.
