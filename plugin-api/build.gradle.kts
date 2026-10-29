@@ -22,10 +22,12 @@ android {
 kotlin {
 	compilerOptions {
 		jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-		// Emit metadata the on-device Kotlin compiler (1.9.22) can read (<= 2.0.0).
+		// Emit metadata every supported on-device Kotlin compiler can read (<= 2.0.0), so a
+		// device still on an older bundled toolchain keeps working after a KOTLIN_VERSION bump.
 		// This jar ships in the plugin-api coordinate on-device plugins compile against.
 		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
 		languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+		jvmDefault.set(org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.ENABLE)
 	}
 }
 
@@ -47,6 +49,10 @@ dependencies {
 	// provider via :common -> :logger, so declaring it keeps the compile and runtime views the same.
 	implementation(libs.tooling.slf4j)
 
+	// Reads AI plugins' prompt config (ai.prompt.PromptConfigLoader). Host-side for the same reason as
+	// slf4j: the loader runs in the host's process, so plugins stop bundling a YAML library of their own.
+	implementation(libs.snakeyaml.engine)
+
 	// Test dependencies
 	testImplementation("junit:junit:4.13.2")
 
@@ -54,6 +60,7 @@ dependencies {
 	// need the framework on the JVM.
 	testImplementation(libs.tests.robolectric)
 	testImplementation(libs.tests.google.truth)
+	testRuntimeOnly("androidx.fragment:fragment-ktx:1.6.2")
 }
 
 tasks.register<Copy>("createPluginApiJar") {

@@ -75,9 +75,9 @@ fun FloatingWindowChrome(
 	focused: Boolean,
 	maximized: Boolean,
 	onDrag: (Float, Float) -> Unit,
-	onDragStopped: () -> Unit,
+	onDragStop: () -> Unit,
 	onResize: (Float, Float) -> Unit,
-	onResizeStopped: () -> Unit,
+	onResizeStop: () -> Unit,
 	onMinimize: () -> Unit,
 	onToggleMaximize: () -> Unit,
 	onDock: () -> Unit,
@@ -106,7 +106,7 @@ fun FloatingWindowChrome(
 					maximized = maximized,
 					actions = actions,
 					onDrag = onDrag,
-					onDragStopped = onDragStopped,
+					onDragStop = onDragStop,
 					onMinimize = onMinimize,
 					onToggleMaximize = onToggleMaximize,
 					onDock = onDock,
@@ -129,7 +129,7 @@ fun FloatingWindowChrome(
 			if (!maximized) {
 				ResizeHandle(
 					onResize = onResize,
-					onResizeStopped = onResizeStopped,
+					onResizeStop = onResizeStop,
 					modifier = Modifier.align(Alignment.BottomEnd),
 				)
 			}
@@ -143,21 +143,27 @@ fun MinimizedBubble(
 	title: String,
 	onRestore: () -> Unit,
 	onDrag: (Float, Float) -> Unit,
-	onDragStopped: () -> Unit,
+	onDragStop: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val scheme = MaterialTheme.colorScheme
-	val monogram = title.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "•"
+	val monogram =
+		title
+			.trim()
+			.firstOrNull()
+			?.uppercaseChar()
+			?.toString() ?: "•"
 	Surface(
-		modifier = modifier.pointerInput(Unit) {
-			detectDragGestures(
-				onDragEnd = onDragStopped,
-				onDragCancel = onDragStopped,
-			) { change, dragAmount ->
-				change.consume()
-				onDrag(dragAmount.x, dragAmount.y)
-			}
-		},
+		modifier =
+			modifier.pointerInput(Unit) {
+				detectDragGestures(
+					onDragEnd = onDragStop,
+					onDragCancel = onDragStop,
+				) { change, dragAmount ->
+					change.consume()
+					onDrag(dragAmount.x, dragAmount.y)
+				}
+			},
 		shape = RoundedCornerShape(percent = 50),
 		color = scheme.primaryContainer,
 		contentColor = scheme.onPrimaryContainer,
@@ -165,9 +171,10 @@ fun MinimizedBubble(
 		shadowElevation = 6.dp,
 	) {
 		Row(
-			modifier = Modifier
-				.clickable(onClick = onRestore)
-				.padding(horizontal = 12.dp, vertical = 8.dp),
+			modifier =
+				Modifier
+					.clickable(onClick = onRestore)
+					.padding(horizontal = 12.dp, vertical = 8.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
 			Text(text = monogram, style = MaterialTheme.typography.titleMedium)
@@ -189,7 +196,7 @@ private fun TitleBar(
 	maximized: Boolean,
 	actions: List<DockAction>,
 	onDrag: (Float, Float) -> Unit,
-	onDragStopped: () -> Unit,
+	onDragStop: () -> Unit,
 	onMinimize: () -> Unit,
 	onToggleMaximize: () -> Unit,
 	onDock: () -> Unit,
@@ -198,20 +205,20 @@ private fun TitleBar(
 ) {
 	val scheme = MaterialTheme.colorScheme
 	Row(
-		modifier = Modifier
-			.fillMaxWidth()
-			.height(44.dp)
-			.background(scheme.surfaceVariant)
-			.pointerInput(Unit) {
-				detectDragGestures(
-					onDragEnd = onDragStopped,
-					onDragCancel = onDragStopped,
-				) { change, dragAmount ->
-					change.consume()
-					onDrag(dragAmount.x, dragAmount.y)
-				}
-			}
-			.padding(horizontal = 6.dp),
+		modifier =
+			Modifier
+				.fillMaxWidth()
+				.height(44.dp)
+				.background(scheme.surfaceVariant)
+				.pointerInput(Unit) {
+					detectDragGestures(
+						onDragEnd = onDragStop,
+						onDragCancel = onDragStop,
+					) { change, dragAmount ->
+						change.consume()
+						onDrag(dragAmount.x, dragAmount.y)
+					}
+				}.padding(horizontal = 6.dp),
 		verticalAlignment = Alignment.CenterVertically,
 	) {
 		Canvas(Modifier.size(18.dp)) { drawGrip(scheme.onSurfaceVariant) }
@@ -235,10 +242,14 @@ private fun TitleBar(
 		) { drawMinimize(it) }
 		ChromeButton(
 			onClick = onToggleMaximize,
-			description = stringResource(
-				if (maximized) R.string.floating_window_action_restore
-				else R.string.floating_window_action_maximize
-			),
+			description =
+				stringResource(
+					if (maximized) {
+						R.string.floating_window_action_restore
+					} else {
+						R.string.floating_window_action_maximize
+					},
+				),
 			onLongPress = longPress(ChromeControl.MAXIMIZE),
 		) { if (maximized) drawRestore(it) else drawMaximize(it) }
 		ChromeButton(
@@ -265,14 +276,14 @@ private fun ChromeButton(
 	val tint = MaterialTheme.colorScheme.onSurfaceVariant
 	val view = LocalView.current
 	Box(
-		modifier = Modifier
-			.size(36.dp)
-			.clip(RoundedCornerShape(8.dp))
-			.combinedClickable(
-				onClick = onClick,
-				onLongClick = onLongPress?.let { handler -> { handler(view) } },
-			)
-			.semantics { contentDescription = description },
+		modifier =
+			Modifier
+				.size(36.dp)
+				.clip(RoundedCornerShape(8.dp))
+				.combinedClickable(
+					onClick = onClick,
+					onLongClick = onLongPress?.let { handler -> { handler(view) } },
+				).semantics { contentDescription = description },
 		contentAlignment = Alignment.Center,
 	) {
 		Canvas(Modifier.size(18.dp)) { draw(tint) }
@@ -289,37 +300,40 @@ private fun ActionButton(action: DockAction) {
 	val activeFallback = remember { MutableStateFlow(false) }
 	val active by (action.active ?: activeFallback).collectAsState()
 	Box(
-		modifier = Modifier
-			.size(36.dp)
-			.clip(RoundedCornerShape(8.dp))
-			.combinedClickable(
-				onLongClick = { action.onLongPress?.invoke(view) },
-				onClick = {
-					scope.launch {
-						val confirm = runCatching { action.onInvoke() }
-							.onFailure { log.error("Dock action '{}' failed", action.id, it) }
-							.getOrDefault(false)
-						if (confirm && action.confirmIconRes != null) {
-							confirmed = true
-							delay(ACTION_CONFIRM_MS)
-							confirmed = false
+		modifier =
+			Modifier
+				.size(36.dp)
+				.clip(RoundedCornerShape(8.dp))
+				.combinedClickable(
+					onLongClick = { action.onLongPress?.invoke(view) },
+					onClick = {
+						scope.launch {
+							val confirm =
+								runCatching { action.onInvoke() }
+									.onFailure { log.error("Dock action '{}' failed", action.id, it) }
+									.getOrDefault(false)
+							if (confirm && action.confirmIconRes != null) {
+								confirmed = true
+								delay(ACTION_CONFIRM_MS)
+								confirmed = false
+							}
 						}
-					}
-				},
-			)
-			.semantics { contentDescription = action.label },
+					},
+				).semantics { contentDescription = action.label },
 		contentAlignment = Alignment.Center,
 	) {
-		val iconRes = when {
-			active -> action.activeIconRes ?: action.iconRes
-			confirmed -> action.confirmIconRes ?: action.iconRes
-			else -> action.iconRes
-		}
-		val tint = when {
-			active -> scheme.error
-			confirmed -> scheme.primary
-			else -> scheme.onSurfaceVariant
-		}
+		val iconRes =
+			when {
+				active -> action.activeIconRes ?: action.iconRes
+				confirmed -> action.confirmIconRes ?: action.iconRes
+				else -> action.iconRes
+			}
+		val tint =
+			when {
+				active -> scheme.error
+				confirmed -> scheme.primary
+				else -> scheme.onSurfaceVariant
+			}
 		Crossfade(
 			targetState = iconRes,
 			animationSpec = tween(180),
@@ -340,22 +354,23 @@ private const val ACTION_CONFIRM_MS = 1100L
 @Composable
 private fun ResizeHandle(
 	onResize: (Float, Float) -> Unit,
-	onResizeStopped: () -> Unit,
+	onResizeStop: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val tint = MaterialTheme.colorScheme.onSurfaceVariant
 	Box(
-		modifier = modifier
-			.size(28.dp)
-			.pointerInput(Unit) {
-				detectDragGestures(
-					onDragEnd = onResizeStopped,
-					onDragCancel = onResizeStopped,
-				) { change, dragAmount ->
-					change.consume()
-					onResize(dragAmount.x, dragAmount.y)
-				}
-			},
+		modifier =
+			modifier
+				.size(28.dp)
+				.pointerInput(Unit) {
+					detectDragGestures(
+						onDragEnd = onResizeStop,
+						onDragCancel = onResizeStop,
+					) { change, dragAmount ->
+						change.consume()
+						onResize(dragAmount.x, dragAmount.y)
+					}
+				},
 		contentAlignment = Alignment.Center,
 	) {
 		Canvas(Modifier.size(16.dp)) { drawResizeGrip(tint) }
@@ -398,13 +413,21 @@ private fun DrawScope.drawRestore(color: Color) {
 }
 
 private fun DrawScope.drawDock(color: Color) {
-	val w = size.width
-	val h = size.height
-	val stroke = strokePx()
-	drawLine(color, Offset(w * 0.26f, h * 0.78f), Offset(w * 0.74f, h * 0.78f), stroke, StrokeCap.Round)
-	drawLine(color, Offset(w * 0.5f, h * 0.22f), Offset(w * 0.5f, h * 0.6f), stroke, StrokeCap.Round)
-	drawLine(color, Offset(w * 0.5f, h * 0.6f), Offset(w * 0.37f, h * 0.46f), stroke, StrokeCap.Round)
-	drawLine(color, Offset(w * 0.5f, h * 0.6f), Offset(w * 0.63f, h * 0.46f), stroke, StrokeCap.Round)
+	val pad = size.minDimension * 0.24f
+	val barHeight = size.minDimension * 0.22f
+	// Outer window outline (same padding as drawMaximize, for visual consistency)
+	drawRect(
+		color = color,
+		topLeft = Offset(pad, pad),
+		size = Size(size.width - 2 * pad, size.height - 2 * pad),
+		style = Stroke(strokePx()),
+	)
+	// Filled strip at the top edge: where the window docks back to
+	drawRect(
+		color = color,
+		topLeft = Offset(pad, pad),
+		size = Size(size.width - 2 * pad, barHeight),
+	)
 }
 
 private fun DrawScope.drawClose(color: Color) {

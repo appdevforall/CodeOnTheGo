@@ -16,8 +16,11 @@
  */
 package com.itsaky.androidide.viewmodel
 
+import android.content.Context
+import android.content.Intent
 import android.view.Gravity.CENTER
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
@@ -27,6 +30,10 @@ import com.itsaky.androidide.models.OpenedFilesCache
 import com.itsaky.androidide.models.SearchResult
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.quickbuild.QuickBuildFlashes
+import com.itsaky.androidide.search.replace.ReplaceSession
+import com.itsaky.androidide.services.builder.GradleBuildService
+import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.FileUtils
 import com.itsaky.androidide.utils.ILogger
@@ -38,6 +45,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.appdevforall.codeonthego.indexing.service.IndexingState
 import java.io.File
 import java.io.IOException
 import java.util.Collections
@@ -46,6 +54,14 @@ import java.util.concurrent.atomic.AtomicInteger
 /** ViewModel for data used in [com.itsaky.androidide.activities.editor.EditorActivityKt] */
 @Suppress("PropertyName")
 class EditorViewModel : ViewModel() {
+	/**
+	 * Decides which Quick Build outcomes get a flashbar over the editor (ADFA-4128). Held here
+	 * rather than on the activity because the one bit of history it keeps must survive a
+	 * configuration change: an activity-scoped instance is rebuilt on rotation, and the rebuilt
+	 * one has never seen a failure, so the recovery flash that only fires after one is lost.
+	 */
+	val quickBuildFlashes = QuickBuildFlashes()
+
 	data class SearchResultSection(
 		val title: String?,
 		val results: Map<File, List<SearchResult>>,
@@ -56,6 +72,10 @@ class EditorViewModel : ViewModel() {
 	)
 
 	internal val _isBuildInProgress = MutableLiveData(false)
+
+	// A build the user never started (Quick Build's proxy app build). Separate from
+	// _isBuildInProgress so it can show progress without offering to cancel.
+	internal val _isInternalBuildInProgress = MutableLiveData(false)
 	internal val _isInitializing = MutableLiveData(false)
 	internal val _statusText = MutableLiveData<Pair<CharSequence, Int>>("" to CENTER)
 	internal val _displayedFile = MutableLiveData(-1)
@@ -72,6 +92,9 @@ class EditorViewModel : ViewModel() {
 
 	private val _searchResultSections = MutableStateFlow<List<SearchResultSection>>(emptyList())
 	val searchResultSections: StateFlow<List<SearchResultSection>> = _searchResultSections.asStateFlow()
+
+	private val _replaceSession = MutableStateFlow<ReplaceSession?>(null)
+	val replaceSession: StateFlow<ReplaceSession?> = _replaceSession.asStateFlow()
 	val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
 	private val searchGeneration = AtomicInteger()
@@ -86,10 +109,27 @@ class EditorViewModel : ViewModel() {
 
 	fun onSearchResultsReady(results: Map<File, List<SearchResult>>) {
 		searchGeneration.incrementAndGet()
+		_replaceSession.value = null
 		_searchResultSections.value =
 			listOfNotNull(
 				results.takeIf { it.isNotEmpty() }?.let { SearchResultSection(title = null, results = it) },
 			)
+	}
+
+	fun startReplaceSession(session: ReplaceSession) {
+		_replaceSession.value = session
+	}
+
+	fun toggleReplaceMatch(match: SearchResult) {
+		_replaceSession.update { it?.toggleMatch(match) }
+	}
+
+	fun toggleReplaceFile(file: File) {
+		_replaceSession.update { it?.toggleFile(file) }
+	}
+
+	fun clearReplaceSession() {
+		_replaceSession.value = null
 	}
 
 	/** Publishes [sections] unless [generation] no longer matches [currentSearchGeneration]. */
@@ -108,6 +148,9 @@ class EditorViewModel : ViewModel() {
 	 * index of the editor opened. Second value is the file that is opened.
 	 */
 	private val mCurrentFile = MutableLiveData<Pair<Int, File?>?>(null)
+
+	@get:JvmName("currentFileLiveData")
+	val currentFile: LiveData<Pair<Int, File?>?> get() = mCurrentFile
 
 	var areFilesModified: Boolean
 		get() = _filesModified.value ?: false
@@ -153,7 +196,21 @@ class EditorViewModel : ViewModel() {
 		activeSaveCount = (activeSaveCount - 1).coerceAtLeast(0)
 		if (activeSaveCount == 0) {
 			areFilesSaving = false
+			val actions = afterSaves.toList()
+			afterSaves.clear()
+			actions.forEach { it() }
 		}
+	}
+
+	private val afterSaves = mutableListOf<() -> Unit>()
+
+	/**
+	 * Runs [action] once no save is in flight: now, or when the last one finishes. Lives here for
+	 * the same reason as [activeSaveCount] - the save that drains the count may belong to either
+	 * side of a recreate. Main-thread confined.
+	 */
+	fun whenNoSaves(action: () -> Unit) {
+		if (activeSaveCount == 0) action() else afterSaves += action
 	}
 
 	var openedFilesCache: OpenedFilesCache?
@@ -168,10 +225,51 @@ class EditorViewModel : ViewModel() {
 			_isBoundToBuildService.value = value
 		}
 
+	private val buildServiceConnection = GradleBuildServiceConnnection()
+
+	private var buildServiceContext: Context? = null
+
+	fun bindBuildService(
+		context: Context,
+		onConnected: (GradleBuildService) -> Unit,
+	): Boolean {
+		val appContext = context.applicationContext
+		buildServiceConnection.onConnected = onConnected
+		buildServiceContext = appContext
+		return appContext.bindService(
+			Intent(appContext, GradleBuildService::class.java),
+			buildServiceConnection,
+			Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT,
+		)
+	}
+
+	fun clearBuildServiceCallback() {
+		buildServiceConnection.onConnected = null
+	}
+
+	fun unbindBuildService() {
+		val context = buildServiceContext ?: return
+		buildServiceContext = null
+		buildServiceConnection.onConnected = null
+		isBoundToBuildSerice = false
+		context.unbindService(buildServiceConnection)
+	}
+
+	override fun onCleared() {
+		unbindBuildService()
+		super.onCleared()
+	}
+
 	var isBuildInProgress: Boolean
 		get() = _isBuildInProgress.value ?: false
 		set(value) {
 			_isBuildInProgress.value = value
+		}
+
+	var isInternalBuildInProgress: Boolean
+		get() = _isInternalBuildInProgress.value ?: false
+		set(value) {
+			_isInternalBuildInProgress.value = value
 		}
 
 	var isInitializing: Boolean
@@ -191,6 +289,50 @@ class EditorViewModel : ViewModel() {
 		set(value) {
 			_statusText.value = (_statusText.value?.first ?: "") to value
 		}
+
+	/** The latest class indexing state the editor has observed. */
+	var indexingState: IndexingState = IndexingState.Idle
+		private set
+
+	/** Whether class indexing is in flight, derived from [indexingState]. */
+	val isIndexing: Boolean
+		get() = indexingState is IndexingState.Indexing
+
+	/** The indexing text last written to the status slot, or null if none is shown. */
+	private var shownIndexingStatus: CharSequence? = null
+
+	/** The message the indexing text replaced in the status slot, restored when indexing ends. */
+	private var replacedStatus: CharSequence? = null
+
+	/** Records [state], as reported by the project's indexing service manager. */
+	internal fun onIndexingStateChanged(state: IndexingState) {
+		indexingState = state
+	}
+
+	/**
+	 * Updates the status slot for [indexingState], formatting its progress with [formatProgress].
+	 *
+	 * [isSlotOwnedElsewhere] is true while a build, project initialization or debugger start owns
+	 * the slot; see [resolveIndexingStatus].
+	 */
+	fun updateIndexingStatus(
+		isSlotOwnedElsewhere: Boolean,
+		formatProgress: (done: Int, total: Int) -> CharSequence,
+	) {
+		val indexingStatus = (indexingState as? IndexingState.Indexing)?.let { formatProgress(it.done, it.total) }
+		val current = statusText
+		val next =
+			resolveIndexingStatus(isSlotOwnedElsewhere, indexingStatus, current, shownIndexingStatus, replacedStatus)
+				?: return
+		if (indexingStatus != null && shownIndexingStatus?.contentEquals(current) != true) {
+			replacedStatus = current
+		}
+		if (indexingStatus == null) {
+			replacedStatus = null
+		}
+		shownIndexingStatus = indexingStatus
+		_statusText.value = next to CENTER
+	}
 
 	var displayedFileIndex: Int
 		get() = _displayedFile.value!!
@@ -431,3 +573,27 @@ class EditorViewModel : ViewModel() {
 		return manager.projectDir.name
 	}
 }
+
+/**
+ * Decides what the status slot shows next for class indexing, or returns null to leave it alone.
+ *
+ * While [isSlotOwnedElsewhere] (a build, project initialization or debugger start is running) the
+ * slot is left to that operation. Otherwise [indexingStatus], the progress text or null when
+ * indexing is idle, takes it. When indexing ends the slot goes back to [replacedStatus], the message
+ * the indexing text replaced (a build result, say), or is cleared if there was none. It does so
+ * only if the slot still shows [shownIndexingStatus], the indexing text last written there, so a
+ * newer message survives.
+ */
+internal fun resolveIndexingStatus(
+	isSlotOwnedElsewhere: Boolean,
+	indexingStatus: CharSequence?,
+	currentStatus: CharSequence,
+	shownIndexingStatus: CharSequence?,
+	replacedStatus: CharSequence? = null,
+): CharSequence? =
+	when {
+		isSlotOwnedElsewhere -> null
+		indexingStatus != null -> indexingStatus.takeUnless { it.contentEquals(currentStatus) }
+		shownIndexingStatus?.contentEquals(currentStatus) == true -> replacedStatus ?: ""
+		else -> null
+	}

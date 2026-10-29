@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<api version="4">
+	<class name="a/B" since="36">
+		<field name="OLD" since="1" deprecated="36.1"/>
+		<field name="NEW" since="36.1"/>
+		<field name="NEXT" since="37.0"/>
+		<field name="JUNK" since="not-a-number"/>
+		<method name="gone()V" since="36" removed="37.0"/>
+	</class>
+</api>

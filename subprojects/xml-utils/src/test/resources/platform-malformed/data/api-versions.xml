@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<not-api version="4">
+	<class name="a/B" since="36"/>
+</not-api>

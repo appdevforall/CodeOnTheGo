@@ -39,7 +39,7 @@ in `build.gradle.kts`:
 ```kotlin
 plugins {
     id("com.android.application") version "8.8.2"
-    id("org.jetbrains.kotlin.android") version "2.1.21"
+    id("org.jetbrains.kotlin.android") version "2.3.0"
     id("com.itsaky.androidide.plugins.build")
 }
 
@@ -66,21 +66,31 @@ against — the `:plugin-api` module plus `common`, `eventbus-events`, and
 `idetooltips`. The builder plugin applied above resolves the same way, from the
 injected `com.itsaky.androidide.plugins.build` `1.0.0` marker.
 
-#### Building on-device (offline) pins the AGP/Kotlin versions
+#### Building on-device (offline) pins the AGP/Kotlin/Gradle versions
 
-The `plugins {}` example above uses AGP `8.8.2` / Kotlin `2.1.21` — the versions the
-dev/CI repo resolves online. A plugin built **on-device** resolves AGP and the Kotlin
-Gradle plugin from the harvested on-device `localMvnRepository`, which currently ships
-only **AGP `8.11.0`** and **Kotlin `1.9.22`**. Request those versions for an on-device
-build, or offline resolution of the build plugins fails.
+The `plugins {}` example above uses AGP `8.8.2` / Kotlin `2.3.0` — the versions the
+dev/CI repo resolves online. A plugin built **on-device** resolves its build plugins from
+the harvested on-device `localMvnRepository`, which ships only the versions pinned in
+`org.adfa.constants` — `ANDROID_GRADLE_PLUGIN_VERSION`, `KOTLIN_VERSION` and
+`GRADLE_DISTRIBUTION_VERSION`, currently **AGP `9.3.1`**, **Kotlin `2.3.21`** and
+**Gradle `9.6.1`**. Request those, or offline resolution of the build plugins fails. That
+constants file is authoritative; the numbers here are a snapshot of it.
 
-Also declare AGP `apply false` in the **root** `build.gradle.kts` (as the standard CoGo
-project template does):
+AGP 9 compiles Kotlin itself and **refuses** the `org.jetbrains.kotlin.android` plugin, so
+an on-device build drops it and pins Kotlin through the `kotlin-gradle-plugin` jar on the
+**root** buildscript classpath, which is where AGP 9 takes its compiler from. Declare AGP
+`apply false` in the same root file (as the standard CoGo project template does):
 
 ```kotlin
+buildscript {
+    dependencies {
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
+    }
+}
+
 plugins {
-    id("com.android.application") apply false version "8.11.0"
-    id("com.android.library") apply false version "8.11.0"
+    id("com.android.application") apply false version "9.3.1"
+    id("com.android.library") apply false version "9.3.1"
 }
 ```
 
@@ -333,6 +343,82 @@ Defined by `PluginPermission` in `plugin-api/src/main/kotlin/com/itsaky/androidi
 | `project.structure`      | Modify project structure                                                        |
 | `native.code`            | Execute native machine code                                                     |
 | `ide.environment.write`  | Write to IDE-managed directories (Android SDK, NDK, cache)                      |
+
+## Contributing a language
+
+Implement `LanguageExtension` to give a file type syntax highlighting, a language server, or both:
+
+```kotlin
+override fun getLanguages() = listOf(
+    LanguageDefinition(
+        languageId = "python",
+        fileExtensions = setOf("py"),
+        grammar = TreeSitterGrammar(name = "python", queriesAssetPath = "treesitter/python"),
+        server = LanguageServerDefinition(command = listOf("pylsp")),
+    ),
+)
+```
+
+- **Grammar.** Ship `lib/<abi>/libtree-sitter-<name>.so` for `arm64-v8a` and `armeabi-v7a`, exporting `tree_sitter_<name>`, generated at tree-sitter language ABI 13 or 14 (grammar releases up to 0.23.x). Build it from the grammar's `src/parser.c` and `src/scanner.c` with `externalNativeBuild`; `Python-Tools` and `Go-Tools` in `plugin-examples` do this. Needs `native.code`. Grammar names are shared by every plugin: while one plugin's `<name>` grammar is open in an editor, another plugin's grammar of the same name does not load and its files open without highlighting.
+- **Queries.** Put `highlights.scm` (optionally `locals.scm`, `blocks.scm`, `brackets.scm`, `indents.scm`) in `assets/<queriesAssetPath>/`. Use standard capture names so every colour scheme can style them. When two patterns capture the same node at the same position, the one listed **first** wins, so put catch-all patterns such as `(identifier) @variable` last.
+- **Server.** Any stdio language server. A bare command resolves against the Termux `bin` directory; an absolute path runs as is. It starts when the first matching file opens, with the Termux environment plus `environment`, and is restarted up to twice if it crashes. Needs `system.commands`. Environment variable names must be non-empty and contain no `=` or NUL, and values no NUL, or the language is not registered. Install the server yourself, for example with `IdeCommandService`.
+- If the grammar library will not load or a query does not parse, the IDE logs the error and opens the file without tree-sitter highlighting.
+- Files that are already open switch to the language when the plugin is loaded, enabled or disabled; the user does not need to reopen them.
+- File extensions the IDE already handles cannot be claimed. Set `plugin.min_ide_version` to `26.41` or later.
+
+## Porting an Android Studio plugin
+
+Code on the Go cannot load Android Studio or IntelliJ plugins ([ADR 0018](adr/0018-android-studio-plugins-are-ported-not-run.md)): they are built on Swing and on IntelliJ's IDE layer, neither of which exists here. A port keeps the plugin's logic and replaces what touches the platform. Swing UI becomes Android `Fragment`s, and each `plugin.xml` extension maps to an extension interface or service:
+
+| Android Studio (`plugin.xml`) | Code on the Go |
+|---|---|
+| `<action>` in a main-menu group | `UIExtension.getMainMenuItems()` returning `MenuItem`s |
+| `<action>` in a toolbar group | `UIExtension.getToolbarActions()` returning `ToolbarAction`s |
+| `<action>` in the editor-tab popup menu | `FileOpenExtension.getFileTabMenuItems()` |
+| `toolWindow` (`ToolWindowFactory`) | `UIExtension.getEditorTabs()` for a tab in the editor's bottom sheet, or `getSideMenuItems()` for a sidebar entry |
+| `fileEditorProvider` | `FileOpenExtension.canHandleFileOpen`/`handleFileOpen`, showing the file in an `EditorTabExtension` tab selected with `IdeEditorTabService.selectPluginTab` - `apk-viewer-plugin` does this |
+| `applicationConfigurable` / `projectConfigurable` | `SettingsExtension` returning a `PluginSettingsEntry` that names your settings `Fragment` |
+| `DialogWrapper` or another full-screen Swing UI | A `Fragment` opened with `IdeUIService.openPluginScreen` |
+| `defaultLiveTemplates` | `SnippetExtension` returning `SnippetContribution`s. Bodies use TextMate syntax: rewrite `$NAME$` variables as `${1:NAME}` and `$END$` as `$0` |
+| `fileType`, `lang.parserDefinition`, `lang.syntaxHighlighterFactory` | `LanguageExtension` with a `TreeSitterGrammar` - see [Contributing a language](#contributing-a-language) |
+| `completion.contributor`, `annotator`, `localInspection`, `gotoDeclarationHandler`, `lang.formatter` | A language server in `LanguageServerDefinition`. The IDE uses its completion, diagnostics, go-to-definition, references, signature help, selection expansion and formatting |
+| Highlighting layered over a language (e.g. rainbow brackets) | `EditorDecorationProvider`, which adds foreground colours only |
+| `searchEverywhereContributor` | `ProjectSearchExtension`, which appends sections to Search Results |
+| `runConfigurationType`, external tools | `BuildActionExtension` returning `PluginBuildAction`s that run a `CommandSpec` |
+| Project or module wizard | A `.cgt` template, built with `IdeTemplateService.createTemplateBuilder` and added with `registerTemplate` |
+| `applicationService` / `projectService` | Objects your plugin owns. Offer one to other plugins with `PluginContext.registerService`; reach IDE services with `PluginContext.services.get(...)` |
+
+No equivalent yet:
+
+- **Editor context-menu actions.** `UIExtension.getContextMenuItems()` exists, but the IDE does not call it.
+- **Quick fixes, intention actions and hover documentation.** The language-server bridge does not request code actions or hover.
+- **Message-bus listeners** (`applicationListeners`, `projectListeners`). `PluginContext.eventBus` is the IDE's EventBus, typed `Any`; its events are not part of the [plugin API contract](plugin-api.md), so a subscriber can break on any release.
+- **Anything that depends on the Android plugin** bundled with Android Studio (`org.jetbrains.android`).
+
+## Porting a VS Code extension
+
+Code on the Go does not host VS Code's extension API ([ADR 0019](adr/0019-vscode-extensions-are-ported-not-hosted.md)): extensions run on Node.js, which Code on the Go's package repository does not carry, against a `vscode` API that does not exist here. A port keeps the open standards the extension is built on and rewrites the rest. Much of what `package.json` declares maps to an extension interface:
+
+| VS Code (`package.json` / API) | Code on the Go |
+|---|---|
+| A language client that starts a language server | `LanguageServerDefinition` with the server's command - see [Contributing a language](#contributing-a-language). The server must run on the device: a native Termux build, or a Java or Python server on the bundled runtimes. Node.js servers do not run |
+| `contributes.languages`, `contributes.grammars` | `LanguageExtension` with a `TreeSitterGrammar`. TextMate grammars are not supported; use the language's tree-sitter grammar |
+| `contributes.snippets` | `SnippetExtension`. The body syntax is the same; map each entry's `prefix`, `body` and `description`, adding one `SnippetContribution` per prefix when `prefix` is a list. Set `scope` to one the target language defines, such as Kotlin's `global` |
+| `contributes.commands` in `menus.commandPalette` or `menus["editor/title"]` | `UIExtension.getMainMenuItems()` or `getToolbarActions()` |
+| `menus["editor/title/context"]` | `FileOpenExtension.getFileTabMenuItems()` |
+| `contributes.viewsContainers`, `contributes.views` | `UIExtension.getSideMenuItems()` for a sidebar entry, or `getEditorTabs()` for a tab in the editor's bottom sheet |
+| `contributes.customEditors` | `FileOpenExtension` plus an `EditorTabExtension` tab, as for an Android Studio `fileEditorProvider` |
+| `window.createWebviewPanel` | A `Fragment` hosting an Android `WebView`, shown as an `EditorTabExtension` tab - `markdown-preview-plugin` does this |
+| `contributes.configuration` | `SettingsExtension`, storing values with `PluginContext.getPluginSharedPreferences` |
+| `contributes.taskDefinitions` | `BuildActionExtension` returning `PluginBuildAction`s that run a `CommandSpec` |
+
+No equivalent yet:
+
+- **Colour themes** (`contributes.themes`). Colour schemes are built in; a plugin cannot add one.
+- **Debuggers** (`contributes.debuggers`). The IDE's debugger does not speak the Debug Adapter Protocol.
+- **Explorer and editor context menus** (`menus["explorer/context"]`, `menus["editor/context"]`). `UIExtension.getContextMenuItems()` exists, but the IDE does not call it.
+- **In-process language providers** (`languages.registerCompletionItemProvider` and the like). Put the logic in a language server instead.
+- **Workspace events** (`workspace.onDidSaveTextDocument` and the like). As for Android Studio's message-bus listeners, `PluginContext.eventBus` is not part of the plugin API contract.
 
 ## Troubleshooting
 

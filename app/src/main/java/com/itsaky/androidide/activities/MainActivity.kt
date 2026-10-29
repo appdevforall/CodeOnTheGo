@@ -17,17 +17,21 @@
 
 package com.itsaky.androidide.activities
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.core.os.BundleCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
@@ -47,7 +51,7 @@ import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
-import com.itsaky.androidide.idetooltips.TooltipTag.PROJECT_RECENT_TOP
+import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
 import com.itsaky.androidide.idetooltips.TooltipTag.SETUP_OVERVIEW
 import com.itsaky.androidide.localWebServer.ServerConfig
 import com.itsaky.androidide.localWebServer.WebServer
@@ -67,7 +71,8 @@ import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
@@ -103,6 +108,21 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val analyticsManager: IAnalyticsManager by inject()
 	private val recentProjectRepository: RecentProjectRepository by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+
+	// Where the current touch on the toolbar began; null outside a touch (e.g. a TalkBack
+	// long-press), which counts as the app name.
+	private var titleTouchRegion: TitleRegion? = null
+
+	// Screens whose toolbar title long-press shows MAIN_GET_STARTED.
+	private val getStartedTitleScreens =
+		setOf(
+			SCREEN_MAIN,
+			SCREEN_TEMPLATE_LIST,
+			SCREEN_TEMPLATE_DETAILS,
+			SCREEN_SAVED_PROJECTS,
+			SCREEN_CLONE_REPO,
+			SCREEN_DELETE_PROJECTS,
+		)
 	private var webServer: WebServer? = null
 	private val shortcutManager by lazy { ShortcutManager(applicationContext) }
 
@@ -200,9 +220,13 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			openLastProject()
 		}
 
-		if (FeatureFlags.isExperimentsEnabled) {
+		if (Experiments.enabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+			// Whole toolbar, not just the ".": the Toolbar's title view has no LinkMovementMethod.
+			binding.codeOnTheGoLabel.setOnClickListener { showExperiments() }
 		}
+
+		trackTitleTouches()
 
 		feedbackButtonManager =
 			FeedbackButtonManager(
@@ -232,10 +256,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
-		// Show warning dialog if today's date is after October 28 2026
+		// Show warning dialog if today's date is after April 28 2027
 		val targetDate =
 			java.util.Calendar.getInstance().apply {
-				set(2026, 9, 28) // Month is 0-indexed, so 9 = October
+				set(2027, 3, 28) // Month is 0-indexed, so 3 = April
 			}
 		val comparisonDate = java.util.Calendar.getInstance()
 		if (comparisonDate.after(targetDate)) {
@@ -274,6 +298,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	fun showCloneRepository(): Boolean {
 		viewModel.setScreen(SCREEN_CLONE_REPO)
 		return true
+	}
+
+	private fun showExperiments() {
+		DialogUtils
+			.newMaterialDialogBuilder(this)
+			.setTitle(string.title_experiments_on)
+			.setItems(Experiment.entries.map { "${it.label} (${it.jiraKey.removePrefix("ADFA-")})" }.toTypedArray(), null)
+			.setPositiveButton(android.R.string.ok, null)
+			.show()
 	}
 
 	private fun showWarningDialog() {
@@ -412,9 +445,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		}
 
 		binding.codeOnTheGoLabel.setOnLongClickListener {
-			when (screen) {
-				SCREEN_SAVED_PROJECTS -> showToolTip(PROJECT_RECENT_TOP)
-				SCREEN_TEMPLATE_DETAILS -> showToolTip(SETUP_OVERVIEW)
+			when (titleTouchRegion ?: TitleRegion.APP_NAME) {
+				TitleRegion.APP_NAME -> if (screen in getStartedTitleScreens) showToolTip(MAIN_GET_STARTED)
+				TitleRegion.ELSEWHERE -> if (screen == SCREEN_TEMPLATE_DETAILS) showToolTip(SETUP_OVERVIEW)
+				TitleRegion.DOT -> Unit
 			}
 			true
 		}
@@ -429,6 +463,42 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private fun showToolTip(tag: String) {
 		TooltipManager.showIdeCategoryTooltip(this, binding.root, tag)
 	}
+
+	// Observes only (returns false), so the toolbar's own click handling is unaffected.
+	@SuppressLint("ClickableViewAccessibility")
+	private fun trackTitleTouches() {
+		binding.codeOnTheGoLabel.setOnTouchListener { _, event ->
+			when (event.actionMasked) {
+				MotionEvent.ACTION_DOWN -> {
+					if (viewModel.currentScreen.value in getStartedTitleScreens) titleTouchRegion = titleRegionAt(event)
+				}
+
+				MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+					titleTouchRegion = null
+				}
+			}
+			false
+		}
+	}
+
+	// The experiments dot shares the title TextView but is reserved for ADFA-6388, so the
+	// app-name glyphs, the dot, and the rest of the toolbar are told apart.
+	private fun titleRegionAt(event: MotionEvent): TitleRegion {
+		val toolbar = binding.codeOnTheGoLabel
+		val titleText = toolbar.title?.toString() ?: return TitleRegion.ELSEWHERE
+		val title = toolbar.children.filterIsInstance<TextView>().firstOrNull { it.text.toString() == titleText }
+		val layout = title?.layout ?: return TitleRegion.ELSEWHERE
+		if (event.y < title.top || event.y >= title.bottom) return TitleRegion.ELSEWHERE
+		val x = event.x - title.left - title.totalPaddingLeft
+		return when {
+			x < layout.getLineLeft(0) -> TitleRegion.ELSEWHERE
+			x < layout.getPrimaryHorizontal(getString(R.string.app_name).length) -> TitleRegion.APP_NAME
+			x < layout.getLineRight(0) -> TitleRegion.DOT
+			else -> TitleRegion.ELSEWHERE
+		}
+	}
+
+	private enum class TitleRegion { APP_NAME, DOT, ELSEWHERE }
 
 	private fun openLastProject() {
 		// bindLayout() is called by super.onCreate() before this method runs

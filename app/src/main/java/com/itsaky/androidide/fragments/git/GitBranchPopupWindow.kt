@@ -14,6 +14,12 @@ import com.itsaky.androidide.databinding.PopupGitBranchesBinding
 import com.itsaky.androidide.fragments.git.adapter.GitBranchAdapter
 import com.itsaky.androidide.fragments.git.adapter.GitBranchListItem
 import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.idetooltips.TooltipManager
+import com.itsaky.androidide.idetooltips.TooltipTag
+import com.itsaky.androidide.utils.applyLongPressRecursively
+import com.itsaky.androidide.utils.findActivity
+import com.itsaky.androidide.utils.onLongPress
+import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel.BranchesUiState
 
@@ -46,6 +52,9 @@ class GitBranchPopupWindow(
 		).apply {
 			setBackgroundDrawable(Color.TRANSPARENT.toDrawable())
 			elevation = 16f
+			setOnDismissListener {
+				TooltipManager.dismissActiveTooltip()
+			}
 		}
 
 	private val adapter: GitBranchAdapter =
@@ -61,6 +70,7 @@ class GitBranchPopupWindow(
 		)
 
 	private var allBranches: List<GitBranch> = emptyList()
+	private var hostAnchor: View? = null
 
 	init {
 		binding.rvBranches.layoutManager = LinearLayoutManager(context)
@@ -73,6 +83,35 @@ class GitBranchPopupWindow(
 
 		binding.etSearchBranches.doAfterTextChanged { text ->
 			filterBranches(text?.toString())
+		}
+
+		setupTooltips()
+	}
+
+	private fun setupTooltips() {
+		fun showTooltip(playHapticFeedback: Boolean) {
+			val anchor =
+				hostAnchor?.takeIf { it.isAttachedToWindow }
+					?: context.findActivity()?.window?.decorView
+					?: return
+			showIdeCategoryTooltipIfPresent(
+				context = context,
+				anchor = anchor,
+				tag = TooltipTag.GIT_BRANCHES,
+				playHapticFeedback = playHapticFeedback,
+			)
+		}
+
+		binding.root.applyLongPressRecursively(
+			exclude = listOf(binding.rvBranches),
+			includeEditTexts = false,
+		) {
+			showTooltip(playHapticFeedback = false)
+			true
+		}
+
+		binding.rvBranches.onLongPress(suppressClickAfterLongPress = true) {
+			showTooltip(playHapticFeedback = true)
 		}
 	}
 
@@ -167,6 +206,7 @@ class GitBranchPopupWindow(
 	 * @param anchor The view below which the popup dropdown should be displayed.
 	 */
 	fun show(anchor: View) {
+		hostAnchor = anchor
 		binding.etSearchBranches.text?.clear()
 		filterBranches(null)
 		val displayWidth = context.resources.displayMetrics.widthPixels

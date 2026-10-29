@@ -4,6 +4,7 @@ object TooltipTag {
 	const val BUILD_VARIANT_SIDEBAR = "project.sidebar.buildvariants"
 	const val CLOSE_PROJECT_SIDEBAR = "project.sidebar.closeproject"
 	const val FILE_TREE_SIDEBAR = "project.sidebar.filetree"
+	const val OUTLINE_SIDEBAR = "project.sidebar.outline"
 	const val HELP_SIDEBAR = "project.help"
 	const val PREFERENCES_SIDEBAR = "main.prefs"
 	const val TERMINAL_SIDEBAR = "project.sidebar.terminal"
@@ -117,6 +118,7 @@ object TooltipTag {
 	// Preferences - Git screen
 	const val PREFS_GIT_USERNAME = "prefs.git.username"
 	const val PREFS_GIT_USEREMAIL = "prefs.git.useremail"
+	const val PREFS_GIT_WATERMARK = "prefs.git.watermark"
 
 	// Preferences - Developer options screen
 	const val PREFS_DEVOPTIONS_DUMPLOGS = "prefs.devoptions.dumplogs"
@@ -179,6 +181,7 @@ object TooltipTag {
 	const val EDITOR_CODE_ACTIONS_ORGANIZE_IMPORTS = "editor.codeactions.organizeimports"
 	const val EDITOR_CODE_ACTIONS_TRY_CATCH = "editor.codeactions.trycatch"
 	const val EDITOR_CODE_ACTIONS_EXTRACT_VARIABLE = "editor.codeactions.extractvariable"
+	const val EDITOR_CODE_ACTIONS_EXTRACT_METHOD = "editor.codeactions.extractmethod"
 
 	// Kotlin code actions. Tags are per-language even where the action exists in both languages,
 	// so the tooltip can describe the Kotlin behaviour (see ADFA-4730).
@@ -228,12 +231,22 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_PREVIEW_COMPOSE = "editor.compose.preview"
 	const val EDITOR_TOOLBAR_COMPUTER_VISION = "project.layout.vision"
 	const val EDITOR_TOOLBAR_LOG_SENDER = "editor.disconnect.logsenders"
+	const val EDITOR_TOOLBAR_QUICK_BUILD = "project.quickbuild"
 
 	// Floating window chrome
 	const val WINDOW_MINIMIZE = "window-min"
 	const val WINDOW_MAXIMIZE = "window-max"
 	const val WINDOW_DOCK = "window-dock"
 	const val WINDOW_UNDOCK = "window-undock"
+
+	/**
+	 * The floating window's close control.
+	 *
+	 * Distinct from [WINDOW_UNDOCK], which names the opposite action and belongs to the editor
+	 * controls that open something in a window. The chrome's close button borrowed that tag, so a
+	 * long press on it answered "Opens the file in a separate window".
+	 */
+	const val WINDOW_CLOSE = "window-close"
 
 	// Delete project
 	const val DELETE_PROJECT = "project.delete"
@@ -266,6 +279,12 @@ object TooltipTag {
 	const val SETUP_PREVIOUS = "setup.previous"
 	const val SETUP_OVERVIEW = "setup.overview"
 	const val SETUP_CREATE_PROJECT = "setup.create.project"
+	const val PROJECT_NAME_PARAM = "setup.app.name"
+	const val PACKAGE_NAME_PARAM = "setup.package.name"
+	const val PROJECT_LANGUAGE_PARAM = "setup.project.language"
+	const val MIN_SDK_PARAM = "setup.minimum.sdk"
+	const val USE_KTS_PARAM = "setup.kotlin.script.language"
+	const val INIT_GIT_REPO = "project.git.init"
 
 	// Debugger
 	const val PROJECT_DEBUGGER_OUTPUT = "project.debugger.output"
@@ -314,4 +333,22 @@ object TooltipTag {
 	const val GIT_DIALOG_ABORT_MERGE = "git.dialog.abortmerge"
 	const val GIT_PUSH = "git.action.push"
 	const val GIT_PULL = "git.action.pull"
+	const val GIT_BRANCHES = "project.git.branchmgt"
+	const val GIT_REFRESH = "git.action.refresh"
+
+	// Editor metrics carousel (ADFA-5510). Unprefixed like every other tag here: the lookup is by
+	// tag AND category, and the category column already carries "ide".
+	const val CAROUSEL_PANEL = "carousel.panel"
+	const val CAROUSEL_TITLE = "carousel.title"
+	const val CAROUSEL_PREVIOUS = "carousel.previous"
+	const val CAROUSEL_NEXT = "carousel.next"
+	const val CAROUSEL_SNAPSHOT = "carousel.snapshot"
+	const val CAROUSEL_EXPORT = "carousel.export"
+	const val CAROUSEL_CHART_MEMORY = "carousel.chart.memory"
+	const val CAROUSEL_CHART_NETWORK = "carousel.chart.network"
+	const val CAROUSEL_CHART_POWER = "carousel.chart.power"
+	const val CAROUSEL_BATTERY = "carousel.battery"
+	const val CAROUSEL_AXIS_TIME = "carousel.axis.time"
+	const val CAROUSEL_RATE = "carousel.rate"
+	const val CAROUSEL_UNDOCKED = "carousel.undocked"
 }

@@ -124,8 +124,34 @@ internal class GradleDaemonWatcher(
 			.onFailure { err -> log.warn("Failed to report exit of Gradle daemon {}", pid, err) }
 	}
 
+	/**
+	 * Stops the poller.
+	 *
+	 * Graceful first, so a report already queued -- an exit picked up moments before the server was
+	 * told to stop -- still runs; then forcefully, so a poll asleep between attempts cannot hold the
+	 * process open. [SHUTDOWN_GRACE_MS] is the bound: work is one `ProcessHandle.descendants()`
+	 * scan, not a build, so a poll that has not finished in that long is wedged rather than busy.
+	 *
+	 * A report that has *not* been submitted yet is lost, and that is accepted: it arrives via
+	 * onExit on a process-reaper thread once the OS reaps the daemon, which at shutdown is after
+	 * everything here has run.
+	 */
 	fun shutdown() {
-		scheduler.shutdownNow()
+		scheduler.shutdown()
+		val drained =
+			runCatching { scheduler.awaitTermination(SHUTDOWN_GRACE_MS, TimeUnit.MILLISECONDS) }
+				.onFailure { err ->
+					// Only an interrupt is restored. Anything else out of awaitTermination says
+					// nothing about this thread's cancellation state, and marking it interrupted
+					// would abort the caller's next blocking call -- ToolingApiServerImpl.shutdown's
+					// wait on the connection close -- over a failure unrelated to it.
+					if (err is InterruptedException) {
+						Thread.currentThread().interrupt()
+					}
+				}.getOrDefault(false)
+		if (!drained) {
+			scheduler.shutdownNow()
+		}
 	}
 
 	companion object {
@@ -142,6 +168,9 @@ internal class GradleDaemonWatcher(
 		const val DAEMON_MAIN_CLASS = "org.gradle.launcher.daemon.bootstrap.GradleDaemon"
 
 		private const val POLL_INTERVAL_MS = 500L
+
+		/** How long [shutdown] lets queued reports finish before it stops waiting. */
+		const val SHUTDOWN_GRACE_MS = 250L
 
 		/** Bounded at roughly a minute, which is far longer than a daemon takes to come up. */
 		const val MAX_POLL_ATTEMPTS = 120

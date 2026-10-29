@@ -24,6 +24,7 @@ import org.adfa.constants.KOTLIN_VERSION
 import org.adfa.constants.Sdk
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 import java.io.StringWriter
 import java.util.ServiceLoader
 import java.util.zip.ZipEntry
@@ -131,7 +132,10 @@ class ZipRecipeExecutor(
 					.build()
 
 			val className = data.name.replace(CLASS_NAME_PATTERN, "")
-			val (baseIdentifiers, warnings) = metaJson.pebbleParams(ctx, data, defModule, params)
+			val (baseIdentifiers, warnings) =
+				metaJson.pebbleParams(ctx, data, defModule, params) { identifier ->
+					zip.templateReferences(ctx, identifier)
+				}
 			val identifiers =
 				baseIdentifiers +
 					mapOf(
@@ -192,6 +196,28 @@ class ZipRecipeExecutor(
 		}
 	}
 
+	private fun ZipFile.templateReferences(
+		ctx: Context,
+		identifier: String,
+	): Boolean =
+		entries()
+			.asSequence()
+			.filter { it.name.startsWith("$basePath/") && !it.name.startsWith("$basePath/$META_FOLDER/") }
+			.any { entry ->
+				identifier in entry.name ||
+					(entry.name.endsWith(TEMPLATE_EXTENSION) && identifier in readTemplateSource(ctx, entry))
+			}
+
+	private fun ZipFile.readTemplateSource(
+		ctx: Context,
+		entry: ZipEntry,
+	): String =
+		try {
+			getInputStream(entry).bufferedReader().use { it.readText() }
+		} catch (e: IOException) {
+			throw e.wrap(ctx, R.string.template_exec_error_read_fail, entry.name)
+		}
+
 	private fun processEntry(
 		ctx: Context,
 		zip: ZipFile,
@@ -225,12 +251,7 @@ class ZipRecipeExecutor(
 	) {
 		info(ctx, R.string.template_exec_info_processing, entry.name)
 
-		val content =
-			try {
-				zip.getInputStream(entry).bufferedReader().use { it.readText() }
-			} catch (e: Exception) {
-				throw e.wrap(ctx, R.string.template_exec_error_read_fail, entry.name)
-			}
+		val content = zip.readTemplateSource(ctx, entry)
 
 		val template =
 			try {
@@ -323,6 +344,7 @@ class ZipRecipeExecutor(
 		data: ProjectTemplateData,
 		defModule: ModuleTemplateData,
 		params: MutableMap<String, Parameter<*>>,
+		templateReferences: (String) -> Boolean,
 	): Pair<Map<String, Any>, List<String>> {
 		val warnings = mutableListOf<String>()
 
@@ -336,7 +358,7 @@ class ZipRecipeExecutor(
 		}
 
 		val packageName = resolveString(parameters?.required?.packageName?.identifier, KEY_PACKAGE_NAME)
-		if (packageName.usedDefault) {
+		if (packageName.usedDefault && templateReferences(packageName.value)) {
 			warnings +=
 				ctx.getString(
 					R.string.template_exec_warn_map_pkgname,

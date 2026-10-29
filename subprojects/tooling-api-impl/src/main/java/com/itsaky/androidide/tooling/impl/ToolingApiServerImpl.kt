@@ -19,6 +19,7 @@ package com.itsaky.androidide.tooling.impl
 
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
+import com.itsaky.androidide.tooling.api.messages.BuildId
 import com.itsaky.androidide.tooling.api.messages.ClientGradleBuildConfig
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.GradleDistributionType
@@ -75,7 +76,10 @@ import kotlin.concurrent.withLock
  *
  * @author Akash Yadav
  */
-internal class ToolingApiServerImpl : IToolingApiServer {
+internal class ToolingApiServerImpl(
+	private val newDaemonWatcher: (onStarted: (Int) -> Unit, onExited: (Int) -> Unit) -> GradleDaemonWatcher =
+		{ onStarted, onExited -> GradleDaemonWatcher(onStarted = onStarted, onExited = onExited) },
+) : IToolingApiServer {
 	private var client: IToolingApiClient? = null
 
 	// Volatile because the reuse decision crosses threads: each initialize() runs on whichever
@@ -306,16 +310,11 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		return runBuild(
 			onFailure = { err ->
 				log.error("Failed to initialize project", err)
-				notifyBuildFailure(
-					BuildResult(
-						tasks = emptyList(),
-						buildId = params.buildId,
-						durationMs = System.currentTimeMillis() - start,
-					),
-				)
 				// No suspicion of the connection from here. A sync failure is about the project or
 				// its model, and condemning the connection over one costs a cold daemon start.
-				InitializeResult.Failure(getTaskFailureType(err))
+				InitializeResult.Failure(
+					notifyBuildFailure(params.buildId, emptyList(), start, err),
+				)
 			},
 		) {
 			doInitialize(params, start)
@@ -368,7 +367,10 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		val cacheFile = ProjectSyncHelper.cacheFileForProject(projectDir)
 		val syncMetaFile = ProjectSyncHelper.syncMetaFileForProject(projectDir)
 
-		if (params.needsGradleSync || !ProjectSyncHelper.areSyncFilesReadable(projectDir)) {
+		if (params.needsGradleSync ||
+			!ProjectSyncHelper.areSyncFilesReadable(projectDir) ||
+			!ProjectSyncHelper.isSyncMetaVersionCurrent(syncMetaFile)
+		) {
 			val cancellationToken = GradleConnector.newCancellationTokenSource()
 			buildCancellationToken = cancellationToken
 
@@ -384,7 +386,17 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 					clientConfig = clientConfig,
 				)
 
-			RootModelBuilder.build(params, modelBuilderParams)
+			try {
+				RootModelBuilder.build(params, modelBuilderParams)
+			} finally {
+				// The sync path never cleared this on any outcome -- only shutdown() and an actual
+				// Stop did. So after every sync a token for a finished build sat here: the next
+				// Stop cancelled that dead source and answered wasEnqueued = true with no build
+				// running, and the check at the top of this method cancelled it again on the next
+				// initialize. The sibling of the same omission in executeTasks.
+				buildCancellationToken = null
+			}
+
 			notifyBuildSuccess(
 				BuildResult(
 					tasks = emptyList(),
@@ -430,15 +442,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 		return runBuild(
 			onFailure = { error ->
 				log.error("Failed to run tasks: {}", message.tasks, error)
-				notifyBuildFailure(
-					result =
-						BuildResult(
-							tasks = message.tasks,
-							buildId = message.buildId,
-							durationMs = System.currentTimeMillis() - start,
-						),
-				)
-				TaskExecutionResult(false, getTaskFailureType(error))
+				TaskExecutionResult(false, notifyBuildFailure(message.buildId, message.tasks, start, error))
 			},
 		) {
 			if (!isServerInitialized().get()) {
@@ -477,8 +481,8 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			builder.setStandardInput("NoOp".byteInputStream())
 			builder.setStandardError(out)
 			builder.setStandardOutput(out)
-			builder.forTasks(*message.tasks.filter { it.isNotBlank() }.toTypedArray())
-			builder.configureFrom(clientConfig, message.buildParams)
+			// Tasks go in the arguments, not forTasks, so a task option in buildParams binds to them.
+			builder.configureFrom(clientConfig, message.buildParams, message.tasks)
 
 			this.buildCancellationToken = GradleConnector.newCancellationTokenSource()
 			builder.withCancellationToken(this.buildCancellationToken!!.token())
@@ -496,8 +500,15 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				// the only failure that says anything about it.
 				markSuspectIfConnectionFailure(error)
 				throw error
+			} finally {
+				// On both paths. Only the success path cleared it, so every failed build left a
+				// token behind for a source that was already finished. The next Stop then
+				// cancelled that dead source and answered wasEnqueued = true while the live build
+				// ran on, and [initialize] -- which cancels first whenever one is set -- paid for
+				// a build that had ended long before.
+				this.buildCancellationToken = null
 			}
-			this.buildCancellationToken = null
+
 			notifyBuildSuccess(
 				result =
 					BuildResult(
@@ -541,15 +552,72 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 	 * Finds the Gradle daemon and reports it to the client, so the memory chart can plot the process
 	 * that actually holds the build's heap (ADFA-5514).
 	 */
-	private val daemonWatcher by lazy {
-		GradleDaemonWatcher(
-			onStarted = { pid -> client?.onGradleDaemonStarted(pid) },
-			onExited = { pid -> client?.onGradleDaemonExited(pid) },
-		)
+	private val lazyDaemonWatcher =
+		lazy {
+			newDaemonWatcher(
+				{ pid -> client?.onGradleDaemonStarted(pid) },
+				{ pid -> client?.onGradleDaemonExited(pid) },
+			)
+		}
+
+	private val daemonWatcher by lazyDaemonWatcher
+
+	/**
+	 * Serialises constructing the watcher against stopping it.
+	 *
+	 * `shutdown` and `executeTasks` arrive as separate requests and run their bodies on the common
+	 * pool, so a build submitted just before a shutdown can reach [startDaemonWatch] after shutdown
+	 * has already asked whether a watcher exists. Without this, that build constructs a watcher, and
+	 * its scheduler, that nothing will ever stop -- the leak this class's shutdown call exists to
+	 * prevent, arriving by the one route the `isInitialized` check cannot see.
+	 */
+	private val daemonWatcherLock = Any()
+
+	/** Guarded by [daemonWatcherLock]. */
+	private var isDaemonWatcherShutdown = false
+
+	/**
+	 * Starts a daemon search for a build that is beginning, unless the server is shutting down.
+	 *
+	 * Only the construction is locked. `onBuildStarted` runs outside it, so a watcher stopped in
+	 * between hits the rejection its own guard already handles rather than blocking a build thread.
+	 */
+	private fun startDaemonWatch() {
+		val watcher =
+			synchronized(daemonWatcherLock) {
+				if (isDaemonWatcherShutdown) {
+					return
+				}
+				daemonWatcher
+			}
+		watcher.onBuildStarted()
 	}
 
-	private fun notifyBuildFailure(result: BuildResult) {
-		client?.onBuildFailed(result)
+	/**
+	 * Tells the client a build failed, and answers with why.
+	 *
+	 * Both in one call on purpose. The classification and the notification used to be written
+	 * separately at each failure site, which is how the notified [BuildResult] came to carry
+	 * everything except the answer while the caller of the request got it (ADFA-5542). A site
+	 * cannot now report a failure without saying which, or say one thing to the client and another
+	 * to its caller.
+	 */
+	private fun notifyBuildFailure(
+		buildId: BuildId,
+		tasks: List<String>,
+		startedAtMillis: Long,
+		error: Throwable,
+	): Failure {
+		val failure = getTaskFailureType(error)
+		client?.onBuildFailed(
+			BuildResult(
+				buildId = buildId,
+				tasks = tasks,
+				durationMs = System.currentTimeMillis() - startedAtMillis,
+				failure = failure,
+			),
+		)
+		return failure
 	}
 
 	private fun notifyBuildSuccess(result: BuildResult) {
@@ -586,6 +654,37 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 			log.info("Cancelling running builds...")
 			buildCancellationToken?.cancel()
 			buildCancellationToken = null
+
+			// Early, and deliberately not "late enough to report the daemon's exit".
+			//
+			// The leaked thread is the defect: unstopped, an in-flight poll chain goes on scanning
+			// ProcessHandle.descendants() for up to a minute after the server is gone. Stopping it
+			// here ends that at once, and means no later poll can report a daemon into an RPC
+			// channel that is being torn down.
+			//
+			// Delivering the shutdown-time exit was tried and does not work. That report arrives
+			// through handle.onExit().thenRun { scheduler.execute { ... } }, and onExit completes
+			// on a process-reaper thread only once the OS has reaped the daemon -- strictly after
+			// DefaultGradleConnector.close() returns. There is no point in this sequence where the
+			// scheduler is still accepting work *and* the daemon has already been reaped, so the
+			// report is not deliverable at shutdown whatever the ordering; keeping `client` alive
+			// for it only widens the window in which a half-torn-down channel can be written to.
+			// The client learns the daemon is gone when it reconnects, not from here.
+			//
+			// Through the lazy delegate rather than the property: touching the property would
+			// construct a watcher, and its scheduler, only to shut it down again on a server that
+			// never ran a build. The flag closes the other half of that: a build that reaches
+			// startDaemonWatch after this point must not build one either. See daemonWatcherLock.
+			val watcher =
+				synchronized(daemonWatcherLock) {
+					isDaemonWatcherShutdown = true
+					if (lazyDaemonWatcher.isInitialized()) daemonWatcher else null
+				}
+			if (watcher != null) {
+				log.info("Stopping the Gradle daemon watcher...")
+				runCatching { watcher.shutdown() }
+					.onFailure { log.warn("Could not stop the Gradle daemon watcher", it) }
+			}
 
 			val connection = this.connection
 			val connector = this.connector
@@ -692,7 +791,7 @@ internal class ToolingApiServerImpl : IToolingApiServer {
 				throw IllegalStateException("Build is already in progress")
 			}
 
-			daemonWatcher.onBuildStarted()
+			startDaemonWatch()
 			try {
 				action()
 			} catch (error: Throwable) {

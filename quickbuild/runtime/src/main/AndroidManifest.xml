@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<!--
+		Package visibility (API 30+ filtering): the proxy app binds CoGo's deploy service.
+		Declared here so every generated proxy app inherits it via manifest merge.
+	-->
+	<queries>
+		<package android:name="com.itsaky.androidide" />
+	</queries>
+
+	<!--
+		Do NOT declare android:appComponentFactory here: a debuggable app that also pulls
+		androidx.core (which declares androidx.core.app.CoreComponentFactory) then fails manifest
+		merge, and that happens BEFORE the proxy app build's merged-manifest transform runs. The
+		proxy app build owns the attribute instead - QuickBuildManifestTransformer sets it on the
+		MERGED manifest, adding it when absent and replacing a library-injected one. An
+		<application> ELEMENT is fine, and is what the keep-alive service below needs; only the
+		attribute is forbidden.
+	-->
+	<application>
+		<!--
+			Lets CoGo bind into this app so the cached-app freezer leaves it alone for the life of a
+			Quick Build session; without it the app is frozen ~1 min after it loses the foreground
+			and stops answering the reload handshake - see QuickBuildKeepAliveService. Exported
+			because CoGo is a different uid, with no intent-filter so it is reachable by explicit
+			component only, and named in the Gradle plugin's UNPROXIABLE_BY_NAME so the proxy-app
+			manifest transform leaves this name intact.
+		-->
+		<service
+			android:name="com.itsaky.androidide.quickbuild.runtime.QuickBuildKeepAliveService"
+			android:exported="true" />
+	</application>
+
+</manifest>

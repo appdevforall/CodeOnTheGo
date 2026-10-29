@@ -5,6 +5,7 @@ import com.itsaky.androidide.tooling.api.GradlePluginConfig._PROPERTY_MAVEN_LOCA
 import org.adfa.constants.MAVEN_LOCAL_REPOSITORY
 import org.gradle.StartParameter
 import org.gradle.api.Plugin
+import org.gradle.api.Project
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.initialization.Settings
@@ -13,6 +14,11 @@ import org.gradle.api.logging.Logging
 import java.io.File
 import java.net.URI
 
+/**
+ * Supplements the root build's dependency and plugin repositories with CoGo's bundled local Maven
+ * repo, so a project resolves offline. Applied by [AndroidIDEInitScriptPlugin] on settings
+ * evaluation; a test env supplies its own repo paths instead of the device-only bundled one.
+ */
 class COTGSettingsPlugin : Plugin<Settings> {
 	private val logger = Logging.getLogger(COTGSettingsPlugin::class.java)
 
@@ -23,15 +29,22 @@ class COTGSettingsPlugin : Plugin<Settings> {
 		}
 
 		logger.info("Plugin instance: ${System.identityHashCode(this)}")
-		// Add our local maven repo, always.
-		val allLocalRepos = mutableListOf(MAVEN_LOCAL_REPOSITORY)
 
-		// Then check if we need to add additional repos, based on whether
-		// we're in a test environment
 		val (isTestEnv, mavenLocalRepos) = getTestEnvProps(target.startParameter)
-		if (isTestEnv) {
-			allLocalRepos += mavenLocalRepos
-		}
+
+		// The bundled repo lives at a device-only path, so a host test env supplies its own
+		// repos instead - requiring the device path there would fail every host build. A test
+		// env that supplies none is a misconfiguration, and adding zero repositories silently
+		// turns it into an unresolved-dependency failure somewhere far from the cause.
+		val allLocalRepos =
+			if (isTestEnv) {
+				require(mavenLocalRepos.isNotEmpty()) {
+					"$_PROPERTY_IS_TEST_ENV is set but $_PROPERTY_MAVEN_LOCAL_REPOSITORY names no repository"
+				}
+				mavenLocalRepos
+			} else {
+				listOf(MAVEN_LOCAL_REPOSITORY)
+			}
 
 		target.addLocalRepos(allLocalRepos)
 	}
@@ -64,6 +77,41 @@ class COTGSettingsPlugin : Plugin<Settings> {
 		}
 }
 
+/**
+ * Add the on-device Maven repo to a settings-level `buildscript` classpath.
+ *
+ * [COTGSettingsPlugin] only reaches `pluginManagement` and
+ * `dependencyResolutionManagement`, and it is applied from `settingsEvaluated` -- by
+ * which point a `buildscript { }` block in `settings.gradle.kts` has already resolved
+ * against its own repositories. A project that declares its build classpath that way
+ * (the plugin template does) therefore had no offline repository to resolve from and
+ * could only be built online. This must run from `beforeSettings`.
+ *
+ * Missing repo is not fatal here: the directory does not exist until onboarding has
+ * installed the assets, and failing would break every build before that point.
+ */
+fun Settings.addLocalMavenRepoToBuildscript(logger: Logger) {
+	localMavenRepoDir(logger)?.let { buildscript.repositories.addMavenRepoIfMissing(logger, it.toURI()) }
+}
+
+/**
+ * Same problem, project scope: a `buildscript { }` block in build.gradle.kts resolves against
+ * its own repositories, which [COTGSettingsPlugin] never reaches. Templates pin the Kotlin
+ * version there for AGP 9's built-in Kotlin, so that classpath must resolve offline.
+ */
+fun Project.addLocalMavenRepoToBuildscript(logger: Logger) {
+	localMavenRepoDir(logger)?.let { buildscript.repositories.addMavenRepoIfMissing(logger, it.toURI()) }
+}
+
+private fun localMavenRepoDir(logger: Logger): File? {
+	val dir = File(MAVEN_LOCAL_REPOSITORY)
+	if (!dir.isDirectory) {
+		logger.info("Local maven repo not installed yet, skipping buildscript injection: $MAVEN_LOCAL_REPOSITORY")
+		return null
+	}
+	return dir
+}
+
 private fun RepositoryHandler.addLocalMavenRepoIfMissing(
 	logger: Logger,
 	path: String,
@@ -80,8 +128,13 @@ private fun RepositoryHandler.addMavenRepoIfMissing(
 	logger: Logger,
 	uri: URI,
 ) {
-	if (none { it is MavenArtifactRepository && it.url == uri }) {
-		logger.info("Adding maven repository: $uri")
-		maven { it.url = uri }
+	if (any { it is MavenArtifactRepository && it.url == uri }) {
+		return
 	}
+
+	logger.info("Adding maven repository: $uri")
+	val repo = maven { it.url = uri }
+
+	remove(repo)
+	add(0, repo)
 }

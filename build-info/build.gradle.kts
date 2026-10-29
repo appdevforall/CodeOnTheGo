@@ -26,6 +26,7 @@ import com.itsaky.androidide.build.config.publishingVersion
 import com.itsaky.androidide.build.config.releaseVersion
 import com.itsaky.androidide.build.config.replaceContents
 import com.itsaky.androidide.build.config.simpleVersionName
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 
 plugins {
 //noinspection JavaPluginLanguageLevel
@@ -75,7 +76,9 @@ tasks.create("generateBuildInfo") {
 					"AGP_VERSION_LATEST" to
 						libs.versions.agp.tooling
 							.get(),
-					"AGP_VERSION_GRADLE_LATEST" to "8.6", // From SdkConstants.GRADLE_LATEST_VERSION
+					// Read from the constant rather than repeated: AGP refuses to configure on a Gradle
+					// distribution older than it expects, so a stale copy here fails every TestKit test.
+					"AGP_VERSION_GRADLE_LATEST" to GRADLE_DISTRIBUTION_VERSION,
 					"SNAPSHOTS_REPOSITORY" to VersionUtils.SONATYPE_SNAPSHOTS_REPO,
 					"PUBLIC_REPOSITORY" to VersionUtils.SONATYPE_PUBLIC_REPO,
 				),

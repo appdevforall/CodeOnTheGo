@@ -33,7 +33,6 @@ import com.itsaky.androidide.lsp.java.R
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
 import com.itsaky.androidide.lsp.java.rewrite.Rewrite
 import com.itsaky.androidide.projects.IProjectManager
-import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.ILogger
 import com.itsaky.androidide.utils.flashError
 import java.io.File
@@ -44,74 +43,82 @@ import java.io.File
  * @author Akash Yadav
  */
 abstract class BaseJavaCodeAction : EditorActionItem {
+	override var visible: Boolean = true
+	override var enabled: Boolean = true
+	override var icon: Drawable? = null
+	override var requiresUIThread: Boolean = false
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_CODE_ACTIONS
 
-  override var visible: Boolean = true
-  override var enabled: Boolean = true
-  override var icon: Drawable? = null
-  override var requiresUIThread: Boolean = false
-  override var location: ActionItem.Location = ActionItem.Location.EDITOR_CODE_ACTIONS
+	protected abstract val titleTextRes: Int
 
-  protected abstract val titleTextRes: Int
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (
+			!data.hasRequiredData(Context::class.java, JavaLanguageServer::class.java, File::class.java)
+		) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
-    if (
-      !data.hasRequiredData(Context::class.java, JavaLanguageServer::class.java, File::class.java)
-    ) {
-      markInvisible()
-      return
-    }
+		if (titleTextRes != -1) {
+			label = data[Context::class.java]!!.getString(titleTextRes)
+		}
 
-    if (titleTextRes != -1) {
-      label = data[Context::class.java]!!.getString(titleTextRes)
-    }
+		val file = data.requireFile()
+		val isJava = isJavaFileName(file.name)
+		val module = IProjectManager.getInstance().findModuleForFile(file, false)
 
-    val file = data.requireFile()
-    val isJava = DocumentUtils.isJavaFile(file.toPath())
-    val module = IProjectManager.getInstance().findModuleForFile(file, false)
+		visible = isJava
+		enabled = isJava && module != null
+	}
 
-    visible = isJava
-    enabled = isJava && module != null
-  }
+	fun performCodeAction(
+		data: ActionData,
+		result: Rewrite,
+	) {
+		val compiler = data.requireCompiler()
 
-  fun performCodeAction(data: ActionData, result: Rewrite) {
-    val compiler = data.requireCompiler()
+		val actions =
+			try {
+				result.asCodeActions(compiler, label)
+			} catch (e: Exception) {
+				flashError(e.cause?.message ?: e.message)
+				ILogger.ROOT.error(e.cause?.message ?: e.message, e)
+				return
+			}
 
-    val actions =
-      try {
-        result.asCodeActions(compiler, label)
-      } catch (e: Exception) {
-        flashError(e.cause?.message ?: e.message)
-        ILogger.ROOT.error(e.cause?.message ?: e.message, e)
-        return
-      }
+		if (actions == null) {
+			onPerformCodeActionFailed(data)
+			return
+		}
 
-    if (actions == null) {
-      onPerformCodeActionFailed(data)
-      return
-    }
+		data.getLanguageClient()?.performCodeAction(actions)
+	}
 
-    data.getLanguageClient()?.performCodeAction(actions)
-  }
+	protected open fun onPerformCodeActionFailed(data: ActionData) {
+		flashError(R.string.msg_codeaction_failed)
+	}
 
-  protected open fun onPerformCodeActionFailed(data: ActionData) {
-    flashError(R.string.msg_codeaction_failed)
-  }
+	protected fun ActionData.requireLanguageServer(): JavaLanguageServer =
+		ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
+			as JavaLanguageServer
 
-  protected fun ActionData.requireLanguageServer(): JavaLanguageServer {
-    return ILanguageServerRegistry.default.getServer(JavaLanguageServer.SERVER_ID)
-        as JavaLanguageServer
-  }
+	protected fun ActionData.getLanguageClient(): ILanguageClient? = requireLanguageServer().client
 
-  protected fun ActionData.getLanguageClient(): ILanguageClient? {
-    return requireLanguageServer().client
-  }
-
-  protected fun ActionData.requireCompiler(): JavaCompilerService {
-    val module = IProjectManager.getInstance().findModuleForFile(requireFile(), false)
-    requireNotNull(module) {
-      "Cannot get compiler instance. Unable to find module for file: ${requireFile().name}"
-    }
-    return JavaCompilerProvider.get(module)
-  }
+	protected fun ActionData.requireCompiler(): JavaCompilerService {
+		val module = IProjectManager.getInstance().findModuleForFile(requireFile(), false)
+		requireNotNull(module) {
+			"Cannot get compiler instance. Unable to find module for file: ${requireFile().name}"
+		}
+		return JavaCompilerProvider.get(module)
+	}
 }
+
+/**
+ * Returns whether [name] names a regular Java source file, excluding `module-info.java` and
+ * `package-info.java`, which declare no importable type.
+ *
+ * Decided by name alone, with no file-system access -- [BaseJavaCodeAction.prepare] runs on the UI
+ * thread.
+ */
+internal fun isJavaFileName(name: String): Boolean = name.endsWith(".java") && name != "module-info.java" && name != "package-info.java"

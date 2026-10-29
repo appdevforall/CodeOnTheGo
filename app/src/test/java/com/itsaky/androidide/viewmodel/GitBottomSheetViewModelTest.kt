@@ -3,25 +3,36 @@ package com.itsaky.androidide.viewmodel
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepository
+import com.itsaky.androidide.git.core.GitRepositoryManager
+import com.itsaky.androidide.git.core.GitRepositoryWatcher
 import com.itsaky.androidide.git.core.models.GitBranch
+import com.itsaky.androidide.projects.IProjectManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.eclipse.jgit.api.MergeResult.MergeStatus
 import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import java.io.File
+import java.io.IOException
+import kotlin.time.Duration.Companion.milliseconds
 
 @RunWith(JUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -220,20 +231,43 @@ class GitBottomSheetViewModelTest {
 		}
 
 	@Test
+	fun `refreshStatus cancels in-flight previous refresh job`() =
+		runTest {
+			val firstStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+			val secondStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+
+			coEvery { repository.getStatus() } coAnswers {
+				delay(1000)
+				firstStatus
+			} andThenAnswer {
+				secondStatus
+			}
+			coEvery { repository.getCurrentBranch() } returns GitBranch("main", "refs/heads/main", true, false)
+			coEvery { repository.getLocalCommitsCount() } returns 0
+			coEvery { repository.getBranches() } returns emptyList()
+
+			val firstJob = viewModel.refreshStatus()
+			val secondJob = viewModel.refreshStatus()
+			advanceUntilIdle()
+
+			assertTrue(firstJob.isCancelled)
+			assertTrue(secondJob.isCompleted)
+			assertEquals(secondStatus, viewModel.gitStatus.value)
+		}
+
+	@Test
 	fun `initializeRepository clears currentRepository when opening fails`() =
 		runTest {
-			io.mockk.mockkObject(com.itsaky.androidide.projects.IProjectManager.Companion)
-			val mockProjectManager = mockk<com.itsaky.androidide.projects.IProjectManager>(relaxed = true)
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
 			every { mockProjectManager.projectDirPath } returns "/mock/path"
 			every {
-				com.itsaky.androidide.projects.IProjectManager
-					.getInstance()
+				IProjectManager.getInstance()
 			} returns mockProjectManager
 
-			io.mockk.mockkObject(com.itsaky.androidide.git.core.GitRepositoryManager)
+			mockkObject(GitRepositoryManager)
 			coEvery {
-				com.itsaky.androidide.git.core.GitRepositoryManager
-					.openRepository(any())
+				GitRepositoryManager.openRepository(any())
 			} throws RuntimeException("Corrupt repository")
 
 			viewModel.initializeRepository(force = true)
@@ -244,5 +278,200 @@ class GitBottomSheetViewModelTest {
 			assertEquals(com.itsaky.androidide.git.core.models.GitStatus.EMPTY, viewModel.gitStatus.value)
 			assertEquals(null, viewModel.currentBranch.value)
 			assertEquals(GitBottomSheetViewModel.BranchesUiState.None, viewModel.branches.value)
+		}
+
+	@Test
+	fun `isProjectWatermarkEnabled reflects repository setting on refreshStatus`() =
+		runTest {
+			coEvery { repository.isCommitWatermarkEnabled() } returns false
+			coEvery { repository.getStatus() } returns mockk(relaxed = true)
+
+			viewModel.refreshStatus()
+			advanceUntilIdle()
+
+			assertEquals(false, viewModel.isProjectWatermarkEnabled.value)
+		}
+
+	@Test
+	fun `setProjectWatermarkEnabled updates state flow and delegates to repository`() =
+		runTest {
+			viewModel.setProjectWatermarkEnabled(false)
+			assertEquals(false, viewModel.isProjectWatermarkEnabled.value)
+
+			advanceUntilIdle()
+			coVerify { repository.setCommitWatermarkEnabled(false) }
+
+			viewModel.setProjectWatermarkEnabled(true)
+			assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
+
+			advanceUntilIdle()
+			coVerify { repository.setCommitWatermarkEnabled(true) }
+		}
+
+	@Test
+	fun `setProjectWatermarkEnabled rolls back state flow and invokes onError when repository write fails`() =
+		runTest {
+			coEvery { repository.setCommitWatermarkEnabled(false) } coAnswers {
+				delay(50.milliseconds)
+				throw IOException("Disk write failed")
+			}
+
+			var errorInvoked: Throwable? = null
+			viewModel.setProjectWatermarkEnabled(false) { error ->
+				errorInvoked = error
+			}
+			assertEquals(false, viewModel.isProjectWatermarkEnabled.value)
+
+			advanceUntilIdle()
+
+			// State flow should have rolled back to previous value (true)
+			assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
+			assertNotNull(errorInvoked)
+			assertEquals("Disk write failed", errorInvoked?.message)
+		}
+
+	@Test
+	fun `rapid setProjectWatermarkEnabled calls cancel prior in-flight write and commit latest value`() =
+		runTest {
+			coEvery { repository.setCommitWatermarkEnabled(any()) } coAnswers {
+				delay(100.milliseconds)
+			}
+
+			viewModel.setProjectWatermarkEnabled(false)
+			viewModel.setProjectWatermarkEnabled(true)
+
+			advanceUntilIdle()
+
+			org.junit.Assert.assertEquals(true, viewModel.isProjectWatermarkEnabled.value)
+			coVerify(exactly = 1) { repository.setCommitWatermarkEnabled(true) }
+		}
+
+	@Test
+	fun `initGitRepository delegates to GitRepositoryManager and calls initializeRepository`() =
+		runTest {
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
+			every { mockProjectManager.projectDirPath } returns "/mock/path"
+			every { IProjectManager.getInstance() } returns mockProjectManager
+
+			mockkObject(GitRepositoryManager)
+			coEvery { GitRepositoryManager.initRepository(any()) } returns mockk(relaxed = true)
+
+			viewModel.initGitRepository()
+			advanceUntilIdle()
+
+			coVerify { GitRepositoryManager.initRepository(File("/mock/path")) }
+		}
+
+	@Test
+	fun `initGitRepository handles exceptions smoothly`() =
+		runTest {
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
+			every { mockProjectManager.projectDirPath } returns "/mock/path"
+			every { IProjectManager.getInstance() } returns mockProjectManager
+
+			mockkObject(GitRepositoryManager)
+			coEvery { GitRepositoryManager.initRepository(any()) } throws RuntimeException("Init failed")
+
+			// Should not throw
+			viewModel.initGitRepository()
+			advanceUntilIdle()
+
+			coVerify { GitRepositoryManager.initRepository(File("/mock/path")) }
+		}
+
+	@Test
+	fun `watcher triggers refreshStatus when file changes occur`() =
+		runTest {
+			var watcherCallback: (suspend () -> Unit)? = null
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, onStateChanged ->
+						watcherCallback = onStateChanged
+						fakeWatcher
+					},
+				)
+
+			coVerify { fakeWatcher.start() }
+
+			coEvery { repository.getStatus() } returns mockk(relaxed = true)
+			watcherCallback?.invoke()
+			advanceUntilIdle()
+
+			coVerify { repository.getStatus() }
+		}
+
+	@Test
+	fun `commitChanges pauses watcher during operation and resumes after`() =
+		runTest {
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
+			every { mockProjectManager.projectDirPath } returns "/mock/path"
+			every { IProjectManager.getInstance() } returns mockProjectManager
+
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, _ -> fakeWatcher },
+				)
+
+			coEvery { repository.stageFiles(any()) } answers {
+				verify { fakeWatcher.pause() }
+			}
+			coEvery { repository.commit(any(), any(), any()) } returns mockk(relaxed = true)
+
+			customViewModel.commitChanges("test", listOf("file1.kt")) {}
+			advanceUntilIdle()
+
+			verify { fakeWatcher.pause() }
+			verify { fakeWatcher.resume() }
+		}
+
+	@Test
+	fun `push pauses watcher during operation and resumes after`() =
+		runTest {
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, _ -> fakeWatcher },
+				)
+
+			coEvery { repository.push(any()) } answers {
+				verify { fakeWatcher.pause() }
+				emptyList()
+			}
+
+			customViewModel.push("user", "token")
+			advanceUntilIdle()
+
+			verify { fakeWatcher.pause() }
+			verify { fakeWatcher.resume() }
+		}
+
+	@Test
+	fun `onCleared stops and closes repoWatcher`() =
+		runTest {
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, _ -> fakeWatcher },
+				)
+
+			customViewModel.onCleared()
+			verify { fakeWatcher.close() }
 		}
 }

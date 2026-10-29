@@ -94,6 +94,12 @@ open class AndroidModule(
 		val dirs = mutableSetOf<File>()
 		dirs.addAll(mainSourceSet?.sourceProvider?.resDirs ?: emptyList())
 
+		// src/<buildType>/res, src/<flavor>/res and the variant's own res dir are resources of the
+		// selected variant as much as src/main/res is; a save there must regenerate R too.
+		getSelectedVariant()?.variantSourceProvidersList?.forEach { provider ->
+			dirs.addAll(provider.resDirs)
+		}
+
 		val dependencies = getCompileModuleProjects().filterIsInstance<AndroidModule>()
 
 		for (dependency in dependencies) {
@@ -152,6 +158,9 @@ open class AndroidModule(
 			return emptySet()
 		}
 
+		// After the guard: a cyclic re-entry must not clear the flag while the outer walk is running.
+		reportedGraphDamage = false
+
 		val result = mutableSetOf<File>()
 		if (excludeSourceGeneratedClassPath) {
 			// TODO: The mainArtifact.classJars are technically generated from source files
@@ -163,9 +172,11 @@ open class AndroidModule(
 		} else {
 			result.addAll(getModuleClasspaths())
 		}
+		val graph = variantDependencies.mainArtifact.compileGraph
 		collectLibraries(
 			root = project,
-			libraries = variantDependencies.mainArtifact?.compileDependencyList ?: emptyList(),
+			graph = graph,
+			nodeIds = graph.rootList,
 			result = result,
 			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
 			visited = HashSet(),
@@ -184,28 +195,27 @@ open class AndroidModule(
 			result.add(kotlinClasses)
 		}
 
-		val javaClassesDir = File(buildDirectory, "intermediates/javac/$variant")
-		if (javaClassesDir.exists()) {
-			javaClassesDir
-				.walkTopDown()
-				.filter { it.name == "classes" && it.isDirectory }
-				.forEach { result.add(it) }
+		listOf("intermediates/javac/$variant", "intermediates/built_in_kotlinc/$variant").forEach { dir ->
+			result += findUnder(File(buildDirectory, dir), maxDepth = 2) { it.name == "classes" && it.isDirectory }
 		}
 
-		val rClassDir =
-			File(
-				buildDirectory,
+		val rClassJarDirs =
+			listOf(
 				"intermediates/compile_and_runtime_not_namespaced_r_class_jar/$variant",
+				"intermediates/compile_and_runtime_r_class_jar/$variant",
 			)
-		if (rClassDir.exists()) {
-			rClassDir
-				.walkTopDown()
-				.filter { it.name == "R.jar" && it.isFile }
-				.forEach { result.add(it) }
+		rClassJarDirs.forEach { dir ->
+			result += findUnder(File(buildDirectory, dir)) { it.name == "R.jar" && it.isFile }
 		}
 
 		return result
 	}
+
+	private fun findUnder(
+		root: File,
+		maxDepth: Int = Int.MAX_VALUE,
+		predicate: (File) -> Boolean,
+	): Sequence<File> = if (root.exists()) root.walkTopDown().maxDepth(maxDepth).filter(predicate) else emptySequence()
 
 	override fun getRuntimeDexFiles(): Set<File> {
 		val result = mutableSetOf<File>()
@@ -251,11 +261,46 @@ open class AndroidModule(
 	}
 
 	/**
-	 * Recursively collect the compile classpath entries contributed by the given dependency-graph
-	 * [libraries] into [result], guarding against cycles.
+	 * Whether the current traversal has already reported a damaged dependency-graph index.
+	 *
+	 * Deliberately unsynchronised: two concurrent classpath computations can cost an extra log line
+	 * or swallow one, neither of which is worth a lock on this path.
+	 */
+	@Volatile
+	private var reportedGraphDamage = false
+
+	/**
+	 * Report the first out-of-range graph index seen in the current traversal.
+	 *
+	 * A truncated node table makes every index dangle, so warning per index would put tens of
+	 * thousands of lines in the log on every classpath refresh. One line per traversal says the
+	 * same thing.
+	 */
+	private fun logLostGraphEntry(
+		nodeId: Int,
+		keyId: Int?,
+	) {
+		if (reportedGraphDamage) {
+			return
+		}
+
+		reportedGraphDamage = true
+		val entry = if (keyId == null) "node index $nodeId" else "key index $keyId of node $nodeId"
+		log.warn(
+			"Dependency graph {} in module {} is out of range; the project cache looks damaged." +
+				" Re-sync the project if symbols fail to resolve.",
+			entry,
+			path,
+		)
+	}
+
+	/**
+	 * Recursively collect the compile classpath entries contributed by the [graph] nodes at
+	 * [nodeIds] into [result], guarding against cycles.
 	 *
 	 * @param root The workspace used to resolve project dependencies by path.
-	 * @param libraries The dependency-graph nodes to expand at this level.
+	 * @param graph The flat dependency graph the node indices address.
+	 * @param nodeIds Indices into [graph] of the nodes to expand at this level.
 	 * @param result The accumulating set of classpath files.
 	 * @param excludeSourceGeneratedClassPath Whether to exclude source-generated classpath entries.
 	 * @param visited Keys of dependency-graph nodes already expanded within this module; each node is
@@ -265,20 +310,34 @@ open class AndroidModule(
 	 */
 	private fun collectLibraries(
 		root: Workspace,
-		libraries: List<AndroidModels.GraphItem>,
+		graph: AndroidModels.DependencyGraph,
+		nodeIds: List<Int>,
 		result: MutableSet<File>,
 		excludeSourceGeneratedClassPath: Boolean,
 		visited: MutableSet<String>,
 		moduleVisited: MutableSet<String>,
 	) {
 		val libraryMap = variantDependencies.librariesMap
-		for (library in libraries) {
-			// Guard against cyclic dependency graphs within this module: expand each graph node once.
-			if (!visited.add(library.key)) {
+		for (nodeId in nodeIds) {
+			/*
+			 * Indices come off disk. The nested form carried each key inline, so a damaged cache
+			 * cost a classpath entry; addressing by index would turn the same damage into an
+			 * IndexOutOfBoundsException out of a classpath getter, so skip instead. A silently
+			 * short classpath reads as phantom unresolved symbols, so say so in the log.
+			 */
+			val node = graph.nodeList.getOrNull(nodeId)
+			val key = node?.let { graph.keyList.getOrNull(it.keyId) }
+			if (key == null) {
+				logLostGraphEntry(nodeId, node?.keyId)
 				continue
 			}
 
-			val lib = libraryMap[library.key] ?: continue
+			// Guard against cyclic dependency graphs within this module: expand each graph node once.
+			if (!visited.add(key)) {
+				continue
+			}
+
+			val lib = libraryMap[key] ?: continue
 			when {
 				lib.type == AndroidModels.LibraryType.Project -> {
 					val module = root.findByPath(lib.projectInfo!!.projectPath) ?: continue
@@ -301,7 +360,8 @@ open class AndroidModule(
 
 			collectLibraries(
 				root = root,
-				libraries = library.dependencyList,
+				graph = graph,
+				nodeIds = node.dependencyList,
 				result = result,
 				excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
 				visited = visited,
@@ -328,14 +388,24 @@ open class AndroidModule(
 			return emptyList()
 		}
 
+		// After the guard: a cyclic re-entry must not clear the flag while the outer walk is running.
+		reportedGraphDamage = false
+
 		recursionPath.addLast(path)
 		try {
 			val result = mutableListOf<ModuleProject>()
 
-			val libraries = variantDependencies.mainArtifact.compileDependencyList
+			val graph = variantDependencies.mainArtifact.compileGraph
 			val libraryMap = variantDependencies.librariesMap
-			for (library in libraries) {
-				val lib = libraryMap[library.key] ?: continue
+			for (nodeId in graph.rootList) {
+				val node = graph.nodeList.getOrNull(nodeId)
+				val key = node?.let { graph.keyList.getOrNull(it.keyId) }
+				if (key == null) {
+					logLostGraphEntry(nodeId, node?.keyId)
+					continue
+				}
+
+				val lib = libraryMap[key] ?: continue
 				if (lib.type != AndroidModels.LibraryType.Project) {
 					continue
 				}

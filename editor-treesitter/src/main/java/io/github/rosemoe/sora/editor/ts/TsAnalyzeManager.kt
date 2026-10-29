@@ -30,131 +30,154 @@ import io.github.rosemoe.sora.text.ContentReference
 /**
  * @author Akash Yadav
  */
-open class TsAnalyzeManager(val languageSpec: TsLanguageSpec, var theme: TsTheme) : AnalyzeManager {
+open class TsAnalyzeManager(
+	val languageSpec: TsLanguageSpec,
+	var theme: TsTheme,
+) : AnalyzeManager {
+	var stylesReceiver: StyleReceiver? = null
+	var reference: ContentReference? = null
+	var spanFactory: TsSpanFactory = DefaultSpanFactory()
 
-  var stylesReceiver: StyleReceiver? = null
-  var reference: ContentReference? = null
-  var spanFactory: TsSpanFactory = DefaultSpanFactory()
+	open var styles = Styles()
+	internal var currentBracketPairs: TsBracketPairs? = null
 
-  open var styles = Styles()
-  internal var currentBracketPairs: TsBracketPairs? = null
+	private var _analyzeWorker: TsAnalyzeWorker? = null
+	val analyzeWorker: TsAnalyzeWorker?
+		get() = _analyzeWorker
 
-  private var _analyzeWorker: TsAnalyzeWorker? = null
-  val analyzeWorker: TsAnalyzeWorker?
-    get() = _analyzeWorker
+	open fun updateTheme(theme: TsTheme) {
+		this.theme = theme
+		(styles.spans as LineSpansGenerator?)?.also {
+			it.theme = theme
+		}
+	}
 
-  open fun updateTheme(theme: TsTheme) {
-    this.theme = theme
-    (styles.spans as LineSpansGenerator?)?.also {
-      it.theme = theme
-    }
-  }
+	fun addBreakpoint(line: Int) {
+		analyzeWorker?.addBreakpoint(line)
+	}
 
-  fun addBreakpoint(line: Int) {
-    analyzeWorker?.addBreakpoint(line)
-  }
+	fun removeBreakpoint(line: Int) {
+		analyzeWorker?.removeBreakpoint(line)
+	}
 
-  fun removeBreakpoint(line: Int) {
-    analyzeWorker?.removeBreakpoint(line)
-  }
+	fun removeAllBreakpoints() {
+		analyzeWorker?.removeAllBreakpoints()
+	}
 
-  fun removeAllBreakpoints() {
-    analyzeWorker?.removeAllBreakpoints()
-  }
+	fun toggleBreakpoint(line: Int) {
+		analyzeWorker?.toggleBreakpoint(line)
+	}
 
-  fun toggleBreakpoint(line: Int) {
-    analyzeWorker?.toggleBreakpoint(line)
-  }
+	fun highlightLine(line: Int) {
+		this.analyzeWorker?.highlightLine(line)
+	}
 
-  fun highlightLine(line: Int) {
-    this.analyzeWorker?.highlightLine(line)
-  }
+	fun unhighlightLines() {
+		this.analyzeWorker?.unhighlightLines()
+	}
 
-  fun unhighlightLines() {
-    this.analyzeWorker?.unhighlightLines()
-  }
+	override fun setReceiver(receiver: StyleReceiver?) {
+		stylesReceiver = receiver
+		_analyzeWorker?.stylesReceiver = receiver
+	}
 
-  override fun setReceiver(receiver: StyleReceiver?) {
-    stylesReceiver = receiver
-    _analyzeWorker?.stylesReceiver = receiver
-  }
+	override fun reset(
+		content: ContentReference,
+		extraArguments: Bundle,
+	) {
+		reference = content
+		rerun()
+	}
 
-  override fun reset(content: ContentReference, extraArguments: Bundle) {
-    reference = content
-    rerun()
-  }
+	override fun insert(
+		start: CharPosition,
+		end: CharPosition,
+		insertedContent: CharSequence,
+	) {
+		val edit =
+			TSInputEdit.create(
+				start.index shl 1,
+				start.index shl 1,
+				end.index shl 1,
+				start.toTSPoint(),
+				start.toTSPoint(),
+				end.toTSPoint(),
+			)!!
+		(styles.spans as LineSpansGenerator?)?.apply {
+			lineCount = reference!!.lineCount
+			markStale()
+		}
+		_analyzeWorker?.onMod(
+			Mod(
+				TextMod(
+					start.index,
+					end.index,
+					edit,
+					insertedContent.toString(),
+					reference?.documentVersion ?: 0,
+				),
+			),
+		)
+	}
 
-  override fun insert(start: CharPosition, end: CharPosition, insertedContent: CharSequence) {
-    val edit = TSInputEdit.create(
-      start.index shl 1,
-      start.index shl 1,
-      end.index shl 1,
-      start.toTSPoint(),
-      start.toTSPoint(),
-      end.toTSPoint()
-    )!!
-    (styles.spans as LineSpansGenerator?)?.apply {
-      lineCount = reference!!.lineCount
-      edit(edit)
-    }
-    _analyzeWorker?.onMod(Mod(TextMod(
-      start.index,
-      end.index,
-      edit,
-      insertedContent.toString(),
-      reference?.documentVersion ?: 0
-    )))
-  }
+	override fun delete(
+		start: CharPosition,
+		end: CharPosition,
+		deletedContent: CharSequence,
+	) {
+		val edit =
+			TSInputEdit.create(
+				start.index shl 1,
+				end.index shl 1,
+				start.index shl 1,
+				start.toTSPoint(),
+				end.toTSPoint(),
+				start.toTSPoint(),
+			)!!
+		(styles.spans as LineSpansGenerator?)?.apply {
+			lineCount = reference!!.lineCount
+			markStale()
+		}
+		_analyzeWorker?.onMod(
+			Mod(
+				TextMod(
+					start.index,
+					end.index,
+					edit,
+					null,
+					reference?.documentVersion ?: 0,
+				),
+			),
+		)
+	}
 
-  override fun delete(start: CharPosition, end: CharPosition, deletedContent: CharSequence) {
-    val edit = TSInputEdit.create(
-      start.index shl 1,
-      end.index shl 1,
-      start.index shl 1,
-      start.toTSPoint(),
-      end.toTSPoint(),
-      start.toTSPoint()
-    )!!
-    (styles.spans as LineSpansGenerator?)?.apply {
-      lineCount = reference!!.lineCount
-      edit(edit)
-    }
-    _analyzeWorker?.onMod(Mod(TextMod(
-      start.index,
-      end.index,
-      edit,
-      null,
-      reference?.documentVersion ?: 0
-    )))
-  }
+	override fun rerun() {
+		_analyzeWorker?.stop()
+		_analyzeWorker = null
 
-  override fun rerun() {
-    _analyzeWorker?.stop()
-    _analyzeWorker = null
+		(styles.spans as LineSpansGenerator?)?.destroy()
+		styles.spans = null
+		styles = Styles()
 
-    (styles.spans as LineSpansGenerator?)?.destroy()
-    styles.spans = null
-    styles = Styles()
+		val initText = reference?.reference?.toString() ?: ""
 
-    val initText = reference?.reference?.toString() ?: ""
+		_analyzeWorker = TsAnalyzeWorker(this, languageSpec, theme, styles, reference!!, spanFactory)
+		_analyzeWorker!!.apply {
+			this.stylesReceiver = this@TsAnalyzeManager.stylesReceiver
+			init(Init(TextInit(initText, reference?.documentVersion ?: 0)))
+			start()
+		}
+	}
 
-    _analyzeWorker = TsAnalyzeWorker(this, languageSpec, theme, styles, reference!!, spanFactory)
-    _analyzeWorker!!.apply {
-      this.stylesReceiver = this@TsAnalyzeManager.stylesReceiver
-      init(Init(TextInit(initText, reference?.documentVersion ?: 0)))
-      start()
-    }
-  }
+	override fun destroy() {
+		_analyzeWorker?.stop()
+		_analyzeWorker = null
 
-  override fun destroy() {
-    _analyzeWorker?.stop()
-    _analyzeWorker = null
+		(styles.spans as LineSpansGenerator?)?.destroy()
+		styles.spans = null
 
-    (styles.spans as LineSpansGenerator?)?.destroy()
-    styles.spans = null
-
-    currentBracketPairs?.close()
-    currentBracketPairs = null
-    spanFactory.close()
-  }
+		currentBracketPairs?.close()
+		currentBracketPairs = null
+		spanFactory.close()
+	}
 }

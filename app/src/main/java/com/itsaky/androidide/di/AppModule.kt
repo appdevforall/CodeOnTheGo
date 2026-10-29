@@ -4,6 +4,8 @@ import com.itsaky.androidide.actions.FileActionManager
 import com.itsaky.androidide.analytics.AnalyticsManager
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
+import com.itsaky.androidide.editor.language.outline.OutlineProvider
+import com.itsaky.androidide.editor.language.outline.TreeSitterOutlineProvider
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.repositories.RecentProjectRepository
 import com.itsaky.androidide.repositories.RecentProjectRepositoryImpl
@@ -11,6 +13,7 @@ import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
+import com.itsaky.androidide.viewmodel.OutlineViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +38,8 @@ val coreModule =
 		}
 		viewModel { MainViewModel() }
 		viewModel { CloneRepositoryViewModel(get(), get()) }
+		single<OutlineProvider> { TreeSitterOutlineProvider(androidContext()) }
+		viewModel { OutlineViewModel(get()) }
 
 		// Named, because an unqualified single<CoroutineScope> is claimed by type alone: this one
 		// instance was serving both the Room database below and EditorHandlerActivity's saveAllAsync,
