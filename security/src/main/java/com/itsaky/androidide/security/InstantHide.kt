@@ -60,12 +60,15 @@ object InstantHide {
 	}
 
 	/**
-	 * Shows the disguise and finishes [activity] if the disguise is engaged. An entry point whose
+	 * Shows the disguise and finishes [activity] if the disguise is engaged or the install is
+	 * neutralized (ADFA-6510): a wipe, or the tamper fingerprint, leaves it the disguise for good. The
+	 * markers are checked only when the hidden flag is clear: two file stats and a launcher-label
+	 * lookup. An entry point whose
 	 * onCreate does work calls this right after `super.onCreate` and returns when it is true, so the
 	 * work never starts; the lifecycle callback has already redirected, and this does not repeat it.
 	 */
 	fun redirectIfHidden(activity: Activity): Boolean {
-		if (activity is CryptogramActivity || !state.hidden) return false
+		if (activity is CryptogramActivity || !(state.hidden || state.neutralized(activity))) return false
 		if (!activity.isFinishing) {
 			activity.startActivity(disguiseIntent(activity))
 			activity.finish()
@@ -82,6 +85,15 @@ object InstantHide {
 			Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
 		)
 
+	/**
+	 * Closes the floating windows and masks the notifications: what outlives the activities when the
+	 * disguise engages, by a hide or by a wipe.
+	 */
+	fun hideOutsideActivities(context: Context) {
+		runCatching { onHide(context) }
+		runCatching { NeutralNotifications.mask(context) }
+	}
+
 	/** Re-applies FLAG_SECURE to [activity] at once, for a caller that has just armed or disarmed. */
 	fun applyScreenSecurity(activity: Activity) {
 		controllers[activity]?.applyScreenSecurity()
@@ -94,7 +106,12 @@ object InstantHide {
 		) {
 			if (activity is CryptogramActivity || redirectIfHidden(activity)) return
 			val controller =
-				SecurityController(activity, gesturesEnabled = activity !is GesturesExempt, onHide = onHide, state = state)
+				SecurityController(
+					activity,
+					gesturesEnabled = activity !is GesturesExempt,
+					onHide = ::hideOutsideActivities,
+					state = state,
+				)
 			controllers[activity] = controller
 			activity.window.callback = InputWatcher(activity.window.callback, controller)
 		}

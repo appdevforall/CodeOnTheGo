@@ -23,15 +23,12 @@ import android.os.Build
 import android.os.Bundle
 import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
-import com.itsaky.androidide.security.CryptogramActivity
 import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.security.LauncherAliasManager
-import com.itsaky.androidide.security.NeutralizationMarker
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.hasEnoughStorageAvailable
 import kotlin.system.exitProcess
-import com.itsaky.androidide.resources.R as ResR
 
 /**
  * @author Akash Yadav
@@ -40,28 +37,13 @@ class LauncherActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		// Instant Wipe neutralization (ADFA-6510): a wiped install -- or one whose markers were stripped
-		// by clearing app data while the stealth alias persists (the tamper fingerprint) -- is permanently
-		// the disguise, shown before any IDE UI (and before the hidden-state redirect, since a wipe blanks
-		// that flag). Tamper deliberately does NOT re-run the wipe: the signature cannot tell a prior
-		// Instant Wipe from a plain Instant Hide whose data was cleared, so re-wiping could destroy work
-		// the user never meant to wipe. Neutralizing (staying the disguise) still defeats the tamper.
-		// The checks run on the main thread by design: two File.exists() stats plus one PackageManager
-		// label lookup, all cheap, and they MUST complete before any IDE UI could be shown (F08).
-		if (NeutralizationMarker.isWiped(this) ||
-			NeutralizationMarker.isTampered(this, getString(ResR.string.stealth_app_name))
-		) {
-			startActivity(
-				Intent(this, CryptogramActivity::class.java).apply {
-					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-				},
-			)
-			finish()
-			return
-		}
-
-		// Instant Hide (ADFA-40): if the disguise is engaged, go straight to it before any IDE UI
-		// is shown. The state persists across restarts/reboots until the user performs the exit gesture.
+		// Instant Hide (ADFA-40) and Instant Wipe (ADFA-6510): while the disguise is engaged, or once the
+		// install is wiped -- or its markers were stripped by clearing app data while the stealth alias
+		// persists (the tamper fingerprint) -- go straight to the disguise before any IDE UI. Tamper
+		// deliberately does NOT re-run the wipe: the signature cannot tell a prior Instant Wipe from a
+		// plain Instant Hide whose data was cleared, so re-wiping could destroy work the user never meant
+		// to wipe. Staying the disguise still defeats the tamper. The checks run on the main thread by
+		// design and MUST complete before any IDE UI could be shown (F08).
 		if (InstantHide.redirectIfHidden(this)) return
 
 		if (!hasEnoughStorageAvailable()) {

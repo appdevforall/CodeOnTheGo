@@ -45,7 +45,10 @@ class InstantHideTest {
 		override var armed: Boolean = false,
 		override var wipeArmed: Boolean = false,
 		override var hidden: Boolean = false,
-	) : HideState
+		var wiped: Boolean = false,
+	) : HideState {
+		override fun neutralized(context: Context): Boolean = wiped
+	}
 
 	private val state = FakeState()
 	private var hides = 0
@@ -84,6 +87,17 @@ class InstantHideTest {
 		assertThat(activity.isFinishing).isTrue()
 		val next = shadowOf(activity).nextStartedActivity
 		assertThat(next.component?.className).isEqualTo(CryptogramActivity::class.java.name)
+	}
+
+	@Test
+	fun `a wiped install sends every activity to the disguise even with the hidden flag clear`() {
+		state.wiped = true
+
+		val activity = Robolectric.buildActivity(Activity::class.java).create().get()
+
+		assertThat(activity.isFinishing).isTrue()
+		assertThat(shadowOf(activity).nextStartedActivity.component?.className)
+			.isEqualTo(CryptogramActivity::class.java.name)
 	}
 
 	@Test

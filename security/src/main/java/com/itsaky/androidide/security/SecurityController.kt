@@ -45,7 +45,8 @@ import com.itsaky.androidide.resources.R as ResR
  * [InstantHide] mounts one on every activity and forwards its lifecycle and input.
  *
  * @param gesturesEnabled false where the triggers must not fire; FLAG_SECURE still applies.
- * @param onHide runs on every hide, before the disguise starts.
+ * @param onHide covers what outlives the activity (floating windows, notifications); runs on every
+ *   hide, before the disguise starts.
  */
 internal class SecurityController(
 	private val activity: Activity,
@@ -192,7 +193,6 @@ internal class SecurityController(
 		LauncherAliasManager.setStealthMode(activity, true)
 		// Floating windows and notifications outlive the activity; they must not show the IDE.
 		runCatching { onHide(activity.applicationContext) }
-		runCatching { NeutralNotifications.mask(activity) }
 		activity.startActivity(
 			Intent(activity, CryptogramActivity::class.java).apply {
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

@@ -28,8 +28,8 @@ Any trigger calls `triggerInstantHide()`: set the hidden-state flag, swap to the
 alias, close the floating windows (the `onHide` hook), mask the notifications (`NeutralNotifications`),
 launch `CryptogramActivity` (`NEW_TASK | CLEAR_TASK`), finish the IDE.
 
-While the flag is set, the same lifecycle callbacks send every activity but the disguise to it as it is
-created or resumed, so no entry point can surface IDE UI. Entry points whose `onCreate` does work —
+While the flag is set, or the install is neutralized by Instant Wipe (below), the same lifecycle
+callbacks send every activity but the disguise to it as it is created or resumed, so no entry point can surface IDE UI. Entry points whose `onCreate` does work —
 `LauncherActivity`, `DeepLinkActivity`, `ExternalFileInstallActivity`, `CrashHandlerActivity` — also
 call `InstantHide.redirectIfHidden` and return, so the work never starts. The redirect reuses a running
 disguise (`CLEAR_TOP | SINGLE_TOP`), so a link or file opened while hidden does not reset the puzzle.
@@ -63,8 +63,9 @@ not applied and the app shows a one-time advisory, so QA can capture screenshots
 A separately-armed escalation (its own Settings toggle, off by default, behind a blocking destructive
 warning). When armed, a single-finger **circular sweep** (`GestureDetectorHelper.CircleGestureDetector`)
 on any surface -- IDE, the disguise, or the terminal -- irreversibly destroys the user's work and
-neutralizes the app to the disguise. Instant, no dialog, no undo. The Settings screen is excluded so
-arming/practicing cannot wipe.
+neutralizes the app to the disguise. Instant, no dialog, no undo. As for a hide, the disguise shows at
+once, with the floating windows closed and the notifications masked (`InstantHide.hideOutsideActivities`).
+The Settings and practice screens are `InstantHide.GesturesExempt`, so arming/practicing cannot wipe.
 
 - **Destroy** (`WipeManager` + `SecureShredder`): cancel the build, stop Termux, close the project and
   the Recents DB, then overwrite-then-delete the source and DB files and fast-delete the bulk
@@ -72,8 +73,8 @@ arming/practicing cannot wipe.
   guaranteed erase on flash -- so strings say "delete", not "securely erase"; device at-rest encryption
   is the real protection.
 - **Neutralize** (`NeutralizationMarker`): after a wipe, `.pip` (filesDir) and `.pip2` (noBackupFilesDir)
-  markers are written and the prefs blanked. On launch `SplashActivity` shows the disguise whenever a
-  marker is present. **Tamper**: clearing app data strips the markers but the launcher stealth alias
+  markers are written and the prefs blanked. Every activity, not only the launcher, then goes to the
+  disguise whenever a marker is present (`HideState.neutralized`, read by `InstantHide.redirectIfHidden`). **Tamper**: clearing app data strips the markers but the launcher stealth alias
   survives, so a blank-prefs + stealth-alias + no-marker state is treated as tamper and also neutralizes.
   It **does not re-wipe** -- the signature cannot tell a prior wipe from a plain Instant Hide whose data
   was cleared, so re-wiping would risk destroying work never meant for it. The exit gesture is a no-op

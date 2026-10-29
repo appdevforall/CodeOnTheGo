@@ -30,6 +30,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.security.CryptogramActivity
+import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.security.LauncherAliasManager
 import com.itsaky.androidide.security.NeutralizationMarker
 import com.itsaky.androidide.security.SecurityOverride
@@ -71,6 +72,9 @@ class AppWipeService(
 		// flow is exercised; the exit gesture restores it since dry-run writes no marker.
 		SecurityPreferences.isHiddenStateActive = true
 		runCatching { LauncherAliasManager.setStealthMode(activity, true) }
+		// As a hide does: floating windows and notifications outlive the activity and would show the IDE
+		// over the disguise until the teardown below reaches them.
+		InstantHide.hideOutsideActivities(app)
 		activity.startActivity(
 			Intent(activity, CryptogramActivity::class.java).apply {
 				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
