@@ -95,17 +95,21 @@ class CryptogramActivity : AppCompatActivity() {
 		binding = ActivityCryptogramBinding.inflate(layoutInflater)
 		setContentView(binding.root)
 
-		// Mask the task description so Recents shows the disguise title.
+		// Mask the task description so Recents shows the disguise's title and this device's stealth
+		// icon; without an icon it falls back to the application's, which is the IDE logo.
+		val label = getString(ResR.string.stealth_app_name)
+		val icon = LauncherAliasManager.stealthIcon(this)
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 			setTaskDescription(
 				ActivityManager.TaskDescription
 					.Builder()
-					.setLabel(getString(ResR.string.stealth_app_name))
+					.setLabel(label)
+					.apply { if (icon != 0) setIcon(icon) }
 					.build(),
 			)
 		} else {
 			@Suppress("DEPRECATION")
-			setTaskDescription(ActivityManager.TaskDescription(getString(ResR.string.stealth_app_name)))
+			setTaskDescription(ActivityManager.TaskDescription(label, icon))
 		}
 
 		exitGestureDetector =
