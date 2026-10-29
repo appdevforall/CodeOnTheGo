@@ -72,6 +72,13 @@ buildscript {
 	}
 }
 
+kotlin {
+	compilerOptions {
+		// ADFA-6821: the module is warning-free; keep it that way.
+		allWarningsAsErrors.set(true)
+	}
+}
+
 android {
 	namespace = BuildConfig.PACKAGE_NAME
 

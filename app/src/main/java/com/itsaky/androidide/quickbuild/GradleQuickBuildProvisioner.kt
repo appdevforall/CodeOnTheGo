@@ -444,12 +444,12 @@ class GradleQuickBuildProvisioner(
 				}
 			// The check above narrows the race but cannot close it: the slot is claimed inside
 			// executeTasks, and a sync that wins it in between is refused here.
-			if (result?.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS) {
+			if (result.failure == TaskExecutionResult.Failure.BUILD_IN_PROGRESS) {
 				log.info("A Gradle build took the slot first; the Quick Build proxy app build was refused")
 				return ProxyAppBuildResult.SlotBusy
 			}
-			if (result == null || !result.isSuccessful) {
-				log.error("Quick-build proxy app build failed: {}", result?.failure)
+			if (!result.isSuccessful) {
+				log.error("Quick-build proxy app build failed: {}", result.failure)
 				// The bracket above suppressed the editor's build listener, and result.failure is
 				// a bare enum, so the captured output is the ONLY place Gradle's reason exists.
 				// Narrate it into Build Output or the user is told a build failed and never why.

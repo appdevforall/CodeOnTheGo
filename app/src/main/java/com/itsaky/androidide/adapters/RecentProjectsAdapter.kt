@@ -242,7 +242,8 @@ class RecentProjectsAdapter(
 		binding.textinputEdittext.setText(project.name)
 		binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
 		val padding = (16 * context.resources.displayMetrics.density).toInt()
-		builder.setView(binding.root, padding, padding, padding, padding)
+		binding.root.setPadding(padding, padding, padding, padding)
+		builder.setView(binding.root)
 
 		builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
 		builder.setPositiveButton(R.string.rename) { _, _ ->

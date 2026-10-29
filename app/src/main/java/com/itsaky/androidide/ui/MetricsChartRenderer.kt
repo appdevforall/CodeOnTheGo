@@ -406,7 +406,7 @@ abstract class MetricsChartRenderer(
 
 		// xMax is the newest sample's index. entryCount would be the total across every series --
 		// 7200 for the network chart's two -- which would scroll the window off the end of the data.
-		val newestIndex = chart.data?.xMax ?: return
+		val newestIndex = chart.data.xMax
 		if (newestIndex < VISIBLE_SAMPLES) {
 			return
 		}
@@ -752,7 +752,7 @@ abstract class MetricsChartRenderer(
 		chart.xAxis.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisLeft.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisRight.textSize = BASE_TEXT_SIZE_DP * scale
-		chart.data?.setValueTextSize(BASE_VALUE_TEXT_SIZE_DP * scale)
+		chart.data.setValueTextSize(BASE_VALUE_TEXT_SIZE_DP * scale)
 
 		// Bigger text needs fewer labels. Growing the text alone left the count untouched, so the
 		// memory page's nine value labels went from 29px apart to 6px -- crowded enough that the
@@ -806,7 +806,7 @@ abstract class MetricsChartRenderer(
 	 */
 	private fun applyAnnotations(chart: SafeLineChart) {
 		val store = annotations ?: return
-		val newestIndex = chart.data?.xMax ?: return
+		val newestIndex = chart.data.xMax
 
 		chart.xAxis.removeAllLimitLines()
 
