@@ -28,7 +28,7 @@ import java.io.File
  */
 enum class FileExtension(
 	val extension: String,
-	@param:DrawableRes val icon: Int,
+	@param:DrawableRes @get:DrawableRes val icon: Int,
 ) {
 	JAVA("java", R.drawable.ic_language_java),
 	JAR("jar", R.drawable.ic_language_java),

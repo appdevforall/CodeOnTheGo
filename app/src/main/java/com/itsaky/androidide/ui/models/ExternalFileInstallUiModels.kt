@@ -34,12 +34,12 @@ sealed class ExternalFileInstallUiEffect {
 	) : ExternalFileInstallUiEffect()
 
 	data class ShowError(
-		@param:StringRes val messageResId: Int,
+		@param:StringRes @get:StringRes val messageResId: Int,
 		val formatArgs: List<Any> = emptyList(),
 	) : ExternalFileInstallUiEffect()
 
 	data class ShowSuccess(
-		@param:StringRes val messageResId: Int,
+		@param:StringRes @get:StringRes val messageResId: Int,
 		val formatArgs: List<Any> = emptyList(),
 	) : ExternalFileInstallUiEffect() {
 		constructor(

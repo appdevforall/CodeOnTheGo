@@ -22,6 +22,6 @@ import com.itsaky.androidide.tooling.api.models.GradleTask
 
 /** @author Akash Yadav */
 data class RunTasksCategory(
-	@param:StringRes val title: Int,
+	@param:StringRes @get:StringRes val title: Int,
 	val tasks: List<Checkable<GradleTask>>,
 )

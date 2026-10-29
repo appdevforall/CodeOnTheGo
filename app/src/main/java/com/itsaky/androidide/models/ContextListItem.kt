@@ -14,6 +14,6 @@ data class HeaderItem(
 data class SelectableItem(
 	val id: String, // A unique ID for the item
 	val text: String,
-	@param:DrawableRes val icon: Int,
+	@param:DrawableRes @get:DrawableRes val icon: Int,
 	var isSelected: Boolean = false,
 ) : ContextListItem

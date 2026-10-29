@@ -89,6 +89,6 @@ object StringsXmlInjector {
 }
 
 class StringsInjectionException(
-	@param:StringRes val messageRes: Int,
+	@param:StringRes @get:StringRes val messageRes: Int,
 	cause: Throwable? = null,
 ) : Exception(null, cause)
