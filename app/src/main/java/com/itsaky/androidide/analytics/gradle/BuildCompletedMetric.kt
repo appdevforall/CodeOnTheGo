@@ -12,6 +12,8 @@ class BuildCompletedMetric(
 	val buildType: String,
 	val isSuccess: Boolean,
 	val buildResult: BuildResult,
+	/** Whether the build wrote its output to app storage (ADFA-4930), so durations can be split by it. */
+	val relocatedOutput: Boolean = false,
 ) : BuildMetric() {
 	override val eventName = "build_completed"
 
@@ -20,6 +22,7 @@ class BuildCompletedMetric(
 			putString("build_type", buildType)
 			putBoolean("success", isSuccess)
 			putLong("duration_ms", buildResult.durationMs)
+			putBoolean("relocated_output", relocatedOutput)
 			// Why it was not successful, which the metric used to drop. A build the user stopped
 			// and a build that broke both arrive as success=false, so without this the two are
 			// indistinguishable and every build-success rate counts deliberate cancels as

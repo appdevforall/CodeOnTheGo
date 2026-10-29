@@ -18,6 +18,7 @@
 package com.itsaky.androidide.gradle
 
 import com.itsaky.androidide.buildinfo.BuildInfo
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_BUILD_OUTPUT_DIR
 import org.adfa.constants.COGO_GRADLE_PLUGIN_JAR_NAME
 import org.adfa.constants.COGO_GRADLE_PLUGIN_PATH
 import org.gradle.api.GradleException
@@ -67,6 +68,7 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 
 	override fun apply(target: Gradle) {
 		removeDaemonLogs(target)
+		redirectBuildOutput(target)
 
 		target.beforeSettings { settings ->
 			settings.addLocalMavenRepoToBuildscript(logger)
@@ -111,6 +113,30 @@ class AndroidIDEInitScriptPlugin : Plugin<Gradle> {
 	private fun initScriptClasspath(): List<File> {
 		val loader = javaClass.classLoader as? URLClassLoader ?: return emptyList()
 		return loader.urLs.mapNotNull { url -> runCatching { File(url.toURI()) }.getOrNull() }
+	}
+
+	/**
+	 * Points every project's build directory into the directory the IDE passed as
+	 * [PROPERTY_BUILD_OUTPUT_DIR], off the FUSE-backed project folder (ADFA-4930). `beforeProject`
+	 * runs before any build script, so AGP, Kotlin and the IDE's own plugins all see the new
+	 * location. Without the property, Gradle's default stays.
+	 *
+	 * The property is read from the root build: Gradle copies project properties into `buildSrc`'s
+	 * start parameters but not into an included build's, which would otherwise keep its output in
+	 * the project folder.
+	 */
+	private fun redirectBuildOutput(gradle: Gradle) {
+		val rootBuild = generateSequence(gradle) { it.parent }.last()
+		val outputDir = rootBuild.startParameter.projectProperties[PROPERTY_BUILD_OUTPUT_DIR]
+		if (outputDir.isNullOrBlank()) return
+
+		val root = File(outputDir)
+		val isNestedBuild = gradle.parent != null
+		gradle.beforeProject { project ->
+			val buildDir = BuildOutputRedirect.buildDirFor(root, isNestedBuild, project.rootDir, project.path)
+			project.layout.buildDirectory.set(buildDir)
+			logger.info("Build directory of project '{}' relocated to {}", project.path, buildDir)
+		}
 	}
 
 	private fun removeDaemonLogs(gradle: Gradle) {
