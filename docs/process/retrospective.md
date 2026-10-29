@@ -1,5 +1,54 @@
 # Retrospective Log
 
+## 2026-10-28 - ADFA-4930: Gradle build output off FUSE storage, a four-PR stack from measurement to merge
+
+### Time Breakdown
+| Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
+|---------|-------|-----------------|---------------|----------|
+| Oct 13 9:03pm | Research: measure why FUSE builds are slow | ██████ 61m | █████████ 91m | |
+| Oct 14 5:57pm | Benchmarks: Pixel A/B, warm daemon, file watching | ██████████████████████ 221m | ███████████████████████ 234m | ⚠ many monitor rounds |
+| Oct 15 4:56pm | Build and test the four PRs (itel, Pixel) | █████████████████ 170m | █████████████████████████████ 294m | ⚠ onboarding bug, tickets |
+| Oct 16 3:44pm | Review rounds 1-2: CodeRabbit, Hal, QA field, Jira | ███████████████████████ 232m | ███████████████████ 197m | ⚠ 3 permission blocks, wrong replies |
+| Oct 27 5:20pm | Review round 3 on #2155 (Hal) | ███ 31m | █████ 55m | |
+| Oct 28 5:52pm | Close-out: CodeRabbit, stack comments, merges, Done | ████ 45m | ██████████ 107m | ⚠ 3 rounds of squash conflicts |
+
+### Metrics
+| Metric | Duration |
+|--------|----------|
+| Total wall-clock | 14.9 days (358.5 h) |
+| Hands-on | 12.7 h (3.5%) |
+| Automated agent time | about 3.3 h (0.9%), an estimate: active span minus hands-on |
+| Idle/testing/away | 342.5 h (95.5%) |
+| Retro analysis time | about 1 min |
+
+293 turns, estimated cost $566.80 at API list prices (not a bill). Hands-on is itself an estimate (reading 150 wpm, typing 60 wpm, 1 min buffer per turn), so agent time is the weakest figure.
+
+### Key Observations
+- Most wall-clock time was waiting on reviewers: CodeRabbit's 2-reviews-per-hour limit (since lifted), then Hal Eisen's rounds. The agent worked longest alone while benchmark monitors ran.
+- Hal's late findings were stack-hygiene misses: #2149 would not compile on current `stage` (stage made a flag `internal` after the layer branched; `git merge-tree` reported no conflict), and the symlink-safe delete existed only in the top PR. Both surfaced 11 days after the layers were built.
+- Squash-merging the stack bottom-up made each remaining layer conflict, three times. Each fix was a merge resolved to the layer's side, then a tree-hash comparison.
+- Auto mode blocked required outward writes five times (resolving threads, a force-push, a /tmp delete, replies posted together with resolves); each cost a round trip and was then approved.
+- Agent errors cost rework: invented timestamps early, a reply that did not answer the reviewer, a false monitor alert, a "revert check" whose `sed` matched nothing, two unannounced 190 MB downloads in a fresh worktree.
+- The agent saw the failed-first-sync gap while designing the banner marker, judged it acceptable and did not say so; Hal found it as an IMPORTANT finding.
+- The phase with the most hands-on time was the review rounds (232 min, 31%), not the building.
+
+### Feedback
+**What worked:** "Everything."
+**What didn't:** "Nothing."
+**Anything to do differently:** "No."
+
+### Actions Taken
+| Issue | Action Type | Change |
+|-------|-------------|--------|
+| A layer built against a stale base broke on current `stage` | CLAUDE.md | "PR stack" bullet: "independently" means against current `origin/stage`; merge it in and compile before merging a layer |
+| A fix landed only in the top PR left the layer below unsafe | CLAUDE.md | Same bullet: land a fix in the lowest PR that has the bug, then merge it up |
+| Squash-merging bottom-up conflicted every remaining layer | CLAUDE.md, Doc | Same bullet gets one sentence; the full recipe (resolve to own side, delete re-added files, tree-hash check) is in learnings.md |
+| A revert check ran the unchanged code | CLAUDE.md | "Prove the regression test fails" bullet: check `git diff` is non-empty after reverting |
+| A known limitation went unmentioned until a reviewer found it | CLAUDE.md | New "Disclose the limitations you accept" bullet in "Verify before you claim" |
+| Stale `origin/stage` after a merged branch was deleted; CodeRabbit's inline results missed by a poll; compile break hidden by `git merge-tree` | Doc | New "Stacked PRs" section in learnings.md |
+| Five auto-mode blocks on outward writes | No action | Each was a deliberate guard that the user then approved; loosening it is the user's call |
+| Reviewer wait time; one-off agent slips; the 190 MB jar downloads | No action | No repo rule affects reviewer capacity; the downloads are already in memory (fresh_worktree_build_downloads) |
+
 ## 2026-10-13 - ADFA-95/96: Android Studio plugins and VS Code extensions are ported, not run (ADRs 0018, 0019)
 
 ### Time Breakdown
