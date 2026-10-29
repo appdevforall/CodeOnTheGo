@@ -11,9 +11,11 @@ import com.itsaky.androidide.models.installTaskRequestsIn
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
+import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
 import com.itsaky.androidide.projects.models.assembleTaskOutputListingFile
+import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
@@ -147,15 +149,14 @@ class BuildViewModel(
 				}
 
 				if (isPluginProject) {
-					val projectRoot = IProjectManager.getInstance().projectDirPath
-					val cgpFile =
-						withContext(Dispatchers.IO) { findPluginCgpFile(projectRoot, variant) }
+					val workspace = IProjectManager.getInstance().workspace
+					val cgpFile = withContext(Dispatchers.IO) { findPluginCgpFile(workspace, variant.name) }
 					if (cgpFile != null) {
 						reporter.finish(BuildState.AwaitingPluginInstall(cgpFile))
 					} else {
-						log.warn("Plugin built successfully but .cgp file not found")
+						log.warn("Plugin built successfully but no .cgp file under {}/plugin", workspace?.rootProject?.buildDir)
 						reporter.finish(
-							BuildState.Error("Plugin built but output file (.cgp) not found in build/plugin"),
+							BuildState.Error("Plugin built but output file (.cgp) not found"),
 						)
 					}
 					return@launch
@@ -319,18 +320,25 @@ class BuildViewModel(
 			_buildState.value = BuildState.Idle
 		}
 	}
+}
 
-	private fun findPluginCgpFile(
-		projectRoot: String,
-		variant: AndroidModels.AndroidVariant,
-	): File? {
-		val pluginDir = File(projectRoot, "build/plugin")
-		if (!pluginDir.exists()) return null
+/**
+ * The newest `.cgp` a plugin build produced for [variantName], under the root project's build
+ * directory as the synced model has it: relocated build output (ADFA-4930) is not under
+ * `<project>/build`, which may still hold a plugin from before the relocation.
+ *
+ * @return null when there is no model or no matching `.cgp`.
+ */
+internal fun findPluginCgpFile(
+	workspace: Workspace?,
+	variantName: String,
+): File? {
+	val pluginDir = File(workspace?.rootProject?.buildDir ?: return null, "plugin")
+	if (!pluginDir.exists()) return null
 
-		val isDebug = variant.name.contains("debug", ignoreCase = true)
-		return pluginDir
-			.listFiles { file -> file.extension.equals(PLUGIN_ARCHIVE_EXTENSION, ignoreCase = true) }
-			?.filter { it.name.contains("-debug") == isDebug }
-			?.maxByOrNull { it.lastModified() }
-	}
+	val isDebug = variantName.contains("debug", ignoreCase = true)
+	return pluginDir
+		.listFiles { file -> file.extension.equals(PLUGIN_ARCHIVE_EXTENSION, ignoreCase = true) }
+		?.filter { it.name.contains("-debug") == isDebug }
+		?.maxByOrNull { it.lastModified() }
 }
