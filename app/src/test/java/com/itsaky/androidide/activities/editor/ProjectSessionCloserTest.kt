@@ -65,8 +65,33 @@ class ProjectSessionCloserTest {
 		assertThat(teardowns).isEqualTo(1)
 	}
 
+	@Test
+	fun `record after teardown reports that it was refused`() {
+		closer.close()
+
+		assertThat(closer.record { second }).isFalse()
+	}
+
+	@Test
+	fun `record after teardown never resolves the session`() {
+		var resolved = false
+		closer.close()
+
+		closer.record {
+			resolved = true
+			second
+		}
+
+		assertThat(resolved).isFalse()
+	}
+
+	@Test
+	fun `record before teardown is accepted`() {
+		assertThat(closer.record { first }).isTrue()
+	}
+
 	private fun recordCurrent(session: Any) {
 		current = session
-		closer.record(session)
+		closer.record { session }
 	}
 }

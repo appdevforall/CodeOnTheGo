@@ -18,6 +18,9 @@ import org.slf4j.LoggerFactory
  * down as before recording existed. The check only tells sessions apart when a new manager was
  * created between them.
  *
+ * [record] runs on the project initialization callback's thread and [close] on the main thread, so
+ * both hold the lock: a session recorded after the teardown would never be closed.
+ *
  * @param currentSession Returns the current session without creating one.
  * @param teardown Stops the servers and destroys the project.
  */
@@ -32,13 +35,21 @@ internal class ProjectSessionCloser<S : Any>(
 	private var recorded: S? = null
 	private var tornDown = false
 
-	/** Records [session] as the one this editor opened; ignored once the teardown has run. */
-	fun record(session: S) {
-		if (tornDown) return
-		recorded = session
+	/**
+	 * Records the session [session] returns as the one this editor opened, and returns whether it did.
+	 *
+	 * Once the teardown has run it returns false without calling [session], since resolving a session
+	 * may create one that nothing would close.
+	 */
+	@Synchronized
+	fun record(session: () -> S): Boolean {
+		if (tornDown) return false
+		recorded = session()
+		return true
 	}
 
 	/** Tears down when nothing was recorded or this editor still owns the current session. */
+	@Synchronized
 	fun close() {
 		if (recorded == null || currentSession() === recorded) runTeardown() else skip()
 	}

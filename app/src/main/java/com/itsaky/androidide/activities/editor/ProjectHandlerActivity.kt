@@ -1180,6 +1180,9 @@ abstract class ProjectHandlerActivity :
 		if (!isDestroying) return
 
 		if (didCompleteLiveOnCreate) {
+			// The teardown below destroys the project, so a sync finishing after it must not set one up again.
+			initializingFuture?.cancel(true)
+			initializingFuture = null
 			sessionCloser.close()
 		} else {
 			// A doomed instance must not stop the servers a live sibling uses; preDestroy gates them the same way.
@@ -1781,8 +1784,12 @@ abstract class ProjectHandlerActivity :
 		result: InitializeResult.Success,
 		synced: Boolean,
 	) {
+		// A callback queued before onPause cancelled the future still lands here after the teardown.
+		if (!sessionCloser.record { ProjectManagerImpl.getInstance().indexingServiceManager }) {
+			log.info("Project closed before its initialization finished, skipping its setup")
+			return
+		}
 		Memprof.mark("sync_complete")
-		sessionCloser.record(ProjectManagerImpl.getInstance().indexingServiceManager)
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()
 			val gradleBuildResult =
