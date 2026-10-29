@@ -25,6 +25,7 @@ import androidx.annotation.NonNull;
 import com.itsaky.androidide.app.IDEActivity;
 import com.itsaky.androidide.databinding.ActivityCrashHandlerBinding;
 import com.itsaky.androidide.fragments.CrashReportFragment;
+import com.itsaky.androidide.security.InstantHide;
 
 public class CrashHandlerActivity extends IDEActivity {
 
@@ -42,6 +43,10 @@ public class CrashHandlerActivity extends IDEActivity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		// Instant Hide (ADFA-40): a crash report names the IDE, so it must not show while disguised.
+		if (InstantHide.INSTANCE.redirectIfHidden(this)) {
+			return;
+		}
 
 		final var extra = getIntent().getExtras();
 		if (extra == null) {

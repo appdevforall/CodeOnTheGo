@@ -8,20 +8,48 @@ the user arms it in Settings → Security.
 
 ## Triggers (when armed)
 
-Owned by `SecurityController`, mounted on `EdgeToEdgeIDEActivity` so they are live on every IDE screen:
+Owned by `SecurityController`. `InstantHide.register`, called from `IDEApplication`, mounts one on
+every activity through `ActivityLifecycleCallbacks` and wraps its window callback to see its input, so
+the triggers are live on every screen whatever its base class, the terminal included. The security
+Settings screen implements `InstantHide.GesturesExempt`, so arming the feature there does not hide it.
 
-- **Three-finger tap** (`GestureDetectorHelper.ThreeFingerTapDetector`, fed from `dispatchTouchEvent`).
+- **Three-finger tap** (`GestureDetectorHelper.ThreeFingerTapDetector`, fed every touch on the window).
 - **Screen off** (`ACTION_SCREEN_OFF` broadcast; registered once and kept across `onPause`, since the
   pause races the broadcast).
-- **Face-down** — gravity Z past a threshold (orientation only); fires once per transition into face-down.
-- **60s inactivity** (a `Handler` reset on every touch).
+- **Face-down** (`FaceDownDetector`): gravity Z past a threshold, armed only by a face-up or upright
+  reading, so a phone already face down when a screen opens (held overhead, lying on your back) does
+  not fire.
+- **60s inactivity**: a `Handler` reset by every touch, key and mouse event on the window. When it runs
+  out while the soft keyboard is showing or a dialog or popup has the focus, it starts again instead
+  of hiding, since those take input the window never sees. A phone left like that still hides when its
+  screen times out.
 
 Any trigger calls `triggerInstantHide()`: set the hidden-state flag, swap to the stealth launcher
-alias, launch `CryptogramActivity` (`NEW_TASK | CLEAR_TASK`), finish the IDE. Both entry points into
-the app redirect to the disguise while the flag is set — `SplashActivity` (the launcher) and
-`DeepLinkActivity` (the exported App-Link route, which otherwise forwards straight into IDE content) —
-so no entry point can surface IDE UI while hidden. The exit gesture (slow double three-finger tap)
-clears the flag, restores the default alias, and returns to the IDE.
+alias, close the floating windows (the `onHide` hook), mask the notifications (`NeutralNotifications`),
+launch `CryptogramActivity` (`NEW_TASK | CLEAR_TASK`), finish the IDE.
+
+While the flag is set, the same lifecycle callbacks send every activity but the disguise to it as it is
+created or resumed, so no entry point can surface IDE UI. Entry points whose `onCreate` does work —
+`LauncherActivity`, `DeepLinkActivity`, `ExternalFileInstallActivity`, `CrashHandlerActivity` — also
+call `InstantHide.redirectIfHidden` and return, so the work never starts. The redirect reuses a running
+disguise (`CLEAR_TOP | SINGLE_TOP`), so a link or file opened while hidden does not reset the puzzle.
+The exit gesture (slow double three-finger tap) clears the flag, restores the default alias, and
+returns to the IDE.
+
+## Notifications
+
+On a hide, `NeutralNotifications.mask` removes the app's ordinary notifications. A foreground
+service's cannot be removed while the service runs, so it is replaced under the same id by one that
+shows only the disguise's name and a neutral icon. `GradleBuildService` and `TermuxService` build that
+neutral notification themselves while the flag is set, so their updates do not bring the IDE's text
+back. After the exit gesture each shows its own again on its next update.
+
+## Launcher aliases
+
+The real launcher activity is `LauncherActivity`, with no launcher filter. The default alias is named
+`.activities.SplashActivity`, the launcher component from before Instant Hide, so home-screen icons
+pinned to it survive the update on every launcher. The five stealth aliases share the target. The
+disguise's Recents entry uses this device's stealth alias icon (`LauncherAliasManager.stealthIcon`).
 
 ## Screenshot / Recents masking
 
@@ -35,6 +63,10 @@ not applied and the app shows a one-time advisory, so QA can capture screenshots
 | File | Role |
 |---|---|
 | `GestureDetectorHelper.kt` | Three-finger tap + slow-double-three-finger-tap detectors (unit-tested). |
+| `InstantHide.kt` | Mounts a controller on every activity and redirects to the disguise while hidden. |
+| `FaceDownDetector.kt` | When a gravity reading completes a flip to face down (unit-tested). |
+| `NeutralNotifications.kt` | Removes or neutralises the app's notifications while hidden (unit-tested). |
+| `HideState.kt` | The armed and hidden flags, behind an interface tests can replace. |
 | `LauncherAliasManager.kt` | Picks one of five stealth aliases per device (FNV-1a hash); enables/disables aliases. |
 | `SecurityController.kt` | Owns the four triggers, the inactivity timer, and the `FLAG_SECURE` policy. |
 | `SecurityOverride.kt` | The `CodeOnTheGo.mfs` magic-file check. |

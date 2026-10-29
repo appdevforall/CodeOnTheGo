@@ -23,8 +23,7 @@ import android.os.Build
 import android.os.Bundle
 import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
-import com.itsaky.androidide.preferences.internal.SecurityPreferences
-import com.itsaky.androidide.security.CryptogramActivity
+import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.hasEnoughStorageAvailable
@@ -39,15 +38,7 @@ class LauncherActivity : Activity() {
 
 		// Instant Hide (ADFA-40): if the disguise is engaged, go straight to it before any IDE UI
 		// is shown. The state persists across restarts/reboots until the user performs the exit gesture.
-		if (SecurityPreferences.isHiddenStateActive) {
-			startActivity(
-				Intent(this, CryptogramActivity::class.java).apply {
-					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-				},
-			)
-			finish()
-			return
-		}
+		if (InstantHide.redirectIfHidden(this)) return
 
 		if (!hasEnoughStorageAvailable()) {
 			showLowStorageDialog()
