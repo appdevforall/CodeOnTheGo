@@ -879,6 +879,14 @@
 	<string name="err_cannot_determine_package">Cannot run application. Unable to determine package name.</string>
 	<string name="msg_launch_failure_no_app_module">Cannot run application. No application modules found in project.</string>
 	<string name="title_launch_app">Launch app</string>
+	<string name="title_export_apk">Export APK</string>
+	<string name="export_apk_share">Share</string>
+	<string name="export_apk_copy_to_download">Copy to Download</string>
+	<string name="msg_export_apk_not_built">No APK yet. Run the app once to build it.</string>
+	<string name="msg_export_apk_saved">Saved to Download as %1$s</string>
+	<string name="msg_export_apk_failed">Could not copy the APK to Download</string>
+	<string name="msg_export_apk_quick_build">The latest APK is Quick Build\'s live-reload app. Run the app once to build a regular APK, then export it.</string>
+	<string name="msg_export_apk_build_running">A build is running. Export the APK when it finishes.</string>
 	<string name="title_experiment_flavor">Experimental</string>
 	<string name="title_experiments_on">Experiments on</string>
 	<string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
