@@ -184,7 +184,8 @@ to CoGo.
 | `no_backup/quickbuild-scratch/<name>-<16 hex>/work` | executor payload staging | `run-as com.itsaky.androidide`; **deleted on teardown** |
 | `no_backup/quickbuild-scratch/<name>-<16 hex>/out` | daemon output: classes, dex, relinked resources | as above |
 | `<project>/.androidide/quickbuild/generation` | the generation counter | plain `adb shell cat` |
-| `<project>/<module>/build/quickbuild/setup.json` | the proxy app build's handshake with CoGo | plain `adb shell cat` |
+| `<project>/<module>/build/quickbuild/<variant>/setup.json` | the proxy app build's handshake with CoGo | plain `adb shell cat` |
+| `no_backup/gradle-build/<name>-<16 hex>/main/<module>-<16 hex>/quickbuild/<variant>/setup.json` | the same, when "Relocate build output" is on (ADFA-4930) | `run-as com.itsaky.androidide` |
 | `/data/data/<user applicationId>/files/quickbuild/payload/` | persisted payload: `payload.dex`, `resources.arsc`, `assets.zip`, `meta.json` | `run-as <the user's package>` |
 
 Projects live under `/storage/emulated/0/CodeOnTheGoProjects/`.
@@ -194,8 +195,8 @@ Four traps in that table:
 - **The scratch tree is deleted on session teardown**, so inspect it while the session is
   live. Its directory name is `<sanitized project basename>-<first 16 hex of SHA-256 of the
   normalized absolute project path>`
-  ([`QuickBuildScratch.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/QuickBuildScratch.kt)),
-  so `ls` the parent rather than trying to compute it.
+  ([`ProjectStorageKey.kt`](../../shared/src/main/java/com/itsaky/androidide/utils/ProjectStorageKey.kt),
+  shared with relocated Gradle build output), so `ls` the parent rather than trying to compute it.
 - **The generation counter's directory is `.androidide`, not `.cg`.** CoGo's project cache dir
   was renamed to `.cg`; this one path is hardcoded to the old name in
   [`FileGenerationStore.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/FileGenerationStore.kt).

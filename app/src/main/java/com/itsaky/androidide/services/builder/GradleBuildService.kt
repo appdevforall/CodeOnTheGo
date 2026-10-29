@@ -559,7 +559,10 @@ class GradleBuildService :
 
 			@Suppress("SimplifyBooleanWithConstants")
 			val extraArgs =
-				getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
+				getGradleExtraArgs(
+					enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild,
+					isSync = buildInfo.buildId.runType == BuildRunType.ProjectSync,
+				)
 
 			var buildParams =
 				if (Experiments.isOn(Experiment.GRADLE_AUTO_TUNE)) {
@@ -577,7 +580,7 @@ class GradleBuildService :
 						GradleBuildTuner
 							.toGradleBuildParams(tuningConfig = newTuningConfig)
 							.run {
-								copy(gradleArgs = gradleArgs + extraArgs)
+								copy(gradleArgs = BuildOutputLocation.withoutWatchConflict(gradleArgs + extraArgs))
 							}
 					}.onFailure { err ->
 						log.error("Failed to auto-tune Gradle build", err)
@@ -698,6 +701,7 @@ class GradleBuildService :
 	private fun getGradleExtraArgs(
 		enableJdwp: Boolean = JdwpOptions.JDWP_ENABLED,
 		enableLogSender: Boolean = DevOpsPreferences.logsenderEnabled,
+		isSync: Boolean,
 	): List<String> {
 		val extraArgs = ArrayList<String>()
 		extraArgs.add("--init-script")
@@ -708,6 +712,8 @@ class GradleBuildService :
 		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+
+		extraArgs.addAll(relocatedBuildOutputArgs(isSync))
 
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")
@@ -737,6 +743,39 @@ class GradleBuildService :
 		}
 
 		return extraArgs
+	}
+
+	/**
+	 * The arguments that move the open project's build output to app-private storage (ADFA-4930),
+	 * or none. A sync applies the user's current choice, keeping output in the project folder when
+	 * the tree cannot be written; the model it produces records the outcome. A build follows that
+	 * model, so it writes where the model (APK listing file, classpath) looks, and never falls back
+	 * to the project folder, which would leave the model pointing at older output. Runs on the
+	 * [prepareBuild] worker, so disk I/O is fine.
+	 */
+	private fun relocatedBuildOutputArgs(isSync: Boolean): List<String> {
+		val projectDir =
+			ProjectManagerImpl
+				.getInstance()
+				.projectDirPath
+				.takeIf { it.isNotBlank() }
+				?.let(::File) ?: return emptyList()
+		val tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir)
+
+		if (!isSync) {
+			if (BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir) != true) return emptyList()
+			if (!BuildOutputLocation.prepare(tree, projectDir)) {
+				log.warn("Cannot write build output directory {}; Gradle will report it", tree)
+			}
+			return BuildOutputLocation.gradleArgs(tree)
+		}
+
+		if (!BuildOutputLocation.isRequested()) return emptyList()
+		if (!BuildOutputLocation.prepare(tree, projectDir)) {
+			log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
+			return emptyList()
+		}
+		return BuildOutputLocation.gradleArgs(tree)
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =

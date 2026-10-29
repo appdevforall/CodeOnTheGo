@@ -97,6 +97,7 @@ import com.itsaky.androidide.search.replace.ReplaceCoordinator
 import com.itsaky.androidide.search.replace.ReplaceHost
 import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.search.replace.SkipReason
+import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
@@ -182,6 +183,12 @@ abstract class ProjectHandlerActivity :
 	protected var mReplaceInProjectDialog: AlertDialog? = null
 	private val replaceCoordinator by lazy { ReplaceCoordinator(editorFor = { file -> getEditorForFile(file)?.editor }) }
 	protected var syncNotificationFlashbar: Flashbar? = null
+
+	/** The relocation request the sync banner last offered, so Ignore holds until it changes. */
+	private var buildOutputSyncOffered: Boolean? = null
+
+	/** The banner that offer showed, so withdrawing it never dismisses another one. */
+	private var buildOutputSyncBanner: Flashbar? = null
 	private var replaceReportFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
@@ -1201,7 +1208,52 @@ abstract class ProjectHandlerActivity :
 		// parked awaiting that retry (auto-retries are bounded by the reducer).
 		quickBuildSessionManager()?.onHostForegrounded()
 
+		// Before the first initialization there is no synced model to compare the switch with.
+		if (initializingFuture?.isDone == true) {
+			reconcileBuildOutputSyncOffer(afterInit = false)
+		}
+
 		invalidateOptionsMenu()
+	}
+
+	/**
+	 * ADFA-4930: a changed "Relocate build output" (or experiments flag) only moves the build output
+	 * at the next sync, so offer one, once per change, and withdraw the offer once the synced model
+	 * agrees with the switch again.
+	 *
+	 * @param afterInit whether a project initialization just finished. It applied any Gradle file
+	 *   changes too, so the banner can go even when it also stands for those.
+	 */
+	private fun reconcileBuildOutputSyncOffer(afterInit: Boolean) {
+		activityScope.launch {
+			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
+			val requested = BuildOutputLocation.isRequested()
+			val pending =
+				BuildOutputLocation.syncPending(
+					BuildOutputLocation.modelRelocated(noBackupFilesDir, File(path)),
+					requested,
+				)
+			withContext(Dispatchers.Main) {
+				if (!pending) {
+					val banner = buildOutputSyncBanner
+					if (banner != null && banner === syncNotificationFlashbar && (afterInit || !editorViewModel.isSyncNeeded)) {
+						banner.dismiss()
+					}
+					buildOutputSyncBanner = null
+					buildOutputSyncOffered = null
+				} else if (buildOutputSyncOffered != requested && notifySyncNeeded(::syncForBuildOutput)) {
+					buildOutputSyncOffered = requested
+					buildOutputSyncBanner = syncNotificationFlashbar
+				}
+			}
+		}
+	}
+
+	/** Forgets the offer, so a sync that fails leaves it to be made again on the next resume. */
+	private fun syncForBuildOutput() {
+		buildOutputSyncOffered = null
+		buildOutputSyncBanner = null
+		initializeProject(forceSync = true)
 	}
 
 	override fun preDestroy() {
@@ -1291,9 +1343,10 @@ abstract class ProjectHandlerActivity :
 		notifySyncNeeded { initializeProject(forceSync = true) }
 	}
 
-	private fun notifySyncNeeded(onConfirm: () -> Unit) {
+	/** @return false when the banner was not shown: no build service, or initializing or building. */
+	private fun notifySyncNeeded(onConfirm: () -> Unit): Boolean {
 		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return
+		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return false
 
 		activityScope.launch(Dispatchers.Main.immediate) {
 			syncNotificationFlashbar?.dismiss()
@@ -1316,6 +1369,7 @@ abstract class ProjectHandlerActivity :
 
 			syncNotificationFlashbar?.showOnUiThread()
 		}
+		return true
 	}
 
 	fun startServices() {
@@ -1719,6 +1773,8 @@ abstract class ProjectHandlerActivity :
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
 		invalidateOptionsMenu()
+
+		reconcileBuildOutputSyncOffer(afterInit = true)
 
 		// ADFA-4128 benchmark: if the bench trampoline armed an autostart for THIS project,
 		// claim it now - the adb-driven stand-in for the human's tap. Claimed BEFORE prebuild
