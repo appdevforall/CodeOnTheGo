@@ -38,6 +38,7 @@ import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
 import com.itsaky.androidide.actions.editor.SelectAllAction
 import com.itsaky.androidide.actions.etc.DisconnectLogSendersAction
+import com.itsaky.androidide.actions.etc.ExportBuildAction
 import com.itsaky.androidide.actions.etc.FindAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
@@ -92,7 +93,7 @@ class EditorActivityActions {
 			// Quick Build (ADFA-4128): next to the Run button; experimental. Available
 			// from API 28 - on 28/29 resource reloads take the degraded addAssetPath
 			// shim (ResourceSwapStrategy in :quickbuild:runtime); 30+ uses ResourcesLoader.
-			if (FeatureFlags.isExperimentsEnabled) {
+			if (Experiments.isOn(Experiment.QUICK_BUILD)) {
 				registry.registerAction(QuickBuildAction(context, order++))
 			}
 			registry.registerAction(ProjectSyncAction(context, order++))
@@ -106,6 +107,8 @@ class EditorActivityActions {
 			registry.registerAction(FindInProjectAction(context, order++))
 			registry.registerAction(ReplaceInProjectAction(context, order++))
 			registry.registerAction(LaunchAppAction(context, order++))
+			// ADFA-4930: relocated build output keeps the APK out of the project folder.
+			registry.registerAction(ExportBuildAction(context, order++))
 			registry.registerAction(DisconnectLogSendersAction(context, order++))
 
 			// Plugin contributions
@@ -139,7 +142,7 @@ class EditorActivityActions {
 			registry.registerAction(HelpAction(context, ORDER_HELP))
 
 			// Profiler actions
-			if (FeatureFlags.isExperimentsEnabled) {
+			if (Experiments.isOn(Experiment.PROFILER)) {
 				registry.registerAction(ProfilerAction(context, ORDER_PROFILER))
 			}
 		}

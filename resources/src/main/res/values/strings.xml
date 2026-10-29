@@ -123,6 +123,10 @@
 	<string name="build_output">Build Output</string>
 	<string name="quick_run_debug">Quick run</string>
 	<string name="msg_sync_needed">Gradle files have changed. Sync the project to update dependencies and settings.</string>
+	<string name="msg_sync_build_output_relocate">Sync to move build output to faster storage.</string>
+	<string name="msg_sync_build_output_deferred">A build is running. You\'ll be asked to sync again when it finishes.</string>
+	<string name="msg_old_build_output_removed">Old build output was removed from the project folder. Export gets your latest build.</string>
+	<string name="msg_sync_after_build">A build is running. Sync once it finishes.</string>
 	<string name="preparing">Preparing</string>
 	<string name="preparing_first">Initializing a project may take a few moments.</string>
 	<string name="msg_installing_gradlew">Gradle wrapper is not available.\nInstalling a default one. Gradle v7.4 will be downloaded if necessary.</string>
@@ -148,6 +152,8 @@
 	<string name="msg_deeplink_setup_incomplete">Finish setting up Code on the Go, then open this link again.</string>
 	<string name="msg_deeplink_project_not_found">No project named \"%s\" was found.</string>
 	<string name="msg_deeplink_file_not_found">File \"%s\" was not found in the project.</string>
+	<string name="msg_deeplink_file_not_found_in_project">File \"%1$s\" was not found in project \"%2$s\".</string>
+	<string name="msg_deeplink_no_project_open">No project is open. Open a project, then try this link again.</string>
 	<string name="msg_deeplink_invalid_line">\"%s\" is not a valid line number.</string>
 	<string name="msg_deeplink_invalid_column">\"%s\" is not a valid column number.</string>
 	<string name="msg_deeplink_no_value">(no value given)</string>
@@ -794,6 +800,7 @@
 
 	<string name="btn_sync">Sync</string>
 	<string name="btn_ignore_changes">Ignore these changes</string>
+	<string name="btn_not_now">Not now</string>
 	<string name="title_fix_imports">Fix imports</string>
 	<string name="msg_no_unresolved_classes">No unresolved class names found</string>
 	<string name="title_class_chooser">Which %1$s?</string>
@@ -877,7 +884,21 @@
 	<string name="err_cannot_determine_package">Cannot run application. Unable to determine package name.</string>
 	<string name="msg_launch_failure_no_app_module">Cannot run application. No application modules found in project.</string>
 	<string name="title_launch_app">Launch app</string>
+	<string name="title_export_build">Export</string>
+	<string name="title_export_kind">Export %1$s</string>
+	<string name="export_kind_apk">APK</string>
+	<string name="export_kind_bundle">App Bundle (.aab)</string>
+	<string name="export_kind_plugin">Plugin (.cgp)</string>
+	<string name="export_share">Share</string>
+	<string name="export_copy_to_download">Copy to Download</string>
+	<string name="msg_export_not_built">Nothing built yet. Run the app once to build it.</string>
+	<string name="msg_export_plugin_not_built">No plugin yet. Run the plugin project once to build it.</string>
+	<string name="msg_export_saved">Saved to Download as %1$s</string>
+	<string name="msg_export_failed">Could not copy the file to Download</string>
+	<string name="msg_export_apk_quick_build">The latest APK is Quick Build\'s live-reload app. Run the app once to build a regular APK, then export it.</string>
+	<string name="msg_export_build_running">A build is running. Export when it finishes.</string>
 	<string name="title_experiment_flavor">Experimental</string>
+	<string name="title_experiments_on">Experiments on</string>
 	<string name="msg_experimental_flavor">You are using %1$s variant of Code On The Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
 	<string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
 	<string name="idepref_editor_pinLineNumbers_summary">Locks line numbers in view so they stay visible when scrolling horizontally.</string>
@@ -1562,6 +1583,7 @@
 	<string name="url_consent_cancel">Cancel</string>
 	<string name="url_consent_proceed">Proceed</string>
 	<string name="url_consent_dont_ask">Don\'t ask again</string>
+	<string name="tooltip_link_cannot_open">This link can\'t be opened from here.</string>
 
 	<!-- Documentation urls -->
 	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
@@ -1612,6 +1634,7 @@
     <string name="cloning_repo">Cloning repository…</string>
     <string name="pick_folder">Pick folder</string>
     <string name="git_title">Git</string>
+    <string name="git_refresh">Refresh</string>
     <string name="no_uncommitted_changes">No uncommitted changes</string>
     <string name="unable_to_load_diff">Unable to load diff</string>
     <string name="diff_viewer">Diff Viewer</string>

@@ -13,12 +13,12 @@ Assumed already read, and not repeated here:
   full version of that list. Section 3 here owns the tag convention itself, with the
   filters.
 
-Two flags recur. `CodeOnTheGo.exp` in `Download/` turns Quick Build on at all.
+Two flags recur. `CodeOnTheGo.exp` in `Download/` turns experiments on, `Experiment.QUICK_BUILD` among them - tap the homepage title to confirm ([EXPERIMENTS.md](../../EXPERIMENTS.md)).
 `CodeOnTheGo.qbbench`, alongside it, turns on the session event log and the adb entry point -
 sections 5 and 6 need it, sections 1 to 4 do not.
 
-**Flag files are read once per process.** `FeatureFlags.initialize()` caches on first call and
-never re-reads disk, so creating or deleting a flag file changes nothing until CoGo restarts
+**Flag files are read once per process.** `FeatureFlags.initialize()` caches on first call; only
+startup (`refresh()` after unlock) and tests re-read, so creating or deleting a flag file changes nothing until CoGo restarts
 ([`FeatureFlags.kt`](../../common/src/main/java/com/itsaky/androidide/utils/FeatureFlags.kt)).
 
 ## 1. My edit did not show up: work down this list
@@ -179,12 +179,13 @@ to CoGo.
 | Path | What | How to read it |
 | --- | --- | --- |
 | `files/home/.cg/quickbuild/quickbuild-runtime.aar` | staged runtime AAR, re-staged every provision | `run-as com.itsaky.androidide` |
-| `files/home/.cg/quickbuild/daemon/` | daemon jar, its full runtime classpath, `compose-compiler-plugin.jar`; deleted and re-extracted every provision | `run-as com.itsaky.androidide` |
+| `files/home/.cg/quickbuild/daemon/` | daemon jar, its full runtime classpath, `compose-compiler-plugin.jar`; deleted and re-extracted when the installed APK changed. The jars named in `dist-linked-jars.txt`, the Kotlin compiler among them, are symlinks into the Gradle distribution's `lib/` rather than extracted files - `ls -l` here, since a broken one surfaces as a `NoClassDefFoundError` on the first compile | `run-as com.itsaky.androidide` |
 | `files/home/.cg/quickbuild/bench-events.jsonl` | session event log; bench flag only | `run-as com.itsaky.androidide` |
 | `no_backup/quickbuild-scratch/<name>-<16 hex>/work` | executor payload staging | `run-as com.itsaky.androidide`; **deleted on teardown** |
 | `no_backup/quickbuild-scratch/<name>-<16 hex>/out` | daemon output: classes, dex, relinked resources | as above |
 | `<project>/.androidide/quickbuild/generation` | the generation counter | plain `adb shell cat` |
-| `<project>/<module>/build/quickbuild/setup.json` | the proxy app build's handshake with CoGo | plain `adb shell cat` |
+| `<project>/<module>/build/quickbuild/<variant>/setup.json` | the proxy app build's handshake with CoGo | plain `adb shell cat` |
+| `no_backup/gradle-build/<name>-<16 hex>/main/<module>-<16 hex>/quickbuild/<variant>/setup.json` | the same, once the project has synced since ADFA-4930 | `run-as com.itsaky.androidide` |
 | `/data/data/<user applicationId>/files/quickbuild/payload/` | persisted payload: `payload.dex`, `resources.arsc`, `assets.zip`, `meta.json` | `run-as <the user's package>` |
 
 Projects live under `/storage/emulated/0/CodeOnTheGoProjects/`.
@@ -194,8 +195,8 @@ Four traps in that table:
 - **The scratch tree is deleted on session teardown**, so inspect it while the session is
   live. Its directory name is `<sanitized project basename>-<first 16 hex of SHA-256 of the
   normalized absolute project path>`
-  ([`QuickBuildScratch.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/QuickBuildScratch.kt)),
-  so `ls` the parent rather than trying to compute it.
+  ([`ProjectStorageKey.kt`](../../shared/src/main/java/com/itsaky/androidide/utils/ProjectStorageKey.kt),
+  shared with relocated Gradle build output), so `ls` the parent rather than trying to compute it.
 - **The generation counter's directory is `.androidide`, not `.cg`.** CoGo's project cache dir
   was renamed to `.cg`; this one path is hardcoded to the old name in
   [`FileGenerationStore.kt`](../core/src/main/java/org/appdevforall/cotg/quickbuild/data/FileGenerationStore.kt).

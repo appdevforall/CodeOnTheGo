@@ -206,7 +206,7 @@ internal class IndexWorker(
 							}
 
 							fileIndex.upsert(newFile)
-							scanCount++
+							if (fileIndex.isOpen) scanCount++
 						}
 
 						is IndexCommand.SourceScanningComplete -> {
@@ -260,18 +260,19 @@ internal class IndexWorker(
 			// cmd.vf.path is not a plain field read (it builds a system-independent
 			// path string), so it must not be computed when nothing records it.
 			val detail = if (Memprof.sink != null) cmd.vf.path else null
-			Memprof.section("Index Kotlin file", detail) {
-				indexSourceFile(
-					project = project,
-					ktFile = ktFile,
-					fileIndex = fileIndex,
-					symbolsIndex = sourceIndex,
-					// A real (cancellable) checker so the scheduler can preempt this pass
-					// in favour of completion/diagnostics.
-					cancelChecker = ICancelChecker.Default(),
-				)
-			}
-			IndexOutcome.INDEXED
+			val wrote =
+				Memprof.section("Index Kotlin file", detail) {
+					indexSourceFile(
+						project = project,
+						ktFile = ktFile,
+						fileIndex = fileIndex,
+						symbolsIndex = sourceIndex,
+						// A real (cancellable) checker so the scheduler can preempt this pass
+						// in favour of completion/diagnostics.
+						cancelChecker = ICancelChecker.Default(),
+					)
+				}
+			if (wrote) IndexOutcome.INDEXED else IndexOutcome.SKIPPED
 		} catch (e: AnalysisPreemptedException) {
 			IndexOutcome.PREEMPTED
 		}

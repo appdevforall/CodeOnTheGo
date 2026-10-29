@@ -112,7 +112,7 @@ class MainViewModel : ViewModel() {
 			_isTransitionInProgress.observe(
 				owner,
 				object : Observer<Boolean> {
-					override fun onChanged(t: Boolean) {
+					override fun onChanged(value: Boolean) {
 						_isTransitionInProgress.removeObserver(this)
 						action.run()
 					}

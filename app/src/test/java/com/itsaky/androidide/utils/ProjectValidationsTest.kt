@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.models.DeepLinkRequest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -236,5 +237,31 @@ class ProjectValidationsTest {
 
 		// And the Boolean form collapses that to false for callers that only want a Boolean.
 		assertThat(isDeepLinkTargetOfOpenProject(unresolvable, "MyApp", root)).isFalse()
+	}
+
+	@Test
+	fun `the wildcard targets the open project wherever it lives`() {
+		val root = tempFolder.newFolder("projects4")
+		val elsewhere = tempFolder.newFolder("elsewhere")
+		val wildcard = DeepLinkRequest.WILDCARD_PROJECT
+
+		assertThat(isDeepLinkTargetOfOpenProject(File(root, "MyApp").path, wildcard, root)).isTrue()
+		assertThat(isDeepLinkTargetOfOpenProject(File(elsewhere, "Other").path, wildcard, root)).isTrue()
+	}
+
+	@Test
+	fun `the wildcard targets nothing when no project is open`() {
+		val root = tempFolder.newFolder("projects5")
+		assertThat(isDeepLinkTargetOfOpenProject("", DeepLinkRequest.WILDCARD_PROJECT, root)).isFalse()
+		assertThat(isDeepLinkTargetOfOpenProject("  ", DeepLinkRequest.WILDCARD_PROJECT, root)).isFalse()
+	}
+
+	// CreateLinkAction passes a real project's name, so a directory literally called "<*>" must not
+	// be reported as linkable by the disk-free check it uses.
+	@Test
+	fun `the disk-free check does not treat the wildcard as a project name`() {
+		val root = tempFolder.newFolder("projects6")
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(root, "<*>").path, "<*>", root)).isTrue()
+		assertThat(deepLinkTargetOfOpenProjectWithoutIo(File(root, "MyApp").path, "<*>", root)).isFalse()
 	}
 }
