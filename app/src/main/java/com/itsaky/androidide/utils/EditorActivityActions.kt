@@ -38,7 +38,7 @@ import com.itsaky.androidide.actions.editor.LongSelectAction
 import com.itsaky.androidide.actions.editor.PasteAction
 import com.itsaky.androidide.actions.editor.SelectAllAction
 import com.itsaky.androidide.actions.etc.DisconnectLogSendersAction
-import com.itsaky.androidide.actions.etc.ExportApkAction
+import com.itsaky.androidide.actions.etc.ExportBuildAction
 import com.itsaky.androidide.actions.etc.FindAction
 import com.itsaky.androidide.actions.etc.FindInFileAction
 import com.itsaky.androidide.actions.etc.FindInProjectAction
@@ -65,7 +65,6 @@ import com.itsaky.androidide.actions.text.UndoAction
 import com.itsaky.androidide.plugins.extensions.UIExtension
 import com.itsaky.androidide.plugins.manager.build.PluginBuildActionManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
-import com.itsaky.androidide.services.builder.BuildOutputLocation
 
 /**
  * Takes care of registering actions to the actions registry for the editor activity.
@@ -109,9 +108,7 @@ class EditorActivityActions {
 			registry.registerAction(ReplaceInProjectAction(context, order++))
 			registry.registerAction(LaunchAppAction(context, order++))
 			// ADFA-4930: relocated build output keeps the APK out of the project folder.
-			if (BuildOutputLocation.isAvailable()) {
-				registry.registerAction(ExportApkAction(context, order++))
-			}
+			registry.registerAction(ExportBuildAction(context, order++))
 			registry.registerAction(DisconnectLogSendersAction(context, order++))
 
 			// Plugin contributions

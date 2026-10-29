@@ -18,7 +18,6 @@ enum class Experiment(
 	ERROR_BAR_TOUCH_DISMISS("Error bars close on tap or swipe", "ADFA-6516"),
 	PROFILER("CPU and RAM profiler", "ADFA-6517"),
 	GRADLE_AUTO_TUNE("Gradle build auto-tune", "ADFA-6518"),
-	BUILD_OUTPUT_RELOCATION("Relocate build output", "ADFA-4930"),
 }
 
 object Experiments {

@@ -98,7 +98,6 @@ object TooltipTag {
 
 	// Preferences - Build & Run screen
 	const val PREFS_BUILDRUN_AUTOLAUNCH = "prefs.buildrun.autolaunch"
-	const val PREFS_BUILDRUN_RELOCATE_OUTPUT = "prefs.buildrun.relocateoutput"
 	const val PREFS_BUILDRUN_FLAGS = "prefs.buildrun.flags"
 	const val PREFS_BUILDRUN_FLAGS_STACKTRACE = "prefs.buildrun.flags.stacktrace"
 	const val PREFS_BUILDRUN_FLAGS_INFO = "prefs.buildrun.flags.info"
