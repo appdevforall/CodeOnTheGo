@@ -61,9 +61,6 @@ jacoco {
 }
 
 buildscript {
-	repositories {
-		google()
-	}
 	dependencies {
 		// Must stay first: pins a D8/R8 that understands the Kotlin metadata version (ADFA-6822).
 		classpath(libs.android.r8)

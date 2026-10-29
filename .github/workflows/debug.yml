@@ -234,7 +234,7 @@ jobs:
           # D8 logs this (non-fatal) once per class when the pinned R8 is older than the Kotlin
           # metadata version, burying every real diagnostic. See the `r8` pin in libs.versions.toml.
           if grep -q "Unexpected error during rewriting of Kotlin metadata" "$RUNNER_TEMP/assemble.log"; then
-            echo "::error::D8 could not rewrite Kotlin metadata. The R8 pinned in gradle/libs.versions.toml is too old for the current Kotlin version; bump 'r8' (ADFA-6822)."
+            echo "::error::D8 could not rewrite Kotlin metadata. Most likely the R8 pinned in gradle/libs.versions.toml is older than the Kotlin metadata version (bump 'r8'), or the pin no longer takes effect on the build classpath. See ADFA-6822."
             exit 1
           fi
 
