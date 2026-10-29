@@ -148,7 +148,9 @@ class PluginResourceContext(
 		return actCtx.resources
 	}
 
-	override fun getAssets(): AssetManager = getResources().assets
+	// Never the activity's: every plugin with its own package id adds its APK to those, and asset
+	// paths carry no package id, so a path two plugins both ship opens whichever was added last.
+	override fun getAssets(): AssetManager = pluginResources.assets
 
 	override fun getTheme(): Theme {
 		if (!usesCustomPackageId) {
