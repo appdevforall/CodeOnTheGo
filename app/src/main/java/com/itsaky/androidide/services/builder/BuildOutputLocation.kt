@@ -226,6 +226,21 @@ object BuildOutputLocation {
 		}
 
 	/**
+	 * [offerWhenSlotFree], but only when the offer could not be shown because a build holds the slot.
+	 * An offer that was shown needs no retry, and one refused for another reason (the project is
+	 * still initializing) would be refused again at once, so neither schedules one.
+	 *
+	 * @param shown whether the offer was shown.
+	 * @return the wait, or null when none was needed.
+	 */
+	fun offerAgainIfBlockedByBuild(
+		shown: Boolean,
+		scope: CoroutineScope,
+		slotBusy: StateFlow<Boolean>,
+		offer: () -> Unit,
+	): Job? = if (shown || !slotBusy.value) null else offerWhenSlotFree(scope, slotBusy, offer)
+
+	/**
 	 * Whether a synced model's build directory lies in [tree], meaning the sync that produced the
 	 * model relocated that project's build output.
 	 *

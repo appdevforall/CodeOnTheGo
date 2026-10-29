@@ -136,6 +136,7 @@ import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashInfoLong
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
+import com.itsaky.androidide.utils.installFromCopy
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
@@ -167,7 +168,6 @@ import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileNotFoundException
-import java.io.IOException
 import java.net.SocketException
 import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
@@ -1143,14 +1143,8 @@ abstract class ProjectHandlerActivity :
 		lifecycleScope.launch {
 			setStatus(getString(string.status_installing_plugin))
 			// Installing deletes the file it is given. A copy keeps the built plugin for Export.
-			val result =
-				try {
-					val copy = InstallTempFiles.newTempFile(filesDir, "built_plugin", cgpFile.extension)
-					withContext(Dispatchers.IO) { cgpFile.copyTo(copy) }
-					pluginRepository.installPluginFromFile(copy)
-				} catch (e: IOException) {
-					Result.failure(e)
-				}
+			val copy = InstallTempFiles.newTempFile(filesDir, "built_plugin", cgpFile.extension)
+			val result = installFromCopy(cgpFile, copy) { pluginRepository.installPluginFromFile(it) }
 			result
 				.onSuccess {
 					showRestartPrompt(this@ProjectHandlerActivity)
@@ -1264,18 +1258,22 @@ abstract class ProjectHandlerActivity :
 					}
 					buildOutputSyncBanner = null
 					buildOutputSyncOffered = false
-				} else if (
-					!buildOutputSyncOffered &&
-					notifySyncNeeded(
-						onConfirm = ::syncForBuildOutput,
-						// Short, with a short dismiss label: this banner greets every existing project, and
-						// has to keep its Sync button at 2x font scale.
-						message = string.msg_sync_build_output_relocate,
-						dismissText = string.btn_not_now,
-					)
-				) {
-					buildOutputSyncOffered = true
-					buildOutputSyncBanner = syncNotificationFlashbar
+				} else if (!buildOutputSyncOffered) {
+					val shown =
+						notifySyncNeeded(
+							onConfirm = ::syncForBuildOutput,
+							// Short, with a short dismiss label: this banner greets every existing project, and
+							// has to keep its Sync button at 2x font scale.
+							message = string.msg_sync_build_output_relocate,
+							dismissText = string.btn_not_now,
+						)
+					if (shown) {
+						buildOutputSyncOffered = true
+						buildOutputSyncBanner = syncNotificationFlashbar
+					} else {
+						// A build holds the Gradle slot, so no banner can show now; offer again when it ends.
+						offerAgainAfterBuild(shown = false)
+					}
 				}
 			}
 		}
@@ -1321,14 +1319,20 @@ abstract class ProjectHandlerActivity :
 		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
 		if (service?.isBuildInProgress == true) {
 			flashInfoLong(getString(string.msg_sync_build_output_deferred))
-			buildOutputSyncDeferral?.cancel()
-			buildOutputSyncDeferral =
-				BuildOutputLocation.offerWhenSlotFree(activityScope, service.buildSlotBusy) {
-					reconcileBuildOutputSyncOffer(afterInit = false)
-				}
+			offerAgainAfterBuild(shown = false)
 			return
 		}
 		initializeProject(forceSync = true)
+	}
+
+	/** Offers the relocation sync again once the build holding the Gradle slot ends; see [BuildOutputLocation]. */
+	private fun offerAgainAfterBuild(shown: Boolean) {
+		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService ?: return
+		buildOutputSyncDeferral?.cancel()
+		buildOutputSyncDeferral =
+			BuildOutputLocation.offerAgainIfBlockedByBuild(shown, activityScope, service.buildSlotBusy) {
+				reconcileBuildOutputSyncOffer(afterInit = false)
+			}
 	}
 
 	/** Prebuilding writes to the current model's build directory; every later state uses the proxy's paths. */

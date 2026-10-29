@@ -366,6 +366,33 @@ class BuildOutputLocationTest {
 		}
 
 	@Test
+	fun `an offer a build blocked is made again when the build ends`() =
+		runTest {
+			val slotBusy = MutableStateFlow(true)
+			var offers = 0
+
+			val wait = BuildOutputLocation.offerAgainIfBlockedByBuild(shown = false, backgroundScope, slotBusy) { offers++ }
+			runCurrent()
+			assertThat(wait).isNotNull()
+			assertThat(offers).isEqualTo(0)
+
+			slotBusy.value = false
+			runCurrent()
+			assertThat(offers).isEqualTo(1)
+		}
+
+	@Test
+	fun `no retry is scheduled for an offer that was shown or refused for another reason`() =
+		runTest {
+			val busy = MutableStateFlow(true)
+			val free = MutableStateFlow(false)
+
+			assertThat(BuildOutputLocation.offerAgainIfBlockedByBuild(shown = true, backgroundScope, busy) {}).isNull()
+			// Not shown, but no build holds the slot, as while the project initializes: retrying would loop.
+			assertThat(BuildOutputLocation.offerAgainIfBlockedByBuild(shown = false, backgroundScope, free) {}).isNull()
+		}
+
+	@Test
 	fun `a deferred sync is offered at once when the slot is already free`() =
 		runTest {
 			var offers = 0
