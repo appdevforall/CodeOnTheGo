@@ -53,8 +53,8 @@ private const val KEY_TERMUX_VIEW_MARGIN_ADJUSTMENT_ENABLED_PREFERENCE =
 	"${KEY_TERMUX_VIEW_PREFERENCES}.marginAdjustment"
 
 abstract class TermuxSwitchPreference(
-	@StringRes private val summaryOn: Int,
-	@StringRes private val summaryOff: Int,
+	@param:StringRes private val summaryOn: Int,
+	@param:StringRes private val summaryOff: Int,
 	property: KMutableProperty0<Boolean>,
 	override val tooltipTag: String = "",
 ) : SwitchPreference(property) {

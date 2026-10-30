@@ -8,7 +8,7 @@ import com.itsaky.androidide.repositories.TemplateCollectionRepositoryImpl
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import org.koin.android.ext.koin.androidContext
-import org.koin.androidx.viewmodel.dsl.viewModel
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 import java.io.File
 

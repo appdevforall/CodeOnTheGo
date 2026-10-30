@@ -21,8 +21,8 @@ import org.slf4j.LoggerFactory
  */
 abstract class AbstractCancellableRunAction(
 	context: Context,
-	@StringRes private val labelRes: Int,
-	@DrawableRes private val iconRes: Int,
+	@param:StringRes private val labelRes: Int,
+	@param:DrawableRes private val iconRes: Int,
 ) : BaseBuildAction() {
 	// Execute on UI thread as this action might try to show dialogs to the user
 	final override var requiresUIThread: Boolean = true

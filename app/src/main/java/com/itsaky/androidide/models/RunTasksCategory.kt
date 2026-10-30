@@ -21,4 +21,7 @@ import androidx.annotation.StringRes
 import com.itsaky.androidide.tooling.api.models.GradleTask
 
 /** @author Akash Yadav */
-data class RunTasksCategory(@StringRes val title: Int, val tasks: List<Checkable<GradleTask>>)
+data class RunTasksCategory(
+	@param:StringRes @get:StringRes val title: Int,
+	val tasks: List<Checkable<GradleTask>>,
+)
