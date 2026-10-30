@@ -15,7 +15,6 @@ import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
-import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
@@ -29,7 +28,10 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.indexing.jvm.JVM_LIBRARY_SYMBOL_INDEX
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
+import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.platform.analysisMessageBus
@@ -65,7 +67,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class CompilationEnvironment(
 	name: String,
 	kind: CompilationKind,
-	private val workspace: Workspace,
+	private val layout: KotlinModuleLayout,
 	val ktProject: KotlinProjectModel,
 	intellijPluginRoot: Path,
 	jdkHome: Path,
@@ -112,19 +114,19 @@ internal class CompilationEnvironment(
 		get() = ktProject.libraryIndex
 
 	val requireLibraryIndex: JvmSymbolIndex
-		get() = checkNotNull(libraryIndex)
+		get() = ktProject.requireIndex(JVM_LIBRARY_SYMBOL_INDEX)
 
 	val sourceIndex: JvmSymbolIndex?
 		get() = ktProject.sourceIndex
 
 	val requireSourceIndex: JvmSymbolIndex
-		get() = checkNotNull(sourceIndex)
+		get() = ktProject.requireIndex(KT_SOURCE_FILE_INDEX_KEY)
 
 	val fileIndex: KtFileMetadataIndex?
 		get() = ktProject.fileIndex
 
 	val requireFileIndex: KtFileMetadataIndex
-		get() = checkNotNull(fileIndex)
+		get() = ktProject.requireIndex(KT_SOURCE_FILE_META_INDEX_KEY)
 
 	val generatedIndex: JvmSymbolIndex?
 		get() = ktProject.generatedIndex
@@ -140,7 +142,21 @@ internal class CompilationEnvironment(
 		}
 
 	init {
-		initialize(::buildModules, ::buildKtSymbolIndex)
+		try {
+			initialize(::buildModules, ::buildKtSymbolIndex)
+		} catch (failure: Throwable) {
+			releaseAfterFailedInit(failure)
+			throw failure
+		}
+	}
+
+	/*
+	 * A throwing constructor never hands this instance to anyone who would close it, so the project
+	 * environment initialize() already created would leak. super.close() rather than close(): the
+	 * fields this class declares after its init block are still unset.
+	 */
+	private fun releaseAfterFailedInit(failure: Throwable) {
+		runCatching { super.close() }.exceptionOrNull()?.let(failure::addSuppressed)
 	}
 
 	@OptIn(KaImplementationDetail::class)
@@ -161,7 +177,7 @@ internal class CompilationEnvironment(
 	private fun buildModules(
 		project: MockProject,
 		applicationEnv: KotlinCoreApplicationEnvironment,
-	): List<KtModule> = workspace.collectKtModules(project, applicationEnv)
+	): List<KtModule> = layout.toKtModules(project, applicationEnv)
 
 	override fun createServiceRegistrars() = listOf(LspAnalysisApiServiceRegistrar(AnalysisApiServiceProviders.Production))
 
@@ -215,7 +231,7 @@ internal class CompilationEnvironment(
 
 	fun refreshSources() {
 		Sentry.addBreadcrumb("refreshSources (env=$name, modules=${modules.size})")
-		project.write {
+		project.writeUnlessDisposed {
 			Sentry.addBreadcrumb("refreshSources(env=$name): in-progress")
 			ResolutionScopeProvider.getInstance(project).invalidateAll()
 			modules
@@ -252,7 +268,7 @@ internal class CompilationEnvironment(
 		// Resolve PSI/module structure under the read lock; driving psiManager.findFile /
 		// structureProvider concurrently with an `analyze` read section otherwise races.
 		val (ktFile, module) =
-			project.read {
+			project.readUnlessDisposed {
 				val structureProvider = ProjectStructureProvider.getInstance(project)
 				val ktFile =
 					path.toVirtualFileOrNull()?.let {
@@ -266,9 +282,9 @@ internal class CompilationEnvironment(
 					) as? AbstractKtModule
 
 				ktFile to module
-			}
+			} ?: return
 
-		project.write {
+		project.writeUnlessDisposed {
 			// Must run under the write lock so the session mutation can't race a concurrent
 			// `analyze` (which only holds the read lock); see KtSymbolIndex.refreshToCurrent.
 			if (ktFile != null) {
@@ -299,18 +315,20 @@ internal class CompilationEnvironment(
 	}
 
 	suspend fun onFileChangedOnDisk(path: Path) {
-		if (FileManager.isActive(path)) return
+		if (project.isDisposed || FileManager.isActive(path)) return
 		ktSymbolIndex.evictDiskCopy(path)
 		notifyElementModifiedForPath(path) { KaElementModificationType.Unknown }
 		ktSymbolIndex.submitForIndexing(path)
 	}
 
 	suspend fun onFileCreated(path: Path) {
+		if (project.isDisposed) return
 		notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
 		ktSymbolIndex.submitForIndexing(path)
 	}
 
 	suspend fun onFileRemoved(path: Path) {
+		if (project.isDisposed) return
 		notifyElementModifiedForPath(path) { ktFile ->
 			KaElementModificationType.ElementRemoved(ktFile)
 		}

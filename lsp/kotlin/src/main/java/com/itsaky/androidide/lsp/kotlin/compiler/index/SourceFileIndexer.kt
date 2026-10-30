@@ -98,6 +98,12 @@ internal fun KtFile.toMetadata(
 		)
 	}
 
+/**
+ * Indexes [ktFile]'s declarations into [symbolsIndex] and records it in [fileIndex].
+ *
+ * Returns true only when it wrote the file's symbols; false when the file was unchanged, could not
+ * be analyzed, or an index was closed.
+ */
 @OptIn(UnpinnedAnalysis::class)
 internal suspend fun indexSourceFile(
 	project: Project,
@@ -105,7 +111,7 @@ internal suspend fun indexSourceFile(
 	fileIndex: KtFileMetadataIndex,
 	symbolsIndex: JvmSymbolIndex,
 	cancelChecker: ICancelChecker,
-) {
+): Boolean {
 	// Indexing runs at the lowest priority, yielding to completion and diagnostics. Wrapping the checker
 	// lets the scheduler preempt an in-progress pass; the preemption surfaces as AnalysisPreemptedException
 	// at the abortIfCancelled() checkpoints below, which IndexWorker catches to re-queue the file.
@@ -114,7 +120,7 @@ internal suspend fun indexSourceFile(
 	// Defensive backstop: this runs on the debounced/async index scope, so a disposal path that
 	// didn't first drain & join the workers could otherwise touch PSI on a disposed project and
 	// throw "Project is already disposed" (APPDEVFORALL-17R). Cheap fast-path before the reads below.
-	if (project.isDisposed) return
+	if (project.isDisposed) return false
 
 	// Re-check disposal *inside* the read lock so it is atomic with toMetadata()'s PSI access:
 	// the fast-path check above can race a concurrent disposal before toMetadata enters its read.
@@ -122,12 +128,12 @@ internal suspend fun indexSourceFile(
 		project.read {
 			if (project.isDisposed) return@read null
 			ktFile.toMetadata(project, isIndexed = true)
-		} ?: return
+		} ?: return false
 	val existingFile = fileIndex.get(newFile.filePath)
 	checker.abortIfCancelled()
 
 	if (KtFileMetadata.shouldBeSkipped(existingFile, newFile) && existingFile?.isIndexed == true) {
-		return
+		return false
 	}
 
 	// Remove stale symbols written during the previous indexing pass.
@@ -176,11 +182,13 @@ internal suspend fun indexSourceFile(
 				logger.error("Failed to index {}", newFile.filePath, e)
 				Sentry.captureException(e)
 			}
-			return
+			return false
 		}
 
 	symbolsIndex.insertAll(symbols.asSequence())
 	fileIndex.upsert(newFile.copy(symbolKeys = symbols.map { it.key }))
+	// A closed index drops writes silently; closing is one-way, so checking afterwards never over-reports.
+	return fileIndex.isOpen && symbolsIndex.isOpen
 }
 
 @OptIn(KaImplementationDetail::class)

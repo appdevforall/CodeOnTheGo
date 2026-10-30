@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
+import org.appdevforall.codeonthego.indexing.IndexSessionLifetime
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.indexQuery
@@ -19,11 +20,13 @@ class KtFileMetadataIndex(
 		 * Creates a [KtFileMetadataIndex] backed by a SQLite database.
 		 *
 		 * The [context] is required by the AndroidX SQLite helpers even for in-memory
-		 * databases; it is not used for any file I/O.
+		 * databases; it is not used for any file I/O. [lifetime] is the project session owning the
+		 * index, or null if it has none.
 		 */
 		fun sqliteBacked(
 			context: Context,
 			dbName: String? = null,
+			lifetime: IndexSessionLifetime? = null,
 		): KtFileMetadataIndex =
 			KtFileMetadataIndex(
 				SQLiteIndex(
@@ -32,6 +35,7 @@ class KtFileMetadataIndex(
 					dbName = dbName,
 					formatVersion = JvmSymbolIndex.FORMAT_VERSION,
 					name = "kt-file-metadata",
+					lifetime = lifetime,
 				),
 			)
 	}
@@ -151,6 +155,10 @@ class KtFileMetadataIndex(
 
 	/** Remove all records from the index. */
 	suspend fun clear() = backing.clear()
+
+	/** Whether the backing index still serves reads and writes. */
+	val isOpen: Boolean
+		get() = backing.isOpen
 
 	override fun close() = backing.close()
 }

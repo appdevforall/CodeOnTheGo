@@ -63,7 +63,7 @@ class MetricsAnnotationStore(
 		 * locale changes. Holding the id also removes the only reason a caller had to know which
 		 * string went with which kind.
 		 */
-		@StringRes val labelRes: Int?,
+		@param:StringRes @get:StringRes val labelRes: Int?,
 	) {
 		/** A Gradle task starting or finishing. Throttled: Gradle emits dozens a second. */
 		TASK(labelRes = null),
