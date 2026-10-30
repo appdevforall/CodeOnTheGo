@@ -31,7 +31,6 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.quickbuild.EnvironmentQuickBuildPaths
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
-import com.itsaky.androidide.security.CryptogramActivity
 import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.security.LauncherAliasManager
 import com.itsaky.androidide.security.NeutralizationMarker
@@ -78,12 +77,7 @@ class AppWipeService(
 		// As a hide does: floating windows and notifications outlive the activity and would show the IDE
 		// over the disguise until the teardown below reaches them.
 		InstantHide.hideOutsideActivities(app)
-		activity.startActivity(
-			Intent(activity, CryptogramActivity::class.java).apply {
-				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-			},
-		)
-		activity.finish()
+		InstantHide.showDisguise(activity, InstantHide.newDisguiseIntent(activity))
 
 		// File IO + build cancel: off the main thread, on the app scope so it survives the finished activity.
 		(app as IDEApplication).coroutineScope.launch(Dispatchers.IO) {

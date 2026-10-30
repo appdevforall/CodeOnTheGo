@@ -34,7 +34,7 @@ import com.itsaky.androidide.security.InstantHide
 class StealthSplashActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		startActivity(InstantHide.disguiseIntent(this))
-		finish()
+		// The lifecycle callback has already shown the disguise if the app is hidden or neutralized.
+		if (!isFinishing) InstantHide.showDisguise(this, InstantHide.disguiseIntent(this))
 	}
 }
