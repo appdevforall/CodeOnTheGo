@@ -81,7 +81,8 @@
         <!--
             LauncherActivity has no launcher intent-filter of its own: the launcher identity is carried
             by the activity-aliases below so Instant Hide (ADFA-40) can swap the app name/icon to the
-            "Code Breaker" disguise by toggling which alias is enabled. All aliases target LauncherActivity.
+            "Code Breaker" disguise by toggling which alias is enabled. The default alias targets
+            LauncherActivity; the stealth aliases target StealthSplashActivity.
             The default alias keeps the launcher activity's name from before Instant Hide,
             .activities.SplashActivity, so a home-screen icon pinned to that component survives the
             update on every launcher.
@@ -90,6 +91,18 @@
             android:name=".activities.LauncherActivity"
             android:exported="true"
             android:theme="@style/AppTheme.Splash" />
+
+        <!--
+            Stealth launcher entry: the stealth aliases below target this instead of LauncherActivity so
+            the splash (painted by the OS from the activity theme before app code runs) shows no Code On
+            The Go logo. It forwards straight to the cryptogram. See ADFA-6510.
+            Not exported: the aliases are, so the launcher still opens it, but another app cannot. Opened
+            by another app, it would close the IDE, since showing the disguise removes the IDE's tasks.
+        -->
+        <activity
+            android:name=".activities.StealthSplashActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.Splash.Stealth" />
 
         <activity-alias
             android:name=".activities.SplashActivity"
@@ -107,7 +120,7 @@
 
         <activity-alias
             android:name=".StealthAliasActivity1"
-            android:targetActivity=".activities.LauncherActivity"
+            android:targetActivity=".activities.StealthSplashActivity"
             android:label="@string/stealth_app_name"
             android:icon="@drawable/ic_launcher_stealth_1"
             android:roundIcon="@drawable/ic_launcher_stealth_1"
@@ -121,7 +134,7 @@
 
         <activity-alias
             android:name=".StealthAliasActivity2"
-            android:targetActivity=".activities.LauncherActivity"
+            android:targetActivity=".activities.StealthSplashActivity"
             android:label="@string/stealth_app_name"
             android:icon="@drawable/ic_launcher_stealth_2"
             android:roundIcon="@drawable/ic_launcher_stealth_2"
@@ -135,7 +148,7 @@
 
         <activity-alias
             android:name=".StealthAliasActivity3"
-            android:targetActivity=".activities.LauncherActivity"
+            android:targetActivity=".activities.StealthSplashActivity"
             android:label="@string/stealth_app_name"
             android:icon="@drawable/ic_launcher_stealth_3"
             android:roundIcon="@drawable/ic_launcher_stealth_3"
@@ -149,7 +162,7 @@
 
         <activity-alias
             android:name=".StealthAliasActivity4"
-            android:targetActivity=".activities.LauncherActivity"
+            android:targetActivity=".activities.StealthSplashActivity"
             android:label="@string/stealth_app_name"
             android:icon="@drawable/ic_launcher_stealth_4"
             android:roundIcon="@drawable/ic_launcher_stealth_4"
@@ -163,7 +176,7 @@
 
         <activity-alias
             android:name=".StealthAliasActivity5"
-            android:targetActivity=".activities.LauncherActivity"
+            android:targetActivity=".activities.StealthSplashActivity"
             android:label="@string/stealth_app_name"
             android:icon="@drawable/ic_launcher_stealth_5"
             android:roundIcon="@drawable/ic_launcher_stealth_5"

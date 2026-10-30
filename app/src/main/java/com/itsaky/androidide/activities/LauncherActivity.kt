@@ -24,6 +24,7 @@ import android.os.Bundle
 import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
 import com.itsaky.androidide.security.InstantHide
+import com.itsaky.androidide.security.LauncherAliasManager
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.hasEnoughStorageAvailable
@@ -36,8 +37,13 @@ class LauncherActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
-		// Instant Hide (ADFA-40): if the disguise is engaged, go straight to it before any IDE UI
-		// is shown. The state persists across restarts/reboots until the user performs the exit gesture.
+		// Instant Hide (ADFA-40) and Instant Wipe (ADFA-6510): while the disguise is engaged, or once the
+		// install is wiped -- or its markers were stripped by clearing app data while the stealth alias
+		// persists (the tamper fingerprint) -- go straight to the disguise before any IDE UI. Tamper
+		// deliberately does NOT re-run the wipe: the signature cannot tell a prior Instant Wipe from a
+		// plain Instant Hide whose data was cleared, so re-wiping could destroy work the user never meant
+		// to wipe. Staying the disguise still defeats the tamper. The checks run on the main thread by
+		// design and MUST complete before any IDE UI could be shown (F08).
 		if (InstantHide.redirectIfHidden(this)) return
 
 		if (!hasEnoughStorageAvailable()) {
@@ -51,6 +57,11 @@ class LauncherActivity : Activity() {
 			finishAffinity()
 			exitProcess(0)
 		}
+
+		// ADFA-6507 (wipe-aware reconcile): launching the real IDE -- not hidden, wiped, or tampered (all
+		// early-returned above), so the default alias must be the only launcher icon. Heal a stealth alias
+		// left stuck by a partial swap, before it could later read as the tamper fingerprint.
+		LauncherAliasManager.reconcile(this, disguiseActive = false)
 
 		startActivity(Intent(this, OnboardingActivity::class.java))
 		finish()

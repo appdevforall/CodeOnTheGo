@@ -32,8 +32,8 @@ other tasks, finish the IDE screen. The disguise has a task affinity of its own 
 default alias makes Android remove the task that alias started, about a second later, with everything
 in it.
 
-While the flag is set, the same lifecycle callbacks send every activity but the disguise to it as it is
-created or resumed, so no entry point can surface IDE UI. Entry points whose `onCreate` does work —
+While the flag is set, or the install is neutralized by Instant Wipe (below), the same lifecycle
+callbacks send every activity but the disguise to it as it is created or resumed, so no entry point can surface IDE UI. Entry points whose `onCreate` does work —
 `LauncherActivity`, `DeepLinkActivity`, `ExternalFileInstallActivity`, `CrashHandlerActivity` — also
 call `InstantHide.redirectIfHidden` and return, so the work never starts. The redirect reuses a running
 disguise (`CLEAR_TOP | SINGLE_TOP`), so a link or file opened while hidden does not reset the puzzle.
@@ -53,8 +53,15 @@ not bring the IDE's text back. After the exit gesture each shows its own again o
 
 The real launcher activity is `LauncherActivity`, with no launcher filter. The default alias is named
 `.activities.SplashActivity`, the launcher component from before Instant Hide, so home-screen icons
-pinned to it survive the update on every launcher. The five stealth aliases share the target. The
-disguise's Recents entry uses this device's stealth alias icon (`LauncherAliasManager.stealthIcon`).
+pinned to it survive the update on every launcher. The five stealth aliases target
+`StealthSplashActivity`. The disguise's Recents entry uses this device's stealth alias icon
+(`LauncherAliasManager.stealthIcon`).
+
+A swap disables the default alias first, so if a `PackageManager` call throws midway the launcher
+shows no icon rather than the real one beside the disguise (ADFA-6507).
+`LauncherAliasManager.reconcile` repairs a swap left half done: the disguise and `LauncherActivity`
+each check, as they start, that the launcher shows only their own icon, and redo the swap if it
+shows both icons or neither.
 
 ## Screenshot / Recents masking
 
@@ -62,6 +69,44 @@ disguise's Recents entry uses this device's stealth alias icon (`LauncherAliasMa
 thumbnail (a single flag; the two can't be separated). There is **no UI toggle**. The only override is
 a QA escape hatch: if `/sdcard/Download/CodeOnTheGo.mfs` exists (`SecurityOverride`), `FLAG_SECURE` is
 not applied and the app shows a one-time advisory, so QA can capture screenshots and bug reports.
+
+## Instant Wipe (ADFA-6510)
+
+A separately-armed escalation (its own Settings toggle, off by default, behind a blocking destructive
+warning). When armed, a single-finger **circular sweep** (`GestureDetectorHelper.CircleGestureDetector`)
+on any surface -- IDE, the disguise, or the terminal -- irreversibly destroys the user's work and
+neutralizes the app to the disguise. Instant, no dialog, no undo. As for a hide, the disguise shows at
+once, with the floating windows closed and the notifications masked (`InstantHide.hideOutsideActivities`).
+The Settings and practice screens are `InstantHide.GesturesExempt`, so arming/practicing cannot wipe.
+
+- **Destroy** (`WipeManager` + `SecureShredder`): cancel the build, stop Termux, close the project and
+  the Recents DB, then overwrite-then-delete the source and DB files and fast-delete the bulk
+  regenerable caches: `build`/`.gradle`/`.cg` in the projects, the IDE and Gradle homes, and in
+  `noBackupFilesDir` the relocated build output (`gradle-build`, ADFA-4930) and Quick Build's
+  `quickbuild-scratch`. Neither pass follows a symbolic link: a link is removed, never what it points
+  to, which may be outside the wipe. The overwrite is **best-effort only** -- not a
+  guaranteed erase on flash -- so strings say "delete", not "securely erase"; device at-rest encryption
+  is the real protection.
+- **Neutralize** (`NeutralizationMarker`): after a wipe, `.pip` (filesDir) and `.pip2` (noBackupFilesDir)
+  markers are written and the prefs blanked. Every activity, not only the launcher, then goes to the
+  disguise whenever a marker is present (`HideState.neutralized`, read by `InstantHide.redirectIfHidden`). **Tamper**: clearing app data strips the markers but the launcher stealth alias
+  survives, so a blank-prefs + stealth-alias + no-marker state is treated as tamper and also neutralizes.
+  It **does not re-wipe** -- the signature cannot tell a prior wipe from a plain Instant Hide whose data
+  was cleared, so re-wiping would risk destroying work never meant for it. The exit gesture is a no-op
+  once neutralized.
+- **Module boundary**: the engine (`WipeManager`, `SecureShredder`, `CircleGestureDetector`) and the
+  markers live in `:security`; the `:app` side (`AppWipeService`, which owns the build service, Termux,
+  project manager and Room DB) implements the `WipeService` interface and is reached from `:security`
+  via `WipeServiceProvider` on the `Application`.
+- **Splash**: the stealth aliases route through `StealthSplashActivity` with a logo-free splash
+  (`AppTheme.Splash.Stealth`) so launching the disguise never flashes the Code On The Go logo. It is
+  not exported, so no other app can start it and, through `showDisguise`, close the IDE.
+- **`CodeOnTheGo.nowipe`** (`SecurityOverride.isWipeDryRun`): a **debug-only** dev/QA override -- the wipe
+  enumerates and logs its targets but deletes nothing (honored only in `BuildConfig.DEBUG`). A real wipe
+  logs only the counts, so logcat does not keep the layout of the user's projects.
+- **Practice**: arming either feature opens a safe, full-screen gesture rehearsal
+  (`WipePracticeOverlayView` / `HidePracticeOverlayView`) that recognises the real gestures but never
+  hides or wipes.
 
 ## Known limits
 
@@ -80,15 +125,19 @@ Renaming the app would rename it everywhere, hidden or not, and tie the disguise
 
 | File | Role |
 |---|---|
-| `GestureDetectorHelper.kt` | Three-finger tap + slow-double-three-finger-tap detectors (unit-tested). |
+| `GestureDetectorHelper.kt` | Three-finger tap + slow-double-three-finger-tap (hide) and single-finger circle-sweep (wipe) detectors (unit-tested). |
 | `InstantHide.kt` | Mounts a controller on every activity and redirects to the disguise while hidden. |
 | `FaceDownDetector.kt` | When a gravity reading completes a flip to face down (unit-tested). |
 | `NeutralNotifications.kt` | Removes or neutralises the app's notifications while hidden (unit-tested). |
 | `HideState.kt` | The armed and hidden flags, behind an interface tests can replace. |
 | `LauncherAliasManager.kt` | Picks one of five stealth aliases per device (FNV-1a hash); enables/disables aliases. |
-| `SecurityController.kt` | Owns the four triggers, the inactivity timer, and the `FLAG_SECURE` policy. |
-| `SecurityOverride.kt` | The `CodeOnTheGo.mfs` magic-file check. |
+| `SecurityController.kt` | Owns the hide triggers, the inactivity timer, the `FLAG_SECURE` policy, and the wipe circle detector. |
+| `SecurityOverride.kt` | The `CodeOnTheGo.mfs` (FLAG_SECURE) and `CodeOnTheGo.nowipe` (debug-only wipe dry-run) magic-file checks. |
 | `CryptogramActivity.kt` + `FlowLayout.kt` + `res/layout/activity_cryptogram.xml` | The disguise game. |
+| `WipeManager.kt` + `SecureShredder.kt` | Instant Wipe engine: teardown orchestration + overwrite-then-delete (unit-tested). |
+| `WipeService.kt` | `WipeService` / `WipeServiceProvider` boundary interfaces (impl in `:app`). |
+| `NeutralizationMarker.kt` | `.pip`/`.pip2` tripwire + the tamper signature (`isWiped`/`isTampered`). |
+| `WipePracticeOverlayView.kt` / `HidePracticeOverlayView.kt` + their activities | Safe full-screen gesture rehearsals. |
 
 The on/off flag and hidden-state flag live in `:preferences`
 (`preferences/.../internal/SecurityPreferences.kt`, `PreferenceManager`-backed). The Settings UI and
@@ -103,3 +152,9 @@ as-is from the Security Mockup prototype, not core IDE UI, and a Compose rebuild
 scope for ADFA-40. It is rendered in Views (XML + `FlowLayout`) with the game logic in the Activity.
 It also, by design, omits the long-press help affordance (REVIEW.md §9) — surfacing IDE help on the
 "game" would blow the disguise. A future Compose rebuild would be a separate change.
+
+The Instant Wipe / Hide **practice overlays** (`WipePracticeOverlayView`, `HidePracticeOverlayView`)
+are also Views under this exception: they do custom `Canvas` finger-trail rendering and feed raw
+`MotionEvent`s to the **same** `GestureDetectorHelper` detectors as the real triggers, so the rehearsal
+exercises the production recognition exactly. Rebuilding them on Compose's higher-level gesture APIs
+would fork that recognition; it is a possible future change, not a goal here.

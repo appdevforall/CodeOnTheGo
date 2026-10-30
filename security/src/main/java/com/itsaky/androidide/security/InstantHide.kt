@@ -63,12 +63,15 @@ object InstantHide {
 	}
 
 	/**
-	 * Shows the disguise and finishes [activity] if the disguise is engaged. An entry point whose
+	 * Shows the disguise and finishes [activity] if the disguise is engaged or the install is
+	 * neutralized (ADFA-6510): a wipe, or the tamper fingerprint, leaves it the disguise for good. The
+	 * markers are checked only when the hidden flag is clear: two file stats and a launcher-label
+	 * lookup. An entry point whose
 	 * onCreate does work calls this right after `super.onCreate` and returns when it is true, so the
 	 * work never starts; the lifecycle callback has already redirected, and this does not repeat it.
 	 */
 	fun redirectIfHidden(activity: Activity): Boolean {
-		if (activity is CryptogramActivity || !state.hidden) return false
+		if (activity is CryptogramActivity || !(state.hidden || state.neutralized(activity))) return false
 		if (!activity.isFinishing) showDisguise(activity, disguiseIntent(activity))
 		return true
 	}
@@ -81,6 +84,15 @@ object InstantHide {
 		Intent(context, CryptogramActivity::class.java).addFlags(
 			Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
 		)
+
+	/**
+	 * Closes the floating windows and masks the notifications: what outlives the activities when the
+	 * disguise engages, by a hide or by a wipe.
+	 */
+	fun hideOutsideActivities(context: Context) {
+		runCatching { onHide(context) }
+		runCatching { NeutralNotifications.mask(context) }
+	}
 
 	/** Starts the disguise with a new puzzle, as a hide does. */
 	fun newDisguiseIntent(context: Context): Intent =
@@ -129,7 +141,7 @@ object InstantHide {
 				SecurityController(
 					activity,
 					gesturesEnabled = activity !is GesturesExempt,
-					onHide = onHide,
+					onHide = ::hideOutsideActivities,
 					state = state,
 					keyboardShown = { keyboardShown(it) },
 				)

@@ -15,5 +15,13 @@
 			android:taskAffinity="com.itsaky.androidide.disguise"
 			android:theme="@style/Theme.Material3.DayNight.NoActionBar"
 			android:windowSoftInputMode="adjustResize" />
+		<activity
+			android:name=".WipePracticeActivity"
+			android:exported="false"
+			android:theme="@style/Theme.Material3.DayNight.NoActionBar" />
+		<activity
+			android:name=".HidePracticeActivity"
+			android:exported="false"
+			android:theme="@style/Theme.Material3.DayNight.NoActionBar" />
 	</application>
 </manifest>

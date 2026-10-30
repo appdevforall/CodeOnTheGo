@@ -3,6 +3,11 @@
 <resources>
 	<color name="success_green">#2E7D32</color>
 	<color name="cipher_letter_blue">#1565C0</color>
+
+	<!-- Instant Wipe practice overlay (ADFA-6510). Fixed values; the overlay is always a dark scrim regardless of theme. -->
+	<color name="touch_stroke_blue">#00B0FF</color>
+	<color name="practice_overlay_background">#CC121212</color>
+
 	<color name="error_red">#C62828</color>
 	<color name="placeholder_gray">#9E9E9E</color>
 	<color name="secondary_text_gray">#616161</color>

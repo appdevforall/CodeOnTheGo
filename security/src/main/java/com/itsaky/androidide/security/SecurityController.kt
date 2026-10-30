@@ -44,7 +44,8 @@ import com.itsaky.androidide.resources.R as ResR
  * [InstantHide] mounts one on every activity and forwards its lifecycle and input.
  *
  * @param gesturesEnabled false where the triggers must not fire; FLAG_SECURE still applies.
- * @param onHide runs on every hide, before the disguise starts.
+ * @param onHide covers what outlives the activity (floating windows, notifications); runs on every
+ *   hide, before the disguise starts.
  * @param keyboardShown whether the soft keyboard shows over the activity.
  */
 internal class SecurityController(
@@ -59,11 +60,16 @@ internal class SecurityController(
 	}
 
 	private val enabled: Boolean get() = state.armed
+	private val wipeEnabled: Boolean get() = state.wipeArmed
 
 	private val triggersOn: Boolean get() = enabled && gesturesEnabled
 
 	private var hideDetector: GestureDetectorHelper.ThreeFingerTapDetector? = null
 	private var screenOffReceiver: BroadcastReceiver? = null
+
+	// Created once (the circle detector is stateless between strokes); fed only while Instant Wipe is
+	// armed. Independent of Instant Hide -- the two features arm separately.
+	private val wipeDetector = GestureDetectorHelper.CircleGestureDetector(activity) { triggerInstantWipe() }
 
 	private val sensorManager = activity.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
 	private val gravitySensor =
@@ -166,9 +172,14 @@ internal class SecurityController(
 	}
 
 	fun onTouchEvent(ev: MotionEvent) {
-		if (!triggersOn) return
-		resetInactivityTimer()
-		hideDetector?.onTouchEvent(ev)
+		if (!gesturesEnabled) return
+		if (enabled) {
+			resetInactivityTimer()
+			hideDetector?.onTouchEvent(ev)
+		}
+		if (wipeEnabled) {
+			wipeDetector.onTouchEvent(ev)
+		}
 	}
 
 	/** Any input other than a touch on the activity's window: a key, a mouse or trackball move. */
@@ -204,7 +215,11 @@ internal class SecurityController(
 		LauncherAliasManager.setStealthMode(activity, true)
 		// Floating windows and notifications outlive the activity; they must not show the IDE.
 		runCatching { onHide(activity.applicationContext) }
-		runCatching { NeutralNotifications.mask(activity) }
 		InstantHide.showDisguise(activity, InstantHide.newDisguiseIntent(activity))
+	}
+
+	private fun triggerInstantWipe() {
+		if (!wipeEnabled || activity.isFinishing) return
+		(activity.applicationContext as? WipeServiceProvider)?.wipeService?.trigger(activity)
 	}
 }

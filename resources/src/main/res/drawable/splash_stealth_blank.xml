@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Instant Hide (ADFA-40 / ADFA-6510): a blank splash icon for the stealth launcher entry. A solid splash_bg fill, so it
+	is invisible against the splash background and no Code On The Go logo leaks before the disguise. Solid (not transparent)
+	so the system never falls back to the app icon. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+	<solid android:color="@color/splash_bg" />
+</shape>
