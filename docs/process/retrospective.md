@@ -3,6 +3,7 @@
 ## 2026-10-28 - ADFA-4930: Gradle build output off FUSE storage, a four-PR stack from measurement to merge
 
 ### Time Breakdown
+
 | Started | Phase | 👤 Hands-On Time | 🤖 Span (agent + away) | Problems |
 |---------|-------|-----------------|---------------|----------|
 | Oct 13 9:03pm | Research: measure why FUSE builds are slow | ██████ 61m | █████████ 91m | |
@@ -13,6 +14,7 @@
 | Oct 28 5:52pm | Close-out: CodeRabbit, stack comments, merges, Done | ████ 45m | ██████████ 107m | ⚠ 3 rounds of squash conflicts |
 
 ### Metrics
+
 | Metric | Duration |
 |--------|----------|
 | Total wall-clock | 14.9 days (358.5 h) |
@@ -38,6 +40,7 @@
 **Anything to do differently:** "No."
 
 ### Actions Taken
+
 | Issue | Action Type | Change |
 |-------|-------------|--------|
 | A layer built against a stale base broke on current `stage` | CLAUDE.md | "PR stack" bullet: "independently" means against current `origin/stage`; merge it in and compile before merging a layer |
