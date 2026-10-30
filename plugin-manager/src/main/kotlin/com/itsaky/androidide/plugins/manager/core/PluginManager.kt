@@ -565,6 +565,14 @@ class PluginManager private constructor(
 
 			logger.debug("Parsed manifest for plugin: ${manifest.name} (${manifest.id})")
 
+			// Installing any plugin reloads the whole directory. A second instance would activate
+			// beside the running one, which is never deactivated: a service it publishes replaces the
+			// running instance's, and plugins registered with the old one are not told to move.
+			loadedPlugins[manifest.id]?.let { running ->
+				logger.debug("Plugin already loaded, keeping the running instance: ${manifest.id}")
+				return Result.success(running.plugin)
+			}
+
 			if (!securityManager.validatePlugin(file, manifest)) {
 				return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
 			}
