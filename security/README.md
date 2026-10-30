@@ -94,10 +94,24 @@ The Settings and practice screens are `InstantHide.GesturesExempt`, so arming/pr
 - **Splash**: the stealth aliases route through `StealthSplashActivity` with a logo-free splash
   (`AppTheme.Splash.Stealth`) so launching the disguise never flashes the Code On The Go logo.
 - **`CodeOnTheGo.nowipe`** (`SecurityOverride.isWipeDryRun`): a **debug-only** dev/QA override -- the wipe
-  enumerates and logs its targets but deletes nothing (honored only in `BuildConfig.DEBUG`).
+  enumerates and logs its targets but deletes nothing (honored only in `BuildConfig.DEBUG`). A real wipe
+  logs only the counts, so logcat does not keep the layout of the user's projects.
 - **Practice**: arming either feature opens a safe, full-screen gesture rehearsal
   (`WipePracticeOverlayView` / `HidePracticeOverlayView`) that recognises the real gestures but never
   hides or wipes.
+
+## Known limits
+
+The app's own name, `<application android:label>`, is fixed at install; only the launcher entry's name
+and icon can be swapped, because each alias has its own label. Android shows the app's name wherever
+it lists the app, so these still say "Code on the Go" while hidden:
+
+- The App info page, in Settings → Apps and two taps from the disguise: tap the title of its Recents
+  card, then App info.
+- A screen reader's label for that Recents card: the Pixel launcher reads the app's name before the
+  task's title when the two differ, so TalkBack says "Code on the Go Code Breaker" aloud.
+
+Renaming the app would rename it everywhere, hidden or not, and tie the disguise's name to the IDE.
 
 ## Pieces
 
