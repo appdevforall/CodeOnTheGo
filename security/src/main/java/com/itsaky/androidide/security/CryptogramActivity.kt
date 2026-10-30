@@ -358,7 +358,8 @@ class CryptogramActivity : AppCompatActivity() {
 		if (launch != null) {
 			startActivity(launch)
 		}
-		finish()
+		// The disguise has a task of its own; a plain finish would leave its card in Recents.
+		finishAndRemoveTask()
 	}
 
 	override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
