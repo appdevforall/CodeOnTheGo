@@ -18,6 +18,7 @@
 package com.itsaky.androidide.app
 
 import android.app.Activity
+import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
@@ -26,7 +27,9 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * [IDEApplication.foregroundActivityState] is process-global, so anything it still points at
@@ -109,6 +112,22 @@ class ForegroundActivityTrackingTest {
 		application.onActivityPaused(activity)
 
 		assertThat(application.foregroundActivity).isSameInstanceAs(activity)
+	}
+
+	@Test
+	@Config(sdk = [Build.VERSION_CODES.P])
+	fun givenAndroid9LifecycleDispatch_whenActivityResumesAndFinishes_thenForegroundActivityTracksIt() {
+		val controller = Robolectric.buildActivity(Activity::class.java).setup()
+		val activity = controller.get()
+
+		assertThat(application.foregroundActivity).isSameInstanceAs(activity)
+
+		controller.pause()
+		assertThat(application.foregroundActivity).isSameInstanceAs(activity)
+
+		activity.finish()
+		controller.pause()
+		assertThat(application.foregroundActivity).isNull()
 	}
 
 	private fun activity(finishing: Boolean): Activity =
