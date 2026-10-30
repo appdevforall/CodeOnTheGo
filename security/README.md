@@ -99,7 +99,8 @@ The Settings and practice screens are `InstantHide.GesturesExempt`, so arming/pr
   project manager and Room DB) implements the `WipeService` interface and is reached from `:security`
   via `WipeServiceProvider` on the `Application`.
 - **Splash**: the stealth aliases route through `StealthSplashActivity` with a logo-free splash
-  (`AppTheme.Splash.Stealth`) so launching the disguise never flashes the Code On The Go logo.
+  (`AppTheme.Splash.Stealth`) so launching the disguise never flashes the Code On The Go logo. It is
+  not exported, so no other app can start it and, through `showDisguise`, close the IDE.
 - **`CodeOnTheGo.nowipe`** (`SecurityOverride.isWipeDryRun`): a **debug-only** dev/QA override -- the wipe
   enumerates and logs its targets but deletes nothing (honored only in `BuildConfig.DEBUG`). A real wipe
   logs only the counts, so logcat does not keep the layout of the user's projects.

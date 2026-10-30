@@ -96,10 +96,12 @@
             Stealth launcher entry: the stealth aliases below target this instead of LauncherActivity so
             the splash (painted by the OS from the activity theme before app code runs) shows no Code On
             The Go logo. It forwards straight to the cryptogram. See ADFA-6510.
+            Not exported: the aliases are, so the launcher still opens it, but another app cannot. Opened
+            by another app, it would close the IDE, since showing the disguise removes the IDE's tasks.
         -->
         <activity
             android:name=".activities.StealthSplashActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/AppTheme.Splash.Stealth" />
 
         <activity-alias
