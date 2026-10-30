@@ -18,9 +18,11 @@
 package com.itsaky.androidide.security
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Looper
@@ -36,6 +38,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowAppTask
 import java.time.Duration
 import com.itsaky.androidide.resources.R as ResR
 
@@ -63,6 +67,7 @@ class InstantHideTest {
 	@After
 	fun unmount() {
 		InstantHide.state = PreferencesHideState
+		InstantHide.keyboardShown = InstantHide::softKeyboardShown
 	}
 
 	private fun idle(seconds: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(seconds))
@@ -77,6 +82,19 @@ class InstantHideTest {
 	private fun pressKey(activity: Activity) {
 		activity.window.callback.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A))
 	}
+
+	/** A task of the app's in Recents, started by [baseClass]. */
+	private fun appTask(baseClass: String): ActivityManager.AppTask =
+		ShadowAppTask.newInstance().also {
+			Shadow.extract<ShadowAppTask>(it).setTaskInfo(
+				ActivityManager.RecentTaskInfo().apply { baseIntent = Intent().setClassName(context, baseClass) },
+			)
+		}
+
+	private fun removed(task: ActivityManager.AppTask) = Shadow.extract<ShadowAppTask>(task).isFinishedAndRemoved
+
+	private fun setAppTasks(vararg tasks: ActivityManager.AppTask) =
+		shadowOf(context.getSystemService(ActivityManager::class.java)).setAppTasks(tasks.toList())
 
 	@Test
 	fun `while hidden, any activity is replaced by the disguise as it is created`() {
@@ -110,6 +128,43 @@ class InstantHideTest {
 		assertThat(flags and Intent.FLAG_ACTIVITY_CLEAR_TASK).isEqualTo(0)
 		assertThat(flags and Intent.FLAG_ACTIVITY_CLEAR_TOP).isNotEqualTo(0)
 		assertThat(flags and Intent.FLAG_ACTIVITY_SINGLE_TOP).isNotEqualTo(0)
+	}
+
+	@Test
+	fun `the disguise has a task of its own, which disabling the launcher alias cannot remove`() {
+		val info = context.packageManager.getActivityInfo(ComponentName(context, CryptogramActivity::class.java), 0)
+
+		// Not empty either: a redirect must find the running disguise's task to reuse it.
+		assertThat(info.taskAffinity).isNotEmpty()
+		assertThat(info.taskAffinity).isNotEqualTo(context.applicationInfo.taskAffinity)
+	}
+
+	@Test
+	fun `a hide removes the IDE's tasks from Recents and keeps the disguise's`() {
+		state.armed = true
+		val ide = appTask("com.itsaky.androidide.activities.SplashActivity")
+		val disguise = appTask(CryptogramActivity::class.java.name)
+		setAppTasks(ide, disguise)
+		focusedActivity()
+
+		idle(61)
+
+		assertThat(state.hidden).isTrue()
+		assertThat(removed(ide)).isTrue()
+		assertThat(removed(disguise)).isFalse()
+	}
+
+	@Test
+	fun `a redirect while hidden removes the entry point's task and keeps the disguise's`() {
+		state.hidden = true
+		val entryPoint = appTask("com.itsaky.androidide.activities.StealthAliasActivity1")
+		val disguise = appTask(CryptogramActivity::class.java.name)
+		setAppTasks(entryPoint, disguise)
+
+		Robolectric.buildActivity(Activity::class.java).create()
+
+		assertThat(removed(entryPoint)).isTrue()
+		assertThat(removed(disguise)).isFalse()
 	}
 
 	@Test
@@ -161,7 +216,7 @@ class InstantHideTest {
 	}
 
 	@Test
-	fun `a screen whose dialog or popup has the focus does not hide for inactivity until it is back`() {
+	fun `a screen whose dialog or popup has the focus does not hide until a minute after it is back`() {
 		state.armed = true
 		val controller = focusedActivity()
 
@@ -170,7 +225,33 @@ class InstantHideTest {
 		assertThat(state.hidden).isFalse()
 
 		controller.windowFocusChanged(true)
-		idle(61)
+		idle(59)
+		assertThat(state.hidden).isFalse()
+		idle(2)
+		assertThat(state.hidden).isTrue()
+	}
+
+	@Test
+	fun `closing the soft keyboard starts the inactivity minute again`() {
+		state.armed = true
+		var keyboard = false
+		InstantHide.keyboardShown = { keyboard }
+		val activity = focusedActivity().get()
+		val layout = {
+			activity.window.decorView.viewTreeObserver
+				.dispatchOnGlobalLayout()
+		}
+
+		// The user taps the editor, types on the keyboard for 50 s, then closes it with the keyboard's key.
+		keyboard = true
+		layout()
+		idle(50)
+		keyboard = false
+		layout()
+
+		idle(59)
+		assertThat(state.hidden).isFalse()
+		idle(2)
 		assertThat(state.hidden).isTrue()
 	}
 
