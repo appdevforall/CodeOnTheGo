@@ -583,10 +583,12 @@ internal class KtSymbolIndex(
 		}
 
 	suspend fun close() {
-		indexWorker.submitCommand(IndexCommand.Stop)
-
+		/*
+		 * Cancel the worker rather than queueing a stop: a stop waits behind every queued file, and
+		 * a large pass outlasts the caller's bounded wait, so disposal would proceed under a live worker.
+		 */
 		scanningJob?.cancelAndJoin()
-		indexingJob?.join()
+		indexingJob?.cancelAndJoin()
 
 		/*
 		 * Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the

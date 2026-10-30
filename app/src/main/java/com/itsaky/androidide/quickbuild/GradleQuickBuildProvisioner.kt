@@ -432,7 +432,9 @@ class GradleQuickBuildProvisioner(
 			// The bracket spans the AWAIT, not just the executeTasks call: executeTasks hands
 			// back a future immediately and every listener callback arrives while it is
 			// pending, so releasing earlier would un-suppress the ones that matter most.
-			val runBuild: suspend () -> TaskExecutionResult = {
+			// Nullable despite executeTasks' declared type: GradleBuildService.markBuildAsFinished
+			// completes a FAILED build's future normally with null (see performBuildTasks).
+			val runBuild: suspend () -> TaskExecutionResult? = {
 				withContext(Dispatchers.IO) { buildService.executeTasks(message) }.await()
 			}
 			val result =
