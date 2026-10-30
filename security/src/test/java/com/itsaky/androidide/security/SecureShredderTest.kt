@@ -22,6 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 import java.util.Random
 
 class SecureShredderTest {
@@ -101,5 +102,62 @@ class SecureShredderTest {
 		assertThat(count).isEqualTo(1)
 		// Everything is gone either way.
 		assertThat(project.exists()).isFalse()
+	}
+
+	/** A folder outside the wipe holding one file, as a link in a target might point to. */
+	private fun outsideFolder(): File = tmp.newFolder("outside").also { File(it, "photo.jpg").writeText("keep") }
+
+	private fun link(
+		at: File,
+		to: File,
+	): File = Files.createSymbolicLink(at.toPath(), to.toPath()).toFile()
+
+	@Test
+	fun `shredTree removes a link to a file without touching the file`() {
+		val outside = tmp.newFile("photo.jpg").apply { writeText("keep") }
+		val project = tmp.newFolder("project")
+		link(File(project, "linked.jpg"), outside)
+
+		SecureShredder.shredTree(project)
+
+		assertThat(project.exists()).isFalse()
+		assertThat(outside.readText()).isEqualTo("keep")
+	}
+
+	@Test
+	fun `shredTree removes a link to a folder without entering it`() {
+		val outside = outsideFolder()
+		val project = tmp.newFolder("project")
+		link(File(project, "assets"), outside)
+
+		SecureShredder.shredTree(project)
+
+		assertThat(project.exists()).isFalse()
+		assertThat(File(outside, "photo.jpg").readText()).isEqualTo("keep")
+	}
+
+	@Test
+	fun `a skipped cache folder is deleted without following a link inside it`() {
+		val outside = outsideFolder()
+		val build = tmp.newFolder("project", "build")
+		link(File(build, "intermediates"), outside)
+
+		SecureShredder.shredTree(build.parentFile!!, skipDirNames = setOf("build"))
+
+		assertThat(build.exists()).isFalse()
+		assertThat(File(outside, "photo.jpg").readText()).isEqualTo("keep")
+	}
+
+	@Test
+	fun `deleteTree removes a tree and its links but not what they point to`() {
+		val outside = outsideFolder()
+		val tree = tmp.newFolder("gradle-build", "App-1a2b")
+		File(tree, "app.apk").writeText("apk")
+		link(File(tree, "linked"), outside)
+
+		assertThat(SecureShredder.deleteTree(tree.parentFile!!)).isTrue()
+
+		assertThat(tree.parentFile!!.exists()).isFalse()
+		assertThat(File(outside, "photo.jpg").readText()).isEqualTo("keep")
 	}
 }

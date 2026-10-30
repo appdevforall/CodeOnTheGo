@@ -18,7 +18,14 @@
 package com.itsaky.androidide.security
 
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import java.security.SecureRandom
 import java.util.Random
 
@@ -78,11 +85,17 @@ object SecureShredder {
 		random: Random = SecureRandom(),
 		skipDirNames: Set<String> = emptySet(),
 	): Int {
+		// A link is removed, never followed: what it points to may be outside the wipe, and shredding
+		// through it would overwrite that.
+		if (Files.isSymbolicLink(root.toPath())) {
+			root.delete()
+			return 0
+		}
 		if (!root.exists()) return 0
 		var count = 0
 		if (root.isDirectory) {
 			if (root.name in skipDirNames) {
-				root.deleteRecursively()
+				deleteTree(root)
 				return 0
 			}
 			root.listFiles()?.forEach { count += shredTree(it, random, skipDirNames) }
@@ -91,5 +104,44 @@ object SecureShredder {
 			if (shredFile(root, random)) count++
 		}
 		return count
+	}
+
+	/**
+	 * Plain-deletes [root] and everything under it without following a symbolic link: a link is
+	 * removed, not what it points to, which may be outside the wipe. A build can leave links in its
+	 * output (ADFA-4930), and `File.deleteRecursively` follows a link to a folder. Never throws.
+	 *
+	 * @return whether nothing is left at [root].
+	 */
+	fun deleteTree(root: File): Boolean {
+		val path = root.toPath()
+		if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return true
+		runCatching {
+			Files.walkFileTree(
+				path,
+				object : SimpleFileVisitor<Path>() {
+					override fun visitFile(
+						file: Path,
+						attrs: BasicFileAttributes,
+					): FileVisitResult = deleteAndContinue(file)
+
+					override fun visitFileFailed(
+						file: Path,
+						exc: IOException,
+					): FileVisitResult = deleteAndContinue(file)
+
+					override fun postVisitDirectory(
+						dir: Path,
+						exc: IOException?,
+					): FileVisitResult = deleteAndContinue(dir)
+				},
+			)
+		}
+		return !Files.exists(path, LinkOption.NOFOLLOW_LINKS)
+	}
+
+	private fun deleteAndContinue(path: Path): FileVisitResult {
+		runCatching { Files.deleteIfExists(path) }
+		return FileVisitResult.CONTINUE
 	}
 }

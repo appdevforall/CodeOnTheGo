@@ -69,7 +69,10 @@ The Settings and practice screens are `InstantHide.GesturesExempt`, so arming/pr
 
 - **Destroy** (`WipeManager` + `SecureShredder`): cancel the build, stop Termux, close the project and
   the Recents DB, then overwrite-then-delete the source and DB files and fast-delete the bulk
-  regenerable caches (`build`/`.gradle`/`.cg`). The overwrite is **best-effort only** -- not a
+  regenerable caches: `build`/`.gradle`/`.cg` in the projects, the IDE and Gradle homes, and in
+  `noBackupFilesDir` the relocated build output (`gradle-build`, ADFA-4930) and Quick Build's
+  `quickbuild-scratch`. Neither pass follows a symbolic link: a link is removed, never what it points
+  to, which may be outside the wipe. The overwrite is **best-effort only** -- not a
   guaranteed erase on flash -- so strings say "delete", not "securely erase"; device at-rest encryption
   is the real protection.
 - **Neutralize** (`NeutralizationMarker`): after a wipe, `.pip` (filesDir) and `.pip2` (noBackupFilesDir)

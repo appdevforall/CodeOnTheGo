@@ -120,7 +120,7 @@ object WipeManager {
 
 		var deleted = 0
 		plan.fastDeleteTargets.forEach { target ->
-			runCatching { if (!target.exists() || target.deleteRecursively()) deleted++ }
+			if (SecureShredder.deleteTree(target)) deleted++
 		}
 
 		teardown.resetBookkeeping()

@@ -22,6 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 class WipeManagerTest {
 	@get:Rule
@@ -89,6 +90,22 @@ class WipeManagerTest {
 		assertThat(teardown.calls).containsExactly("stop", "reset", "clear").inOrder()
 		// Teardown must run before anything is deleted.
 		assertThat(teardown.sourceStillPresentAtStop).isTrue()
+	}
+
+	@Test
+	fun `a real wipe deletes a link in a bulk target but not what it points to`() {
+		val outside = tmp.newFolder("outside").also { File(it, "photo.jpg").writeText("keep") }
+		val tree = tmp.newFolder("gradle-build", "App-1a2b")
+		Files.createSymbolicLink(File(tree, "linked").toPath(), outside.toPath())
+
+		WipeManager.wipe(
+			plan(secure = emptyList(), fast = listOf(tree.parentFile!!), markers = emptyList()),
+			FakeTeardown(witness = tree),
+			dryRun = false,
+		)
+
+		assertThat(tree.parentFile!!.exists()).isFalse()
+		assertThat(File(outside, "photo.jpg").readText()).isEqualTo("keep")
 	}
 
 	@Test
