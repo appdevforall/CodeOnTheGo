@@ -22,12 +22,14 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.quickbuild.EnvironmentQuickBuildPaths
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
 import com.itsaky.androidide.security.CryptogramActivity
 import com.itsaky.androidide.security.InstantHide
@@ -38,6 +40,7 @@ import com.itsaky.androidide.security.WipeManager
 import com.itsaky.androidide.security.WipePlan
 import com.itsaky.androidide.security.WipeService
 import com.itsaky.androidide.security.WipeTeardown
+import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.utils.Environment
 import com.termux.app.TermuxService
 import com.termux.shared.termux.TermuxConstants
@@ -103,7 +106,8 @@ class AppWipeService(
 		}
 	}
 
-	private fun buildPlan(): WipePlan {
+	@VisibleForTesting
+	internal fun buildPlan(): WipePlan {
 		val db = app.getDatabasePath(RECENTS_DB)
 		val dbFiles = listOf(db, File(db.path + "-wal"), File(db.path + "-shm"))
 		return WipePlan(
@@ -113,8 +117,13 @@ class AppWipeService(
 			// the shred stays fast on a multi-GB workspace.
 			secureTargets = listOfNotNull(Environment.PROJECTS_DIR) + dbFiles,
 			secureTargetSkipDirs = setOf("build", ".gradle", ".cg"),
-			// Bulk regenerable caches.
-			fastDeleteTargets = listOfNotNull(Environment.ANDROIDIDE_HOME, Environment.GRADLE_USER_HOME),
+			// Bulk regenerable caches. Build output lives outside the projects since ADFA-4930, and
+			// Quick Build's scratch beside it; both hold the compiled app, and the build output's folder
+			// names carry the project names.
+			fastDeleteTargets =
+				listOfNotNull(Environment.ANDROIDIDE_HOME, Environment.GRADLE_USER_HOME) +
+					File(app.noBackupFilesDir, BuildOutputLocation.DIR_NAME) +
+					EnvironmentQuickBuildPaths(app).projectScratchRoot,
 			markerFiles = listOf(NeutralizationMarker.pipFile(app), NeutralizationMarker.pip2File(app)),
 		)
 	}
