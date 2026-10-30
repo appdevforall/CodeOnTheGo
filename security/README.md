@@ -21,20 +21,25 @@ Settings screen implements `InstantHide.GesturesExempt`, so arming the feature t
   not fire.
 - **60s inactivity**: a `Handler` reset by every touch, key and mouse event on the window. When it runs
   out while the soft keyboard is showing or a dialog or popup has the focus, it starts again instead
-  of hiding, since those take input the window never sees. A phone left like that still hides when its
-  screen times out.
+  of hiding, since those take input the window never sees. The keyboard opening or closing, and the
+  window getting the focus back, reset it too. A phone left like that still hides when its screen
+  times out.
 
 Any trigger calls `triggerInstantHide()`: set the hidden-state flag, swap to the stealth launcher
 alias, close the floating windows (the `onHide` hook), mask the notifications (`NeutralNotifications`),
-launch `CryptogramActivity` (`NEW_TASK | CLEAR_TASK`), finish the IDE.
+then `InstantHide.showDisguise`: launch `CryptogramActivity` (`NEW_TASK | CLEAR_TASK`), remove the app's
+other tasks, finish the IDE screen. The disguise has a task affinity of its own because disabling the
+default alias makes Android remove the task that alias started, about a second later, with everything
+in it.
 
 While the flag is set, the same lifecycle callbacks send every activity but the disguise to it as it is
 created or resumed, so no entry point can surface IDE UI. Entry points whose `onCreate` does work —
 `LauncherActivity`, `DeepLinkActivity`, `ExternalFileInstallActivity`, `CrashHandlerActivity` — also
 call `InstantHide.redirectIfHidden` and return, so the work never starts. The redirect reuses a running
 disguise (`CLEAR_TOP | SINGLE_TOP`), so a link or file opened while hidden does not reset the puzzle.
-The exit gesture (slow double three-finger tap) clears the flag, restores the default alias, and
-returns to the IDE.
+The redirect removes the entry point's own task too, so Recents keeps one card, the disguise's. The
+exit gesture (slow double three-finger tap) clears the flag, restores the default alias, returns to
+the IDE, and removes the disguise's task.
 
 ## Notifications
 

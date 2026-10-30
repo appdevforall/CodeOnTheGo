@@ -18,6 +18,7 @@
 package com.itsaky.androidide.security
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -27,6 +28,8 @@ import android.view.KeyboardShortcutGroup
 import android.view.Menu
 import android.view.MotionEvent
 import android.view.Window
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import java.util.WeakHashMap
 
 /**
@@ -66,10 +69,7 @@ object InstantHide {
 	 */
 	fun redirectIfHidden(activity: Activity): Boolean {
 		if (activity is CryptogramActivity || !state.hidden) return false
-		if (!activity.isFinishing) {
-			activity.startActivity(disguiseIntent(activity))
-			activity.finish()
-		}
+		if (!activity.isFinishing) showDisguise(activity, disguiseIntent(activity))
 		return true
 	}
 
@@ -81,6 +81,38 @@ object InstantHide {
 		Intent(context, CryptogramActivity::class.java).addFlags(
 			Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
 		)
+
+	/** Starts the disguise with a new puzzle, as a hide does. */
+	fun newDisguiseIntent(context: Context): Intent =
+		Intent(context, CryptogramActivity::class.java).addFlags(
+			Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK,
+		)
+
+	/**
+	 * Starts [disguise], removes the app's other tasks, and finishes [activity]. The disguise has a task of
+	 * its own, so the IDE's task stays behind it in Recents unless removed here; [activity] is finished
+	 * as well in case it runs in another app's task, which is not the app's to remove.
+	 */
+	fun showDisguise(
+		activity: Activity,
+		disguise: Intent,
+	) {
+		activity.startActivity(disguise)
+		activity.getSystemService(ActivityManager::class.java)?.appTasks?.forEach { task ->
+			// A task can be gone by now: Android removes the one the disabled launcher alias started.
+			runCatching {
+				val base = task.taskInfo.baseIntent.component
+				if (base?.className != CryptogramActivity::class.java.name) task.finishAndRemoveTask()
+			}
+		}
+		activity.finish()
+	}
+
+	/** Whether the soft keyboard shows over [activity]. Robolectric has no keyboard, so tests replace it. */
+	internal var keyboardShown: (Activity) -> Boolean = ::softKeyboardShown
+
+	internal fun softKeyboardShown(activity: Activity): Boolean =
+		ViewCompat.getRootWindowInsets(activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime()) == true
 
 	/** Re-applies FLAG_SECURE to [activity] at once, for a caller that has just armed or disarmed. */
 	fun applyScreenSecurity(activity: Activity) {
@@ -94,7 +126,13 @@ object InstantHide {
 		) {
 			if (activity is CryptogramActivity || redirectIfHidden(activity)) return
 			val controller =
-				SecurityController(activity, gesturesEnabled = activity !is GesturesExempt, onHide = onHide, state = state)
+				SecurityController(
+					activity,
+					gesturesEnabled = activity !is GesturesExempt,
+					onHide = onHide,
+					state = state,
+					keyboardShown = { keyboardShown(it) },
+				)
 			controllers[activity] = controller
 			activity.window.callback = InputWatcher(activity.window.callback, controller)
 		}
@@ -167,5 +205,10 @@ object InstantHide {
 		) = delegate.onProvideKeyboardShortcuts(data, menu, deviceId)
 
 		override fun onPointerCaptureChanged(hasCapture: Boolean) = delegate.onPointerCaptureChanged(hasCapture)
+
+		override fun onWindowFocusChanged(hasFocus: Boolean) {
+			controller.onWindowFocusChanged(hasFocus)
+			delegate.onWindowFocusChanged(hasFocus)
+		}
 	}
 }

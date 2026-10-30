@@ -29,10 +29,9 @@ import android.hardware.SensorManager
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.widget.Toast
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.itsaky.androidide.resources.R as ResR
 
 /**
@@ -46,12 +45,14 @@ import com.itsaky.androidide.resources.R as ResR
  *
  * @param gesturesEnabled false where the triggers must not fire; FLAG_SECURE still applies.
  * @param onHide runs on every hide, before the disguise starts.
+ * @param keyboardShown whether the soft keyboard shows over the activity.
  */
 internal class SecurityController(
 	private val activity: Activity,
 	private val gesturesEnabled: Boolean,
 	private val onHide: (Context) -> Unit,
 	private val state: HideState,
+	private val keyboardShown: (Activity) -> Boolean,
 ) {
 	companion object {
 		private const val INACTIVITY_TIMEOUT_MS = 60_000L
@@ -77,6 +78,18 @@ internal class SecurityController(
 		}
 
 	private var advisoryShown = false
+
+	// Typing on the soft keyboard reaches the keyboard's window, and so does the key that closes it, so
+	// its opening and closing are the input this window sees. Either one lays the window out again.
+	private var keyboardWasShown = false
+	private val keyboardWatcher =
+		ViewTreeObserver.OnGlobalLayoutListener {
+			val shown = keyboardShown(activity)
+			if (shown != keyboardWasShown) {
+				keyboardWasShown = shown
+				onUserInput()
+			}
+		}
 
 	private val sensorListener =
 		object : SensorEventListener {
@@ -127,6 +140,9 @@ internal class SecurityController(
 			hideDetector = GestureDetectorHelper.ThreeFingerTapDetector(activity) { triggerInstantHide() }
 			faceDown.reset()
 			gravitySensor?.let { sensorManager?.registerListener(sensorListener, it, SensorManager.SENSOR_DELAY_UI) }
+			keyboardWasShown = keyboardShown(activity)
+			activity.window.decorView.viewTreeObserver
+				.addOnGlobalLayoutListener(keyboardWatcher)
 			resetInactivityTimer()
 		} else {
 			hideDetector = null
@@ -135,6 +151,8 @@ internal class SecurityController(
 
 	fun onPause() {
 		sensorManager?.unregisterListener(sensorListener)
+		activity.window.decorView.viewTreeObserver
+			.removeOnGlobalLayoutListener(keyboardWatcher)
 		stopInactivityTimer()
 	}
 
@@ -158,6 +176,11 @@ internal class SecurityController(
 		if (triggersOn) resetInactivityTimer()
 	}
 
+	/** The window getting the focus back from a dialog or popup, which took input the window never saw. */
+	fun onWindowFocusChanged(hasFocus: Boolean) {
+		if (hasFocus) onUserInput()
+	}
+
 	private fun resetInactivityTimer() {
 		stopInactivityTimer()
 		if (triggersOn) inactivityHandler.postDelayed(inactivityRunnable, INACTIVITY_TIMEOUT_MS)
@@ -167,12 +190,9 @@ internal class SecurityController(
 	 * Whether the user may still be at the screen although no input reached its window: typing on the
 	 * soft keyboard, whose touches go to the keyboard's window, or working in a dialog or popup, which
 	 * holds the focus. A phone left like that still hides when its screen times out, through the
-	 * screen-off trigger.
+	 * screen-off trigger. Closing either restarts the minute.
 	 */
-	private fun userMayBeActive(): Boolean {
-		val insets = ViewCompat.getRootWindowInsets(activity.window.decorView)
-		return insets?.isVisible(WindowInsetsCompat.Type.ime()) == true || !activity.hasWindowFocus()
-	}
+	private fun userMayBeActive(): Boolean = keyboardShown(activity) || !activity.hasWindowFocus()
 
 	private fun stopInactivityTimer() = inactivityHandler.removeCallbacks(inactivityRunnable)
 
@@ -185,11 +205,6 @@ internal class SecurityController(
 		// Floating windows and notifications outlive the activity; they must not show the IDE.
 		runCatching { onHide(activity.applicationContext) }
 		runCatching { NeutralNotifications.mask(activity) }
-		activity.startActivity(
-			Intent(activity, CryptogramActivity::class.java).apply {
-				addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-			},
-		)
-		activity.finish()
+		InstantHide.showDisguise(activity, InstantHide.newDisguiseIntent(activity))
 	}
 }
