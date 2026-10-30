@@ -38,11 +38,11 @@ returns to the IDE.
 
 ## Notifications
 
-On a hide, `NeutralNotifications.mask` removes the app's ordinary notifications. A foreground
-service's cannot be removed while the service runs, so it is replaced under the same id by one that
-shows only the disguise's name and a neutral icon. `GradleBuildService` and `TermuxService` build that
-neutral notification themselves while the flag is set, so their updates do not bring the IDE's text
-back. After the exit gesture each shows its own again on its next update.
+On a hide, `NeutralNotifications.mask` removes the app's ordinary notifications. A
+foreground-service notification cannot be removed while the service runs, so it is replaced under
+the same id by one that shows only the disguise's name and a neutral icon. `GradleBuildService` and
+`TermuxService` build that neutral notification themselves while the flag is set, so their updates do
+not bring the IDE's text back. After the exit gesture each shows its own again on its next update.
 
 ## Launcher aliases
 

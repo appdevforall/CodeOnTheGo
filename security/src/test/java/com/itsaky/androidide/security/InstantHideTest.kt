@@ -147,6 +147,20 @@ class InstantHideTest {
 	}
 
 	@Test
+	fun `one screen-off broadcast hides once, however many IDE screens are open`() {
+		state.armed = true
+		// The screen below keeps its screen-off receiver while paused, as MainActivity under the editor.
+		Robolectric.buildActivity(Activity::class.java).setup()
+		Robolectric.buildActivity(Activity::class.java).setup()
+
+		context.sendBroadcast(Intent(Intent.ACTION_SCREEN_OFF))
+		shadowOf(Looper.getMainLooper()).idle()
+
+		assertThat(state.hidden).isTrue()
+		assertThat(hides).isEqualTo(1)
+	}
+
+	@Test
 	fun `a screen whose dialog or popup has the focus does not hide for inactivity until it is back`() {
 		state.armed = true
 		val controller = focusedActivity()

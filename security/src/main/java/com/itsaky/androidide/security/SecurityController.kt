@@ -188,7 +188,9 @@ internal class SecurityController(
 	private fun stopInactivityTimer() = inactivityHandler.removeCallbacks(inactivityRunnable)
 
 	private fun triggerInstantHide() {
-		if (!enabled || activity.isFinishing) return
+		// Every IDE activity keeps a screen-off receiver while paused, so one broadcast reaches them all;
+		// the first hides, and a second would restart the disguise and reset its puzzle.
+		if (!enabled || state.hidden || activity.isFinishing) return
 		state.hidden = true
 		LauncherAliasManager.setStealthMode(activity, true)
 		// Floating windows and notifications outlive the activity; they must not show the IDE.
