@@ -1,6 +1,5 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
-import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.Workspace
 import org.appdevforall.codeonthego.indexing.jvm.JVM_GENERATED_SYMBOL_INDEX
 import org.appdevforall.codeonthego.indexing.jvm.JVM_LIBRARY_SYMBOL_INDEX
@@ -8,6 +7,9 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
+import org.appdevforall.codeonthego.indexing.service.IndexKey
+import org.appdevforall.codeonthego.indexing.service.IndexRegistry
+import org.appdevforall.codeonthego.indexing.service.IndexRegistryClosedException
 import org.jetbrains.kotlin.platform.TargetPlatform
 import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.slf4j.LoggerFactory
@@ -23,7 +25,13 @@ import org.slf4j.LoggerFactory
  * (build complete), it notifies registered listeners so they can
  * refresh their sessions.
  */
-internal class KotlinProjectModel {
+internal class KotlinProjectModel(
+	/*
+	 * The registry of the project session this model was built for. Its indexes are looked up on each
+	 * read because the generated index may register after the build.
+	 */
+	private val registry: IndexRegistry,
+) {
 	private val logger = LoggerFactory.getLogger(KotlinProjectModel::class.java)
 
 	private var workspace: Workspace? = null
@@ -32,36 +40,24 @@ internal class KotlinProjectModel {
 	private val listeners = mutableListOf<ProjectModelListener>()
 
 	val libraryIndex: JvmSymbolIndex?
-		get() =
-			ProjectManagerImpl
-				.getInstance()
-				.indexingServiceManager
-				.registry
-				.get(JVM_LIBRARY_SYMBOL_INDEX)
+		get() = registry.get(JVM_LIBRARY_SYMBOL_INDEX)
 
 	val sourceIndex: JvmSymbolIndex?
-		get() =
-			ProjectManagerImpl
-				.getInstance()
-				.indexingServiceManager
-				.registry
-				.get(KT_SOURCE_FILE_INDEX_KEY)
+		get() = registry.get(KT_SOURCE_FILE_INDEX_KEY)
 
 	val fileIndex: KtFileMetadataIndex?
-		get() =
-			ProjectManagerImpl
-				.getInstance()
-				.indexingServiceManager
-				.registry
-				.get(KT_SOURCE_FILE_META_INDEX_KEY)
+		get() = registry.get(KT_SOURCE_FILE_META_INDEX_KEY)
 
 	val generatedIndex: JvmSymbolIndex?
-		get() =
-			ProjectManagerImpl
-				.getInstance()
-				.indexingServiceManager
-				.registry
-				.get(JVM_GENERATED_SYMBOL_INDEX)
+		get() = registry.get(JVM_GENERATED_SYMBOL_INDEX)
+
+	/**
+	 * Returns the index registered for [key].
+	 *
+	 * @throws IndexRegistryClosedException if this model's project session has closed.
+	 * @throws IllegalStateException if the session is open but nothing is registered for [key].
+	 */
+	fun <T : Any> requireIndex(key: IndexKey<T>): T = registry.require(key)
 
 	/**
 	 * The kind of change that occurred.

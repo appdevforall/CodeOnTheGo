@@ -30,19 +30,21 @@ import kotlin.reflect.KClass
  *
  * @author Akash Yadav
  */
-class FileTreeSidebarAction(context: Context, override val order: Int) : AbstractSidebarAction() {
+class FileTreeSidebarAction(
+	context: Context,
+	override val order: Int,
+) : AbstractSidebarAction() {
+	companion object {
+		const val ID = "ide.editor.sidebar.fileTree"
+	}
 
-  companion object {
-    const val ID ="ide.editor.sidebar.fileTree"
-  }
+	override val id: String = ID
+	override val fragmentClass: KClass<out Fragment> = FileTreeFragment::class
 
-  override val id: String = ID
-  override val fragmentClass: KClass<out Fragment> = FileTreeFragment::class
+	init {
+		label = context.getString(R.string.msg_file_tree)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_folder)
+	}
 
-  init {
-    label = context.getString(R.string.msg_file_tree)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_folder)
-  }
-
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.FILE_TREE_SIDEBAR
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.FILE_TREE_SIDEBAR
 }

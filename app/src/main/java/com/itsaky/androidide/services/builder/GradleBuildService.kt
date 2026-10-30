@@ -560,7 +560,7 @@ class GradleBuildService :
 		CompletableFuture.supplyAsync {
 			updateNotification(getString(R.string.build_status_in_progress), true)
 
-			val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
+			val projectPath = ProjectManagerImpl.getInstance().projectDirPath
 			val buildType = getBuildType(buildInfo.tasks)
 			val isDebugBuild = buildType == "debug"
 
@@ -978,7 +978,7 @@ class GradleBuildService :
 	) : Exception(message)
 
 	private fun isGradleEnterprisePluginAvailable(): Boolean {
-		val projectDir = ProjectManagerImpl.getInstance().projectDir ?: return false
+		val projectDir = ProjectManagerImpl.getInstance().projectDir
 
 		val settingsFiles =
 			listOf(

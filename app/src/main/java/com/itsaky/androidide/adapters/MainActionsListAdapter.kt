@@ -21,7 +21,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButton
 import com.itsaky.androidide.actions.ActionItem
 import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
 
@@ -31,49 +30,44 @@ import com.itsaky.androidide.databinding.LayoutMainActionItemBinding
  * @author Akash Yadav
  */
 class MainActionsListAdapter
-@JvmOverloads
-constructor(
-    val actions: List<ActionItem> = emptyList(),
-    private val onClick: ((ActionItem, View) -> Unit)? = null,
-    private val onLongClick: ((ActionItem, View) -> Boolean)? = null,
-) :
-    RecyclerView.Adapter<MainActionsListAdapter.VH>() {
-    inner class VH(val binding: LayoutMainActionItemBinding) : RecyclerView.ViewHolder(binding.root)
+	@JvmOverloads
+	constructor(
+		val actions: List<ActionItem> = emptyList(),
+		private val onClick: ((ActionItem, View) -> Unit)? = null,
+		private val onLongClick: ((ActionItem, View) -> Boolean)? = null,
+	) : RecyclerView.Adapter<MainActionsListAdapter.VH>() {
+		inner class VH(
+			val binding: LayoutMainActionItemBinding,
+		) : RecyclerView.ViewHolder(binding.root)
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-        VH(LayoutMainActionItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+		override fun onCreateViewHolder(
+			parent: ViewGroup,
+			viewType: Int,
+		) = VH(LayoutMainActionItemBinding.inflate(LayoutInflater.from(parent.context), parent, false))
 
-    override fun getItemCount(): Int = actions.size
+		override fun getItemCount(): Int = actions.size
 
-    fun getAction(index: Int) = actions[index]
+		fun getAction(index: Int) = actions[index]
 
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val action = getAction(index = position)
-        val binding = holder.binding
+		override fun onBindViewHolder(
+			holder: VH,
+			position: Int,
+		) {
+			val action = getAction(index = position)
+			val binding = holder.binding
 
-        binding.root.apply {
-            val originalText = action.label
-            text = originalText
-            isEnabled = action.enabled
-            icon = action.icon
-            contentDescription = originalText
-            setOnClickListener {
-                onClick?.invoke(action, it)
-            }
-            setOnLongClickListener {
-                onLongClick?.invoke(action, it) ?: true
-            }
-        }
-        (binding.root as? MaterialButton)?.findViewById<View>(com.google.android.material.R.id.icon)
-            ?.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        if (binding.root is ViewGroup) {
-            for (i in 0 until (binding.root as ViewGroup).childCount) {
-                val child = (binding.root as ViewGroup).getChildAt(i)
-                if (child is android.widget.ImageView) {
-                    child.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                    break
-                }
-            }
-        }
-    }
-}
+			binding.root.apply {
+				val originalText = action.label
+				text = originalText
+				isEnabled = action.enabled
+				icon = action.icon
+				contentDescription = originalText
+				setOnClickListener {
+					onClick?.invoke(action, it)
+				}
+				setOnLongClickListener {
+					onLongClick?.invoke(action, it) ?: true
+				}
+			}
+		}
+	}
