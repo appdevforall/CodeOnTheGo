@@ -27,7 +27,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
  * [IDEApplication.foregroundActivityState] is process-global, so anything it still points at
@@ -38,10 +37,6 @@ import org.robolectric.annotation.Config
  * test is the process singleton.
  */
 @RunWith(RobolectricTestRunner::class)
-// Robolectric defaults to targetSdk (28), where Application.ActivityLifecycleCallbacks has no
-// onActivityPreResumed/onActivityPostPaused at all -- resolving the super call throws
-// NoSuchMethodError. Both callbacks were added in API 29.
-@Config(sdk = [29])
 class ForegroundActivityTrackingTest {
 	private lateinit var application: IDEApplication
 	private var previousTestMode: String? = null
@@ -68,7 +63,7 @@ class ForegroundActivityTrackingTest {
 	fun givenNoTrackedActivity_whenOneIsResumed_thenItBecomesTheForegroundActivity() {
 		val activity = activity(finishing = false)
 
-		application.onActivityPreResumed(activity)
+		application.onActivityResumed(activity)
 
 		assertThat(application.foregroundActivity).isSameInstanceAs(activity)
 	}
@@ -76,7 +71,7 @@ class ForegroundActivityTrackingTest {
 	@Test
 	fun givenTheForegroundActivity_whenItIsDestroyed_thenTheReferenceIsCleared() {
 		val activity = activity(finishing = false)
-		application.onActivityPreResumed(activity)
+		application.onActivityResumed(activity)
 
 		application.onActivityDestroyed(activity)
 
@@ -87,8 +82,8 @@ class ForegroundActivityTrackingTest {
 	fun givenASuccessorHasResumed_whenThePreviousActivityIsDestroyed_thenTheSuccessorIsKept() {
 		val previous = activity(finishing = true)
 		val current = activity(finishing = false)
-		application.onActivityPreResumed(previous)
-		application.onActivityPreResumed(current)
+		application.onActivityResumed(previous)
+		application.onActivityResumed(current)
 
 		// A finishes into B: B resumes before A is destroyed, so A's destroy must not win.
 		application.onActivityDestroyed(previous)
@@ -99,9 +94,9 @@ class ForegroundActivityTrackingTest {
 	@Test
 	fun givenTheForegroundActivityIsFinishing_whenItPauses_thenTheReferenceIsCleared() {
 		val activity = activity(finishing = true)
-		application.onActivityPreResumed(activity)
+		application.onActivityResumed(activity)
 
-		application.onActivityPostPaused(activity)
+		application.onActivityPaused(activity)
 
 		assertThat(application.foregroundActivity).isNull()
 	}
@@ -109,9 +104,9 @@ class ForegroundActivityTrackingTest {
 	@Test
 	fun givenTheForegroundActivityIsNotFinishing_whenItPauses_thenTheReferenceIsKept() {
 		val activity = activity(finishing = false)
-		application.onActivityPreResumed(activity)
+		application.onActivityResumed(activity)
 
-		application.onActivityPostPaused(activity)
+		application.onActivityPaused(activity)
 
 		assertThat(application.foregroundActivity).isSameInstanceAs(activity)
 	}
