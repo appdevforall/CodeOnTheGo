@@ -21,8 +21,8 @@ import com.itsaky.androidide.viewmodel.BuildViewModel
  */
 abstract class AbstractModuleAssemblerAction(
 	context: Context,
-	@StringRes private val labelRes: Int,
-	@DrawableRes private val iconRes: Int,
+	@param:StringRes private val labelRes: Int,
+	@param:DrawableRes private val iconRes: Int,
 ) : AbstractCancellableRunAction(context, labelRes, iconRes) {
 	/**
 	 * Extra Gradle arguments (e.g. `-P` properties) to pass for this action's build. Subclasses

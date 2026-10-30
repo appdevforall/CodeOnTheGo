@@ -23,7 +23,7 @@ sealed interface QuickBuildStatusBarUpdate {
 	 *   refresh cannot clobber a line another writer took over.
 	 */
 	data class Show(
-		@StringRes val text: Int,
+		@param:StringRes @get:StringRes val text: Int,
 		val args: List<Any> = emptyList(),
 		val onlyIfOwned: Boolean = false,
 	) : QuickBuildStatusBarUpdate

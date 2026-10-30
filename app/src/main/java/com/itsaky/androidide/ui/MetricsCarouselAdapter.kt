@@ -56,8 +56,8 @@ interface MetricsPage {
  * needs to differ in.
  */
 data class ChartPage(
-	@StringRes override val title: Int,
-	@StringRes override val contentDescription: Int,
+	@param:StringRes @get:StringRes override val title: Int,
+	@param:StringRes @get:StringRes override val contentDescription: Int,
 	override val renderer: MetricsChartRenderer,
 ) : MetricsPage
 

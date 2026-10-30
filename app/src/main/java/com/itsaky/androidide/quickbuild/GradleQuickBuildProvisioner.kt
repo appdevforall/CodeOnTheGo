@@ -7,6 +7,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.projects.isPluginProject
+import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.services.builder.GradleBuildService
 import com.itsaky.androidide.tooling.api.GradlePluginConfig
@@ -431,7 +432,9 @@ class GradleQuickBuildProvisioner(
 			// The bracket spans the AWAIT, not just the executeTasks call: executeTasks hands
 			// back a future immediately and every listener callback arrives while it is
 			// pending, so releasing earlier would un-suppress the ones that matter most.
-			val runBuild: suspend () -> TaskExecutionResult = {
+			// Nullable despite executeTasks' declared type: GradleBuildService.markBuildAsFinished
+			// completes a FAILED build's future normally with null (see performBuildTasks).
+			val runBuild: suspend () -> TaskExecutionResult? = {
 				withContext(Dispatchers.IO) { buildService.executeTasks(message) }.await()
 			}
 			val result =
@@ -459,28 +462,19 @@ class GradleQuickBuildProvisioner(
 
 			// Variant-scoped, matching where the Gradle plugin writes it: one report per
 			// debuggable variant, so a flavored project has several and only this variant's is
-			// the built app.
-			val reportPath = QuickBuildTaskPaths.setupJson(variantName)
-			val reportFile =
-				sequenceOf(
-					File(moduleDir, reportPath),
-					File(projectRoot, reportPath),
-				).firstOrNull { it.isFile }
-					?: run {
-						log.error(
-							"{} not found under {} or {} after the proxy app build",
-							reportPath,
-							moduleDir,
-							projectRoot,
-						)
-						// The build succeeded but wrote no Quick Build setup, which all but
-						// names the cause: the plugin only configures DEBUGGABLE variants, and
-						// the release-name check above only catches AGP's own release build
-						// type. Say so instead of the generic "setup failed".
-						return ProxyAppBuildResult.Failed(
-							context.getString(R.string.quick_build_variant_setup_missing, variantName),
-						)
-					}
+			// the built app. Under the build directory the synced model gives the module, which
+			// relocated build output (ADFA-4930) moves out of the project folder.
+			val reportFile = QuickBuildTaskPaths.setupJson(module.buildDir, variantName)
+			if (!reportFile.isFile) {
+				log.error("{} not found after the proxy app build", reportFile)
+				// The build succeeded but wrote no Quick Build setup, which all but names the
+				// cause: the plugin only configures DEBUGGABLE variants, and the release-name
+				// check above only catches AGP's own release build type. Say so instead of the
+				// generic "setup failed".
+				return ProxyAppBuildResult.Failed(
+					context.getString(R.string.quick_build_variant_setup_missing, variantName),
+				)
+			}
 
 			val proxyApp =
 				ProxyAppInfo.parse(reportFile.readText(), projectRoot)
