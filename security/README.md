@@ -63,6 +63,19 @@ thumbnail (a single flag; the two can't be separated). There is **no UI toggle**
 a QA escape hatch: if `/sdcard/Download/CodeOnTheGo.mfs` exists (`SecurityOverride`), `FLAG_SECURE` is
 not applied and the app shows a one-time advisory, so QA can capture screenshots and bug reports.
 
+## Known limits
+
+The app's own name, `<application android:label>`, is fixed at install; only the launcher entry's name
+and icon can be swapped, because each alias has its own label. Android shows the app's name wherever
+it lists the app, so these still say "Code on the Go" while hidden:
+
+- The App info page, in Settings → Apps and two taps from the disguise: tap the title of its Recents
+  card, then App info.
+- A screen reader's label for that Recents card: the Pixel launcher reads the app's name before the
+  task's title when the two differ, so TalkBack says "Code on the Go Code Breaker" aloud.
+
+Renaming the app would rename it everywhere, hidden or not, and tie the disguise's name to the IDE.
+
 ## Pieces
 
 | File | Role |
