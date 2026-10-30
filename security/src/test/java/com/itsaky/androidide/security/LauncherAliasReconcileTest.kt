@@ -17,24 +17,32 @@
 
 package com.itsaky.androidide.security
 
+import android.content.ComponentName
+import android.content.Context
+import android.content.pm.PackageManager
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.security.LauncherAliasManager.AliasOp
-import com.itsaky.androidide.security.LauncherAliasManager.AliasReconcileAction
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 /**
  * Verification for the ADFA-6507 launcher-alias hardening folded into the ADFA-6510 stack:
  *  - [LauncherAliasManager.stealthSwapOps]: the fail-hidden ORDERING of the alias swap.
- *  - [LauncherAliasManager.reconcileAliasAction]: the self-healing reconcile DECISION.
+ *  - [LauncherAliasManager.reconcile]: the self-healing reconcile, from each state a partial swap leaves.
  *
- * Both are pure, so the invariants the on-device fault-injection could not exercise are pinned here
- * instead of only reasoned about. [setStealthMode] applies [stealthSwapOps] in list order inside one
- * try/catch, so "the real icon is disabled first" is exactly what makes a mid-sequence PackageManager
- * failure fail hidden.
+ * [setStealthMode] applies [stealthSwapOps] in list order inside one try/catch, so "the real icon is
+ * disabled first" is exactly what makes a mid-sequence PackageManager failure fail hidden. The
+ * fault-injection on a device could not exercise that, so it is pinned here.
  */
+@RunWith(RobolectricTestRunner::class)
 class LauncherAliasReconcileTest {
 	private val defaultAlias = "com.itsaky.androidide.activities.SplashActivity"
 	private val activeStealth = "com.itsaky.androidide.StealthAliasActivity3"
+	private val stealthAliases = (1..5).map { "com.itsaky.androidide.StealthAliasActivity$it" }
+	private val context: Context = RuntimeEnvironment.getApplication()
 
 	@Test
 	fun `enabling stealth disables the real icon FIRST (fail-hidden ordering)`() {
@@ -66,36 +74,67 @@ class LauncherAliasReconcileTest {
 
 	private fun List<AliasOp>.hasRealIconThenAllStealthDisabled(): Boolean = size == 6 && drop(1).none { it.enabled }
 
+	private fun setAlias(
+		name: String,
+		enabled: Boolean,
+	) = context.packageManager.setComponentEnabledSetting(
+		ComponentName(context, name),
+		if (enabled) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+		PackageManager.DONT_KILL_APP,
+	)
+
+	private fun aliasState(name: String) = context.packageManager.getComponentEnabledSetting(ComponentName(context, name))
+
+	/** The aliases the launcher shows; the manifest enables only the default one. */
+	private fun shownAliases(): List<String> =
+		(listOf(defaultAlias) + stealthAliases).filter { name ->
+			when (aliasState(name)) {
+				PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+				PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> name == defaultAlias
+				else -> false
+			}
+		}
+
+	/** What a completed swap, or one that threw midway, can leave the launcher showing. */
+	private val launcherStates: Map<String, () -> Unit> =
+		mapOf(
+			"only the real icon" to { LauncherAliasManager.setStealthMode(context, false) },
+			"only the stealth icon" to { LauncherAliasManager.setStealthMode(context, true) },
+			"both icons" to {
+				LauncherAliasManager.setStealthMode(context, true)
+				setAlias(defaultAlias, enabled = true)
+			},
+			"no icon" to {
+				LauncherAliasManager.setStealthMode(context, true)
+				stealthAliases.forEach { setAlias(it, enabled = false) }
+			},
+		)
+
 	@Test
-	fun `reconcile - disguise shown but default still enabled - enable stealth`() {
-		assertThat(
-			LauncherAliasManager.reconcileAliasAction(disguiseActive = true, stealthAliasActive = false),
-		).isEqualTo(AliasReconcileAction.ENABLE_STEALTH)
+	fun `the disguise leaves only a stealth icon, whatever the launcher showed`() {
+		for ((start, setUp) in launcherStates) {
+			setUp()
+			LauncherAliasManager.reconcile(context, disguiseActive = true)
+			val shown = shownAliases()
+			assertWithMessage(start).that(shown).hasSize(1)
+			assertWithMessage(start).that(shown).doesNotContain(defaultAlias)
+		}
 	}
 
 	@Test
-	fun `reconcile - IDE launching but a stealth alias is stuck - restore default`() {
-		assertThat(
-			LauncherAliasManager.reconcileAliasAction(disguiseActive = false, stealthAliasActive = true),
-		).isEqualTo(AliasReconcileAction.RESTORE_DEFAULT)
+	fun `the IDE leaves only the real icon, whatever the launcher showed`() {
+		for ((start, setUp) in launcherStates) {
+			setUp()
+			LauncherAliasManager.reconcile(context, disguiseActive = false)
+			assertWithMessage(start).that(shownAliases()).containsExactly(defaultAlias)
+		}
 	}
 
 	@Test
-	fun `reconcile - already consistent either way - no change`() {
-		assertThat(
-			LauncherAliasManager.reconcileAliasAction(disguiseActive = true, stealthAliasActive = true),
-		).isEqualTo(AliasReconcileAction.NONE)
-		assertThat(
-			LauncherAliasManager.reconcileAliasAction(disguiseActive = false, stealthAliasActive = false),
-		).isEqualTo(AliasReconcileAction.NONE)
-	}
-
-	@Test
-	fun `reconcile safety invariant - while the disguise is shown it NEVER restores the default`() {
-		for (stealthActive in listOf(true, false)) {
-			assertThat(
-				LauncherAliasManager.reconcileAliasAction(disguiseActive = true, stealthAliasActive = stealthActive),
-			).isNotEqualTo(AliasReconcileAction.RESTORE_DEFAULT)
+	fun `a fresh install's launcher is left untouched`() {
+		LauncherAliasManager.reconcile(context, disguiseActive = false)
+		for (name in listOf(defaultAlias) + stealthAliases) {
+			assertWithMessage(name).that(aliasState(name)).isEqualTo(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
 		}
 	}
 }

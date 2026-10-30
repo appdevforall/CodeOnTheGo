@@ -53,8 +53,15 @@ not bring the IDE's text back. After the exit gesture each shows its own again o
 
 The real launcher activity is `LauncherActivity`, with no launcher filter. The default alias is named
 `.activities.SplashActivity`, the launcher component from before Instant Hide, so home-screen icons
-pinned to it survive the update on every launcher. The five stealth aliases share the target. The
-disguise's Recents entry uses this device's stealth alias icon (`LauncherAliasManager.stealthIcon`).
+pinned to it survive the update on every launcher. The five stealth aliases target
+`StealthSplashActivity`. The disguise's Recents entry uses this device's stealth alias icon
+(`LauncherAliasManager.stealthIcon`).
+
+A swap disables the default alias first, so if a `PackageManager` call throws midway the launcher
+shows no icon rather than the real one beside the disguise (ADFA-6507).
+`LauncherAliasManager.reconcile` repairs a swap left half done: the disguise and `LauncherActivity`
+each check, as they start, that the launcher shows only their own icon, and redo the swap if it
+shows both icons or neither.
 
 ## Screenshot / Recents masking
 

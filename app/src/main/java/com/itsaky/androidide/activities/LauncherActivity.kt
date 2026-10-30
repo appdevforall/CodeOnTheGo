@@ -59,16 +59,9 @@ class LauncherActivity : Activity() {
 		}
 
 		// ADFA-6507 (wipe-aware reconcile): launching the real IDE -- not hidden, wiped, or tampered (all
-		// early-returned above), so disguiseActive = false and the default launcher identity must be the
-		// enabled one. Heal a stealth alias left stuck by a partial swap, before it could later read as
-		// the tamper fingerprint.
-		if (LauncherAliasManager.reconcileAliasAction(
-				disguiseActive = false,
-				stealthAliasActive = LauncherAliasManager.isStealthModeActive(this),
-			) == LauncherAliasManager.AliasReconcileAction.RESTORE_DEFAULT
-		) {
-			LauncherAliasManager.setStealthMode(this, false)
-		}
+		// early-returned above), so the default alias must be the only launcher icon. Heal a stealth alias
+		// left stuck by a partial swap, before it could later read as the tamper fingerprint.
+		LauncherAliasManager.reconcile(this, disguiseActive = false)
 
 		startActivity(Intent(this, OnboardingActivity::class.java))
 		finish()
