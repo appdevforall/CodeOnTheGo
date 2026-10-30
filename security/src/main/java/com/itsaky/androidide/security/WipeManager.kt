@@ -80,7 +80,8 @@ data class WipeResult(
 object WipeManager {
 	/**
 	 * @param log sink for human-readable progress (an advisory toast / logcat); never contains the
-	 *   file contents, only paths and counts.
+	 *   file contents. Target paths go to it in a dry run only: after a real wipe, logcat must not
+	 *   keep the layout of the user's projects.
 	 */
 	fun wipe(
 		plan: WipePlan,
@@ -90,7 +91,7 @@ object WipeManager {
 	): WipeResult {
 		val enumerated = (plan.secureTargets + plan.fastDeleteTargets).map { it.absolutePath }
 		log("Instant Wipe: ${enumerated.size} target(s)${if (dryRun) " (DRY RUN)" else ""}")
-		enumerated.forEach { log("  target: $it") }
+		if (dryRun) enumerated.forEach { log("  target: $it") }
 
 		// Release handles first, in both modes -- a delete while the build/editor holds files fails
 		// piecemeal, and running teardown in dry-run is how QA verifies it without destroying data.

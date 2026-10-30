@@ -153,6 +153,20 @@ class WipeManagerTest {
 	}
 
 	@Test
+	fun `a real wipe logs counts but no target path, and a dry run logs each path`() {
+		val project = tmp.newFolder("CodeOnTheGoProjects", "MySecretApp")
+		val real = mutableListOf<String>()
+		val dry = mutableListOf<String>()
+
+		WipeManager.wipe(plan(listOf(project), emptyList(), emptyList()), FakeTeardown(project), dryRun = true) { dry += it }
+		WipeManager.wipe(plan(listOf(project), emptyList(), emptyList()), FakeTeardown(project), dryRun = false) { real += it }
+
+		assertThat(dry.filter { "MySecretApp" in it }).isNotEmpty()
+		assertThat(real.filter { "MySecretApp" in it }).isEmpty()
+		assertThat(real.first()).isEqualTo("Instant Wipe: 1 target(s)")
+	}
+
+	@Test
 	fun `enumerated targets are reported in both modes`() {
 		val a = tmp.newFolder("a")
 		val b = tmp.newFolder("b")
