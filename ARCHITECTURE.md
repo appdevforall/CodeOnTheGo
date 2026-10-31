@@ -88,6 +88,7 @@ Strategy: **layer-and-subsystem based**, not feature-by-feature. The Gradle buil
 | Shell | `termux:{termux-app,termux-shared,termux-view,termux-emulator}` | Embedded Termux shell and terminal. |
 | Plugin system | `plugin-api`, `plugin-api:plugin-builder`, `plugin-manager` | In-app plugin SDK + manager — `AndroidManifest.xml` `<meta-data>` contract, permissions, extensions. See [plugin-api.md](docs/plugin-api.md) for the API surface & compatibility policy. |
 | On-device AI | `llama-api`, `llama-impl` | llama.cpp integration, shipped as a per-flavor native AAR. |
+| Security | `security` | Instant Hide emergency disguise (ADFA-40): gesture/sensor triggers mounted on the IDE base activity swap the app to a "Code Breaker" cryptogram game and mask it in Recents. Renders in Views, not Compose — a documented [ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md) exception (see `security/README.md`). |
 | Cross-cutting | `eventbus`, `eventbus-android`, `eventbus-events`, `common`, `common-ui`, `common-compose`, `logger`, `resources`, `preferences`, `shared` | Shared infra and the event bus. `common-compose` holds the Compose theming any module can opt into (see [ADR 0009](docs/adr/0009-jetpack-compose-for-new-ui.md)); it is a leaf so modules that aren't Compose pay nothing. |
 | Testing | `testing:{android,unit,lsp,tooling,common}` | Shared test harnesses, split by what's under test. |
 
