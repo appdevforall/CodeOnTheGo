@@ -141,22 +141,26 @@ class ExternalFileInstallViewModelTest {
 		}
 
 	@Test
-	fun `cgt from the app's FileProvider reaches the install confirmation`() =
+	fun `cgt from the app's FileProvider is copied and reaches the install confirmation`() =
 		runTest {
 			stubTemplatesFeatureAvailable(true)
 			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
-			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			var inspectedText: String? = null
+			coEvery { templateCollectionRepository.inspectCollection(any()) } coAnswers {
+				inspectedText = firstArg<File>().readText()
+				Result.success(info)
+			}
 			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
 			val file = File(context.filesDir, "editor.cgt").apply { writeText("dummy") }
-			val uri = context.fileProviderUriFor(file)
-			assertThat(uri.scheme).isEqualTo("content")
 
-			viewModel.onReceived(uri)
+			viewModel.onReceived(context.fileProviderUriFor(file))
 
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation::class.java)
 			assertThat((first as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation).suggestedBaseName)
 				.isEqualTo("editor")
+			// The collection the repository inspected is the copy of the editor's file, and the source stays.
+			assertThat(inspectedText).isEqualTo("dummy")
 			assertThat(file.exists()).isTrue()
 		}
 

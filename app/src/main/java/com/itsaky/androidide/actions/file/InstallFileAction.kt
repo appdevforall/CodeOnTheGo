@@ -17,6 +17,7 @@
 
 package com.itsaky.androidide.actions.file
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.lifecycleScope
@@ -37,10 +38,10 @@ import org.koin.core.context.GlobalContext
 import java.io.File
 
 /** What the file-tab Install action does with a file; one kind per supported extension. */
-enum class InstallKind { APK, PLUGIN, TEMPLATE }
+internal enum class InstallKind { APK, PLUGIN, TEMPLATE }
 
 /** The [InstallKind] for [file], by case-insensitive extension, or null when it is not installable. */
-fun installKindFor(file: File?): InstallKind? =
+internal fun installKindFor(file: File?): InstallKind? =
 	when (file?.extension?.lowercase()) {
 		"apk" -> InstallKind.APK
 		PLUGIN_ARCHIVE_EXTENSION -> InstallKind.PLUGIN
@@ -52,7 +53,7 @@ fun installKindFor(file: File?): InstallKind? =
  * An explicit VIEW intent that hands [file] to [ExternalFileInstallActivity] as a FileProvider
  * `content://` Uri, so the editor reuses the install dialogs built for files opened from other apps.
  */
-fun templateInstallIntent(
+internal fun templateInstallIntent(
 	context: Context,
 	file: File,
 ): Intent =
@@ -110,7 +111,17 @@ class InstallFileAction(
 			}
 
 			InstallKind.TEMPLATE -> {
-				startActivity(templateInstallIntent(this, file))
+				// FileProvider.getUriForFile rejects a path outside the provider's roots; flash the same
+				// "could not read" error the shared install screen uses instead of crashing the editor.
+				try {
+					startActivity(templateInstallIntent(this, file))
+				} catch (e: IllegalArgumentException) {
+					flashError(getString(R.string.msg_invalid_incoming_file))
+					return false
+				} catch (e: ActivityNotFoundException) {
+					flashError(getString(R.string.msg_invalid_incoming_file))
+					return false
+				}
 			}
 
 			null -> {
