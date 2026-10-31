@@ -162,7 +162,8 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-        <!-- Receives a .cgp/.cgt file opened from outside the app (e.g. an email attachment).
+        <!-- Receives a .cgp/.cgt file opened from outside the app (e.g. an email attachment), and a .cgt
+             handed over by the editor's Install action (an explicit intent with a FileProvider Uri).
              Neither extension has a registered MIME type, so the incoming intent may be typed
              (e.g. "application/octet-stream") or untyped (a bare Uri with no type) depending on
              the sending app. Within a single <intent-filter>, a mimeType on any <data> element

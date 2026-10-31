@@ -35,7 +35,10 @@ import kotlinx.coroutines.launch
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.koin.core.context.GlobalContext
+import org.slf4j.LoggerFactory
 import java.io.File
+
+private val log = LoggerFactory.getLogger(InstallFileAction::class.java)
 
 /** What the file-tab Install action does with a file; one kind per supported extension. */
 internal enum class InstallKind { APK, PLUGIN, TEMPLATE }
@@ -111,14 +114,17 @@ class InstallFileAction(
 			}
 
 			InstallKind.TEMPLATE -> {
-				// FileProvider.getUriForFile rejects a path outside the provider's roots; flash the same
-				// "could not read" error the shared install screen uses instead of crashing the editor.
+				// Defensive: the provider declares a root-path, so getUriForFile only throws when the path
+				// cannot be canonicalised (an IOException it wraps). Flash the "could not read" error the
+				// shared install screen uses instead of crashing the editor, and keep the cause in the log.
 				try {
 					startActivity(templateInstallIntent(this, file))
 				} catch (e: IllegalArgumentException) {
+					log.warn("Could not start the template install for {}", file.name, e)
 					flashError(getString(R.string.msg_invalid_incoming_file))
 					return false
 				} catch (e: ActivityNotFoundException) {
+					log.warn("Could not start the template install for {}", file.name, e)
 					flashError(getString(R.string.msg_invalid_incoming_file))
 					return false
 				}

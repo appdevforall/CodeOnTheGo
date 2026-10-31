@@ -14,7 +14,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
  * FileProvider Uri, see `templateInstallIntent`), prompts to install it, and finishes - it has no
  * content of its own beyond the dialogs [ExternalFileInstallScreen] shows.
  *
- * `singleTask` (manifest) + [onNewIntent] collapse a rapid double-tap on the same external file
+ * `singleTask` (manifest) + [onNewIntent] collapse a rapid double-tap on the same file
  * into this one instance/ViewModel, where [ExternalFileInstallViewModel]'s `receivedUriGate`
  * already dedupes by Uri - without it, `standard` launch mode would spin up a second
  * Activity+ViewModel pair minting an independent temp file, which `PluginManagerViewModel`'s

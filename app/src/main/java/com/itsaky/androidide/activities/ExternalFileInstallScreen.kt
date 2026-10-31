@@ -55,8 +55,9 @@ private sealed interface DialogUiState {
 }
 
 /**
- * Standalone host: the activity opened for a `.cgp`/`.cgt` from outside the app, which forwards
- * plugins to [PluginManagerActivity] and finishes itself when the flow ends.
+ * Standalone host: the activity opened for a `.cgp`/`.cgt` from outside the app, or for a `.cgt`
+ * from the editor's Install action, which forwards plugins to [PluginManagerActivity] and finishes
+ * itself when the flow ends.
  */
 @Suppress("ktlint:compose:vm-forwarding-check")
 @Composable
