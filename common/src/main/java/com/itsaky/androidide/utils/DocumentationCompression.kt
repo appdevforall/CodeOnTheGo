@@ -137,6 +137,16 @@ fun expectsCompressedTemplates(db: SQLiteDatabase): Boolean {
 }
 
 /**
+ * Whether [db] declares a version that stores some `Content` rows in `ContentBlocks` (see
+ * [DatabaseVersionResolver.MAJOR_VERSION_WITH_CONTENT_BLOCKS]); below it, and for a database
+ * declaring none, every row holds its own content, whatever tables the file has.
+ */
+fun expectsContentBlocks(db: SQLiteDatabase): Boolean {
+	val majorVersion = DatabaseVersionResolver.resolveMajorVersion(db)
+	return majorVersion != null && majorVersion >= DatabaseVersionResolver.MAJOR_VERSION_WITH_CONTENT_BLOCKS
+}
+
+/**
  * Compresses and decompresses documentation `Content` blobs against [dictionary], the shared Brotli
  * dictionary from the database those blobs live in (see [loadCompressionDictionary]). A null
  * [dictionary] means plain, dictionary-free brotli, which is what a database predating ADFA-5153
