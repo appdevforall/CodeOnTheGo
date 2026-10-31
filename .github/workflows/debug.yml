@@ -228,8 +228,15 @@ jobs:
       - name: Assemble Universal APK
         run: |
           echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
-          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
+          set -o pipefail
+          flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon 2>&1 | tee "$RUNNER_TEMP/assemble.log"
           echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
+          # D8 logs this (non-fatal) once per class when the pinned R8 is older than the Kotlin
+          # metadata version, burying every real diagnostic. See the `r8` pin in libs.versions.toml.
+          if grep -q "Unexpected error during rewriting of Kotlin metadata" "$RUNNER_TEMP/assemble.log"; then
+            echo "::error::D8 could not rewrite Kotlin metadata. Most likely the R8 pinned in gradle/libs.versions.toml is older than the Kotlin metadata version (bump 'r8'), or the pin no longer takes effect on the build classpath. See ADFA-6822."
+            exit 1
+          fi
 
 
       - name: Find APK file
