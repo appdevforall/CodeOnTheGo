@@ -9,6 +9,7 @@ import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
+import com.itsaky.androidide.utils.fileProviderUriFor
 import com.itsaky.androidide.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -137,6 +138,26 @@ class ExternalFileInstallViewModelTest {
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateNameConflict::class.java)
 			assertThat((first as ExternalFileInstallUiEffect.ShowTemplateNameConflict).existingName).isEqualTo("my-templates")
+		}
+
+	@Test
+	fun `cgt from the app's FileProvider reaches the install confirmation`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			coEvery { templateCollectionRepository.inspectCollection(any()) } returns Result.success(info)
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			val file = File(context.filesDir, "editor.cgt").apply { writeText("dummy") }
+			val uri = context.fileProviderUriFor(file)
+			assertThat(uri.scheme).isEqualTo("content")
+
+			viewModel.onReceived(uri)
+
+			val first = viewModel.uiEffect.first()
+			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation::class.java)
+			assertThat((first as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation).suggestedBaseName)
+				.isEqualTo("editor")
+			assertThat(file.exists()).isTrue()
 		}
 
 	@Test
