@@ -133,8 +133,8 @@ class KotlinLanguageServer : ILanguageServer {
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 
 		/**
-		 * Runs every Compiler.close(), which blocks draining workers and is reached from
-		 * ProjectHandlerActivity.onDestroy on the main thread. One thread serializes closes; the next
+		 * Runs every Compiler.close(), which blocks draining workers and is reached from the editor's
+		 * project teardown in ProjectHandlerActivity.onPause, on the main thread. One thread serializes closes; the next
 		 * build waits so a new compiler never starts while the previous one is still disposing.
 		 */
 		private val closeExecutor =
@@ -213,10 +213,14 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	private inner class ProjectCompilerLifecycle : CompilerLifecycle<Compiler> {
-		override fun prepare(workspace: Workspace) {
+		override fun currentManager() = ProjectManagerImpl.getInstance().indexingServiceManager
+
+		override fun prepare(
+			workspace: Workspace,
+			manager: IndexingServiceManager,
+		) {
 			val context = BaseApplication.baseInstance
-			val indexingServiceManager = ProjectManagerImpl.getInstance().indexingServiceManager
-			val indexingRegistry = indexingServiceManager.registry
+			val indexingRegistry = manager.registry
 
 			// Once per project: replacing them would close the instances a live session reads.
 			indexingRegistry.registerIfAbsent(KT_SOURCE_FILE_INDEX_KEY) {
@@ -224,17 +228,19 @@ class KotlinLanguageServer : ILanguageServer {
 					context = context,
 					dbName = KT_SOURCE_FILE_INDEX_KEY.name,
 					indexName = KT_SOURCE_FILE_INDEX_KEY.name,
+					lifetime = indexingRegistry.lifetime,
 				)
 			}
 			indexingRegistry.registerIfAbsent(KT_SOURCE_FILE_META_INDEX_KEY) {
 				KtFileMetadataIndex.sqliteBacked(
 					context = context,
 					dbName = KT_SOURCE_FILE_META_INDEX_KEY.name,
+					lifetime = indexingRegistry.lifetime,
 				)
 			}
 
 			val jvmLibraryIndexingService =
-				indexingServiceManager.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+				manager.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
 			jvmLibraryIndexingService?.refresh()
 		}
 
@@ -249,6 +255,7 @@ class KotlinLanguageServer : ILanguageServer {
 		override fun build(
 			workspace: Workspace,
 			layout: KotlinModuleLayout,
+			manager: IndexingServiceManager,
 		): Compiler {
 			logger.info("Creating analysis session")
 
@@ -256,7 +263,7 @@ class KotlinLanguageServer : ILanguageServer {
 				JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
 					?: JvmTarget.JVM_21
 
-			val model = KotlinProjectModel()
+			val model = KotlinProjectModel(manager.registry)
 			model.update(workspace, JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget))
 
 			return Compiler(
