@@ -246,7 +246,7 @@ fun ManagerScreen(
 	ExternalFileInstallDialogs(
 		viewModel = externalFileInstallViewModel,
 		// A .cgp only reaches this ViewModel via the routing above, which sends plugins down the
-		// ContentUri path instead - so this is defensive, not a live path.
+		// PickedUri path instead - so this is defensive, not a live path.
 		onForwardPlugin = { filePath -> pluginViewModel.onPendingInstallFile(filePath) },
 		onFinish = { templateViewModel.onEvent(TemplateManagerUiEvent.LoadTemplates) },
 	)

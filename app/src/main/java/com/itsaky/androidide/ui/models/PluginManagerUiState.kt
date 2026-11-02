@@ -35,7 +35,7 @@ data class PluginManagerUiState(
  */
 sealed class PluginInstallSource : Parcelable {
 	@Parcelize
-	data class ContentUri(
+	data class PickedUri(
 		val uri: Uri,
 	) : PluginInstallSource()
 
@@ -105,7 +105,7 @@ sealed class PluginManagerUiEffect {
 
 	/**
 	 * Carries a [PluginInstallSource], not a bare [Uri], so both entry points share one dialog:
-	 * the SAF pick (a [PluginInstallSource.ContentUri]) and a `.cgp` forwarded from
+	 * the SAF pick (a [PluginInstallSource.PickedUri]) and a `.cgp` forwarded from
 	 * [com.itsaky.androidide.activities.ExternalFileInstallActivity] (a
 	 * [PluginInstallSource.LocalFile]).
 	 */

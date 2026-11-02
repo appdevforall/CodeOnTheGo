@@ -70,7 +70,7 @@ class PluginManagerViewModelSourceDeleteTest {
 
 			viewModel.onEvent(
 				PluginManagerUiEvent.ConfirmOverwrite(
-					PluginInstallSource.ContentUri(Uri.fromFile(source)),
+					PluginInstallSource.PickedUri(Uri.fromFile(source)),
 					deleteSourceAfterInstall = true,
 				),
 			)
@@ -88,7 +88,7 @@ class PluginManagerViewModelSourceDeleteTest {
 
 			viewModel.onEvent(
 				PluginManagerUiEvent.ConfirmOverwrite(
-					PluginInstallSource.ContentUri(Uri.fromFile(source)),
+					PluginInstallSource.PickedUri(Uri.fromFile(source)),
 					deleteSourceAfterInstall = false,
 				),
 			)
