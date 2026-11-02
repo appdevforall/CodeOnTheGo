@@ -37,7 +37,7 @@ class PrivateTopLevelResolutionTest : KtLspTest() {
 
 	@Test
 	fun privateTopLevelFunctionsAreListed() {
-		val found = env.project.read { sequenceOf(file).topLevelFunctions(Name.identifier("helper")) }
+		val found = env.project.read { sequenceOf(file).topLevelFunctions(Name.identifier("helper")).toList() }
 
 		assertThat(found).hasSize(1)
 	}

@@ -91,14 +91,16 @@ internal abstract class AbstractDeclarationProvider(
 		ktFilesForPackage(scriptFqName).mapNotNull { it.script }.toList()
 
 	override fun getAllClassesByClassId(classId: ClassId): Collection<KtClassOrObject> =
-		ktFilesForPackage(classId.packageFqName).let { files -> project.read { files.classesWithId(classId) } }
+		project.read { ktFilesForPackage(classId.packageFqName).classesWithId(classId).toList() }
 
 	override fun getAllTypeAliasesByClassId(classId: ClassId): Collection<KtTypeAlias> =
-		ktFilesForPackage(classId.packageFqName).let { files -> project.read { files.typeAliasesWithId(classId) } }
+		project.read { ktFilesForPackage(classId.packageFqName).typeAliasesWithId(classId).toList() }
 
 	override fun getClassLikeDeclarationByClassId(classId: ClassId): KtClassLikeDeclaration? =
-		getAllClassesByClassId(classId).firstOrNull()
-			?: getAllTypeAliasesByClassId(classId).firstOrNull()
+		project.read {
+			val files = ktFilesForPackage(classId.packageFqName)
+			files.classesWithId(classId).firstOrNull() ?: files.typeAliasesWithId(classId).firstOrNull()
+		}
 
 	override fun getTopLevelCallableFiles(callableId: CallableId): Collection<KtFile> =
 		buildSet {
@@ -107,20 +109,16 @@ internal abstract class AbstractDeclarationProvider(
 		}
 
 	override fun getTopLevelFunctions(callableId: CallableId): Collection<KtNamedFunction> =
-		ktFilesForPackage(callableId.packageName).let { files ->
-			project.read { files.topLevelFunctions(callableId.callableName) }
-		}
+		project.read { ktFilesForPackage(callableId.packageName).topLevelFunctions(callableId.callableName).toList() }
 
 	override fun getTopLevelKotlinClassLikeDeclarationNamesInPackage(packageFqName: FqName): Set<Name> =
-		ktFilesForPackage(packageFqName).let { files -> project.read { files.topLevelClassLikeNames() } }
+		project.read { ktFilesForPackage(packageFqName).topLevelClassLikeNames().toSet() }
 
 	override fun getTopLevelCallableNamesInPackage(packageFqName: FqName): Set<Name> =
-		ktFilesForPackage(packageFqName).let { files -> project.read { files.topLevelCallableNames() } }
+		project.read { ktFilesForPackage(packageFqName).topLevelCallableNames().toSet() }
 
 	override fun getTopLevelProperties(callableId: CallableId): Collection<KtProperty> =
-		ktFilesForPackage(callableId.packageName).let { files ->
-			project.read { files.topLevelProperties(callableId.callableName) }
-		}
+		project.read { ktFilesForPackage(callableId.packageName).topLevelProperties(callableId.callableName).toList() }
 }
 
 internal class DeclarationProvider(
