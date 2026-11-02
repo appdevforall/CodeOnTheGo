@@ -163,22 +163,20 @@ class IDEApplication :
 	 * alive - backgrounded, or something drawn on top of it - and callers like FlashbarUtils'
 	 * `withActivity` still need it; [onActivityDestroyed] covers the rest.
 	 */
-	override fun onActivityPostPaused(activity: Activity) {
-		super.onActivityPostPaused(activity)
+	override fun onActivityPaused(activity: Activity) {
 		if (foregroundActivity == activity && activity.isFinishing) {
 			logger.debug("foregroundActivity = null")
 			_foregroundActivity.update { null }
 		}
 	}
 
-	override fun onActivityPreResumed(activity: Activity) {
-		super.onActivityPreResumed(activity)
+	override fun onActivityResumed(activity: Activity) {
 		logger.debug("foregroundActivity = {}", activity.javaClass)
 		_foregroundActivity.update { activity }
 	}
 
 	/**
-	 * [onActivityPostPaused] only clears the reference for *finishing* activities, so a rotation
+	 * [onActivityPaused] only clears the reference for *finishing* activities, so a rotation
 	 * or a system kill would leave the destroyed activity retained by this global [StateFlow].
 	 * The compare-and-set keeps an already-resumed successor (e.g. A finishes into B) in place.
 	 */
