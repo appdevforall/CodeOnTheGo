@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.appdevforall.codeonthego.indexing.IndexSessionLifetime
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
 import org.appdevforall.codeonthego.indexing.service.IndexingProgressTracker
@@ -58,7 +59,7 @@ abstract class JarIndexingService(
 	private val workspaceSupplier: () -> Workspace? = { ProjectManagerImpl.getInstance().workspace },
 	private val unreadableJarReporter: (List<String>) -> Unit = ::reportUnreadableClasspathJars,
 	private val unreadableJarFilter: (Collection<String>) -> List<String> = { it.toList() },
-	private val indexFactory: (Context, String, String) -> JvmSymbolIndex = JvmSymbolIndex::createSqliteIndex,
+	private val indexFactory: (Context, String, String, IndexSessionLifetime?) -> JvmSymbolIndex = JvmSymbolIndex::createSqliteIndex,
 ) : IndexingService {
 	companion object {
 		private val log = LoggerFactory.getLogger(JarIndexingService::class.java)
@@ -90,7 +91,7 @@ abstract class JarIndexingService(
 		)
 
 	override suspend fun initialize(registry: IndexRegistry) {
-		val jvmIndex = indexFactory(context, dbName, indexName)
+		val jvmIndex = indexFactory(context, dbName, indexName, registry.lifetime)
 
 		this.jarIndex = jvmIndex
 		registry.register(indexKey, jvmIndex)

@@ -157,6 +157,7 @@ include(
 	":subprojects:javac-services",
 	":subprojects:kotlin-analysis-api",
 	":subprojects:libjdwp",
+	":subprojects:pebble",
 	":subprojects:privileged-services",
 	":subprojects:projects",
 	":subprojects:project-models",

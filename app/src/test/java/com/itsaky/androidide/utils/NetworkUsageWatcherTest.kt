@@ -48,16 +48,24 @@ class NetworkUsageWatcherTest {
 	private inner class Fixture(
 		rx: List<Long>,
 		tx: List<Long> = rx,
+		// The device's off-loopback counters, rx and tx alike. Null reads as unsupported, which
+		// leaves the UID deltas uncapped.
+		device: List<Long>? = null,
 	) {
 		private var index = -1
 		private val rxReadings = rx
 		private val txReadings = tx
+		private val deviceReadings = device
+
+		private fun readDevice(): Long = deviceReadings?.let { it[index.coerceIn(0, it.lastIndex)] } ?: UNSUPPORTED
 
 		val watcher =
 			NetworkUsageWatcher(
 				uid = TEST_UID,
 				readRxBytes = { rxReadings[index.coerceIn(0, rxReadings.lastIndex)] },
 				readTxBytes = { txReadings[index.coerceIn(0, txReadings.lastIndex)] },
+				readDeviceRxBytes = ::readDevice,
+				readDeviceTxBytes = ::readDevice,
 			).also { created += it }
 
 		/** Takes [count] samples, walking the scripted readings. */
@@ -95,6 +103,35 @@ class NetworkUsageWatcherTest {
 		// 1000-byte spike for traffic that happened before the chart existed.
 		assertThat(usage.received.recent(3)).containsExactly(0L, 500L, 2_500L).inOrder()
 		assertThat(usage.transmitted.recent(3)).containsExactly(0L, 500L, 2_500L).inOrder()
+	}
+
+	@Test
+	fun `loopback IPC within the UID is not plotted as network traffic`() {
+		// ADFA-5760: the Gradle daemon streams a build to the Tooling API client over 127.0.0.1.
+		// The UID counters climb; nothing leaves the device, so the off-loopback total stays put.
+		val fixture = Fixture(rx = listOf(0L, 40_000L, 90_000L), device = listOf(5_000L, 5_000L, 5_000L))
+
+		fixture.sample(3)
+		val usage = fixture.watcher.getUsage()
+
+		assertThat(usage.received.recent(3)).containsExactly(0L, 0L, 0L).inOrder()
+		assertThat(usage.transmitted.recent(3)).containsExactly(0L, 0L, 0L).inOrder()
+	}
+
+	@Test
+	fun `real traffic is still plotted, capped at what crossed a real interface`() {
+		// A download alongside build IPC: the UID moved 3000 bytes, 1200 of them off-device.
+		val fixture = Fixture(rx = listOf(0L, 3_000L, 3_500L), device = listOf(0L, 1_200L, 9_000L))
+
+		fixture.sample(3)
+
+		// Last interval: other apps' traffic lifts the cap above the UID's own 500 bytes.
+		assertThat(
+			fixture.watcher
+				.getUsage()
+				.received
+				.recent(3),
+		).containsExactly(0L, 1_200L, 500L).inOrder()
 	}
 
 	@Test
@@ -199,5 +236,8 @@ class NetworkUsageWatcherTest {
 
 	private companion object {
 		const val TEST_UID = 10_123
+		const val UNSUPPORTED =
+			android.net.TrafficStats.UNSUPPORTED
+				.toLong()
 	}
 }

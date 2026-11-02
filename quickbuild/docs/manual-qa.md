@@ -17,7 +17,7 @@ Cases are organized in the following groups:
   2. Stay-awake while charging. 
   3. ARM processor (Quick Build is ARM only for now)
 2. Flags in the device `Download/` folder:
-  1. `CodeOnTheGo.exp` - required. Without it, no lightning button.
+  1. `CodeOnTheGo.exp` - required (`Experiment.QUICK_BUILD`). Without it, no lightning button. With it, tapping the homepage title lists Quick Build ([EXPERIMENTS.md](../../EXPERIMENTS.md)).
   2. `CodeOnTheGo.qbbench` - optional; adds the `bench-events.jsonl` session event log.
   3. Flags are read once per process. After creating or deleting any flag file, force-stop CoGo and reopen it.
 3. CoGo asks for the install permission during onboarding. If you skipped it, the first provisioning bounces you to a Settings screen and the session quietly reverts to idle. An automated run that cannot tap that Settings toggle can pre-grant it: `adb shell cmd appops set com.itsaky.androidide REQUEST_INSTALL_PACKAGES allow`
@@ -41,7 +41,7 @@ The button is a split button and the session's status display. Every tone has it
 | Icon                               | Tone         | Session is                                                   |
 | ---------------------------------- | ------------ | ------------------------------------------------------------ |
 | Solid bolt                         | READY        | No session, or sitting on a successful build                 |
-| Stop square spinning inside a ring | BUILDING     | Provisioning, or a build running now. Tapping stops it       |
+| Stop square inside a ring (the Run button's stop icon) | BUILDING     | Provisioning, or a build running now. Tapping stops it       |
 | Hollow bolt                        | SLOW         | The next build cannot take the fast path and will be a full one. Not a failure |
 | Sync arrows                        | RECONNECTING | The compile daemon is being respawned. Transient, resolves itself |
 | Bolt with an exclamation mark      | ERROR        | A failure to act on - a failed build, or a daemon respawn that did not come back |
@@ -305,7 +305,7 @@ Steps:
 
 1. Clear the Build Output buffer first - CoGo restores the previous session's output on relaunch, and its lines read exactly like a live run's.
 2. Delete the flag: `adb shell rm /storage/emulated/0/Download/CodeOnTheGo.exp`.
-3. Force-stop CoGo and reopen it.
+3. Force-stop CoGo and reopen it. The homepage title has no trailing dot, and tapping it does nothing.
 4. Open or create a project.
 5. When done, restore the flag (`adb shell touch /storage/emulated/0/Download/CodeOnTheGo.exp`) and force-stop CoGo again.
 

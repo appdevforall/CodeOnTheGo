@@ -22,6 +22,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import com.itsaky.androidide.templates.manager.models.displayName
+import com.itsaky.androidide.templates.manager.models.effectiveDisplayName
 import com.itsaky.androidide.templates.manager.models.primaryTemplate
 import com.itsaky.androidide.templates.manager.models.versionLabel
 
@@ -53,7 +54,7 @@ fun TemplateFileDetailsDialog(
 	val primary = item.primaryTemplate
 	AlertDialog(
 		onDismissRequest = onDismiss,
-		title = { Text(primary.name.ifBlank { item.displayName }) },
+		title = { Text(item.effectiveDisplayName) },
 		text = {
 			SelectionContainer {
 				Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {

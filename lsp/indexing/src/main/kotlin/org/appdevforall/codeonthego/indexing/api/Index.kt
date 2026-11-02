@@ -147,5 +147,9 @@ interface Index<T : Indexable> :
 	 */
 	suspend fun optimize() {}
 
+	/** Whether the index still serves reads and writes; false once it is closed. */
+	val isOpen: Boolean
+		get() = true
+
 	override fun close() {}
 }

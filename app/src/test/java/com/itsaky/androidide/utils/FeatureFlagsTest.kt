@@ -58,14 +58,14 @@ class FeatureFlagsTest {
 
 		runBlocking { FeatureFlags.initialize() }
 
-		assertThat(FeatureFlags.isExperimentsEnabled).isTrue()
+		assertThat(Experiments.enabled).isTrue()
 	}
 
 	@Test
 	fun `initialize reads an absent flag file as off`() {
 		runBlocking { FeatureFlags.initialize() }
 
-		assertThat(FeatureFlags.isExperimentsEnabled).isFalse()
+		assertThat(Experiments.enabled).isFalse()
 	}
 
 	@Test
@@ -75,33 +75,33 @@ class FeatureFlagsTest {
 
 		runBlocking { FeatureFlags.initialize() }
 
-		assertThat(FeatureFlags.isExperimentsEnabled).isFalse()
+		assertThat(Experiments.enabled).isFalse()
 	}
 
 	@Test
 	fun `refresh re-reads after a startup snapshot that could not see the flag files`() {
 		// Direct boot: external storage is not mounted, so every flag reads as absent.
 		runBlocking { FeatureFlags.initialize() }
-		assertThat(FeatureFlags.isExperimentsEnabled).isFalse()
+		assertThat(Experiments.enabled).isFalse()
 
 		// The user unlocks; the flag file is now visible. The credential-protected phase
 		// re-reads instead of relying on initialize() being a no-op by then.
 		experimentsFile.writeText("")
 		runBlocking { FeatureFlags.refresh() }
 
-		assertThat(FeatureFlags.isExperimentsEnabled).isTrue()
+		assertThat(Experiments.enabled).isTrue()
 	}
 
 	@Test
 	fun `refresh picks up a flag file that has been deleted`() {
 		experimentsFile.writeText("")
 		runBlocking { FeatureFlags.initialize() }
-		assertThat(FeatureFlags.isExperimentsEnabled).isTrue()
+		assertThat(Experiments.enabled).isTrue()
 
 		experimentsFile.delete()
 		runBlocking { FeatureFlags.refresh() }
 
-		assertThat(FeatureFlags.isExperimentsEnabled).isFalse()
+		assertThat(Experiments.enabled).isFalse()
 	}
 
 	private fun setPrivate(

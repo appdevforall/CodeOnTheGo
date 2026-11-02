@@ -33,6 +33,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
 import com.itsaky.androidide.templates.manager.models.displayName
+import com.itsaky.androidide.templates.manager.models.effectiveDisplayName
 import com.itsaky.androidide.templates.manager.models.hasMultipleTemplates
 import com.itsaky.androidide.templates.manager.models.primaryTemplate
 import com.itsaky.androidide.templates.manager.models.versionLabel
@@ -73,7 +74,7 @@ fun TemplateListItem(
 	) {
 		Row(modifier = Modifier.padding(16.dp)) {
 			Column(modifier = Modifier.weight(1f)) {
-				Text(primary.name.ifBlank { item.displayName }, style = MaterialTheme.typography.titleMedium)
+				Text(item.effectiveDisplayName, style = MaterialTheme.typography.titleMedium)
 				Text(
 					primary.description,
 					style = MaterialTheme.typography.bodySmall,
@@ -124,15 +125,13 @@ fun TemplateListItem(
 				}
 				DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
 					if (item.installed) {
-						if (item.provenance != TemplateProvenance.BUNDLED) {
-							DropdownMenuItem(
-								text = { Text(stringResource(R.string.action_uninstall_template)) },
-								onClick = {
-									menuExpanded = false
-									onUninstall()
-								},
-							)
-						}
+						DropdownMenuItem(
+							text = { Text(stringResource(R.string.action_uninstall_template)) },
+							onClick = {
+								menuExpanded = false
+								onUninstall()
+							},
+						)
 					} else {
 						DropdownMenuItem(
 							text = { Text(stringResource(R.string.action_install_template)) },
@@ -178,7 +177,6 @@ fun TemplateListItem(
 
 private fun TemplateProvenance.labelRes(): Int =
 	when (this) {
-		TemplateProvenance.BUNDLED -> R.string.template_provenance_bundled
 		TemplateProvenance.PLUGIN -> R.string.template_provenance_plugin
 		TemplateProvenance.USER -> R.string.template_provenance_user
 	}

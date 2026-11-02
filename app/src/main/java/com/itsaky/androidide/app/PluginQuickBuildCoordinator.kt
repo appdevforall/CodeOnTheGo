@@ -20,7 +20,8 @@ import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
 import com.itsaky.androidide.quickbuild.QuickBuildProjectSupport
 import com.itsaky.androidide.quickbuild.QuickBuildRunTracker
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -100,7 +101,7 @@ internal class PluginQuickBuildCoordinator(
 		val variantName = module?.getSelectedVariant()?.name
 		val reason =
 			unavailableReasonOf(
-				experimentsEnabled = FeatureFlags.isExperimentsEnabled,
+				experimentsEnabled = Experiments.isOn(Experiment.QUICK_BUILD),
 				projectOpen = projectManager.projectDirPath.isNotEmpty(),
 				synced = projectManager.workspace != null,
 				pluginProject = projectManager.isPluginProject(),

@@ -6,6 +6,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.joinAll
 import org.appdevforall.codeonthego.indexing.FilteredIndex
+import org.appdevforall.codeonthego.indexing.IndexSessionLifetime
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.IndexQueryBuilder
@@ -69,11 +70,13 @@ open class JvmSymbolIndex(
 		 * @param context The context to use for accessing the SQLite database.
 		 * @param dbName The name of the database. Defaults to [DB_NAME_DEFAULT].
 		 * @param indexName The name of the index. Defaults to [INDEX_NAME_LIBRARY].
+		 * @param lifetime The project session owning the index, or null if it has none.
 		 */
 		fun createSqliteIndex(
 			context: Context,
 			dbName: String,
 			indexName: String,
+			lifetime: IndexSessionLifetime? = null,
 		): JvmSymbolIndex {
 			val cache =
 				SQLiteIndex(
@@ -82,6 +85,7 @@ open class JvmSymbolIndex(
 					dbName = dbName,
 					formatVersion = FORMAT_VERSION,
 					name = indexName,
+					lifetime = lifetime,
 				)
 
 			val indexer = BackgroundIndexer(cache)
@@ -322,6 +326,10 @@ open class JvmSymbolIndex(
 		jobs.joinAll()
 		backing.optimize()
 	}
+
+	/** Whether the backing index still serves reads and writes. */
+	val isOpen: Boolean
+		get() = backing.isOpen
 
 	override fun close() {
 		indexer.close()

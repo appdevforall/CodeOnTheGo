@@ -33,6 +33,7 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import com.itsaky.androidide.R
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
+import com.itsaky.androidide.documentation.OffDeviceRequests
 
 class IDETooltipWebviewFragment : Fragment() {
 	private lateinit var webView: WebView
@@ -102,10 +103,14 @@ class IDETooltipWebviewFragment : Fragment() {
 				override fun shouldInterceptRequest(
 					view: WebView,
 					request: WebResourceRequest,
-				): WebResourceResponse? = documentation?.intercept(request) ?: super.shouldInterceptRequest(view, request)
+				): WebResourceResponse? =
+					documentation?.intercept(request)
+						?: OffDeviceRequests.block(request)
+						?: super.shouldInterceptRequest(view, request)
 
 				/**
-				 * Loads Android asset URLs explicitly and delegates other requests to the default handler.
+				 * Loads Android asset URLs explicitly, asks before opening an off-device link outside the
+				 * app, and delegates other requests to the default handler.
 				 *
 				 * @param view The WebView requesting the URL.
 				 * @param request The resource request to handle.
@@ -115,6 +120,12 @@ class IDETooltipWebviewFragment : Fragment() {
 					view: WebView,
 					request: WebResourceRequest,
 				): Boolean {
+					// The fragment's view is inflated from the application context, so the consent
+					// dialog needs the activity itself.
+					val activity = activity
+					if (activity != null && OffDeviceRequests.openWithConsent(activity, request.url.toString())) {
+						return true
+					}
 					// Allow loading of local assets files
 					if (request.url.toString().startsWith("file:///android_asset/")) {
 						view.loadUrl(request.url.toString())
@@ -131,6 +142,7 @@ class IDETooltipWebviewFragment : Fragment() {
 
 		// Enable JavaScript if needed
 		webView.settings.javaScriptEnabled = true
+		OffDeviceRequests.keepOnDevice(webView.settings)
 
 		// Load the HTML file from the assets folder
 		webView.loadUrl(website)

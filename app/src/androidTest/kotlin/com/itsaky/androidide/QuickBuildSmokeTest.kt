@@ -13,7 +13,7 @@ import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.isExperimentsFlagSet
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.setAccessibilityEditText
-import com.itsaky.androidide.helper.setExperimentsFlagForTest
+import com.itsaky.androidide.helper.setExperimentForTest
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.quickbuild.AndroidInstalledPackages
@@ -34,6 +34,7 @@ import com.itsaky.androidide.screens.QuickBuildScreen.dismissQuickBuildDropdown
 import com.itsaky.androidide.screens.QuickBuildScreen.longPressOpensQuickBuildDropdown
 import com.itsaky.androidide.screens.QuickBuildScreen.restartSessionViaDropdown
 import com.itsaky.androidide.screens.QuickBuildScreen.tapQuickBuildButton
+import com.itsaky.androidide.utils.Experiment
 import com.itsaky.androidide.utils.flashError
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import kotlinx.coroutines.Dispatchers
@@ -114,14 +115,14 @@ class QuickBuildSmokeTest : TestCase() {
 			// the pre-test flag state so the after-block restores it - a dev device may
 			// legitimately have experiments enabled outside this test.
 			hadExperimentsFlag = isExperimentsFlagSet()
-			setExperimentsFlagForTest(true)
+			setExperimentForTest(Experiment.QUICK_BUILD, true)
 			// On an already-provisioned device, OnboardingActivity skips its async
 			// JDK-distribution reload in test mode (onResume), so isSetupCompleted()
 			// would stay false and the app would park on the welcome slide forever.
 			// Load synchronously up front; harmless when run after EndToEndTest.
 			IJdkDistributionProvider.getInstance().loadDistributions()
 		}.after {
-			setExperimentsFlagForTest(hadExperimentsFlag)
+			setExperimentForTest(Experiment.QUICK_BUILD, hadExperimentsFlag)
 			// Leave no live session behind: harmless no-op from Idle.
 			runCatching { GlobalContext.get().get<QuickBuildSessionManager>().restartSession() }
 			if (clobberCheckOverridden) {

@@ -4,7 +4,7 @@ import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.repositories.TemplateRepositoryImpl
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
-import org.koin.androidx.viewmodel.dsl.viewModel
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 /**

@@ -406,7 +406,7 @@ abstract class MetricsChartRenderer(
 
 		// xMax is the newest sample's index. entryCount would be the total across every series --
 		// 7200 for the network chart's two -- which would scroll the window off the end of the data.
-		val newestIndex = chart.data?.xMax ?: return
+		val newestIndex = chart.dataOrNull?.xMax ?: return
 		if (newestIndex < VISIBLE_SAMPLES) {
 			return
 		}
@@ -424,6 +424,14 @@ abstract class MetricsChartRenderer(
 		// a different transform from the scale just set here (ADFA-5515).
 		chart.moveViewToXNow(newestIndex - VISIBLE_SAMPLES.toFloat() + 1f)
 	}
+
+	/**
+	 * The chart's data, or null before the first [rebuild] has set it. `getData()` is annotated
+	 * `@NonNull` but returns null until `setData()` runs, and [newestWindowOnLayout] fires on every
+	 * layout -- including one after a [rebuild] that threw before setting data.
+	 */
+	private val SafeLineChart.dataOrNull: LineData?
+		get() = data
 
 	/**
 	 * Re-applies the newest window whenever the chart is laid out.
@@ -752,7 +760,7 @@ abstract class MetricsChartRenderer(
 		chart.xAxis.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisLeft.textSize = BASE_TEXT_SIZE_DP * scale
 		chart.axisRight.textSize = BASE_TEXT_SIZE_DP * scale
-		chart.data?.setValueTextSize(BASE_VALUE_TEXT_SIZE_DP * scale)
+		chart.data.setValueTextSize(BASE_VALUE_TEXT_SIZE_DP * scale)
 
 		// Bigger text needs fewer labels. Growing the text alone left the count untouched, so the
 		// memory page's nine value labels went from 29px apart to 6px -- crowded enough that the
@@ -806,7 +814,7 @@ abstract class MetricsChartRenderer(
 	 */
 	private fun applyAnnotations(chart: SafeLineChart) {
 		val store = annotations ?: return
-		val newestIndex = chart.data?.xMax ?: return
+		val newestIndex = chart.dataOrNull?.xMax ?: return
 
 		chart.xAxis.removeAllLimitLines()
 

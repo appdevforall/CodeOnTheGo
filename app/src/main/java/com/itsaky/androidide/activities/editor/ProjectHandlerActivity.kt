@@ -29,6 +29,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.annotation.GravityInt
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -76,6 +77,7 @@ import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.projects.models.projectDir
 import com.itsaky.androidide.quickbuild.AutostartBuild
 import com.itsaky.androidide.quickbuild.GenerateSourcesDeferral
@@ -97,8 +99,9 @@ import com.itsaky.androidide.search.replace.ReplaceCoordinator
 import com.itsaky.androidide.search.replace.ReplaceHost
 import com.itsaky.androidide.search.replace.ReplaceSession
 import com.itsaky.androidide.search.replace.SkipReason
+import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.services.builder.GradleBuildService
-import com.itsaky.androidide.services.builder.GradleBuildServiceConnnection
+import com.itsaky.androidide.services.builder.OldBuildOutput
 import com.itsaky.androidide.services.builder.gradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.AndroidInitializationParams
 import com.itsaky.androidide.tooling.api.messages.BuildId
@@ -122,7 +125,9 @@ import com.itsaky.androidide.utils.DURATION_INDEFINITE
 import com.itsaky.androidide.utils.DURATION_LONG
 import com.itsaky.androidide.utils.DialogUtils.newMaterialDialogBuilder
 import com.itsaky.androidide.utils.DialogUtils.showRestartPrompt
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
+import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.ProjectSearchOptions
 import com.itsaky.androidide.utils.RecursiveFileSearcher
 import com.itsaky.androidide.utils.dpToPx
@@ -131,6 +136,7 @@ import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashInfoLong
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.flashbarBuilder
+import com.itsaky.androidide.utils.installFromCopy
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.resolveAttr
 import com.itsaky.androidide.utils.showOnUiThread
@@ -145,6 +151,7 @@ import io.github.rosemoe.sora.util.IntPair
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -182,10 +189,25 @@ abstract class ProjectHandlerActivity :
 	protected var mReplaceInProjectDialog: AlertDialog? = null
 	private val replaceCoordinator by lazy { ReplaceCoordinator(editorFor = { file -> getEditorForFile(file)?.editor }) }
 	protected var syncNotificationFlashbar: Flashbar? = null
+
+	/** Whether the relocation banner made its offer, so Not now holds for this screen. */
+	private var buildOutputSyncOffered = false
+
+	/** The banner that offer showed, so withdrawing it never dismisses another one. */
+	private var buildOutputSyncBanner: Flashbar? = null
+
+	/** Offers again a relocation sync the user asked for while a build held the slot. */
+	private var buildOutputSyncDeferral: Job? = null
 	private var replaceReportFlashbar: Flashbar? = null
 
 	private val buildViewModel by viewModels<BuildViewModel>()
 	protected var initializingFuture: CompletableFuture<out InitializeResult?>? = null
+
+	private val sessionCloser =
+		ProjectSessionCloser(
+			currentSession = { ProjectManagerImpl.getInstance().currentIndexingServiceManager },
+			teardown = ::closeProjectSession,
+		)
 	private val Throwable?.isFileNotFound: Boolean
 		get() =
 			this is FileNotFoundException ||
@@ -241,8 +263,6 @@ abstract class ProjectHandlerActivity :
 	}
 
 	protected val mBuildEventListener = EditorBuildEventListener()
-
-	private val buildServiceConnection = GradleBuildServiceConnnection()
 
 	// True once onCreate() has completed past its isFinishing check -- mirrors
 	// EditorHandlerActivity.didCompleteLiveOnCreate. super.onCreate() (BaseEditorActivity) may
@@ -451,7 +471,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	private fun quickBuildOutputNarrator(): QuickBuildOutputNarrator? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildOutputNarrator>() }
@@ -892,7 +912,7 @@ abstract class ProjectHandlerActivity :
 	 * Gated exactly like [quickBuildSessionManager].
 	 */
 	protected fun quickBuildClobberCheck(): QuickBuildClobberCheck? {
-		if (!FeatureFlags.isExperimentsEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD)) {
 			return null
 		}
 		return runCatching { GlobalContext.get().get<QuickBuildClobberCheck>() }
@@ -1128,7 +1148,9 @@ abstract class ProjectHandlerActivity :
 	private fun installPlugin(cgpFile: File) {
 		lifecycleScope.launch {
 			setStatus(getString(string.status_installing_plugin))
-			val result = pluginRepository.installPluginFromFile(cgpFile)
+			// Installing deletes the file it is given. A copy keeps the built plugin for Export.
+			val copy = InstallTempFiles.newTempFile(filesDir, "built_plugin", cgpFile.extension)
+			val result = installFromCopy(cgpFile, copy) { pluginRepository.installPluginFromFile(it) }
 			result
 				.onSuccess {
 					showRestartPrompt(this@ProjectHandlerActivity)
@@ -1155,29 +1177,46 @@ abstract class ProjectHandlerActivity :
 
 	override fun onPause() {
 		super.onPause()
-		if (isDestroying) {
-			// reset these values here
-			// sometimes, when the IDE closed and reopened instantly, these values prevent initialization
-			// of the project
-			ProjectManagerImpl.getInstance().destroy()
+		if (!isDestroying) return
 
-			// ADFA-4128: the Quick Build session manager is a process-wide Koin
-			// singleton that outlives this activity, and its provisioner reads
-			// IProjectManager.getInstance().projectDirPath fresh at build time rather
-			// than a snapshot. Without this, closing a project while its eager prebuild
-			// (or a live session) is still in flight lets that work silently keep
-			// running once projectPath flips to whatever project opens next - either
-			// racing the next project's own prebuild() into a permanent no-op (the
-			// reducer treats a second PrebuildRequested while already Prebuilding as a
-			// no-op) or building against the wrong directory. restartSession() is a
-			// verified no-op when nothing is live (SessionReducerTest: "idle plus
-			// SessionRestartRequested is a no-op").
-			quickBuildSessionManager()?.restartSession()
-
-			editorViewModel.isInitializing = false
-			editorViewModel.isBuildInProgress = false
-			editorViewModel.isInternalBuildInProgress = false
+		if (didCompleteLiveOnCreate) {
+			// The teardown below destroys the project, so a sync finishing after it must not set one up again.
+			initializingFuture?.cancel(true)
+			initializingFuture = null
+			sessionCloser.close()
+		} else {
+			// A doomed instance must not stop the servers a live sibling uses; preDestroy gates them the same way.
+			closeProjectState()
 		}
+	}
+
+	private fun closeProjectSession() {
+		stopLanguageServers()
+		closeProjectState()
+	}
+
+	private fun closeProjectState() {
+		// reset these values here
+		// sometimes, when the IDE closed and reopened instantly, these values prevent initialization
+		// of the project
+		ProjectManagerImpl.getInstance().destroy()
+
+		// The Quick Build session manager is a process-wide Koin
+		// singleton that outlives this activity, and its provisioner reads
+		// IProjectManager.getInstance().projectDirPath fresh at build time rather
+		// than a snapshot. Without this, closing a project while its eager prebuild
+		// (or a live session) is still in flight lets that work silently keep
+		// running once projectPath flips to whatever project opens next - either
+		// racing the next project's own prebuild() into a permanent no-op (the
+		// reducer treats a second PrebuildRequested while already Prebuilding as a
+		// no-op) or building against the wrong directory. restartSession() is a
+		// verified no-op when nothing is live (SessionReducerTest: "idle plus
+		// SessionRestartRequested is a no-op").
+		quickBuildSessionManager()?.restartSession()
+
+		editorViewModel.isInitializing = false
+		editorViewModel.isBuildInProgress = false
+		editorViewModel.isInternalBuildInProgress = false
 	}
 
 	override fun onResume() {
@@ -1203,8 +1242,130 @@ abstract class ProjectHandlerActivity :
 		// parked awaiting that retry (auto-retries are bounded by the reducer).
 		quickBuildSessionManager()?.onHostForegrounded()
 
+		// Before the first initialization there is no synced model to compare the switch with.
+		if (initializingFuture?.isDone == true) {
+			reconcileBuildOutputSyncOffer(afterInit = false)
+		}
+
 		invalidateOptionsMenu()
 	}
+
+	/**
+	 * ADFA-4930: an existing project's cached model builds into the project folder until its next
+	 * sync, and opening it does not sync, so offer one, once, and withdraw the offer once the synced
+	 * model is relocated, or once a sync can no longer relocate it. This is the first thing an
+	 * existing project shows after the update.
+	 *
+	 * @param afterInit whether a project initialization just finished. It applied any Gradle file
+	 *   changes too, so the banner can go even when it also stands for those.
+	 */
+	private fun reconcileBuildOutputSyncOffer(afterInit: Boolean) {
+		activityScope.launch {
+			val path = ProjectManagerImpl.getInstance().projectDirPath.takeIf { it.isNotBlank() } ?: return@launch
+			val projectDir = File(path)
+			val modelRelocated = BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir)
+			val pending =
+				BuildOutputLocation.syncPending(modelRelocated) &&
+					withContext(Dispatchers.IO) {
+						BuildOutputLocation.syncCanRelocate(BuildOutputLocation.treeFor(noBackupFilesDir, projectDir), projectDir)
+					}.also { canRelocate ->
+						if (!canRelocate) {
+							log.info("No relocation sync offered for {}: one already ran, or its tree cannot be written", projectDir)
+						}
+					}
+			withContext(Dispatchers.Main) {
+				if (!pending) {
+					val banner = buildOutputSyncBanner
+					if (banner != null && banner === syncNotificationFlashbar && (afterInit || !editorViewModel.isSyncNeeded)) {
+						banner.dismiss()
+					}
+					buildOutputSyncBanner = null
+					buildOutputSyncOffered = false
+				} else if (!buildOutputSyncOffered) {
+					val shown =
+						notifySyncNeeded(
+							onConfirm = ::syncForBuildOutput,
+							// Short, with a short dismiss label: this banner greets every existing project, and
+							// has to keep its Sync button at 2x font scale.
+							message = string.msg_sync_build_output_relocate,
+							dismissText = string.btn_not_now,
+						)
+					if (shown) {
+						buildOutputSyncOffered = true
+						buildOutputSyncBanner = syncNotificationFlashbar
+					} else {
+						// A build holds the Gradle slot, so no banner can show now; offer again when it ends.
+						offerAgainAfterBuild(shown = false)
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * ADFA-4930: once a project's model builds into app storage, the output its folder still holds is
+	 * stale and takes space, so remove it, once ([OldBuildOutput]). Not while a Quick Build session is
+	 * live: it may still use the old model's build directory, and the next initialization will do it.
+	 */
+	private fun removeOldBuildOutput() {
+		activityScope.launch {
+			val manager = ProjectManagerImpl.getInstance()
+			val projectDir = manager.projectDirPath.takeIf { it.isNotBlank() }?.let(::File) ?: return@launch
+			val workspace = manager.workspace ?: return@launch
+			if (BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir, workspace) != true) return@launch
+			if (isQuickBuildSessionLive()) return@launch
+			val projects = listOf(workspace.rootProject) + workspace.subProjects
+			val removed =
+				withContext(Dispatchers.IO) {
+					OldBuildOutput.removeOnce(
+						tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir),
+						rootDir = workspace.rootProject.projectDir,
+						projectDirs = projects.map { it.projectDir },
+						buildDirs = projects.map { it.buildDir },
+					)
+				}
+			if (removed > 0) {
+				log.info("Removed {} old build output folder(s) from {}", removed, projectDir)
+				withContext(Dispatchers.Main) { flashInfoLong(getString(string.msg_old_build_output_removed)) }
+			}
+		}
+	}
+
+	/**
+	 * Forgets the offer, so a sync that fails leaves it to be made again on the next resume. While a
+	 * build holds the Gradle slot (Quick Build's prebuild starts soon after a project opens), a sync
+	 * would be refused and drop the loaded model, so the offer is made again when the build ends.
+	 */
+	private fun syncForBuildOutput() {
+		buildOutputSyncOffered = false
+		buildOutputSyncBanner = null
+		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService
+		if (service?.isBuildInProgress == true) {
+			flashInfoLong(getString(string.msg_sync_build_output_deferred))
+			offerAgainAfterBuild(shown = false)
+			return
+		}
+		initializeProject(forceSync = true)
+	}
+
+	/** Offers the relocation sync again once the build holding the Gradle slot ends; see [BuildOutputLocation]. */
+	private fun offerAgainAfterBuild(shown: Boolean) {
+		val service = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService ?: return
+		buildOutputSyncDeferral?.cancel()
+		buildOutputSyncDeferral =
+			BuildOutputLocation.offerAgainIfBlockedByBuild(shown, activityScope, service.buildSlotBusy) {
+				reconcileBuildOutputSyncOffer(afterInit = false)
+			}
+	}
+
+	/** Prebuilding writes to the current model's build directory; every later state uses the proxy's paths. */
+	private fun isQuickBuildSessionLive(): Boolean =
+		when (quickBuildSessionManager()?.state?.value) {
+			null, is QuickBuildSessionState.Idle, is QuickBuildSessionState.Prebuilding -> false
+			else -> true
+		}
+
+	private fun isGradleSlotBusy(): Boolean = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)?.isBuildInProgress == true
 
 	override fun preDestroy() {
 		syncNotificationFlashbar?.dismiss()
@@ -1220,23 +1381,26 @@ abstract class ProjectHandlerActivity :
 		}
 
 		if (didCompleteLiveOnCreate && IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.shutdown()
+			if (isDestroying) {
+				IDELanguageClientImpl.shutdown()
+			} else {
+				IDELanguageClientImpl.getInstance().setActivity(null)
+			}
 		}
 
 		super.preDestroy()
 
+		if (didCompleteLiveOnCreate && !isDestroying) {
+			editorViewModel.clearBuildServiceCallback()
+		}
+
 		if (didCompleteLiveOnCreate && isDestroying) {
-			try {
-				stopLanguageServers()
-			} catch (_: Exception) {
-				log.error("Failed to stop editor services.")
-			}
+			sessionCloser.close()
 
 			try {
-				unbindService(buildServiceConnection)
-				buildServiceConnection.onConnected = {}
-			} catch (_: Throwable) {
-				log.error("Unable to unbind service")
+				editorViewModel.unbindBuildService()
+			} catch (err: IllegalArgumentException) {
+				log.error("Unable to unbind service", err)
 			} finally {
 				Lookup.getDefault().apply {
 					(lookup(BuildService.KEY_BUILD_SERVICE) as? GradleBuildService?)
@@ -1246,7 +1410,6 @@ abstract class ProjectHandlerActivity :
 				}
 
 				mBuildEventListener.release()
-				editorViewModel.isBoundToBuildSerice = false
 			}
 		}
 	}
@@ -1284,12 +1447,28 @@ abstract class ProjectHandlerActivity :
 	}
 
 	fun notifySyncNeeded() {
-		notifySyncNeeded { initializeProject(forceSync = true) }
+		notifySyncNeeded {
+			// A sync would be refused while a build holds the Gradle slot, and drop the loaded model.
+			if (isGradleSlotBusy()) {
+				flashInfo(getString(string.msg_sync_after_build))
+			} else {
+				initializeProject(forceSync = true)
+			}
+		}
 	}
 
-	private fun notifySyncNeeded(onConfirm: () -> Unit) {
+	/**
+	 * @param message what the banner says; the default is for changed Gradle files.
+	 * @param dismissText the label of the button that dismisses the banner.
+	 * @return false when the banner was not shown: no build service, or initializing or building.
+	 */
+	private fun notifySyncNeeded(
+		@StringRes message: Int = string.msg_sync_needed,
+		@StringRes dismissText: Int = string.btn_ignore_changes,
+		onConfirm: () -> Unit,
+	): Boolean {
 		val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
-		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return
+		if (buildService == null || editorViewModel.isInitializing || buildService.isBuildInProgress) return false
 
 		activityScope.launch(Dispatchers.Main.immediate) {
 			syncNotificationFlashbar?.dismiss()
@@ -1301,17 +1480,18 @@ abstract class ProjectHandlerActivity :
 				).withIcon(
 					R.drawable.ic_sync,
 					colorFilter = resolveAttr(R.attr.colorOnSecondaryContainer),
-				).message(string.msg_sync_needed)
+				).message(message)
 					.positiveActionText(string.btn_sync)
 					.positiveActionTapListener {
 						onConfirm()
 						it.dismiss()
-					}.negativeActionText(string.btn_ignore_changes)
+					}.negativeActionText(dismissText)
 					.negativeActionTapListener(Flashbar::dismiss)
 					.build()
 
 			syncNotificationFlashbar?.showOnUiThread()
 		}
+		return true
 	}
 
 	fun startServices() {
@@ -1319,21 +1499,14 @@ abstract class ProjectHandlerActivity :
 			Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE) as GradleBuildService?
 		if (editorViewModel.isBoundToBuildSerice && service != null) {
 			log.info("Reusing already started Gradle build service")
+			attachLanguageClient()
 			onGradleBuildServiceConnected(service)
 			return
 		} else {
 			log.info("Binding to Gradle build service...")
 		}
 
-		buildServiceConnection.onConnected = this::onGradleBuildServiceConnected
-
-		if (
-			bindService(
-				Intent(this, GradleBuildService::class.java),
-				buildServiceConnection,
-				BIND_AUTO_CREATE or BIND_IMPORTANT,
-			)
-		) {
+		if (editorViewModel.bindBuildService(this, this::onGradleBuildServiceConnected)) {
 			log.info("Bind request for Gradle build service was successful...")
 		} else {
 			log.error("Gradle build service doesn't exist or the IDE is not allowed to access it.")
@@ -1485,7 +1658,7 @@ abstract class ProjectHandlerActivity :
 				return@whenCompleteAsync
 			}
 
-			onProjectInitialized(result as InitializeResult.Success)
+			onProjectInitialized(result as InitializeResult.Success, synced = needsSync)
 		}
 	}
 
@@ -1550,7 +1723,7 @@ abstract class ProjectHandlerActivity :
 	protected fun onGradleBuildServiceConnected(service: GradleBuildService) {
 		log.info("Connected to Gradle build service")
 
-		buildServiceConnection.onConnected = null
+		editorViewModel.clearBuildServiceCallback()
 		editorViewModel.isBoundToBuildSerice = true
 		Lookup.getDefault().update(BuildService.KEY_BUILD_SERVICE, service)
 		service.setEventListener(mBuildEventListener)
@@ -1606,7 +1779,16 @@ abstract class ProjectHandlerActivity :
 		}
 	}
 
-	protected open fun onProjectInitialized(result: InitializeResult.Success) {
+	/** @param synced whether this initialization ran a Gradle sync, rather than reading the cached model. */
+	protected open fun onProjectInitialized(
+		result: InitializeResult.Success,
+		synced: Boolean,
+	) {
+		// A callback queued before onPause cancelled the future still lands here after the teardown.
+		if (!sessionCloser.record { ProjectManagerImpl.getInstance().indexingServiceManager }) {
+			log.info("Project closed before its initialization finished, skipping its setup")
+			return
+		}
 		Memprof.mark("sync_complete")
 		editorActivityScope.launch(Dispatchers.IO) {
 			val manager = ProjectManagerImpl.getInstance()
@@ -1642,6 +1824,13 @@ abstract class ProjectHandlerActivity :
 			}
 
 			manager.setup(gradleBuildResult.getOrThrow())
+			// ADFA-4930: only now that the synced model is loaded. A sync that fails or is cancelled
+			// leaves the model as it was, so the relocation offer must stand.
+			if (synced) {
+				manager.projectDirPath.takeIf { it.isNotBlank() }?.let { path ->
+					BuildOutputLocation.recordRelocatingSync(BuildOutputLocation.treeFor(noBackupFilesDir, File(path)))
+				}
+			}
 			manager.notifyProjectUpdate()
 			updateBuildVariants(manager.androidBuildVariants)
 
@@ -1722,6 +1911,9 @@ abstract class ProjectHandlerActivity :
 		setStatus(getString(string.msg_project_initialized))
 		editorViewModel.isInitializing = false
 		invalidateOptionsMenu()
+
+		reconcileBuildOutputSyncOffer(afterInit = true)
+		removeOldBuildOutput()
 
 		// ADFA-4128 benchmark: if the bench trampoline armed an autostart for THIS project,
 		// claim it now - the adb-driven stand-in for the human's tap. Claimed BEFORE prebuild
@@ -2151,7 +2343,9 @@ abstract class ProjectHandlerActivity :
 							// getNow() skips futures still pending after the timeout; orEmpty()
 							// guards a Java plugin completing with a null list.
 							.flatMap { future -> future.getNow(emptyList()).orEmpty() }
-							.mapNotNull { section -> section?.toSearchResultSection() }
+							// The nullable type is deliberate: the plugin API promises non-null
+							// sections, but a Java plugin can still hand one back as null.
+							.mapNotNull { section: ProjectSearchSection? -> section?.toSearchResultSection() }
 					} catch (cancellation: CancellationException) {
 						throw cancellation
 					} catch (error: Exception) {
@@ -2175,8 +2369,9 @@ abstract class ProjectHandlerActivity :
 		val grouped =
 			results
 				// mapNotNull guards a Java plugin returning null elements; a bare map() would
-				// NPE in toSearchResult() and take down the whole fan-out.
-				.mapNotNull { it?.toSearchResult() }
+				// NPE in toSearchResult() and take down the whole fan-out. The nullable type is
+				// deliberate: the API promises non-null elements, but Java code can violate that.
+				.mapNotNull { result: ProjectSearchResult? -> result?.toSearchResult() }
 				.groupBy { it.file }
 		return grouped
 			.takeIf { it.isNotEmpty() }
@@ -2243,12 +2438,19 @@ abstract class ProjectHandlerActivity :
 		startActivity(intent)
 	}
 
-	private suspend fun initLspClient() {
-		if (!IDELanguageClientImpl.isInitialized()) {
-			IDELanguageClientImpl.initialize(this as EditorHandlerActivity)
+	private fun attachLanguageClient() {
+		val activity = this as EditorHandlerActivity
+		if (IDELanguageClientImpl.isInitialized()) {
+			IDELanguageClientImpl.getInstance().setActivity(activity)
+		} else {
+			IDELanguageClientImpl.initialize(activity)
 		}
 
 		connectClient(IDELanguageClientImpl.getInstance())
+	}
+
+	private suspend fun initLspClient() {
+		attachLanguageClient()
 
 		val results =
 			try {

@@ -18,7 +18,6 @@
 package com.itsaky.androidide.preferences
 
 import com.itsaky.androidide.resources.R.string
-import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.parcelize.Parcelize
 
 internal fun IDEPreferences.addRootPreferences() {

@@ -5,10 +5,6 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtSourceModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.buildKtLibraryModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.buildKtSourceModule
-import com.itsaky.androidide.projects.api.AndroidModule
-import com.itsaky.androidide.projects.api.ModuleProject
-import com.itsaky.androidide.projects.api.Workspace
-import com.itsaky.androidide.projects.models.bootClassPaths
 import org.jetbrains.kotlin.com.intellij.core.CoreApplicationEnvironment
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.slf4j.LoggerFactory
@@ -17,19 +13,12 @@ import kotlin.io.path.pathString
 
 private val logger = LoggerFactory.getLogger("WorkspaceExts")
 
-internal fun Workspace.collectKtModules(
+/** Builds the analysis modules this layout describes, one per source module. */
+internal fun KotlinModuleLayout.toKtModules(
 	project: Project,
 	appEnv: CoreApplicationEnvironment,
 ): List<KtModule> =
 	buildList {
-		fun addModule(module: KtModule) = add(module)
-
-		val moduleProjects =
-			subProjects
-				.asSequence()
-				.filterIsInstance<ModuleProject>()
-				.filter { it.path != rootProject.path }
-
 		val jarToModMap = mutableMapOf<Path, KtLibraryModule>()
 
 		// One module per jar: every module shares android.jar, and each KtLibraryModule
@@ -42,59 +31,47 @@ internal fun Workspace.collectKtModules(
 				}
 			}
 
-		// A List, not a Sequence: a Sequence would re-run addLibrary for every source module below.
-		val bootClassPaths =
-			moduleProjects
-				.filterIsInstance<AndroidModule>()
-				.flatMap { it.bootClassPaths.asSequence() }
-				.filter { it.exists() }
-				.map { it.toPath() }
-				.distinct()
-				.map(::addLibrary)
-				.toList()
+		val bootLibraries = bootClassPaths.map(::addLibrary)
+		val libraryDependencies = libraries.associateWith(::addLibrary)
 
-		val libraryDependencies =
-			moduleProjects
-				.flatMap { it.getCompileClasspaths() }
-				.filter { it.exists() }
-				.map { it.toPath() }
-				.associateWith(::addLibrary)
+		val layoutsByPath = modules.associateBy { it.path }
+		val sourceModules = mutableMapOf<String, KtSourceModule>()
+		val modulesInProgress = mutableSetOf<String>()
 
-		val subprojectsAsModules = mutableMapOf<ModuleProject, KtSourceModule>()
-		val sourceRootToModuleMap = mutableMapOf<Path, KtSourceModule>()
-
-		fun getOrCreateModule(moduleProject: ModuleProject): KtSourceModule {
-			subprojectsAsModules[moduleProject]?.let { return it }
+		fun getOrCreateModule(moduleLayout: SourceModuleLayout): KtSourceModule {
+			sourceModules[moduleLayout.path]?.let { return it }
+			modulesInProgress += moduleLayout.path
 
 			val module =
 				buildKtSourceModule(project) {
-					this.module = moduleProject
+					this.layout = moduleLayout
 
-					bootClassPaths.forEach { addDependency(it) }
+					bootLibraries.forEach { addDependency(it) }
 
-					moduleProject
-						.getCompileClasspaths(excludeSourceGeneratedClassPath = true)
-						.forEach { classpath ->
-							val libDep = libraryDependencies[classpath.toPath()]
-							if (libDep == null) {
-								logger.error(
-									"Skipping non-existent classpath classpath: {}",
-									classpath,
-								)
-								return@forEach
-							}
-							addDependency(libDep)
+					moduleLayout.classpath.forEach { classpath ->
+						val libDep = libraryDependencies[classpath]
+						if (libDep == null) {
+							logger.error(
+								"Skipping non-existent classpath classpath: {}",
+								classpath,
+							)
+							return@forEach
 						}
-
-					moduleProject.getCompileModuleProjects().forEach { dep ->
-						addDependency(getOrCreateModule(dep))
+						addDependency(libDep)
 					}
+
+					// A dependency still being built closes a cycle; skipping it breaks the cycle,
+					// which ModuleProject.getCompileModuleProjects has already reported to the user.
+					moduleLayout.moduleDependencies
+						.filterNot { it in modulesInProgress }
+						.mapNotNull { layoutsByPath[it] }
+						.forEach { dep -> addDependency(getOrCreateModule(dep)) }
 				}
 
-			subprojectsAsModules[moduleProject] = module
-			module.contentRoots.forEach { root -> sourceRootToModuleMap[root] = module }
+			modulesInProgress -= moduleLayout.path
+			sourceModules[moduleLayout.path] = module
 			return module
 		}
 
-		moduleProjects.forEach { addModule(getOrCreateModule(it)) }
+		modules.forEach { add(getOrCreateModule(it)) }
 	}

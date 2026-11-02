@@ -1,6 +1,7 @@
 package com.itsaky.androidide.quickbuild
 
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -66,7 +67,7 @@ class QuickBuildGraphWarmUp internal constructor(
 		/** The one instance production code shares, fronting the Koin singleton. */
 		val INSTANCE =
 			QuickBuildGraphWarmUp(
-				isEnabled = { FeatureFlags.isExperimentsEnabled },
+				isEnabled = { Experiments.isOn(Experiment.QUICK_BUILD) },
 				resolve = {
 					runCatching { GlobalContext.get().get<QuickBuildSessionManager>() }
 						.onFailure { log.error("Quick Build session manager unavailable", it) }

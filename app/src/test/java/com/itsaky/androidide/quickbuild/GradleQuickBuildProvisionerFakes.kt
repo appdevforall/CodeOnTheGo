@@ -143,13 +143,16 @@ internal fun unsyncedProjectManager(projectRoot: File): FakeProjectManager = Fak
  * @param path the module's Gradle path.
  * @param variantName the selected variant, or null for the mid-sync read the provisioner
  *   falls back to the default variant on.
+ * @param buildDir the module's build directory as the synced model reports it.
  */
 internal fun androidModule(
 	path: String = ":app",
 	variantName: String? = "debug",
+	buildDir: File = File("/fake-project/app/build"),
 ): AndroidModule =
 	mockk<AndroidModule>().also { module ->
 		every { module.path } returns path
+		every { module.buildDirPath } returns buildDir.path
 		every { module.getSelectedVariant() } returns
 			variantName?.let {
 				AndroidModels.AndroidVariant
@@ -208,17 +211,20 @@ internal const val REAL_APPLICATION_ID = "com.example.demo"
 /**
  * Writes the report the Gradle plugin would have written for a successful proxy app build.
  *
- * @param moduleDir the module whose `build/` dir owns the report.
+ * @param moduleDir the module whose `build/` dir owns the report, as [testProvisioner]'s default
+ *   module reports it.
  * @param variantName the variant the report belongs to; reports are variant-scoped.
  * @param entryActivity the launcher activity, or null for the No-Activity template, which is a
  *   successful build with nothing to launch.
+ * @param buildDir the build directory the report goes under.
  */
 internal fun writeSetupJson(
 	moduleDir: File,
 	variantName: String = "debug",
 	entryActivity: String? = "com.example.demo.MainActivity",
+	buildDir: File = File(moduleDir, "build"),
 ) {
-	val report = File(moduleDir, QuickBuildTaskPaths.setupJson(variantName))
+	val report = QuickBuildTaskPaths.setupJson(buildDir, variantName)
 	report.parentFile.mkdirs()
 	val apkPath = "app/build/outputs/apk/$variantName/app-$variantName.apk"
 	report.writeText(
@@ -235,7 +241,7 @@ internal fun writeUnparseableSetupJson(
 	moduleDir: File,
 	variantName: String = "debug",
 ) {
-	val report = File(moduleDir, QuickBuildTaskPaths.setupJson(variantName))
+	val report = QuickBuildTaskPaths.setupJson(File(moduleDir, "build"), variantName)
 	report.parentFile.mkdirs()
 	// A well-formed JSON object with no proxyAppId: parseable as JSON, unusable as a report,
 	// which is the shape a schema drift actually produces.
@@ -250,7 +256,8 @@ internal fun testProvisioner(
 	context: Context,
 	projectRoot: File,
 	buildService: BuildService? = FakeBuildService(),
-	projectManager: IProjectManager = FakeProjectManager(projectRoot, appModules = listOf(androidModule())),
+	projectManager: IProjectManager =
+		FakeProjectManager(projectRoot, appModules = listOf(androidModule(buildDir = File(projectRoot, "app/build")))),
 	installer: ProxyAppInstaller = recordingInstaller(),
 	packages: InstalledPackages = FakePackages(),
 	apkCertSha256: (File) -> String? = { null },

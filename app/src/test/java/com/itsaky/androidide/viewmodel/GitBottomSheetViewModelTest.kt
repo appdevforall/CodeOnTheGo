@@ -4,6 +4,7 @@ import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepository
 import com.itsaky.androidide.git.core.GitRepositoryManager
+import com.itsaky.androidide.git.core.GitRepositoryWatcher
 import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.projects.IProjectManager
 import io.mockk.coEvery
@@ -12,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -21,6 +23,7 @@ import org.eclipse.jgit.api.errors.CheckoutConflictException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -228,6 +231,31 @@ class GitBottomSheetViewModelTest {
 		}
 
 	@Test
+	fun `refreshStatus cancels in-flight previous refresh job`() =
+		runTest {
+			val firstStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+			val secondStatus = mockk<com.itsaky.androidide.git.core.models.GitStatus>(relaxed = true)
+
+			coEvery { repository.getStatus() } coAnswers {
+				delay(1000)
+				firstStatus
+			} andThenAnswer {
+				secondStatus
+			}
+			coEvery { repository.getCurrentBranch() } returns GitBranch("main", "refs/heads/main", true, false)
+			coEvery { repository.getLocalCommitsCount() } returns 0
+			coEvery { repository.getBranches() } returns emptyList()
+
+			val firstJob = viewModel.refreshStatus()
+			val secondJob = viewModel.refreshStatus()
+			advanceUntilIdle()
+
+			assertTrue(firstJob.isCancelled)
+			assertTrue(secondJob.isCompleted)
+			assertEquals(secondStatus, viewModel.gitStatus.value)
+		}
+
+	@Test
 	fun `initializeRepository clears currentRepository when opening fails`() =
 		runTest {
 			mockkObject(IProjectManager.Companion)
@@ -351,5 +379,99 @@ class GitBottomSheetViewModelTest {
 			advanceUntilIdle()
 
 			coVerify { GitRepositoryManager.initRepository(File("/mock/path")) }
+		}
+
+	@Test
+	fun `watcher triggers refreshStatus when file changes occur`() =
+		runTest {
+			var watcherCallback: (suspend () -> Unit)? = null
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, onStateChanged ->
+						watcherCallback = onStateChanged
+						fakeWatcher
+					},
+				)
+
+			coVerify { fakeWatcher.start() }
+
+			coEvery { repository.getStatus() } returns mockk(relaxed = true)
+			watcherCallback?.invoke()
+			advanceUntilIdle()
+
+			coVerify { repository.getStatus() }
+		}
+
+	@Test
+	fun `commitChanges pauses watcher during operation and resumes after`() =
+		runTest {
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			mockkObject(IProjectManager.Companion)
+			val mockProjectManager = mockk<IProjectManager>(relaxed = true)
+			every { mockProjectManager.projectDirPath } returns "/mock/path"
+			every { IProjectManager.getInstance() } returns mockProjectManager
+
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, _ -> fakeWatcher },
+				)
+
+			coEvery { repository.stageFiles(any()) } answers {
+				verify { fakeWatcher.pause() }
+			}
+			coEvery { repository.commit(any(), any(), any()) } returns mockk(relaxed = true)
+
+			customViewModel.commitChanges("test", listOf("file1.kt")) {}
+			advanceUntilIdle()
+
+			verify { fakeWatcher.pause() }
+			verify { fakeWatcher.resume() }
+		}
+
+	@Test
+	fun `push pauses watcher during operation and resumes after`() =
+		runTest {
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, _ -> fakeWatcher },
+				)
+
+			coEvery { repository.push(any()) } answers {
+				verify { fakeWatcher.pause() }
+				emptyList()
+			}
+
+			customViewModel.push("user", "token")
+			advanceUntilIdle()
+
+			verify { fakeWatcher.pause() }
+			verify { fakeWatcher.resume() }
+		}
+
+	@Test
+	fun `onCleared stops and closes repoWatcher`() =
+		runTest {
+			val fakeWatcher = mockk<GitRepositoryWatcher>(relaxed = true)
+			val customViewModel =
+				GitBottomSheetViewModel(
+					credentialsManager = credentialsManager,
+					isNetworkConnected = { true },
+					repository = repository,
+					watcherFactory = { _, _, _ -> fakeWatcher },
+				)
+
+			customViewModel.onCleared()
+			verify { fakeWatcher.close() }
 		}
 }

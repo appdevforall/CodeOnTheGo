@@ -96,6 +96,10 @@ class ProjectManagerImpl :
 				_indexingServiceManager ?: IndexingServiceManager().also { _indexingServiceManager = it }
 			}
 
+	/** The indexing service manager of the current project session, or null if none exists; never creates one. */
+	val currentIndexingServiceManager: IndexingServiceManager?
+		get() = synchronized(indexingServiceManagerLock) { _indexingServiceManager }
+
 	@Volatile
 	internal var pluginProjectCached: Boolean? = null
 
@@ -265,13 +269,15 @@ class ProjectManagerImpl :
 		this.workspace = null
 		pluginProjectCached = null
 
-		// Closed outside the lock: close() blocks until every service has shut down, and a worker
-		// thread reading the manager meanwhile must not wait on that.
-		val indexingServiceManager =
-			synchronized(indexingServiceManagerLock) {
-				_indexingServiceManager.also { _indexingServiceManager = null }
-			}
-		indexingServiceManager?.close()
+		/*
+		 * Closed inside the lock, so the getter cannot create the next manager before this close is
+		 * recorded as pending, which the next manager waits for. Safe to hold: close() only ends the
+		 * session lifetime and launches the actual close in the background.
+		 */
+		synchronized(indexingServiceManagerLock) {
+			_indexingServiceManager?.close()
+			_indexingServiceManager = null
+		}
 
 		(this.androidBuildVariants as? MutableMap?)?.clear()
 	}

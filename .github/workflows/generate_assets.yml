@@ -8,9 +8,6 @@ permissions:
 on:
   workflow_dispatch:
 
-env:
-  SCP_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
-
 jobs:
   generate_assets:
     name: Generate Assets Zips
@@ -54,98 +51,53 @@ jobs:
           token_format: 'access_token'
           access_token_scopes: 'https://www.googleapis.com/auth/drive'
 
-      - name: Set up SSH key
-        env:
-          GREENGEEKS_HOST: ${{ vars.GREENGEEKS_SSH_HOST }}
-          GREENGEEKS_KEY: ${{ secrets.GREENGEEKS_SSH_PRIVATE_KEY }}
-          GREENGEEKS_USER: ${{ vars.GREENGEEKS_SSH_USER }}
-        run: |
-          mkdir -p ~/.ssh
-          if [ -z "$GREENGEEKS_HOST" ]; then
-            echo "Error: SSH_HOST variable is not set"
-            exit 1
-          fi
-          # Write the SSH key, ensuring proper formatting
-          echo "$GREENGEEKS_KEY" > ~/.ssh/id_rsa
-          # Remove any trailing newlines and ensure proper key format
-          sed -i '' -e '$ { /^$/ d; }' ~/.ssh/id_rsa 2>/dev/null || sed -i '$ { /^$/ d; }' ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # Verify key format
-          if ! grep -q "BEGIN.*PRIVATE KEY" ~/.ssh/id_rsa; then
-            echo "Error: SSH key does not appear to be in correct format"
-            exit 1
-          fi
-          # Configure SSH to use only the key file and disable other auth methods
-          cat > ~/.ssh/config <<EOF
-          Host *
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            StrictHostKeyChecking no
-            UserKnownHostsFile ~/.ssh/known_hosts
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-          Host $GREENGEEKS_HOST
-            User $GREENGEEKS_USER
-            IdentityFile ~/.ssh/id_rsa
-            IdentitiesOnly yes
-            PreferredAuthentications publickey
-            PubkeyAuthentication yes
-            PasswordAuthentication no
-            ChallengeResponseAuthentication no
-            GSSAPIAuthentication no
-            GSSAPIKeyExchange no
-            GSSAPIDelegateCredentials no
-            NumberOfPasswordPrompts 0
-          EOF
-          chmod 600 ~/.ssh/config
-          # Disable SSH agent completely
-          unset SSH_AUTH_SOCK
-          unset SSH_AGENT_PID
-          # Remove any default SSH keys that might interfere
-          rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ecdsa ~/.ssh/id_dsa ~/.ssh/id_rsa.pub 2>/dev/null
-          ssh-keyscan -H "$GREENGEEKS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-
       - name: Download debug assets
         run: |
           flox activate -d flox/base -- ./gradlew :app:assetsDownloadDebug --no-daemon \
+            -PassetsSkip=assets/documentation.db \
             -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED" \
             -Dandroid.aapt2.daemonHeapSize=4096M \
             -Dorg.gradle.workers.max=1 \
             -Dorg.gradle.parallel=false
 
-      - name: Download latest documentation.db from Google Drive
+      # Ship the bytes release.yml ships: compress_docdb's re-minted, packed .br, not the raw master.
+      - name: Download documentation.db.br from Google Drive
         run: |
-          DB_FILE_ID="${{ secrets.DOCUMENTATION_DB_FILE_ID }}"
+          BR_FILE_ID="${{ secrets.DOCUMENTATION_BR_FILE_ID }}"
           ACCESS_TOKEN="${{ steps.auth_drive.outputs.access_token }}"
 
-          if [ -z "DB_FILE_ID" ]; then
-            echo "ERROR: DOCUMENTATION_DB_FILE_ID secret not set"
-            echo "Please set the DOCUMENTATION_DB_FILE_ID secret in repository settings"
+          if [ -z "$BR_FILE_ID" ]; then
+            echo "ERROR: DOCUMENTATION_BR_FILE_ID secret not set"
+            echo "Please set the DOCUMENTATION_BR_FILE_ID secret in repository settings"
             exit 1
           fi
 
-          echo "Downloading documentation.db from Google Drive..."
+          sudo apt-get update && sudo apt-get install -y brotli sqlite3
+
+          echo "Downloading documentation.db.br from Google Drive..."
 
           mkdir -p assets
-          curl -sL -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${DB_FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
-            -o assets/documentation.db
+          curl -sL --fail -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${BR_FILE_ID}?alt=media&supportsAllDrives=true&acknowledgeAbuse=true" \
+            -o documentation.db.br
 
-          if [ ! -f assets/documentation.db ]; then
-            echo "ERROR: Failed to download documentation.db"
-            exit 1
-          fi
+          brotli -d -f -o assets/documentation.db documentation.db.br
+          rm -f documentation.db.br
 
           FILE_SIZE_BYTES=$(stat -c%s assets/documentation.db 2>/dev/null || stat -f%z assets/documentation.db 2>/dev/null)
           FILE_SIZE_HUMAN=$(du -h assets/documentation.db | cut -f1)
 
           if [ "$FILE_SIZE_BYTES" -lt 1000000 ]; then
-            echo "ERROR: Downloaded file is too small ($FILE_SIZE_HUMAN)"
+            echo "ERROR: Decompressed file is too small ($FILE_SIZE_HUMAN)"
             echo "This usually means the file was not found or service account lacks access"
+            exit 1
+          fi
+
+          VERSION=$(sqlite3 assets/documentation.db "SELECT major||'.'||minor||'.'||patch FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1;" || true)
+          echo "documentation.db declares version: ${VERSION:-none}"
+
+          if [ "${VERSION%%.*}" != "3" ]; then
+            echo "ERROR: documentation.db must declare schema 3.x"
             exit 1
           fi
 
@@ -257,15 +209,3 @@ jobs:
         run: |
           rm -f app/google-services.json
           echo "google-services.json cleaned up successfully"
-
-      - name: Cleanup ssh
-        if: always()
-        run: |
-          # Remove SSH key
-          rm -f ~/.ssh/id_rsa
-          # Clean up SSH known_hosts (remove the entry for this host)
-          if [ -n "$SCP_HOST" ]; then
-            ssh-keygen -R "$SCP_HOST" 2>/dev/null || true
-          fi
-          # Remove entire .ssh directory if empty
-          rmdir ~/.ssh 2>/dev/null || true
