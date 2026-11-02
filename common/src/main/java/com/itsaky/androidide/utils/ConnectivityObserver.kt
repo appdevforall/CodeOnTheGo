@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -21,14 +20,14 @@ interface ConnectivityObserver {
 }
 
 /**
- * [ConnectivityManager]-backed [ConnectivityObserver]. Online means some network has validated
- * internet: Android has confirmed it works, so a captive portal or a Wi-Fi with no uplink counts
- * as offline.
+ * [ConnectivityManager]-backed [ConnectivityObserver]. Online means the default network - the one
+ * the app's traffic uses, a VPN included - has validated internet: Android has confirmed it works,
+ * so a captive portal, a Wi-Fi with no uplink, or a broken VPN counts as offline.
  *
- * State comes from the callbacks' own network data, via [OnlineNetworks], never from re-querying
- * [ConnectivityManager] inside a callback: that can race callback delivery, and in onLost
- * `activeNetwork` may still name the network just lost. With no network left, no later callback
- * would correct the stale value.
+ * State comes from the default-network callback's own data, via [DefaultNetworkState], never from
+ * re-querying [ConnectivityManager] inside a callback: that can race callback delivery, and in
+ * onLost `activeNetwork` may still name the network just lost. With no network left, no later
+ * callback would correct the stale value.
  */
 class AndroidConnectivityObserver(
 	private val context: Context,
@@ -42,7 +41,7 @@ class AndroidConnectivityObserver(
 				return@callbackFlow
 			}
 
-			val onlineNetworks = OnlineNetworks<Network> { online -> trySend(online) }
+			val state = DefaultNetworkState<Network> { online -> trySend(online) }
 			val callback =
 				object : ConnectivityManager.NetworkCallback() {
 					// No onAvailable: from API 26 every onAvailable is followed by
@@ -51,63 +50,71 @@ class AndroidConnectivityObserver(
 						network: Network,
 						networkCapabilities: NetworkCapabilities,
 					) {
-						onlineNetworks.onCapabilities(network, networkCapabilities.hasValidatedInternet())
+						state.onCapabilities(network, networkCapabilities.hasValidatedInternet())
 					}
 
 					override fun onLost(network: Network) {
-						onlineNetworks.onLost(network)
+						state.onLost(network)
 					}
 				}
 
-			val request =
-				NetworkRequest
-					.Builder()
-					.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-					.build()
+			// The default network, not a NetworkRequest: a request excludes VPNs, while the initial
+			// sample's activeNetwork does not, so the two could disagree about which network counts.
 			// Register before sampling: a change after the sample then still arrives as a callback.
-			connectivityManager.registerNetworkCallback(request, callback)
-			onlineNetworks.onInitialSample(connectivityManager.hasValidatedInternet())
+			connectivityManager.registerDefaultNetworkCallback(callback)
+			state.onInitialSample(connectivityManager.hasValidatedInternet())
 
 			awaitClose { connectivityManager.unregisterNetworkCallback(callback) }
 		}.distinctUntilChanged()
 }
 
 /**
- * Which networks have validated internet, from callback data in callback order. Calls [send]
- * whenever that set goes from empty to non-empty or back, and only when the set changes, so a
- * callback about a network that was never online (or a loss of one) sends nothing.
+ * Whether the default network has validated internet, from default-network callback data in
+ * callback order. Calls [send] only when that answer changes.
  *
- * Registration reports every matching network but nothing when there is none, so the first value
- * comes from [onInitialSample] - unless a callback has already changed the set, which is newer.
+ * A loss counts only for the current default network: when the default switches (Wi-Fi to
+ * cellular, say), the new one is reported and a later onLost for the old one is not a disconnect.
+ *
+ * Registration reports the current default network but nothing when there is none, so the first
+ * value comes from [onInitialSample] - unless a callback has already answered, which is newer.
  *
  * Thread-safe: callbacks arrive on ConnectivityManager's thread, the sample on the collector's.
  * [N] is the network handle; generic so the logic is testable without Android.
  */
-internal class OnlineNetworks<N>(
+internal class DefaultNetworkState<N>(
 	private val send: (online: Boolean) -> Unit,
 ) {
-	private val networks = mutableSetOf<N>()
-	private var changedByCallback = false
+	private var defaultNetwork: N? = null
+	private var lastSent: Boolean? = null
+	private var answeredByCallback = false
 
 	@Synchronized
 	fun onCapabilities(
 		network: N,
 		hasValidatedInternet: Boolean,
-	) = update { if (hasValidatedInternet) add(network) else remove(network) }
+	) {
+		defaultNetwork = network
+		answeredByCallback = true
+		sendIfChanged(hasValidatedInternet)
+	}
 
 	@Synchronized
-	fun onLost(network: N) = update { remove(network) }
+	fun onLost(network: N) {
+		if (network != defaultNetwork) return
+		defaultNetwork = null
+		answeredByCallback = true
+		sendIfChanged(false)
+	}
 
 	@Synchronized
 	fun onInitialSample(online: Boolean) {
-		if (!changedByCallback) send(online)
+		if (!answeredByCallback) sendIfChanged(online)
 	}
 
-	private inline fun update(change: MutableSet<N>.() -> Boolean) {
-		val wasOnline = networks.isNotEmpty()
-		if (!networks.change()) return
-		changedByCallback = true
-		if (networks.isNotEmpty() != wasOnline) send(!wasOnline)
+	private fun sendIfChanged(online: Boolean) {
+		if (online == lastSent) return
+		lastSent = online
+		send(online)
 	}
 }
 
