@@ -57,9 +57,10 @@ class TemplateRepositoryImpl(
 	 * (`TemplateCollectionRepository.findExistingCollision`), so any row still listed as
 	 * "not installed" is one the user can actually install.
 	 *
-	 * The bundled `core.cgt` is excluded outright (ADFA-5645): it ships with the IDE, isn't
-	 * something the user installed or can uninstall, and has nothing to do with this screen's
-	 * install/uninstall/delete flows.
+	 * The bundled `core.cgt` is excluded outright (ADFA-5645), from both folders, by
+	 * [addonFilesIn]: it ships with the IDE, isn't something the user installed or can uninstall,
+	 * and has nothing to do with this screen's install/uninstall/delete flows. That holds even
+	 * when templatesDir doesn't have it yet (bootstrap incomplete) and only a Downloads copy exists.
 	 */
 	private fun scanTemplates(): List<CgtFileItem> {
 		val installed = cgtFilesIn(templatesDir).mapNotNull { file -> parseCgtFile(file, installed = true) }
@@ -68,19 +69,13 @@ class TemplateRepositoryImpl(
 			cgtFilesIn(downloadDir)
 				.filterNot { file -> file.name.lowercase() in installedNames }
 				.mapNotNull { file -> parseCgtFile(file, installed = false) }
-		// Filtered out of the combined list, not just `installed`: core.cgt must be excluded even
-		// if templatesDir doesn't have it yet (bootstrap incomplete) and only a Downloads copy exists.
-		return (installed + downloaded).filterNot { item -> isCoreArchive(item.name) }
+		return installed + downloaded
 	}
 
 	/** Case-insensitive, like the twin dedup above and `findExistingCollision`'s reserved name. */
 	private fun isCoreArchive(fileName: String): Boolean = fileName.equals(TEMPLATE_CORE_ARCHIVE, ignoreCase = true)
 
-	private fun cgtFilesIn(dir: File): List<File> =
-		dir
-			.listFiles { file -> file.isFile && file.extension.equals(CGT_EXTENSION, ignoreCase = true) }
-			?.sortedBy { it.name }
-			?: emptyList()
+	private fun cgtFilesIn(dir: File): List<File> = addonFilesIn(dir, CGT_EXTENSION).sortedBy { it.name }
 
 	/** Parses a .cgt (which may bundle multiple templates) into a card item, or null if it contains no template.json. */
 	private fun parseCgtFile(

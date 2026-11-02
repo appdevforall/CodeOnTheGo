@@ -20,7 +20,8 @@ data class DownloadedFile(
 interface DownloadFilesRepository {
 	/**
 	 * Files directly in the Downloads folder (not its subfolders) whose extension is [extension],
-	 * ignoring case, newest first. Empty if the folder is missing or unreadable.
+	 * ignoring case, newest first. Hidden files and the bundled core.cgt are left out; see
+	 * [addonFilesIn]. Empty if the folder is missing or unreadable.
 	 */
 	suspend fun list(extension: String): List<DownloadedFile>
 }

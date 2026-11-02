@@ -59,6 +59,30 @@ class DownloadFilesRepositoryImplTest {
 			assertThat(names).containsExactly("top.cgp")
 		}
 
+	// MediaProvider's names for a download still in progress and a trashed file (Android 11+).
+	@Test
+	fun `leaves out pending and trashed files`() =
+		runTest {
+			file(".pending-1733000000-partial.cgp", 1_000_000)
+			file(".trashed-1733000000-deleted.cgp", 2_000_000)
+			file("real.cgp", 3_000_000)
+
+			val names = DownloadFilesRepositoryImpl(tempFolder.root).list("cgp").map { it.name }
+
+			assertThat(names).containsExactly("real.cgp")
+		}
+
+	@Test
+	fun `leaves out the bundled core archive`() =
+		runTest {
+			file("Core.CGT", 1_000_000)
+			file("mine.cgt", 2_000_000)
+
+			val names = DownloadFilesRepositoryImpl(tempFolder.root).list("cgt").map { it.name }
+
+			assertThat(names).containsExactly("mine.cgt")
+		}
+
 	@Test
 	fun `reports size and date`() =
 		runTest {
