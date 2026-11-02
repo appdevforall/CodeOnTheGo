@@ -418,8 +418,11 @@ class ExternalFileInstallViewModelTest {
 			viewModel.onReceived(uri)
 			assertThat(collectErrors(maxEffects = 2)).hasSize(1)
 
+			// Each processed uri sends ShowError then Finish, so maxEffects = 2 returns as soon as both
+			// arrive. The gated call launches nothing, so it would wait out the full timeout; keep
+			// that wait short.
 			viewModel.onReceived(uri)
-			assertThat(collectErrors(maxEffects = 2)).isEmpty()
+			assertThat(collectErrors(maxEffects = 2, perEffectMillis = 300)).isEmpty()
 		}
 
 	// A user pick is never a redelivery: picking the same file again must be handled again.
