@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
+import androidx.annotation.VisibleForTesting
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
@@ -222,6 +223,7 @@ internal class KtSymbolIndex(
 	}
 
 	suspend fun removeFromIndex(path: Path) {
+		ktFileCache.invalidate(path)
 		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(path))
 	}
 
@@ -328,6 +330,10 @@ internal class KtSymbolIndex(
 		}
 		return VersionedKtFile(version, newKtFile)
 	}
+
+	/** Whether the disk copy of [path] is held in the parsed-file cache. */
+	@VisibleForTesting
+	internal fun isDiskCopyCached(path: Path): Boolean = ktFileCache.getIfPresent(path) != null
 
 	fun evictDiskCopy(path: Path) {
 		ktFileCache.invalidate(path)
