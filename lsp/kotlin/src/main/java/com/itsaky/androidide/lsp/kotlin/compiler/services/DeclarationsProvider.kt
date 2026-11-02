@@ -82,10 +82,11 @@ internal abstract class AbstractDeclarationProvider(
 		// that means we expect the kotlin stdlib to be included on the project
 		emptyList()
 
-	override fun findFilesForFacadeByPackage(packageFqName: FqName): Collection<KtFile> = ktFilesForPackage(packageFqName).toList()
+	override fun findFilesForFacadeByPackage(packageFqName: FqName): Collection<KtFile> =
+		project.read { ktFilesForPackage(packageFqName).toList() }
 
 	override fun findFilesForScript(scriptFqName: FqName): Collection<KtScript> =
-		ktFilesForPackage(scriptFqName).mapNotNull { it.script }.toList()
+		project.read { ktFilesForPackage(scriptFqName).mapNotNull { it.script }.toList() }
 
 	override fun getAllClassesByClassId(classId: ClassId): Collection<KtClassOrObject> =
 		project.read { ktFilesForPackage(classId.packageFqName).classesWithId(classId).toList() }

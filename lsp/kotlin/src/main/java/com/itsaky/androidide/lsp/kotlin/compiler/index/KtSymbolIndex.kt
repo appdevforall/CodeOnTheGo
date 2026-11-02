@@ -13,6 +13,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.compiler.writeUnlessDisposed
+import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.DocumentUtils
@@ -115,7 +116,7 @@ internal class KtSymbolIndex(
 	private val packageFiles =
 		PackageFileCache(
 			maxCachedFiles = PackageFileCache.DEFAULT_MAX_CACHED_FILES,
-			pathOf = { it.toNioPath().pathString },
+			pathOf = { it.toNioPathOrNull()?.pathString.orEmpty() },
 			query = ::findSourceFiles,
 		)
 
