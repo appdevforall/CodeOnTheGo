@@ -267,6 +267,18 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
+	fun listTemplateFiles_keepsAnInstalledCollectionWithAHiddenName() =
+		runTest {
+			// The installer accepts a collection named ".hidden" and stores it as ".hidden.cgt";
+			// it must stay listed so it can be uninstalled.
+			writeCgt(templatesDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly(".hidden.cgt")
+		}
+
+	@Test
 	fun listTemplateFiles_excludesACoreArchiveFoundOnlyInDownloads() =
 		runTest {
 			// No core.cgt in templatesDir yet (e.g. asset bootstrap hasn't run) - the twin-hiding

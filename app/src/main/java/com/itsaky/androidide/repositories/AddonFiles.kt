@@ -9,21 +9,23 @@ import java.io.File
  * files. Empty if [dir] is missing or unreadable.
  *
  * Leaves out:
- * - Hidden names. On Android 11+ MediaProvider keeps a download still in progress, or a file in
- *   the trash, in its folder as `.pending-<expiry>-<name>` or `.trashed-<expiry>-<name>`, which
- *   keep the add-on extension. Offering one would install a partial archive, or a file the user
- *   deleted.
+ * - Hidden names, unless [includeHidden]. On Android 11+ MediaProvider keeps a download still in
+ *   progress, or a file in the trash, in its folder as `.pending-<expiry>-<name>` or
+ *   `.trashed-<expiry>-<name>`, which keep the add-on extension. Offering one would install a
+ *   partial archive, or a file the user deleted. Pass true for a folder MediaProvider does not
+ *   manage: a collection installed as `.name` is stored as `.name.cgt` and must stay listed.
  * - The bundled core.cgt (ADFA-5645). It ships with the IDE, and installing a copy fails on its
  *   reserved name.
  */
 internal fun addonFilesIn(
 	dir: File,
 	extension: String,
+	includeHidden: Boolean = false,
 ): List<File> =
 	dir
 		// Name checks first: they are free, and isFile is a stat per entry.
 		.listFiles { file ->
-			!file.name.startsWith(".") &&
+			(includeHidden || !file.name.startsWith(".")) &&
 				file.extension.equals(extension, ignoreCase = true) &&
 				!file.name.equals(TEMPLATE_CORE_ARCHIVE, ignoreCase = true) &&
 				file.isFile
