@@ -19,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Rule
 import org.junit.Test
@@ -92,9 +93,9 @@ class PluginManagerViewModelSourceDeleteTest {
 				),
 			)
 
-			// Wait for the install to finish, then check the source is untouched.
+			// Wait for the install to finish (failing if it never does), then check the source is untouched.
 			withContext(Dispatchers.Default) {
-				withTimeoutOrNull(5_000) { viewModel.uiEffect.first { it is PluginManagerUiEffect.ShowRestartPrompt } }
+				withTimeout(5_000) { viewModel.uiEffect.first { it is PluginManagerUiEffect.ShowRestartPrompt } }
 			}
 			assertThat(source.exists()).isTrue()
 		}
