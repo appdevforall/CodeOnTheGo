@@ -26,8 +26,8 @@ private class FakeConnectivityObserver(
 }
 
 /**
- * Covers only [PluginManagerViewModel.uiState]'s `isOnline` field (ADFA-5646) - the rest of this
- * ViewModel has no test coverage yet, which is out of scope here.
+ * Covers only [PluginManagerViewModel.uiState]'s connectivity and offline-mode fields (ADFA-5646) -
+ * the rest of this ViewModel has no test coverage yet, which is out of scope here.
  */
 @RunWith(JUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -42,13 +42,16 @@ class PluginManagerViewModelTest {
 			every { isPluginManagerAvailable() } returns false
 		}
 
-	private fun viewModel(connectivityObserver: ConnectivityObserver) =
-		PluginManagerViewModel(
-			pluginRepository = pluginRepository,
-			contentResolver = mockk(relaxed = true),
-			filesDir = File("/tmp"),
-			connectivityObserver = connectivityObserver,
-		)
+	private fun viewModel(
+		connectivityObserver: ConnectivityObserver,
+		offlineMode: Boolean = false,
+	) = PluginManagerViewModel(
+		pluginRepository = pluginRepository,
+		contentResolver = mockk(relaxed = true),
+		filesDir = File("/tmp"),
+		connectivityObserver = connectivityObserver,
+		isOfflineModeEnabled = { offlineMode },
+	)
 
 	@Test
 	fun uiState_isOnline_reflectsConnectivityObserverOnInit() =
@@ -71,5 +74,32 @@ class PluginManagerViewModelTest {
 			advanceUntilIdle()
 
 			assertThat(viewModel.uiState.value.isOnline).isFalse()
+		}
+
+	@Test
+	fun showDiscoverPlugins_whenOnlineAndNotInOfflineMode() =
+		runTest {
+			val viewModel = viewModel(FakeConnectivityObserver(initialValue = true), offlineMode = false)
+			advanceUntilIdle()
+
+			assertThat(viewModel.uiState.value.showDiscoverPlugins).isTrue()
+		}
+
+	@Test
+	fun showDiscoverPlugins_hiddenInOfflineModeEvenWhenOnline() =
+		runTest {
+			val viewModel = viewModel(FakeConnectivityObserver(initialValue = true), offlineMode = true)
+			advanceUntilIdle()
+
+			assertThat(viewModel.uiState.value.showDiscoverPlugins).isFalse()
+		}
+
+	@Test
+	fun showDiscoverPlugins_hiddenWhenOffline() =
+		runTest {
+			val viewModel = viewModel(FakeConnectivityObserver(initialValue = false), offlineMode = false)
+			advanceUntilIdle()
+
+			assertThat(viewModel.uiState.value.showDiscoverPlugins).isFalse()
 		}
 }

@@ -19,7 +19,13 @@ data class PluginManagerUiState(
 	 * [com.itsaky.androidide.utils.ConnectivityObserver] delivers its first (synchronous) value.
 	 */
 	val isOnline: Boolean = true,
+	/** Gradle's offline mode is on: the user chose to work offline. */
+	val isOfflineModeEnabled: Boolean = false,
 ) {
+	/** The discover-plugins action opens a website, so it needs a connection and online mode. */
+	val showDiscoverPlugins: Boolean
+		get() = isOnline && !isOfflineModeEnabled
+
 	val isEmpty: Boolean
 		get() = plugins.isEmpty() && !isLoading
 

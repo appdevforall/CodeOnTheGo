@@ -223,10 +223,10 @@ fun ManagerScreen(
 					}
 				},
 				actions = {
-					// Hidden rather than disabled when offline (ADFA-5646): the action opens a URL
-					// with no offline fallback, and a hidden control makes that absence self-evident
-					// instead of inviting a tap that can only fail.
-					if (pagerState.currentPage == TAB_PLUGINS && pluginUiState.isOnline) {
+					// Hidden rather than disabled when offline or in offline mode (ADFA-5646): the action
+					// opens a URL with no offline fallback, and a hidden control makes that absence
+					// self-evident instead of inviting a tap that can only fail.
+					if (pagerState.currentPage == TAB_PLUGINS && pluginUiState.showDiscoverPlugins) {
 						// Not an IconButton: it appends its own clickable() after this modifier, which
 						// would compete with combinedClickable's detector for the same pointer events -
 						// see rememberLongPressInteractionSource's doc. .size(48.dp) matches

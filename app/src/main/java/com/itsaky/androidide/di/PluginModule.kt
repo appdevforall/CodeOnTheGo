@@ -1,6 +1,7 @@
 package com.itsaky.androidide.di
 
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.PluginRepositoryImpl
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
@@ -43,6 +44,7 @@ val pluginModule =
 				contentResolver = androidContext().contentResolver,
 				filesDir = IDEApplication.cachedFilesDir,
 				connectivityObserver = get(),
+				isOfflineModeEnabled = { BuildPreferences.isOfflineEnabled },
 			)
 		}
 
