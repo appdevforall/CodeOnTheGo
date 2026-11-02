@@ -13,45 +13,41 @@ import org.jetbrains.kotlin.psi.KtTypeAlias
 
 /*
  * Declaration lookups that read only KtFile.declarations instead of walking the whole PSI tree.
- * Local declarations have no ClassId and are never top-level, so they never match. Callers must
- * hold the project read lock.
+ * Local declarations have no ClassId and are never top-level, so they never match.
+ *
+ * The returned sequences are lazy and touch PSI while iterated, so callers must fully consume
+ * them under the project read lock. The name sequences may contain duplicates.
  */
 
-internal fun Sequence<KtFile>.classesWithId(classId: ClassId): List<KtClassOrObject> =
+internal fun Sequence<KtFile>.classesWithId(classId: ClassId): Sequence<KtClassOrObject> =
 	declarationsAndNested()
 		.filterIsInstance<KtClassOrObject>()
 		.filter { it.getClassId() == classId }
-		.toList()
 
-internal fun Sequence<KtFile>.typeAliasesWithId(classId: ClassId): List<KtTypeAlias> =
+internal fun Sequence<KtFile>.typeAliasesWithId(classId: ClassId): Sequence<KtTypeAlias> =
 	declarationsAndNested()
 		.filterIsInstance<KtTypeAlias>()
 		.filter { it.getClassId() == classId }
-		.toList()
 
-internal fun Sequence<KtFile>.topLevelFunctions(name: Name): List<KtNamedFunction> =
+internal fun Sequence<KtFile>.topLevelFunctions(name: Name): Sequence<KtNamedFunction> =
 	flatMap { it.declarations }
 		.filterIsInstance<KtNamedFunction>()
 		.filter { it.nameAsName == name }
-		.toList()
 
-internal fun Sequence<KtFile>.topLevelProperties(name: Name): List<KtProperty> =
+internal fun Sequence<KtFile>.topLevelProperties(name: Name): Sequence<KtProperty> =
 	flatMap { it.declarations }
 		.filterIsInstance<KtProperty>()
 		.filter { it.nameAsName == name }
-		.toList()
 
-internal fun Sequence<KtFile>.topLevelCallableNames(): Set<Name> =
+internal fun Sequence<KtFile>.topLevelCallableNames(): Sequence<Name> =
 	flatMap { it.declarations }
 		.filterIsInstance<KtCallableDeclaration>()
 		.mapNotNull { it.nameAsName }
-		.toSet()
 
-internal fun Sequence<KtFile>.topLevelClassLikeNames(): Set<Name> =
+internal fun Sequence<KtFile>.topLevelClassLikeNames(): Sequence<Name> =
 	flatMap { it.declarations }
 		.filterIsInstance<KtClassLikeDeclaration>()
 		.mapNotNull { it.nameAsName }
-		.toSet()
 
 private fun Sequence<KtFile>.declarationsAndNested(): Sequence<KtDeclaration> =
 	flatMap { it.declarations }.flatMap { it.withNestedDeclarations() }

@@ -27,15 +27,15 @@ class TopLevelDeclarationsEquivalenceTest : KtLspTest() {
 		env.project.read {
 			for ((_, list) in byPackage) {
 				val files = list.asSequence()
-				assertThat(files.topLevelCallableNames()).isEqualTo(legacyCallableNames(files))
-				assertThat(files.topLevelClassLikeNames()).isEqualTo(legacyClassLikeNames(files))
+				assertThat(files.topLevelCallableNames().toSet()).isEqualTo(legacyCallableNames(files))
+				assertThat(files.topLevelClassLikeNames().toSet()).isEqualTo(legacyClassLikeNames(files))
 				for (id in legacyAllClassIds(files)) {
-					assertThat(files.classesWithId(id)).containsExactlyElementsIn(legacyClasses(files, id))
-					assertThat(files.typeAliasesWithId(id)).containsExactlyElementsIn(legacyTypeAliases(files, id))
+					assertThat(files.classesWithId(id).toList()).containsExactlyElementsIn(legacyClasses(files, id))
+					assertThat(files.typeAliasesWithId(id).toList()).containsExactlyElementsIn(legacyTypeAliases(files, id))
 				}
 				for (name in legacyCallableNames(files)) {
-					assertThat(files.topLevelFunctions(name)).containsExactlyElementsIn(legacyFunctions(files, name))
-					assertThat(files.topLevelProperties(name)).containsExactlyElementsIn(legacyProperties(files, name))
+					assertThat(files.topLevelFunctions(name).toList()).containsExactlyElementsIn(legacyFunctions(files, name))
+					assertThat(files.topLevelProperties(name).toList()).containsExactlyElementsIn(legacyProperties(files, name))
 				}
 			}
 		}
