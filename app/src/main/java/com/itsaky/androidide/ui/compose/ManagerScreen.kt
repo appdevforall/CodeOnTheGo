@@ -97,7 +97,7 @@ private const val TAB_TEMPLATES = 1
  * one click.
  */
 @Composable
-private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPressAwareClick {
+internal fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPressAwareClick {
 	val interactionSource = remember { MutableInteractionSource() }
 	val isPressed by interactionSource.collectIsPressedAsState()
 	val longPressTimeoutMillis = LocalViewConfiguration.current.longPressTimeoutMillis
@@ -121,7 +121,7 @@ private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPre
 }
 
 /** See [rememberLongPressInteractionSource]. */
-private class LongPressAwareClick(
+internal class LongPressAwareClick(
 	val interactionSource: MutableInteractionSource,
 	private val suppressNextClick: MutableState<Boolean>,
 ) {
@@ -241,6 +241,9 @@ fun ManagerScreen(
 				launchSystemPicker()
 			},
 			onDismiss = downloadPickerViewModel::dismiss,
+			// The screen-level tooltip until the picker has its own (ADFA-6729 review); anchored on the
+			// dialog's view so the popup shows above the dialog.
+			onShowHelp = { anchor -> TooltipManager.showIdeCategoryTooltip(activity, anchor, TooltipTag.PLUGIN_MANAGER) },
 		)
 	}
 
