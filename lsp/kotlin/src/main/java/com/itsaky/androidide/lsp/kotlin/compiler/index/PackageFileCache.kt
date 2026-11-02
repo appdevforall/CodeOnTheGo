@@ -19,7 +19,7 @@ internal class PackageFileCache<F : Any>(
 ) : KtFileMetadataWriteListener {
 	private val lock = Any()
 
-	// Bumped by every write, under [lock]. A lookup only caches its result if no write ran meanwhile.
+	/** Bumped by every write, under [lock]. A lookup only caches its result if no write ran meanwhile. */
 	private var generation = 0L
 
 	private val cache =
