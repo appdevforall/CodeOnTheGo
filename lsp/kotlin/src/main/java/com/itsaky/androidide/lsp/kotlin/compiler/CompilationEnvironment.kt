@@ -13,7 +13,6 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvid
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ResolutionScopeProvider
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
-import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
@@ -34,13 +33,7 @@ import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KT_SOURCE_FILE_META_INDEX_KEY
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataIndex
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
-import org.jetbrains.kotlin.analysis.api.platform.analysisMessageBus
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
-import org.jetbrains.kotlin.analysis.api.platform.modification.KaSourceModificationService
-import org.jetbrains.kotlin.analysis.api.platform.modification.KotlinModuleStateModificationEvent
-import org.jetbrains.kotlin.analysis.api.platform.modification.KotlinModuleStateModificationKind
-import org.jetbrains.kotlin.analysis.api.platform.modification.publishModificationEvent
-import org.jetbrains.kotlin.analysis.low.level.api.fir.sessions.LLFirSessionInvalidationTopics
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
@@ -50,10 +43,8 @@ import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.config.LanguageVersion
-import org.jetbrains.kotlin.psi.KtFile
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
-import kotlin.io.path.pathString
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -260,80 +251,11 @@ internal class CompilationEnvironment(
 		ktSymbolIndex.invalidateCurrent(path)
 	}
 
-	@OptIn(KaImplementationDetail::class)
-	private inline fun notifyElementModifiedForPath(
-		path: Path,
-		crossinline typeProvider: (KtFile) -> KaElementModificationType,
-	) {
-		// Resolve PSI/module structure under the read lock; driving psiManager.findFile /
-		// structureProvider concurrently with an `analyze` read section otherwise races.
-		val (ktFile, module) =
-			project.readUnlessDisposed {
-				val structureProvider = ProjectStructureProvider.getInstance(project)
-				val ktFile =
-					path.toVirtualFileOrNull()?.let {
-						psiManager.findFile(it) as? KtFile
-					}
-
-				val module =
-					(
-						ktFile?.let { structureProvider.getModule(it, null) }
-							?: structureProvider.findModuleForSourceId(path.pathString)
-					) as? AbstractKtModule
-
-				ktFile to module
-			} ?: return
-
-		project.writeUnlessDisposed {
-			// Must run under the write lock so the session mutation can't race a concurrent
-			// `analyze` (which only holds the read lock); see KtSymbolIndex.refreshToCurrent.
-			if (ktFile != null) {
-				KaSourceModificationService
-					.getInstance(project)
-					.handleElementModification(ktFile, typeProvider(ktFile))
-			}
-
-			if (module != null) {
-				module.invalidateSearchScope()
-				project.publishModificationEvent(
-					KotlinModuleStateModificationEvent(
-						module,
-						KotlinModuleStateModificationKind.UPDATE,
-					),
-				)
-				project.analysisMessageBus
-					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
-					.afterInvalidation(setOf(module))
-				ResolutionScopeProvider.getInstance(project).invalidate(module)
-			} else {
-				project.analysisMessageBus
-					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
-					.afterGlobalInvalidation()
-				ResolutionScopeProvider.getInstance(project).invalidateAll()
-			}
-		}
-	}
-
 	suspend fun onFileChangedOnDisk(path: Path) {
 		if (project.isDisposed || FileManager.isActive(path)) return
 		ktSymbolIndex.evictDiskCopy(path)
 		notifyElementModifiedForPath(path) { KaElementModificationType.Unknown }
 		ktSymbolIndex.submitForIndexing(path)
-	}
-
-	suspend fun onFileCreated(path: Path) {
-		if (project.isDisposed) return
-		notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
-		ktSymbolIndex.submitForIndexing(path)
-	}
-
-	suspend fun onFileRemoved(path: Path) {
-		if (project.isDisposed) return
-		notifyElementModifiedForPath(path) { ktFile ->
-			KaElementModificationType.ElementRemoved(ktFile)
-		}
-		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
-		ktSymbolIndex.removeFromIndex(path)
 	}
 
 	suspend fun onFileMoved(
