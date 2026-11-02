@@ -35,14 +35,17 @@ import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
 import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -107,6 +110,15 @@ internal class KtSymbolIndex(
 			.newBuilder()
 			.maximumSize(cacheSize)
 			.build<Path, KtFile>()
+
+	private val packageFiles =
+		PackageFileCache(
+			maxCachedFiles = PackageFileCache.DEFAULT_MAX_CACHED_FILES,
+			pathOf = { it.toNioPath().pathString },
+			query = ::findSourceFiles,
+		)
+
+	private val packageFilesRegistration: AutoCloseable = fileIndex.addWriteListener(packageFiles)
 
 	/** Set by AbstractCompilationEnvironment.initialize once the env's KtPsiFactory exists. */
 	lateinit var parser: KtPsiFactory
@@ -526,6 +538,17 @@ internal class KtSymbolIndex(
 		}
 	}
 
+	/** Returns the source files the metadata index lists for [packageFqName]. */
+	internal fun sourceFilesForPackage(packageFqName: FqName): List<VirtualFile> = packageFiles.filesFor(packageFqName.asString())
+
+	private fun findSourceFiles(packageFqName: String): List<VirtualFile> {
+		val vfm = VirtualFileManager.getInstance()
+		return fileIndex
+			.getFilePathsForPackage(packageFqName)
+			.mapNotNull { vfm.findFileByNioPath(Paths.get(it)) }
+			.toList()
+	}
+
 	/** [getKtFile] for [vf], keyed by the path it maps to. */
 	@ResolutionSideKtFileAccess
 	internal fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
@@ -583,6 +606,8 @@ internal class KtSymbolIndex(
 		}
 
 	suspend fun close() {
+		packageFilesRegistration.close()
+
 		/*
 		 * Cancel the worker rather than queueing a stop: a stop waits behind every queued file, and
 		 * a large pass outlasts the caller's bounded wait, so disposal would proceed under a live worker.
@@ -607,8 +632,6 @@ internal class KtSymbolIndex(
 }
 
 internal fun KtSymbolIndex.packageExistsInSource(packageFqn: String) = fileIndex.packageExists(packageFqn)
-
-internal fun KtSymbolIndex.filesForPackage(packageFqn: String) = fileIndex.getFilesForPackage(packageFqn)
 
 internal fun KtSymbolIndex.subpackageNames(packageFqn: String) = fileIndex.getSubpackageNames(packageFqn)
 

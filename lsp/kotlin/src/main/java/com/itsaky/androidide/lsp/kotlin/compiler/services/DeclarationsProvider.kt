@@ -2,7 +2,6 @@ package com.itsaky.androidide.lsp.kotlin.compiler.services
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.index.ResolutionSideKtFileAccess
-import com.itsaky.androidide.lsp.kotlin.compiler.index.filesForPackage
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinCompositeDeclarationProvider
@@ -15,7 +14,6 @@ import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.fileClasses.javaFileFacadeFqName
 import org.jetbrains.kotlin.name.CallableId
@@ -29,7 +27,6 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtScript
 import org.jetbrains.kotlin.psi.KtTypeAlias
-import java.nio.file.Paths
 
 internal class DeclarationProviderFactory :
 	KtLspService,
@@ -134,8 +131,8 @@ internal class DeclarationProvider(
 	@OptIn(ResolutionSideKtFileAccess::class)
 	override fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> =
 		index
-			.filesForPackage(fqName.asString())
-			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath)) }
+			.sourceFilesForPackage(fqName)
+			.asSequence()
 			.filter { it in scope }
 			.mapNotNull { index.getKtFile(it) }
 }
