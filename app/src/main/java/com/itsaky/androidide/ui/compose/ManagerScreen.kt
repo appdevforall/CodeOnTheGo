@@ -137,13 +137,14 @@ private class LongPressAwareClick(
  * Root screen for `PluginManagerActivity` (ADFA-4928): a single manager with two tabs, Plugins
  * and Templates, defaulting to Plugins. Owns the one shared Scaffold/TopAppBar.
  *
- * The add FAB is shown on both tabs and accepts either archive type - this screen is the
- * Addons Manager, and "add an addon" means the same thing whichever tab you happen to be
- * looking at. The picked file is routed by extension and the matching tab is brought forward, so
- * the result is visible where it landed. The discover-plugins action stays Plugins-only: it opens
- * a plugin catalog, which has no meaning on the Templates tab.
+ * The add FAB is shown on both tabs and opens [DownloadPickerDialog], which lists only the open
+ * tab's archives in Download: `.cgp` on Plugins, `.cgt` on Templates (ADFA-6729). Its Browse other
+ * folders button falls back to the system picker, which accepts either archive type from any
+ * folder. Either way the picked file is routed by extension and the matching tab is brought
+ * forward, so the result is visible where it landed. The discover-plugins action stays
+ * Plugins-only: it opens a plugin catalog, which has no meaning on the Templates tab.
  *
- * The picker launcher lives here rather than in [PluginManagerContent] because `HorizontalPager`
+ * The system picker's launcher lives here rather than in [PluginManagerContent] because `HorizontalPager`
  * disposes the off-screen page: a launcher owned by the Plugins page would not exist while the
  * Templates tab is showing, and the FAB is reachable from both.
  *
