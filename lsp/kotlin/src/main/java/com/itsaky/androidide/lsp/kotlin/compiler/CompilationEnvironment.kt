@@ -262,11 +262,12 @@ internal class CompilationEnvironment(
 		fromPath: Path,
 		toPath: Path,
 	) {
-		val isFileOpen = FileManager.isActive(fromPath)
 		onFileRemoved(fromPath)
 		onFileCreated(toPath)
-		if (isFileOpen) {
-			ktSymbolIndex.invalidateCurrent(fromPath)
+		// The IDE moves an open document to its new path before posting the rename, so fromPath is
+		// never active here; drop its in-memory copy unconditionally and ask about toPath instead.
+		ktSymbolIndex.invalidateCurrent(fromPath)
+		if (FileManager.isActive(toPath)) {
 			onFileOpen(toPath)
 		}
 	}
