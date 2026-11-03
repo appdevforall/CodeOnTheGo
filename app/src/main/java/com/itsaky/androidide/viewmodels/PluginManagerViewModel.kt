@@ -168,7 +168,7 @@ class PluginManagerViewModel(
 
 			is PluginManagerUiEvent.CancelPendingInstall -> {
 				// Only a forwarded LocalFile (our own disposable temp copy) is cleaned up here -
-				// nothing was installed, so a user-picked ContentUri source is never touched on
+				// nothing was installed, so a user-picked PickedUri source is never touched on
 				// decline (deletion there only ever happens after a *successful* install,
 				// matching the "delete after install" checkbox's label - there's no flag to
 				// consult here since a decline never installs anything).
@@ -351,13 +351,13 @@ class PluginManagerViewModel(
 			_currentOperation.value = PluginOperation.Installing
 			_uiState.update { it.copy(isInstalling = true) }
 
-			// ownedTempFile (the ContentUri case's own temp copy) is what the `finally` block
+			// ownedTempFile (the PickedUri case's own temp copy) is what the `finally` block
 			// below cleans up unconditionally. Note pluginRepository.installPluginFromFile()
 			// itself unconditionally deletes whatever `pluginFile` it's given once that's copied
 			// into the plugins directory - that's pre-existing behavior this function doesn't
 			// control (it also affects InstallFileAction.kt's direct callers). What
 			// deleteSourceAfterInstall/deleteInstallSource governs below is the *original*
-			// source's lifecycle instead: a user-picked ContentUri is only ever deleted after a
+			// source's lifecycle instead: a user-picked PickedUri is only ever deleted after a
 			// successful install (see the onSuccess/onFailure split below), while a forwarded
 			// LocalFile temp copy is always cleaned up regardless of outcome.
 			var ownedTempFile: File? = null
@@ -376,7 +376,7 @@ class PluginManagerViewModel(
 							source.file
 						}
 
-						is PluginInstallSource.ContentUri -> {
+						is PluginInstallSource.PickedUri -> {
 							withContext(Dispatchers.IO) {
 								val fileName = UriFileImporter.getDisplayName(contentResolver, source.uri)
 								val extension =
@@ -427,7 +427,7 @@ class PluginManagerViewModel(
 							),
 						)
 						// A failed install deletes nothing but our own disposable temp copy - a
-						// user-picked ContentUri is preserved so they can retry, matching
+						// user-picked PickedUri is preserved so they can retry, matching
 						// deleteSourceAfterInstall's "delete after install [succeeds]" meaning.
 						deleteIfLocalFile(source)
 					}
@@ -506,7 +506,7 @@ class PluginManagerViewModel(
 		return true
 	}
 
-	/** A user-picked ContentUri is only ever deleted after a successful install (matching the
+	/** A user-picked PickedUri is only ever deleted after a successful install (matching the
 	 * "delete after install" checkbox's label) - a forwarded LocalFile temp copy is disposable
 	 * regardless of outcome, so it's the only source type any non-success path cleans up here. */
 	private suspend fun deleteIfLocalFile(source: PluginInstallSource) {
@@ -525,7 +525,7 @@ class PluginManagerViewModel(
 				}
 			}
 
-			is PluginInstallSource.ContentUri -> {
+			is PluginInstallSource.PickedUri -> {
 				deleteSourceDocument(source.uri)
 			}
 		}
@@ -534,7 +534,15 @@ class PluginManagerViewModel(
 	private suspend fun deleteSourceDocument(uri: Uri) {
 		withContext(Dispatchers.IO) {
 			try {
-				if (!DocumentsContract.deleteDocument(contentResolver, uri)) {
+				// A pick from the Manager screen's Downloads list is a file:// URI, which
+				// DocumentsContract cannot delete (ADFA-6729).
+				val deleted =
+					if (uri.scheme == ContentResolver.SCHEME_FILE) {
+						File(checkNotNull(uri.path) { "file URI without a path: $uri" }).delete()
+					} else {
+						DocumentsContract.deleteDocument(contentResolver, uri)
+					}
+				if (!deleted) {
 					_uiEffect.send(
 						PluginManagerUiEffect.ShowError(R.string.msg_source_delete_failed),
 					)
@@ -554,7 +562,8 @@ class PluginManagerViewModel(
 	 * Validate the picked plugin file's name off the main thread (querying a `content://` URI's
 	 * display name is a `ContentResolver` IPC call) and route to install confirmation or an error.
 	 *
-	 * A SAF pick is always a `content://` URI, so it becomes a [PluginInstallSource.ContentUri];
+	 * A user pick (`content://` from SAF, or `file://` from the Downloads list) becomes a
+	 * [PluginInstallSource.PickedUri];
 	 * the forwarded-file path emits [PluginManagerUiEffect.ShowInstallConfirmation] with a
 	 * [PluginInstallSource.LocalFile] directly and never comes through here.
 	 */
@@ -567,7 +576,7 @@ class PluginManagerViewModel(
 
 			if (isSupported) {
 				_uiEffect.send(
-					PluginManagerUiEffect.ShowInstallConfirmation(PluginInstallSource.ContentUri(uri)),
+					PluginManagerUiEffect.ShowInstallConfirmation(PluginInstallSource.PickedUri(uri)),
 				)
 			} else {
 				_uiEffect.send(PluginManagerUiEffect.ShowError(R.string.msg_unsupported_plugin_file))
