@@ -62,6 +62,7 @@ tasks.register<JacocoReport>("jacocoTestReport") {
 dependencies {
 	implementation(projects.logger)
 	implementation(projects.eventbusEvents)
+	implementation(projects.shared)
 	// Wire DTOs/constants shared with the daemon (single protocol definition). api, not
 	// implementation: CompileOutput.stats, DexOutput.stats and DaemonReply.BuildFailed.stats
 	// put its types on this module's public surface.

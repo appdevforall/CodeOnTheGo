@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * two writers into one array is a scrambled file and a crash must not block on an export.
  */
 class MetricsScratch(
-	@VisibleForTesting internal val entries: Int,
+	@param:VisibleForTesting internal val entries: Int,
 	memorySeries: Int,
 ) {
 	private val inUse = AtomicBoolean(false)

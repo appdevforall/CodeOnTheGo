@@ -21,47 +21,49 @@ import android.content.Context
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
 import com.itsaky.androidide.idetooltips.TooltipTag
+
 /** @author Akash Yadav */
-class SelectAllAction(context: Context, override val order: Int) : BaseEditorAction() {
+class SelectAllAction(
+	context: Context,
+	override val order: Int,
+) : BaseEditorAction() {
+	init {
+		label = context.getString(android.R.string.selectAll)
 
-  init {
-    label = context.getString(android.R.string.selectAll)
+		val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeSelectAllDrawable))
+		icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
+		arr.recycle()
+	}
 
-    val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeSelectAllDrawable))
-    icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    arr.recycle()
-  }
+	companion object {
+		const val ID = "ide.editor.code.text.selectAll"
+	}
 
-  companion object {
-    const val ID = "ide.editor.code.text.selectAll"
-  }
+	override val id: String = ID
 
-  override val id: String = ID
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		if (!visible) return
 
-    if (!visible) return
+		val target = getTextTarget(data)
 
-    val target = getTextTarget(data)
+		visible = target != null
+		enabled = visible
+	}
 
-    visible = target != null
-    enabled = visible
-  }
+	override suspend fun execAction(data: ActionData): Boolean {
+		val target = getTextTarget(data) ?: return false
+		target.selectAll()
+		return true
+	}
 
-  override suspend fun execAction(data: ActionData): Boolean {
-    val target = getTextTarget(data) ?: return false
-    target.selectAll()
-    return true
-  }
+	override fun dismissOnAction() = false
 
-  override fun dismissOnAction() = false
-
-  override fun retrieveTooltipTag(isAlternateContext: Boolean): String {
-    return if (isAlternateContext) {
-      TooltipTag.EDITOR_TOOLBAR_OUTPUT_SELECT_ALL
-    } else {
-      TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
-    }
-  }
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+		if (isReadOnlyContext) {
+			TooltipTag.EDITOR_TOOLBAR_OUTPUT_SELECT_ALL
+		} else {
+			TooltipTag.EDITOR_TOOLBAR_SELECT_ALL
+		}
 }

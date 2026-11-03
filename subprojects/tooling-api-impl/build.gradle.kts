@@ -63,6 +63,9 @@ project.tasks.getByName<ShadowJar>("shadowJar") {
 	// no code touches Apache HttpClient directly. Guards against ADFA-4202 regressing into this
 	// shadow jar, which app/build.gradle.kts's packaging.resources.excludes cannot reach.
 	exclude("mozilla/public-suffix-list.txt")
+
+	// kotlinx-coroutines debug-agent resource (ADFA-4996); the app packaging excludes cannot reach this jar.
+	exclude("DebugProbesKt.bin")
 }
 
 dependencies {

@@ -9,6 +9,7 @@ import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
+import com.itsaky.androidide.utils.fileProviderUriFor
 import com.itsaky.androidide.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -140,6 +141,41 @@ class ExternalFileInstallViewModelTest {
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateNameConflict::class.java)
 			assertThat((first as ExternalFileInstallUiEffect.ShowTemplateNameConflict).existingName).isEqualTo("my-templates")
+		}
+
+	@Test
+	fun `installing a cgt from the app's FileProvider consumes a copy and leaves the source file`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			var inspectedText: String? = null
+			coEvery { templateCollectionRepository.inspectCollection(any()) } coAnswers {
+				inspectedText = firstArg<File>().readText()
+				Result.success(info)
+			}
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			// TemplateCollectionRepositoryImpl.installCollection deletes the file it is given on success.
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } coAnswers {
+				firstArg<File>().delete()
+				Result.success(Unit)
+			}
+			val file = File(context.filesDir, "editor.cgt").apply { writeText("dummy") }
+
+			viewModel.onReceived(context.fileProviderUriFor(file))
+
+			val confirmation = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			assertThat(confirmation.suggestedBaseName).isEqualTo("editor")
+			assertThat(inspectedText).isEqualTo("dummy")
+			assertThat(confirmation.tempFile.canonicalFile).isNotEqualTo(file.canonicalFile)
+
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(confirmation.tempFile, confirmation.suggestedBaseName, overwrite = false),
+			)
+			viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowSuccess
+
+			// The install consumed the temp copy; the editor's own file must still be there.
+			assertThat(confirmation.tempFile.exists()).isFalse()
+			assertThat(file.exists()).isTrue()
 		}
 
 	@Test

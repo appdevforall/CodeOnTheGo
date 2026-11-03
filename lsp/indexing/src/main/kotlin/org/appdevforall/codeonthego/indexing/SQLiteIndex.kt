@@ -101,6 +101,8 @@ import kotlin.collections.iterator
  * @param batchSize Number of rows per INSERT transaction.
  * @param sourceIdChunkSize Max number of `_source_id` placeholders per source-scoped statement.
  *               See [SOURCE_ID_CHUNK_SIZE].
+ * @param lifetime The project session owning this index; once it has ended, use after close is
+ *               expected and logged at DEBUG instead of ERROR.
  */
 class SQLiteIndex<T : Indexable>(
 	override val descriptor: IndexDescriptor<T>,
@@ -110,6 +112,7 @@ class SQLiteIndex<T : Indexable>(
 	override val name: String = "sqlite:${descriptor.name}",
 	private val batchSize: Int = 500,
 	@param:VisibleForTesting internal val sourceIdChunkSize: Int = SOURCE_ID_CHUNK_SIZE,
+	private val lifetime: IndexSessionLifetime? = null,
 ) : Index<T>,
 	PackageTree {
 	companion object {
@@ -560,12 +563,17 @@ class SQLiteIndex<T : Indexable>(
 
 	/*
 	 * A closed index answers with empty results, which callers cannot tell from a genuinely empty
-	 * index, so the first such call is logged with its stack to name whoever still holds it.
+	 * index, so the first such call is logged with its stack to name whoever still holds it. Once the
+	 * owning session has ended its remaining work is expected to hit closed indexes, so that is DEBUG.
 	 * Called under [mutex].
 	 */
 	private fun reportUseAfterClose(operation: String) {
 		if (useAfterCloseReported) return
 		useAfterCloseReported = true
+		if (lifetime?.isEnded == true) {
+			log.debug("Index '{}' used after its session ended, in {}; returning an empty result", name, operation)
+			return
+		}
 		log.error(
 			"Index '{}' used after close in {}; returning an empty result",
 			name,

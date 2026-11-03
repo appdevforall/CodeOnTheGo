@@ -96,7 +96,7 @@ class ShowTooltipAction(
 		return true
 	}
 
-	override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_HELP
 }
 
 internal fun tooltipCategoryForExtension(extension: String?): String =

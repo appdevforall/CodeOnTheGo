@@ -13,6 +13,7 @@ import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
 import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.LastValueGate
 import com.itsaky.androidide.utils.UriFileImporter
+import com.itsaky.androidide.utils.safeFileName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -30,7 +31,8 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Handles a `.cgp`/`.cgt` file opened from outside the app (e.g. an email attachment), backing
+ * Handles a `.cgp`/`.cgt` file opened from outside the app (e.g. an email attachment) or sent by
+ * the editor's Install action for a `.cgt` tab, backing
  * [com.itsaky.androidide.activities.ExternalFileInstallActivity].
  */
 class ExternalFileInstallViewModel(
@@ -41,7 +43,6 @@ class ExternalFileInstallViewModel(
 ) : ViewModel() {
 	private companion object {
 		private val log = LoggerFactory.getLogger(ExternalFileInstallViewModel::class.java)
-		private val UNSAFE_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|]")
 
 		// A cold OS-triggered launch of this activity can win the race against IDEApplication's
 		// async setup (device-unlock -> CredentialProtectedApplicationLoader.load(), which itself
@@ -355,7 +356,7 @@ class ExternalFileInstallViewModel(
 		return candidate
 	}
 
-	fun sanitizeBaseName(rawName: String): String = rawName.replace(UNSAFE_FILENAME_CHARS, "_").trim().ifBlank { "templates" }
+	fun sanitizeBaseName(rawName: String): String = safeFileName(rawName, "templates")
 
 	private suspend fun sendErrorAndFinish(
 		generation: Int,

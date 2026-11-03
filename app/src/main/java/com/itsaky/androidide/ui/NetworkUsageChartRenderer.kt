@@ -103,7 +103,7 @@ class NetworkUsageChartRenderer(
 		val chart = this.chart ?: return
 		val data = chart.data
 
-		if (data == null || data.dataSetCount != SERIES_COUNT) {
+		if (data.dataSetCount != SERIES_COUNT) {
 			rebuild()
 			return
 		}
