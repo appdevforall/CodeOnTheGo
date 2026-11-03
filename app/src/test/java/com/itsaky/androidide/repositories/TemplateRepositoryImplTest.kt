@@ -279,6 +279,19 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
+	fun listTemplateFiles_keepsAHiddenCollectionInDownloads() =
+		runTest {
+			// Where uninstall leaves ".hidden.cgt": in Downloads under the same name. The user must
+			// still be able to reinstall or delete it. (A successful uninstall reloads the global
+			// template provider, which unit tests cannot, so this sets up its result directly.)
+			writeCgt(downloadDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name to it.installed }).containsExactly(".hidden.cgt" to false)
+		}
+
+	@Test
 	fun listTemplateFiles_excludesACoreArchiveFoundOnlyInDownloads() =
 		runTest {
 			// No core.cgt in templatesDir yet (e.g. asset bootstrap hasn't run) - the twin-hiding

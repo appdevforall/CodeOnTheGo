@@ -63,8 +63,7 @@ class TemplateRepositoryImpl(
 	 * when templatesDir doesn't have it yet (bootstrap incomplete) and only a Downloads copy exists.
 	 */
 	private fun scanTemplates(): List<CgtFileItem> {
-		// Hidden names count here: the installer accepts a collection named ".name".
-		val installed = cgtFilesIn(templatesDir, includeHidden = true).mapNotNull { file -> parseCgtFile(file, installed = true) }
+		val installed = cgtFilesIn(templatesDir).mapNotNull { file -> parseCgtFile(file, installed = true) }
 		val installedNames = installed.mapTo(mutableSetOf()) { item -> item.name.lowercase() }
 		val downloaded =
 			cgtFilesIn(downloadDir)
@@ -76,10 +75,7 @@ class TemplateRepositoryImpl(
 	/** Case-insensitive, like the twin dedup above and `findExistingCollision`'s reserved name. */
 	private fun isCoreArchive(fileName: String): Boolean = fileName.equals(TEMPLATE_CORE_ARCHIVE, ignoreCase = true)
 
-	private fun cgtFilesIn(
-		dir: File,
-		includeHidden: Boolean = false,
-	): List<File> = addonFilesIn(dir, CGT_EXTENSION, includeHidden).sortedBy { it.name }
+	private fun cgtFilesIn(dir: File): List<File> = addonFilesIn(dir, CGT_EXTENSION).sortedBy { it.name }
 
 	/** Parses a .cgt (which may bundle multiple templates) into a card item, or null if it contains no template.json. */
 	private fun parseCgtFile(

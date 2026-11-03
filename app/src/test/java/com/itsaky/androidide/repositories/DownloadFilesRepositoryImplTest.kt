@@ -73,6 +73,17 @@ class DownloadFilesRepositoryImplTest {
 		}
 
 	@Test
+	fun `lists hidden names that are not placeholders`() =
+		runTest {
+			file(".hidden.cgp", 1_000_000)
+			file(".PENDING-1733000000-partial.cgp", 2_000_000)
+
+			val names = DownloadFilesRepositoryImpl(tempFolder.root).list("cgp").map { it.name }
+
+			assertThat(names).containsExactly(".hidden.cgp")
+		}
+
+	@Test
 	fun `leaves out the bundled core archive`() =
 		runTest {
 			file("Core.CGT", 1_000_000)
