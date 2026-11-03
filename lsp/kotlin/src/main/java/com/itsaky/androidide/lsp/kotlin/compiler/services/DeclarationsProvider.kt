@@ -95,10 +95,7 @@ internal abstract class AbstractDeclarationProvider(
 		project.read { ktFilesForPackage(classId.packageFqName).typeAliasesWithId(classId).toList() }
 
 	override fun getClassLikeDeclarationByClassId(classId: ClassId): KtClassLikeDeclaration? =
-		project.read {
-			val files = ktFilesForPackage(classId.packageFqName)
-			files.classesWithId(classId).firstOrNull() ?: files.typeAliasesWithId(classId).firstOrNull()
-		}
+		project.read { ktFilesForPackage(classId.packageFqName).classLikeWithId(classId) }
 
 	override fun getTopLevelCallableFiles(callableId: CallableId): Collection<KtFile> =
 		buildSet {

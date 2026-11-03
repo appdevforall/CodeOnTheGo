@@ -29,6 +29,17 @@ internal fun Sequence<KtFile>.typeAliasesWithId(classId: ClassId): Sequence<KtTy
 		.filterIsInstance<KtTypeAlias>()
 		.filter { it.getClassId() == classId }
 
+/** The class, or failing that the type alias, with [classId], found in one walk of the files. */
+internal fun Sequence<KtFile>.classLikeWithId(classId: ClassId): KtClassLikeDeclaration? {
+	var typeAlias: KtTypeAlias? = null
+	for (declaration in declarationsAndNested()) {
+		if (declaration !is KtClassLikeDeclaration || declaration.getClassId() != classId) continue
+		if (declaration is KtClassOrObject) return declaration
+		if (typeAlias == null) typeAlias = declaration as? KtTypeAlias
+	}
+	return typeAlias
+}
+
 internal fun Sequence<KtFile>.topLevelFunctions(name: Name): Sequence<KtNamedFunction> =
 	flatMap { it.declarations }
 		.filterIsInstance<KtNamedFunction>()
