@@ -26,8 +26,8 @@ private class FakeConnectivityObserver(
 }
 
 /**
- * Covers only [PluginManagerViewModel.uiState]'s connectivity and offline-mode fields (ADFA-5646) -
- * the rest of this ViewModel has no test coverage yet, which is out of scope here.
+ * Covers only [PluginManagerViewModel.uiState]'s connectivity and offline-mode fields (ADFA-5646).
+ * Install-source deletion is covered by [PluginManagerViewModelSourceDeleteTest].
  */
 @RunWith(JUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class)

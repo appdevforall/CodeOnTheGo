@@ -142,7 +142,9 @@ internal class LongPressAwareClick(
  * folders button falls back to the system picker, which accepts either archive type from any
  * folder. Either way the picked file is routed by extension and the matching tab is brought
  * forward, so the result is visible where it landed. The discover-plugins action stays
- * Plugins-only: it opens a plugin catalog, which has no meaning on the Templates tab.
+ * Plugins-only: it opens a plugin catalog, which has no meaning on the Templates tab. It's also
+ * hidden while offline or in Gradle offline mode (ADFA-5646), since it opens a URL with no
+ * offline fallback.
  *
  * The system picker's launcher lives here rather than in [PluginManagerContent] because `HorizontalPager`
  * disposes the off-screen page: a launcher owned by the Plugins page would not exist while the
