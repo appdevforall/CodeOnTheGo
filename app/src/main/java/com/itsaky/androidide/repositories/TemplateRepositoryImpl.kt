@@ -120,7 +120,17 @@ class TemplateRepositoryImpl(
 				check(!item.installed) { "'${item.name}' is already installed" }
 				val dest = File(templatesDir, item.file.name)
 				check(!dest.exists()) { "A template named '${dest.name}' already exists in $templatesDir" }
-				item.file.copyTo(dest, overwrite = false)
+				try {
+					item.file.copyTo(dest, overwrite = false)
+				} catch (e: FileAlreadyExistsException) {
+					// Another writer created dest after the check above; it isn't ours to delete.
+					throw e
+				} catch (e: IOException) {
+					// A copy that failed partway (e.g. storage full) leaves a truncated archive that
+					// never lists, so it can't be uninstalled, and that blocks every retry.
+					dest.delete()
+					throw e
+				}
 				ITemplateProvider.getInstance(reload = true)
 				Result.success(Unit)
 			} catch (e: CancellationException) {

@@ -12,6 +12,7 @@ import io.mockk.unmockkObject
 import kotlinx.coroutines.test.runTest
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.junit.After
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -80,6 +81,21 @@ class TemplateRepositoryImplTest {
 			assertThat(result.isSuccess).isTrue()
 			assertThat(File(templatesDir, "install.cgt").readText()).isEqualTo("source")
 			assertThat(source.readText()).isEqualTo("source")
+		}
+
+	@Test
+	fun installTemplate_copyFailsPartway_leavesNoPartialFileInTheStore() =
+		runTest {
+			// /proc/self/mem opens but fails its first read with EIO, so copyTo has already
+			// created the destination when it throws - the "storage filled up mid-copy" case.
+			val failingSource = File("/proc/self/mem")
+			assumeTrue("needs Linux /proc", failingSource.exists())
+
+			val result = repository.installTemplate(item(failingSource, installed = false))
+
+			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
+			// A truncated archive would be unlisted (it doesn't parse) and block every retry.
+			assertThat(File(templatesDir, failingSource.name).exists()).isFalse()
 		}
 
 	@Test
