@@ -12,6 +12,7 @@ import kotlin.concurrent.thread
 internal class PackageFileCacheTest {
 	private val backing = mutableMapOf<String, List<String>>()
 	private val queries = AtomicInteger()
+	private val pathConversions = AtomicInteger()
 
 	private val entered = AtomicReference<CountDownLatch?>()
 	private val release = AtomicReference<CountDownLatch?>()
@@ -20,7 +21,10 @@ internal class PackageFileCacheTest {
 	private fun cache(max: Long = 100) =
 		PackageFileCache<String>(
 			maxCachedFiles = max,
-			pathOf = { it },
+			pathOf = {
+				pathConversions.incrementAndGet()
+				it
+			},
 			query = { pkg ->
 				queries.incrementAndGet()
 				val snapshot = backing[pkg].orEmpty()
@@ -64,6 +68,27 @@ internal class PackageFileCacheTest {
 		backing["new"] = listOf("/a.kt")
 		cache.onWrite(upserted("/a.kt", "new"))
 		assertThat(cache.filesFor("old")).isEmpty()
+	}
+
+	@Test
+	fun upsertOfAFileAlreadyListedKeepsItsPackage() {
+		backing["p"] = listOf("/a.kt", "/b.kt")
+		val cache = cache()
+		cache.filesFor("p")
+		cache.onWrite(upserted("/a.kt", "p"))
+		assertThat(cache.filesFor("p")).containsExactly("/a.kt", "/b.kt")
+		assertThat(queries.get()).isEqualTo(1)
+	}
+
+	@Test
+	fun writesDoNotConvertCachedPaths() {
+		backing["p"] = listOf("/a.kt", "/b.kt", "/c.kt")
+		val cache = cache()
+		cache.filesFor("p")
+		pathConversions.set(0)
+		cache.onWrite(KtFileMetadataWrite.Removed(listOf("/other.kt")))
+		cache.onWrite(upserted("/other.kt", "q"))
+		assertThat(pathConversions.get()).isEqualTo(0)
 	}
 
 	@Test

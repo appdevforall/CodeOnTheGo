@@ -22,21 +22,28 @@ internal class PackageFileCache<F : Any>(
 	/** Bumped by every write, under [lock]. A lookup only caches its result if no write ran meanwhile. */
 	private var generation = 0L
 
+	/** A package's files, with their paths converted once so writes only do set lookups. */
+	private class Entry<F>(
+		val files: List<F>,
+		val paths: Set<String>,
+	)
+
 	private val cache =
 		Caffeine
 			.newBuilder()
 			.executor(executor)
 			.maximumWeight(maxCachedFiles)
-			.weigher<String, List<F>> { _, files -> files.size + 1 }
-			.build<String, List<F>>()
+			.weigher<String, Entry<F>> { _, entry -> entry.files.size + 1 }
+			.build<String, Entry<F>>()
 
 	/** Returns the files declared in [packageFqName], querying only when the answer is not cached. */
 	fun filesFor(packageFqName: String): List<F> {
-		cache.getIfPresent(packageFqName)?.let { return it }
+		cache.getIfPresent(packageFqName)?.let { return it.files }
 		val observed = synchronized(lock) { generation }
 		val files = query(packageFqName)
+		val entry = Entry(files, files.mapTo(HashSet(), pathOf))
 		synchronized(lock) {
-			if (generation == observed) cache.put(packageFqName, files)
+			if (generation == observed) cache.put(packageFqName, entry)
 		}
 		return files
 	}
@@ -46,8 +53,9 @@ internal class PackageFileCache<F : Any>(
 			generation++
 			when (write) {
 				is KtFileMetadataWrite.Upserted -> {
-					cache.invalidate(write.packageFqName)
-					invalidateContaining(setOf(write.filePath))
+					// A live edit re-upserts a file its package already lists; that list is still right.
+					invalidateUnlessListed(write.packageFqName, write.filePath)
+					invalidateContaining(setOf(write.filePath), except = write.packageFqName)
 				}
 
 				is KtFileMetadataWrite.Removed -> {
@@ -60,11 +68,22 @@ internal class PackageFileCache<F : Any>(
 			}
 		}
 
-	private fun invalidateContaining(paths: Set<String>) {
+	private fun invalidateUnlessListed(
+		packageFqName: String,
+		path: String,
+	) {
+		val entry = cache.getIfPresent(packageFqName) ?: return
+		if (path !in entry.paths) cache.invalidate(packageFqName)
+	}
+
+	private fun invalidateContaining(
+		paths: Set<String>,
+		except: String? = null,
+	) {
 		val stale =
 			cache
 				.asMap()
-				.filterValues { files -> files.any { pathOf(it) in paths } }
+				.filter { (packageFqName, entry) -> packageFqName != except && paths.any { it in entry.paths } }
 				.keys
 		cache.invalidateAll(stale)
 	}
