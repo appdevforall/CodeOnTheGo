@@ -400,6 +400,8 @@ internal abstract class AbstractCompilationEnvironment(
 					.handleElementModification(ktFile, typeProvider(ktFile))
 			}
 
+			// A path in no module is in no session's scope; invalidating globally would only force
+			// the platform and library sessions to rebuild.
 			if (module != null) {
 				module.invalidateSearchScope()
 				project.publishModificationEvent(
@@ -412,11 +414,6 @@ internal abstract class AbstractCompilationEnvironment(
 					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
 					.afterInvalidation(setOf(module))
 				ResolutionScopeProvider.getInstance(project).invalidate(module)
-			} else {
-				project.analysisMessageBus
-					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
-					.afterGlobalInvalidation()
-				ResolutionScopeProvider.getInstance(project).invalidateAll()
 			}
 		}
 	}
