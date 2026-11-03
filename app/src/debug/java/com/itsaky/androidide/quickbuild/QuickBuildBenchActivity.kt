@@ -8,6 +8,8 @@ import com.itsaky.androidide.models.EditorIntentExtras
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.FeatureFlags
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager
@@ -51,7 +53,7 @@ class QuickBuildBenchActivity : Activity() {
 		// the checks are cheap file-exists probes, so blocking briefly is acceptable on a
 		// path that only exists for benchmarking.
 		runBlocking { FeatureFlags.initialize() }
-		if (!FeatureFlags.isExperimentsEnabled || !FeatureFlags.isQuickBuildBenchEnabled) {
+		if (!Experiments.isOn(Experiment.QUICK_BUILD) || !FeatureFlags.isQuickBuildBenchEnabled) {
 			log.warn("Ignoring quick-build bench intent: benchmark flags disabled")
 			return
 		}

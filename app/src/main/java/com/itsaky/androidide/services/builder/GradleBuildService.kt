@@ -72,7 +72,8 @@ import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult.Fai
 import com.itsaky.androidide.tooling.api.models.ToolingServerMetadata
 import com.itsaky.androidide.tooling.events.ProgressEvent
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.ResourceUtils
 import com.itsaky.androidide.utils.ZipUtils
 import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
@@ -82,6 +83,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -96,7 +100,6 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletionException
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -115,10 +118,16 @@ class GradleBuildService :
 	private var isToolingServerStarted = false
 
 	// Atomic: two callers may race for the slot, and Quick Build's pre-check reads it cross-thread.
-	private val buildSlot = AtomicBoolean(false)
+	private val buildSlot = MutableStateFlow(false)
+
+	/**
+	 * [isBuildInProgress] as a flow. A finished build's listener can run before the build frees the
+	 * slot, so a caller waiting for the slot to free watches this instead of the listener.
+	 */
+	val buildSlotBusy: StateFlow<Boolean> = buildSlot.asStateFlow()
 
 	override val isBuildInProgress: Boolean
-		get() = buildSlot.get()
+		get() = buildSlot.value
 
 	// Written only while the slot is held, by the build holding it.
 	@Volatile
@@ -257,6 +266,8 @@ class GradleBuildService :
 
 	@Volatile
 	private var tuningConfig: GradleTuningConfig? = null
+
+	private val relocatedBuilds = RelocatedBuilds()
 
 	private val buildServiceScope =
 		CoroutineScope(
@@ -549,19 +560,25 @@ class GradleBuildService :
 		CompletableFuture.supplyAsync {
 			updateNotification(getString(R.string.build_status_in_progress), true)
 
-			val projectPath = ProjectManagerImpl.getInstance().projectDirPath ?: "unknown"
+			val projectPath = ProjectManagerImpl.getInstance().projectDirPath
 			val buildType = getBuildType(buildInfo.tasks)
 			val isDebugBuild = buildType == "debug"
 
 			val currentTuningConfig = tuningConfig
 			var newTuningConfig: GradleTuningConfig? = null
 
+			val isSync = buildInfo.buildId.runType == BuildRunType.ProjectSync
+
 			@Suppress("SimplifyBooleanWithConstants")
 			val extraArgs =
-				getGradleExtraArgs(enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild)
+				getGradleExtraArgs(
+					enableJdwp = JdwpOptions.JDWP_ENABLED && isDebugBuild,
+					isSync = isSync,
+				)
+			relocatedBuilds.prepared(buildInfo, extraArgs)
 
 			var buildParams =
-				if (FeatureFlags.isExperimentsEnabled) {
+				if (Experiments.isOn(Experiment.GRADLE_AUTO_TUNE)) {
 					runCatching {
 						newTuningConfig =
 							GradleBuildTuner.autoTune(
@@ -576,7 +593,7 @@ class GradleBuildService :
 						GradleBuildTuner
 							.toGradleBuildParams(tuningConfig = newTuningConfig)
 							.run {
-								copy(gradleArgs = gradleArgs + extraArgs)
+								copy(gradleArgs = BuildOutputLocation.withoutWatchConflict(gradleArgs + extraArgs))
 							}
 					}.onFailure { err ->
 						log.error("Failed to auto-tune Gradle build", err)
@@ -671,6 +688,7 @@ class GradleBuildService :
 					isSuccess = isSuccess,
 					buildType = buildType,
 					buildResult = result,
+					relocatedOutput = relocatedBuilds.completed(result.buildId),
 				),
 		)
 
@@ -697,6 +715,7 @@ class GradleBuildService :
 	private fun getGradleExtraArgs(
 		enableJdwp: Boolean = JdwpOptions.JDWP_ENABLED,
 		enableLogSender: Boolean = DevOpsPreferences.logsenderEnabled,
+		isSync: Boolean,
 	): List<String> {
 		val extraArgs = ArrayList<String>()
 		extraArgs.add("--init-script")
@@ -707,6 +726,8 @@ class GradleBuildService :
 		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+
+		extraArgs.addAll(relocatedBuildOutputArgs(isSync))
 
 		if (BuildPreferences.isStacktraceEnabled) {
 			extraArgs.add("--stacktrace")
@@ -736,6 +757,36 @@ class GradleBuildService :
 		}
 
 		return extraArgs
+	}
+
+	/**
+	 * The arguments that move the open project's build output to app-private storage (ADFA-4930),
+	 * or none. Every sync relocates, keeping output in the project folder only when the tree cannot
+	 * be written; the model it produces records the outcome. A build follows that
+	 * model, so it writes where the model (APK listing file, classpath) looks, and never falls back
+	 * to the project folder, which would leave the model pointing at older output. Runs on the
+	 * [prepareBuild] worker, so disk I/O is fine.
+	 */
+	private fun relocatedBuildOutputArgs(isSync: Boolean): List<String> {
+		val projectDir =
+			ProjectManagerImpl
+				.getInstance()
+				.projectDirPath
+				.takeIf { it.isNotBlank() }
+				?.let(::File) ?: return emptyList()
+		val tree = BuildOutputLocation.treeFor(noBackupFilesDir, projectDir)
+
+		if (!isSync) {
+			if (BuildOutputLocation.modelRelocated(noBackupFilesDir, projectDir) != true) return emptyList()
+			if (!BuildOutputLocation.prepare(tree, projectDir)) {
+				log.warn("Cannot write build output directory {}; Gradle will report it", tree)
+			}
+			return BuildOutputLocation.gradleArgs(tree)
+		}
+
+		val args = BuildOutputLocation.syncArgs(tree, projectDir)
+		if (args.isEmpty()) log.warn("Cannot write build output directory {}; syncing with output in the project folder", tree)
+		return args
 	}
 
 	override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> =
@@ -886,7 +937,7 @@ class GradleBuildService :
 				dispatch()
 			} catch (e: Throwable) {
 				currentBuildId = null
-				buildSlot.set(false)
+				buildSlot.value = false
 				throw e
 			}
 		pendingBuild = future
@@ -927,7 +978,7 @@ class GradleBuildService :
 	) : Exception(message)
 
 	private fun isGradleEnterprisePluginAvailable(): Boolean {
-		val projectDir = ProjectManagerImpl.getInstance().projectDir ?: return false
+		val projectDir = ProjectManagerImpl.getInstance().projectDir
 
 		val settingsFiles =
 			listOf(
@@ -972,7 +1023,7 @@ class GradleBuildService :
 		throwable: Throwable?,
 	): T {
 		currentBuildId = null
-		buildSlot.set(false)
+		buildSlot.value = false
 		return result
 	}
 

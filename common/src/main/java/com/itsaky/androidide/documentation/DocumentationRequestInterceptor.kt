@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong
  * fails -- falls through to that server unchanged.
  *
  * Templated pages included: [DocumentationContentSource] renders them, so every documentation path
- * a WebView asks for is answered here.
+ * a WebView asks for is answered here. A single satisfiable `Range` gets a 206; see [RangeResponse].
  */
 class DocumentationRequestInterceptor(
 	private val contentSource: DocumentationContentSource,
@@ -59,7 +59,7 @@ class DocumentationRequestInterceptor(
 	 */
 	fun intercept(request: WebResourceRequest): WebResourceResponse? =
 		try {
-			contentFor(request)?.let { response(it) }
+			replyFor(request)?.let { (content, reply) -> response(content, reply) }
 		} catch (e: Throwable) {
 			// Throwable, not Exception. The documented contract is that anything this returns null for
 			// falls through to the web server, and that only holds for values, not throws: decoding the
@@ -89,17 +89,39 @@ class DocumentationRequestInterceptor(
 		val path = url.encodedPath?.removePrefix("/").orEmpty()
 		if (path.isEmpty() || path.startsWith("pr/")) return null
 
-		val content =
-			when (val lookup = contentSource.lookupRequestPath(path).lookup) {
-				is DocumentationLookup.Found -> lookup.content
-				else -> return null
-			}
+		return when (val lookup = contentSource.lookupRequestPath(path).lookup) {
+			is DocumentationLookup.Found -> lookup.content
+			else -> null
+		}
+	}
+
+	/**
+	 * The content for [request] and how to answer its `Range`, counted in [servedSummary] by what
+	 * the WebView sends: for a 206 that is the range, not the whole row, and a request the WebView
+	 * fails is not counted at all.
+	 *
+	 * @return The content and its [RangeResponse], or `null` when [contentFor] returns `null`.
+	 */
+	internal fun replyFor(request: WebResourceRequest): Pair<DocumentationContent, RangeResponse>? {
+		val content = contentFor(request) ?: return null
+		val range = rangeHeader(request.requestHeaders)
+		val reply = RangeResponse.of(range, content.bytes.size)
+
+		if (reply.rejected) {
+			log.debug("Range '{}' for '{}' is one the WebView fails; not counted as served.", range, request.url.encodedPath)
+			return content to reply
+		}
 
 		servedRequests.incrementAndGet()
-		servedBytes.addAndGet(content.bytes.size.toLong())
-		if (log.isDebugEnabled) log.debug("Served '{}' in-process, {} bytes.", path, content.bytes.size)
+		servedBytes.addAndGet(reply.sentLength.toLong())
+		if (log.isDebugEnabled) {
+			log.debug("Served '{}' in-process, {} of {} bytes.", request.url.encodedPath, reply.sentLength, content.bytes.size)
+			if (range != null) {
+				log.debug("Answered Range '{}' with {} {}.", range, reply.status, reply.headers["Content-Range"].orEmpty())
+			}
+		}
 
-		return content
+		return content to reply
 	}
 
 	/** What this instance has answered without a socket. */
@@ -117,14 +139,29 @@ class DocumentationRequestInterceptor(
 	 * Creates a WebView resource response from documentation content.
 	 *
 	 * @param content The documentation content to serve.
+	 * @param reply The status, headers and stream length for the request's `Range`.
 	 * @return A response containing the content bytes and parsed MIME metadata.
 	 */
-	private fun response(content: DocumentationContent): WebResourceResponse {
+	private fun response(
+		content: DocumentationContent,
+		reply: RangeResponse,
+	): WebResourceResponse {
 		val (type, charset) = mimeAndCharset(content.mimeType)
-		return WebResourceResponse(type, charset, ByteArrayInputStream(content.bytes))
+		return WebResourceResponse(
+			type,
+			charset,
+			reply.status,
+			reply.reason,
+			reply.headers,
+			ByteArrayInputStream(content.bytes, 0, reply.streamLength),
+		)
 	}
 
 	companion object {
+		/** A request's `Range` value, looked up regardless of case, as header names are. */
+		internal fun rangeHeader(headers: Map<String, String>?): String? =
+			headers?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
+
 		/**
 		 * Separates a MIME type from its optional charset.
 		 *

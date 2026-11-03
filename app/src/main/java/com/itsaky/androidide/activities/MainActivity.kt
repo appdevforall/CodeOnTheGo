@@ -45,6 +45,7 @@ import com.itsaky.androidide.analytics.DeepLinkMetric
 import com.itsaky.androidide.analytics.DeepLinkOutcome
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.depth
+import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
@@ -71,7 +72,8 @@ import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.utils.DeepLinkProjectLookup
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.Environment
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import com.itsaky.androidide.utils.MainScreenActions
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
@@ -219,8 +221,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			openLastProject()
 		}
 
-		if (FeatureFlags.isExperimentsEnabled) {
+		if (Experiments.enabled) {
 			binding.codeOnTheGoLabel.title = getString(R.string.app_name) + "."
+			// Whole toolbar, not just the ".": the Toolbar's title view has no LinkMovementMethod.
+			binding.codeOnTheGoLabel.setOnClickListener { showExperiments() }
 		}
 
 		trackTitleTouches()
@@ -295,6 +299,15 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	fun showCloneRepository(): Boolean {
 		viewModel.setScreen(SCREEN_CLONE_REPO)
 		return true
+	}
+
+	private fun showExperiments() {
+		DialogUtils
+			.newMaterialDialogBuilder(this)
+			.setTitle(string.title_experiments_on)
+			.setItems(Experiment.entries.map { "${it.label} (${it.jiraKey.removePrefix("ADFA-")})" }.toTypedArray(), null)
+			.setPositiveButton(android.R.string.ok, null)
+			.show()
 	}
 
 	private fun showWarningDialog() {
@@ -731,24 +744,29 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 					analyticsManager.trackDeepLink(
 						DeepLinkMetric(
 							request.depth(),
-							if (lookup is DeepLinkProjectLookup.NotFound) {
-								DeepLinkOutcome.PROJECT_NOT_FOUND
-							} else {
-								DeepLinkOutcome.PROJECT_UNVERIFIABLE
+							when (lookup) {
+								DeepLinkProjectLookup.NotFound -> DeepLinkOutcome.PROJECT_NOT_FOUND
+								DeepLinkProjectLookup.NoProjectOpen -> DeepLinkOutcome.NO_PROJECT_OPEN
+								else -> DeepLinkOutcome.PROJECT_UNVERIFIABLE
 							},
-							request.projectName,
+							// A wildcard resolves to nothing here, so there is no name to hash.
+							request.projectName.takeUnless { request.isCurrentProject },
+							request.selector(),
 						),
 					)
+					if (lookup is DeepLinkProjectLookup.NoProjectOpen) {
+						flashError(getString(string.msg_deeplink_no_project_open))
+					}
 					// Consumed even though nothing opened: the project does not exist, so retrying on
 					// every recreate only re-shows "No project named X was found" indefinitely. Recorded
 					// only when this request is still the current one, so a superseded slow resolve
 					// cannot consume the newer request's slot.
 					//
-					// NotFound only. An Unverifiable result -- an EACCES straight after a
-					// storage-permission change, an EIO on a flaky SD/FUSE mount -- says nothing about
-					// whether the project exists, and recording it made a momentary filesystem failure
-					// silence a valid link on every later delivery (ADFA-5067 review).
-					if (lookup is DeepLinkProjectLookup.NotFound && latestDeepLinkRequest === request) {
+					// NotFound and NoProjectOpen only, both definitive. An Unverifiable result -- an EACCES
+					// straight after a storage-permission change, an EIO on a flaky SD/FUSE mount -- says
+					// nothing about whether the project exists, and recording it made a momentary
+					// filesystem failure silence a valid link on every later delivery (ADFA-5067 review).
+					if (lookup !is DeepLinkProjectLookup.Unverifiable && latestDeepLinkRequest === request) {
 						consumedDeepLinkRequests.add(request)
 						// Tracked apart from the general consumed set so the re-forward gate in
 						// onNewIntent can let this request through again -- see the field's docs.

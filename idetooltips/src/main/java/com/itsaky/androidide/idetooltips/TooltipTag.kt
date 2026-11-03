@@ -224,6 +224,7 @@ object TooltipTag {
 	const val EDITOR_TOOLBAR_FIND_IN_FILE = "editor.find.in.file"
 	const val EDITOR_TOOLBAR_SYNC = "project.sync"
 	const val EDITOR_TOOLBAR_LAUNCH_APP = "project.launch.app"
+	const val EDITOR_TOOLBAR_EXPORT_APK = "project.export.apk"
 	const val EDITOR_TOOLBAR_UNDO = "editor.undo"
 	const val EDITOR_TOOLBAR_REDO = "editor.redo"
 	const val EDITOR_TOOLBAR_QUICK_SAVE = "project.save"
@@ -334,6 +335,7 @@ object TooltipTag {
 	const val GIT_PUSH = "git.action.push"
 	const val GIT_PULL = "git.action.pull"
 	const val GIT_BRANCHES = "project.git.branchmgt"
+	const val GIT_REFRESH = "git.action.refresh"
 
 	// Editor metrics carousel (ADFA-5510). Unprefixed like every other tag here: the lookup is by
 	// tag AND category, and the category column already carries "ide".

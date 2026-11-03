@@ -22,39 +22,44 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
 import com.itsaky.androidide.actions.MutableTextTarget
 import com.itsaky.androidide.idetooltips.TooltipTag
+
 /** @author Akash Yadav */
-class CutAction(context: Context, override val order: Int) : BaseEditorAction() {
+class CutAction(
+	context: Context,
+	override val order: Int,
+) : BaseEditorAction() {
+	init {
+		label = context.getString(android.R.string.cut)
 
-  init {
-    label = context.getString(android.R.string.cut)
+		val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCutDrawable))
+		icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
+		arr.recycle()
+	}
 
-    val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCutDrawable))
-    icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    arr.recycle()
-  }
+	companion object {
+		const val ID = "ide.editor.code.text.cut"
+	}
 
-  companion object {
-    const val ID = "ide.editor.code.text.cut"
-  }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		if (!visible) return
 
-    if (!visible) return
+		val target = getTextTarget(data)
+		visible = (target is MutableTextTarget) && target.isEditable()
+		enabled = visible && target?.hasSelection() == true
+	}
 
-    val target = getTextTarget(data)
-    visible = (target is MutableTextTarget) && target.isEditable()
-    enabled = visible && target?.hasSelection() == true
-  }
+	override val id: String = ID
 
-  override val id: String = ID
-  override suspend fun execAction(data: ActionData): Boolean {
-    val target = getTextTarget(data) ?: return false
-    if (target is MutableTextTarget) {
-      target.cut()
-      return true
-    }
-    return false
-  }
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT
+	override suspend fun execAction(data: ActionData): Boolean {
+		val target = getTextTarget(data) ?: return false
+		if (target is MutableTextTarget) {
+			target.cut()
+			return true
+		}
+		return false
+	}
+
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_CUT
 }

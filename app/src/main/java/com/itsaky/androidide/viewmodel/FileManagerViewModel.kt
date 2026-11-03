@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.eventbus.events.file.FileRenameEvent
+import com.itsaky.androidide.git.core.GitRepositoryManager
 import com.itsaky.androidide.projects.FileManager
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.FileUtils
 import kotlinx.coroutines.Dispatchers
@@ -41,21 +43,39 @@ class FileManagerViewModel : ViewModel() {
 			val destFile = File(file.parentFile, newName)
 			val renamed =
 				withContext(Dispatchers.IO) {
-					if (file.name.equals(newName, ignoreCase = true)) {
-						val uniqueSuffix = System.currentTimeMillis()
-						val tempFile = File(file.parentFile, "$newName-$uniqueSuffix.cotg")
-						if (file.renameTo(tempFile)) {
-							tempFile.renameTo(destFile).also { success ->
-								if (!success) {
-									tempFile.renameTo(file)
+					val result =
+						if (file.name.equals(newName, ignoreCase = true)) {
+							val uniqueSuffix = System.currentTimeMillis()
+							val tempFile = File(file.parentFile, "$newName-$uniqueSuffix.cotg")
+							if (file.renameTo(tempFile)) {
+								tempFile.renameTo(destFile).also { success ->
+									if (!success) {
+										tempFile.renameTo(file)
+									}
 								}
+							} else {
+								false
 							}
 						} else {
-							false
+							FileUtils.rename(file, newName)
 						}
-					} else {
-						FileUtils.rename(file, newName)
+
+					if (result) {
+						try {
+							val projectDirPath = IProjectManager.getInstance().projectDirPath
+							if (projectDirPath.isNotBlank()) {
+								val projectDir = File(projectDirPath)
+								if (File(projectDir, ".git").exists()) {
+									GitRepositoryManager.openRepository(projectDir)?.use { repo ->
+										repo.renamePath(file, destFile)
+									}
+								}
+							}
+						} catch (e: Exception) {
+							Log.w("FileManagerViewModel", "Failed to update git for rename", e)
+						}
 					}
+					result
 				}
 
 			if (renamed) {

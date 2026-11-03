@@ -7,11 +7,12 @@ import com.itsaky.androidide.activities.SplashActivity
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.helper.isExperimentsFlagSet
-import com.itsaky.androidide.helper.setExperimentsFlagForTest
+import com.itsaky.androidide.helper.setExperimentForTest
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.screens.QuickBuildScreen.assertQuickBuildButtonAbsent
 import com.itsaky.androidide.screens.QuickBuildScreen.assertQuickBuildButtonShown
 import com.itsaky.androidide.utils.EditorActivityActions
+import com.itsaky.androidide.utils.Experiment
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +23,7 @@ private const val TOOLBAR_TIMEOUT_MS = 15_000L
  * The shipping-state gate for Quick Build (ADFA-4128, manual test T13): with no
  * `CodeOnTheGo.exp` flag file on the device, the feature must be invisible.
  *
- * The gate is a single read of [com.itsaky.androidide.utils.FeatureFlags.isExperimentsEnabled]
+ * The gate is a single [com.itsaky.androidide.utils.Experiments.isOn] check of [Experiment.QUICK_BUILD]
  * at [EditorActivityActions.register], so this drives that decision directly instead of
  * restarting the process: flip the flag, re-register, rebuild the toolbar, look. That also
  * makes the test honest about what it covers - the registration site, not the process-start
@@ -48,7 +49,7 @@ class QuickBuildFlagOffTest : TestCase() {
 			hadExperimentsFlag = isExperimentsFlagSet()
 			IJdkDistributionProvider.getInstance().loadDistributions()
 		}.after {
-			setExperimentsFlagForTest(hadExperimentsFlag)
+			setExperimentForTest(Experiment.QUICK_BUILD, hadExperimentsFlag)
 			// Leave the toolbar matching the restored flag so a later test does not
 			// inherit this one's registry.
 			runCatching { rebuildEditorToolbar() }
@@ -59,13 +60,13 @@ class QuickBuildFlagOffTest : TestCase() {
 			}
 
 			step("Experiments on: the toolbar carries Quick Build") {
-				setExperimentsFlagForTest(true)
+				setExperimentForTest(Experiment.QUICK_BUILD, true)
 				rebuildEditorToolbar()
 				assertQuickBuildButtonShown(TOOLBAR_TIMEOUT_MS)
 			}
 
 			step("Experiments off: the toolbar drops Quick Build") {
-				setExperimentsFlagForTest(false)
+				setExperimentForTest(Experiment.QUICK_BUILD, false)
 				rebuildEditorToolbar()
 				assertQuickBuildButtonAbsent(TOOLBAR_TIMEOUT_MS)
 			}

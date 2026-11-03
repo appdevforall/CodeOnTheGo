@@ -171,7 +171,7 @@ object PluginLanguageSupport {
 			.apply {
 				workingDirectory?.let(::directory)
 				environment().putAll(server.environment)
-				TermuxProcessEnvironment.applyTo(environment(), Environment.PREFIX.parentFile)
+				TermuxProcessEnvironment.applyTo(environment(), Environment.PREFIX.parentFile!!)
 			}.start()
 	}
 

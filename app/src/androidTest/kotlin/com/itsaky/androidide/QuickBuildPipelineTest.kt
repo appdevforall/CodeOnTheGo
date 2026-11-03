@@ -12,7 +12,7 @@ import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
 import com.itsaky.androidide.helper.isExperimentsFlagSet
 import com.itsaky.androidide.helper.selectProjectTemplate
 import com.itsaky.androidide.helper.setAccessibilityEditText
-import com.itsaky.androidide.helper.setExperimentsFlagForTest
+import com.itsaky.androidide.helper.setExperimentForTest
 import com.itsaky.androidide.helper.waitForMainHomeOrEditorUi
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.quickbuild.AndroidInstalledPackages
@@ -23,6 +23,7 @@ import com.itsaky.androidide.screens.ProjectSettingsScreen.setProjectName
 import com.itsaky.androidide.screens.QuickBuildScreen.assertQuickBuildButtonShown
 import com.itsaky.androidide.screens.QuickBuildScreen.dismissFirstBuildNoticeIfShown
 import com.itsaky.androidide.screens.QuickBuildScreen.tapQuickBuildButton
+import com.itsaky.androidide.utils.Experiment
 import com.kaspersky.kaspresso.testcases.api.testcase.TestCase
 import com.kaspersky.kaspresso.testcases.core.testcontext.TestContext
 import kotlinx.coroutines.CoroutineScope
@@ -343,13 +344,13 @@ class QuickBuildPipelineTest : TestCase() {
 	 */
 	private fun enableExperimentsForTest() {
 		hadExperimentsFlag = isExperimentsFlagSet()
-		setExperimentsFlagForTest(true)
+		setExperimentForTest(Experiment.QUICK_BUILD, true)
 		IJdkDistributionProvider.getInstance().loadDistributions()
 	}
 
 	/** Restores the flag, leaves no live session behind, and re-binds the real clobber check. */
 	private fun restoreAfterQuickBuildTest() {
-		setExperimentsFlagForTest(hadExperimentsFlag)
+		setExperimentForTest(Experiment.QUICK_BUILD, hadExperimentsFlag)
 		runCatching { GlobalContext.get().get<QuickBuildSessionManager>().restartSession() }
 		restoreRealClobberCheckIfOverridden()
 	}

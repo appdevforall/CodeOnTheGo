@@ -4,25 +4,35 @@ import com.itsaky.androidide.plugins.IPlugin
 import java.io.File
 
 interface FileOpenExtension : IPlugin {
+	fun canHandleFileOpen(file: File): Boolean = false
 
-    fun canHandleFileOpen(file: File): Boolean = false
+	fun handleFileOpen(file: File): Boolean = false
 
-    fun handleFileOpen(file: File): Boolean = false
+	fun onFileOpened(file: File) {}
 
-    fun onFileOpened(file: File) {}
+	fun getFileTabMenuItems(file: File): List<FileTabMenuItem> = emptyList()
 
-    fun getFileTabMenuItems(file: File): List<FileTabMenuItem> = emptyList()
-
-    fun onFileClosed(file: File) {}
+	fun onFileClosed(file: File) {}
 }
 
 data class FileTabMenuItem(
-    val id: String,
-    val title: String,
-    val icon: Int? = null,
-    val isEnabled: Boolean = true,
-    val isVisible: Boolean = true,
-    val order: Int = 0,
-    val tooltipTag: String? = null,
-    val action: () -> Unit
-)
+	val id: String,
+	val title: String,
+	val icon: Int? = null,
+	val isEnabled: Boolean = true,
+	val isVisible: Boolean = true,
+	val order: Int = 0,
+	val tooltipTag: String? = null,
+	val action: () -> Unit,
+) {
+	@Deprecated("Binary compatibility with plugins built before tooltipTag was added", level = DeprecationLevel.HIDDEN)
+	constructor(
+		id: String,
+		title: String,
+		icon: Int? = null,
+		isEnabled: Boolean = true,
+		isVisible: Boolean = true,
+		order: Int = 0,
+		action: () -> Unit,
+	) : this(id, title, icon, isEnabled, isVisible, order, null, action)
+}

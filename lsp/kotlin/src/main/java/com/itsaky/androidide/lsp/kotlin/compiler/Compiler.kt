@@ -1,7 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.api.ILanguageClient
-import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
@@ -13,7 +12,7 @@ import java.nio.file.Path
 import kotlin.io.path.pathString
 
 internal class Compiler(
-	workspace: Workspace,
+	layout: KotlinModuleLayout,
 	projectModel: KotlinProjectModel,
 	intellijPluginRoot: Path,
 	jdkHome: Path,
@@ -35,7 +34,7 @@ internal class Compiler(
 			CompilationEnvironment(
 				name = "default",
 				kind = CompilationKind.Default,
-				workspace = workspace,
+				layout = layout,
 				ktProject = projectModel,
 				intellijPluginRoot = intellijPluginRoot,
 				jdkHome = jdkHome,

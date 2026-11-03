@@ -36,7 +36,8 @@ import com.itsaky.androidide.plugins.manager.fragment.PluginFragmentFactory
 import com.itsaky.androidide.plugins.manager.pluginCategory
 import com.itsaky.androidide.plugins.manager.pluginTooltipTag
 import com.itsaky.androidide.resources.R
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 import org.appdevforall.cotg.profiler.ProfilerFragment
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Constructor
@@ -125,7 +126,7 @@ class EditorBottomSheetTabAdapter(
 				),
 			)
 
-			if (FeatureFlags.isExperimentsEnabled) {
+			if (Experiments.isOn(Experiment.PROFILER)) {
 				add(
 					Tab(
 						title = fragmentActivity.getString(R.string.profiler_title),
@@ -350,6 +351,8 @@ class EditorBottomSheetTabAdapter(
 	// `removeFragment` / `restoreFragment` can diverge the two, and the
 	// long-press handler in EditorBottomSheet passes the ViewPager position.
 	fun getTooltipTag(position: Int): String? = tabs[position].tooltipTag
+
+	fun isGitTab(position: Int): Boolean = tabs.getOrNull(position)?.itemId == TAB_GIT.toLong()
 
 	/**
 	 * Tooltip category for the tab at [position]. Built-in tabs live in

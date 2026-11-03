@@ -12,14 +12,11 @@ import org.junit.Test
  */
 class QuickBuildActionPresentationTest {
 	@Test
-	fun `a running build shows a spinning stop icon, not a bolt variant`() {
-		// The stop square AbstractCancellableRunAction swaps in, inside a spinning ring: the
-		// two buttons still look like they stop the same kind of thing, and the ring answers
-		// the manual-QA reading of a static icon as a hung app. Any bolt variant here (the
-		// previous ic_quick_build_outline) fails the spec, because it did not communicate
-		// "a build is running" to anyone.
+	fun `a running build shows the Run button's stop icon, not a bolt variant`() {
+		// The same static ring and square AbstractCancellableRunAction swaps in, so the two buttons
+		// present a running build identically; any bolt variant fails the spec.
 		assertThat(QuickBuildAction.iconResFor(QuickBuildTone.BUILDING))
-			.isEqualTo(R.drawable.ic_quick_build_building)
+			.isEqualTo(R.drawable.ic_stop_daemons)
 	}
 
 	@Test

@@ -36,9 +36,11 @@ internal fun buildProject(
 	logSenderAar: File? = null,
 	task: String = ":app:tasks",
 	configureArgs: (MutableList<String>) -> Unit = {},
+	// A project of the test's own; the sample project otherwise.
+	projectDir: Path? = null,
 	vararg plugins: String
 ): BuildResult {
-	val projectRoot = openProject(agpVersion, useApplyPluginGroovySyntax, *plugins)
+	val projectRoot = projectDir ?: openProject(agpVersion, useApplyPluginGroovySyntax, *plugins)
 	val initScript = FileProvider.testHomeDir()
 		.resolve("${SharedEnvironment.PROJECT_CACHE_DIR_NAME}/init/androidide.init.gradle")
 	val mavenLocal = FileProvider.projectRoot().resolve("gradle-plugin/build/maven-local/repos.txt").toFile()

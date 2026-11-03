@@ -1,0 +1,29 @@
+Pebble 4.1.1 (https://github.com/PebbleTemplates/pebble), under the BSD 3-Clause License in LICENSE.
+
+src/main/java holds Pebble's main sources from Maven Central's io.pebbletemplates:pebble:4.1.1 sources
+jar (pebble-4.1.1-sources.jar, SHA-1 699371e19483456ebd81e2083bb7b436d3ad412d). They are identical to
+pebble/src/main/java at the v4.1.1 tag. The four classes that need optional dependencies the app does
+not use are left out:
+
+- io/pebbletemplates/pebble/loader/ServletLoader.java (javax.servlet)
+- io/pebbletemplates/pebble/loader/Servlet5Loader.java (jakarta.servlet)
+- io/pebbletemplates/pebble/cache/template/CaffeineTemplateCache.java (Caffeine)
+- io/pebbletemplates/pebble/cache/tag/CaffeineTagCache.java (Caffeine)
+
+Local changes (Code On The Go, ADFA-3305):
+
+- io/pebbletemplates/pebble/lexer/LexerImpl.java matches each token against a window at the start of
+  the remaining template, doubled while the regex engine reports reading its end (Matcher.hitEnd)
+  and never ending inside a surrogate pair, instead of against the whole remaining template. It also
+  counts the matches and windows, for a test. On Android, java.util.regex copies its whole input
+  every time a Matcher is created, which made lexing quadratic in the template's length. The comment
+  at LexerImpl.match says why in full.
+- LexerImpl.java also keeps one Matcher per pattern, reset onto each window, and one String copy of
+  each window for all the patterns tried at one position, and counts both for a test. On Android a
+  new Matcher allocates native ICU state, which was most of lexing's remaining cost; each reset
+  still copies the window into that Matcher's ICU buffer, which is cheap at 256 characters. The
+  comment at LexerImpl.matcherOnWindow says why the reuse is safe. matcherOnWindow and the source
+  and windowText fields are package-private, for a test.
+- LexerImpl.java compiles the operator regex once per set of operators, shared by every lexer,
+  instead of once per template; see LexerImpl.buildOperatorRegex. Its regexOperators field is
+  package-private, for a test.

@@ -3,6 +3,9 @@ package com.itsaky.androidide.git.core
 import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitCommit
 import com.itsaky.androidide.git.core.models.GitStatus
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.PullResult
 import org.eclipse.jgit.lib.ProgressMonitor
@@ -10,12 +13,35 @@ import org.eclipse.jgit.transport.CredentialsProvider
 import org.eclipse.jgit.transport.PushResult
 import java.io.Closeable
 import java.io.File
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration
 
 /**
  * Interface defining core Git repository operations.
  */
 interface GitRepository : Closeable {
 	val rootDir: File
+
+	// The `.git` metadata directory for this repository.
+	val gitDir: File
+		get() = File(rootDir, ".git")
+
+	/**
+	 * Creates a [GitRepositoryWatcher] bound to this repository's [gitDir].
+	 */
+	fun createWatcher(
+		scope: CoroutineScope,
+		debounceDelay: Duration = GitRepositoryWatcher.DEFAULT_DEBOUNCE_DELAY,
+		context: CoroutineContext = Dispatchers.Main.immediate,
+		onGitStateChanged: suspend () -> Unit,
+	): GitRepositoryWatcher =
+		GitRepositoryWatcher(
+			gitDir = gitDir,
+			scope = scope,
+			debounceDelay = debounceDelay,
+			context = context,
+			onGitStateChanged = onGitStateChanged,
+		)
 
 	suspend fun getStatus(): GitStatus
 
@@ -29,6 +55,21 @@ interface GitRepository : Closeable {
 
 	// Commit Operations
 	suspend fun stageFiles(files: List<File>)
+
+	/**
+	 * Renames a tracked file or directory in Git's index cache.
+	 *
+	 * Evicts any entries matching [oldFile] (including case-insensitive variants or duplicate index entries)
+	 * and stages the newly renamed [newFile] in the index.
+	 *
+	 * @param oldFile The original file or directory.
+	 * @param newFile The new file or directory after rename.
+	 * @return `true` if any tracked index entries were renamed, `false` otherwise.
+	 */
+	suspend fun renamePath(
+		oldFile: File,
+		newFile: File,
+	): Boolean
 
 	// Git commit watermark configurations
 	suspend fun isCommitWatermarkEnabled(): Boolean
