@@ -31,7 +31,8 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Handles a `.cgp`/`.cgt` file opened from outside the app (e.g. an email attachment), backing
+ * Handles a `.cgp`/`.cgt` file opened from outside the app (e.g. an email attachment) or sent by
+ * the editor's Install action for a `.cgt` tab, backing
  * [com.itsaky.androidide.activities.ExternalFileInstallActivity].
  */
 class ExternalFileInstallViewModel(
