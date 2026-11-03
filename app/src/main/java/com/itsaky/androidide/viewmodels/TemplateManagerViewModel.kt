@@ -3,7 +3,6 @@ package com.itsaky.androidide.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.itsaky.androidide.repositories.TemplateReplaceConflictException
 import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
@@ -42,8 +41,8 @@ class TemplateManagerViewModel(
 	fun onEvent(event: TemplateManagerUiEvent) {
 		when (event) {
 			is TemplateManagerUiEvent.LoadTemplates -> loadTemplates()
-			is TemplateManagerUiEvent.InstallTemplate -> installTemplate(event.item)
-			is TemplateManagerUiEvent.UninstallTemplate -> showUninstallConfirmation(event.item)
+			is TemplateManagerUiEvent.InstallTemplate -> showInstallConfirmation(event.item)
+			is TemplateManagerUiEvent.UninstallTemplate -> uninstallTemplate(event.item)
 			is TemplateManagerUiEvent.DeleteDownloadFile -> showDeleteConfirmation(event.item)
 			is TemplateManagerUiEvent.ShowTemplateDetails -> showTemplateDetails(event.item)
 			is TemplateManagerUiEvent.ShowTemplateList -> showTemplateList(event.item)
@@ -72,7 +71,21 @@ class TemplateManagerViewModel(
 		}
 	}
 
-	private fun installTemplate(item: CgtFileItem) {
+	private fun showInstallConfirmation(item: CgtFileItem) {
+		viewModelScope.launch {
+			_uiEffect.send(TemplateManagerUiEffect.ShowInstallConfirmation(item))
+		}
+	}
+
+	/**
+	 * Installs a Downloads template (called after confirmation). Install copies, so the Downloads
+	 * original is kept unless [deleteSourceAfterInstall] - the same choice the Plugins tab offers.
+	 * A failed delete is reported but doesn't undo the install, matching the Plugins tab.
+	 */
+	fun confirmInstallTemplate(
+		item: CgtFileItem,
+		deleteSourceAfterInstall: Boolean,
+	) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
@@ -85,6 +98,11 @@ class TemplateManagerViewModel(
 							listOf(item.displayName),
 						),
 					)
+					if (deleteSourceAfterInstall) {
+						templateRepository.deleteDownloadFile(item).onFailure {
+							_uiEffect.send(TemplateManagerUiEffect.ShowError(R.string.msg_source_delete_failed))
+						}
+					}
 					// loadTemplates() clears isLoading once the post-install rescan completes, so the
 					// indicator stays up continuously across both phases instead of flickering off
 					// between them.
@@ -102,26 +120,11 @@ class TemplateManagerViewModel(
 		}
 	}
 
-	private fun showUninstallConfirmation(item: CgtFileItem) {
-		viewModelScope.launch {
-			_uiEffect.send(TemplateManagerUiEffect.ShowUninstallConfirmation(item))
-		}
-	}
-
-	/**
-	 * Uninstalls [item] (called after [TemplateManagerUiEffect.ShowUninstallConfirmation] is
-	 * confirmed). A [TemplateReplaceConflictException] means a same-named file already sits in
-	 * Downloads; [ShowReplaceConfirmation][TemplateManagerUiEffect.ShowReplaceConfirmation] asks
-	 * whether to replace it, and a confirmed replace re-enters this with [overwrite] set.
-	 */
-	fun confirmUninstallTemplate(
-		item: CgtFileItem,
-		overwrite: Boolean = false,
-	) {
+	private fun uninstallTemplate(item: CgtFileItem) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
-				.uninstallTemplate(item, overwrite)
+				.uninstallTemplate(item)
 				.onSuccess {
 					Log.d(TAG, "Template uninstalled successfully: ${item.name}")
 					_uiEffect.send(TemplateManagerUiEffect.ShowSuccess(R.string.msg_template_uninstalled))
@@ -129,16 +132,12 @@ class TemplateManagerViewModel(
 				}.onFailure { exception ->
 					Log.e(TAG, "Failed to uninstall template: ${item.name}", exception)
 					_uiState.update { it.copy(isLoading = false) }
-					if (exception is TemplateReplaceConflictException) {
-						_uiEffect.send(TemplateManagerUiEffect.ShowReplaceConfirmation(item, exception.fileName))
-					} else {
-						_uiEffect.send(
-							TemplateManagerUiEffect.ShowError(
-								R.string.msg_template_uninstall_failed,
-								listOf(exception.message ?: ""),
-							),
-						)
-					}
+					_uiEffect.send(
+						TemplateManagerUiEffect.ShowError(
+							R.string.msg_template_uninstall_failed,
+							listOf(exception.message ?: ""),
+						),
+					)
 				}
 		}
 	}

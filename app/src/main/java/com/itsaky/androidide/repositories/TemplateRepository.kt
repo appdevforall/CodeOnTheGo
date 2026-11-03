@@ -1,7 +1,6 @@
 package com.itsaky.androidide.repositories
 
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
-import java.io.IOException
 
 /**
  * Repository interface for template (`.cgt`) file operations.
@@ -18,25 +17,18 @@ interface TemplateRepository {
 	 */
 	suspend fun listTemplateFiles(): Result<List<CgtFileItem>>
 
-	/** Moves [item]'s file from Downloads into the templates directory and reloads templates. */
+	/**
+	 * Copies [item]'s file from Downloads into the templates directory and reloads templates. The
+	 * Downloads original is left in place; removing it is the caller's choice ([deleteDownloadFile]).
+	 */
 	suspend fun installTemplate(item: CgtFileItem): Result<Unit>
 
 	/**
-	 * Restores a copy of [item]'s file to Downloads, removes it from the templates directory, and
-	 * reloads templates. Fails with [TemplateReplaceConflictException] if a file of the same name
-	 * (ignoring case) already exists in Downloads, unless [overwrite] is true.
+	 * Deletes [item] from the templates directory and reloads templates. There is no restore: the
+	 * user re-installs from the original `.cgt`, or re-installs the plugin that provided it.
 	 */
-	suspend fun uninstallTemplate(
-		item: CgtFileItem,
-		overwrite: Boolean = false,
-	): Result<Unit>
+	suspend fun uninstallTemplate(item: CgtFileItem): Result<Unit>
 
 	/** Deletes a not-installed [item]'s file from Downloads. */
 	suspend fun deleteDownloadFile(item: CgtFileItem): Result<Unit>
 }
-
-/** Thrown by [TemplateRepository.uninstallTemplate] when restoring to Downloads would silently
- * overwrite an existing file there and the caller didn't opt into replacing it. */
-class TemplateReplaceConflictException(
-	val fileName: String,
-) : IOException("A file named '$fileName' already exists in Downloads")

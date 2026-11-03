@@ -1,9 +1,14 @@
 package com.itsaky.androidide.repositories
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.test.runTest
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.junit.After
@@ -19,13 +24,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Pins the two riskiest branches in [TemplateRepositoryImpl.installTemplate]/
- * [TemplateRepositoryImpl.uninstallTemplate]: a name collision must fail without touching either
- * copy, and a failed delete after a successful copy must roll back to leave exactly one copy
- * behind. Both are reachable without [com.itsaky.androidide.templates.ITemplateProvider], which is
- * only touched on the success path (`ITemplateProvider.getInstance(reload = true)`, a
- * ServiceLoader-backed singleton not wired up on the unit test classpath) - so a happy-path
- * install/uninstall test is intentionally not included here.
+ * Install copies (the Downloads original stays), uninstall deletes (nothing is restored), and
+ * neither touches the other directory. [ITemplateProvider.getInstance] - a ServiceLoader-backed
+ * singleton not wired up on the unit test classpath - is stubbed so the success paths run.
  *
  * Runs under Robolectric rather than plain JUnit4 because the `listTemplateFiles` cases build
  * real `.cgt` archives, and parsing one reaches `org.json.JSONObject` - a "not mocked" stub
@@ -45,26 +46,41 @@ class TemplateRepositoryImplTest {
 		templatesDir = tempFolder.newFolder("templates")
 		downloadDir = tempFolder.newFolder("downloads")
 		repository = TemplateRepositoryImpl(templatesDir, downloadDir)
+		mockkObject(ITemplateProvider.Companion)
+		every { ITemplateProvider.getInstance(any()) } returns mockk(relaxed = true)
 	}
 
 	@After
 	fun tearDown() {
+		unmockkObject(ITemplateProvider.Companion)
 		// Undo any permission changes a test made, or TemporaryFolder can't clean up after itself.
 		templatesDir.setWritable(true)
 		downloadDir.setWritable(true)
-		downloadDir.setReadable(true)
 	}
 
 	private fun item(
 		file: File,
 		installed: Boolean,
+		provenance: TemplateProvenance = TemplateProvenance.USER,
 	) = CgtFileItem(
 		file = file,
 		name = file.name,
 		templates = listOf(TemplateMetadata("T", "d", "1.0")),
 		installed = installed,
-		provenance = TemplateProvenance.USER,
+		provenance = provenance,
 	)
+
+	@Test
+	fun installTemplate_copiesIntoTheStore_andLeavesTheDownloadsOriginal() =
+		runTest {
+			val source = File(downloadDir, "install.cgt").apply { writeText("source") }
+
+			val result = repository.installTemplate(item(source, installed = false))
+
+			assertThat(result.isSuccess).isTrue()
+			assertThat(File(templatesDir, "install.cgt").readText()).isEqualTo("source")
+			assertThat(source.readText()).isEqualTo("source")
+		}
 
 	@Test
 	fun installTemplate_nameCollision_failsWithoutTouchingEitherCopy() =
@@ -81,148 +97,47 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
-	fun installTemplate_deleteFails_rollsBackAndLeavesExactlyOneCopy() =
+	fun uninstallTemplate_deletesTheInstalledCopy_withoutWritingToDownloads() =
 		runTest {
-			val source = File(downloadDir, "install.cgt").apply { writeText("source") }
-			val dest = File(templatesDir, "install.cgt")
+			// Both provenances behave the same (ADFA-5444): nothing is restored for either.
+			for (provenance in TemplateProvenance.entries) {
+				val installed = File(templatesDir, "uninstall_$provenance.cgt").apply { writeText("installed") }
 
-			// File.delete() needs write permission on the *parent directory*, not the file
-			// itself - this is what makes item.file.delete() fail after copyTo() already
-			// succeeded (dest is in the unaffected templatesDir).
-			check(downloadDir.setWritable(false)) { "test setup: could not make downloadDir read-only" }
+				val result = repository.uninstallTemplate(item(installed, installed = true, provenance = provenance))
 
-			val result = repository.installTemplate(item(source, installed = false))
-
-			assertThat(result.isFailure).isTrue()
-			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
-			assertThat(source.exists()).isTrue()
-			assertThat(dest.exists()).isFalse()
+				assertThat(result.isSuccess).isTrue()
+				assertThat(installed.exists()).isFalse()
+			}
+			assertThat(downloadDir.list()).isEmpty()
 		}
 
 	@Test
-	fun uninstallTemplate_nameCollision_failsWithReplaceConflict_withoutTouchingEitherCopy() =
+	fun uninstallTemplate_succeeds_whenTheDownloadsOriginalIsStillThere() =
 		runTest {
-			val source = File(templatesDir, "dup.cgt").apply { writeText("installed") }
-			val existingDownload = File(downloadDir, "dup.cgt").apply { writeText("already in downloads") }
+			// The normal state after a copy-install - the old restore path failed here on its
+			// "already exists in Downloads" check, which is what made uninstall look broken.
+			val installed = File(templatesDir, "dup.cgt").apply { writeText("installed") }
+			val original = File(downloadDir, "dup.cgt").apply { writeText("original") }
 
-			val result = repository.uninstallTemplate(item(source, installed = true))
+			val result = repository.uninstallTemplate(item(installed, installed = true))
 
-			assertThat(result.isFailure).isTrue()
-			assertThat(result.exceptionOrNull()).isInstanceOf(TemplateReplaceConflictException::class.java)
-			assertThat(source.exists()).isTrue()
-			assertThat(source.readText()).isEqualTo("installed")
-			assertThat(existingDownload.readText()).isEqualTo("already in downloads")
+			assertThat(result.isSuccess).isTrue()
+			assertThat(installed.exists()).isFalse()
+			assertThat(original.readText()).isEqualTo("original")
 		}
 
 	@Test
-	fun uninstallTemplate_deleteFails_rollsBackAndLeavesExactlyOneCopy() =
+	fun uninstallTemplate_deleteFails_reportsIOException_andKeepsTheInstalledCopy() =
 		runTest {
-			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
-			val restored = File(downloadDir, "uninstall.cgt")
+			val installed = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
 
+			// File.delete() needs write permission on the *parent directory*, not the file itself.
 			check(templatesDir.setWritable(false)) { "test setup: could not make templatesDir read-only" }
 
-			val result = repository.uninstallTemplate(item(source, installed = true))
+			val result = repository.uninstallTemplate(item(installed, installed = true))
 
-			assertThat(result.isFailure).isTrue()
 			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
-			assertThat(source.exists()).isTrue()
-			assertThat(restored.exists()).isFalse()
-		}
-
-	@Test
-	fun uninstallTemplate_overwriteTrue_deleteFails_leavesTheReplacementCopyInDownloads() =
-		runTest {
-			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
-			val restored = File(downloadDir, "uninstall.cgt").apply { writeText("stale") }
-
-			check(templatesDir.setWritable(false)) { "test setup: could not make templatesDir read-only" }
-
-			val result = repository.uninstallTemplate(item(source, installed = true), overwrite = true)
-
-			assertThat(result.isFailure).isTrue()
-			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
-			// The source is still installed (its delete failed) - the pre-existing Downloads
-			// content was already overwritten and can't be recovered either way, so the new copy
-			// is left in place rather than deleted for nothing.
-			assertThat(source.exists()).isTrue()
-			assertThat(restored.readText()).isEqualTo("installed")
-			// The message must say the file now exists in both places, not the plain "failed to
-			// delete" wording the non-overwrite rollback case uses - a user reading that after an
-			// overwrite would wrongly assume their prior Downloads content is still intact.
-			assertThat(result.exceptionOrNull()?.message).contains("now exists in both places")
-		}
-
-	@Test
-	fun uninstallTemplate_overwriteTrue_copyFails_keepsTheExistingDownloadIntact() =
-		runTest {
-			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
-			val existingDownload = File(downloadDir, "uninstall.cgt").apply { writeText("user's file") }
-
-			// An unreadable source makes the copy itself fail. copyTo(overwrite = true) deletes
-			// the target before it opens the source, so this used to destroy the Downloads file.
-			check(source.setReadable(false)) { "test setup: could not make the source unreadable" }
-
-			val result = repository.uninstallTemplate(item(source, installed = true), overwrite = true)
-
-			assertThat(result.isFailure).isTrue()
-			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
-			assertThat(existingDownload.readText()).isEqualTo("user's file")
-			assertThat(source.exists()).isTrue()
-			// No partial or temp file left behind in Downloads.
-			assertThat(downloadDir.list()).asList().containsExactly("uninstall.cgt")
-		}
-
-	@Test
-	fun uninstallTemplate_caseOnlyNameCollision_failsWithReplaceConflictNamingTheExistingFile() =
-		runTest {
-			val source = File(templatesDir, "dup.cgt").apply { writeText("installed") }
-			val existingDownload = File(downloadDir, "Dup.CGT").apply { writeText("already in downloads") }
-
-			val result = repository.uninstallTemplate(item(source, installed = true))
-
-			assertThat(result.exceptionOrNull()).isInstanceOf(TemplateReplaceConflictException::class.java)
-			// The dialog shows this name, so it must be the file actually on disk.
-			assertThat((result.exceptionOrNull() as TemplateReplaceConflictException).fileName).isEqualTo("Dup.CGT")
-			assertThat(source.readText()).isEqualTo("installed")
-			assertThat(existingDownload.readText()).isEqualTo("already in downloads")
-			assertThat(downloadDir.list()).asList().containsExactly("Dup.CGT")
-		}
-
-	@Test
-	fun uninstallTemplate_overwriteTrue_caseOnlyNameCollision_replacesTheExistingFile_notAddsATwin() =
-		runTest {
-			val source = File(templatesDir, "dup.cgt").apply { writeText("installed") }
-			val existingDownload = File(downloadDir, "Dup.CGT").apply { writeText("stale") }
-
-			// A read-only templatesDir stops the call after the copy, before it reaches
-			// ITemplateProvider (not wired up here - see the class KDoc).
-			check(templatesDir.setWritable(false)) { "test setup: could not make templatesDir read-only" }
-			repository.uninstallTemplate(item(source, installed = true), overwrite = true)
-
-			assertThat(existingDownload.readText()).isEqualTo("installed")
-			assertThat(downloadDir.list()).asList().containsExactly("Dup.CGT")
-		}
-
-	@Test
-	fun uninstallTemplate_existingFileInvisibleToTheLookup_stillFailsWithReplaceConflict_insteadOfOverwriting() =
-		runTest {
-			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
-			val existingDownload = File(downloadDir, "uninstall.cgt").apply { writeText("already in downloads") }
-
-			// downloadDir.listFiles() returns null without read permission, so the pre-move
-			// existence check misses existingDownload even though it's still there - this is the
-			// race window a lookup-then-move approach has in general (the file could just as well
-			// have appeared between the check and the move). Without a confirmed `overwrite`,
-			// Files.move must still refuse to replace it rather than silently overwriting.
-			check(downloadDir.setReadable(false)) { "test setup: could not make downloadDir unreadable" }
-
-			val result = repository.uninstallTemplate(item(source, installed = true))
-
-			assertThat(result.exceptionOrNull()).isInstanceOf(TemplateReplaceConflictException::class.java)
-			assertThat(source.exists()).isTrue()
-			downloadDir.setReadable(true)
-			assertThat(existingDownload.readText()).isEqualTo("already in downloads")
+			assertThat(installed.exists()).isTrue()
 		}
 
 	@Test

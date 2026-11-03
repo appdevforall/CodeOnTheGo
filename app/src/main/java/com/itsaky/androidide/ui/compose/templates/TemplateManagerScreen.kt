@@ -63,19 +63,13 @@ private sealed interface TemplateManagerDialogState : Parcelable {
 	data object None : TemplateManagerDialogState
 
 	@Parcelize
+	data class InstallConfirm(
+		val path: String,
+	) : TemplateManagerDialogState
+
+	@Parcelize
 	data class DeleteConfirm(
 		val path: String,
-	) : TemplateManagerDialogState
-
-	@Parcelize
-	data class UninstallConfirm(
-		val path: String,
-	) : TemplateManagerDialogState
-
-	@Parcelize
-	data class ReplaceConfirm(
-		val path: String,
-		val fileName: String,
 	) : TemplateManagerDialogState
 
 	@Parcelize
@@ -161,16 +155,12 @@ fun TemplateManagerScreen(
 						)
 					}
 
+					is TemplateManagerUiEffect.ShowInstallConfirmation -> {
+						dialogState = TemplateManagerDialogState.InstallConfirm(effect.item.file.absolutePath)
+					}
+
 					is TemplateManagerUiEffect.ShowDeleteConfirmation -> {
 						dialogState = TemplateManagerDialogState.DeleteConfirm(effect.item.file.absolutePath)
-					}
-
-					is TemplateManagerUiEffect.ShowUninstallConfirmation -> {
-						dialogState = TemplateManagerDialogState.UninstallConfirm(effect.item.file.absolutePath)
-					}
-
-					is TemplateManagerUiEffect.ShowReplaceConfirmation -> {
-						dialogState = TemplateManagerDialogState.ReplaceConfirm(effect.item.file.absolutePath, effect.fileName)
 					}
 
 					is TemplateManagerUiEffect.ShowTemplateDetails -> {
@@ -221,6 +211,20 @@ fun TemplateManagerScreen(
 	when (val dialog = dialogState) {
 		is TemplateManagerDialogState.None -> {}
 
+		is TemplateManagerDialogState.InstallConfirm -> {
+			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
+			if (item != null) {
+				InstallTemplateConfirmationDialog(
+					item = item,
+					onConfirm = { deleteSource ->
+						viewModel.confirmInstallTemplate(item, deleteSource)
+						dialogState = TemplateManagerDialogState.None
+					},
+					onDismiss = { dialogState = TemplateManagerDialogState.None },
+				)
+			}
+		}
+
 		is TemplateManagerDialogState.DeleteConfirm -> {
 			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
 			if (item != null) {
@@ -228,34 +232,6 @@ fun TemplateManagerScreen(
 					item = item,
 					onConfirm = {
 						viewModel.confirmDeleteDownloadFile(item)
-						dialogState = TemplateManagerDialogState.None
-					},
-					onDismiss = { dialogState = TemplateManagerDialogState.None },
-				)
-			}
-		}
-
-		is TemplateManagerDialogState.UninstallConfirm -> {
-			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
-			if (item != null) {
-				UninstallTemplateConfirmationDialog(
-					item = item,
-					onConfirm = {
-						viewModel.confirmUninstallTemplate(item)
-						dialogState = TemplateManagerDialogState.None
-					},
-					onDismiss = { dialogState = TemplateManagerDialogState.None },
-				)
-			}
-		}
-
-		is TemplateManagerDialogState.ReplaceConfirm -> {
-			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
-			if (item != null) {
-				ReplaceTemplateInDownloadsDialog(
-					fileName = dialog.fileName,
-					onConfirm = {
-						viewModel.confirmUninstallTemplate(item, overwrite = true)
 						dialogState = TemplateManagerDialogState.None
 					},
 					onDismiss = { dialogState = TemplateManagerDialogState.None },

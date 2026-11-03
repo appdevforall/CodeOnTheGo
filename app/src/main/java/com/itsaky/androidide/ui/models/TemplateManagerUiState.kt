@@ -46,22 +46,12 @@ sealed class TemplateManagerUiEffect {
 		val formatArgs: List<Any> = emptyList(),
 	) : TemplateManagerUiEffect()
 
+	data class ShowInstallConfirmation(
+		val item: CgtFileItem,
+	) : TemplateManagerUiEffect()
+
 	data class ShowDeleteConfirmation(
 		val item: CgtFileItem,
-	) : TemplateManagerUiEffect()
-
-	/** Ask before uninstalling [item], mirroring [ShowDeleteConfirmation]'s pattern for a Downloads file. */
-	data class ShowUninstallConfirmation(
-		val item: CgtFileItem,
-	) : TemplateManagerUiEffect()
-
-	/**
-	 * A Downloads file with the same name already exists; ask before [uninstallTemplate][com.itsaky.androidide.repositories.TemplateRepository.uninstallTemplate] overwrites it.
-	 * [fileName] is that file's exact name on disk, which can differ from [item]'s in case.
-	 */
-	data class ShowReplaceConfirmation(
-		val item: CgtFileItem,
-		val fileName: String,
 	) : TemplateManagerUiEffect()
 
 	data class ShowTemplateDetails(
