@@ -37,7 +37,6 @@ import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
 import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
@@ -548,13 +547,11 @@ internal class KtSymbolIndex(
 	/** Returns the source files the metadata index lists for [packageFqName]. */
 	internal fun sourceFilesForPackage(packageFqName: FqName): List<VirtualFile> = packageFiles.filesFor(packageFqName.asString())
 
-	private fun findSourceFiles(packageFqName: String): List<VirtualFile> {
-		val vfm = VirtualFileManager.getInstance()
-		return fileIndex
+	private fun findSourceFiles(packageFqName: String): List<VirtualFile> =
+		fileIndex
 			.getFilePathsForPackage(packageFqName)
-			.mapNotNull { vfm.findFileByNioPath(Paths.get(it)) }
+			.mapNotNull { Paths.get(it).toVirtualFileOrNull() }
 			.toList()
-	}
 
 	/** [getKtFile] for [vf], keyed by the path it maps to. */
 	@ResolutionSideKtFileAccess
