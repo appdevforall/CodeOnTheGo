@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Shared `filesDir/temp` staging area for the .cgp/.cgt install flows (ExternalFileInstallViewModel,
- * and PluginManagerViewModel's ContentUri branch) - centralizes temp-file naming so both ViewModels
+ * and PluginManagerViewModel's PickedUri branch) - centralizes temp-file naming so both ViewModels
  * don't duplicate it, and sweeps orphans left behind by a hand-off that never completed (e.g.
  * process death between ExternalFileInstallViewModel sending ForwardToPluginManager and
  * PluginManagerActivity reading the pending-install-file extra).
