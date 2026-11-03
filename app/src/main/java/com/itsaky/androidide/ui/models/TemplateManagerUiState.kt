@@ -50,6 +50,10 @@ sealed class TemplateManagerUiEffect {
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()
 
+	data class ShowUninstallConfirmation(
+		val item: CgtFileItem,
+	) : TemplateManagerUiEffect()
+
 	data class ShowDeleteConfirmation(
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()

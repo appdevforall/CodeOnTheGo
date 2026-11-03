@@ -42,7 +42,7 @@ class TemplateManagerViewModel(
 		when (event) {
 			is TemplateManagerUiEvent.LoadTemplates -> loadTemplates()
 			is TemplateManagerUiEvent.InstallTemplate -> showInstallConfirmation(event.item)
-			is TemplateManagerUiEvent.UninstallTemplate -> uninstallTemplate(event.item)
+			is TemplateManagerUiEvent.UninstallTemplate -> showUninstallConfirmation(event.item)
 			is TemplateManagerUiEvent.DeleteDownloadFile -> showDeleteConfirmation(event.item)
 			is TemplateManagerUiEvent.ShowTemplateDetails -> showTemplateDetails(event.item)
 			is TemplateManagerUiEvent.ShowTemplateList -> showTemplateList(event.item)
@@ -120,7 +120,14 @@ class TemplateManagerViewModel(
 		}
 	}
 
-	private fun uninstallTemplate(item: CgtFileItem) {
+	private fun showUninstallConfirmation(item: CgtFileItem) {
+		viewModelScope.launch {
+			_uiEffect.send(TemplateManagerUiEffect.ShowUninstallConfirmation(item))
+		}
+	}
+
+	/** Uninstalls [item] (called after [TemplateManagerUiEffect.ShowUninstallConfirmation] is confirmed). */
+	fun confirmUninstallTemplate(item: CgtFileItem) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository

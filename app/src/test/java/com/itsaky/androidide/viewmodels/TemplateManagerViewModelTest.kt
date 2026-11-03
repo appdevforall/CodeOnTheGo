@@ -48,6 +48,8 @@ class TemplateManagerViewModelTest {
 			provenance = TemplateProvenance.USER,
 		)
 
+	private val installedItem = item.copy(file = File("/tmp/templates/install.cgt"), installed = true)
+
 	@Before
 	fun stubAndroidLog() {
 		// TemplateManagerViewModel calls android.util.Log.d/Log.e directly; under plain JVM
@@ -196,6 +198,58 @@ class TemplateManagerViewModelTest {
 			advanceUntilIdle()
 
 			// Only the init{} load - a failed install must not trigger a reload.
+			coVerify(exactly = 1) { repository.listTemplateFiles() }
+			assertThat(viewModel.uiEffect.first() is TemplateManagerUiEffect.ShowError).isTrue()
+		}
+
+	@Test
+	fun uninstallTemplateEvent_onlyAsksForConfirmation() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+			// Stubbed so a regression that uninstalls straight away sends ShowSuccess and fails the
+			// assertion below, rather than throwing inside the coroutine and hanging first().
+			coEvery { repository.uninstallTemplate(installedItem) } returns Result.success(Unit)
+
+			val viewModel = TemplateManagerViewModel(repository)
+			advanceUntilIdle()
+
+			viewModel.onEvent(TemplateManagerUiEvent.UninstallTemplate(installedItem))
+			advanceUntilIdle()
+
+			assertThat(viewModel.uiEffect.first()).isEqualTo(TemplateManagerUiEffect.ShowUninstallConfirmation(installedItem))
+			coVerify(exactly = 0) { repository.uninstallTemplate(any()) }
+		}
+
+	@Test
+	fun confirmUninstallTemplate_onSuccess_reloadsAndSendsShowSuccessEffect() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+			coEvery { repository.uninstallTemplate(installedItem) } returns Result.success(Unit)
+
+			val viewModel = TemplateManagerViewModel(repository)
+			advanceUntilIdle()
+
+			viewModel.confirmUninstallTemplate(installedItem)
+			advanceUntilIdle()
+
+			coVerify(exactly = 1) { repository.uninstallTemplate(installedItem) }
+			// listTemplateFiles is called once by init{} and again by the post-uninstall reload.
+			coVerify(exactly = 2) { repository.listTemplateFiles() }
+			assertThat(viewModel.uiEffect.first() is TemplateManagerUiEffect.ShowSuccess).isTrue()
+		}
+
+	@Test
+	fun confirmUninstallTemplate_onFailure_sendsShowErrorEffect_withoutReloading() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+			coEvery { repository.uninstallTemplate(installedItem) } returns Result.failure(java.io.IOException("boom"))
+
+			val viewModel = TemplateManagerViewModel(repository)
+			advanceUntilIdle()
+
+			viewModel.confirmUninstallTemplate(installedItem)
+			advanceUntilIdle()
+
 			coVerify(exactly = 1) { repository.listTemplateFiles() }
 			assertThat(viewModel.uiEffect.first() is TemplateManagerUiEffect.ShowError).isTrue()
 		}

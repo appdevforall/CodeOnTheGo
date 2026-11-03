@@ -68,6 +68,11 @@ private sealed interface TemplateManagerDialogState : Parcelable {
 	) : TemplateManagerDialogState
 
 	@Parcelize
+	data class UninstallConfirm(
+		val path: String,
+	) : TemplateManagerDialogState
+
+	@Parcelize
 	data class DeleteConfirm(
 		val path: String,
 	) : TemplateManagerDialogState
@@ -159,6 +164,10 @@ fun TemplateManagerScreen(
 						dialogState = TemplateManagerDialogState.InstallConfirm(effect.item.file.absolutePath)
 					}
 
+					is TemplateManagerUiEffect.ShowUninstallConfirmation -> {
+						dialogState = TemplateManagerDialogState.UninstallConfirm(effect.item.file.absolutePath)
+					}
+
 					is TemplateManagerUiEffect.ShowDeleteConfirmation -> {
 						dialogState = TemplateManagerDialogState.DeleteConfirm(effect.item.file.absolutePath)
 					}
@@ -218,6 +227,20 @@ fun TemplateManagerScreen(
 					item = item,
 					onConfirm = { deleteSource ->
 						viewModel.confirmInstallTemplate(item, deleteSource)
+						dialogState = TemplateManagerDialogState.None
+					},
+					onDismiss = { dialogState = TemplateManagerDialogState.None },
+				)
+			}
+		}
+
+		is TemplateManagerDialogState.UninstallConfirm -> {
+			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
+			if (item != null) {
+				UninstallTemplateConfirmationDialog(
+					item = item,
+					onConfirm = {
+						viewModel.confirmUninstallTemplate(item)
 						dialogState = TemplateManagerDialogState.None
 					},
 					onDismiss = { dialogState = TemplateManagerDialogState.None },

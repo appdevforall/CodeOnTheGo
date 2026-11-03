@@ -75,6 +75,32 @@ fun InstallTemplateConfirmationDialog(
 	)
 }
 
+/** Same confirm-before-uninstall step as the Plugins tab. Nothing is restored to Downloads. */
+@Composable
+fun UninstallTemplateConfirmationDialog(
+	item: CgtFileItem,
+	onConfirm: () -> Unit,
+	onDismiss: () -> Unit,
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.title_uninstall_template)) },
+		// AlertDialog's text slot does not scroll; a long file name at 2x font scale would clip.
+		text = {
+			Text(
+				stringResource(R.string.msg_uninstall_template_confirm, item.displayName),
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+			)
+		},
+		confirmButton = {
+			TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_uninstall_template)) }
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+		},
+	)
+}
+
 @Composable
 fun DeleteTemplateConfirmationDialog(
 	item: CgtFileItem,
@@ -84,7 +110,12 @@ fun DeleteTemplateConfirmationDialog(
 	AlertDialog(
 		onDismissRequest = onDismiss,
 		title = { Text(stringResource(R.string.title_delete_template)) },
-		text = { Text(stringResource(R.string.msg_delete_template_confirm, item.displayName)) },
+		text = {
+			Text(
+				stringResource(R.string.msg_delete_template_confirm, item.displayName),
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+			)
+		},
 		confirmButton = {
 			TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_delete_template)) }
 		},
