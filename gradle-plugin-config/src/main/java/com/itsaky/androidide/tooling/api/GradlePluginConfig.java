@@ -35,6 +35,26 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_PROFILEABLE_ENABLED = "cotg.profileable.enabled";
 
 	/**
+	 * Property used by the Gradle plugin to determine whether this build is a Quick Build proxy app build (ADFA-4128). When {@code true}, the plugin generates the proxy app shell: proxy activities from the merged manifest, the quick-build runtime dependency, and the class-openability transform.
+	 */
+	public static final String PROPERTY_QUICK_BUILD_ENABLED = "cotg.quickbuild.enabled";
+
+	/**
+	 * The path to the Quick Build runtime AAR file, injected into the proxy app like the LogSender AAR.
+	 */
+	public static final String PROPERTY_QUICK_BUILD_RUNTIME_AAR = "cotg.quickbuild.runtimeAar";
+
+	/**
+	 * The generation the host allocated for the proxy app baseline being built, from the same persistent per-project counter that numbers hot deploys. The plugin stamps it into the APK as an asset next to the baseline payload dex, so the runtime boots at this number instead of a constant 0. Unset means an older host: the plugin then stamps 0, which the runtime treats exactly like its pre-stamp baseline.
+	 */
+	public static final String PROPERTY_QUICK_BUILD_BASELINE_GENERATION = "cotg.quickbuild.baselineGeneration";
+
+	/**
+	 * Absolute path of the directory that receives the build's output instead of each project's {@code build/} (ADFA-4930). When set, the init script plugin points every project's build directory into it, so build output stays off the FUSE-backed project folder. Unset keeps Gradle's default.
+	 */
+	public static final String PROPERTY_BUILD_OUTPUT_DIR = "cotg.build.outputDir";
+
+	/**
 	 * Property to enable or disable <code>LogSender</code> in the project. Value can be <code>true</code> or <code>false</code>.
 	 */
 	public static final String PROPERTY_LOG_SENDER_ENABLED = "androidide.logsender.isEnabled";

@@ -42,35 +42,26 @@ import java.io.File
  * @author Akash Yadav
  */
 abstract class TreeSitterLanguage(
-	context: Context,
-	lang: TSLanguage,
-	private val langType: String
+	private val langType: String,
+	private val languageSpec: TreeSitterLanguageSpec,
 ) : IDELanguage() {
+	constructor(
+		context: Context,
+		lang: TSLanguage,
+		langType: String,
+	) : this(langType, getLanguageSpec(context, langType, lang, newLocalCaptureSpec(langType)))
 
-	private var languageSpec =
-		getLanguageSpec(context, langType, lang, newLocalCaptureSpec(langType))
 	private var tsTheme = TsTheme(languageSpec.spec.tsQuery)
-	private lateinit var _indentProvider: TreeSitterIndentProvider
 	private val analyzer by lazy { TreeSitterAnalyzeManager(languageSpec.spec, tsTheme) }
 	private val newlineHandlersLazy by lazy { createNewlineHandlers() }
 
 	private var languageScheme: LanguageScheme? = null
 
-	private val indentProvider: TreeSitterIndentProvider
-		get() {
-			if (!this::_indentProvider.isInitialized) {
-				this._indentProvider = TreeSitterIndentProvider(
-					languageSpec,
-					analyzer.analyzeWorker!!,
-					getTabSize()
-				)
-			}
-
-			return _indentProvider
-		}
+	private val indentProvider by lazy {
+		TreeSitterIndentProvider(languageSpec, analyzer.analyzeWorker!!, getTabSize())
+	}
 
 	companion object {
-
 		init {
 			TreeSitter.loadLibrary()
 		}
@@ -80,7 +71,7 @@ abstract class TreeSitterLanguage(
 	}
 
 	fun setupWith(scheme: IDEColorScheme?) {
-		val langScheme = scheme?.languages?.get(langType)
+		val langScheme = scheme?.getLanguageScheme(langType)
 		this.languageScheme = langScheme
 		this.analyzer.langScheme = languageScheme
 		langScheme?.styles?.forEach { tsTheme.putStyleRule(it.key, it.value.makeStyle()) }
@@ -110,32 +101,22 @@ abstract class TreeSitterLanguage(
 		this.analyzer.unhighlightLines()
 	}
 
-	override fun getAnalyzeManager(): AnalyzeManager {
-		return this.analyzer
-	}
+	override fun getAnalyzeManager(): AnalyzeManager = this.analyzer
 
-	override fun getSymbolPairs(): SymbolPairMatch {
-		return CommonSymbolPairs()
-	}
+	override fun getSymbolPairs(): SymbolPairMatch = CommonSymbolPairs()
 
-	open fun createNewlineHandlers(): Array<TSBracketsHandler> {
-		return emptyArray()
-	}
+	open fun createNewlineHandlers(): Array<TSBracketsHandler> = emptyArray()
 
-	override fun getNewlineHandlers(): Array<TSBracketsHandler> {
-		return newlineHandlersLazy
-	}
+	override fun getNewlineHandlers(): Array<TSBracketsHandler> = newlineHandlersLazy
 
-	override fun getInterruptionLevel(): Int {
-		return INTERRUPTION_LEVEL_STRONG
-	}
+	override fun getInterruptionLevel(): Int = INTERRUPTION_LEVEL_STRONG
 
 	override fun getIndentAdvance(
 		content: ContentReference,
 		line: Int,
 		column: Int,
 		spaceCountOnLine: Int,
-		tabCountOnLine: Int
+		tabCountOnLine: Int,
 	): Int {
 		return try {
 			if (line == content.reference.lineCount - 1) {
@@ -145,26 +126,31 @@ abstract class TreeSitterLanguage(
 			}
 
 			// Request both lines so the advance is a relative delta, cancelling any mismatch between the editor's indent size and the file's actual indentation width.
-			val linesToReq = longArrayOf(
-				IntPair.pack(line, column),
-				IntPair.pack(line + 1, 0)
-			)
+			val linesToReq =
+				longArrayOf(
+					IntPair.pack(line, column),
+					IntPair.pack(line + 1, 0),
+				)
 
-			val indents = this.indentProvider.getIndentsForLines(
-				content = content.reference,
-				positions = linesToReq,
-			)
+			val indents =
+				this.indentProvider.getIndentsForLines(
+					content = content.reference,
+					positions = linesToReq,
+				)
 
 			val (indentLine, indentNxtLine) = indents
 			// A sentinel indent (e.g. INDENT_AUTO == Int.MAX_VALUE) would overflow the advance into a huge whitespace string (OOM), so fall back to the default advance.
-			if (indentLine == TreeSitterIndentProvider.INDENTATION_ERR
-				|| indentNxtLine == TreeSitterIndentProvider.INDENTATION_ERR
-				|| indentLine == TreeSitterIndentProvider.INDENT_AUTO
-				|| indentNxtLine == TreeSitterIndentProvider.INDENT_AUTO
+			if (indentLine == TreeSitterIndentProvider.INDENTATION_ERR ||
+				indentNxtLine == TreeSitterIndentProvider.INDENTATION_ERR ||
+				indentLine == TreeSitterIndentProvider.INDENT_AUTO ||
+				indentNxtLine == TreeSitterIndentProvider.INDENT_AUTO
 			) {
 				log.debug(
 					"expectedIndent[{}]={}, expectedIndentNextLine[{}]={}, returning default indent advance",
-					line, indentLine, line + 1, indentNxtLine
+					line,
+					indentLine,
+					line + 1,
+					indentNxtLine,
 				)
 				return DEF_IDENT_ADV
 			}
@@ -175,11 +161,10 @@ abstract class TreeSitterLanguage(
 				"An error occurred computing indentation at line:column::{}:{}",
 				line,
 				column,
-				e
+				e,
 			)
 			DEF_IDENT_ADV
 		}
-
 	}
 
 	override fun destroy() {
@@ -189,7 +174,6 @@ abstract class TreeSitterLanguage(
 
 	/** A [Factory] creates instance of a specific [TreeSitterLanguage] implementation. */
 	fun interface Factory<T : TreeSitterLanguage> {
-
 		/**
 		 * Create the instance of the [TreeSitterLanguage] implementation.
 		 *

@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
+import org.appdevforall.codeonthego.indexing.IndexSessionLifetime
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.indexQuery
@@ -14,34 +15,36 @@ import java.io.Closeable
 class KtFileMetadataIndex(
 	private val backing: Index<KtFileMetadata>,
 ) : Closeable {
-
 	companion object {
-
 		/**
 		 * Creates a [KtFileMetadataIndex] backed by a SQLite database.
 		 *
 		 * The [context] is required by the AndroidX SQLite helpers even for in-memory
-		 * databases; it is not used for any file I/O.
+		 * databases; it is not used for any file I/O. [lifetime] is the project session owning the
+		 * index, or null if it has none.
 		 */
 		fun sqliteBacked(
 			context: Context,
-			dbName: String? = null
+			dbName: String? = null,
+			lifetime: IndexSessionLifetime? = null,
 		): KtFileMetadataIndex =
 			KtFileMetadataIndex(
 				SQLiteIndex(
 					descriptor = KtFileMetadataDescriptor,
 					context = context,
 					dbName = dbName,
+					formatVersion = JvmSymbolIndex.FORMAT_VERSION,
 					name = "kt-file-metadata",
-				)
+					lifetime = lifetime,
+				),
 			)
 	}
 
 	/**
 	 * Insert or replace the metadata record for a single file.
 	 *
-	 * Because [KtFileMetadata.key] == [KtFileMetadata.filePath], the
-	 * underlying `CONFLICT_REPLACE` strategy ensures this is a true upsert.
+	 * Because [KtFileMetadata.key] and [KtFileMetadata.sourceId] are both the
+	 * file path, a file has at most one row and an insert replaces it.
 	 */
 	suspend fun upsert(metadata: KtFileMetadata) = backing.insert(metadata)
 
@@ -57,7 +60,7 @@ class KtFileMetadataIndex(
 	 * batched, transactional operation.
 	 *
 	 * Equivalent to calling [remove] once per path, but issues the deletes as one
-	 * transaction instead of N — see [Index.removeBySources]. Paths not present in
+	 * transaction instead of N - see [Index.removeBySources]. Paths not present in
 	 * the index are ignored.
 	 */
 	suspend fun removeAll(filePaths: Collection<String>) = backing.removeBySources(filePaths)
@@ -82,15 +85,14 @@ class KtFileMetadataIndex(
 			indexQuery {
 				eq(KEY_PACKAGE, packageFqName)
 				limit = 0
-			}
+			},
 		)
 
 	/**
 	 * Returns a [Sequence] of absolute file paths whose declared package exactly
 	 * matches [packageFqName].
 	 */
-	fun getFilePathsForPackage(packageFqName: String): Sequence<String> =
-		getFilesForPackage(packageFqName).map { it.filePath }
+	fun getFilePathsForPackage(packageFqName: String): Sequence<String> = getFilesForPackage(packageFqName).map { it.filePath }
 
 	/**
 	 * Returns `true` if at least one file with package [packageFqName] is
@@ -99,10 +101,13 @@ class KtFileMetadataIndex(
 	 * Pass an empty string for the root (default) package.
 	 */
 	fun packageExists(packageFqName: String): Boolean =
-		backing.query(indexQuery {
-			eq(KEY_PACKAGE, packageFqName)
-			limit = 1
-		}).firstOrNull() != null
+		backing
+			.query(
+				indexQuery {
+					eq(KEY_PACKAGE, packageFqName)
+					limit = 1
+				},
+			).firstOrNull() != null
 
 	/**
 	 * Returns the simple names of the direct child packages of [packageFqName].
@@ -140,13 +145,20 @@ class KtFileMetadataIndex(
 	 * symbols have not yet been extracted ([KtFileMetadata.isIndexed] is `false`).
 	 */
 	fun getUnindexedFiles(): Sequence<String> =
-		backing.query(indexQuery {
-			eq(KEY_IS_INDEXED, false.toString())
-			limit = 0
-		}).map { it.filePath }
+		backing
+			.query(
+				indexQuery {
+					eq(KEY_IS_INDEXED, false.toString())
+					limit = 0
+				},
+			).map { it.filePath }
 
 	/** Remove all records from the index. */
 	suspend fun clear() = backing.clear()
+
+	/** Whether the backing index still serves reads and writes. */
+	val isOpen: Boolean
+		get() = backing.isOpen
 
 	override fun close() = backing.close()
 }

@@ -60,7 +60,7 @@ if (value[0] == '#') {
 	} catch (err: Throwable) {
 		throw ParseException("Invalid hex color code: '$value'", err)
 	}
-	return if (colorId) try {putColor(color)}catch (err: Throwable) {color} else color
+	return if (colorId) putColor(color) else color
 }
 
 throw ParseException("Unsupported color value '$value'")

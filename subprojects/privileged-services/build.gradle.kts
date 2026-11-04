@@ -22,6 +22,8 @@ dependencies {
 	api(libs.androidx.annotation)
 
 	implementation(libs.rikka.hidden.compat)
-	implementation(libs.rikka.hidden.stub)
+	// compileOnly: packaged stubs make R8 treat framework interfaces as unimplemented app classes
+	// and rewrite calls through them to throws.
+	compileOnly(libs.rikka.hidden.stub)
 	implementation(libs.rikka.refine.runtime)
 }

@@ -23,43 +23,47 @@ import org.junit.Test
  * index worker is still running and about to call `PsiManager.findFile(project)`.
  */
 class IndexWorkerDisposalTest : KtLspTest() {
-
 	private fun jvmIndex(): JvmSymbolIndex {
 		val backing = InMemoryIndex(JvmSymbolDescriptor)
 		return object : JvmSymbolIndex(backing, BackgroundIndexer(backing)) {
-			override fun isActive(sourceId: String) = true
+			override fun visibleSourceIds(): Collection<String>? = null
 		}
 	}
 
-	private fun fileIndex(): KtFileMetadataIndex =
-		KtFileMetadataIndex(InMemoryIndex(KtFileMetadataDescriptor))
+	private fun fileIndex(): KtFileMetadataIndex = KtFileMetadataIndex(InMemoryIndex(KtFileMetadataDescriptor))
 
 	@Test
-	fun `worker stops without crashing when project is already disposed`(): Unit = runBlocking {
-		// Capture a real VirtualFile while the project is still alive.
-		val vf = createSourceFile("Sample.kt", "fun foo() = 1").virtualFile
+	fun `worker stops without crashing when project is already disposed`(): Unit =
+		runBlocking {
+			// Capture a real VirtualFile while the project is still alive.
+			val vf = createSourceFile("Sample.kt", "fun foo() = 1").virtualFile
 
-		val worker = IndexWorker(
-			project = env.project,
-			queue = WorkerQueue(),
-			fileIndex = fileIndex(),
-			sourceIndex = jvmIndex(),
-			scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
-		)
+			val worker =
+				IndexWorker(
+					project = env.project,
+					queue = WorkerQueue(),
+					fileIndex = fileIndex(),
+					sourceIndex = jvmIndex(),
+					scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+				)
 
-		// Dispose the project out from under the worker, exactly as happens on LSP shutdown
-		// (env.close() disposes the project via its parent Disposable, the production path).
-		// IntelliJ requires model teardown to run inside a write action.
-		ApplicationManager.getApplication().runWriteAction { env.close() }
-		assertThat(env.project.isDisposed).isTrue()
+			/*
+			 * Dispose the project out from under the worker, exactly as happens on LSP shutdown
+			 * (env.close() disposes the project via its parent Disposable, the production path).
+			 * IntelliJ requires model teardown to run inside a write action.
+			 */
+			ApplicationManager.getApplication().runWriteAction { env.close() }
+			assertThat(env.project.isDisposed).isTrue()
 
-		// Pre-fix, processing either command calls PsiManager.findFile on the disposed project
-		// and throws AssertionError("Project is already disposed"). Post-fix, the disposal guard
-		// breaks the loop, so start() returns cleanly instead of throwing.
-		worker.submitCommand(IndexCommand.ScanSourceFile(vf))
-		worker.submitCommand(IndexCommand.IndexSourceFile(vf))
-		worker.submitCommand(IndexCommand.Stop)
+			/*
+			 * Pre-fix, processing either command calls PsiManager.findFile on the disposed project
+			 * and throws AssertionError("Project is already disposed"). Post-fix, the disposal guard
+			 * breaks the loop, so start() returns cleanly instead of throwing.
+			 */
+			worker.submitCommand(IndexCommand.ScanSourceFile(vf))
+			worker.submitCommand(IndexCommand.IndexSourceFile(vf))
+			worker.submitCommand(IndexCommand.Stop)
 
-		withTimeout(5_000) { worker.start() }
-	}
+			withTimeout(5_000) { worker.start() }
+		}
 }

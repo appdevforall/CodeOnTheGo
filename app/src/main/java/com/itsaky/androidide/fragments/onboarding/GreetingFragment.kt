@@ -21,7 +21,8 @@ import android.os.Bundle
 import android.view.View
 import com.itsaky.androidide.databinding.FragmentOnboardingGreetingBinding
 import com.itsaky.androidide.fragments.FragmentWithBinding
-import com.itsaky.androidide.utils.FeatureFlags
+import com.itsaky.androidide.utils.Experiment
+import com.itsaky.androidide.utils.Experiments
 
 /**
  * @author Akash Yadav
@@ -34,7 +35,7 @@ class GreetingFragment : FragmentWithBinding<FragmentOnboardingGreetingBinding>(
 		super.onViewCreated(view, savedInstanceState)
 
 		// EXPERIMENTAL MODE - Crash app in order to capture exception on GlitchTip
-		if (FeatureFlags.isExperimentsEnabled) {
+		if (Experiments.isOn(Experiment.CRASH_ON_ICON_LONG_PRESS)) {
 			binding.icon.setOnLongClickListener {
 				crashApp()
 				true

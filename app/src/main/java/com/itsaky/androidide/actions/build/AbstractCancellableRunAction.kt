@@ -21,8 +21,8 @@ import org.slf4j.LoggerFactory
  */
 abstract class AbstractCancellableRunAction(
 	context: Context,
-	@StringRes private val labelRes: Int,
-	@DrawableRes private val iconRes: Int,
+	@param:StringRes private val labelRes: Int,
+	@param:DrawableRes private val iconRes: Int,
 ) : BaseBuildAction() {
 	// Execute on UI thread as this action might try to show dialogs to the user
 	final override var requiresUIThread: Boolean = true
@@ -72,6 +72,10 @@ abstract class AbstractCancellableRunAction(
 			return cancelBuild()
 		}
 
+		// An internal build can own the slot without driving the editor's build UI, so this button
+		// correctly still reads "Run" rather than offering to cancel.
+		if (refuseWhileSlotBusy(data)) return false
+
 		return doExec(data)
 	}
 
@@ -93,10 +97,17 @@ abstract class AbstractCancellableRunAction(
 		protected val log: Logger =
 			LoggerFactory.getLogger(AbstractCancellableRunAction::class.java)
 
+		/**
+		 * Whether the USER has a build running - what the stop affordance, the progress bar
+		 * and the disabled-during-build actions key off. Reads
+		 * [BuildService.isUserVisibleBuildInProgress], not the raw flag, so Quick Build's own
+		 * proxy app build (same Gradle path, nobody asked for it) does not make this button claim
+		 * to cancel a build the user never started.
+		 */
 		fun EditorHandlerActivity?.isBuildInProgress(): Boolean {
 			val buildService = Lookup.getDefault().lookup(BuildService.KEY_BUILD_SERVICE)
 			return this?.editorViewModel?.let { it.isInitializing || it.isBuildInProgress } == true ||
-				buildService?.isBuildInProgress == true
+				buildService?.isUserVisibleBuildInProgress == true
 		}
 	}
 }

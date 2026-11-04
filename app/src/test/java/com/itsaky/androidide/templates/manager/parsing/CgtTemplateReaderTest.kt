@@ -37,7 +37,7 @@ class CgtTemplateReaderTest {
 						"""{"name":"Basic Activity","description":"Creates a new basic activity","version":"0.1"}""",
 				),
 			)
-		val result = CgtTemplateReader.readTemplates(input)
+		val result = CgtTemplateReader.readTemplates(input).templates
 		assertThat(result).hasSize(1)
 		assertThat(result[0].name).isEqualTo("Basic Activity")
 		assertThat(result[0].description).isEqualTo("Creates a new basic activity")
@@ -55,9 +55,39 @@ class CgtTemplateReaderTest {
 					"a/build.gradle.kts.peb" to "// not a template.json",
 				),
 			)
-		val result = CgtTemplateReader.readTemplates(input)
+		val result = CgtTemplateReader.readTemplates(input).templates
 		assertThat(result).hasSize(2)
 		assertThat(result.map { it.name }.toSet()).isEqualTo(setOf("Empty", "Login"))
+	}
+
+	@Test
+	fun readsDisplayNameFromArchiveRootManifest() {
+		val input =
+			cgt(
+				mapOf(
+					"templates.json" to """{"displayName":"Block Game"}""",
+					"a/template/template.json" to """{"name":"Empty","description":"e","version":"1.0"}""",
+					"b/template/template.json" to """{"name":"Login","description":"l","version":"1.1"}""",
+				),
+			)
+		val result = CgtTemplateReader.readTemplates(input)
+		assertThat(result.displayName).isEqualTo("Block Game")
+		assertThat(result.templates).hasSize(2)
+	}
+
+	@Test
+	fun displayNameIsNullWhenArchiveHasNoRootManifest() {
+		val input = cgt(mapOf("pkg/template/template.json" to """{"name":"T","description":"d","version":"1.0"}"""))
+		assertThat(CgtTemplateReader.readTemplates(input).displayName).isNull()
+	}
+
+	@Test
+	fun displayNameIsNullWhenRootManifestOmitsOrBlanksIt() {
+		val blank = cgt(mapOf("templates.json" to """{"displayName":"   "}"""))
+		assertThat(CgtTemplateReader.readTemplates(blank).displayName).isNull()
+
+		val absent = cgt(mapOf("templates.json" to """{"templates":[]}"""))
+		assertThat(CgtTemplateReader.readTemplates(absent).displayName).isNull()
 	}
 
 	@Test
@@ -77,7 +107,12 @@ class CgtTemplateReaderTest {
 						""".trimIndent(),
 				),
 			)
-		val tags = CgtTemplateReader.readTemplates(input).single().optionalTags
+		val tags =
+			CgtTemplateReader
+				.readTemplates(input)
+				.templates
+				.single()
+				.optionalTags
 		// org.json key iteration order isn't guaranteed, so compare as a set.
 		assertThat(tags.toSet()).isEqualTo(setOf("language (LANGUAGE)", "minsdk (MIN_SDK)"))
 	}
@@ -97,7 +132,7 @@ class CgtTemplateReaderTest {
 						""".trimIndent(),
 				),
 			)
-		val template = CgtTemplateReader.readTemplates(input).single()
+		val template = CgtTemplateReader.readTemplates(input).templates.single()
 		assertThat(template.name).isEqualTo("Basic Activity")
 		assertThat(template.optionalTags).isEqualTo(listOf("language (LANGUAGE)"))
 	}
@@ -111,13 +146,19 @@ class CgtTemplateReaderTest {
 						"""{"name":"T","description":"d","version":"1.0","parameters":{"optional":{"flag":{}}}}""",
 				),
 			)
-		assertThat(CgtTemplateReader.readTemplates(input).single().optionalTags).isEqualTo(listOf("flag"))
+		assertThat(
+			CgtTemplateReader
+				.readTemplates(input)
+				.templates
+				.single()
+				.optionalTags,
+		).isEqualTo(listOf("flag"))
 	}
 
 	@Test
 	fun returnsEmptyWhenNoTemplateJson() {
 		val input = cgt(mapOf("pkg/readme.txt" to "hello", "pkg/template/other.json" to "{}"))
-		assertThat(CgtTemplateReader.readTemplates(input)).isEmpty()
+		assertThat(CgtTemplateReader.readTemplates(input).templates).isEmpty()
 	}
 
 	@Test

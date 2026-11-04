@@ -47,6 +47,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
 
 class BuildOutputFragment :
 	NonEditableEditorFragment(),
@@ -56,6 +57,7 @@ class BuildOutputFragment :
 
 	companion object {
 		private const val LAYOUT_TIMEOUT_MS = 2000L
+		private const val MAX_BATCH_CHARS = 64 * 1024
 	}
 
 	override val currentEditor: IDEEditor? get() = editor
@@ -361,6 +363,8 @@ class BuildOutputFragment :
 		noMatchTracker.reset()
 		buildOutputViewModel.clear()
 		super.clearOutput()
+		// super replaces the Content; drop search results that point into the old one.
+		onContentReplaced()
 		// super sets the empty state unconditionally; re-apply the invariant so an
 		// active filter keeps the content layout (and the filter bar) reachable.
 		updateEmptyState(isSourceEmpty = true, isFilterActive = isFilterActive)
@@ -394,12 +398,17 @@ class BuildOutputFragment :
 	 * into a single memory operation to avoid saturating the UI queue.
 	 */
 	private fun ReceiveChannel<String>.drainTo(buffer: StringBuilder) {
+		// Bounded: the main thread word-wraps each batch in one appendBatch call, so draining a
+		// flooding build in one go stalled it into an ANR (WordwrapLayout.afterInsert). The rest
+		// stays queued for the next batch.
+		if (buffer.length >= MAX_BATCH_CHARS) return
 		var result = tryReceive()
 		while (result.isSuccess) {
 			val line = result.getOrNull()
 			if (!line.isNullOrEmpty()) {
 				buffer.append(line.ensureNewline())
 			}
+			if (buffer.length >= MAX_BATCH_CHARS) return
 			result = tryReceive()
 		}
 	}
@@ -471,7 +480,7 @@ class BuildOutputFragment :
 					if (layoutCompleted != null) {
 						// clearOutput() or renderFiltered() may have run since the file append.
 						if (editorGen == editorContentGeneration) {
-							appendBatch(visibleText)
+							appendInPieces(visibleText, editorGen)
 							updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 						}
 					} else {
@@ -481,7 +490,7 @@ class BuildOutputFragment :
 								awaitLayout(onForceVisible = { updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive) })
 								editorContentMutex.withLock {
 									if (editorGen == editorContentGeneration) {
-										appendBatch(visibleText)
+										appendInPieces(visibleText, editorGen)
 										updateEmptyState(isSourceEmpty = false, isFilterActive = isFilterActive)
 									}
 								}
@@ -491,5 +500,39 @@ class BuildOutputFragment :
 				}
 			}
 		}
+	}
+
+	/**
+	 * Appends [text] in pieces of at most [MAX_BATCH_CHARS], yielding the main thread between them:
+	 * the editor word-wraps each piece in one pass, and a single huge output line would otherwise
+	 * stall it. Split after filtering so line-based filters still see whole lines. Stops if
+	 * clearOutput() or renderFiltered() replaces the content, or the view is destroyed, in between.
+	 */
+	private suspend fun IDEEditor.appendInPieces(
+		text: String,
+		editorGen: Int,
+	) {
+		var start = 0
+		while (start < text.length && editorGen == editorContentGeneration && !isReleased) {
+			var end = minOf(start + MAX_BATCH_CHARS, text.length)
+			if (end < text.length && Character.isHighSurrogate(text[end - 1])) end--
+			appendBatch(text.substring(start, end))
+			start = end
+			if (start < text.length) yield()
+		}
+		trimToWindow()
+	}
+
+	/**
+	 * Replaces the editor content with its own tail once it outgrows the window. Unbounded content
+	 * made every append, wordwrap pass and clearOutput() on the main thread slower as a build ran on,
+	 * until they ANR'd. Trims the editor's own (already filtered) text rather than re-reading the
+	 * session file, whose writer can lag the editor. Call on the main thread under [editorContentMutex].
+	 */
+	private fun IDEEditor.trimToWindow() {
+		if (isReleased) return
+		val tail = BuildOutputViewModel.editorTail(text) ?: return
+		setText(tail)
+		onContentReplaced()
 	}
 }

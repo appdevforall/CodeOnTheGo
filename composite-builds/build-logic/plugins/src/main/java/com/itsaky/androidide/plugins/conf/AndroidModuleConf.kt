@@ -48,6 +48,9 @@ private val disableCoreLibDesugaringForModules =
 	arrayOf(
 		":logsender",
 		":logger",
+		// Like :logsender, the AAR is injected into apps built with CoGo and must
+		// not force desugaring onto user projects (ADFA-4128).
+		":quickbuild:runtime",
 	)
 
 /**
@@ -62,7 +65,7 @@ private const val PROFILEABLE_BUILD_TYPE = "profileable"
  * This is `true` for non-debug builds and for [INSTRUMENTATION_BUILD_TYPE] builds. When updating this
  * value, please update the corresponding value in `AssetsInstaller.kt` in `:app` module.
  */
-internal fun hasBundledAssets(variant: Variant): Boolean =
+fun hasBundledAssets(variant: Variant): Boolean =
 	when (variant.buildType) {
 		INSTRUMENTATION_BUILD_TYPE -> true
 		PROFILEABLE_BUILD_TYPE -> false

@@ -39,5 +39,12 @@ dependencies {
 	implementation(libs.google.auto.service.annotations)
 	implementation(libs.google.guava)
 
-	testImplementation(projects.testing.tooling)
+	// Test-framework deps are declared directly rather than via projects.testing.tooling:
+	// that module pulls in :testing:common, which shares Gradle coordinates (group:name)
+	// with :common and silently replaces it on the unit-test runtime classpath -- every
+	// :common class then fails to load under Robolectric.
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.mockk)
 }

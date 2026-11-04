@@ -1,0 +1,56 @@
+{
+  "types": [
+    "*"
+  ],
+  "styles": {
+    "comment": {
+      "fg": "@comment",
+      "italic": true
+    },
+    "keyword": {
+      "fg": "@keyword",
+      "bold": true
+    },
+    "string": {
+      "fg": "@string",
+      "completion": false,
+      "maybeHexColor": true
+    },
+    "escape": "@keyword",
+    "string.escape": "@keyword",
+    "number": "@number",
+    "boolean": "@keyword",
+    "constant": {
+      "fg": "@constant",
+      "bold": true
+    },
+    "constant.builtin": "@keyword",
+    "type": "@type",
+    "type.builtin": {
+      "fg": "@keyword",
+      "bold": true
+    },
+    "constructor": "@type",
+    "module": "@type",
+    "namespace": "@type",
+    "function": "@func.decl",
+    "function.call": "@func.call",
+    "function.method": "@func.call",
+    "function.builtin": {
+      "fg": "@keyword",
+      "bold": true
+    },
+    "variable": "@onSurface",
+    "variable.builtin": {
+      "fg": "@keyword",
+      "bold": true
+    },
+    "variable.parameter": "@variable",
+    "parameter": "@variable",
+    "property": "@field",
+    "field": "@field",
+    "attribute": "@attribute",
+    "label": "@attribute",
+    "operator": "@operator"
+  }
+}

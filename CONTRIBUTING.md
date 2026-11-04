@@ -35,8 +35,12 @@ scripts\install-git-hooks.bat
 ```
 ## Source code format
 
-Formatting is enforced by **Spotless** (`ratchetFrom = origin/stage`, so only changed lines are
-checked). Run `./gradlew spotlessApply` before pushing; CI fails on unformatted changed lines.
+Formatting is enforced by **Spotless** with `ratchetFrom = origin/stage`. The ratchet works per
+file, not per line: every file that differs from `origin/stage` is formatted in full, so a one-line
+edit to a nonconforming file can reformat the whole file. Commit that reformat on its own
+(`style: spotless reformat, no functional change`) before the functional change - see
+[CLAUDE.md](CLAUDE.md#code-style). Run `./gradlew spotlessApply` before pushing; CI fails on
+unformatted changed files, except that ktlint currently skips some Kotlin files (ADFA-6603).
 
 - **Indentation:** tabs. **Line endings:** LF.
 - **Java:** the Eclipse formatter (config `spotless.eclipse-java.xml`), with member sorting and import ordering.

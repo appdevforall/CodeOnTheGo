@@ -25,7 +25,7 @@ val AndroidModels.SourceProviderOrBuilder.javaDirs: List<File>
 	get() = javaDirsList.map { File(it) }
 
 val AndroidModels.SourceProviderOrBuilder.kotlinDirs: List<File>
-	get() = javaDirsList.map { File(it) }
+	get() = kotlinDirsList.map { File(it) }
 
 val AndroidModels.AndroidLibraryDataOrBuilder.compileJarFiles: List<File>
 	get() = compileJarFilePathsList.map { File(it) }

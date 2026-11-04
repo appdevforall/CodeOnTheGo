@@ -32,21 +32,23 @@ import kotlin.reflect.KClass
  *
  * @author Daniel Alome
  */
-class HelpSideBarAction(context: Context, override val order: Int) :
-    AbstractSidebarAction() {
+class HelpSideBarAction(
+	context: Context,
+	override val order: Int,
+) : AbstractSidebarAction() {
+	override val id: String = "ide.editor.sidebar.help"
+	override val fragmentClass: KClass<out Fragment>? = null
 
-    override val id: String = "ide.editor.sidebar.help"
-    override val fragmentClass: KClass<out Fragment>? = null
+	init {
+		label = context.getString(R.string.action_open_help)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
+	}
 
-    init {
-        label = context.getString(R.string.action_open_help)
-        icon = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val context = data.requireContext() as BaseEditorActivity
+		context.doOpenHelp()
+		return true
+	}
 
-    override suspend fun execAction(data: ActionData): Any {
-        val context = data.requireContext() as BaseEditorActivity
-        context.doOpenHelp()
-        return true
-    }
-    override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.HELP_SIDEBAR
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.HELP_SIDEBAR
 }

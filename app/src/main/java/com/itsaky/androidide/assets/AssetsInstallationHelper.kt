@@ -88,10 +88,21 @@ object AssetsInstallationHelper {
 				// ZipException means the asset archive itself is corrupt, not just missing --
 				// same "reinstall/redownload" remedy as a missing file, so it shares the
 				// friendly message and GlitchTip suppression below.
-				val isMissingAsset = generateSequence(e) { it.cause }.any { it is FileNotFoundException || it is ZipException }
+				val causes = generateSequence(e) { it.cause }
+				val isMissingAsset = causes.any { it is FileNotFoundException || it is ZipException }
+				val missingSplitZip = causes.filterIsInstance<MissingSplitAssetsZipException>().firstOrNull()
 				val cause = if (isMissingAsset) MissingAssetsEntryException(e) else e
 				val msg =
-					if (isMissingAsset) {
+					if (missingSplitZip != null) {
+						// Split-assets builds only (debug, profileable; see AssetsInstaller.USE_BUNDLED_ASSETS):
+						// the user forgot to copy the zip, so say which file goes where.
+						context.getString(
+							R.string.err_missing_split_assets_zip,
+							missingSplitZip.zipFile.name,
+							missingSplitZip.zipFile.parent,
+							context.getString(R.string.app_name),
+						)
+					} else if (isMissingAsset) {
 						context.getString(R.string.err_missing_or_corrupt_assets, context.getString(R.string.app_name))
 					} else {
 						e.message ?: context.getString(R.string.error_installation_failed)

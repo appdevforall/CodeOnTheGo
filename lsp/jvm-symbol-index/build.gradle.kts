@@ -22,6 +22,8 @@ dependencies {
 	api(projects.subprojects.kotlinAnalysisApi)
 	api(projects.subprojects.projects)
 
+	implementation(projects.shared)
+
 	testImplementation(projects.testing.unit)
 	testImplementation(libs.tests.kotlinx.coroutines)
 }

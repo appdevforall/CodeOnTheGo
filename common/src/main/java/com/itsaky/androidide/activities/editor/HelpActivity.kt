@@ -32,6 +32,7 @@ import androidx.core.view.WindowCompat
 import com.itsaky.androidide.app.BaseIDEActivity
 import com.itsaky.androidide.common.databinding.ActivityHelpBinding
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
+import com.itsaky.androidide.documentation.OffDeviceRequests
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DeviceFormFactorUtils
 import com.itsaky.androidide.utils.UrlManager
@@ -143,6 +144,7 @@ class HelpActivity : BaseIDEActivity() {
 			webView.settings.domStorageEnabled = true
 			webView.settings.databaseEnabled = true
 			webView.settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+			OffDeviceRequests.keepOnDevice(webView.settings)
 
 			// Set WebViewClient to handle page navigation within the WebView
 			webView.webViewClient =
@@ -152,7 +154,7 @@ class HelpActivity : BaseIDEActivity() {
 						request: android.webkit.WebResourceRequest,
 					): android.webkit.WebResourceResponse? {
 						val intercepted = documentation?.intercept(request)
-						return intercepted ?: super.shouldInterceptRequest(view, request)
+						return intercepted ?: OffDeviceRequests.block(request) ?: super.shouldInterceptRequest(view, request)
 					}
 
 					override fun onPageStarted(
@@ -268,12 +270,17 @@ class HelpActivity : BaseIDEActivity() {
 		supportActionBar?.title = pageTitle ?: getString(R.string.help)
 
 		currentIntent.getStringExtra(CONTENT_KEY)?.let { url ->
-			binding.webView.loadUrl(url)
+			// Nothing passes an off-device URL here today (ToolTipManager asks first itself); this keeps
+			// a future caller from loading one.
+			if (!OffDeviceRequests.openWithConsent(this, url)) {
+				binding.webView.loadUrl(url)
+			}
 		}
 	}
 
 	/**
-	 * Handles external links and localhost documentation URLs for the help WebView.
+	 * Handles external links and localhost documentation URLs for the help WebView. An off-device web
+	 * link goes through [OffDeviceRequests.openWithConsent], which asks before opening it outside the app.
 	 *
 	 * @param view The WebView used to reload localhost documentation URLs.
 	 * @param url The URL to handle.
@@ -296,7 +303,7 @@ class HelpActivity : BaseIDEActivity() {
 			}
 
 			else -> {
-				false
+				OffDeviceRequests.openWithConsent(this, url)
 			}
 		}
 	}

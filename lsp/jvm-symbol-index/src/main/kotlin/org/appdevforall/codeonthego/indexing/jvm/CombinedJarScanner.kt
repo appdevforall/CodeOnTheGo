@@ -1,7 +1,10 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.impl.base.util.LibraryUtils
+import org.jetbrains.kotlin.com.intellij.openapi.vfs.VfsUtilCore
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.org.objectweb.asm.AnnotationVisitor
 import org.jetbrains.org.objectweb.asm.ClassReader
@@ -11,6 +14,7 @@ import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.file.Path
 import java.util.jar.JarFile
+import kotlin.io.path.notExists
 import kotlin.io.path.pathString
 
 /**
@@ -18,79 +22,121 @@ import kotlin.io.path.pathString
  * [KotlinMetadataScanner] for Kotlin classes, [JarSymbolScanner] for Java.
  */
 object CombinedJarScanner {
-
 	private val log = LoggerFactory.getLogger(CombinedJarScanner::class.java)
 
 	@OptIn(KaImplementationDetail::class)
-	fun scan(rootVf: VirtualFile, sourceId: String = rootVf.path): Sequence<JvmSymbol> = sequence {
-		val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
-		for (vf in allFiles) {
-			if (!vf.name.endsWith(".class")) continue
-			if (vf.name == "module-info.class" || vf.name == "package-info.class") continue
-			try {
-				val bytes = vf.contentsToByteArray()
-				val symbols = if (hasKotlinMetadata(bytes)) {
-					KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
-				} else {
-					JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
-				}
-				symbols?.forEach { yield(it) }
-			} catch (e: Exception) {
-				log.debug("Failed to parse {}: {}", vf.path, e.message)
-			}
-		}
-	}
-
-	fun scan(jarPath: Path, sourceId: String = jarPath.pathString): Sequence<JvmSymbol> = sequence {
-		val jar = try {
-			JarFile(jarPath.toFile())
-		} catch (e: Exception) {
-			log.warn("Failed to open JAR: {}", jarPath, e)
-			return@sequence
-		}
-
-		jar.use {
-			val entries = jar.entries()
-			while (entries.hasMoreElements()) {
-				val entry = entries.nextElement()
-				if (!entry.name.endsWith(".class")) continue
-				if (entry.name == "module-info.class" || entry.name == "package-info.class") continue
-
+	fun scan(
+		rootVf: VirtualFile,
+		sourceId: String = rootVf.path,
+	): Sequence<JvmSymbol> =
+		sequence {
+			val allFiles = LibraryUtils.getAllVirtualFilesFromRoot(rootVf, includeRoot = true)
+			for (vf in allFiles) {
+				val relativePath = VfsUtilCore.getRelativePath(vf, rootVf)?.takeIf { it.isNotEmpty() } ?: vf.name
+				if (!isIndexableClassEntry(relativePath)) continue
 				try {
-					val bytes = jar.getInputStream(entry).use { input ->
-						val buf = ByteArrayOutputStream(entry.size.toInt().coerceAtLeast(1024))
-						input.copyTo(buf)
-						buf.toByteArray()
-					}
-
-					val symbols = if (hasKotlinMetadata(bytes)) {
-						KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
-					} else {
-						JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
-					}
-
+					val bytes = vf.contentsToByteArray()
+					val symbols =
+						if (hasKotlinMetadata(bytes)) {
+							KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
+						} else {
+							JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
+						}
 					symbols?.forEach { yield(it) }
 				} catch (e: Exception) {
-					log.debug("Failed to parse {}: {}", entry.name, e.message)
+					log.debug("Failed to parse {}: {}", vf.path, e.message)
 				}
 			}
 		}
+
+	/**
+	 * Scans [jarPath], routing each class to [KotlinMetadataScanner] or [JarSymbolScanner]. The JAR is
+	 * closed when collection completes, fails or is cancelled.
+	 *
+	 * @throws UnreadableJarException if [jarPath] cannot be opened as a JAR (a truncated download,
+	 * corrupt file, etc.). A per-entry parse failure is logged and skipped instead, since the JAR as
+	 * a whole is still readable. A JAR that no longer exists (deleted after the caller listed it)
+	 * rethrows the open failure unwrapped instead, since the file is gone rather than unreadable.
+	 */
+	fun scan(
+		jarPath: Path,
+		sourceId: String = jarPath.pathString,
+	): Flow<JvmSymbol> =
+		flow {
+			val jar =
+				try {
+					JarFile(jarPath.toFile())
+				} catch (e: Exception) {
+					if (jarPath.notExists()) throw e
+					throw UnreadableJarException(jarPath, e)
+				}
+
+			jar.use {
+				val entries = jar.entries()
+				while (entries.hasMoreElements()) {
+					val entry = entries.nextElement()
+					if (!isIndexableClassEntry(entry.name)) continue
+
+					// emit stays outside the try so cancellation is not swallowed.
+					val symbols =
+						try {
+							val bytes =
+								jar.getInputStream(entry).use { input ->
+									val buf = ByteArrayOutputStream(entry.size.toInt().coerceAtLeast(1024))
+									input.copyTo(buf)
+									buf.toByteArray()
+								}
+
+							if (hasKotlinMetadata(bytes)) {
+								KotlinMetadataScanner.parseKotlinClass(bytes.inputStream(), sourceId)
+							} else {
+								JarSymbolScanner.parseClassFile(bytes.inputStream(), sourceId)
+							}
+						} catch (e: Exception) {
+							log.debug("Failed to parse {}: {}", entry.name, e.message)
+							null
+						}
+
+					symbols?.forEach { emit(it) }
+				}
+			}
+		}
+
+	/*
+	 * Everything under META-INF is skipped. A multi-release JAR's META-INF/versions/<n>/ copy of a
+	 * class shares the base class's key within one source, so indexing it would replace the base
+	 * row.
+	 */
+	private fun isIndexableClassEntry(relativePath: String): Boolean {
+		if (!relativePath.endsWith(".class")) return false
+		if (relativePath.startsWith("META-INF/")) return false
+		val fileName = relativePath.substringAfterLast('/')
+		return fileName != "module-info.class" && fileName != "package-info.class"
 	}
 
 	private fun hasKotlinMetadata(classBytes: ByteArray): Boolean {
 		var found = false
 		try {
-			ClassReader(classBytes).accept(object : ClassVisitor(Opcodes.ASM9) {
-				override fun visitAnnotation(
-					descriptor: String?,
-					visible: Boolean
-				): AnnotationVisitor? {
-					if (descriptor == "Lkotlin/Metadata;") found = true
-					return null
-				}
-			}, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+			ClassReader(classBytes).accept(
+				object : ClassVisitor(Opcodes.ASM9) {
+					override fun visitAnnotation(
+						descriptor: String?,
+						visible: Boolean,
+					): AnnotationVisitor? {
+						if (descriptor == "Lkotlin/Metadata;") found = true
+						return null
+					}
+				},
+				ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES,
+			)
 		} catch (_: Exception) {
 		}
 		return found
 	}
 }
+
+/** Thrown by [CombinedJarScanner.scan] when [path] cannot be opened as a JAR. */
+class UnreadableJarException(
+	val path: Path,
+	cause: Throwable,
+) : Exception("Failed to open JAR: $path", cause)

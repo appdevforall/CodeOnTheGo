@@ -28,6 +28,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityFaqBinding
 import com.itsaky.androidide.documentation.DocumentationRequestInterceptor
+import com.itsaky.androidide.documentation.OffDeviceRequests
 import org.adfa.constants.CONTENT_KEY
 
 class FAQActivity : EdgeToEdgeIDEActivity() {
@@ -66,6 +67,7 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 //            }
 			// Enable JavaScript if required
 			webView.settings.javaScriptEnabled = true
+			OffDeviceRequests.keepOnDevice(webView.settings)
 
 			// Set WebViewClient to handle page navigation within the WebView. ADFA-5176: it answers
 			// documentation from the database in-process, falling through to the local web server
@@ -84,7 +86,13 @@ class FAQActivity : EdgeToEdgeIDEActivity() {
 						request: WebResourceRequest,
 					): WebResourceResponse? =
 						DocumentationRequestInterceptor.shared?.intercept(request)
+							?: OffDeviceRequests.block(request)
 							?: super.shouldInterceptRequest(view, request)
+
+					override fun shouldOverrideUrlLoading(
+						view: WebView,
+						request: WebResourceRequest,
+					): Boolean = OffDeviceRequests.openWithConsent(this@FAQActivity, request.url.toString())
 				}
 
 			// Load the HTML file from the assets folder

@@ -20,7 +20,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Manages plugin documentation by writing into the main documentation.db.
- * Plugin entries are stored in the existing Tooltips/TooltipCategories/TooltipButtons tables,
+ * Plugin entries are stored in the existing tooltip tables (see PluginTooltipTables.kt),
  * differentiated by a "plugin_<pluginId>" category prefix so they never conflict with
  * built-in documentation.
  */
@@ -110,17 +110,8 @@ class PluginDocumentationManager(
 
 			db.beginTransaction()
 			try {
-				removePluginDocumentationInternal(db, pluginId)
-
-				val categoryId = insertOrGetCategoryId(db, pluginCategory(pluginId))
-
-				for (entry in entries) {
-					val tooltipId = insertTooltip(db, categoryId, entry)
-					entry.buttons.sortedBy { it.order }.forEachIndexed { index, button ->
-						val resolvedUri = resolvePluginButtonUri(pluginId, button.uri, button.directPath)
-						insertTooltipButton(db, tooltipId, button.description, resolvedUri, index)
-					}
-				}
+				val disclaimer = context.getString(R.string.plugin_documentation_third_party_disclaimer)
+				writePluginTooltips(db, pluginCategory(pluginId), entries.map { tooltipRow(pluginId, it, disclaimer) })
 
 				db.setTransactionSuccessful()
 				Log.d(TAG, "Successfully installed documentation for plugin $pluginId")
@@ -158,7 +149,7 @@ class PluginDocumentationManager(
 
 			db.beginTransaction()
 			try {
-				removePluginDocumentationInternal(db, pluginId)
+				removePluginTooltips(db, pluginCategory(pluginId))
 				db.setTransactionSuccessful()
 				Log.d(TAG, "Successfully removed documentation for plugin $pluginId")
 				true
@@ -566,110 +557,6 @@ class PluginDocumentationManager(
 		db.insertOrThrow("Content", null, values)
 	}
 
-	private fun removePluginDocumentationInternal(
-		db: SQLiteDatabase,
-		pluginId: String,
-	) {
-		val category = pluginCategory(pluginId)
-
-		val cursor =
-			db.rawQuery(
-				"""
-				SELECT T.id FROM Tooltips AS T
-				INNER JOIN TooltipCategories AS TC ON T.categoryId = TC.id
-				WHERE TC.category = ?
-				""".trimIndent(),
-				arrayOf(category),
-			)
-
-		val tooltipIds = mutableListOf<Long>()
-		while (cursor.moveToNext()) {
-			tooltipIds.add(cursor.getLong(0))
-		}
-		cursor.close()
-
-		if (tooltipIds.isNotEmpty()) {
-			val placeholders = tooltipIds.joinToString(",") { "?" }
-			val args = tooltipIds.map { it.toString() }.toTypedArray()
-			db.delete("TooltipButtons", "tooltipId IN ($placeholders)", args)
-			db.delete("Tooltips", "id IN ($placeholders)", args)
-		}
-
-		db.delete("TooltipCategories", "category = ?", arrayOf(category))
-	}
-
-	private fun insertOrGetCategoryId(
-		db: SQLiteDatabase,
-		category: String,
-	): Long {
-		val cursor =
-			db.query(
-				"TooltipCategories",
-				arrayOf("id"),
-				"category = ?",
-				arrayOf(category),
-				null,
-				null,
-				null,
-			)
-
-		if (cursor.moveToFirst()) {
-			val id = cursor.getLong(0)
-			cursor.close()
-			return id
-		}
-		cursor.close()
-
-		val values =
-			ContentValues().apply {
-				put("category", category)
-			}
-		return db.insert("TooltipCategories", null, values)
-	}
-
-	private fun insertTooltip(
-		db: SQLiteDatabase,
-		categoryId: Long,
-		entry: PluginTooltipEntry,
-	): Long {
-		val disclaimer = context.getString(R.string.plugin_documentation_third_party_disclaimer)
-
-		val existingCursor =
-			db.query(
-				"Tooltips",
-				arrayOf("id"),
-				"categoryId = ? AND tag = ?",
-				arrayOf(categoryId.toString(), entry.tag),
-				null,
-				null,
-				null,
-			)
-
-		if (existingCursor.moveToFirst()) {
-			val existingId = existingCursor.getLong(0)
-			existingCursor.close()
-
-			val updateValues =
-				ContentValues().apply {
-					put("summary", entry.summary + disclaimer)
-					put("detail", if (entry.detail.isNotBlank()) entry.detail + disclaimer else "")
-				}
-			db.update("Tooltips", updateValues, "id = ?", arrayOf(existingId.toString()))
-			db.delete("TooltipButtons", "tooltipId = ?", arrayOf(existingId.toString()))
-			return existingId
-		}
-		existingCursor.close()
-
-		val values =
-			ContentValues().apply {
-				put("categoryId", categoryId)
-				put("tag", entry.tag)
-				put("summary", entry.summary + disclaimer)
-				put("detail", if (entry.detail.isNotBlank()) entry.detail + disclaimer else "")
-			}
-		return db.insert("Tooltips", null, values)
-	}
-
 	private fun escapeLike(value: String): String =
 		value
 			.replace("\\", "\\\\")
@@ -684,6 +571,21 @@ class PluginDocumentationManager(
 		return segments.joinToString("/")
 	}
 
+	private fun tooltipRow(
+		pluginId: String,
+		entry: PluginTooltipEntry,
+		disclaimer: String,
+	): PluginTooltipRow =
+		PluginTooltipRow(
+			tag = entry.tag,
+			summary = entry.summary + disclaimer,
+			detail = if (entry.detail.isNotBlank()) entry.detail + disclaimer else "",
+			buttons =
+				entry.buttons.sortedBy { it.order }.map { button ->
+					PluginTooltipButtonRow(button.description, resolvePluginButtonUri(pluginId, button.uri, button.directPath))
+				},
+		)
+
 	private fun resolvePluginButtonUri(
 		pluginId: String,
 		rawUri: String,
@@ -694,23 +596,6 @@ class PluginDocumentationManager(
 		val absolute = directPath || rawUri.startsWith("/")
 		val normalized = normalizeLocalDocumentationPath(rawUri.trimStart('/'))
 		return if (absolute) normalized else "plugin/$pluginId/$normalized"
-	}
-
-	private fun insertTooltipButton(
-		db: SQLiteDatabase,
-		tooltipId: Long,
-		description: String,
-		uri: String,
-		order: Int,
-	) {
-		val values =
-			ContentValues().apply {
-				put("tooltipId", tooltipId)
-				put("description", description)
-				put("uri", uri)
-				put("buttonNumberId", order)
-			}
-		db.insert("TooltipButtons", null, values)
 	}
 
 	/**

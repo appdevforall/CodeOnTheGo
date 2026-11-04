@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.extensions.CommandResult
 import com.itsaky.androidide.plugins.extensions.CommandSpec
 import com.itsaky.androidide.plugins.services.CommandExecution
 import com.itsaky.androidide.plugins.services.IdeCommandService
+import com.itsaky.androidide.utils.TermuxProcessEnvironment
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,18 +23,17 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStreamReader
 import java.nio.file.InvalidPathException
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-class IdeCommandServiceImpl(
+class IdeCommandServiceImpl internal constructor(
 	private val pluginId: String,
 	private val permissions: Set<PluginPermission>,
 	private val projectRootProvider: () -> File?,
 	private val appFilesDir: File,
+	private val gradleTaskRunner: GradleTaskRunner = GradleTaskRunner(IdeBuildServiceImpl.getInstance()::startTasks),
 ) : IdeCommandService {
-	private val runningCommands = ConcurrentHashMap<String, CommandExecutionImpl>()
+	private val runningCommands = ConcurrentHashMap<String, RunningCommand>()
 
 	override fun executeCommand(
 		spec: CommandSpec,
@@ -43,61 +43,51 @@ class IdeCommandServiceImpl(
 		requireConcurrencyLimit()
 
 		val executionId = "$pluginId-${UUID.randomUUID()}"
-		val projectRoot = projectRootProvider()
-
-		val processBuilder =
+		val execution =
 			when (spec) {
+				// Through the tooling server, never ./gradlew: a second daemon doubles Gradle's memory
+				// on the device, and its output would never reach the Build Output pane.
+				is CommandSpec.GradleTask -> {
+					GradleTaskExecution(executionId, spec, gradleTaskRunner, timeoutMs)
+				}
+
 				is CommandSpec.ShellCommand -> {
 					val workDir =
 						try {
-							resolveWorkingDirectory(spec.workingDirectory, projectRoot).also(::validateWorkingDirectory)
+							resolvePluginWorkingDirectory(pluginId, projectRootProvider(), spec.workingDirectory)
 						} catch (e: InvalidPathException) {
 							return RejectedCommandExecution(executionId, "Invalid working directory: ${e.message}")
 						} catch (e: IOException) {
 							return RejectedCommandExecution(executionId, "Invalid working directory: ${e.message}")
 						}
-					ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
-						workDir?.let { directory(it) }
+					val processBuilder =
 						try {
-							environment().putAll(spec.environment)
+							shellProcess(spec, workDir)
 						} catch (e: IllegalArgumentException) {
 							return RejectedCommandExecution(executionId, "Invalid environment: ${e.message}")
 						}
-					}
-				}
-
-				is CommandSpec.GradleTask -> {
-					val gradleWrapper =
-						projectRoot?.let { File(it, "gradlew") }
-							?: throw IllegalStateException("No project root available for Gradle task execution")
-					if (!gradleWrapper.exists()) {
-						throw IllegalStateException("Gradle wrapper not found at ${gradleWrapper.absolutePath}")
-					}
-					if (!gradleWrapper.canExecute()) {
-						throw IllegalStateException("Gradle wrapper is not executable: ${gradleWrapper.absolutePath}")
-					}
-					ProcessBuilder(listOf(gradleWrapper.absolutePath, spec.taskPath) + spec.arguments).apply {
-						directory(projectRoot)
-					}
+					CommandExecutionImpl(executionId, processBuilder, timeoutMs)
 				}
 			}
-
-		processBuilder.redirectErrorStream(false)
-		injectTermuxEnvironment(processBuilder)
-
-		val execution =
-			CommandExecutionImpl(
-				executionId = executionId,
-				processBuilder = processBuilder,
-				timeoutMs = timeoutMs,
-			)
 		runningCommands[executionId] = execution
 		execution.start { runningCommands.remove(executionId) }
 		return execution
 	}
 
+	private fun shellProcess(
+		spec: CommandSpec.ShellCommand,
+		workDir: File?,
+	): ProcessBuilder =
+		ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
+			workDir?.let { directory(it) }
+			environment().putAll(spec.environment)
+			redirectErrorStream(false)
+			TermuxProcessEnvironment.applyTo(environment(), appFilesDir)
+		}
+
 	override fun isCommandRunning(executionId: String): Boolean = runningCommands[executionId]?.isRunning() == true
 
+	// onComplete removes the entry: a GradleTask stays running until Gradle has stopped.
 	override fun cancelCommand(executionId: String): Boolean =
 		runningCommands[executionId]?.let {
 			it.cancel()
@@ -129,60 +119,23 @@ class IdeCommandServiceImpl(
 		}
 	}
 
-	private fun resolveWorkingDirectory(
-		workingDirectory: String?,
-		projectRoot: File?,
-	): File? =
-		when {
-			workingDirectory == null -> projectRoot
-			Paths.get(workingDirectory).isAbsolute -> File(workingDirectory)
-			else -> projectRoot?.let { File(it, workingDirectory).canonicalFile }
-		}
-
-	private fun validateWorkingDirectory(dir: File?) {
-		if (dir == null) return
-		val projectRoot = projectRootProvider() ?: return
-		val normalizedDir = dir.canonicalFile.toPath()
-		val normalizedRoot = projectRoot.canonicalFile.toPath()
-		if (normalizedDir != normalizedRoot && !normalizedDir.startsWith(normalizedRoot)) {
-			throw SecurityException(
-				"Plugin $pluginId attempted to execute in directory outside project root: $normalizedDir",
-			)
-		}
-	}
-
-	private fun injectTermuxEnvironment(processBuilder: ProcessBuilder) {
-		val termuxBase = appFilesDir.absolutePath
-		val termuxBin = "$termuxBase/usr/bin"
-		val termuxLib = "$termuxBase/usr/lib"
-		val env = processBuilder.environment()
-
-		val existingPath = env["PATH"] ?: ""
-		if (!existingPath.contains(termuxBin)) {
-			env["PATH"] = "$termuxBin:$existingPath"
-		}
-
-		val existingLdPath = env["LD_LIBRARY_PATH"] ?: ""
-		if (!existingLdPath.contains(termuxLib)) {
-			env["LD_LIBRARY_PATH"] = "$termuxLib:$existingLdPath"
-		}
-
-		env.putIfAbsent("HOME", "$termuxBase/home")
-		env.putIfAbsent("TMPDIR", "$termuxBase/usr/tmp")
-		env.putIfAbsent("LANG", "en_US.UTF-8")
-		env.putIfAbsent("PREFIX", "$termuxBase/usr")
-	}
-
 	companion object {
 		private const val MAX_CONCURRENT_COMMANDS = 3
 	}
+}
+
+internal interface RunningCommand : CommandExecution {
+	/** Starts the command; [onComplete] runs once it ends or is cancelled. */
+	fun start(onComplete: () -> Unit)
+
+	fun isRunning(): Boolean
 }
 
 private class CommandExecutionImpl(
 	override val executionId: String,
 	private val processBuilder: ProcessBuilder,
 	private val timeoutMs: Long,
-) : CommandExecution {
+) : RunningCommand {
 	private val outputChannel = Channel<CommandOutput>(capacity = Channel.UNLIMITED)
 	private val resultDeferred = CompletableDeferred<CommandResult>()
 	private val scope = CoroutineScope(Dispatchers.IO + Job())
@@ -190,9 +143,14 @@ private class CommandExecutionImpl(
 	private val stdoutBuilder = StringBuilder()
 	private val stderrBuilder = StringBuilder()
 
+	// Also run by cancel(): a cancel landing before the launched body starts skips its call.
+	@Volatile
+	private var onComplete: () -> Unit = {}
+
 	override val output: Flow<CommandOutput> = outputChannel.receiveAsFlow()
 
-	fun start(onComplete: () -> Unit) {
+	override fun start(onComplete: () -> Unit) {
+		this.onComplete = onComplete
 		scope.launch {
 			val startTime = System.currentTimeMillis()
 
@@ -279,9 +237,10 @@ private class CommandExecutionImpl(
 			)
 		}
 		scope.cancel()
+		onComplete()
 	}
 
-	fun isRunning(): Boolean = process?.isAlive == true
+	override fun isRunning(): Boolean = process?.isAlive == true
 
 	companion object {
 		private const val MAX_OUTPUT_BYTES = 10 * 1024 * 1024

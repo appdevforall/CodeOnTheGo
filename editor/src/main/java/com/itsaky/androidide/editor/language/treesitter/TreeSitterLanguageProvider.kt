@@ -18,6 +18,7 @@
 package com.itsaky.androidide.editor.language.treesitter
 
 import android.content.Context
+import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
@@ -26,24 +27,31 @@ import java.io.File
  * @author Akash Yadav
  */
 object TreeSitterLanguageProvider {
+	private val log = LoggerFactory.getLogger(TreeSitterLanguageProvider::class.java)
 
-  fun hasTsLanguage(file: File) : Boolean {
-    return TSLanguageRegistry.instance.hasLanguage(file.extension)
-  }
+	fun hasTsLanguage(file: File): Boolean = TSLanguageRegistry.instance.hasLanguage(file.extension)
 
-  fun forFile(file: File, context: Context): TreeSitterLanguage? {
-    if (!hasTsLanguage(file)) {
-      return null
-    }
+	fun forFile(
+		file: File,
+		context: Context,
+	): TreeSitterLanguage? {
+		if (!hasTsLanguage(file)) {
+			return null
+		}
 
-    return forType(file.extension, context)
-  }
+		return forType(file.extension, context)
+	}
 
-  fun forType(type: String, context: Context): TreeSitterLanguage? {
-    return try {
-      TSLanguageRegistry.instance.getFactory<TreeSitterLanguage>(type).create(context)
-    } catch (e: TSLanguageRegistry.NotRegisteredException) {
-      null
-    }
-  }
+	fun forType(
+		type: String,
+		context: Context,
+	): TreeSitterLanguage? =
+		try {
+			TSLanguageRegistry.instance.getFactory<TreeSitterLanguage>(type).create(context)
+		} catch (e: TSLanguageRegistry.NotRegisteredException) {
+			null
+		} catch (e: PluginTreeSitterLanguage.GrammarLoadException) {
+			log.error("Plugin grammar for '.{}' failed to load; opening without tree-sitter", type, e)
+			null
+		}
 }

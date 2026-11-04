@@ -83,6 +83,16 @@ dependencies {
 	implementation(libs.common.kotlin.coroutines.android)
 	implementation(libs.sentry.android.core)
 
+	implementation(libs.ktfmt) {
+		exclude(group = "org.jetbrains.kotlin", module = "kotlin-compiler-embeddable")
+		exclude(group = "com.google.googlejavaformat", module = "google-java-format")
+		exclude(group = "com.google.guava", module = "guava")
+		exclude(group = "net.java.dev.jna", module = "jna")
+		exclude(group = "org.ec4j.core", module = "ec4j-core")
+	}
+	implementation(libs.composite.googleJavaFormat)
+	implementation(libs.google.guava)
+
 	compileOnly(projects.common)
 
 	testImplementation(projects.testing.lsp)

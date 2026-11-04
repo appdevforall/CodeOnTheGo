@@ -339,17 +339,18 @@ class BuildOutputViewModel(
 		 *
 		 * A tail sliced at a character offset begins part-way through a line, and [PREFIX_REGEX] is
 		 * anchored to the start of one, so that fragment keeps the timestamp every other line has
-		 * stripped. Text short enough to survive whole keeps its real first line; a tail holding no
-		 * newline at all is returned as it is, being better than nothing.
+		 * stripped. Text short enough to survive whole keeps its real first line; a tail with no line
+		 * start inside it (no newline, or only the final one) is returned as it is, being better than
+		 * nothing.
 		 */
 		internal fun tailFromLineStart(
-			text: String,
+			text: CharSequence,
 			maxChars: Int,
 		): String {
-			if (text.length <= maxChars) return text
-			val tail = text.takeLast(maxChars)
+			if (text.length <= maxChars) return text.toString()
+			val tail = text.subSequence(text.length - maxChars, text.length).toString()
 			val newline = tail.indexOf('\n')
-			return if (newline == -1) tail else tail.substring(newline + 1)
+			return if (newline == -1 || newline == tail.lastIndex) tail else tail.substring(newline + 1)
 		}
 
 		/**
@@ -383,6 +384,18 @@ class BuildOutputViewModel(
 		/** Name of the on-disk build output session file, shared with [com.itsaky.androidide.api.BuildOutputProvider]. */
 		internal const val SESSION_FILE_NAME = "build_output_session.txt"
 		private const val WINDOW_SIZE_CHARS = 512 * 1024
+
+		/** Editor length past which the fragment trims back to the [WINDOW_SIZE_CHARS] tail. */
+		internal const val EDITOR_REWINDOW_CHARS = 2 * WINDOW_SIZE_CHARS
+
+		/**
+		 * The last [WINDOW_SIZE_CHARS] of [text], starting at a line boundary, or null while [text]
+		 * is within [EDITOR_REWINDOW_CHARS].
+		 */
+		internal fun editorTail(text: CharSequence): String? {
+			if (text.length <= EDITOR_REWINDOW_CHARS) return null
+			return tailFromLineStart(text, WINDOW_SIZE_CHARS)
+		}
 
 		/** Max length of [cachedContentSnapshot] to bound memory. */
 		private const val CACHE_SNAPSHOT_MAX_CHARS = WINDOW_SIZE_CHARS

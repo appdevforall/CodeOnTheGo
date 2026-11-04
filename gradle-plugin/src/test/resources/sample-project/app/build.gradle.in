@@ -55,4 +55,6 @@ dependencies {
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
     implementation "com.google.android.material:material:1.9.0"
+    // See the .kts.in twin: a real final manifest component for the Quick Build proxiability test.
+    implementation "androidx.room:room-runtime:2.5.2"
 }

@@ -309,6 +309,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 							emptyView.visibility = View.VISIBLE
 							tvRepoStatus.text = getString(R.string.not_a_git_repo)
 							btnInitRepo.isVisible = true
+							btnRefresh.visibility = View.GONE
 							recyclerView.visibility = View.GONE
 							cbCheckAll.visibility = View.GONE
 							commitSection.visibility = View.GONE
@@ -323,6 +324,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						binding.apply {
 							emptyView.visibility = View.VISIBLE
 							btnInitRepo.isVisible = false
+							btnRefresh.visibility = View.VISIBLE
 							tvRepoStatus.text = getString(R.string.no_uncommitted_changes)
 							recyclerView.visibility = View.GONE
 							cbCheckAll.visibility = View.VISIBLE
@@ -342,6 +344,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						binding.apply {
 							emptyView.visibility = View.GONE
 							btnInitRepo.isVisible = false
+							btnRefresh.visibility = View.VISIBLE
 							recyclerView.visibility = View.VISIBLE
 							cbCheckAll.visibility = View.VISIBLE
 							cbCheckAll.isEnabled = hasSelectable
@@ -378,12 +381,24 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 			setOnClickListener { viewModel.initGitRepository() }
 			setTooltipOnView(TooltipTag.INIT_GIT_REPO)
 		}
+
+		binding.btnRefresh.apply {
+			setOnClickListener {
+				animate()
+					.rotationBy(360f)
+					.setDuration(500)
+					.start()
+				viewModel.refreshStatus(force = true)
+			}
+			setTooltipOnView(TooltipTag.GIT_REFRESH)
+		}
 	}
 
 	override fun onResume() {
 		super.onResume()
 		updateAuthorUI()
 		updateWatermarkUI()
+		viewModel.refreshStatus()
 	}
 
 	private fun updateAuthorUI() {
@@ -631,6 +646,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 		viewLifecycleOwner.lifecycleScope.launch {
 			viewModel.isGitRepository.collectLatest { isRepo ->
 				binding.btnPull.visibility = if (isRepo) View.VISIBLE else View.GONE
+				binding.btnRefresh.visibility = if (isRepo) View.VISIBLE else View.GONE
 			}
 		}
 
@@ -639,16 +655,19 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 				when (state) {
 					is PullUiState.Idle -> {
 						binding.btnPull.isEnabled = true
+						binding.btnPull.setIconResource(R.drawable.ic_download)
 						binding.pullProgress.visibility = View.GONE
 					}
 
 					is PullUiState.Pulling -> {
 						binding.btnPull.isEnabled = false
+						binding.btnPull.icon = null
 						binding.pullProgress.visibility = View.VISIBLE
 					}
 
 					is PullUiState.Success -> {
 						binding.btnPull.isEnabled = true
+						binding.btnPull.setIconResource(R.drawable.ic_download)
 						binding.pullProgress.visibility = View.GONE
 						flashSuccess(R.string.pull_successful)
 						viewModel.resetPullState()
@@ -657,6 +676,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 					is PullUiState.Conflicts -> {
 						binding.btnPull.isEnabled = true
+						binding.btnPull.setIconResource(R.drawable.ic_download)
 						binding.pullProgress.visibility = View.GONE
 						val message = state.message ?: getString(R.string.info_merge_conflicts)
 						MaterialAlertDialogBuilder(requireContext())
@@ -672,6 +692,7 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 
 					is PullUiState.Error -> {
 						binding.btnPull.isEnabled = true
+						binding.btnPull.setIconResource(R.drawable.ic_download)
 						binding.pullProgress.visibility = View.GONE
 						val message =
 							state.message ?: state.errorResId?.let { resId ->

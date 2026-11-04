@@ -29,88 +29,94 @@ import com.itsaky.androidide.treesitter.string.UTF16StringFactory
  * @author Akash Yadav
  */
 class TsTextDocument(
-  language: TSLanguage
+	language: TSLanguage,
 ) : AutoCloseable {
+	@Volatile
+	private var documentVersion = 1L
 
-  @Volatile
-  private var documentVersion = 1L
+	/**
+	 * The version of this text document.
+	 */
+	val version: Long
+		get() = documentVersion
 
-  /**
-   * The version of this text document.
-   */
-  val version: Long
-    get() = documentVersion
+	/**
+	 * The source text.
+	 */
+	val text = UTF16StringFactory.newString()
 
-  /**
-   * The source text.
-   */
-  val text = UTF16StringFactory.newString()
+	/**
+	 * The parser used to parse the source text into a syntax tree.
+	 */
+	val parser =
+		TSParser.create().also {
+			it.language = language
+		}
 
-  /**
-   * The parser used to parse the source text into a syntax tree.
-   */
-  val parser = TSParser.create().also {
-    it.language = language
-  }
+	/**
+	 * The syntax tree.
+	 */
+	var tree: TSTree? = null
+		internal set
 
-  /**
-   * The syntax tree.
-   */
-  var tree: TSTree? = null
-    internal set
+	/**
+	 * Request the parser to cancel parsing if a parsing is in progress.
+	 */
+	fun requestCancellationAndWaitIfParsing() {
+		if (parser.isParsing) {
+			parser.requestCancellationAndWait()
+		}
+	}
 
-  /**
-   * Request the parser to cancel parsing if a parsing is in progress.
-   */
-  fun requestCancellationAndWaitIfParsing() {
-    if (parser.isParsing) {
-      parser.requestCancellationAndWait()
-    }
-  }
+	fun requestCancellation() {
+		if (parser.isParsing) {
+			parser.requestCancellationAsync()
+		}
+	}
 
-  /**
-   * Initialize the source text with the given initialization message. The caller is responsible
-   * for handling the source text state i.e. this method does not check whether the text is already
-   * initialized or not.
-   */
-  internal fun doInit(init: TextInit) {
-    text.append(init.text)
-    documentVersion = init.contentVersion
-  }
+	/**
+	 * Initialize the source text with the given initialization message. The caller is responsible
+	 * for handling the source text state i.e. this method does not check whether the text is already
+	 * initialized or not.
+	 */
+	internal fun doInit(init: TextInit) {
+		text.append(init.text)
+		documentVersion = init.contentVersion
+	}
 
-  /**
-   * Apply the given [text modification][TextMod] to the source text.
-   *
-   * @param mod The text modification.
-   */
-  internal fun doMod(mod: TextMod) {
-    val edit = mod.edit
-    val newText = mod.changedText
+	/**
+	 * Apply the given [text modification][TextMod] to the source text.
+	 *
+	 * @param mod The text modification.
+	 */
+	internal fun doMod(mod: TextMod) {
+		val edit = mod.edit
+		val newText = mod.changedText
 
-    if (newText == null) {
-      text.deleteBytes(edit.startByte, edit.oldEndByte)
-    } else {
-      if (mod.start == text.length) {
-        text.append(newText)
-      } else {
-        text.insert(mod.start, newText)
-      }
-    }
+		if (newText == null) {
+			text.deleteBytes(edit.startByte, edit.oldEndByte)
+		} else {
+			if (mod.start == text.length) {
+				text.append(newText)
+			} else {
+				text.insert(mod.start, newText)
+			}
+		}
 
-    documentVersion = mod.contentVersion
-  }
+		documentVersion = mod.contentVersion
+	}
 
-  /**
-   * Parse the source text into a syntax tree, using the given [oldTree] for incremental parsing.
-   */
-  internal fun reparse(oldTree: TSTree? = null): TSTree? {
-    tree = parser.parseString(oldTree, text)
-    return tree
-  }
+	/**
+	 * Parse the source text into a syntax tree, using the given [oldTree] for incremental parsing.
+	 */
+	internal fun reparse(oldTree: TSTree? = null): TSTree? {
+		tree = parser.parseString(oldTree, text)
+		return tree
+	}
 
-  override fun close() {
-    text?.close()
-    tree?.close()
-    parser.close()
-  }
+	override fun close() {
+		text?.close()
+		tree?.close()
+		parser.close()
+	}
 }

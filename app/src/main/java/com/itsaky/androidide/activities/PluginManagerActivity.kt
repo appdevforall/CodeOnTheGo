@@ -11,6 +11,7 @@ import com.itsaky.androidide.databinding.ActivityPluginManagerBinding
 import com.itsaky.androidide.ui.compose.ManagerScreen
 import com.itsaky.androidide.ui.compose.theme.ManagerTheme
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.viewmodels.DownloadPickerViewModel
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
@@ -40,6 +41,9 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 	// uses, so a template picked here goes through the identical confirm/conflict/rename path.
 	private val externalFileInstallViewModel: ExternalFileInstallViewModel by viewModel()
 
+	// Lists the matching .cgp/.cgt files in Downloads for the + button (ADFA-6729).
+	private val downloadPickerViewModel: DownloadPickerViewModel by viewModel()
+
 	override fun bindLayout(): View {
 		_binding = ActivityPluginManagerBinding.inflate(layoutInflater)
 		return binding.root
@@ -57,6 +61,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 			val resolvedPluginViewModel = pluginViewModel
 			val resolvedTemplateViewModel = templateViewModel
 			val resolvedExternalFileInstallViewModel = externalFileInstallViewModel
+			val resolvedDownloadPickerViewModel = downloadPickerViewModel
 
 			binding.composeView.setContent {
 				ManagerTheme {
@@ -65,6 +70,7 @@ class PluginManagerActivity : EdgeToEdgeIDEActivity() {
 						pluginViewModel = resolvedPluginViewModel,
 						templateViewModel = resolvedTemplateViewModel,
 						externalFileInstallViewModel = resolvedExternalFileInstallViewModel,
+						downloadPickerViewModel = resolvedDownloadPickerViewModel,
 					)
 				}
 			}

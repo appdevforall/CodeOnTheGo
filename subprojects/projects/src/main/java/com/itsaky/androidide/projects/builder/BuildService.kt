@@ -45,6 +45,19 @@ interface BuildService {
 	/** Whether a build is in progress or not. */
 	val isBuildInProgress: Boolean
 
+	/**
+	 * Whether a build the USER started is in progress. Differs from [isBuildInProgress] only
+	 * while an INTERNAL build owns the single Gradle slot: Quick Build's proxy-app/prewarm build
+	 * runs through the same [executeTasks] path, but nobody asked for it, so the editor's
+	 * build UI (status line, first-build notice, the Run button's cancel affordance) must not
+	 * present it as the user's build.
+	 *
+	 * Read this from anything the user SEES. Read the raw [isBuildInProgress] from anything
+	 * that guards concurrency - an internal build still occupies the slot.
+	 */
+	val isUserVisibleBuildInProgress: Boolean
+		get() = isBuildInProgress
+
 	/** Returns `true` if and only if the tooling API server has been started, `false` otherwise. */
 	fun isToolingServerStarted(): Boolean
 
@@ -88,6 +101,13 @@ interface BuildService {
 	 *   contains a list of tasks that were executed and the result of the whole execution.
 	 */
 	fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult>
+
+	/**
+	 * The id of the [TaskExecutionMessage] whose build holds the slot, or null when no build does
+	 * or the one that does (a sync) has no id. Lets a caller cancel its own build and nobody else's.
+	 */
+	val currentBuildId: BuildId?
+		get() = null
 
 	/** Cancel any running build. */
 	fun cancelCurrentBuild(): CompletableFuture<BuildCancellationRequestResult>

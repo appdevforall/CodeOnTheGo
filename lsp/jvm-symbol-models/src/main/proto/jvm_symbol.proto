@@ -18,6 +18,9 @@ message JvmSymbolData {
   JvmVisibility visibility = 7;
   bool is_deprecated = 8;
 
+  // The row key, stored because no other field can rebuild it.
+  string key = 9;
+
   oneof data {
     ClassData class_data = 20;
     FunctionData function_data = 21;
@@ -192,6 +195,9 @@ enum JvmSymbolKind {
   KIND_EXTENSION_PROPERTY = 16;
   KIND_FIELD = 17;
   KIND_TYPE_ALIAS = 18;
+  // The synthetic class a Kotlin file's top-level declarations compile into ("FooKt").
+  // Java can name it; Kotlin never should.
+  KIND_FILE_FACADE = 19;
 }
 
 enum JvmSourceLanguage {

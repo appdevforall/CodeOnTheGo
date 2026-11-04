@@ -47,7 +47,7 @@ class NewFolderAction(
 	) {
 	override val id: String = "ide.editor.fileTree.newFolder"
 
-	override fun retrieveTooltipTag(isAlternateContext: Boolean): String = TooltipTag.PROJECT_FOLDER_NEW_FOLDER
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.PROJECT_FOLDER_NEW_FOLDER
 
 	override suspend fun execAction(data: ActionData) {
 		val context = data.requireActivity()

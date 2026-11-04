@@ -29,6 +29,7 @@ import androidx.work.Configuration
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.di.coreModule
 import com.itsaky.androidide.di.pluginModule
+import com.itsaky.androidide.di.quickBuildModule
 import com.itsaky.androidide.di.templateModule
 import com.itsaky.androidide.handlers.GlitchTipDiagnosticsContext
 import com.itsaky.androidide.plugins.manager.core.PluginManager
@@ -148,7 +149,7 @@ class IDEApplication :
 		/**
 		 * [Context.getFilesDir] does a real disk check (`File.exists()`) on every call, not just
 		 * the first - callers on the main thread (e.g. Koin's [pluginModule] resolving on first
-		 * navigation to the Extensions Manager) trip StrictMode's DiskReadViolation. Cache it once,
+		 * navigation to the Add-ons Manager) trip StrictMode's DiskReadViolation. Cache it once,
 		 * off-main, before Koin starts (see the `onCreate()` warmup) so later reads are a plain
 		 * field access instead of a syscall, and pluginModule/templateModule can never be the
 		 * first to trigger the underlying disk read.
@@ -162,22 +163,20 @@ class IDEApplication :
 	 * alive - backgrounded, or something drawn on top of it - and callers like FlashbarUtils'
 	 * `withActivity` still need it; [onActivityDestroyed] covers the rest.
 	 */
-	override fun onActivityPostPaused(activity: Activity) {
-		super.onActivityPostPaused(activity)
+	override fun onActivityPaused(activity: Activity) {
 		if (foregroundActivity == activity && activity.isFinishing) {
 			logger.debug("foregroundActivity = null")
 			_foregroundActivity.update { null }
 		}
 	}
 
-	override fun onActivityPreResumed(activity: Activity) {
-		super.onActivityPreResumed(activity)
+	override fun onActivityResumed(activity: Activity) {
 		logger.debug("foregroundActivity = {}", activity.javaClass)
 		_foregroundActivity.update { activity }
 	}
 
 	/**
-	 * [onActivityPostPaused] only clears the reference for *finishing* activities, so a rotation
+	 * [onActivityPaused] only clears the reference for *finishing* activities, so a rotation
 	 * or a system kill would leave the destroyed activity retained by this global [StateFlow].
 	 * The compare-and-set keeps an already-resumed successor (e.g. A finishes into B) in place.
 	 */
@@ -213,7 +212,7 @@ class IDEApplication :
 		// https://appdevforall-inc-9p.sentry.io/issues/6860179170/events/7177c576e7b3491c9e9746c76f806d37/
 
 		// Warm cachedFilesDir on an IO thread before Koin starts, so pluginModule/templateModule
-		// (resolved on the main thread on first navigation to the Extensions Manager) can never
+		// (resolved on the main thread on first navigation to the Add-ons Manager) can never
 		// race the disk read - see cachedFilesDir's doc. The disk access itself runs off-main;
 		// this only blocks onCreate() waiting for that fast, one-time result. Only safe when
 		// credential-protected storage is already unlocked - instance.filesDir uses the default
@@ -251,7 +250,7 @@ class IDEApplication :
 		runCatching { GlobalContext.get() }.getOrNull()?.let { return }
 		startKoin {
 			androidContext(this@IDEApplication)
-			modules(coreModule, pluginModule, templateModule)
+			modules(coreModule, pluginModule, templateModule, quickBuildModule)
 		}
 	}
 

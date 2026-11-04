@@ -1,10 +1,12 @@
 package org.appdevforall.codeonthego.indexing
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.api.Indexable
+import org.appdevforall.codeonthego.indexing.api.PackageTree
 import org.appdevforall.codeonthego.indexing.api.ReadableIndex
 import java.io.Closeable
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A read-only view over an index that only exposes entries
@@ -14,24 +16,34 @@ import java.util.concurrent.ConcurrentHashMap
  * This view controls which subset is visible based on which
  * sources (JAR paths, etc.) are currently "active."
  *
+ * It is a [PackageTree] of the active sources' packages when [backing] is one, and an empty tree
+ * otherwise.
+ *
  * @param T The indexed type.
  * @param backing The underlying index that holds all data.
  */
 open class FilteredIndex<T : Indexable>(
 	private val backing: ReadableIndex<T>,
-) : ReadableIndex<T>, Closeable {
-
+) : ReadableIndex<T>,
+	PackageTree,
+	Closeable {
 	/**
 	 * The set of source IDs whose entries are visible.
-	 * Uses a concurrent set for thread-safe reads during queries.
+	 *
+	 * An immutable set replaced in one assignment, so a query running during [setActiveSources] sees
+	 * either the old set or the new one, never an emptied or half-filled one. Writers take [writeLock]
+	 * so that concurrent single-source changes do not lose each other's update.
 	 */
-	private val activeSources = ConcurrentHashMap.newKeySet<String>()
+	@Volatile
+	private var activeSources: Set<String> = emptySet()
+
+	private val writeLock = Any()
 
 	/**
 	 * Make a source's entries visible in query results.
 	 */
 	open fun activateSource(sourceId: String) {
-		activeSources.add(sourceId)
+		synchronized(writeLock) { activeSources = activeSources + sourceId }
 	}
 
 	/**
@@ -39,7 +51,7 @@ open class FilteredIndex<T : Indexable>(
 	 * The data remains in the backing index.
 	 */
 	open fun deactivateSource(sourceId: String) {
-		activeSources.remove(sourceId)
+		synchronized(writeLock) { activeSources = activeSources - sourceId }
 	}
 
 	/**
@@ -50,21 +62,26 @@ open class FilteredIndex<T : Indexable>(
 	 * current classpath JAR paths.
 	 */
 	open fun setActiveSources(sourceIds: Set<String>) {
-		activeSources.clear()
-		activeSources.addAll(sourceIds)
+		val snapshot = sourceIds.toSet()
+		synchronized(writeLock) { activeSources = snapshot }
 	}
 
 	/**
 	 * Returns the current set of active source IDs.
 	 */
-	open fun activeSources(): Set<String> =
-		activeSources.toSet()
+	fun activeSources(): Set<String> = activeSources
+
+	/**
+	 * The source IDs whose entries are visible, or `null` if every source is.
+	 *
+	 * Override this to change what the filter admits; `null` admits every source.
+	 */
+	protected open fun visibleSourceIds(): Collection<String>? = activeSources
 
 	/**
 	 * Returns true if the source is currently active (visible).
 	 */
-	open fun isActive(sourceId: String): Boolean =
-		sourceId in activeSources
+	fun isActive(sourceId: String): Boolean = visibleSourceIds()?.contains(sourceId) ?: true
 
 	/**
 	 * Returns true if the source exists in the backing index,
@@ -72,38 +89,73 @@ open class FilteredIndex<T : Indexable>(
 	 *
 	 * Use this to check if a JAR needs indexing at all.
 	 */
-	open suspend fun isCached(sourceId: String): Boolean =
-		backing.containsSource(sourceId)
+	open suspend fun isCached(sourceId: String): Boolean = backing.containsSource(sourceId)
 
-	override fun query(query: IndexQuery): Sequence<T> {
-		if (query.sourceId != null && !isActive(query.sourceId)) {
-			return emptySequence()
+	override fun query(query: IndexQuery): Sequence<T> = backing.query(scopedToActive(query))
+
+	/**
+	 * Narrows [query] to the active sources by rewriting its scope, rather than by filtering the
+	 * rows it returns.
+	 *
+	 * Filtering afterwards is wrong whenever the query is limited: the backing index applies the
+	 * limit first, so a page full of inactive rows yields nothing even though matches exist. Pushing
+	 * the active set into the query makes the limit count only rows the caller can actually see.
+	 */
+	private fun scopedToActive(query: IndexQuery): IndexQuery {
+		val visible = visibleSourceIds()?.toSet() ?: return query
+
+		if (query.sourceId != null) {
+			// Already as narrow as a scope gets: it either survives the active set or matches nothing.
+			return if (query.sourceId in visible) query else query.copy(sourceIds = emptyList())
 		}
-		val original = backing.query(query)
-		return original.filter { isActive(it.sourceId) }
+
+		return query.copy(sourceIds = scopedToActive(query.sourceIds, visible))
 	}
 
-	override suspend fun get(key: String): T? {
-		val entry = backing.get(key) ?: return null
-		return if (isActive(entry.sourceId)) entry else null
+	/** Narrows a requested source scope to [visible]; an unscoped request becomes [visible] itself. */
+	private fun scopedToActive(
+		requested: Collection<String>?,
+		visible: Set<String>,
+	): Collection<String> = requested?.filter { it in visible } ?: visible
+
+	/** The requested source scope narrowed to the active sources, as [scopedToActive] does for a query. */
+	private fun activeScope(requested: Collection<String>?): Collection<String>? {
+		val visible = visibleSourceIds()?.toSet() ?: return requested
+		return scopedToActive(requested, visible)
 	}
 
-	override suspend fun containsSource(sourceId: String): Boolean {
-		return isActive(sourceId) && backing.containsSource(sourceId)
-	}
+	override fun subpackages(
+		parent: String,
+		sourceIds: Collection<String>?,
+	): Set<String> = (backing as? PackageTree)?.subpackages(parent, activeScope(sourceIds)) ?: emptySet()
 
-	override fun distinctValues(fieldName: String): Sequence<String> {
-		// This is imprecise — the backing index may return values
-		// from inactive sources. For exact results, we'd need to
-		// query all entries and filter. For package enumeration
-		// (the main use case), this approximation is acceptable
-		// since packages from inactive JARs are harmless — they
-		// just produce empty results when queried further.
-		return backing.distinctValues(fieldName)
-	}
+	override fun containsPackage(
+		name: String,
+		sourceIds: Collection<String>?,
+	): Boolean = (backing as? PackageTree)?.containsPackage(name, activeScope(sourceIds)) ?: false
+
+	/**
+	 * Returns the visible entry for [key], the one with the smallest source id among the visible
+	 * sources that have it.
+	 *
+	 * This is a scoped key query rather than a check on the backing index's own [get]: that returns
+	 * the smallest source id overall, and when that source is inactive a visible entry for the same
+	 * key would be missed.
+	 */
+	override suspend fun get(key: String): T? =
+		withContext(Dispatchers.IO) {
+			backing.query(scopedToActive(IndexQuery.byKey(key))).firstOrNull()
+		}
+
+	override suspend fun containsSource(sourceId: String): Boolean = isActive(sourceId) && backing.containsSource(sourceId)
+
+	override fun distinctValues(
+		fieldName: String,
+		query: IndexQuery,
+	): Sequence<String> = backing.distinctValues(fieldName, scopedToActive(query))
 
 	override fun close() {
-		activeSources.clear()
+		synchronized(writeLock) { activeSources = emptySet() }
 		if (backing is Closeable) backing.close()
 	}
 }

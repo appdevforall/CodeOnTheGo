@@ -15,10 +15,12 @@ import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectDao
 import com.itsaky.androidide.roomData.recentproject.RecentProjectMaintenance
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.utils.canonicalProjectLocation
 import com.itsaky.androidide.utils.getCreatedTime
 import com.itsaky.androidide.utils.getLastModifiedTime
+import com.itsaky.androidide.utils.isDeletedProjectDirectory
 import com.itsaky.androidide.utils.readProjectLanguage
 import com.itsaky.androidide.utils.reconcileRecentProjectLocations
 import kotlinx.coroutines.CancellationException
@@ -109,9 +111,22 @@ class RecentProjectsViewModel(
 						emptyList()
 					}
 				}
-			allProjects = projectsFromDb.map { ProjectFile(it.location, it.createdAt, it.lastModified) }
+			allProjects =
+				withoutDeletedProjects(projectsFromDb).map { ProjectFile(it.location, it.createdAt, it.lastModified) }
 			applyFilters()
 		}
+
+	private suspend fun withoutDeletedProjects(projects: List<RecentProject>): List<RecentProject> {
+		val (deleted, present) = projects.partition { File(it.location).isDeletedProjectDirectory() }
+		if (deleted.isNotEmpty()) {
+			try {
+				recentProjectDao.deleteByIds(deleted.map { it.id })
+			} catch (e: SQLException) {
+				logger.error("Failed to remove deleted projects from Recents", e)
+			}
+		}
+		return present
+	}
 
 	private suspend fun loadProjectsFromDatabase(): List<RecentProject> {
 		if (projectLocationsReconciled) {
@@ -270,6 +285,12 @@ class RecentProjectsViewModel(
 			}
 		}
 
+	/** ADFA-4930: the project's relocated build output goes with it. Call on [Dispatchers.IO]. */
+	private fun removeBuildOutput(location: String) {
+		val removed = BuildOutputLocation.removeTreesOf(getApplication<Application>().noBackupFilesDir, File(location))
+		if (removed > 0) logger.info("Deleted {} build output tree(s) of {}", removed, location)
+	}
+
 	fun deleteProjectByLocation(location: String) =
 		viewModelScope.launch {
 			try {
@@ -283,6 +304,7 @@ class RecentProjectsViewModel(
 
 						if (isDeleted) {
 							recentProjectDao.deleteByLocation(projectToDelete.location)
+							removeBuildOutput(projectToDelete.location)
 						}
 						projectToDelete.takeIf { isDeleted }
 					}
@@ -380,6 +402,7 @@ class RecentProjectsViewModel(
 
 						if (isDeletedFromStorage) {
 							successfullyDeletedLocations.add(project.location)
+							removeBuildOutput(project.location)
 						} else {
 							logger.warn("Failed to delete project files from storage: ${project.location}")
 							allDeletionsSucceeded = false

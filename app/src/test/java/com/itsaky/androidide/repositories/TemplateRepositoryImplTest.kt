@@ -5,6 +5,7 @@ import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
 import kotlinx.coroutines.test.runTest
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -213,5 +214,93 @@ class TemplateRepositoryImplTest {
 			// Shadowing must be keyed on the name, not applied to every download.
 			assertThat(items.map { it.name }).containsExactly("installed.cgt", "other.cgt")
 			assertThat(items.filter { it.installed }.map { it.name }).containsExactly("installed.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_excludesTheBundledCoreArchive() =
+		runTest {
+			writeCgt(templatesDir, TEMPLATE_CORE_ARCHIVE)
+			writeCgt(templatesDir, "installed.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly("installed.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_excludesTheCoreArchiveCaseInsensitively() =
+		runTest {
+			writeCgt(templatesDir, "Core.CGT")
+			writeCgt(templatesDir, "installed.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly("installed.cgt")
+		}
+
+	@Test
+	fun uninstallTemplate_refusesTheCoreArchive_evenWhenNotReachedThroughTheList() =
+		runTest {
+			// A differently-cased name, built directly rather than via listTemplateFiles: the guard
+			// must hold on the operation itself, not rely on the list having hidden the item.
+			val core = File(templatesDir, "Core.cgt").apply { writeText("bundled") }
+
+			val result = repository.uninstallTemplate(item(core, installed = true))
+
+			assertThat(result.exceptionOrNull()).isInstanceOf(IllegalStateException::class.java)
+			assertThat(core.readText()).isEqualTo("bundled")
+			assertThat(downloadDir.list()).isEmpty()
+		}
+
+	@Test
+	fun listTemplateFiles_skipsPendingAndTrashedDownloads() =
+		runTest {
+			// MediaProvider's names for a download still in progress and a trashed file
+			// (Android 11+). Both keep the .cgt extension and must not be offered for install.
+			writeCgt(downloadDir, ".pending-1733000000-partial.cgt")
+			writeCgt(downloadDir, ".trashed-1733000000-deleted.cgt")
+			writeCgt(downloadDir, "real.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly("real.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_keepsAnInstalledCollectionWithAHiddenName() =
+		runTest {
+			// The installer accepts a collection named ".hidden" and stores it as ".hidden.cgt";
+			// it must stay listed so it can be uninstalled.
+			writeCgt(templatesDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly(".hidden.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_keepsAHiddenCollectionInDownloads() =
+		runTest {
+			// Where uninstall leaves ".hidden.cgt": in Downloads under the same name. The user must
+			// still be able to reinstall or delete it. (A successful uninstall reloads the global
+			// template provider, which unit tests cannot, so this sets up its result directly.)
+			writeCgt(downloadDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name to it.installed }).containsExactly(".hidden.cgt" to false)
+		}
+
+	@Test
+	fun listTemplateFiles_excludesACoreArchiveFoundOnlyInDownloads() =
+		runTest {
+			// No core.cgt in templatesDir yet (e.g. asset bootstrap hasn't run) - the twin-hiding
+			// dedup above can't catch this case, since there's no installed name to match against.
+			// core.cgt must still be excluded outright, not shown as an installable USER template.
+			writeCgt(downloadDir, TEMPLATE_CORE_ARCHIVE)
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items).isEmpty()
 		}
 }

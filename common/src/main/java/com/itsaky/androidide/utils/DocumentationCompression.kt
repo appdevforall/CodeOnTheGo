@@ -127,6 +127,16 @@ fun expectsCompressionDictionary(db: SQLiteDatabase): Boolean {
 }
 
 /**
+ * Whether [db] declares a version whose `Templates` rows are Brotli-compressed against its
+ * dictionary (see [DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSED_TEMPLATES]); below it, and
+ * for a database declaring none, they are plain UTF-8.
+ */
+fun expectsCompressedTemplates(db: SQLiteDatabase): Boolean {
+	val majorVersion = DatabaseVersionResolver.resolveMajorVersion(db)
+	return majorVersion != null && majorVersion >= DatabaseVersionResolver.MAJOR_VERSION_WITH_COMPRESSED_TEMPLATES
+}
+
+/**
  * Compresses and decompresses documentation `Content` blobs against [dictionary], the shared Brotli
  * dictionary from the database those blobs live in (see [loadCompressionDictionary]). A null
  * [dictionary] means plain, dictionary-free brotli, which is what a database predating ADFA-5153

@@ -106,6 +106,18 @@ internal class FlashbarContainerView(context: Context)
         return super.onInterceptTouchEvent(event)
     }
 
+    // The callback is paired with the window attachment so it cannot outlive it. Registering in show()
+    // relied on the dismiss paths, whose post{} never runs once the view is detached.
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        (context as? Activity)?.let { registerConfigurationCallback(it) }
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        unregisterConfigurationCallback()
+    }
+
     override fun onSwipe(isSwiping: Boolean) {
         isBarDismissing = isSwiping
         if (isSwiping) {
@@ -178,7 +190,6 @@ internal class FlashbarContainerView(context: Context)
         // Only add the withView to the parent once
         if (this.parent == null) {
             activityRootView.addView(this)
-            registerConfigurationCallback(activity)
             post {
                 adjustOrientation(activity)
                 ViewCompat.requestApplyInsets(this)

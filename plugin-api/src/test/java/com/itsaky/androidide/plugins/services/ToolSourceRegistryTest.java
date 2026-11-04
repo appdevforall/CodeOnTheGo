@@ -1,9 +1,11 @@
 package com.itsaky.androidide.plugins.services;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +16,26 @@ import org.junit.Test;
  * Pins the {@code default} methods of the contributed-tool contract. Every implementor is an out-of-tree plugin, so a default that changes here changes behaviour in plugins nothing in this repo compiles against -- {@link ToolSourceRegistry.ToolSpec#requiresApproval} most of all, since silently flipping it to false would run third-party tools without asking the user.
  */
 public class ToolSourceRegistryTest {
+
+	@Test
+	public void registryBuiltBeforeListenersAcceptsThemAndNeverCalls() {
+		MinimalRegistry registry = new MinimalRegistry();
+		ToolSourceRegistry.ToolSourceListener listener = providerId -> {
+			throw new AssertionError("a registry without listener support must not call one");
+		};
+
+		registry.addToolSourceListener(listener);
+		registry.notifyToolSourceStatusChanged("com.example.tools");
+		registry.removeToolSourceListener(listener);
+	}
+
+	@Test
+	public void toolGroupIsAvailableWithNoReasonUntilItSaysOtherwise() {
+		ToolSourceRegistry.ToolGroup group = new MinimalGroup();
+
+		assertEquals(CapabilityStatus.AVAILABLE, group.getStatus());
+		assertNull(group.getStatusMessage());
+	}
 
 	@Test
 	public void toolInvocationHasNoProjectRootUntilOneIsGiven() {
@@ -34,6 +56,16 @@ public class ToolSourceRegistryTest {
 		ToolSourceRegistry.ToolSource source = new MinimalSource();
 
 		source.cancel("call-1");
+	}
+
+	@Test
+	public void toolSourceListenerHearsAStatusChangeAsAChangeUnlessItAsksToTellThemApart() {
+		List<String> heard = new ArrayList<>();
+		ToolSourceRegistry.ToolSourceListener listener = heard::add;
+
+		listener.onToolSourceStatusChanged("com.example.tools");
+
+		assertEquals(Collections.singletonList("com.example.tools"), heard);
 	}
 
 	@Test
@@ -58,6 +90,24 @@ public class ToolSourceRegistryTest {
 	}
 
 	/** Implements only what the contract makes abstract, so every assertion above reads a default. */
+	private static final class MinimalGroup implements ToolSourceRegistry.ToolGroup {
+
+		@Override
+		public String getDisplayName() {
+			return "Example server";
+		}
+
+		@Override
+		public String getId() {
+			return "example-server";
+		}
+
+		@Override
+		public List<String> getToolNames() {
+			return Collections.singletonList("list_files");
+		}
+	}
+
 	private static final class MinimalInvocation implements ToolSourceRegistry.ToolInvocation {
 
 		@Override
@@ -87,6 +137,24 @@ public class ToolSourceRegistryTest {
 		public boolean isSuccess() {
 			return true;
 		}
+	}
+
+	/** A registry as ai-core built it before contract 2: it knows nothing of listeners or status. */
+	private static final class MinimalRegistry implements ToolSourceRegistry {
+
+		@Override
+		public List<ToolSourceRegistry.ToolSource> getToolSources() {
+			return Collections.emptyList();
+		}
+
+		@Override
+		public void notifyToolsChanged(String providerId) {}
+
+		@Override
+		public void registerToolSource(ToolSourceRegistry.ToolSource source) {}
+
+		@Override
+		public void unregisterToolSource(ToolSourceRegistry.ToolSource source) {}
 	}
 
 	private static final class MinimalSource implements ToolSourceRegistry.ToolSource {

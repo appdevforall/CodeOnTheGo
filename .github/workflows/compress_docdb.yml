@@ -7,14 +7,14 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 11 * * *'  # Daily at 11:00 AM UTC
+    - cron: '0 10 * * *'  # Daily at 10:00 AM UTC
   workflow_dispatch:
 
 jobs:
   download_documentation:
     name: Download and compress documentation DB
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Authenticate to Google Cloud for Drive access
@@ -97,6 +97,43 @@ jobs:
 
           echo "Successfully downloaded documentation.db ($FILE_SIZE_HUMAN)"
 
+      - name: Install brotli, zstd and sqlite3
+        run: sudo apt-get update && sudo apt-get install -y brotli zstd sqlite3
+
+      # A 2.x db loses every built-in tooltip in the current app; a 3.x one breaks apps older than CoGo #2163.
+      - name: Require documentation.db schema 3.x
+        run: |
+          VERSION=$(sqlite3 documentation.db "SELECT major||'.'||minor||'.'||patch FROM DocumentationDatabaseVersion ORDER BY changeTime DESC, rowid DESC LIMIT 1;" || true)
+          echo "documentation.db declares version: ${VERSION:-none}"
+
+          if [ "${VERSION%%.*}" != "3" ]; then
+            echo "ERROR: documentation.db must declare schema 3.x"
+
+            jq -n --arg version "${VERSION:-none}" '{
+              blocks: [
+                {
+                  type: "header",
+                  text: {
+                    type: "plain_text",
+                    text: ":x: Compression Failed - Documentation DB Is Not Schema 3.x",
+                    emoji: true
+                  }
+                },
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "@here The compression run refused *documentation.db* on Google Drive: it declares version *\($version)*, and the app needs 3.x. Nothing was uploaded."
+                  }
+                }
+              ]
+            }' > error_payload.json
+
+            curl -X POST -H "Content-type: application/json" --data @error_payload.json "${{ secrets.SLACK_WEBHOOK_URL }}"
+            rm -f error_payload.json
+            exit 1
+          fi
+
       - name: Check if documentation.db has changed
         id: checksum
         run: |
@@ -127,15 +164,49 @@ jobs:
           echo "skip=false" >> $GITHUB_OUTPUT      
           echo "$CURRENT_MD5" > last_md5
 
+      - name: Check out OfflineDocumentationTools
+        if: steps.checksum.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: appdevforall/OfflineDocumentationTools
+          ref: c040d1d5e7fb708a9ddf468a636adec46b7a869a
+          path: odt
+          persist-credentials: false
+
+      - name: Install uv
+        if: steps.checksum.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+
+      # Works on copies; the master on Drive stays as edited. Python 3.11 because
+      # uv's 3.12 build lacks the dbstat table rebuild_database.py --pack reads.
+      - name: Re-mint the dictionary and pack the database
+        if: steps.checksum.outputs.skip != 'true'
+        env:
+          # The ODT scripts' PEP 723 deps are unpinned; resolve only releases published before this.
+          UV_EXCLUDE_NEWER: '2026-10-22T00:00:00Z'
+        run: |
+          rm -f pre_remint.db copy.db final.db
+          cp documentation.db pre_remint.db
+          cp documentation.db copy.db
+
+          REMINT=odt/ProcessDocs/ProcessKotlinDocs/ProcessKotlinWebsiteJSON
+          uv run --python 3.11 "$REMINT/remint_dictionary.py" copy.db --seeds 4 --no-backup
+          uv run --python 3.11 "$REMINT/verify_remint_dictionary.py" pre_remint.db copy.db
+          uv run --python 3.11 odt/scripts/rebuild_database.py copy.db final.db \
+            --pack Templates,Content,TooltipTexts --page-size 4096
+
+          INTEGRITY=$(sqlite3 final.db "PRAGMA integrity_check;")
+          if [ "$INTEGRITY" != "ok" ]; then
+            echo "ERROR: final.db failed integrity_check: $INTEGRITY"
+            exit 1
+          fi
+
       - name: Compress documentation.db with Brotli
         id: brotli
         if: steps.checksum.outputs.skip != 'true'
         run: |
-          echo "Installing Brotli..."
-          sudo apt-get update && sudo apt-get install -y brotli
-
-          echo "Compressing documentation.db with maximum compression..."
-          brotli -f -Z -o documentation.db.br documentation.db
+          echo "Compressing the packed documentation.db with maximum compression..."
+          brotli -f -q 11 -w 24 -o documentation.db.br final.db
 
           if [ ! -f documentation.db.br ]; then
             echo "ERROR: Failed to create documentation.db.br"
