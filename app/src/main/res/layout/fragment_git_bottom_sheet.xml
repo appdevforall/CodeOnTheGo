@@ -63,15 +63,29 @@
 			app:constraint_referenced_ids="tv_current_branch_label, imgBranchIcon, tv_branch_name" />
 
 		<com.google.android.material.button.MaterialButton
-			android:id="@+id/btnPull"
-			style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+			android:id="@+id/btnRefresh"
+			style="@style/Widget.Material3.Button.IconButton"
 			android:layout_width="wrap_content"
 			android:layout_height="wrap_content"
-			android:text="@string/pull"
+			android:contentDescription="@string/git_refresh"
 			android:visibility="gone"
-			app:icon="@drawable/ic_sync"
+			app:icon="@drawable/ic_refresh"
+			app:iconTint="?attr/colorOnSurface"
 			app:layout_constraintBottom_toBottomOf="@id/tv_branch_name"
 			app:layout_constraintEnd_toEndOf="parent"
+			app:layout_constraintTop_toTopOf="@id/tv_branch_name" />
+
+		<com.google.android.material.button.MaterialButton
+			android:id="@+id/btnPull"
+			style="@style/Widget.Material3.Button.IconButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:contentDescription="@string/pull"
+			android:visibility="gone"
+			app:icon="@drawable/ic_download"
+			app:iconTint="?attr/colorOnSurface"
+			app:layout_constraintBottom_toBottomOf="@id/tv_branch_name"
+			app:layout_constraintEnd_toStartOf="@id/btnRefresh"
 			app:layout_constraintTop_toTopOf="@id/tv_branch_name" />
 
 		<com.google.android.material.progressindicator.CircularProgressIndicator

@@ -11,6 +11,7 @@ import com.itsaky.androidide.events.ListProjectFilesRequestEvent
 import com.itsaky.androidide.git.core.GitCredentialsManager
 import com.itsaky.androidide.git.core.GitRepository
 import com.itsaky.androidide.git.core.GitRepositoryManager
+import com.itsaky.androidide.git.core.GitRepositoryWatcher
 import com.itsaky.androidide.git.core.models.CommitHistoryUiState
 import com.itsaky.androidide.git.core.models.GitBranch
 import com.itsaky.androidide.git.core.models.GitStatus
@@ -19,6 +20,7 @@ import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.isNetworkConnected
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -46,6 +48,7 @@ class GitBottomSheetViewModel(
 	private val credentialsManager: GitCredentialsManager,
 	private val isNetworkConnected: () -> Boolean = { BaseApplication.baseInstance.isNetworkConnected() },
 	repository: GitRepository? = null,
+	private val watcherFactory: ((GitRepository, CoroutineScope, suspend () -> Unit) -> GitRepositoryWatcher)? = null,
 ) : ViewModel() {
 	private val log = LoggerFactory.getLogger(GitBottomSheetViewModel::class.java)
 
@@ -94,6 +97,9 @@ class GitBottomSheetViewModel(
 	private var pushResetJob: Job? = null
 	private var watermarkWriteJob: Job? = null
 
+	@Volatile
+	private var refreshJob: Job? = null
+	internal var repoWatcher: GitRepositoryWatcher? = null
 	var currentRepository: GitRepository? = repository
 		private set
 
@@ -103,14 +109,47 @@ class GitBottomSheetViewModel(
 			initializeRepository()
 		} else {
 			_isGitRepository.value = true
+			startRepoWatcher(currentRepository)
 		}
 	}
 
-	override fun onCleared() {
+	public override fun onCleared() {
 		super.onCleared()
 		EventBus.getDefault().unregister(this)
 		initJob?.cancel()
+		refreshJob?.cancel()
+		stopRepoWatcher()
 		currentRepository?.close()
+	}
+
+	private fun startRepoWatcher(repo: GitRepository?) {
+		stopRepoWatcher()
+		if (repo == null) return
+
+		val watcher =
+			watcherFactory?.invoke(repo, viewModelScope) { refreshStatus() }
+				?: repo.createWatcher(
+					scope = viewModelScope,
+					debounceDelay = 1000.milliseconds,
+				) {
+					refreshStatus()
+				}
+		repoWatcher = watcher
+		watcher.start()
+	}
+
+	private fun stopRepoWatcher() {
+		repoWatcher?.close()
+		repoWatcher = null
+	}
+
+	private suspend fun <T> withGuardedGitOperation(action: suspend () -> T): T {
+		repoWatcher?.pause()
+		try {
+			return action()
+		} finally {
+			repoWatcher?.resume()
+		}
 	}
 
 	/**
@@ -132,6 +171,7 @@ class GitBottomSheetViewModel(
 					if (projectDirPath.isNullOrBlank()) {
 						val previousRepo = currentRepository
 						currentRepository = null
+						stopRepoWatcher()
 						previousRepo?.close()
 						_isGitRepository.value = false
 						_gitStatus.value = GitStatus.EMPTY
@@ -146,9 +186,11 @@ class GitBottomSheetViewModel(
 					if (force || currentRepository == null || currentRoot?.canonicalPath != projectDir.canonicalPath) {
 						val previousRepo = currentRepository
 						currentRepository = null
+						stopRepoWatcher()
 						previousRepo?.close()
 						currentRepository = GitRepositoryManager.openRepository(projectDir)
 						_isGitRepository.value = currentRepository != null
+						startRepoWatcher(currentRepository)
 					}
 					_isProjectWatermarkEnabled.value = currentRepository?.isCommitWatermarkEnabled() ?: true
 					refreshStatus()
@@ -156,7 +198,10 @@ class GitBottomSheetViewModel(
 					throw e
 				} catch (e: Exception) {
 					log.error("Failed to initialize repository", e)
+					val previousRepo = currentRepository
 					currentRepository = null
+					stopRepoWatcher()
+					previousRepo?.close()
 					_isGitRepository.value = false
 					_gitStatus.value = GitStatus.EMPTY
 					_currentBranch.value = null
@@ -169,44 +214,49 @@ class GitBottomSheetViewModel(
 
 	/**
 	 * Refreshes the Git status and branch state of the project.
+	 * Any previous in-flight refresh job is cancelled to ensure the latest repository state is reflected.
 	 * Failures while querying branches are handled separately to preserve valid status and commit count.
 	 */
-	fun refreshStatus() {
-		viewModelScope.launch {
-			val repo = currentRepository
-			if (repo == null) {
-				_gitStatus.value = GitStatus.EMPTY
-				_currentBranch.value = null
-				_branches.value = BranchesUiState.None
-				_localCommitsCount.value = 0
-				_isProjectWatermarkEnabled.value = true
-				return@launch
-			}
+	fun refreshStatus(force: Boolean = false): Job {
+		refreshJob?.cancel()
+		val job =
+			viewModelScope.launch {
+				val repo = currentRepository
+				if (repo == null) {
+					_gitStatus.value = GitStatus.EMPTY
+					_currentBranch.value = null
+					_branches.value = BranchesUiState.None
+					_localCommitsCount.value = 0
+					_isProjectWatermarkEnabled.value = true
+					return@launch
+				}
 
-			try {
-				val status = repo.getStatus()
-				_gitStatus.value = status
-				_currentBranch.value = repo.getCurrentBranch()?.name
-				_isProjectWatermarkEnabled.value = repo.isCommitWatermarkEnabled()
-				getLocalCommitsCount()
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to refresh git status", e)
-				_gitStatus.value = GitStatus.EMPTY
-				_currentBranch.value = null
-				_localCommitsCount.value = 0
-			}
+				try {
+					val status = repo.getStatus()
+					_gitStatus.value = status
+					_currentBranch.value = repo.getCurrentBranch()?.name
+					_isProjectWatermarkEnabled.value = repo.isCommitWatermarkEnabled()
+					getLocalCommitsCount()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to refresh git status", e)
+					_gitStatus.value = GitStatus.EMPTY
+					_currentBranch.value = null
+					_localCommitsCount.value = 0
+				}
 
-			try {
-				_branches.value = BranchesUiState.Success(repo.getBranches())
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to fetch branches during status refresh", e)
-				_branches.value = BranchesUiState.Error(e.message)
+				try {
+					_branches.value = BranchesUiState.Success(repo.getBranches())
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to fetch branches during status refresh", e)
+					_branches.value = BranchesUiState.Error(e.message)
+				}
 			}
-		}
+		refreshJob = job
+		return job
 	}
 
 	/**
@@ -247,31 +297,33 @@ class GitBottomSheetViewModel(
 		onSuccess: (() -> Unit)? = null,
 	) {
 		viewModelScope.launch {
-			val repository = currentRepository ?: return@launch
-			_checkoutState.value = CheckoutUiState.CheckingOut
-			try {
-				val resolvedBranch = repository.checkout(branchName, createNew, startPoint)
-				refreshStatus()
-				_checkoutState.value = CheckoutUiState.Success(resolvedBranch)
-				onSuccess?.invoke()
-			} catch (e: CheckoutConflictException) {
-				log.error("Checkout conflict occurred", e)
-				_checkoutState.value = CheckoutUiState.Conflicts(e.conflictingPaths ?: emptyList())
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: RefAlreadyExistsException) {
-				log.error("Branch $branchName already exists", e)
-				_checkoutState.value =
-					CheckoutUiState.Error(
-						errorResId = R.string.git_branch_already_exists,
-						errorArgs = listOf(branchName),
-					)
-			} catch (e: InvalidRefNameException) {
-				log.error("Invalid branch name $branchName", e)
-				_checkoutState.value = CheckoutUiState.Error(errorResId = R.string.git_create_branch_invalid_name)
-			} catch (e: Exception) {
-				log.error("Checkout failed", e)
-				_checkoutState.value = CheckoutUiState.Error()
+			withGuardedGitOperation {
+				val repository = currentRepository ?: return@withGuardedGitOperation
+				_checkoutState.value = CheckoutUiState.CheckingOut
+				try {
+					val resolvedBranch = repository.checkout(branchName, createNew, startPoint)
+					refreshStatus(force = true)
+					_checkoutState.value = CheckoutUiState.Success(resolvedBranch)
+					onSuccess?.invoke()
+				} catch (e: CheckoutConflictException) {
+					log.error("Checkout conflict occurred", e)
+					_checkoutState.value = CheckoutUiState.Conflicts(e.conflictingPaths ?: emptyList())
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: RefAlreadyExistsException) {
+					log.error("Branch $branchName already exists", e)
+					_checkoutState.value =
+						CheckoutUiState.Error(
+							errorResId = R.string.git_branch_already_exists,
+							errorArgs = listOf(branchName),
+						)
+				} catch (e: InvalidRefNameException) {
+					log.error("Invalid branch name $branchName", e)
+					_checkoutState.value = CheckoutUiState.Error(errorResId = R.string.git_create_branch_invalid_name)
+				} catch (e: Exception) {
+					log.error("Checkout failed", e)
+					_checkoutState.value = CheckoutUiState.Error()
+				}
 			}
 		}
 	}
@@ -286,28 +338,30 @@ class GitBottomSheetViewModel(
 		onSuccess: () -> Unit,
 	) {
 		viewModelScope.launch {
-			try {
-				if (selectedPaths.isEmpty()) return@launch
+			withGuardedGitOperation {
+				try {
+					if (selectedPaths.isEmpty()) return@withGuardedGitOperation
 
-				val repository = currentRepository ?: return@launch
+					val repository = currentRepository ?: return@withGuardedGitOperation
 
-				val projectDir = File(IProjectManager.getInstance().projectDirPath)
-				val filesToStage = selectedPaths.map { File(projectDir, it) }
+					val projectDir = File(IProjectManager.getInstance().projectDirPath)
+					val filesToStage = selectedPaths.map { File(projectDir, it) }
 
-				repository.stageFiles(filesToStage)
+					repository.stageFiles(filesToStage)
 
-				repository.commit(
-					message = message,
-					authorName = GitPreferences.userName,
-					authorEmail = GitPreferences.userEmail,
-				)
+					repository.commit(
+						message = message,
+						authorName = GitPreferences.userName,
+						authorEmail = GitPreferences.userEmail,
+					)
 
-				refreshStatus()
-				onSuccess()
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to commit changes", e)
+					refreshStatus(force = true)
+					onSuccess()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to commit changes", e)
+				}
 			}
 		}
 	}
@@ -339,45 +393,47 @@ class GitBottomSheetViewModel(
 		pushResetJob?.cancel()
 
 		viewModelScope.launch {
-			try {
-				if (!isNetworkConnected()) {
-					_pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
-					return@launch
-				}
-
-				_pushState.value = PushUiState.Pushing
-				val repository = currentRepository ?: return@launch
-				val credentials = buildCredentials(username, token)
-				val results = repository.push(credentialsProvider = credentials)
-				val error =
-					results
-						.flatMap { it.remoteUpdates }
-						.firstOrNull {
-							it.status != RemoteRefUpdate.Status.OK &&
-								it.status != RemoteRefUpdate.Status.UP_TO_DATE
-						}
-
-				if (error != null) {
-					handlePushError(error)
-					return@launch
-				}
-
-				handlePushSuccess(username, token)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				if (e.message?.contains("not authorized", ignoreCase = true) == true) {
-					credentialsManager.clearCredentials()
-					_pushState.value = PushUiState.Error(errorResId = R.string.repo_authorization_error)
-					return@launch
-				}
-				_pushState.value = PushUiState.Error(e.message)
-			} finally {
-				pushResetJob =
-					viewModelScope.launch {
-						delay(3000.milliseconds)
-						_pushState.value = PushUiState.Idle
+			withGuardedGitOperation {
+				try {
+					if (!isNetworkConnected()) {
+						_pushState.value = PushUiState.Error(errorResId = R.string.no_internet_connection)
+						return@withGuardedGitOperation
 					}
+
+					_pushState.value = PushUiState.Pushing
+					val repository = currentRepository ?: return@withGuardedGitOperation
+					val credentials = buildCredentials(username, token)
+					val results = repository.push(credentialsProvider = credentials)
+					val error =
+						results
+							.flatMap { it.remoteUpdates }
+							.firstOrNull {
+								it.status != RemoteRefUpdate.Status.OK &&
+									it.status != RemoteRefUpdate.Status.UP_TO_DATE
+							}
+
+					if (error != null) {
+						handlePushError(error)
+						return@withGuardedGitOperation
+					}
+
+					handlePushSuccess(username, token)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					if (e.message?.contains("not authorized", ignoreCase = true) == true) {
+						credentialsManager.clearCredentials()
+						_pushState.value = PushUiState.Error(errorResId = R.string.repo_authorization_error)
+						return@withGuardedGitOperation
+					}
+					_pushState.value = PushUiState.Error(e.message)
+				} finally {
+					pushResetJob =
+						viewModelScope.launch {
+							delay(3000.milliseconds)
+							_pushState.value = PushUiState.Idle
+						}
+				}
 			}
 		}
 	}
@@ -411,7 +467,7 @@ class GitBottomSheetViewModel(
 	) {
 		_pushState.value = PushUiState.Success
 		credentialsManager.saveCredentialsIfNeeded(username, token)
-		refreshStatus()
+		refreshStatus(force = true)
 		getLocalCommitsCount()
 		getCommitHistoryList()
 	}
@@ -423,43 +479,45 @@ class GitBottomSheetViewModel(
 		pullResetJob?.cancel()
 
 		viewModelScope.launch {
-			try {
-				if (!isNetworkConnected()) {
-					_pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
-					return@launch
-				}
-
-				_pullState.value = PullUiState.Pulling
-				val repository = currentRepository ?: return@launch
-				val credentials = buildCredentials(username, token)
-				val result = repository.pull(credentialsProvider = credentials)
-
-				if (!result.isSuccessful) {
-					handlePullError(result)
-					return@launch
-				}
-
-				handlePullSuccess(username, token)
-			} catch (e: CheckoutConflictException) {
-				log.error("Pull checkout conflict occurred", e)
-				val paths = e.conflictingPaths?.joinToString("\n") ?: ""
-				_pullState.value = PullUiState.Error(errorResId = R.string.checkout_conflict_message, errorArgs = listOf(paths))
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Pull failed", e)
-				if (e.message?.contains("not authorized", ignoreCase = true) == true) {
-					credentialsManager.clearCredentials()
-					_pullState.value = PullUiState.Error(errorResId = R.string.repo_authorization_error)
-					return@launch
-				}
-				_pullState.value = PullUiState.Error(e.message)
-			} finally {
-				pullResetJob =
-					viewModelScope.launch {
-						delay(3000.milliseconds)
-						_pullState.value = PullUiState.Idle
+			withGuardedGitOperation {
+				try {
+					if (!isNetworkConnected()) {
+						_pullState.value = PullUiState.Error(errorResId = R.string.no_internet_connection)
+						return@withGuardedGitOperation
 					}
+
+					_pullState.value = PullUiState.Pulling
+					val repository = currentRepository ?: return@withGuardedGitOperation
+					val credentials = buildCredentials(username, token)
+					val result = repository.pull(credentialsProvider = credentials)
+
+					if (!result.isSuccessful) {
+						handlePullError(result)
+						return@withGuardedGitOperation
+					}
+
+					handlePullSuccess(username, token)
+				} catch (e: CheckoutConflictException) {
+					log.error("Pull checkout conflict occurred", e)
+					val paths = e.conflictingPaths?.joinToString("\n") ?: ""
+					_pullState.value = PullUiState.Error(errorResId = R.string.checkout_conflict_message, errorArgs = listOf(paths))
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Pull failed", e)
+					if (e.message?.contains("not authorized", ignoreCase = true) == true) {
+						credentialsManager.clearCredentials()
+						_pullState.value = PullUiState.Error(errorResId = R.string.repo_authorization_error)
+						return@withGuardedGitOperation
+					}
+					_pullState.value = PullUiState.Error(e.message)
+				} finally {
+					pullResetJob =
+						viewModelScope.launch {
+							delay(3000.milliseconds)
+							_pullState.value = PullUiState.Idle
+						}
+				}
 			}
 		}
 	}
@@ -470,7 +528,7 @@ class GitBottomSheetViewModel(
 
 		if (mergeStatus == MergeStatus.CONFLICTING) {
 			_pullState.value = PullUiState.Conflicts()
-			refreshStatus()
+			refreshStatus(force = true)
 		} else {
 			_pullState.value = PullUiState.Error("Pull failed: $statusName")
 		}
@@ -482,7 +540,7 @@ class GitBottomSheetViewModel(
 	) {
 		_pullState.value = PullUiState.Success
 		credentialsManager.saveCredentialsIfNeeded(username, token)
-		refreshStatus()
+		refreshStatus(force = true)
 		getCommitHistoryList()
 	}
 
@@ -517,70 +575,72 @@ class GitBottomSheetViewModel(
 	 */
 	fun mergeBranch(targetBranchName: String) {
 		viewModelScope.launch {
-			val repo = currentRepository ?: return@launch
-			val currentBranchName = _currentBranch.value ?: "HEAD"
-			_mergeState.value = MergeUiState.Merging
+			withGuardedGitOperation {
+				val repo = currentRepository ?: return@withGuardedGitOperation
+				val currentBranchName = _currentBranch.value ?: "HEAD"
+				_mergeState.value = MergeUiState.Merging
 
-			try {
-				val result = repo.merge(targetBranchName)
-				when (result.mergeStatus) {
-					MergeStatus.FAST_FORWARD,
-					MergeStatus.FAST_FORWARD_SQUASHED,
-					MergeStatus.MERGED,
-					MergeStatus.MERGED_SQUASHED,
-					MergeStatus.MERGED_SQUASHED_NOT_COMMITTED,
-					-> {
-						_mergeState.value =
-							MergeUiState.Success(
-								targetBranch = targetBranchName,
-								currentBranch = currentBranchName,
-							)
-						refreshStatus()
-						getCommitHistoryList()
-						getLocalCommitsCount()
-					}
+				try {
+					val result = repo.merge(targetBranchName)
+					when (result.mergeStatus) {
+						MergeStatus.FAST_FORWARD,
+						MergeStatus.FAST_FORWARD_SQUASHED,
+						MergeStatus.MERGED,
+						MergeStatus.MERGED_SQUASHED,
+						MergeStatus.MERGED_SQUASHED_NOT_COMMITTED,
+						-> {
+							_mergeState.value =
+								MergeUiState.Success(
+									targetBranch = targetBranchName,
+									currentBranch = currentBranchName,
+								)
+							refreshStatus(force = true)
+							getCommitHistoryList()
+							getLocalCommitsCount()
+						}
 
-					MergeStatus.ALREADY_UP_TO_DATE -> {
-						_mergeState.value = MergeUiState.AlreadyUpToDate(targetBranch = targetBranchName)
-					}
+						MergeStatus.ALREADY_UP_TO_DATE -> {
+							_mergeState.value = MergeUiState.AlreadyUpToDate(targetBranch = targetBranchName)
+						}
 
-					MergeStatus.CONFLICTING -> {
-						val conflictingFiles = repo.getStatus().conflicted.map { it.path }
-						_mergeState.value =
-							MergeUiState.Conflicts(
-								targetBranch = targetBranchName,
-								currentBranch = currentBranchName,
-								conflictingFiles = conflictingFiles,
-							)
-						refreshStatus()
-					}
+						MergeStatus.CONFLICTING -> {
+							val conflictingFiles = repo.getStatus().conflicted.map { it.path }
+							_mergeState.value =
+								MergeUiState.Conflicts(
+									targetBranch = targetBranchName,
+									currentBranch = currentBranchName,
+									conflictingFiles = conflictingFiles,
+								)
+							refreshStatus(force = true)
+						}
 
-					else -> {
-						log.error("Merge of $targetBranchName ended with status ${result.mergeStatus.name}")
-						_mergeState.value =
-							MergeUiState.Error(
-								targetBranch = targetBranchName,
-								errorArgs = listOf(targetBranchName),
-							)
+						else -> {
+							log.error("Merge of $targetBranchName ended with status ${result.mergeStatus.name}")
+							_mergeState.value =
+								MergeUiState.Error(
+									targetBranch = targetBranchName,
+									errorArgs = listOf(targetBranchName),
+								)
+						}
 					}
+				} catch (e: CheckoutConflictException) {
+					log.error("Merge blocked by uncommitted local changes", e)
+					_mergeState.value =
+						MergeUiState.Error(
+							targetBranch = targetBranchName,
+							errorResId = R.string.git_merge_local_changes,
+							errorArgs = listOf(e.conflictingPaths?.joinToString("\n") ?: ""),
+						)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to merge branch $targetBranchName", e)
+					_mergeState.value =
+						MergeUiState.Error(
+							targetBranch = targetBranchName,
+							errorArgs = listOf(targetBranchName),
+						)
 				}
-			} catch (e: CheckoutConflictException) {
-				log.error("Merge blocked by uncommitted local changes", e)
-				_mergeState.value =
-					MergeUiState.Error(
-						targetBranch = targetBranchName,
-						errorResId = R.string.git_merge_local_changes,
-						errorArgs = listOf(e.conflictingPaths?.joinToString("\n") ?: ""),
-					)
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to merge branch $targetBranchName", e)
-				_mergeState.value =
-					MergeUiState.Error(
-						targetBranch = targetBranchName,
-						errorArgs = listOf(targetBranchName),
-					)
 			}
 		}
 	}
@@ -713,34 +773,50 @@ class GitBottomSheetViewModel(
 
 	@Subscribe(threadMode = ThreadMode.MAIN)
 	fun onFileRenamed(event: FileRenameEvent) {
-		refreshStatus()
+		viewModelScope.launch {
+			withGuardedGitOperation {
+				try {
+					currentRepository?.renamePath(event.file, event.newFile)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to update git on file rename", e)
+				} finally {
+					refreshStatus()
+				}
+			}
+		}
 	}
 
 	fun abortMerge(onSuccess: (() -> Unit)? = null) {
 		viewModelScope.launch {
-			try {
-				currentRepository?.abortMerge()
-				refreshStatus()
-				onSuccess?.invoke()
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to abort merge", e)
+			withGuardedGitOperation {
+				try {
+					currentRepository?.abortMerge()
+					refreshStatus(force = true)
+					onSuccess?.invoke()
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to abort merge", e)
+				}
 			}
 		}
 	}
 
 	fun resolveConflict(path: String) {
 		viewModelScope.launch {
-			try {
-				val repository = currentRepository ?: return@launch
-				val projectDir = File(IProjectManager.getInstance().projectDirPath)
-				repository.stageFiles(listOf(File(projectDir, path)))
-				refreshStatus()
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.error("Failed to resolve conflict for $path", e)
+			withGuardedGitOperation {
+				try {
+					val repository = currentRepository ?: return@withGuardedGitOperation
+					val projectDir = File(IProjectManager.getInstance().projectDirPath)
+					repository.stageFiles(listOf(File(projectDir, path)))
+					refreshStatus(force = true)
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					log.error("Failed to resolve conflict for $path", e)
+				}
 			}
 		}
 	}

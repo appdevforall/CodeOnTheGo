@@ -8,7 +8,7 @@ import com.termux.shared.termux.TermuxConstants;
 
 public class TermuxAppSharedProperties extends TermuxSharedProperties {
 
-    private static TermuxAppSharedProperties properties;
+    private static volatile TermuxAppSharedProperties properties;
 
 
     private TermuxAppSharedProperties(@NonNull Context context) {
@@ -23,7 +23,7 @@ public class TermuxAppSharedProperties extends TermuxSharedProperties {
      * @param context The {@link Context} for operations.
      * @return Returns the {@link TermuxAppSharedProperties}.
      */
-    public static TermuxAppSharedProperties init(@NonNull Context context) {
+    public static synchronized TermuxAppSharedProperties init(@NonNull Context context) {
         if (properties == null)
             properties = new TermuxAppSharedProperties(context);
 

@@ -36,9 +36,11 @@ internal fun KotlinModuleLayout.toKtModules(
 
 		val layoutsByPath = modules.associateBy { it.path }
 		val sourceModules = mutableMapOf<String, KtSourceModule>()
+		val modulesInProgress = mutableSetOf<String>()
 
 		fun getOrCreateModule(moduleLayout: SourceModuleLayout): KtSourceModule {
 			sourceModules[moduleLayout.path]?.let { return it }
+			modulesInProgress += moduleLayout.path
 
 			val module =
 				buildKtSourceModule(project) {
@@ -58,11 +60,15 @@ internal fun KotlinModuleLayout.toKtModules(
 						addDependency(libDep)
 					}
 
+					// A dependency still being built closes a cycle; skipping it breaks the cycle,
+					// which ModuleProject.getCompileModuleProjects has already reported to the user.
 					moduleLayout.moduleDependencies
+						.filterNot { it in modulesInProgress }
 						.mapNotNull { layoutsByPath[it] }
 						.forEach { dep -> addDependency(getOrCreateModule(dep)) }
 				}
 
+			modulesInProgress -= moduleLayout.path
 			sourceModules[moduleLayout.path] = module
 			return module
 		}

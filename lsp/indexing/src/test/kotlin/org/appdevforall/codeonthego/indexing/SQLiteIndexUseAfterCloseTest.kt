@@ -94,13 +94,39 @@ class SQLiteIndexUseAfterCloseTest {
 			assertThat(errorsNamingIndex()).isEmpty()
 		}
 
-	private fun newIndex() =
+	@Test
+	fun `use after close in an ended session logs one debug and no error`(): Unit =
+		runBlocking {
+			val index = newIndex(IndexSessionLifetime().apply { end() })
+			index.close()
+
+			index.query(IndexQuery(sourceIds = null, limit = 0)).toList()
+			index.insert(Entry("k", "s"))
+
+			assertThat(errorsNamingIndex()).isEmpty()
+			assertThat(captured.filter { it.level == Level.DEBUG && INDEX_NAME in it.message }).hasSize(1)
+		}
+
+	@Test
+	fun `use after close in a live session still logs one error`(): Unit =
+		runBlocking {
+			val index = newIndex(IndexSessionLifetime())
+			index.close()
+
+			index.query(IndexQuery(sourceIds = null, limit = 0)).toList()
+			index.insert(Entry("k", "s"))
+
+			assertThat(errorsNamingIndex()).hasSize(1)
+		}
+
+	private fun newIndex(lifetime: IndexSessionLifetime? = null) =
 		SQLiteIndex(
 			descriptor = descriptor,
 			context = context,
 			dbName = DB_NAME,
 			formatVersion = 1,
 			name = INDEX_NAME,
+			lifetime = lifetime,
 		)
 
 	private fun errorsNamingIndex() = captured.filter { it.level == Level.ERROR && INDEX_NAME in it.message }

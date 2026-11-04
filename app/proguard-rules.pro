@@ -55,15 +55,24 @@
 # debug build). Each fix was quick but the next gap kept appearing elsewhere
 # in the same dependency graph, so rather than keep discovering them one
 # on-device crash at a time, keep every runtime dependency lsp/kotlin pulls in
-# whole. This gives up the dex-size reduction for this whole dependency graph;
-# see ADFA-3604 for the size trade-off.
+# whole, except StreamEx (below). This gives up the dex-size reduction for the
+# rest of this dependency graph; see ADFA-3604 for the size trade-off.
 -keep class org.jetbrains.kotlin.** { *; }
 -keep class com.github.benmanes.caffeine.** { *; }
+# The broader kotlin.** and kotlinx.coroutines.** keeps further down (added for
+# plugins, ADFA-5156) also cover the next three. Keep them anyway: they are the
+# Kotlin LSP's own requirement, and ADFA-5164 plans to narrow those rules.
 -keep class kotlin.reflect.** { *; }
 -keep class kotlin.script.** { *; }
 -keep class kotlinx.coroutines.internal.** { *; }
--keep class one.util.streamex.** { *; }
 -keep class gnu.trove.** { *; }
+# StreamEx, shaded into the same jar, is deliberately not kept whole: R8 traces
+# what its callers use. Its only callers are 10 IntelliJ classes the jar
+# relocates under org.jetbrains.kotlin.com.intellij (Java PSI plus
+# codeInsight.BaseExternalAnnotationsManager), which the org.jetbrains.kotlin.**
+# rule above keeps whole, and it does no name-based reflection. Keeping it
+# whole cost ~380 KB of dex (ADFA-4647). Re-check both facts when bumping the
+# jar (see subprojects/kotlin-analysis-api/consumer-rules.pro).
 
 # Eclipse
 -keep class org.eclipse.** { *; }

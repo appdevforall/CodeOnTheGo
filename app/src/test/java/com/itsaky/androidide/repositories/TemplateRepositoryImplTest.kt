@@ -253,6 +253,45 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
+	fun listTemplateFiles_skipsPendingAndTrashedDownloads() =
+		runTest {
+			// MediaProvider's names for a download still in progress and a trashed file
+			// (Android 11+). Both keep the .cgt extension and must not be offered for install.
+			writeCgt(downloadDir, ".pending-1733000000-partial.cgt")
+			writeCgt(downloadDir, ".trashed-1733000000-deleted.cgt")
+			writeCgt(downloadDir, "real.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly("real.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_keepsAnInstalledCollectionWithAHiddenName() =
+		runTest {
+			// The installer accepts a collection named ".hidden" and stores it as ".hidden.cgt";
+			// it must stay listed so it can be uninstalled.
+			writeCgt(templatesDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly(".hidden.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_keepsAHiddenCollectionInDownloads() =
+		runTest {
+			// Where uninstall leaves ".hidden.cgt": in Downloads under the same name. The user must
+			// still be able to reinstall or delete it. (A successful uninstall reloads the global
+			// template provider, which unit tests cannot, so this sets up its result directly.)
+			writeCgt(downloadDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name to it.installed }).containsExactly(".hidden.cgt" to false)
+		}
+
+	@Test
 	fun listTemplateFiles_excludesACoreArchiveFoundOnlyInDownloads() =
 		runTest {
 			// No core.cgt in templatesDir yet (e.g. asset bootstrap hasn't run) - the twin-hiding

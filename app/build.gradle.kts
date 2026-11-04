@@ -72,6 +72,15 @@ buildscript {
 	}
 }
 
+// ADFA-6821: production sources are warning-free; keep them that way. Test sources
+// (compile*UnitTestKotlin, compile*AndroidTestKotlin) still have warnings, so they are left out
+// rather than breaking testV8DebugUnitTest and the analysis workflow that depends on it.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+	if (!name.endsWith("TestKotlin")) {
+		compilerOptions.allWarningsAsErrors.set(true)
+	}
+}
+
 android {
 	namespace = BuildConfig.PACKAGE_NAME
 
@@ -180,6 +189,8 @@ android {
 			excludes += "intellij.java.frontback.psi.impl.xml"
 			// jgit's OSGi bundle localization data; unused outside an OSGi runtime.
 			excludes += "OSGI-INF/l10n/plugin.properties"
+			// kotlinx-coroutines debug-agent resource; no DebugProbes.install() or java agent in this repo.
+			excludes += "DebugProbesKt.bin"
 
 			pickFirsts += "kotlin/internal/internal.kotlin_builtins"
 			pickFirsts += "kotlin/reflect/reflect.kotlin_builtins"

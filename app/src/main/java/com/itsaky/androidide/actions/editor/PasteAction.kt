@@ -22,41 +22,44 @@ import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.BaseEditorAction
 import com.itsaky.androidide.actions.MutableTextTarget
 import com.itsaky.androidide.idetooltips.TooltipTag
+
 /** @author Akash Yadav */
-class PasteAction(context: Context, override val order: Int) : BaseEditorAction() {
+class PasteAction(
+	context: Context,
+	override val order: Int,
+) : BaseEditorAction() {
+	init {
+		label = context.getString(android.R.string.paste)
 
-  init {
-    label = context.getString(android.R.string.paste)
+		val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModePasteDrawable))
+		icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
+		arr.recycle()
+	}
 
-    val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModePasteDrawable))
-    icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-    arr.recycle()
-  }
+	companion object {
+		const val ID = "ide.editor.code.text.paste"
+	}
 
-  companion object {
-    const val ID = "ide.editor.code.text.paste"
-  }
+	override val id: String = ID
 
-  override val id: String = ID
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		if (!visible) return
 
-    if (!visible) return
+		val target = getTextTarget(data)
+		visible = (target is MutableTextTarget) && target.isEditable()
+		enabled = visible
+	}
 
-    val target = getTextTarget(data)
-    visible = (target is MutableTextTarget) && target.isEditable()
-    enabled = visible
-  }
+	override suspend fun execAction(data: ActionData): Boolean {
+		val target = getTextTarget(data) ?: return false
+		if (target is MutableTextTarget) {
+			target.paste()
+			return true
+		}
+		return false
+	}
 
-  override suspend fun execAction(data: ActionData): Boolean {
-    val target = getTextTarget(data) ?: return false
-    if (target is MutableTextTarget) {
-      target.paste()
-      return true
-    }
-    return false
-  }
-
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_PASTE
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.EDITOR_TOOLBAR_PASTE
 }

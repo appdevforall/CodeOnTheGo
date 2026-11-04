@@ -38,6 +38,7 @@ class BuildCompletedMetricTest {
 	private fun metric(
 		isSuccess: Boolean,
 		failure: TaskExecutionResult.Failure?,
+		relocatedOutput: Boolean = false,
 	) = BuildCompletedMetric(
 		buildId = BuildId.Unknown,
 		buildType = "assemble",
@@ -49,7 +50,15 @@ class BuildCompletedMetricTest {
 				durationMs = 1_234L,
 				failure = failure,
 			),
+		relocatedOutput = relocatedOutput,
 	)
+
+	@Test
+	fun `the duration can be split by where the build wrote its output`() {
+		assertThat(metric(isSuccess = true, failure = null, relocatedOutput = true).asBundle().getBoolean("relocated_output", false))
+			.isTrue()
+		assertThat(metric(isSuccess = true, failure = null).asBundle().getBoolean("relocated_output", true)).isFalse()
+	}
 
 	@Test
 	fun `a cancelled build carries the reason that says so`() {
