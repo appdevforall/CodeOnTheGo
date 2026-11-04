@@ -224,7 +224,7 @@ fun PluginManagerContent(
 				},
 				onDismiss = {
 					// Declining a forwarded install must dispose of the temp copy
-					// ExternalFileInstallActivity made for us; a user-picked ContentUri is left
+					// ExternalFileInstallActivity made for us; a user-picked PickedUri is left
 					// untouched. CancelPendingInstall encapsulates that distinction.
 					viewModel.onEvent(PluginManagerUiEvent.CancelPendingInstall(dialog.source))
 					dialogState = PluginManagerDialogState.None

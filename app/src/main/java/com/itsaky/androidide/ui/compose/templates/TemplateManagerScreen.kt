@@ -87,8 +87,9 @@ private data class SelectedTemplateKey(
 
 /**
  * Templates tab content (ADR 0009). Passively scans `Environment.TEMPLATES_DIR` + the Downloads
- * folder for `.cgt` files - unlike the Plugins tab, there's no FAB/file-picker install flow here,
- * matching the reference `TemplateManagerPlugin`'s design.
+ * folder for `.cgt` files, matching the reference `TemplateManagerPlugin`'s design. The shared
+ * manager screen's + button also installs a `.cgt` from this tab; that flow lives in
+ * [com.itsaky.androidide.ui.compose.ManagerScreen], not here.
  *
  * Content-only (no Scaffold/TopAppBar): meant to be composed as one tab's body inside the shared
  * manager screen alongside the Plugins tab.
