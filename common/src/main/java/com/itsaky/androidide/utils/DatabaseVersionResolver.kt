@@ -34,6 +34,12 @@ object DatabaseVersionResolver {
 	// the installed database, so a 2.x file has to keep rendering its templated pages.
 	const val MAJOR_VERSION_WITH_COMPRESSED_TEMPLATES = 3
 
+	// From this MAJOR version on (ADFA-6683), some Content rows are stored in compressed blocks:
+	// such a row's content is empty, and its ContentBlockItems row names its block and the item's
+	// [offset, offset + length) in the decoded block. The version says so, not the tables' presence:
+	// below it a database carrying the tables is read as it always was.
+	const val MAJOR_VERSION_WITH_CONTENT_BLOCKS = 4
+
 	private const val QUERY_VERSION_TABLE_EXISTS = """
 		SELECT 1
 		FROM   sqlite_master
