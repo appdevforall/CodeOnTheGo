@@ -25,10 +25,14 @@ class InstallationEventFlowTest {
 		status: Int?,
 		packageName: String? = "com.example.app",
 		message: String? = null,
+		sessionId: Int? = null,
 	): InstallationEvent.InstallationResultEvent {
 		val extras = mockk<Bundle>()
 		every { extras.getInt(PackageInstaller.EXTRA_STATUS, any()) } answers {
 			status ?: secondArg()
+		}
+		every { extras.getInt(PackageInstaller.EXTRA_SESSION_ID, any()) } answers {
+			sessionId ?: secondArg()
 		}
 		every { extras.getString(PackageInstaller.EXTRA_PACKAGE_NAME) } returns packageName
 		every { extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE) } returns message
