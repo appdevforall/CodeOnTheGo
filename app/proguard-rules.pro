@@ -270,13 +270,9 @@
 -keep class androidx.cardview.** { *; }
 -keep class androidx.viewpager.widget.** { *; }
 -keep class androidx.compose.** { *; }
--keep class androidx.collection.** { *; }
--keep class androidx.emoji2.** { *; }
 -keep class androidx.lifecycle.** { *; }
 -keep class androidx.activity.** { *; }
 -keep class androidx.savedstate.** { *; }
--keep class androidx.customview.** { *; }
--keep class androidx.tracing.** { *; }
 
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }
