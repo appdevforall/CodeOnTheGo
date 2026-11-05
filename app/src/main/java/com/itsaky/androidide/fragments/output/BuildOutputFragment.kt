@@ -37,8 +37,6 @@ import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.viewmodel.BuildOutputViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
@@ -62,7 +60,9 @@ class BuildOutputFragment :
 
 	override val currentEditor: IDEEditor? get() = editor
 
-	private val logChannel = Channel<String>(Channel.UNLIMITED)
+	// Fixed pending budget: a flooding build drops its oldest queued lines behind one omission
+	// marker instead of holding an unlimited backlog in memory until the editor catches up.
+	private val outputBuffer = BuildOutputBuffer(maxBatchChars = MAX_BATCH_CHARS)
 
 	private var searchLayout: EditorSearchLayout? = null
 	private var filterBar: LogFilterBarController? = null
@@ -353,9 +353,8 @@ class BuildOutputFragment :
 		// Avoid forcing the activityViewModels lazy init (which calls requireActivity())
 		// when the fragment is detached, otherwise an IllegalStateException is thrown.
 		if (!isAdded || activity == null) return
-		while (logChannel.tryReceive().isSuccess) {
-			// Discard: these lines belong to the session being cleared.
-		}
+		// Discard: these lines belong to the session being cleared.
+		outputBuffer.clear()
 		// Invalidate in-flight flushes before deleting content, so a batch drained from the
 		// channel earlier cannot re-seed the cleared session.
 		sessionGeneration++
@@ -381,35 +380,7 @@ class BuildOutputFragment :
 
 	fun appendOutput(output: String?) {
 		if (!output.isNullOrEmpty()) {
-			logChannel.trySend(output)
-		}
-	}
-
-	/**
-	 * Ensures the string ends with a newline character (`\n`).
-	 * Useful for maintaining correct formatting when concatenating log lines.
-	 */
-	private fun String.ensureNewline(): String = if (endsWith('\n')) this else "$this\n"
-
-	/**
-	 * Immediately drains (consumes) all available messages from the channel into the [buffer].
-	 *
-	 * This is a **non-blocking** operation that enables batching, grouping hundreds of pending lines
-	 * into a single memory operation to avoid saturating the UI queue.
-	 */
-	private fun ReceiveChannel<String>.drainTo(buffer: StringBuilder) {
-		// Bounded: the main thread word-wraps each batch in one appendBatch call, so draining a
-		// flooding build in one go stalled it into an ANR (WordwrapLayout.afterInsert). The rest
-		// stays queued for the next batch.
-		if (buffer.length >= MAX_BATCH_CHARS) return
-		var result = tryReceive()
-		while (result.isSuccess) {
-			val line = result.getOrNull()
-			if (!line.isNullOrEmpty()) {
-				buffer.append(line.ensureNewline())
-			}
-			if (buffer.length >= MAX_BATCH_CHARS) return
-			result = tryReceive()
+			outputBuffer.offer(output, sessionGeneration)
 		}
 	}
 
@@ -420,21 +391,15 @@ class BuildOutputFragment :
 	 * 2. Wakes up and drains the entire queue (Batching).
 	 * 3. Sends the complete block to the UI in a single pass.
 	 */
-	private suspend fun processLogs() =
-		with(StringBuilder()) {
-			for (firstLine in logChannel) {
-				val sessionGenAtDrain = sessionGeneration
-				val editorGenAtDrain = editorContentGeneration
-				append(firstLine.ensureNewline())
-				logChannel.drainTo(this)
-
-				if (isNotEmpty()) {
-					val batchText = toString()
-					clear()
-					flushToEditor(batchText, sessionGenAtDrain, editorGenAtDrain)
-				}
-			}
+	private suspend fun processLogs() {
+		while (true) {
+			val batch = outputBuffer.takeBatch()
+			val editorGenAtDrain = editorContentGeneration
+			// A batch queued before clearOutput() belongs to the previous build.
+			if (batch.sessionToken != sessionGeneration) continue
+			flushToEditor(batch.text, batch.omittedLines, batch.sessionToken, editorGenAtDrain)
 		}
+	}
 
 	/**
 	 * Performs the safe UI update on the Main Thread.
@@ -448,6 +413,7 @@ class BuildOutputFragment :
 	 */
 	private suspend fun flushToEditor(
 		text: String,
+		omittedLines: Long,
 		sessionGen: Int,
 		editorGen: Int,
 	) {
@@ -456,13 +422,16 @@ class BuildOutputFragment :
 			if (sessionGen != sessionGeneration) return
 
 			// The editor shows only the lines matching the current filter; the file keeps them all.
+			// The omission marker is shown whatever the filter, so dropped output is never silent.
+			val omissionMarker = if (omittedLines > 0) formatOmissionMarker(omittedLines) else ""
 			val visibleText =
-				BuildOutputViewModel.filterLines(
-					text,
-					buildOutputViewModel.filterText.value,
-					buildOutputViewModel.showTimestamps.value,
-					buildOutputViewModel.showDeltas.value,
-				)
+				omissionMarker +
+					BuildOutputViewModel.filterLines(
+						text,
+						buildOutputViewModel.filterText.value,
+						buildOutputViewModel.showTimestamps.value,
+						buildOutputViewModel.showDeltas.value,
+					)
 			if (visibleText.isEmpty()) {
 				return
 			}
@@ -529,6 +498,13 @@ class BuildOutputFragment :
 	 * until they ANR'd. Trims the editor's own (already filtered) text rather than re-reading the
 	 * session file, whose writer can lag the editor. Call on the main thread under [editorContentMutex].
 	 */
+	private fun formatOmissionMarker(lineCount: Long): String {
+		val quantity = lineCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+		return resources
+			.getQuantityString(R.plurals.msg_build_output_lines_omitted, quantity, lineCount)
+			.plus('\n')
+	}
+
 	private fun IDEEditor.trimToWindow() {
 		if (isReleased) return
 		val tail = BuildOutputViewModel.editorTail(text) ?: return
