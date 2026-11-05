@@ -186,4 +186,18 @@ class JarListingCacheTest {
 		assertThat(result.get(10, TimeUnit.SECONDS)).isNotNull()
 		pool.shutdown()
 	}
+
+	@Test
+	fun `a throwing listener does not stop later listeners and the failure surfaces`() {
+		val jar = jar("a/B.class")
+		val called = AtomicInteger()
+		cache.addListener { throw IllegalStateException("first") }
+		cache.addListener { called.incrementAndGet() }
+		cache.get(jar)
+
+		val failure = runCatching { cache.invalidate(jar) }.exceptionOrNull()
+
+		assertThat(failure).hasMessageThat().isEqualTo("first")
+		assertThat(called.get()).isEqualTo(1)
+	}
 }
