@@ -20,6 +20,7 @@ package com.itsaky.androidide.zipfs2.listing;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -71,16 +72,19 @@ public final class JarListingCache {
 	 * Returns the listing for the JAR, building it on first use and rebuilding it when the JAR's
 	 * size or modification time differs from when it was built.
 	 *
-	 * <p>Listeners are notified of a dropped listing before its replacement is built. If the build
-	 * fails, the exception propagates and nothing is cached.
+	 * <p>Listeners are notified of a dropped listing before its replacement is built. Every
+	 * listener is called even if one throws; the first failure is then rethrown with the others
+	 * suppressed, and the next call builds the replacement. If the build fails, the exception
+	 * propagates and nothing is cached.
 	 *
 	 * @throws IOException if the JAR cannot be read or its central directory is malformed
 	 */
 	public JarListing get(Path jar) throws IOException {
 		final Path key = normalize(jar);
 		final String id = key.toString();
-		final long size = Files.size(key);
-		final long mtime = modifiedNanos(key);
+		final BasicFileAttributes attrs = Files.readAttributes(key, BasicFileAttributes.class);
+		final long size = attrs.size();
+		final long mtime = modifiedNanos(attrs);
 
 		final Entry cached = entries.get(id);
 		if (isCurrent(cached, size, mtime)) {
@@ -133,8 +137,20 @@ public final class JarListingCache {
 		if (entries.remove(id) == null) {
 			return;
 		}
+		RuntimeException failure = null;
 		for (Consumer<Path> listener : listeners) {
-			listener.accept(key);
+			try {
+				listener.accept(key);
+			} catch (RuntimeException e) {
+				if (failure == null) {
+					failure = e;
+				} else {
+					failure.addSuppressed(e);
+				}
+			}
+		}
+		if (failure != null) {
+			throw failure;
 		}
 	}
 
@@ -146,8 +162,8 @@ public final class JarListingCache {
 		return entry != null && entry.size == size && entry.mtimeNanos == mtime;
 	}
 
-	private static long modifiedNanos(Path jar) throws IOException {
-		final var time = Files.getLastModifiedTime(jar).toInstant();
+	private static long modifiedNanos(BasicFileAttributes attrs) {
+		final var time = attrs.lastModifiedTime().toInstant();
 		return time.getEpochSecond() * 1_000_000_000L + time.getNano();
 	}
 
