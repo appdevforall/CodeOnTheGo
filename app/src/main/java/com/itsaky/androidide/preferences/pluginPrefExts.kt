@@ -18,8 +18,8 @@ import kotlinx.parcelize.Parcelize
 @Parcelize
 class PluginManagerEntry(
 	override val key: String = "idepref_plugin_manager",
-	override val title: Int = string.plugin_manager_title,
-	override val summary: Int? = string.plugin_manager_summary,
+	override val title: Int = string.addons_manager_title,
+	override val summary: Int? = string.addons_manager_summary,
 	override val tooltipTag: String = PREFS_PLUGIN_MANAGER,
 ) : BasePreference() {
 	override fun onCreatePreference(context: Context): Preference {

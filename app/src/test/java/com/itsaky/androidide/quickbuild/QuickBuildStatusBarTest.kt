@@ -320,7 +320,7 @@ class QuickBuildStatusBarTest {
 	}
 
 	@Test
-	fun `an invalidation names the full-build ask`() {
+	fun `an invalidation says the full build is starting`() {
 		val shown =
 			update(
 				QuickBuildStatus.UpToDate(4L, null),
