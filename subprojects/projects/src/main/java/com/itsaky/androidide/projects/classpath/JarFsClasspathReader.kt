@@ -25,7 +25,6 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.FileVisitResult
 import java.nio.file.FileVisitResult.CONTINUE
-import java.nio.file.FileVisitResult.SKIP_SUBTREE
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.SimpleFileVisitor
@@ -65,54 +64,8 @@ class JarFsClasspathReader : IClasspathReader {
 
 			try {
 				val fs = CachingJarFileSystemProvider.newFileSystem(path) as CachedJarFileSystem
-				val packageDirectories = fs.packageIndex().values.toHashSet()
-				for (rootDirectory in fs.rootDirectories) {
-					Files.walkFileTree(
-						rootDirectory,
-						emptySet(),
-						Int.MAX_VALUE,
-						object : SimpleFileVisitor<Path>() {
-							override fun preVisitDirectory(
-								dir: Path?,
-								attrs: BasicFileAttributes?,
-							): FileVisitResult =
-								if (dir in packageDirectories) {
-									CONTINUE
-								} else {
-									SKIP_SUBTREE
-								}
-
-							override fun visitFile(
-								file: Path,
-								attrs: BasicFileAttributes,
-							): FileVisitResult {
-								var name = file.pathString
-								if (name.endsWith("/package-info.class") || !name.endsWith(".class")) {
-									return CONTINUE
-								}
-
-								name = name.substringBeforeLast(".class")
-
-								if (name.isBlank()) {
-									return CONTINUE
-								}
-
-								if (name.startsWith('/')) {
-									name = name.substring(1)
-								}
-
-								if (name.contains('/')) {
-									name = name.replace('/', '.')
-								}
-
-								ClassInfo.create(name)?.also {
-									builder.add(it)
-								}
-
-								return super.visitFile(file, attrs)
-							}
-						},
-					)
+				for (packageDirectory in fs.packageIndex().values) {
+					addClassesIn(packageDirectory, builder)
 				}
 			} catch (e: ZipException) {
 				// A corrupt or truncated JAR must not abort indexing of the remaining classpath entries.
@@ -124,5 +77,47 @@ class JarFsClasspathReader : IClasspathReader {
 			}
 		}
 		return builder.build()
+	}
+
+	private fun addClassesIn(
+		packageDirectory: Path,
+		builder: ImmutableSet.Builder<ClassInfo>,
+	) {
+		Files.walkFileTree(
+			packageDirectory,
+			emptySet(),
+			1,
+			object : SimpleFileVisitor<Path>() {
+				override fun visitFile(
+					file: Path,
+					attrs: BasicFileAttributes,
+				): FileVisitResult {
+					var name = file.pathString
+					if (!attrs.isRegularFile || name.endsWith("/package-info.class") || !name.endsWith(".class")) {
+						return CONTINUE
+					}
+
+					name = name.substringBeforeLast(".class")
+
+					if (name.isBlank()) {
+						return CONTINUE
+					}
+
+					if (name.startsWith('/')) {
+						name = name.substring(1)
+					}
+
+					if (name.contains('/')) {
+						name = name.replace('/', '.')
+					}
+
+					ClassInfo.create(name)?.also {
+						builder.add(it)
+					}
+
+					return CONTINUE
+				}
+			},
+		)
 	}
 }
