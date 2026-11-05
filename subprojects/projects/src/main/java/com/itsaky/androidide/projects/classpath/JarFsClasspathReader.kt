@@ -65,6 +65,7 @@ class JarFsClasspathReader : IClasspathReader {
 
 			try {
 				val fs = CachingJarFileSystemProvider.newFileSystem(path) as CachedJarFileSystem
+				val packageDirectories = fs.packageIndex().values.toHashSet()
 				for (rootDirectory in fs.rootDirectories) {
 					Files.walkFileTree(
 						rootDirectory,
@@ -75,7 +76,7 @@ class JarFsClasspathReader : IClasspathReader {
 								dir: Path?,
 								attrs: BasicFileAttributes?,
 							): FileVisitResult =
-								if (fs.storeJARPackageDir(dir)) {
+								if (dir in packageDirectories) {
 									CONTINUE
 								} else {
 									SKIP_SUBTREE
