@@ -27,8 +27,8 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 object JarPackageProviderImpl : JarPackageProvider {
-	override fun getPackages(archivePath: Path): MutableMap<RelativeDirectory, Path> {
+	override fun getPackages(archivePath: Path): Map<RelativeDirectory, Path> {
 		val fs = CachingJarFileSystemProvider.newFileSystem(archivePath) as CachedJarFileSystem
-		return fs.packages
+		return fs.packageIndex()
 	}
 }

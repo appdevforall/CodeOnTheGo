@@ -23,7 +23,12 @@ import jdkx.lang.model.SourceVersion
 import openjdk.tools.javac.file.RelativePath.RelativeDirectory
 import org.slf4j.LoggerFactory
 import java.io.IOException
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.Collections
 
 /**
  * A cached file system for JAR files.
@@ -39,7 +44,9 @@ class CachedJarFileSystem(
 		private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
 	}
 
-	internal val packages = mutableMapOf<RelativeDirectory, Path>()
+	private val packageIndex: Map<RelativeDirectory, Path> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+		Collections.unmodifiableMap(walkPackages())
+	}
 
 	override fun close() {
 		// Do nothing
@@ -57,13 +64,35 @@ class CachedJarFileSystem(
 		}
 	}
 
-	fun storeJARPackageDir(dir: Path?): Boolean {
-		if (isValid(dir?.fileName)) {
-			packages[RelativeDirectory(rootDir.relativize(dir!!).toString())] = dir
-			return true
-		}
+	/**
+	 * Returns the package directories of this JAR keyed the way javac's archive walk keys them.
+	 *
+	 * The map is built on first use, is read-only, and is the same instance on every call.
+	 */
+	fun packageIndex(): Map<RelativeDirectory, Path> = packageIndex
 
-		return false
+	private fun walkPackages(): Map<RelativeDirectory, Path> {
+		val packages = HashMap<RelativeDirectory, Path>()
+		for (root in rootDirectories) {
+			Files.walkFileTree(
+				root,
+				emptySet(),
+				Int.MAX_VALUE,
+				object : SimpleFileVisitor<Path>() {
+					override fun preVisitDirectory(
+						dir: Path,
+						attrs: BasicFileAttributes,
+					): FileVisitResult {
+						if (!isValid(dir.fileName)) {
+							return FileVisitResult.SKIP_SUBTREE
+						}
+						packages[RelativeDirectory(root.relativize(dir).toString())] = dir
+						return FileVisitResult.CONTINUE
+					}
+				},
+			)
+		}
+		return packages
 	}
 
 	private fun isValid(fileName: Path?): Boolean =
