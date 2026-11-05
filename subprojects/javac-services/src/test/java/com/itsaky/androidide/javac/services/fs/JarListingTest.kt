@@ -114,6 +114,7 @@ class JarListingTest {
 		val jar = fixture()
 		val listing = JarListing.read(jar.toPath())
 
+		val bytes = jar.readBytes()
 		ZipFile(jar).use { zf ->
 			for (entry in zf.entries().asSequence()) {
 				val normalized = normalize(entry.name)
@@ -124,6 +125,9 @@ class JarListingTest {
 				assertThat(listing.compressedSize(i)).isEqualTo(entry.compressedSize)
 				assertThat(listing.method(i)).isEqualTo(entry.method)
 				assertThat(listing.isDirectory(i)).isEqualTo(entry.isDirectory)
+				val header = cenHeaders(bytes).getValue(normalize(entry.name))
+				assertThat(listing.flag(i)).isEqualTo(u16(bytes, header + 8))
+				assertThat(listing.dosTime(i)).isEqualTo(u32(bytes, header + 12))
 			}
 		}
 	}
@@ -343,6 +347,53 @@ class JarListingTest {
 		assertThat(listing.compressedSize(i)).isEqualTo(ZIP64_COMPRESSED_SIZE)
 		assertThat(listing.localHeaderOffset(i)).isEqualTo(ZIP64_OFFSET)
 		assertThat(listing.find("/a/b/C.class")).isAtLeast(0)
+	}
+
+	@Test
+	fun `a missing zip64 extra field keeps the 32-bit values`() {
+		val bytes = fixture().readBytes()
+		val header = cenHeaders(bytes).getValue("/a/D.class")
+		put32(bytes, header + 20, 0xFFFFFFFFL)
+		put32(bytes, header + 24, 0xFFFFFFFFL)
+		val patched = File(tmpDir, "no-extra.jar").apply { writeBytes(bytes) }
+
+		val listing = JarListing.read(patched.toPath())
+
+		val i = listing.find("/a/D.class")
+		assertThat(listing.size(i)).isEqualTo(0xFFFFFFFFL)
+		assertThat(listing.compressedSize(i)).isEqualTo(0xFFFFFFFFL)
+		assertThat(listing.find("/a/b/C.class")).isAtLeast(0)
+	}
+
+	@Test
+	fun `more than 256 distinct flag values are all kept`() {
+		val jar = zip { for (k in 0 until 300) add("p/F$k.txt", "x") }
+		val bytes = jar.readBytes()
+		val headers = cenHeaders(bytes)
+		for (k in 0 until 300) {
+			put16(bytes, headers.getValue("/p/F$k.txt") + 8, (k + 1) * 2)
+		}
+		val patched = File(tmpDir, "flags.jar").apply { writeBytes(bytes) }
+
+		val listing = JarListing.read(patched.toPath())
+
+		for (k in 0 until 300) {
+			assertThat(listing.flag(listing.find("/p/F$k.txt"))).isEqualTo((k + 1) * 2)
+		}
+		assertThat(listing.isDirectory(listing.find("/p"))).isTrue()
+		assertThat(listing.method(listing.find("/p/F0.txt"))).isEqualTo(ZipEntry.DEFLATED)
+	}
+
+	private fun cenHeaders(bytes: ByteArray): Map<String, Int> {
+		val result = mutableMapOf<String, Int>()
+		var pos = indexOf(bytes, byteArrayOf(0x50, 0x4b, 0x01, 0x02))
+		while (pos + 46 <= bytes.size && u32(bytes, pos) == 0x02014b50L) {
+			val nlen = u16(bytes, pos + 28)
+			val name = String(bytes, pos + 46, nlen)
+			result[normalize(name)] = pos
+			pos += 46 + nlen + u16(bytes, pos + 30) + u16(bytes, pos + 32)
+		}
+		return result
 	}
 
 	private fun normalize(name: String): String {

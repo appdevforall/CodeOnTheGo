@@ -60,7 +60,7 @@ public final class JarListing {
 	private static final int KIND_METHOD_SHIFT = 17;
 	private static final int KIND_FLAG_MASK = 0xFFFF;
 	private static final int SYNTHESIZED = 0;
-	private static final int MAX_KINDS = 256;
+	private static final int NARROW_KINDS = 256;
 
 	private static final int OVERFLOW_COMPRESSED = 0;
 	private static final int OVERFLOW_SIZE = 1;
@@ -76,6 +76,7 @@ public final class JarListing {
 
 	/* Index into kinds[] per entry; 0 marks a directory synthesized for lack of an entry. */
 	private final byte[] kindIndex;
+	private final int[] wideKindIndex;
 	private final int[] kinds;
 	private final int[] crcs;
 	private final int[] compressedSizes;
@@ -96,7 +97,16 @@ public final class JarListing {
 		this.nameOffsets = Arrays.copyOf(b.nameOffsets, count + 1);
 		this.firstChildren = Arrays.copyOf(b.firstChildren, count);
 		this.nextSiblings = Arrays.copyOf(b.nextSiblings, count);
-		this.kindIndex = Arrays.copyOf(b.kindIndex, count);
+		if (b.kindCount <= NARROW_KINDS) {
+			this.kindIndex = new byte[count];
+			for (int i = 0; i < count; i++) {
+				kindIndex[i] = (byte) b.kindIndex[i];
+			}
+			this.wideKindIndex = null;
+		} else {
+			this.kindIndex = null;
+			this.wideKindIndex = Arrays.copyOf(b.kindIndex, count);
+		}
 		this.kinds = Arrays.copyOf(b.kinds, b.kindCount);
 		this.crcs = Arrays.copyOf(b.crcs, count);
 		this.compressedSizes = Arrays.copyOf(b.compressedSizes, count);
@@ -150,7 +160,7 @@ public final class JarListing {
 
 	/** Returns whether the entry is a directory, explicit or synthesized. */
 	public boolean isDirectory(int i) {
-		return i == 0 || kindIndex[i] == SYNTHESIZED || (kinds[kindIndex[i] & 0xFF] & KIND_DIRECTORY_BIT) != 0;
+		return i == 0 || kindOf(i) == SYNTHESIZED || (kinds[kindOf(i)] & KIND_DIRECTORY_BIT) != 0;
 	}
 
 	/** Returns the index of the entry's parent directory, or -1 for the root. */
@@ -201,12 +211,12 @@ public final class JarListing {
 
 	/** Returns the compression method of the entry, or 0 for a synthesized directory. */
 	public int method(int i) {
-		return kinds[kindIndex[i] & 0xFF] >>> KIND_METHOD_SHIFT;
+		return kinds[kindOf(i)] >>> KIND_METHOD_SHIFT;
 	}
 
 	/** Returns the general purpose bit flag of the entry, or 0 for a synthesized directory. */
 	public int flag(int i) {
-		return kinds[kindIndex[i] & 0xFF] & KIND_FLAG_MASK;
+		return kinds[kindOf(i)] & KIND_FLAG_MASK;
 	}
 
 	/** Returns the CRC-32 of the uncompressed data. */
@@ -229,7 +239,7 @@ public final class JarListing {
 	 * archive, or -1 for a synthesized directory.
 	 */
 	public long localHeaderOffset(int i) {
-		if (i == 0 || kindIndex[i] == SYNTHESIZED) {
+		if (i == 0 || kindOf(i) == SYNTHESIZED) {
 			return -1L;
 		}
 		return widen(offsets[i], i, OVERFLOW_OFFSET);
@@ -246,8 +256,12 @@ public final class JarListing {
 				+ 4L * (nameOffsets.length + table.length + firstChildren.length + nextSiblings.length
 						+ kinds.length + crcs.length + compressedSizes.length + sizes.length
 						+ offsets.length + dosTimes.length + overflowEntries.length)
-				+ kindIndex.length
+				+ (kindIndex != null ? kindIndex.length : 4L * wideKindIndex.length)
 				+ 8L * overflowValues.length;
+	}
+
+	private int kindOf(int i) {
+		return kindIndex != null ? kindIndex[i] & 0xFF : wideKindIndex[i];
 	}
 
 	private long widen(int stored, int i, int field) {
@@ -418,7 +432,8 @@ public final class JarListing {
 	private static final class Builder {
 		private final long localHeaderBase;
 		private final Map<Integer, long[]> overflow = new HashMap<>();
-		private final int[] kinds = new int[MAX_KINDS];
+		private final Map<Integer, Integer> kindLookup = new HashMap<>();
+		private int[] kinds = new int[NARROW_KINDS];
 		private int kindCount = 1;
 
 		private int count;
@@ -429,7 +444,7 @@ public final class JarListing {
 		private int[] table;
 		private int[] firstChildren;
 		private int[] nextSiblings;
-		private byte[] kindIndex;
+		private int[] kindIndex;
 		private int[] crcs;
 		private int[] compressedSizes;
 		private int[] sizes;
@@ -447,7 +462,7 @@ public final class JarListing {
 			this.table = new int[Integer.highestOneBit(capacity * 2) * 2];
 			this.firstChildren = new int[capacity];
 			this.nextSiblings = new int[capacity];
-			this.kindIndex = new byte[capacity];
+			this.kindIndex = new int[capacity];
 			this.crcs = new int[capacity];
 			this.compressedSizes = new int[capacity];
 			this.sizes = new int[capacity];
@@ -487,8 +502,7 @@ public final class JarListing {
 			return new JarListing(this);
 		}
 
-		private void addEntry(byte[] cen, int pos, int flag, int method, int nlen, int elen)
-				throws ZipException {
+		private void addEntry(byte[] cen, int pos, int flag, int method, int nlen, int elen) {
 			int nameStart = pos + CENHDR;
 			boolean directory = nlen > 0 && cen[nameStart + nlen - 1] == '/';
 			int len = normalizeInto(cen, nameStart, nlen);
@@ -508,7 +522,7 @@ public final class JarListing {
 				i = create(scratch, len);
 			}
 			int kind = kindFor(method, directory, flag);
-			kindIndex[i] = (byte) kind;
+			kindIndex[i] = kind;
 			crcs[i] = (int) lg(cen, pos + 16);
 			dosTimes[i] = (int) lg(cen, pos + 12);
 			store(i, size, compressed, offset + localHeaderBase);
@@ -533,8 +547,12 @@ public final class JarListing {
 			return v >= ZIP64_MINVAL ? -1 : (int) v;
 		}
 
+		/*
+		 * Like ZipFileSystem.readExtra, a missing or short zip64 field leaves the 32-bit value in
+		 * place instead of failing.
+		 */
 		private static long[] readZip64(byte[] cen, int extraStart, int elen, long size, long compressed,
-				long offset) throws ZipException {
+				long offset) {
 			int p = extraStart;
 			int end = extraStart + elen;
 			while (p + 4 <= end) {
@@ -547,42 +565,35 @@ public final class JarListing {
 				if (id == ZIP64_EXTID) {
 					int at = data;
 					int dataEnd = data + dataLen;
-					if (size == ZIP64_MINVAL) {
-						size = nextLong(cen, at, dataEnd);
+					if (size == ZIP64_MINVAL && at + 8 <= dataEnd) {
+						size = ll(cen, at);
 						at += 8;
 					}
-					if (compressed == ZIP64_MINVAL) {
-						compressed = nextLong(cen, at, dataEnd);
+					if (compressed == ZIP64_MINVAL && at + 8 <= dataEnd) {
+						compressed = ll(cen, at);
 						at += 8;
 					}
-					if (offset == ZIP64_MINVAL) {
-						offset = nextLong(cen, at, dataEnd);
+					if (offset == ZIP64_MINVAL && at + 8 <= dataEnd) {
+						offset = ll(cen, at);
 					}
-					return new long[] {size, compressed, offset};
+					break;
 				}
 				p = data + dataLen;
 			}
-			throw new ZipException("invalid CEN header (missing zip64 extra field)");
+			return new long[] {size, compressed, offset};
 		}
 
-		private static long nextLong(byte[] b, int at, int limit) throws ZipException {
-			if (at + 8 > limit) {
-				throw new ZipException("invalid CEN header (bad zip64 extra field)");
-			}
-			return ll(b, at);
-		}
-
-		private int kindFor(int method, boolean directory, int flag) throws ZipException {
+		private int kindFor(int method, boolean directory, int flag) {
 			int kind = (method << KIND_METHOD_SHIFT) | (directory ? KIND_DIRECTORY_BIT : 0) | flag;
-			for (int k = 1; k < kindCount; k++) {
-				if (kinds[k] == kind) {
-					return k;
-				}
+			Integer known = kindLookup.get(kind);
+			if (known != null) {
+				return known;
 			}
-			if (kindCount == MAX_KINDS) {
-				throw new ZipException("too many distinct entry kinds");
+			if (kindCount == kinds.length) {
+				kinds = Arrays.copyOf(kinds, kinds.length * 2);
 			}
 			kinds[kindCount] = kind;
+			kindLookup.put(kind, kindCount);
 			return kindCount++;
 		}
 
