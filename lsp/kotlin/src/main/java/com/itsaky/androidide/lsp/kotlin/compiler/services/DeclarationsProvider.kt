@@ -2,7 +2,6 @@ package com.itsaky.androidide.lsp.kotlin.compiler.services
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.index.ResolutionSideKtFileAccess
-import com.itsaky.androidide.lsp.kotlin.compiler.index.filesForPackage
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinCompositeDeclarationProvider
@@ -15,15 +14,12 @@ import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
-import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.fileClasses.javaFileFacadeFqName
 import org.jetbrains.kotlin.name.CallableId
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.psi.KtCallableDeclaration
 import org.jetbrains.kotlin.psi.KtClassLikeDeclaration
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtFile
@@ -31,8 +27,6 @@ import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtScript
 import org.jetbrains.kotlin.psi.KtTypeAlias
-import org.jetbrains.kotlin.psi.psiUtil.isTopLevelKtOrJavaMember
-import java.nio.file.Paths
 
 internal class DeclarationProviderFactory :
 	KtLspService,
@@ -88,32 +82,20 @@ internal abstract class AbstractDeclarationProvider(
 		// that means we expect the kotlin stdlib to be included on the project
 		emptyList()
 
-	override fun findFilesForFacadeByPackage(packageFqName: FqName): Collection<KtFile> = ktFilesForPackage(packageFqName).toList()
+	override fun findFilesForFacadeByPackage(packageFqName: FqName): Collection<KtFile> =
+		project.read { ktFilesForPackage(packageFqName).toList() }
 
 	override fun findFilesForScript(scriptFqName: FqName): Collection<KtScript> =
-		ktFilesForPackage(scriptFqName).mapNotNull { it.script }.toList()
+		project.read { ktFilesForPackage(scriptFqName).mapNotNull { it.script }.toList() }
 
 	override fun getAllClassesByClassId(classId: ClassId): Collection<KtClassOrObject> =
-		ktFilesForPackage(classId.packageFqName)
-			.flatMap {
-				project.read {
-					PsiTreeUtil.collectElementsOfType(it, KtClassOrObject::class.java).asSequence()
-				}
-			}.filter { it.getClassId() == classId }
-			.toList()
+		project.read { ktFilesForPackage(classId.packageFqName).classesWithId(classId).toList() }
 
 	override fun getAllTypeAliasesByClassId(classId: ClassId): Collection<KtTypeAlias> =
-		ktFilesForPackage(classId.packageFqName)
-			.flatMap {
-				project.read {
-					PsiTreeUtil.collectElementsOfType(it, KtTypeAlias::class.java).asSequence()
-				}
-			}.filter { it.getClassId() == classId }
-			.toList()
+		project.read { ktFilesForPackage(classId.packageFqName).typeAliasesWithId(classId).toList() }
 
 	override fun getClassLikeDeclarationByClassId(classId: ClassId): KtClassLikeDeclaration? =
-		getAllClassesByClassId(classId).firstOrNull()
-			?: getAllTypeAliasesByClassId(classId).firstOrNull()
+		project.read { ktFilesForPackage(classId.packageFqName).classLikeWithId(classId) }
 
 	override fun getTopLevelCallableFiles(callableId: CallableId): Collection<KtFile> =
 		buildSet {
@@ -122,50 +104,16 @@ internal abstract class AbstractDeclarationProvider(
 		}
 
 	override fun getTopLevelFunctions(callableId: CallableId): Collection<KtNamedFunction> =
-		ktFilesForPackage(callableId.packageName)
-			.flatMap {
-				project.read {
-					PsiTreeUtil
-						.collectElementsOfType(it, KtNamedFunction::class.java)
-						.asSequence()
-				}
-			}.filter { it.isTopLevel }
-			.filter { it.nameAsName == callableId.callableName }
-			.toList()
+		project.read { ktFilesForPackage(callableId.packageName).topLevelFunctions(callableId.callableName).toList() }
 
 	override fun getTopLevelKotlinClassLikeDeclarationNamesInPackage(packageFqName: FqName): Set<Name> =
-		ktFilesForPackage(packageFqName)
-			.flatMap {
-				project.read {
-					PsiTreeUtil
-						.collectElementsOfType(it, KtClassLikeDeclaration::class.java)
-						.asSequence()
-				}
-			}.filter { it.isTopLevelKtOrJavaMember() }
-			.mapNotNull { it.nameAsName }
-			.toSet()
+		project.read { ktFilesForPackage(packageFqName).topLevelClassLikeNames().toSet() }
 
 	override fun getTopLevelCallableNamesInPackage(packageFqName: FqName): Set<Name> =
-		ktFilesForPackage(packageFqName)
-			.flatMap {
-				project.read {
-					PsiTreeUtil
-						.collectElementsOfType(it, KtCallableDeclaration::class.java)
-						.asSequence()
-				}
-			}.filter { it.isTopLevelKtOrJavaMember() }
-			.mapNotNull { it.nameAsName }
-			.toSet()
+		project.read { ktFilesForPackage(packageFqName).topLevelCallableNames().toSet() }
 
 	override fun getTopLevelProperties(callableId: CallableId): Collection<KtProperty> =
-		ktFilesForPackage(callableId.packageName)
-			.flatMap {
-				project.read {
-					PsiTreeUtil.collectElementsOfType(it, KtProperty::class.java).asSequence()
-				}
-			}.filter { it.isTopLevel }
-			.filter { it.nameAsName == callableId.callableName }
-			.toList()
+		project.read { ktFilesForPackage(callableId.packageName).topLevelProperties(callableId.callableName).toList() }
 }
 
 internal class DeclarationProvider(
@@ -179,8 +127,8 @@ internal class DeclarationProvider(
 	@OptIn(ResolutionSideKtFileAccess::class)
 	override fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> =
 		index
-			.filesForPackage(fqName.asString())
-			.mapNotNull { VirtualFileManager.getInstance().findFileByNioPath(Paths.get(it.filePath)) }
+			.sourceFilesForPackage(fqName)
+			.asSequence()
 			.filter { it in scope }
 			.mapNotNull { index.getKtFile(it) }
 }
