@@ -332,14 +332,13 @@ class ProxyAppInstaller(
 
 					InstallLaunchResult.TooManySessions -> {
 						log.warn(
-							"install of {} from {} hit PackageInstaller session limit; reporting failure",
+							"install of {} from {} hit PackageInstaller session limit; reporting TooManyInstallSessions",
 							packageName,
 							apk,
 						)
 						verdict.cancel()
 						stampChanged.cancel()
-						// Mapped to QuickBuildMessage.TooManyInstallSessions in Step 4.
-						return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart)
+						return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.TooManyInstallSessions)
 					}
 
 					InstallLaunchResult.Failed -> {

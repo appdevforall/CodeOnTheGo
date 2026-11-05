@@ -38,6 +38,10 @@ fun QuickBuildMessage.resolve(context: Context): String =
 			context.getString(R.string.quick_build_install_could_not_start)
 		}
 
+		QuickBuildMessage.TooManyInstallSessions -> {
+			context.getString(R.string.quick_build_too_many_install_sessions)
+		}
+
 		QuickBuildMessage.InstallFailed -> {
 			context.getString(R.string.quick_build_install_failed)
 		}
