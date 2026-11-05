@@ -25,42 +25,47 @@ import androidx.annotation.NonNull;
 import com.itsaky.androidide.app.IDEActivity;
 import com.itsaky.androidide.databinding.ActivityCrashHandlerBinding;
 import com.itsaky.androidide.fragments.CrashReportFragment;
+import com.itsaky.androidide.security.InstantHide;
 
 public class CrashHandlerActivity extends IDEActivity {
 
-    public static final String REPORT_ACTION = "com.itsaky.androidide.REPORT_CRASH";
-    public static final String TRACE_KEY = "crash_trace";
-    private ActivityCrashHandlerBinding binding;
+	public static final String REPORT_ACTION = "com.itsaky.androidide.REPORT_CRASH";
+	public static final String TRACE_KEY = "crash_trace";
+	private ActivityCrashHandlerBinding binding;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+	@Override
+	@NonNull
+	protected View bindLayout() {
+		binding = ActivityCrashHandlerBinding.inflate(getLayoutInflater());
+		return binding.getRoot();
+	}
 
-        final var extra = getIntent().getExtras();
-        if (extra == null) {
-            finishAffinity();
-            return;
-        }
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		// Instant Hide (ADFA-40): a crash report names the IDE, so it must not show while disguised.
+		if (InstantHide.INSTANCE.redirectIfHidden(this)) {
+			return;
+		}
 
-        final var fragment = CrashReportFragment.newInstance();
+		final var extra = getIntent().getExtras();
+		if (extra == null) {
+			finishAffinity();
+			return;
+		}
 
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(binding.getRoot().getId(), fragment, "crash_report_fragment")
-                .addToBackStack(null)
-                .commit();
-    }
+		final var fragment = CrashReportFragment.newInstance();
 
-    @Override
-    @NonNull
-    protected View bindLayout() {
-        binding = ActivityCrashHandlerBinding.inflate(getLayoutInflater());
-        return binding.getRoot();
-    }
+		getSupportFragmentManager()
+				.beginTransaction()
+				.replace(binding.getRoot().getId(), fragment, "crash_report_fragment")
+				.addToBackStack(null)
+				.commit();
+	}
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        binding = null;
-    }
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		binding = null;
+	}
 }

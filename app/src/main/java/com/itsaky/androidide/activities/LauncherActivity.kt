@@ -23,6 +23,7 @@ import android.os.Build
 import android.os.Bundle
 import com.itsaky.androidide.app.configuration.CpuArch
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
+import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.ui.showLowStorageDialog
 import com.itsaky.androidide.utils.FeatureFlags
 import com.itsaky.androidide.utils.hasEnoughStorageAvailable
@@ -31,9 +32,13 @@ import kotlin.system.exitProcess
 /**
  * @author Akash Yadav
  */
-class SplashActivity : Activity() {
+class LauncherActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
+
+		// Instant Hide (ADFA-40): if the disguise is engaged, go straight to it before any IDE UI
+		// is shown. The state persists across restarts/reboots until the user performs the exit gesture.
+		if (InstantHide.redirectIfHidden(this)) return
 
 		if (!hasEnoughStorageAvailable()) {
 			showLowStorageDialog()

@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:background="@color/pastel_bg">
+
+	<com.google.android.material.appbar.AppBarLayout
+		android:layout_width="match_parent"
+		android:layout_height="wrap_content">
+
+		<com.google.android.material.appbar.MaterialToolbar
+			android:id="@+id/toolbar"
+			android:layout_width="match_parent"
+			android:layout_height="?attr/actionBarSize"
+			android:background="@color/pastel_toolbar"
+			app:title="@string/cryptogram_title"
+			app:titleTextColor="@color/pastel_toolbar_title" />
+	</com.google.android.material.appbar.AppBarLayout>
+
+	<ScrollView
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:fillViewport="true"
+		app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+		<LinearLayout
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="vertical"
+			android:padding="16dp">
+
+			<TextView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:text="@string/cryptogram_instructions"
+				android:textColor="@color/pastel_instructions"
+				android:textSize="14sp"
+				android:layout_marginBottom="12dp" />
+
+			<TextView
+				android:id="@+id/tv_puzzle_author"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:textColor="@color/pastel_author"
+				android:textSize="14sp"
+				android:textStyle="italic"
+				android:layout_marginBottom="16dp" />
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				app:cardBackgroundColor="@color/pastel_card_grid"
+				app:cardCornerRadius="12dp"
+				app:strokeColor="@color/pastel_stroke"
+				app:strokeWidth="1dp"
+				app:cardElevation="2dp"
+				android:layout_marginBottom="16dp">
+
+				<com.itsaky.androidide.security.FlowLayout
+					android:id="@+id/container_puzzle_grid"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp" />
+			</com.google.android.material.card.MaterialCardView>
+
+			<com.google.android.material.card.MaterialCardView
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				app:cardBackgroundColor="@color/pastel_card_controls"
+				app:cardCornerRadius="12dp"
+				app:strokeColor="@color/pastel_stroke"
+				app:strokeWidth="1dp"
+				app:cardElevation="2dp"
+				android:layout_marginBottom="16dp">
+
+				<LinearLayout
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:padding="12dp">
+
+					<TextView
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="@string/letter_substitution_title"
+						android:textColor="@color/pastel_author"
+						android:textSize="14sp"
+						android:textStyle="bold"
+						android:layout_marginBottom="10dp" />
+
+					<LinearLayout
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal"
+						android:baselineAligned="false"
+						android:layout_marginBottom="12dp">
+
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_weight="1"
+							android:orientation="vertical"
+							android:layout_marginEnd="8dp">
+
+							<TextView
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="@string/cipher_letter_label"
+								android:textColor="@color/pastel_text_dark"
+								android:textSize="14sp"
+								android:layout_marginBottom="4dp" />
+
+							<Spinner
+								android:id="@+id/spinner_cipher_letters"
+								android:layout_width="match_parent"
+								android:layout_height="48dp"
+								android:background="@color/pastel_input_bg"
+								android:paddingStart="12dp"
+								android:paddingEnd="12dp" />
+						</LinearLayout>
+
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:layout_weight="1"
+							android:orientation="vertical"
+							android:layout_marginStart="8dp">
+
+							<TextView
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="@string/replace_with_label"
+								android:textColor="@color/pastel_text_dark"
+								android:textSize="14sp"
+								android:layout_marginBottom="4dp" />
+
+							<EditText
+								android:id="@+id/edit_replacement_letter"
+								android:layout_width="match_parent"
+								android:layout_height="48dp"
+								android:gravity="center"
+								android:textAllCaps="true"
+								android:maxLength="1"
+								android:textColor="@color/success_green"
+								android:textSize="20sp"
+								android:textStyle="bold"
+								android:background="@color/pastel_input_bg"
+								android:paddingStart="8dp"
+								android:paddingEnd="8dp"
+								android:inputType="textCapCharacters"
+								android:imeOptions="actionDone"
+								android:autofillHints="" />
+						</LinearLayout>
+					</LinearLayout>
+
+					<Button
+						android:id="@+id/btn_apply_sub"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="@string/apply_substitution" />
+				</LinearLayout>
+			</com.google.android.material.card.MaterialCardView>
+
+			<LinearLayout
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="horizontal"
+				android:layout_marginTop="8dp">
+
+				<Button
+					android:id="@+id/btn_check_solution"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					android:text="@string/check_solution"
+					android:layout_marginEnd="4dp" />
+
+				<Button
+					android:id="@+id/btn_hint_letter"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					style="@style/Widget.Material3.Button.TonalButton"
+					android:text="@string/hint_letter"
+					android:layout_marginStart="4dp" />
+			</LinearLayout>
+
+			<LinearLayout
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="horizontal"
+				android:layout_marginTop="8dp">
+
+				<Button
+					android:id="@+id/btn_next_puzzle"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					android:text="@string/next_puzzle"
+					android:layout_marginEnd="4dp" />
+
+				<Button
+					android:id="@+id/btn_reset_puzzle"
+					android:layout_width="0dp"
+					android:layout_height="wrap_content"
+					android:layout_weight="1"
+					style="@style/Widget.Material3.Button.OutlinedButton"
+					android:text="@string/reset_puzzle"
+					android:layout_marginStart="4dp" />
+			</LinearLayout>
+
+			<TextView
+				android:id="@+id/tv_solution_feedback"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:gravity="center"
+				android:textSize="16sp"
+				android:textStyle="bold"
+				android:layout_marginTop="16dp" />
+
+		</LinearLayout>
+	</ScrollView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
