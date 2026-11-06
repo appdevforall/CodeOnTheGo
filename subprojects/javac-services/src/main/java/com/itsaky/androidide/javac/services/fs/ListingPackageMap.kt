@@ -44,6 +44,9 @@ internal class ListingPackageMap(
 			override fun contains(element: PackageEntry): Boolean = get(element.key) == element.value
 		}
 
+	// The listing root is always a package, so the map is never empty; skips the walk behind size.
+	override fun isEmpty(): Boolean = false
+
 	override fun containsKey(key: RelativeDirectory): Boolean = indexOf(key) >= 0
 
 	override fun get(key: RelativeDirectory): Path? {
