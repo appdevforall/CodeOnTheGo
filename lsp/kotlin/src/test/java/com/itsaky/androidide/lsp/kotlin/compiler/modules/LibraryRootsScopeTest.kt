@@ -31,6 +31,20 @@ class LibraryRootsScopeTest : KtLspTest() {
 	}
 
 	@Test
+	fun `library jar roots come from the listing jar file system`() {
+		val module =
+			buildKtLibraryModule(env.project, env.applicationEnv) {
+				id = "a"
+				addContentRoot(writeJar("a.jar", "p/A.class"))
+			}
+
+		val root = module.computeFiles(extended = false).single()
+
+		assertThat(env.applicationEnv.jarFileSystem).isInstanceOf(ListingJarFileSystem::class.java)
+		assertThat(root.fileSystem).isSameInstanceAs(env.applicationEnv.jarFileSystem)
+	}
+
+	@Test
 	fun `scope does not contain an entry of another jar`() {
 		val scope = LibraryRootsScope(env.project, setOf(fileSystem.findFileByPath("${writeJar("a.jar", "p/A.class")}!/")!!))
 
