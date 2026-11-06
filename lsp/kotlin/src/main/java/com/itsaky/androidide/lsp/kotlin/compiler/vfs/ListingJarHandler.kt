@@ -72,10 +72,13 @@ internal class ListingJarHandler(
 		}
 	}
 
-	/** Marks every file of this handler invalid; called once the JAR's listing is dropped. */
+	/**
+	 * Marks every file of this handler invalid; called once the JAR's listing is dropped.
+	 *
+	 * Created files stay cached, so a file reached from a dead one is still the same object.
+	 */
 	fun drop() {
 		isValid = false
-		synchronized(files) { files.clear() }
 	}
 
 	/** Returns how many created files are still referenced. */
