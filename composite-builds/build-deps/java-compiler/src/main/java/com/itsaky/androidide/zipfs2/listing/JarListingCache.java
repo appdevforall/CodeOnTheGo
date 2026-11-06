@@ -24,6 +24,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
@@ -46,20 +47,49 @@ public final class JarListingCache {
 		JarListing read(Path jar) throws IOException;
 	}
 
-	private static final class Entry {
-		final JarListing listing;
-		final long size;
-		final long mtimeNanos;
+	/**
+	 * A cached listing together with the size and modification time of the JAR it was built from.
+	 *
+	 * <p>Each build gets a generation greater than every earlier build in the same cache, so of two
+	 * snapshots of one JAR the one with the greater generation is the more recent.
+	 */
+	public static final class Snapshot {
+		private final JarListing listing;
+		private final long generation;
+		private final long size;
+		private final long modifiedNanos;
 
-		Entry(JarListing listing, long size, long mtimeNanos) {
+		Snapshot(JarListing listing, long generation, long size, long modifiedNanos) {
 			this.listing = listing;
+			this.generation = generation;
 			this.size = size;
-			this.mtimeNanos = mtimeNanos;
+			this.modifiedNanos = modifiedNanos;
+		}
+
+		/** Returns the listing. */
+		public JarListing listing() {
+			return listing;
+		}
+
+		/** Returns the build order of this snapshot within its cache. */
+		public long generation() {
+			return generation;
+		}
+
+		/** Returns the JAR's size in bytes when the listing was built. */
+		public long size() {
+			return size;
+		}
+
+		/** Returns the JAR's modification time, in nanoseconds since the epoch, when the listing was built. */
+		public long modifiedNanos() {
+			return modifiedNanos;
 		}
 	}
 
 	private final Reader reader;
-	private final ConcurrentHashMap<String, Entry> entries = new ConcurrentHashMap<>();
+	private final AtomicLong generations = new AtomicLong();
+	private final ConcurrentHashMap<String, Snapshot> entries = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
 	private final List<Consumer<Path>> listeners = new CopyOnWriteArrayList<>();
 
@@ -80,34 +110,51 @@ public final class JarListingCache {
 	 * @throws IOException if the JAR cannot be read or its central directory is malformed
 	 */
 	public JarListing get(Path jar) throws IOException {
+		return snapshot(jar).listing;
+	}
+
+	/**
+	 * Returns the listing for the JAR with the state it was built from; see {@link #get}.
+	 *
+	 * @throws IOException if the JAR cannot be read or its central directory is malformed
+	 */
+	public Snapshot snapshot(Path jar) throws IOException {
 		final Path key = normalize(jar);
 		final String id = key.toString();
 		final BasicFileAttributes attrs = Files.readAttributes(key, BasicFileAttributes.class);
 		final long size = attrs.size();
 		final long mtime = modifiedNanos(attrs);
 
-		final Entry cached = entries.get(id);
+		final Snapshot cached = entries.get(id);
 		if (isCurrent(cached, size, mtime)) {
-			return cached.listing;
+			return cached;
 		}
 
 		final ReentrantLock lock = lockFor(id);
 		lock.lock();
 		try {
-			Entry current = entries.get(id);
+			Snapshot current = entries.get(id);
 			if (current != null && !isCurrent(current, size, mtime)) {
 				dropAndNotify(id, key);
 				current = entries.get(id);
 			}
 			if (isCurrent(current, size, mtime)) {
-				return current.listing;
+				return current;
 			}
-			final Entry built = new Entry(reader.read(key), size, mtime);
+			final Snapshot built = new Snapshot(reader.read(key), generations.incrementAndGet(), size, mtime);
 			entries.put(id, built);
-			return built.listing;
+			return built;
 		} finally {
 			lock.unlock();
 		}
+	}
+
+	/**
+	 * Returns the snapshot currently cached for the JAR, or null if none is, without checking the
+	 * file on disk or waiting for a build in progress.
+	 */
+	public Snapshot peek(Path jar) {
+		return entries.get(normalize(jar).toString());
 	}
 
 	/** Drops the JAR's listing, if cached, and notifies listeners. */
@@ -158,8 +205,8 @@ public final class JarListingCache {
 		return locks.computeIfAbsent(id, k -> new ReentrantLock());
 	}
 
-	private static boolean isCurrent(Entry entry, long size, long mtime) {
-		return entry != null && entry.size == size && entry.mtimeNanos == mtime;
+	private static boolean isCurrent(Snapshot entry, long size, long mtime) {
+		return entry != null && entry.size == size && entry.modifiedNanos == mtime;
 	}
 
 	private static long modifiedNanos(BasicFileAttributes attrs) {

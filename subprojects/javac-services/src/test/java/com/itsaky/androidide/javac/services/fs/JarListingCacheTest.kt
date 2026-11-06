@@ -102,6 +102,33 @@ class JarListingCacheTest {
 	}
 
 	@Test
+	fun `a rebuilt snapshot has a greater generation and the jar's size and mtime`() {
+		val jar = jar("a/B.class")
+		val first = cache.snapshot(jar)
+
+		Files.setLastModifiedTime(jar, FileTime.fromMillis(Files.getLastModifiedTime(jar).toMillis() + 5_000))
+		val second = cache.snapshot(jar)
+
+		assertThat(cache.snapshot(jar)).isSameInstanceAs(second)
+		assertThat(second.listing()).isSameInstanceAs(cache.get(jar))
+		assertThat(second.generation()).isGreaterThan(first.generation())
+		assertThat(second.size()).isEqualTo(Files.size(jar))
+		assertThat(second.modifiedNanos() / 1_000_000).isEqualTo(Files.getLastModifiedTime(jar).toMillis())
+	}
+
+	@Test
+	fun `peek returns the cached snapshot without rebuilding a changed jar`() {
+		val jar = jar("a/B.class")
+		assertThat(cache.peek(jar)).isNull()
+		val first = cache.snapshot(jar)
+
+		Files.setLastModifiedTime(jar, FileTime.fromMillis(Files.getLastModifiedTime(jar).toMillis() + 5_000))
+
+		assertThat(cache.peek(jar)).isSameInstanceAs(first)
+		assertThat(builds.get()).isEqualTo(1)
+	}
+
+	@Test
 	fun `same size jar with a different mtime is rebuilt`() {
 		val jar = jar("a/B.class")
 		val first = cache.get(jar)
