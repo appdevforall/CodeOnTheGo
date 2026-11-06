@@ -114,7 +114,6 @@ val quickBuildModule =
 									context = context,
 									apk = apk,
 									suppressPostInstallLaunch = true,
-									onBeforeAbandon = installer::recordAbandonedSession,
 								)
 							}
 						when (result) {

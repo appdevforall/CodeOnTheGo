@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Utility class for installing APKs.
@@ -24,6 +26,15 @@ import java.io.File
 object ApkInstaller {
 	private val log = LoggerFactory.getLogger(ApkInstaller::class.java)
 	private const val DEBUG_FALLBACK_INSTALLER = false
+
+	/**
+	 * Session IDs of committed non-Quick-Build installs (Run button and `InstallFileAction`)
+	 * that have not yet delivered a terminal status broadcast or been explicitly abandoned.
+	 * Preserved by [abandonMySessions] so a Quick Build sweep does not cancel a user install
+	 * that is still waiting for confirmation.
+	 */
+	private val inFlightUserSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
 
 	/**
 	 * Boolean extra riding the install callback intent: on STATUS_SUCCESS, do not run the
@@ -98,7 +109,6 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		suppressPostInstallLaunch: Boolean = false,
-		onBeforeAbandon: (Int) -> Unit = {},
 	): SessionLaunchResult {
 		val isValidApk =
 			withContext(Dispatchers.IO) {
@@ -134,7 +144,7 @@ object ApkInstaller {
 			}
 		}
 
-		return installUsingSession(context, apk, baseIntent, onBeforeAbandon)
+		return installUsingSession(context, apk, baseIntent)
 	}
 
 	/**
@@ -154,20 +164,47 @@ object ApkInstaller {
 	internal fun abandonSession(
 		installer: PackageInstaller,
 		sessionId: Int,
-	): Boolean =
-		runCatching {
+	): Boolean {
+		inFlightUserSessionIds.remove(sessionId)
+		return runCatching {
 			installer.abandonSession(sessionId)
 		}.onFailure { error ->
 			log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
 		}.isSuccess
+	}
 
 	/**
-	 * Abandons all active [PackageInstaller] sessions owned by this installer package.
+	 * Records a status broadcast from [InstallationResultReceiver] so any non-Quick-Build
+	 * session that reaches a terminal outcome is removed from [inFlightUserSessionIds].
+	 */
+	internal fun onInstallStatusBroadcast(intent: Intent?) {
+		val extras = intent?.extras ?: return
+		if (!extras.containsKey(PackageInstaller.EXTRA_STATUS)) return
+		val status = extras.getInt(PackageInstaller.EXTRA_STATUS)
+		if (status != PackageInstaller.STATUS_PENDING_USER_ACTION &&
+			extras.containsKey(PackageInstaller.EXTRA_SESSION_ID)
+		) {
+			inFlightUserSessionIds.remove(extras.getInt(PackageInstaller.EXTRA_SESSION_ID))
+		}
+	}
+
+	/**
+	 * Clears tracked in-flight user session IDs between unit tests.
+	 */
+	internal fun clearInFlightUserSessionsForTesting() {
+		inFlightUserSessionIds.clear()
+	}
+
+	/**
+	 * Abandons stale [PackageInstaller] sessions owned by this installer package while
+	 * preserving any in-flight non-Quick-Build install sessions ([inFlightUserSessionIds])
+	 * that are still waiting for user confirmation.
 	 *
-	 * Called at Quick Build startup and before creating a new install session so that
-	 * unconfirmed sessions from earlier runs cannot accumulate to Android's 50-session
-	 * per-UID cap (`PackageInstallerService.MAX_ACTIVE_SESSIONS`) or leave a stale
-	 * confirmation dialog in the system `packageinstaller` task.
+	 * Called at Quick Build startup and before Quick Build provisioning so that unconfirmed
+	 * sessions from earlier runs cannot accumulate to Android's 50-session per-UID cap
+	 * (`PackageInstallerService.MAX_ACTIVE_SESSIONS`) or leave a stale confirmation dialog
+	 * in the system `packageinstaller` task, without cancelling a concurrent Run-button or
+	 * `InstallFileAction` install.
 	 *
 	 * @param onBeforeAbandon invoked with each session ID before `abandonSession` runs so
 	 *   callers can ignore the `STATUS_FAILURE_ABORTED` broadcast Android emits on abandonment.
@@ -181,8 +218,8 @@ object ApkInstaller {
 	): Int = abandonMySessions(context.packageManager.packageInstaller, onBeforeAbandon)
 
 	/**
-	 * Queries [PackageInstaller.getMySessions] on [installer] and abandons each session after
-	 * notifying [onBeforeAbandon].
+	 * Queries [PackageInstaller.getMySessions] on [installer] and abandons each stale session
+	 * (excluding [inFlightUserSessionIds]) after notifying [onBeforeAbandon].
 	 */
 	internal fun abandonMySessions(
 		installer: PackageInstaller,
@@ -194,8 +231,14 @@ object ApkInstaller {
 				.getOrNull()
 				?: return 0
 
+		val activeIds = sessions.mapTo(HashSet(sessions.size)) { it.sessionId }
+		inFlightUserSessionIds.retainAll(activeIds)
+
 		var abandoned = 0
 		for (info in sessions) {
+			if (info.sessionId in inFlightUserSessionIds) {
+				continue
+			}
 			runCatching { onBeforeAbandon(info.sessionId) }
 			if (abandonSession(installer, info.sessionId)) {
 				abandoned++
@@ -240,14 +283,13 @@ object ApkInstaller {
 		context: Context,
 		apk: File,
 		intent: Intent,
-		onBeforeAbandon: (Int) -> Unit = {},
 	): SessionLaunchResult {
 		val installer = context.packageManager.packageInstaller
 		val params = createSessionParams()
+		val isQuickBuildInstall = intent.getBooleanExtra(EXTRA_SUPPRESS_POST_INSTALL_LAUNCH, false)
 
 		return runCatching {
 			withContext(Dispatchers.IO) {
-				abandonMySessions(installer, onBeforeAbandon)
 				val sessionId = installer.createSession(params)
 				var session: PackageInstaller.Session? = null
 
@@ -259,9 +301,11 @@ object ApkInstaller {
 						}
 					addToSession(session, apk)
 					session.commit(callback.intentSender)
+					if (!isQuickBuildInstall) {
+						inFlightUserSessionIds.add(sessionId)
+					}
 					sessionId
 				} catch (t: Throwable) {
-					runCatching { onBeforeAbandon(sessionId) }
 					abandonSession(installer, sessionId)
 					throw t
 				} finally {
