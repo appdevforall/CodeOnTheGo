@@ -23,7 +23,12 @@ import jdkx.lang.model.SourceVersion
 import openjdk.tools.javac.file.RelativePath.RelativeDirectory
 import org.slf4j.LoggerFactory
 import java.io.IOException
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.Collections
 
 /**
  * A cached file system for JAR files.
@@ -31,51 +36,73 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class CachedJarFileSystem(
-  provider: ZipFileSystemProvider?,
-  zfpath: Path?,
-  env: MutableMap<String, *>?
+	provider: ZipFileSystemProvider?,
+	zfpath: Path?,
+	env: MutableMap<String, *>?,
 ) : ZipFileSystem(provider, zfpath, env) {
+	companion object {
+		private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
+	}
 
-  companion object {
-    private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
-  }
+	private val packageIndex: Map<RelativeDirectory, Path> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+		Collections.unmodifiableMap(walkPackages())
+	}
 
-  internal val packages = mutableMapOf<RelativeDirectory, Path>()
+	override fun close() {
+		// Do nothing
+		// This is called manually by the Java LSP
+	}
 
-  override fun close() {
-    // Do nothing
-    // This is called manually by the Java LSP
-  }
+	@Throws(IOException::class)
+	fun doClose() {
+		try {
+			super.close()
+		} catch (e: IOException) {
+			log.warn("IOException during CachedJarFileSystem close", e)
+		} catch (e: java.io.UncheckedIOException) {
+			log.warn("UncheckedIOException during CachedJarFileSystem close", e)
+		}
+	}
 
-  @Throws(IOException::class)
-  fun doClose() {
-    try {
-      super.close()
-    } catch (e: IOException) {
-      log.warn("IOException during CachedJarFileSystem close", e)
-    } catch (e: java.io.UncheckedIOException) {
-      log.warn("UncheckedIOException during CachedJarFileSystem close", e)
-    }
-  }
+	/**
+	 * Returns the package directories of this JAR keyed the way javac's archive walk keys them.
+	 *
+	 * The map is built on first use, is read-only, and is the same instance on every call.
+	 */
+	fun packageIndex(): Map<RelativeDirectory, Path> = packageIndex
 
-  fun storeJARPackageDir(dir: Path?): Boolean {
-    if (isValid(dir?.fileName)) {
-      packages[RelativeDirectory(rootDir.relativize(dir!!).toString())] = dir
-      return true
-    }
+	private fun walkPackages(): Map<RelativeDirectory, Path> {
+		val packages = HashMap<RelativeDirectory, Path>()
+		for (root in rootDirectories) {
+			Files.walkFileTree(
+				root,
+				emptySet(),
+				Int.MAX_VALUE,
+				object : SimpleFileVisitor<Path>() {
+					override fun preVisitDirectory(
+						dir: Path,
+						attrs: BasicFileAttributes,
+					): FileVisitResult {
+						if (!isValid(dir.fileName)) {
+							return FileVisitResult.SKIP_SUBTREE
+						}
+						packages[RelativeDirectory(root.relativize(dir).toString())] = dir
+						return FileVisitResult.CONTINUE
+					}
+				},
+			)
+		}
+		return packages
+	}
 
-    return false
-  }
-
-  private fun isValid(fileName: Path?): Boolean {
-    return if (fileName == null) {
-      true
-    } else {
-      var name = fileName.toString()
-      if (name.endsWith("/")) {
-        name = name.substring(0, name.length - 1)
-      }
-      SourceVersion.isIdentifier(name)
-    }
-  }
+	private fun isValid(fileName: Path?): Boolean =
+		if (fileName == null) {
+			true
+		} else {
+			var name = fileName.toString()
+			if (name.endsWith("/")) {
+				name = name.substring(0, name.length - 1)
+			}
+			SourceVersion.isIdentifier(name)
+		}
 }
