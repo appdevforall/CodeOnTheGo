@@ -149,6 +149,14 @@ public final class JarListingCache {
 		}
 	}
 
+	/**
+	 * Returns the snapshot currently cached for the JAR, or null if none is, without checking the
+	 * file on disk or waiting for a build in progress.
+	 */
+	public Snapshot peek(Path jar) {
+		return entries.get(normalize(jar).toString());
+	}
+
 	/** Drops the JAR's listing, if cached, and notifies listeners. */
 	public void invalidate(Path jar) {
 		final Path key = normalize(jar);
