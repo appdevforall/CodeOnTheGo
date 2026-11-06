@@ -951,4 +951,57 @@ class ProxyAppInstallerTest {
 			assertThat(activeSessions).isEmpty()
 			assertThat(abandonedSessionIds).containsExactly(51)
 		}
+
+	@Test
+	fun `ABORTED broadcasts triggered by abandoning committed sessions during sweep or re-issue do not cause false ReinstallDeclined`() =
+		runTest {
+			var nextId = 401
+			lateinit var installerUnderTest: ProxyAppInstaller
+
+			installerUnderTest =
+				sessionInstaller(
+					timeoutMillis = 120_000L,
+					promptTimeoutMillis = 45_000L,
+					launchSession = {
+						val id = nextId++
+						InstallLaunchResult.Started(id)
+					},
+					onAbandon = { id ->
+						abandonedSessionIds += id
+						// Android's PackageInstallerSession.abandon() dispatches
+						// STATUS_FAILURE_ABORTED when a committed session is abandoned.
+						broadcasts.tryEmit(
+							InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = id),
+						)
+					},
+					onSweep = {
+						sweepCount++
+						// Sweep records and abandons a pre-existing committed session (400)
+						// before activeSessionId is assigned.
+						installerUnderTest.recordAbandonedSession(400)
+						broadcasts.tryEmit(
+							InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 400),
+						)
+					},
+				)
+
+			val result = async { installerUnderTest.ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			// Neither the sweep's ABORTED(400) nor the 45s re-issue's ABORTED(401)
+			// (emitted while activeSessionId is null) may terminate ensureInstalled as ReinstallDeclined.
+			assertThat(result.isCompleted).isFalse()
+
+			advanceTimeBy(46_000L)
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			// Session 402 succeeds.
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 402))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(401, 402).inOrder()
+		}
 }

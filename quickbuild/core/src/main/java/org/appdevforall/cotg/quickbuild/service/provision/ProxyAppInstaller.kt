@@ -239,6 +239,18 @@ class ProxyAppInstaller(
 	/** Where the blocking work (APK hashing, PackageManager reads) runs; injectable for tests. */
 	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
+	private val abandonedSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+	/**
+	 * Records [sessionId] as abandoned before `PackageInstaller.abandonSession` runs so that
+	 * Android's resulting `STATUS_FAILURE_ABORTED` broadcast cannot match an in-flight install
+	 * while `activeSessionId` is still `null`.
+	 */
+	fun recordAbandonedSession(sessionId: Int) {
+		abandonedSessionIds.add(sessionId)
+	}
+
 	/**
 	 * Gets [packageName] installed from [apk], skipping the install when the bytes on
 	 * device already match.
@@ -283,9 +295,12 @@ class ProxyAppInstaller(
 								broadcasts.first { broadcast ->
 									val currentSessionId = activeSessionId.get()
 									val sessionMatches =
-										currentSessionId == null ||
-											broadcast.sessionId == null ||
-											broadcast.sessionId == currentSessionId
+										broadcast.sessionId?.let { it in abandonedSessionIds } != true &&
+											(
+												currentSessionId == null ||
+													broadcast.sessionId == null ||
+													broadcast.sessionId == currentSessionId
+											)
 									val packageMatches =
 										broadcast.packageName == null || broadcast.packageName == packageName
 									val ours = sessionMatches && packageMatches
@@ -325,6 +340,7 @@ class ProxyAppInstaller(
 				when (launchResult) {
 					is InstallLaunchResult.Started -> {
 						launchResult.sessionId?.let { sessionId ->
+							abandonedSessionIds.remove(sessionId)
 							activeSessionId.set(sessionId)
 							launchedSessionIds.add(sessionId)
 						}
@@ -380,7 +396,9 @@ class ProxyAppInstaller(
 										packageName,
 										promptTimeoutMillis,
 									)
-									activeSessionId.getAndSet(null)?.let { staleSessionId ->
+									activeSessionId.get()?.let { staleSessionId ->
+										abandonedSessionIds.add(staleSessionId)
+										activeSessionId.set(null)
 										abandonSessionSafely(staleSessionId)
 										launchedSessionIds.remove(staleSessionId)
 									}
@@ -388,6 +406,7 @@ class ProxyAppInstaller(
 										when (val reissued = launchInstallSession(apk)) {
 											is InstallLaunchResult.Started -> {
 												reissued.sessionId?.let { sessionId ->
+													abandonedSessionIds.remove(sessionId)
 													activeSessionId.set(sessionId)
 													launchedSessionIds.add(sessionId)
 												}
@@ -428,7 +447,12 @@ class ProxyAppInstaller(
 		}
 	}
 
+	/**
+	 * Marks [sessionId] as abandoned and invokes [abandonSession], swallowing any exception so
+	 * cleanup in `finally` never masks the install outcome.
+	 */
 	private fun abandonSessionSafely(sessionId: Int) {
+		abandonedSessionIds.add(sessionId)
 		runCatching { abandonSession(sessionId) }
 			.onFailure { log.warn("failed to abandon install session {}", sessionId, it) }
 	}

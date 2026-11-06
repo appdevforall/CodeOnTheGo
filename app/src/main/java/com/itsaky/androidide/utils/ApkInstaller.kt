@@ -98,6 +98,7 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		suppressPostInstallLaunch: Boolean = false,
+		onBeforeAbandon: (Int) -> Unit = {},
 	): SessionLaunchResult {
 		val isValidApk =
 			withContext(Dispatchers.IO) {
@@ -133,7 +134,7 @@ object ApkInstaller {
 			}
 		}
 
-		return installUsingSession(context, apk, baseIntent)
+		return installUsingSession(context, apk, baseIntent, onBeforeAbandon)
 	}
 
 	/**
@@ -146,6 +147,10 @@ object ApkInstaller {
 		sessionId: Int,
 	): Boolean = abandonSession(context.packageManager.packageInstaller, sessionId)
 
+	/**
+	 * Abandons [sessionId] on [installer], returning `true` if `abandonSession` succeeded and
+	 * `false` if the session was already finalized or no longer exists.
+	 */
 	internal fun abandonSession(
 		installer: PackageInstaller,
 		sessionId: Int,
@@ -164,12 +169,25 @@ object ApkInstaller {
 	 * per-UID cap (`PackageInstallerService.MAX_ACTIVE_SESSIONS`) or leave a stale
 	 * confirmation dialog in the system `packageinstaller` task.
 	 *
+	 * @param onBeforeAbandon invoked with each session ID before `abandonSession` runs so
+	 *   callers can ignore the `STATUS_FAILURE_ABORTED` broadcast Android emits on abandonment.
 	 * @return the number of sessions abandoned.
 	 */
 	@JvmStatic
-	fun abandonMySessions(context: Context): Int = abandonMySessions(context.packageManager.packageInstaller)
+	@JvmOverloads
+	fun abandonMySessions(
+		context: Context,
+		onBeforeAbandon: (Int) -> Unit = {},
+	): Int = abandonMySessions(context.packageManager.packageInstaller, onBeforeAbandon)
 
-	internal fun abandonMySessions(installer: PackageInstaller): Int {
+	/**
+	 * Queries [PackageInstaller.getMySessions] on [installer] and abandons each session after
+	 * notifying [onBeforeAbandon].
+	 */
+	internal fun abandonMySessions(
+		installer: PackageInstaller,
+		onBeforeAbandon: (Int) -> Unit = {},
+	): Int {
 		val sessions =
 			runCatching { installer.mySessions }
 				.onFailure { error -> log.warn("Failed to query existing PackageInstaller sessions", error) }
@@ -178,6 +196,7 @@ object ApkInstaller {
 
 		var abandoned = 0
 		for (info in sessions) {
+			runCatching { onBeforeAbandon(info.sessionId) }
 			if (abandonSession(installer, info.sessionId)) {
 				abandoned++
 			}
@@ -188,6 +207,10 @@ object ApkInstaller {
 		return abandoned
 	}
 
+	/**
+	 * Launches a fallback `ACTION_INSTALL_PACKAGE` activity intent for devices where
+	 * session-based installation is disabled, returning `true` if the activity started.
+	 */
 	@Suppress("DEPRECATION", "RequestInstallPackagesPolicy")
 	private fun installUsingIntent(
 		context: Context,
@@ -208,18 +231,23 @@ object ApkInstaller {
 		}
 	}
 
+	/**
+	 * Creates, populates, and commits a [PackageInstaller] session for [apk], returning
+	 * a [SessionLaunchResult] with the committed session ID or failure classification.
+	 */
 	@Suppress("RequestInstallPackagesPolicy")
 	internal suspend fun installUsingSession(
 		context: Context,
 		apk: File,
 		intent: Intent,
+		onBeforeAbandon: (Int) -> Unit = {},
 	): SessionLaunchResult {
 		val installer = context.packageManager.packageInstaller
 		val params = createSessionParams()
 
 		return runCatching {
 			withContext(Dispatchers.IO) {
-				abandonMySessions(installer)
+				abandonMySessions(installer, onBeforeAbandon)
 				val sessionId = installer.createSession(params)
 				var session: PackageInstaller.Session? = null
 
@@ -233,6 +261,7 @@ object ApkInstaller {
 					session.commit(callback.intentSender)
 					sessionId
 				} catch (t: Throwable) {
+					runCatching { onBeforeAbandon(sessionId) }
 					abandonSession(installer, sessionId)
 					throw t
 				} finally {
@@ -252,6 +281,10 @@ object ApkInstaller {
 		)
 	}
 
+	/**
+	 * Returns `true` when [error] or any cause in its chain is the `IllegalStateException`
+	 * thrown by Android's `PackageInstallerService` when the per-UID session cap is reached.
+	 */
 	internal fun isTooManyActiveSessions(error: Throwable): Boolean =
 		generateSequence(error) { it.cause }.any { cause ->
 			cause is IllegalStateException &&
