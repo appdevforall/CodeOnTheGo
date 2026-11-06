@@ -1,22 +1,38 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.vfs
 
 import com.itsaky.androidide.zipfs2.listing.JarListing
+import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import org.jetbrains.kotlin.com.intellij.util.containers.ContainerUtil
 import java.io.FileNotFoundException
 import java.io.IOException
-import java.util.zip.ZipFile
+import java.io.RandomAccessFile
+import java.util.zip.Inflater
+import java.util.zip.ZipException
 
 /**
- * Serves the entries of one JAR, as listed by [listing], to [fileSystem], and keeps the
+ * Serves the entries of one JAR, as listed by [snapshot], to [fileSystem], and keeps the
  * [ListingJarVirtualFile]s it has created for as long as something references them.
+ *
+ * Entry contents are read through one file handle per handler, opened on the first read and
+ * closed by [drop]. The open handle keeps reading the file the listing was built from even if the
+ * JAR is replaced by a rename.
  */
 internal class ListingJarHandler(
 	val fileSystem: ListingJarFileSystem,
 	val jarPath: String,
-	val listing: JarListing,
-	val jarTimeStamp: Long,
+	val snapshot: JarListingCache.Snapshot,
 ) {
+	val listing: JarListing = snapshot.listing()
+
+	/** The JAR's modification time in milliseconds, which `CoreJarVirtualFile` reports for every file entry. */
+	val jarTimeStamp: Long = Math.floorDiv(snapshot.modifiedNanos(), NANOS_PER_MILLI)
+
 	private val files = ContainerUtil.createIntKeyWeakValueMap<ListingJarVirtualFile>()
+
+	private val jarLock = Any()
+
+	// Guarded by jarLock; RandomAccessFile, unlike FileChannel, is not closed by a thread interrupt.
+	private var jar: RandomAccessFile? = null
 
 	@Volatile
 	var isValid = true
@@ -58,27 +74,34 @@ internal class ListingJarHandler(
 		}
 
 	/**
-	 * Reads the uncompressed bytes of the entry at [index] from the JAR on disk.
+	 * Reads the uncompressed bytes of the entry at [index] from the JAR.
 	 *
-	 * @throws IOException if the JAR changed since this handler was created, or the entry cannot be read
+	 * @throws IOException if this handler was dropped, the JAR on disk no longer matches the
+	 *   listing, or the entry cannot be read
 	 */
 	fun contentsOf(index: Int): ByteArray {
-		if (!isValid) throw IOException("$jarPath was replaced on disk")
-		val entryName = listing.name(index).substring(1)
-		if (listing.isDirectory(index)) throw FileNotFoundException("$jarPath!/$entryName is a directory")
-		ZipFile(jarPath).use { zip ->
-			val entry = zip.getEntry(entryName) ?: throw FileNotFoundException("$jarPath!/$entryName")
-			return zip.getInputStream(entry).use { it.readBytes() }
+		if (listing.isDirectory(index)) throw FileNotFoundException("$jarPath!${listing.name(index)} is a directory")
+		val size = listing.size(index)
+		if (size > MAX_ENTRY_SIZE) throw ZipException("$jarPath!${listing.name(index)} is too large: $size bytes")
+		return when (val method = listing.method(index)) {
+			METHOD_STORED -> readCompressed(index, extra = 0)
+			METHOD_DEFLATED -> inflate(readCompressed(index, extra = 1), size.toInt(), index)
+			else -> throw ZipException("$jarPath!${listing.name(index)} has unsupported method $method")
 		}
 	}
 
 	/**
-	 * Marks every file of this handler invalid; called once the JAR's listing is dropped.
+	 * Marks every file of this handler invalid and closes its file handle; called once the JAR's
+	 * listing is dropped.
 	 *
 	 * Created files stay cached, so a file reached from a dead one is still the same object.
 	 */
 	fun drop() {
-		isValid = false
+		synchronized(jarLock) {
+			isValid = false
+			jar?.close()
+			jar = null
+		}
 	}
 
 	/** Returns how many created files are still referenced. */
@@ -89,9 +112,83 @@ internal class ListingJarHandler(
 		return ListingJarVirtualFile(this, index, if (parent < 0) null else fileAt(parent))
 	}
 
+	// Reads the entry's raw data, followed by [extra] zero bytes.
+	private fun readCompressed(
+		index: Int,
+		extra: Int,
+	): ByteArray {
+		val compressedSize = listing.compressedSize(index)
+		if (compressedSize > MAX_ENTRY_SIZE) throw ZipException("$jarPath!${listing.name(index)} is too large: $compressedSize bytes")
+		val data = ByteArray(compressedSize.toInt() + extra)
+		val header = ByteArray(LOC_HEADER_SIZE)
+		synchronized(jarLock) {
+			val file = openLocked()
+			val offset = listing.localHeaderOffset(index)
+			file.seek(offset)
+			file.readFully(header)
+			if (u32(header, 0) != LOC_SIGNATURE) throw ZipException("$jarPath!${listing.name(index)}: bad local header")
+			file.seek(offset + LOC_HEADER_SIZE + u16(header, LOC_NAME_LENGTH) + u16(header, LOC_EXTRA_LENGTH))
+			file.readFully(data, 0, compressedSize.toInt())
+		}
+		return data
+	}
+
+	private fun openLocked(): RandomAccessFile {
+		if (!isValid) throw IOException("$jarPath was replaced on disk")
+		jar?.let { return it }
+		val opened = RandomAccessFile(jarPath, "r")
+		if (opened.length() != snapshot.size()) {
+			opened.close()
+			throw IOException("$jarPath changed on disk since it was listed")
+		}
+		jar = opened
+		return opened
+	}
+
+	// The trailing zero byte of [compressed] is the dummy input a nowrap Inflater may need.
+	private fun inflate(
+		compressed: ByteArray,
+		size: Int,
+		index: Int,
+	): ByteArray {
+		val out = ByteArray(size)
+		val inflater = Inflater(true)
+		try {
+			inflater.setInput(compressed)
+			var read = 0
+			while (read < size) {
+				val n = inflater.inflate(out, read, size - read)
+				if (n == 0 && (inflater.finished() || inflater.needsInput() || inflater.needsDictionary())) break
+				read += n
+			}
+			if (read != size) throw ZipException("$jarPath!${listing.name(index)}: inflated $read of $size bytes")
+		} finally {
+			inflater.end()
+		}
+		return out
+	}
+
 	private fun normalize(entryPath: String): String = "/" + entryPath.split('/').filter { it.isNotEmpty() }.joinToString("/")
 
 	private companion object {
 		const val ROOT = 0
+		const val NANOS_PER_MILLI = 1_000_000L
+		const val MAX_ENTRY_SIZE = Int.MAX_VALUE - 16L
+		const val METHOD_STORED = 0
+		const val METHOD_DEFLATED = 8
+		const val LOC_SIGNATURE = 0x04034b50L
+		const val LOC_HEADER_SIZE = 30
+		const val LOC_NAME_LENGTH = 26
+		const val LOC_EXTRA_LENGTH = 28
+
+		fun u16(
+			bytes: ByteArray,
+			at: Int,
+		): Int = (bytes[at].toInt() and 0xFF) or ((bytes[at + 1].toInt() and 0xFF) shl 8)
+
+		fun u32(
+			bytes: ByteArray,
+			at: Int,
+		): Long = (u16(bytes, at).toLong()) or (u16(bytes, at + 2).toLong() shl 16)
 	}
 }

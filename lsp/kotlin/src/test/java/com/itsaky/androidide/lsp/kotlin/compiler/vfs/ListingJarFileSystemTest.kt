@@ -7,17 +7,21 @@ import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
 import org.junit.Test
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
-import kotlin.io.path.outputStream
 
 // Extends KtLspTest because CoreJarFileSystem reads contents through an application service.
 class ListingJarFileSystemTest : KtLspTest() {
-	private val fileSystem = ListingJarFileSystem(JarListingCache(JarListing::read))
+	private val cache = JarListingCache(JarListing::read)
+	private val fileSystem = ListingJarFileSystem(cache)
 
 	@Test
 	fun `the same entry is the same object while referenced`() {
@@ -100,6 +104,83 @@ class ListingJarFileSystemTest : KtLspTest() {
 	}
 
 	@Test
+	fun `stored and deflated contents behind a stub prefix match ZipFile`() {
+		val jar =
+			lspTestRule.tempDir.root
+				.toPath()
+				.resolve("prefixed.jar")
+		val stored = setOf("p/Stored.class", "p/Empty.class")
+		val zip =
+			zipBytes(
+				"p/Stored.class" to "stored ".repeat(50),
+				"p/Deflated.class" to "deflated ".repeat(500),
+				"p/Empty.class" to "",
+				stored = stored,
+			)
+		Files.write(jar, "#!/bin/sh stub\n".encodeToByteArray() + zip)
+
+		ZipFile(jar.toFile()).use { zipFile ->
+			assertThat(
+				zipFile
+					.entries()
+					.toList()
+					.map { it.method }
+					.toSet(),
+			).containsExactly(ZipEntry.STORED, ZipEntry.DEFLATED)
+			for (entry in zipFile.entries()) {
+				assertThat(find(jar, entry.name)!!.contentsToByteArray()).isEqualTo(zipFile.getInputStream(entry).readBytes())
+			}
+		}
+	}
+
+	@Test
+	fun `a held file keeps reading the old jar after it is replaced by a rename`() {
+		val jar = writeJar("a.jar", "p/A.class" to "old")
+		val held = find(jar, "p/A.class")!!
+		held.contentsToByteArray()
+
+		renameOver(jar, "p/A.class" to "new and longer", "p/B.class" to "b")
+
+		assertThat(held.contentsToByteArray().decodeToString()).isEqualTo("old")
+	}
+
+	@Test
+	fun `a first read after a rename replaced the jar fails instead of using old offsets`() {
+		val jar = writeJar("a.jar", "p/A.class" to "old")
+		val held = find(jar, "p/A.class")!!
+
+		renameOver(jar, "p/A.class" to "new and longer", "p/B.class" to "b")
+
+		assertThat(runCatching { held.contentsToByteArray() }.exceptionOrNull()).isInstanceOf(IOException::class.java)
+	}
+
+	@Test
+	fun `a lookup holding an older listing keeps the newer handler`() {
+		val jar = writeJar("a.jar", "p/A.class" to "old")
+		val stale = cache.snapshot(jar)
+		writeJar("a.jar", "p/A.class" to "new content")
+		Files.setLastModifiedTime(jar, FileTime.fromMillis(Files.getLastModifiedTime(jar).toMillis() + 10_000))
+		val current = find(jar, "p/A.class") as ListingJarVirtualFile
+
+		val kept = fileSystem.handlerFor(jar.toAbsolutePath().normalize().toString(), stale)
+
+		assertThat(kept).isSameInstanceAs(current.handler)
+		assertThat(current.isValid).isTrue()
+		assertThat(find(jar, "p/A.class")).isSameInstanceAs(current)
+	}
+
+	@Test
+	fun `a deleted jar invalidates its files`() {
+		val jar = writeJar("a.jar", "p/A.class" to "a")
+		val file = find(jar, "p/A.class")!!
+
+		Files.delete(jar)
+
+		assertThat(find(jar, "p/A.class")).isNull()
+		assertThat(file.isValid).isFalse()
+	}
+
+	@Test
 	fun `a missing jar finds nothing`() {
 		assertThat(fileSystem.findFileByPath("${lspTestRule.tempDir.root}/missing.jar!/p/A.class")).isNull()
 	}
@@ -138,7 +219,6 @@ class ListingJarFileSystemTest : KtLspTest() {
 		}
 	}
 
-	// A null content writes a directory entry.
 	private fun writeJar(
 		name: String,
 		vararg entries: Pair<String, String?>,
@@ -147,13 +227,38 @@ class ListingJarFileSystemTest : KtLspTest() {
 			lspTestRule.tempDir.root
 				.toPath()
 				.resolve(name)
-		ZipOutputStream(jar.outputStream()).use { zip ->
-			entries.forEach { (entry, content) ->
-				zip.putNextEntry(ZipEntry(entry))
-				content?.let { zip.write(it.encodeToByteArray()) }
+		Files.write(jar, zipBytes(*entries))
+		return jar
+	}
+
+	private fun renameOver(
+		jar: Path,
+		vararg entries: Pair<String, String?>,
+	) {
+		val replacement = Files.write(jar.resolveSibling("replacement.tmp"), zipBytes(*entries))
+		Files.move(replacement, jar, StandardCopyOption.ATOMIC_MOVE)
+	}
+
+	// A null content writes a directory entry.
+	private fun zipBytes(
+		vararg entries: Pair<String, String?>,
+		stored: Set<String> = emptySet(),
+	): ByteArray {
+		val bytes = ByteArrayOutputStream()
+		ZipOutputStream(bytes).use { zip ->
+			entries.forEach { (name, content) ->
+				val data = content?.encodeToByteArray() ?: ByteArray(0)
+				val entry = ZipEntry(name)
+				if (name in stored) {
+					entry.method = ZipEntry.STORED
+					entry.size = data.size.toLong()
+					entry.crc = CRC32().apply { update(data) }.value
+				}
+				zip.putNextEntry(entry)
+				zip.write(data)
 				zip.closeEntry()
 			}
 		}
-		return jar
+		return bytes.toByteArray()
 	}
 }

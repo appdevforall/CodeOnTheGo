@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.slf4j.LoggerFactory
 import java.io.IOException
-import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 
@@ -49,20 +49,33 @@ class ListingJarFileSystem(
 
 	override fun refreshAndFindFileByPath(path: String): VirtualFile? = findFileByPath(path)
 
-	private fun handlerFor(jar: Path): ListingJarHandler? =
-		try {
-			val listing = cache.get(jar)
-			// The listener drops handlers too; this covers a listing invalidated and rebuilt in between.
-			handlers.compute(jar.toString()) { key, old ->
-				if (old?.listing === listing) {
-					old
-				} else {
-					old?.drop()
-					ListingJarHandler(this, key, listing, Files.getLastModifiedTime(jar).toMillis())
-				}
+	private fun handlerFor(jar: Path): ListingJarHandler? {
+		val key = jar.toString()
+		val snapshot =
+			try {
+				cache.snapshot(jar)
+			} catch (e: IOException) {
+				if (e is NoSuchFileException) handlers.remove(key)?.drop()
+				logger.warn("Cannot list JAR {}", jar, e)
+				return null
 			}
-		} catch (e: IOException) {
-			logger.warn("Cannot list JAR {}", jar, e)
-			null
-		}
+		return handlerFor(key, snapshot)
+	}
+
+	/**
+	 * Returns the handler for the JAR at [key], replacing the current one only if [snapshot] was
+	 * built after it, so a lookup that read the cache before a rebuild never installs a stale handler.
+	 */
+	internal fun handlerFor(
+		key: String,
+		snapshot: JarListingCache.Snapshot,
+	): ListingJarHandler =
+		handlers.compute(key) { _, old ->
+			if (old != null && old.snapshot.generation() >= snapshot.generation()) {
+				old
+			} else {
+				old?.drop()
+				ListingJarHandler(this, key, snapshot)
+			}
+		}!!
 }
