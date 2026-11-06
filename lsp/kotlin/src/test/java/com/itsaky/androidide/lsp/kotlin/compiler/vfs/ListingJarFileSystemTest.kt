@@ -92,6 +92,7 @@ class ListingJarFileSystemTest : KtLspTest() {
 
 		assertThat(old.isValid).isFalse()
 		assertThat(oldRoot.isValid).isFalse()
+		assertThat(oldRoot.findChild("p")!!.findChild("A.class")).isSameInstanceAs(old)
 		assertThat(replaced).isNotSameInstanceAs(old)
 		assertThat(replaced.isValid).isTrue()
 		assertThat(replaced.contentsToByteArray().decodeToString()).isEqualTo("new content")
