@@ -20,10 +20,17 @@ internal object KotlinApplicationEnvironmentPin {
 	 */
 	private val jarFileSystem by lazy { ListingJarFileSystem(JarListingCache.SHARED) }
 
+	/**
+	 * Makes every Kotlin application environment created after this call, in production or unit
+	 * test mode, use the shared listing-backed JAR file system.
+	 */
+	fun useListingJarFileSystem() {
+		KotlinCoreApplicationEnvironment.jarFileSystemFactory = { jarFileSystem }
+	}
+
 	@Synchronized
 	fun ensure(configuration: CompilerConfiguration) {
 		if (pinned) return
-		KotlinCoreApplicationEnvironment.jarFileSystemFactory = { jarFileSystem }
 		val environment = acquireApplicationEnvironment(pin, configuration)
 		check(environment.jarFileSystem is ListingJarFileSystem) {
 			"The Kotlin application environment was created before its JAR file system was set"
