@@ -133,6 +133,11 @@ class CachedJarFileSystemPackageIndexTest {
 		assertThat(fs.packageIndex().size).isEqualTo(walkLikeJavac(fs).size)
 	}
 
+	@Test
+	fun `package index is not empty`() {
+		assertThat(openFs().packageIndex().isEmpty()).isFalse()
+	}
+
 	private fun openFs() = CachingJarFileSystemProvider.newFileSystem(jarPath) as CachedJarFileSystem
 
 	// Same logic as JavacFileManager.ArchiveContainer.walkArchive.
