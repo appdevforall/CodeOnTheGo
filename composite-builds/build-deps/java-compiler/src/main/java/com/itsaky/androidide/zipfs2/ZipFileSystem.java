@@ -58,6 +58,8 @@ import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 import java.util.zip.ZipException;
 
+import com.itsaky.androidide.zipfs2.listing.JarListing;
+
 import static java.lang.Boolean.TRUE;
 import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -130,6 +132,35 @@ public class ZipFileSystem extends FileSystem {
             }
             throw x;
         }
+        this.provider = provider;
+        this.zfpath = zfpath;
+        this.listing = null;
+    }
+
+    /**
+     * Creates a read-only file system that looks entries up in the given listing instead of
+     * indexing the JAR itself.
+     *
+     * <p>The channel must be open on the same file the listing was read from; this file system
+     * takes ownership of it.
+     */
+    protected ZipFileSystem(ZipFileSystemProvider provider,
+            Path zfpath,
+            JarListing listing,
+            SeekableByteChannel ch) {
+        this.noExtt = false;
+        this.useTempFile = false;
+        this.forceEnd64 = false;
+        this.defaultMethod = METHOD_DEFLATED;
+        this.readOnly = true;
+        // JarListing keeps names as raw CEN bytes; ZipPath must encode lookups the same way.
+        this.zc = ZipCoder.get("UTF-8");
+        this.rootdir = new ZipPath(this, new byte[]{'/'});
+        this.ch = ch;
+        this.cen = null;
+        // JarListing offsets already include any bytes before the archive.
+        this.locpos = 0;
+        this.listing = listing;
         this.provider = provider;
         this.zfpath = zfpath;
     }
@@ -419,6 +450,9 @@ public class ZipFileSystem extends FileSystem {
     Iterator<Path> iteratorOf(ZipPath dir,
             DirectoryStream.Filter<? super Path> filter)
             throws IOException {
+        if (listing != null) {
+            return listingIteratorOf(dir, filter);
+        }
         beginWrite();    // iteration of inodes needs exclusive lock
         try {
             ensureOpen();
@@ -447,6 +481,31 @@ public class ZipFileSystem extends FileSystem {
             return list.iterator();
         } finally {
             endWrite();
+        }
+    }
+
+    private Iterator<Path> listingIteratorOf(ZipPath dir,
+            DirectoryStream.Filter<? super Path> filter)
+            throws IOException {
+        beginRead();     // the listing is immutable
+        try {
+            ensureOpen();
+            byte[] path = dir.getResolvedPath();
+            int i = listing.find(path);
+            if (i < 0) {
+                throw new NotDirectoryException(getString(path));
+            }
+            List<Path> list = new ArrayList<>();
+            for (int child = listing.firstChild(i); child != -1; child = listing.nextSibling(child)) {
+                ZipPath childPath = new ZipPath(this, listing.nameBytes(child), true);
+                ZipPath zpath = dir.resolve(childPath.getFileName());
+                if (filter == null || filter.accept(zpath)) {
+                    list.add(zpath);
+                }
+            }
+            return list.iterator();
+        } finally {
+            endRead();
         }
     }
 
@@ -1046,6 +1105,8 @@ public class ZipFileSystem extends FileSystem {
     private volatile boolean isOpen = true;
     private final SeekableByteChannel ch; // channel to the zipfile
     final byte[] cen;     // CEN & ENDHDR
+    /* Replaces cen and inodes for read-only JARs; null otherwise. */
+    private final JarListing listing;
     private END end;
     private long locpos;   // position of first LOC header (usually 0)
 
@@ -1538,14 +1599,45 @@ public class ZipFileSystem extends FileSystem {
         }
     }
 
+    /**
+     * Returns how many index nodes this file system keeps in memory: 0 when it reads through a
+     * {@link JarListing}.
+     */
+    int retainedIndexNodeCount() {
+        beginRead();
+        try {
+            return inodes == null ? 0 : inodes.size();
+        } finally {
+            endRead();
+        }
+    }
+
     IndexNode getInode(byte[] path) {
         if (path == null) {
             throw new NullPointerException("path");
+        }
+        if (listing != null) {
+            int i = listing.find(path);
+            if (i < 0) {
+                return null;
+            }
+            // Transient and never used as a map key, so it skips hashing the name.
+            IndexNode inode = new IndexNode();
+            inode.name = path;
+            inode.isdir = listing.isDirectory(i);
+            return inode;
         }
         return inodes.get(IndexNode.keyOf(path));
     }
 
     Entry getEntry(byte[] path) throws IOException {
+        if (listing != null) {
+            int i = listing.find(path);
+            if (i < 0 || listing.localHeaderOffset(i) == -1) {
+                return null;    // absent, or the root or a synthesized directory
+            }
+            return new Entry(listing, i);
+        }
         IndexNode inode = getInode(path);
         if (inode instanceof Entry) {
             return (Entry) inode;
@@ -2280,6 +2372,19 @@ public class ZipFileSystem extends FileSystem {
         Entry(byte[] name, Path file, int type) {
             this(name, type, false, METHOD_STORED);
             this.file = file;
+        }
+
+        /* An entry read from a listing has no extra field or comment, so only the DOS time. */
+        Entry(JarListing listing, int i) {
+            name(listing.nameBytes(i));
+            this.isdir = listing.isDirectory(i);
+            this.flag = listing.flag(i);
+            this.method = listing.method(i);
+            this.mtime = dosToJavaTime(listing.dosTime(i));
+            this.crc = listing.crc(i);
+            this.csize = listing.compressedSize(i);
+            this.size = listing.size(i);
+            this.locoff = listing.localHeaderOffset(i);
         }
 
         int version() throws ZipException {
