@@ -170,6 +170,35 @@ class ListingJarFileSystemTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a first read after a same-size rename with other names fails`() {
+		val jar = writeJar("a.jar", "p/A.class" to "same")
+		val held = find(jar, "p/A.class")!!
+		val size = Files.size(jar)
+
+		renameOver(jar, "p/B.class" to "same")
+
+		assertThat(Files.size(jar)).isEqualTo(size)
+		assertThat(runCatching { held.contentsToByteArray() }.exceptionOrNull()).isInstanceOf(IOException::class.java)
+	}
+
+	@Test
+	fun `a lookup with an old snapshot after another consumer rebuilt the listing leaves no stale handler`() {
+		val jar = writeJar("a.jar", "p/A.class" to "old")
+		val key = jar.toAbsolutePath().normalize().toString()
+		val stale = cache.snapshot(jar)
+		find(jar, "p/A.class")
+		writeJar("a.jar", "p/A.class" to "new content")
+		Files.setLastModifiedTime(jar, FileTime.fromMillis(Files.getLastModifiedTime(jar).toMillis() + 10_000))
+		val rebuilt = cache.snapshot(jar)
+
+		val handler = fileSystem.handlerFor(key, stale)!!
+
+		assertThat(handler.snapshot).isSameInstanceAs(rebuilt)
+		assertThat(fileSystem.handlerFor(key, rebuilt)).isSameInstanceAs(handler)
+		assertThat(handler.findFile("p/A.class")!!.contentsToByteArray().decodeToString()).isEqualTo("new content")
+	}
+
+	@Test
 	fun `a deleted jar invalidates its files`() {
 		val jar = writeJar("a.jar", "p/A.class" to "a")
 		val file = find(jar, "p/A.class")!!
