@@ -148,4 +148,17 @@ class InstallationEventFlowTest {
 
 		assertThat(broadcasts).isEmpty()
 	}
+
+	@Test
+	fun `sessionId extra is forwarded on InstallBroadcast when present and null when absent`() {
+		val broadcasts =
+			broadcastsFor(
+				resultEvent(PackageInstaller.STATUS_SUCCESS, sessionId = 987654),
+				resultEvent(PackageInstaller.STATUS_PENDING_USER_ACTION, sessionId = null),
+			)
+
+		assertThat(broadcasts).hasSize(2)
+		assertThat(broadcasts[0].sessionId).isEqualTo(987654)
+		assertThat(broadcasts[1].sessionId).isNull()
+	}
 }
