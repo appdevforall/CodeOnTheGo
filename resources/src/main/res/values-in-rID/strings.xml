@@ -14,6 +14,7 @@
 	<string name="msg_get_package_failed">Gagal mengekstrak nama paket.</string>
 	<string name="msg_need_help">Jika Anda mengalami masalah saat menggunakan Code on the Go atau dalam mengembangkan aplikasi Android, Anda dapat bergabung dengan forum Diskusi kami dan meminta bantuan di sana.\n\nAnda juga dapat mengirimkan saran melalui email kami.</string>
 	<string name="download_codeonthego_message">Unduh Code on the Go dari situs web resmi untuk mendapatkan fitur dan pembaruan terbaru.</string>
+	<string name="download_codeonthego_url">https://appdevforall.org/codeonthego</string>
 	<string name="msg_invalid_url">URL tidak valid.</string>
 	<string name="msg_no_browser_found">Tidak ditemukan browser untuk menangani permintaan ini.</string>
 	<string name="need_help">Butuh Bantuan?</string>
@@ -46,14 +47,14 @@
 	<string name="agent_planner_reject_invalid_tool">Rencana sebelumnya ditolak karena pemanggilan alat tidak valid.</string>
 	<string name="agent_planner_tool_blocked_note">Alat `%1$s` sekarang diblokir hingga Anda dapat menjelaskan cara menggunakannya dengan aman.</string>
 	<string name="agent_planner_retry_instruction">%1$s%2$s Sebelum mencoba memanggil alat lagi, periksa kembali parameter yang diperlukan dan pastikan bahwa pemanggilan alat memang diperlukan. Jika permintaan dapat dijawab secara konseptual, berikan jawaban teks tanpa memaksakan pemanggilan alat.</string>
-	<string name="agent_planner_invalid_output_notice">Output rencana tidak valid. Meminta perbaikan rencana...</string>
+	<string name="agent_planner_invalid_output_notice">Output rencana tidak valid. Meminta perbaikan rencana…</string>
 	<string name="agent_tool_call_missing_name">Pemanggilan fungsi tanpa nama terdeteksi. Berikan nama alat yang valid.</string>
 	<string name="agent_tool_call_unknown_tool">Alat tidak dikenal `%1$s` diminta. Gunakan hanya alat yang didukung.</string>
 	<string name="agent_tool_call_blocked">Alat `%1$s` diblokir sementara setelah pemanggilan yang tidak valid. Pilih alat lain atau berikan jawaban teks.</string>
 	<string name="agent_tool_call_missing_args">Alat `%1$s` kekurangan argumen yang diperlukan: %2$s.</string>
 	<string name="agent_planner_invalid_tool_usage_header">Rencana sebelumnya melanggar ketentuan penggunaan alat:\n</string>
 	<string name="agent_planner_invalid_tool_usage_footer">Buat ulang rencana dengan argumen alat yang valid, atau berikan tanggapan teks jika alat tidak diperlukan.</string>
-	<string name="agent_planner_invalid_tool_usage_notice">Perencana mengusulkan penggunaan alat yang tidak valid. Meminta rencana yang diperbaiki...</string>
+	<string name="agent_planner_invalid_tool_usage_notice">Perencana mengusulkan penggunaan alat yang tidak valid. Meminta rencana yang diperbaiki…</string>
 	<string name="agent_approval_deny">Tolak</string>
 	<string name="agent_approval_once">Setujui sekali</string>
 	<string name="agent_approval_session">Setujui untuk sesi ini</string>
@@ -61,15 +62,18 @@
 	<string name="agent_dialog_cancel">Batal</string>
 	<string name="agent_dialog_run">Jalankan</string>
 	<string name="agent_hint_boolean">true atau false</string>
-	<string name="agent_hint_file_content">Isi file...</string>
+	<string name="agent_hint_file_content">Isi file…</string>
+	<string name="agent_hint_limit">1000</string>
 	<string name="agent_hint_number">Masukkan angka</string>
+	<string name="agent_hint_offset">0</string>
 	<string name="agent_hint_param">Masukkan %1$s</string>
 	<string name="agent_hint_path_example">misalnya, app/src/main/AndroidManifest.xml</string>
-	<string name="agent_hint_search_pattern">Pola pencarian...</string>
+	<string name="agent_hint_search_pattern">Pola pencarian…</string>
 	<string name="agent_images_selected">%1$d gambar dipilih.</string>
 	<string name="agent_required_fields_missing">Harap isi semua kolom yang wajib (ditandai dengan *).</string>
 	<string name="agent_select_tool_to_test">Pilih alat untuk diuji</string>
 	<string name="agent_test_tool_title">Uji alat: %1$s</string>
+	<string name="agent_title_ellipsis_suffix">...</string>
 	<string name="agent_tokens_na">Token: N/A</string>
 	<string name="agent_tokens_percentage">Token: %1$d%%</string>
 	<string name="agent_tool_description_missing">Tidak ada deskripsi</string>
@@ -91,11 +95,18 @@
 	<!-- Build Tools Installation -->
 	<string name="msg_no_references">Tidak ada referensi yang ditemukan</string>
 	<string name="msg_no_imports_found">Tidak ada import yang ditemukan</string>
+	<string name="msg_import_file_changed">File berubah. Coba import lagi.</string>
+	<!-- Shown when the "Import class(es)" quick fix finds no class matching an unresolved symbol. %1$s is the unresolved simple name. -->
+	<string name="msg_no_importable_class">Tidak ada class bernama \'%1$s\' yang bisa di-import.</string>
+	<!-- Same as msg_no_importable_class, shown instead of it while library indexing is still in progress, since a matching class may still turn up once indexing finishes. %1$s is the unresolved simple name. -->
+	<string name="msg_no_importable_class_indexing">Tidak ada class bernama \'%1$s\' yang bisa di-import. Library masih di-indeks.</string>
 	<string name="view_diags">Diagnostik</string>
 	<string name="title_installation_failed">Instalasi gagal</string>
 	<string name="error_installation_failed">Gagal menginstal aset</string>
 	<string name="err_asset_entry_not_found">Entri \'%1$s\' tidak ditemukan dalam file zip aset</string>
 	<string name="err_missing_or_corrupt_assets">File instalasi tidak ditemukan. Instalasi %1$s mungkin rusak atau tidak lengkap.</string>
+	<!-- Debug and profileable builds only, which install from a separately downloaded assets zip. %1$s is the zip file name, %2$s the folder it must be copied to, %3$s the app name. -->
+	<string name="err_missing_split_assets_zip">File assets \'%1$s\' tidak ditemukan. Salin ke %2$s, lalu mulai ulang %3$s.</string>
 	<string name="msg_picked_isnt_dir">File yang dipilih bukan direktori.</string>
 	<string name="please_wait">Harap tunggu sebentar.</string>
 	<string name="not_enough_storage">Penyimpanan tidak mencukupi untuk instalasi. Diperlukan tambahan %1$.1fGB pada penyimpanan internal. Saat ini Anda memiliki %2$.1fGB yang tersedia.</string>
@@ -110,12 +121,15 @@
 	<string name="build_output">Output Build</string>
 	<string name="quick_run_debug">Jalankan cepat</string>
 	<string name="msg_sync_needed">File Gradle telah berubah. Sinkronkan proyek untuk memperbarui dependensi dan pengaturan.</string>
+	<string name="msg_sync_build_output_relocate">Sinkronkan untuk memindahkan output build ke penyimpanan yang lebih cepat.</string>
+	<string name="msg_sync_build_output_deferred">Build sedang berjalan. Anda akan diminta menyinkronkan lagi setelah selesai.</string>
+	<string name="msg_old_build_output_removed">Output build lama telah dihapus dari folder proyek. Ekspor akan memberikan build terbaru Anda.</string>
+	<string name="msg_sync_after_build">Build sedang berjalan. Sinkronkan setelah selesai.</string>
 	<string name="preparing">Menyiapkan</string>
 	<string name="preparing_first">Inisialisasi proyek memerlukan beberapa saat.</string>
 	<string name="msg_installing_gradlew">Gradle wrapper tidak tersedia.\nMenginstal yang default. Gradle v7.4 akan diunduh jika diperlukan.</string>
 	<string name="run">Jalankan</string>
 	<string name="action_start_debugger">Debug</string>
-
 
 	<!-- Project -->
 	<string name="title_first_build">Menyiapkan proyek Anda</string>
@@ -130,6 +144,20 @@
 	<string name="msg_confirm_open_project">Apakah Anda ingin membuka proyek terakhir yang dibuka? Proyek tersebut adalah:\n%s</string>
 	<string name="title_close_project">Tutup proyek ini</string>
 	<string name="msg_opened_project_does_not_exist">Proyek terakhir yang dibuka tidak ada.</string>
+	<string name="msg_deeplink_invalid_link">Tautan ini tidak dapat dibuka.</string>
+	<string name="msg_deeplink_setup_incomplete">Selesaikan penyiapan Code on the Go, lalu buka tautan ini lagi.</string>
+	<string name="msg_deeplink_project_not_found">Tidak ditemukan proyek bernama \"%s\".</string>
+	<string name="msg_deeplink_file_not_found">File \"%s\" tidak ditemukan dalam proyek.</string>
+	<string name="msg_deeplink_file_not_found_in_project">File \"%1$s\" tidak ditemukan di proyek \"%2$s\".</string>
+	<string name="msg_deeplink_no_project_open">Tidak ada proyek yang terbuka. Buka sebuah proyek, lalu coba tautan ini lagi.</string>
+	<string name="msg_deeplink_invalid_line">\"%s\" bukan nomor baris yang valid.</string>
+	<string name="msg_deeplink_invalid_column">\"%s\" bukan nomor kolom yang valid.</string>
+	<string name="msg_deeplink_no_value">(tidak ada nilai yang diberikan)</string>
+	<string name="msg_deeplink_scan_failed">Tidak dapat memindai proyek untuk tautan ini.</string>
+	<string name="msg_deeplink_copied">Tautan disalin ke papan klip.</string>
+	<string name="msg_deeplink_cannot_create">Tidak dapat membuat tautan untuk file ini.</string>
+	<string name="clip_label_deeplink">Tautan %1$s</string>
+	<string name="msg_project_close_in_progress">Penutupan proyek sedang berlangsung. Coba lagi sebentar lagi.</string>
 	<string name="msg_create_new_project">Buat proyek baru</string>
 	<string name="msg_open_existing_project">Buka proyek</string>
 	<string name="msg_delete_existing_project">Hapus proyek</string>
@@ -151,6 +179,11 @@
 	<string name="filters_active">Filter aktif</string>
 	<string name="filter_chip_remove_sort">Hapus urutan</string>
 	<string name="filter_chip_remove_search">Hapus filter pencarian</string>
+	<string-array name="sort_options">
+		    <item>@string/sort_by_name</item>
+		    <item>@string/sort_by_created</item>
+		    <item>@string/sort_by_modified</item>
+		</string-array>
 	<string name="project_info">Informasi</string>
 	<string name="project_info_title">Informasi dasar proyek</string>
 	<string name="project_info_general_title">Umum</string>
@@ -192,8 +225,8 @@
 	<string name="wizard_plugin_options">Opsi</string>
 
 	<!-- Plugin Permissions -->
-	<string name="perm_filesystem_read">Baca file sistem</string>
-	<string name="perm_filesystem_write">Tulis file sistem</string>
+	<string name="perm_filesystem_read">Baca sistem file</string>
+	<string name="perm_filesystem_write">Tulis sistem file</string>
 	<string name="perm_network_access">Akses jaringan</string>
 	<string name="perm_system_commands">Perintah sistem</string>
 	<string name="perm_ide_settings">Pengaturan IDE</string>
@@ -212,6 +245,26 @@
 	<string name="menu_find">Cari</string>
 	<string name="menu_find_file">Cari dalam file</string>
 	<string name="menu_find_project">Cari dalam proyek</string>
+	<string name="menu_replace_project">Ganti dalam proyek</string>
+	<string name="hint_replace_with">Ganti dengan</string>
+	<string name="label_match_case">Bedakan huruf besar/kecil</string>
+	<string name="label_whole_word">Kata utuh</string>
+	<string name="label_project_files">File proyek di luar module</string>
+	<string name="btn_find_matches">Cari kecocokan</string>
+	<string name="cd_toolbar_replace_in_project">Ganti dalam proyek</string>
+	<plurals name="msg_replace_n_matches">
+		<item quantity="other">Ganti %1$d kecocokan di %2$d file</item>
+	</plurals>
+	<string name="cd_replace_match_checkbox">Sertakan kecocokan di %1$s, baris %2$d</string>
+	<string name="cd_replace_file_checkbox">Sertakan semua kecocokan di %1$s</string>
+	<string name="msg_replace_done">%1$d diganti di %2$d file</string>
+	<string name="msg_replace_done_with_issues">%1$d diganti di %2$d file, %3$d dilewati, %4$d gagal</string>
+	<string name="msg_replace_undone">%1$d file dipulihkan</string>
+	<string name="msg_replace_busy">Penggantian masih berlangsung</string>
+	<string name="title_replace_report">Beberapa file tidak diubah</string>
+	<string name="reason_changed_since_search">berubah sejak pencarian, cari lagi</string>
+	<string name="reason_changed_since_replace">berubah sejak penggantian</string>
+	<string name="reason_tab_closed">tab telah ditutup</string>
 	<string name="msg_search_modules">Cari dalam module</string>
 	<string name="msg_no_modules">Tidak ada module yang ditemukan dalam proyek</string>
 	<string name="hint_find_project_filter">Filter ekstensi file (opsional)</string>
@@ -258,6 +311,8 @@
 	<string name="action_install">Instal</string>
 	<string name="action_closeOthers">Tutup lainnya</string>
 	<string name="action_closeThis">Tutup ini</string>
+	<string name="action_close_tab">Tutup tab</string>
+	<string name="action_create_link">Buat tautan</string>
 	<string name="all_saved">Semua file telah disimpan</string>
 	<string name="save_failed">Gagal menyimpan file</string>
 	<string name="msg_newfile_dest">Tujuan: %s/</string>
@@ -271,14 +326,18 @@
 	<string name="classtype_enum">Enum</string>
 	<string name="lang_java">Java</string>
 	<string name="lang_kotlin">Kotlin</string>
+	<string name="lang_c">C</string>
+	<string name="lang_cpp">C++</string>
+	<string name="filetype_source">Source</string>
+	<string name="filetype_header">Header</string>
 	<string name="new_kotlin_class">Class Kotlin baru</string>
 	<string name="msg_failed_list_files">Gagal menampilkan struktur file proyek</string>
-	<string name="msg_file_tree_drop_import_failed">Gagal mengimpor file yang di lepas (drop)</string>
-	<string name="msg_file_tree_drop_no_files">Tidak ada file eksternal yang di lepas (drop)</string>
+	<string name="msg_file_tree_drop_import_failed">Gagal mengimpor file yang dilepas (drop)</string>
+	<string name="msg_file_tree_drop_no_files">Tidak ada file eksternal yang dilepas (drop)</string>
 	<string name="msg_file_tree_drop_destination_missing">Folder tujuan tidak ada</string>
 	<string name="msg_file_tree_drop_destination_unresolved">Tidak dapat menentukan folder tujuan</string>
-	<string name="msg_file_tree_drop_default_name">File yang di lepas (drop)</string>
-	<string name="msg_file_tree_drop_read_failed">Tidak dapat membaca file yang di lepas (drop): %1$s</string>
+	<string name="msg_file_tree_drop_default_name">File yang dilepas (drop)</string>
+	<string name="msg_file_tree_drop_read_failed">Tidak dapat membaca file yang dilepas (drop): %1$s</string>
 	<string name="msg_file_tree_drop_imported_single">1 file berhasil diimpor</string>
 	<string name="msg_file_tree_drop_imported_multiple">%1$d file berhasil diimpor</string>
 
@@ -296,7 +355,7 @@
 	<string name="open_with">Buka dengan…</string>
 
 	<string name="undo">Urung</string>
-	<string name="redo">Ulang</string>
+	<string name="redo">Ulangi</string>
 
 	<!-- Preferences -->
 	<string name="title_change_text_size">Ukuran font editor</string>
@@ -352,7 +411,7 @@
 	<string name="preview_render_error_message">Tidak dapat membuat tampilan root (root view). XML kosong atau tidak memiliki elemen tingkat atas yang valid.</string>
 
 	<!-- Crash Screen -->
-	<string name="msg_ide_crashed">Code on the Go mengalami crash (rusak)</string>
+	<string name="msg_ide_crashed">Code on the Go mengalami crash</string>
 	<string name="msg_crash_info">Ada kesalahan internal.\n\nDetail untuk membantu kami
 		memperbaiki masalah telah disimpan dan akan dikirim secara aman saat perangkat Anda
 		kembali online.\n\nSaat Anda menekan OK, aplikasi akan ditutup dan perubahan yang belum
@@ -366,7 +425,7 @@
 
 	<string name="title_translations">Terjemahan</string>
 	<string name="action_expand_selection">Perluas pilihan</string>
-	<string name="action_explain_selection">Perjelas pilihan</string>
+	<string name="action_explain_selection">Jelaskan pilihan</string>
 	<string name="msg_ai_gemini_api_key_missing">Kunci API Gemini belum diatur. Tambahkan di Pengaturan AI.</string>
 	<string name="msg_ai_local_model_not_loaded">Model lokal belum dimuat. Muat model di Pengaturan AI.</string>
 	<string name="idepref_java_matchLower_title">Cocokkan pelengkap dalam huruf kecil</string>
@@ -380,8 +439,18 @@
 	<string name="no">Tidak</string>
 	<string name="msg_viewaction_add_attr">Tambahkan atribut</string>
 	<string name="msg_file_tree">Struktur file</string>
+	<string name="hint_file_search">Cari file</string>
+	<string name="msg_file_search_enter_opens">Enter untuk membuka %1$s</string>
+	<plurals name="msg_file_search_enter_opens_all">
+		<item quantity="other">%1$d file, Enter untuk membuka semuanya</item>
+	</plurals>
+	<string name="msg_file_search_too_many">%1$d file. Enter untuk membuka paling banyak %2$d, jadi persempit polanya.</string>
+	<string name="msg_file_search_no_matches">Tidak ada file yang cocok</string>
+	<string name="msg_file_search_invalid_pattern">Pola tidak valid: %1$s</string>
 	<string name="hint_attr_value">Nilai atribut</string>
 	<string name="title_format_code">Format kode</string>
+	<string name="msg_format_failed">Tidak dapat memformat file: %1$s</string>
+	<string name="msg_format_failed_unexpected">Tidak dapat memformat file. Lihat log IDE untuk detailnya.</string>
 	<string name="title_show_tooltip">Bantuan</string>
 	<string name="show_tooltip_show_more">Tampilkan selengkapnya</string>
 	<string name="faq_activity_title">Informasi lebih lanjut</string>
@@ -463,7 +532,7 @@
 	<string name="idepref_xml_trimTrailingWs_summary">Hapus spasi berlebih di akhir baris.</string>
 	<string name="idepref_maxLineWidth_title">Lebar maksimum baris</string>
 	<string name="idepref_maxLineWidth_summary">Atur jumlah maksimum karakter dalam satu baris sebelum editor otomatis memindahkan atau memecah baris.</string>
-	<string name="idepref_splitAttrIndentSize_title">Pisahkan ukuran indentasi atribut</string>
+	<string name="idepref_splitAttrIndentSize_title">Ukuran indentasi atribut terpisah</string>
 	<string name="idepref_splitAttrIndentSize_summary">Atur jumlah spasi untuk indentasi secara otomatis pada atribut yang dipisahkan ke baris baru.</string>
 	<string name="idepref_preservedNewLines_title">Pertahankan baris baru</string>
 	<string name="idepref_preservedNewLines_summary">Atur jumlah maksimum baris kosong yang dipertahankan saat file diformat ulang atau disimpan.</string>
@@ -499,7 +568,7 @@
 	<string name="action_surround_with_try_catch">Bungkus dengan try/catch</string>
 	<string name="action_create_missing_method">Buat method yang hilang</string>
 	<string name="action_convert_to_block">Ubah menjadi blok</string>
-	<string name="action_generate_constructor">Buat constructor</string>
+	<string name="action_generate_constructor">Buat konstruktor</string>
 	<string name="action_implement_abstract_methods">Implementasikan method(s) abstract</string>
 	<string name="action_remove_class">Hapus class</string>
 	<string name="action_remove_method">Hapus method</string>
@@ -526,17 +595,45 @@
 	<string name="msg_extract_variable_nothing_to_extract">Tidak ada ekspresi untuk diekstrak di sini</string>
 	<string name="msg_extract_variable_file_changed">File telah berubah. Coba ekstrak lagi.</string>
 
+	<!-- Extract variable refactoring (Java) -->
+	<string name="msg_extract_variable_name_invalid_java">Bukan nama Java yang valid</string>
+	<string name="msg_extract_variable_name_keyword_java">Itu adalah kata kunci Java</string>
+
+	<!-- Where a Java extracted declaration can go, listed under "Declare in" -->
+	<string name="label_extract_scope_method">method %1$s</string>
+	<string name="label_extract_scope_constructor">konstruktor</string>
+	<string name="label_extract_scope_static_initializer">initializer statis</string>
+	<string name="label_extract_scope_initializer">initializer</string>
+	<string name="label_extract_scope_lambda">lambda</string>
+	<string name="label_extract_scope_if_block">blok if</string>
+	<string name="label_extract_scope_else_block">blok else</string>
+	<string name="label_extract_scope_for_loop">perulangan for</string>
+	<string name="label_extract_scope_while_loop">perulangan while</string>
+	<string name="label_extract_scope_do_while_loop">perulangan do-while</string>
+	<string name="label_extract_scope_try_block">blok try</string>
+	<string name="label_extract_scope_finally_block">blok finally</string>
+	<string name="label_extract_scope_catch_block">blok catch</string>
+	<string name="label_extract_scope_synchronized_block">blok synchronized</string>
+	<string name="label_extract_scope_switch_rule">aturan switch</string>
+	<string name="label_extract_scope_switch_case">case switch</string>
+	<string name="label_extract_scope_block">blok</string>
+	<string name="label_extract_scope_if_branch">cabang if</string>
+	<string name="label_extract_scope_else_branch">cabang else</string>
+	<string name="label_extract_scope_for_body">badan for</string>
+	<string name="label_extract_scope_while_body">badan while</string>
+	<string name="label_extract_scope_do_while_body">badan do-while</string>
+
 	<!-- Extract method refactoring (Kotlin) -->
-	<string name="action_extract_method">Ekstrak metode</string>
-	<string name="title_extract_method">Ekstrak metode</string>
-	<string name="label_extract_method_signature">Tanda tangan</string>
+	<string name="action_extract_method">Ekstrak method</string>
+	<string name="title_extract_method">Ekstrak method</string>
+	<string name="label_extract_method_signature">Signature</string>
 	<string name="msg_extract_method_file_changed">File telah berubah. Coba ekstrak lagi.</string>
 	<string name="msg_extract_method_not_single_region">Pilih sebuah ekspresi, atau pernyataan lengkap dalam satu blok</string>
 	<string name="msg_extract_method_could_not_analyse">Tidak dapat menganalisis pilihan. Coba lagi.</string>
 	<string name="msg_extract_method_multiple_outputs">Pilihan menghasilkan lebih dari satu nilai: %1$s</string>
 	<string name="msg_extract_method_output_not_returnable">Pilihan menghasilkan %1$s, yang tidak dapat dikembalikan sebagai nilai balik (return value)</string>
 	<string name="msg_extract_method_reassigns_outer_var">Pilihan memberi nilai baru ke %1$s, yang dideklarasikan di luar pilihan tersebut</string>
-	<string name="msg_extract_method_exits_region">Pilihan keluar dari dirinya sendiri dengan return, break, atau continue</string>
+	<string name="msg_extract_method_exits_region">Eksekusi keluar dari pilihan melalui return, break, atau continue</string>
 	<string name="msg_extract_method_anonymous_extension_function">Pilihan berada di dalam fungsi ekstensi anonim</string>
 	<string name="msg_extract_method_inner_implicit_receiver">Pilihan menggunakan anggota dari penerima (receiver) %1$s yang melingkupinya</string>
 	<string name="msg_extract_method_uses_type_parameter">Pilihan menggunakan parameter tipe %1$s</string>
@@ -544,6 +641,32 @@
 	<string name="msg_extract_method_uses_backing_field">Pilihan menggunakan backing field dari properti, yang hanya ada di dalam pengakses (accessor) ini</string>
 	<string name="msg_extract_method_smart_cast_parameter">Pilihan menggunakan %1$s di bawah smart cast yang tidak berlaku di luar pilihan tersebut</string>
 	<string name="msg_extract_method_captured_local_declaration">Pilihan menggunakan %1$s, yang keluar dari cakupan (scope) setelah pilihan tersebut dipindahkan</string>
+
+	<!-- Inline variable refactoring (Kotlin) -->
+	<string name="action_inline_variable">Inline variabel</string>
+	<string name="title_inline_variable">Inline variabel</string>
+	<string name="label_inline_variable_value">Nilai</string>
+	<string name="label_inline_variable_this_reference">Inline hanya referensi ini</string>
+	<string name="label_inline_variable_all_and_delete">Inline semua %1$d referensi dan hapus %2$s</string>
+	<string name="label_inline_variable_all_keeping">Inline semua %1$d referensi, pertahankan %2$s</string>
+	<string name="label_inline_variable_partial">Inline %1$d dari %2$d referensi, pertahankan %3$s</string>
+	<string name="msg_inline_variable_not_a_variable">Letakkan kursor pada variabel lokal atau salah satu penggunaannya</string>
+	<string name="msg_inline_variable_not_local">Hanya variabel lokal yang dapat di-inline</string>
+	<string name="msg_inline_variable_no_initializer">%1$s tidak memiliki nilai pada deklarasinya</string>
+	<string name="msg_inline_variable_destructuring">Deklarasi destructuring tidak dapat di-inline</string>
+	<string name="msg_inline_variable_declared_type">%1$s dideklarasikan sebagai %2$s, dan penggunaannya membutuhkan tipe tersebut</string>
+	<string name="msg_inline_variable_never_used">%1$s tidak pernah digunakan</string>
+	<string name="msg_inline_variable_nothing_inlinable">Tidak ada penggunaan %1$s yang dapat di-inline dengan aman</string>
+	<string name="msg_inline_variable_reference_not_inlinable">Penggunaan %1$s ini tidak dapat di-inline dengan aman</string>
+	<string name="msg_inline_variable_could_not_analyse">Tidak dapat menganalisis file. Coba lagi.</string>
+	<string name="msg_inline_variable_file_changed">File telah berubah. Coba inline lagi.</string>
+	<plurals name="msg_inline_variable_inlined_all">
+		<item quantity="other">Meng-inline %1$d referensi ke %2$s dan menghapus deklarasinya</item>
+	</plurals>
+	<plurals name="msg_inline_variable_inlined_keeping">
+		<item quantity="other">Meng-inline %1$d referensi ke %2$s, deklarasi dipertahankan</item>
+	</plurals>
+	<string name="msg_inline_variable_inlined_partially">Meng-inline %1$d dari %2$d referensi ke %3$s, deklarasi dipertahankan</string>
 	<string name="msg_select_fields">Pilih field</string>
 	<string name="msg_no_fields_selected">Tidak ada field yang dipilih</string>
 	<string name="msg_no_fields_found">Field tidak ditemukan</string>
@@ -564,10 +687,10 @@
 	<string name="action_null_safety_elvis">Tambahkan operator Elvis (?:)</string>
 	<string name="action_implement_members">Implementasikan anggota</string>
 	<string name="msg_cannot_generate_toString">Tidak dapat membuat implementasi toString()</string>
-	<string name="msg_toString_overridden">toString() sudah di override</string>
-	<string name="action_generate_missing_constructor">Buat constructor yang hilang</string>
-	<string name="msg_cannot_generate_constructor">Tidak dapat membuat constructor</string>
-	<string name="msg_constructor_available">Constructor dengan tipe parameter yang sama sudah tersedia</string>
+	<string name="msg_toString_overridden">toString() sudah di-override</string>
+	<string name="action_generate_missing_constructor">Buat konstruktor yang hilang</string>
+	<string name="msg_cannot_generate_constructor">Tidak dapat membuat konstruktor</string>
+	<string name="msg_constructor_available">Konstruktor dengan tipe parameter yang sama sudah tersedia</string>
 
 	<string name="replace">Ganti</string>
 	<string name="replaceAll">Ganti semua</string>
@@ -616,6 +739,7 @@
 
 	<string name="btn_sync">Sinkronisasi</string>
 	<string name="btn_ignore_changes">Abaikan perubahan ini</string>
+	<string name="btn_not_now">Nanti saja</string>
 	<string name="title_fix_imports">Perbaiki import</string>
 	<string name="msg_no_unresolved_classes">Tidak ada nama class yang belum terselesaikan</string>
 	<string name="title_class_chooser">Pilih %1$s</string>
@@ -636,7 +760,7 @@
 	<string name="title_privacy">Privasi</string>
 
 	<string name="privacy_disclosure_title">Privasi &amp; analitik</string>
-	<string name="privacy_disclosure_message">Code on the Go mengumpulkan informasi penggunaan dan laporan kerusakan anonim untuk membantu kami memperbaiki bug dan meningkatkan aplikasi. Tidak ada informasi pribadi yang dikumpulkan atau dibagikan.\n\n<i>Bagikan data anonim</i> akan mengirim informasi ini. <i>Tetap offline</i> tidak mengirim apa pun.</string>
+	<string name="privacy_disclosure_message">Code on the Go mengumpulkan informasi penggunaan dan laporan crash anonim untuk membantu kami memperbaiki bug dan meningkatkan aplikasi. Tidak ada informasi pribadi yang dikumpulkan atau dibagikan.\n\n<i>Bagikan data anonim</i> akan mengirim informasi ini. <i>Tetap offline</i> tidak mengirim apa pun.</string>
 	<string name="privacy_disclosure_accept">Bagikan data anonim</string>
 	<string name="privacy_disclosure_decline">Tetap offline</string>
 
@@ -653,12 +777,14 @@
 	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Simpan log</string>
 	<string name="idepref_devOptions_dumpLogs_summary">Simpan log Code on the Go ke $HOME/.androidide/logs</string>
-	<string name="msg_emptyview_applogs">Jalankan varian debug aplikasi Anda untuk melihat log nya di sini.</string>
+	<string name="msg_emptyview_applogs">Jalankan varian debug aplikasi Anda untuk melihat lognya di sini.</string>
 	<string name="msg_logsender_disabled">LogSender dinonaktifkan. Anda dapat mengaktifkannya di pengaturan.</string>
 	<string name="msg_emptyview_idelogs">Log dari IDE ditampilkan di sini.</string>
 	<string name="msg_emptyview_diagnostics">Buka file untuk menampilkan hasil diagnostik.</string>
 	<string name="log_filter_hint">Filter baris</string>
 	<string name="msg_no_filter_matches">Tidak ditemukan entri log yang cocok.</string>
+	<string name="msg_stack_frame_source_not_found">Tidak ditemukan sumber proyek untuk %1$s</string>
+	<string name="msg_stack_frame_open_failed">Tidak dapat membuka sumber untuk %1$s</string>
 	<string name="msg_no_search_matches">Tidak ditemukan hasil pencarian yang cocok.</string>
 	<string name="log_action_filter">Filter</string>
 	<string name="log_action_search">Cari</string>
@@ -675,7 +801,7 @@
 	<string name="log_filter_deltas">Selisih waktu</string>
 	<string name="tooltip_search_output">Cari dalam output</string>
 	<string name="tooltip_filter_output">Filter output</string>
-	<string name="msg_emptyview_buildoutput">"Build aplikasi atau jalankan task untuk melihat output build nya di sini."</string>
+	<string name="msg_emptyview_buildoutput">"Build aplikasi atau jalankan task untuk melihat output build-nya di sini."</string>
 	<string name="msg_codeaction_failed">Gagal melakukan tindakan kode</string>
 	<string name="idepref_devOptions_enableLogsender_title">Aktifkan LogSender</string>
 	<string name="idepref_devOptions_enableLogsender_summary">Jika dinonaktifkan, log dari aplikasi tidak akan ditampilkan di Code on the Go</string>
@@ -690,17 +816,34 @@
 	<string name="title_disconnect_log_senders">Putuskan pengirim log</string>
 	<string name="title_begin_long_select">Mulai seleksi panjang</string>
 	<string name="idepref_editor_stickScroll_title">Gulir lengket</string>
-	<string name="idepref_editor_stickyScroll_summary">Biarkan bilah ruang (header) lingkup saat ini ditampilkan di bagian atas editor saat Anda menggulir.</string>
+	<string name="idepref_editor_stickyScroll_summary">Tetap tampilkan header lingkup saat ini di bagian atas editor saat Anda menggulir.</string>
 	<string name="idepref_launchAppAfterInstall_title">Jalankan aplikasi setelah terinstal</string>
 	<string name="idepref_launchAppAfterInstall_summary">Jika diaktifkan, IDE akan langsung menjalankan aplikasi setelah terinstal tanpa konfirmasi.</string>
 	<string name="title_run_options">Opsi jalankan</string>
 	<string name="err_cannot_determine_package">Tidak dapat menjalankan aplikasi. Nama paket tidak dapat ditentukan.</string>
 	<string name="msg_launch_failure_no_app_module">Tidak dapat menjalankan aplikasi. Tidak ditemukan module aplikasi dalam proyek.</string>
 	<string name="title_launch_app">Jalankan aplikasi</string>
+	<string name="title_export_build">Ekspor</string>
+	<string name="title_export_kind">Ekspor %1$s</string>
+	<string name="export_kind_apk">APK</string>
+	<string name="export_kind_bundle">App Bundle (.aab)</string>
+	<string name="export_kind_plugin">Plugin (.cgp)</string>
+	<string name="export_share">Bagikan</string>
+	<string name="export_copy_to_download">Salin ke Unduhan</string>
+	<string name="msg_export_not_built">Belum ada yang di-build. Jalankan aplikasi sekali untuk mem-build-nya.</string>
+	<string name="msg_export_plugin_not_built">Belum ada plugin. Jalankan proyek plugin sekali untuk mem-build-nya.</string>
+	<string name="msg_export_saved">Disimpan ke Unduhan sebagai %1$s</string>
+	<string name="msg_export_failed">Tidak dapat menyalin file ke Unduhan</string>
+	<string name="msg_export_apk_quick_build">APK terbaru adalah aplikasi muat ulang langsung milik Build Cepat. Jalankan aplikasi sekali untuk mem-build APK biasa, lalu ekspor.</string>
+	<string name="msg_export_build_running">Build sedang berjalan. Ekspor setelah selesai.</string>
 	<string name="title_experiment_flavor">Percobaan</string>
-	<string name="msg_experimental_flavor">Anda menggunakan varian %1$s dari Code On The Go pada perangkat %2$s. Konfigurasi ini mungkin berfungsi, tetapi akan mengurangi kinerja dan berpotensi menimbulkan risiko keamanan. Sebaiknya hindari menggunakan konfigurasi ini jika memungkinkan.</string>
+	<string name="title_experiments_on">Eksperimen aktif</string>
+	<string name="msg_experimental_flavor">Anda menggunakan varian %1$s dari Code on the Go pada perangkat %2$s. Konfigurasi ini mungkin berfungsi, tetapi akan mengurangi kinerja dan berpotensi menimbulkan risiko keamanan. Sebaiknya hindari menggunakan konfigurasi ini jika memungkinkan.</string>
 	<string name="idepref_editor_pinLineNumbers_title">Sematkan nomor baris</string>
 	<string name="idepref_editor_pinLineNumbers_summary">Kunci nomor baris agar tetap terlihat saat menggulir secara horizontal.</string>
+	<string name="theme_blue_wave">Gelombang Biru</string>
+	<string name="theme_sunny_glow">Sinar Mentari</string>
+	<string name="theme_material_you">Material You</string>
 	<string name="idepref_general_localeSelector_title">Bahasa</string>
 	<string name="idepref_general_localeSelector_summary">Pilih bahasa untuk Code on the Go.</string>
 	<string name="locale_system_default">Default Sistem</string>
@@ -711,8 +854,10 @@
 	<string name="msg_font_copy_failed">Tidak dapat menyimpan file font. Silakan coba lagi.</string>
 	<string name="msg_files_being_saved">Operasi penyimpanan file sedang berlangsung</string>
 	<string name="msg_undock_save_failed">Tidak dapat menyimpan “%1$s”. Pelepasan dibatalkan.</string>
+	<string name="msg_floating_close_save_failed">Tidak dapat menyimpan “%1$s”. Perubahan yang belum disimpan telah dibuang bersama proyek.</string>
 	<string name="title_install_tools">Instal Alat Pengembangan</string>
 	<string name="subtitle_install_tools">\nUntuk menginstal alat yang diperlukan untuk mem-build proyek Android, ketuk tombol di kanan bawah layar\n</string>
+	<string name="msg_install_tools"> </string>
 	<string name="greeting_title">Selamat datang</string>
 	<string name="greeting_subtitle">Tidak punya komputer? Tidak ada internet? Tidak masalah.</string>
 	<string name="title_grant">Izinkan</string>
@@ -751,7 +896,7 @@
 	<string name="title_unsupported_user">Pengguna tidak didukung</string>
 	<string name="title_socials">Sosial</string>
 	<string name="title_contribute">Kontribusi</string>
-	<string name="summary_contribute">Ini bukan sekadar IDE, ini adalah komunitas. Berkontribusilah dengan kode, ide, dan semangat untuk Code On The Go.</string>
+	<string name="summary_contribute">Ini bukan sekadar IDE, ini adalah komunitas. Berkontribusilah dengan kode, ide, dan semangat untuk Code on the Go.</string>
 	<string name="msg_app_unavailable_for_intent">Tidak ada aplikasi yang tersedia untuk menangani permintaan ini.</string>
 	<string name="title_open_source_licenses">Lisensi sumber terbuka</string>
 	<string name="summary_open_source_licenses">Lihat lisensi sumber terbuka.</string>
@@ -775,6 +920,7 @@
 	<string name="debugger_resume">Lanjutkan</string>
 	<string name="debugger_restart">Mulai ulang</string>
 	<string name="debugger_status_resolving">Memproses…</string>
+	<string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
 	<string name="debugger_loading_variable_value">Memuat nilai variabel</string>
 	<string name="debugger_variable_truncated">Dipangkas karena ukuran</string>
 
@@ -786,21 +932,23 @@
 	<string name="debugger_value_unavailable">&lt;tidak tersedia&gt;</string>
 	<string name="debugger_value_error">&lt;ada kesalahan&gt;</string>
 	<string name="debugger_variable_value_hint">Nilai variabel</string>
+	<string name="debugger_variable_dialog_title">%1$s: %2$s</string>
+	<string name="debugger_value_null">null</string>
 	<string name="debugger_dialog_hint_enter_value">Masukkan nilai</string>
 	<string name="debugger_dialog_button_set">Atur</string>
 	<string name="debugger_variable_value_invalid">Nilai tidak valid untuk variabel ini</string>
 	<string name="debugger_error_immutable_variable">Nilai variabel \'%1$s\' tidak dapat diubah.</string>
 	<string name="debugger_error_network_access_error">Ada kesalahan pada akses jaringan</string>
 	<string name="debugger_error_errno">Tidak dapat mendeteksi koneksi JDWP. Operasi gagal dengan kesalahan %1$d.</string>
-	<string name="debugger_error_errno_eperm">Code On the Go tidak diizinkan membuka atau mengikat soket jaringan pada jaringan lokal.</string>
-	<string name="debugger_error_errno_econnrefused">Akses jaringan untuk Code On the Go diblokir oleh sistem. Aplikasi tidak diizinkan menggunakan jaringan atau layanan tidak tersedia.</string>
-	<string name="debugger_error_debugger_startup_failure">Tidak dapat memulai debugger Code On the Go.</string>
+	<string name="debugger_error_errno_eperm">Code on the Go tidak diizinkan membuka atau mengikat soket jaringan pada jaringan lokal.</string>
+	<string name="debugger_error_errno_econnrefused">Akses jaringan untuk Code on the Go diblokir oleh sistem. Aplikasi tidak diizinkan menggunakan jaringan atau layanan tidak tersedia.</string>
+	<string name="debugger_error_debugger_startup_failure">Tidak dapat memulai debugger Code on the Go.</string>
 	<string name="debugger_not_ready">Debugger belum siap untuk sesi debug.</string>
-	<string name="debugger_error_suggestion_network_restriction">Pastikan Code On the Go memiliki izin untuk mengakses jaringan lokal.
-		Hal ini dapat diperiksa dengan membuka layar \"Info aplikasi\" Code On the Go di pengaturan perangkat Anda,
+	<string name="debugger_error_suggestion_network_restriction">Pastikan Code on the Go memiliki izin untuk mengakses jaringan lokal.
+		Hal ini dapat diperiksa dengan membuka layar \"Info aplikasi\" Code on the Go di pengaturan perangkat Anda,
 		lalu periksa apakah akses jaringan diizinkan pada bagian \"Penggunaan data\" (nama dapat berbeda pada setiap perangkat).
 
-		Jika akses jaringan diizinkan dan masalah masih terjadi, silakan kirim laporan bug dengan melampirkan log.
+		\n\nJika akses jaringan diizinkan dan masalah masih terjadi, silakan kirim laporan bug dengan melampirkan log.
 	</string>
 
 	<string name="err_no_activity_to_handle_action">Tidak ada aktivitas untuk menangani tindakan %1$s</string>
@@ -825,12 +973,14 @@
 	<string name="msg_cannot_access_folder">Tidak dapat mengakses folder %1$s. Periksa izin penyimpanan.</string>
 	<string name="msg_no_subfolders">Folder %1$s tidak memiliki subfolder.</string>
 	<string name="msg_create_new_project_instruction">Klik tombol Proyek baru untuk membuat proyek baru.</string>
+	<string name="date">%1$s: %2$s</string>
 	<string name="date_created_label">Dibuat</string>
 	<string name="date_modified_label">Diubah</string>
 	<string name="loading_project">Memuat proyek…</string>
 	<string name="project_directory_invalid">%s bukan folder proyek Android yang valid. Silakan buka folder lain.</string>
 	<string name="open_from_folder">Buka dari folder</string>
 	<string name="msg_delete_selected_project">Apakah Anda yakin ingin menghapus proyek yang dipilih? Tindakan ini tidak dapat dibatalkan.</string>
+	<string name="feedback_email">feedback@appdevforall.org</string>
 	<string name="no_email_apps">Tidak ada aplikasi email yang ditemukan</string>
 	<string name="msg_internet_access_required">Akses internet diperlukan.</string>
 	<string name="msg_contact_app_dev_title">Hubungi App Dev for All</string>
@@ -883,9 +1033,13 @@
 	<string name="plugin_status_not_loaded">Tidak dimuat</string>
 	<string name="plugin_permissions">Izin</string>
 	<string name="plugin_dependencies">Dependensi</string>
+	<string name="by_author">oleh %1$s</string>
+	<string name="status_not_loaded">Belum Dimuat</string>
+	<string name="status_disabled">Dinonaktifkan</string>
+	<string name="status_enabled">Diaktifkan</string>
 
 	<!-- Plugin crash dialog -->
-	<string name="title_plugin_crashed">Plugin mengalami crash (rusak)</string>
+	<string name="title_plugin_crashed">Plugin mengalami crash</string>
 	<string name="msg_plugin_crash">\"%1$s\" mengalami crash (%2$d dari 3).</string>
 	<string name="msg_plugin_crash_disabled">\"%1$s\" dinonaktifkan setelah mengalami crash berulang kali.</string>
 	<string name="msg_plugin_crash_dev_hint">Jika Anda adalah pengembang plugin, ketuk ikon info untuk menampilkan log crash.</string>
@@ -900,11 +1054,46 @@
 	<!-- Message shown when the bootstrap installer is in the linking phase -->
 	<string name="bootstrap_installer_linking">Memproses tautan file (symlinks)…</string>
 
+	<!-- Tooltip HTML Template -->
+	<string name="tooltip_html_template"><![CDATA[
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                     body {
+                        margin: 0;
+                        padding: 10px;
+                        word-wrap: break-word;
+                        color: %1$s;
+                     }
+                     a{
+                        color: %3$s;
+                        text-decoration: underline;
+                       }
+                </style>
+            </head>
+            <body>
+                %2$s
+            </body>
+
+		</html>
+		]]></string>
+
 	<!-- Tooltip HTML Components -->
+	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
+	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
 	<string name="plugin_documentation_third_party_disclaimer">&lt;br&gt;&lt;br&gt;&lt;em style=&quot;color: #888; font-size: 0.9em;&quot;&gt;Dokumentasi ini disediakan oleh plugin pihak ketiga.&lt;/em&gt;</string>
 
 	<!-- Tooltip Debug Dialog -->
 	<string name="tooltip_debug_dialog_title">Info Keterangan (Tooltip) Debug</string>
+	<string name="tooltip_debug_metadata_html"><![CDATA[<b>Versi</b> <small>%1$s</small><br/>\n<b>Baris:</b> %2$d<br/>\n<b>ID:</b> %3$d<br/>\n<b>Kategori:</b> %4$s<br/>\n<b>Tag:</b> %5$s<br/>\n<b>Ringkasan Mentah:</b> %6$s<br/>\n<b>Detail Mentah:</b> %7$s<br/>\n<b>Tombol:</b> %8$s<br/>]]></string>
+	<string name="tooltip_debug_plugin_html"><![CDATA[<h3>Info Debug Tooltip Plugin</h3>\n<b>Versi:</b> <small>%1$s</small><br/>\n<b>Baris:</b> %2$d<br/>\n<b>ID:</b> %3$d<br/>\n<b>Kategori:</b> %4$s<br/>\n<b>Tag:</b> %5$s<br/>\n<br/>\n<b>Ringkasan Mentah:</b><br/>\n<small>%6$s</small><br/>\n<br/>\n<b>Detail Mentah:</b><br/>\n<small>%7$s</small><br/>\n<br/>\n<b>Tombol:</b> %8$s]]></string>
+
+	<!-- Tooltip Debug Button Formatting -->
+	<string name="tooltip_debug_button_separator"><![CDATA[<br/>]]></string>
+	<string name="tooltip_debug_button_item_template_simple">• %1$s</string>
+	<string name="tooltip_debug_button_item_template">\'%1$s \u2192 %2$s\'</string>
 
 	<string name="info_icon_content_description">Ikon info</string>
 	<string name="feedback_button_description">Kirim masukan tentang keterangan (tooltip) ini</string>
@@ -915,10 +1104,78 @@
 	<string name="cd_folder_icon">Ikon folder</string>
 	<string name="cd_close">Tutup</string>
 	<string name="cd_save">Simpan</string>
+	<string name="cd_quick_build">Build Cepat</string>
+	<string name="cd_quick_build_error">Build Cepat: error</string>
+	<string name="cd_quick_build_slow">Build Cepat: build berikutnya adalah build penuh</string>
+	<string name="cd_quick_build_reconnecting">Build Cepat: menghubungkan ulang</string>
+	<string name="quick_build_action_label">Build Cepat</string>
+	<string name="quick_build_error">Build Cepat: %1$s</string>
+	<string name="quick_build_standard_build_in_progress">Build standar sedang berlangsung</string>
+	<string name="quick_build_menu_restart_session">Mulai ulang sesi</string>
+	<string name="quick_build_switch_to_quick_title">Ganti aplikasi yang terinstal?</string>
+	<string name="quick_build_switch_to_quick_message">%1$s adalah APK biasa yang diinstal oleh tombol Jalankan standar. Build Cepat akan menggantinya dengan aplikasi proxy yang dirancang untuk muat ulang langsung tanpa penginstalan ulang. Gunakan tombol Jalankan untuk memulihkan APK normal.</string>
+	<string name="quick_build_switch_to_standard_title">Ganti aplikasi proxy Build Cepat?</string>
+	<string name="quick_build_switch_to_standard_message">%1$s saat ini adalah aplikasi proxy Build Cepat, yang memuat ulang perubahan Anda tanpa penginstalan ulang. Menjalankan ini akan menggantinya dengan APK biasa.</string>
+	<string name="quick_build_switch_unknown_app_title">Ganti aplikasi yang terinstal untuk proyek ini?</string>
+	<string name="quick_build_switch_unknown_app_message">Code on the Go tidak dapat menentukan aplikasi mana yang terinstal untuk proyek ini - proyek mungkin masih dalam proses sinkronisasi. Melanjutkan akan mengganti apa pun yang terinstal dengan ID aplikasi proyek ini.</string>
+	<string name="quick_build_switch_confirm">Ganti</string>
+	<string name="quick_build_reload_crashed">Muat ulang langsung mengalami crash. Aplikasi berada pada versi terakhir yang berfungsi. Untuk info lebih lanjut, lihat Output Build di Code on the Go.</string>
+	<string name="quick_build_relink_stuck">Kesalahan resource ini kini menghalangi setiap penyimpanan, bahkan yang hanya berisi kode - Build Cepat membangun ulang semua resource Anda pada setiap muat ulang. Perbaiki dan simpan. Jika kesalahan menyebutkan sesuatu yang tidak dapat Anda ubah, tekan lama Build Cepat dan pilih Mulai ulang sesi.</string>
+	<string name="quick_build_test_source_ignored">Tersimpan. Build Cepat tidak men-deploy sumber pengujian - tidak ada apa pun di bawah src/test, src/androidTest, atau testFixtures yang menjadi bagian dari aplikasi yang dibangunnya. Jalankan pengujian Anda dari tugas build sebagai gantinya.</string>
+	<string name="quick_build_stale_component_helpers">Dimuat ulang. Layanan, content provider, atau objek Application yang sedang berjalan masih dapat memanggil versi kode sebelumnya yang Anda ubah, hingga ia dimulai ulang - tutup dan buka kembali aplikasi Anda untuk memastikan.</string>
+	<string name="quick_build_provisioning">Build Cepat: build penuh pertama…</string>
+	<string name="quick_build_rebuilding">Build Cepat: membangun ulang…</string>
+	<string name="quick_build_restarting">Build Cepat: memulai ulang…</string>
+	<string name="quick_build_status_compiling">Build Cepat: mengompilasi…</string>
+	<string name="quick_build_status_reloaded">Build Cepat: dimuat ulang dalam %1$s</string>
+	<string name="quick_build_status_restarted">Build Cepat: dimulai ulang dalam %1$s</string>
+	<string name="quick_build_status_ready">Build Cepat: siap</string>
+	<string name="quick_build_status_failed">Build Cepat gagal - lihat Output Build</string>
+	<string name="quick_build_status_deploy_failed">Build Cepat: pengiriman gagal - lihat Output Build</string>
+	<string name="quick_build_status_app_not_running">Build Cepat: selesai di-build - ketuk untuk memulai aplikasi</string>
+	<string name="quick_build_status_needs_full_build">Build Cepat: memulai build penuh…</string>
+	<string name="quick_build_status_rebuild_failed">Build Cepat gagal - lihat Output Build</string>
+	<string name="quick_build_status_start_failed">Build Cepat: penyiapan gagal - ketuk untuk mencoba lagi</string>
+	<string name="quick_build_flash_failed">Build Cepat gagal. Lihat panel Output Build untuk detail lebih lanjut.</string>
+	<string name="quick_build_flash_recovered">Build Cepat berhasil</string>
+	<string name="quick_build_status_reconnecting">Kompiler Build Cepat memulai ulang…</string>
+	<string name="quick_build_status_compiler_down">Build Cepat berhenti - ketuk untuk mencoba lagi</string>
+	<string name="quick_build_wont_stay_up_title">Aplikasi Anda tidak tetap terbuka</string>
+	<string name="quick_build_wont_stay_up_message">Build Cepat berhasil mem-build perubahan Anda, tetapi aplikasi Anda tertutup sebelum dapat menerimanya - biasanya karena crash saat memulai. Menyimpan lagi tidak akan membantu, begitu pula membuka kembali aplikasi. Memulai ulang sesi akan membangun ulang dan menginstalnya kembali dari kode Anda saat ini.</string>
+	<string name="quick_build_wont_stay_up_restart">Mulai ulang sesi</string>
+	<string name="quick_build_wont_stay_up_dismiss">Nanti saja</string>
+	<string name="quick_build_tap_in_flight">Build Cepat sedang dimulai.</string>
+	<string name="quick_build_unsupported_plugin_project">Build Cepat tidak tersedia untuk proyek plugin - output build adalah paket .cgp, bukan aplikasi yang dapat dijalankan. Gunakan Jalankan/Debug untuk mem-build plugin sebagai gantinya.</string>
+	<string name="quick_build_no_launchable_activity">Build Cepat memerlukan Activity yang dapat diluncurkan dalam proyek ini - tidak ditemukan. Gunakan Jalankan/Debug untuk membangun dan memeriksanya sebagai gantinya.</string>
+	<string name="quick_build_waiting_for_sync">Build Cepat masih menunggu proyek ini selesai sinkronisasi. Coba lagi setelah sinkronisasi selesai.</string>
+	<string name="quick_build_no_app_module">Build Cepat memerlukan module aplikasi Android, dan proyek ini tidak memilikinya.</string>
+	<string name="quick_build_non_debuggable_variant">Build Cepat memerlukan varian build yang dapat di-debug, dan \"%1$s\" adalah varian rilis. Buka Varian Build di sidebar dan pilih varian debug.</string>
+	<string name="quick_build_variant_setup_missing">Build Cepat tidak dapat menyiapkan \"%1$s\". Jika varian tersebut tidak dapat di-debug, buka Varian Build di sidebar dan pilih varian debug.</string>
+	<string name="quick_build_setup_failed">Penyiapan Build Cepat gagal. Periksa Output Build untuk mengetahui apa yang salah.</string>
+	<string name="quick_build_slot_busy">Build lain sedang berjalan. Tunggu hingga selesai, lalu mulai Build Cepat lagi.</string>
+	<string name="quick_build_rebuild_failed">Build Cepat tidak dapat mem-build ulang aplikasi Anda. Periksa Output Build untuk mengetahui apa yang salah.</string>
+	<string name="quick_build_provisioning_failed_unexpectedly">Penyiapan Build Cepat gagal secara tak terduga. Periksa Output Build untuk mengetahui apa yang salah.</string>
+	<string name="quick_build_reinstall_return_to_cogo">Aplikasi Anda perlu diinstal ulang - kembali ke CoGo untuk mengonfirmasi.</string>
+	<string name="quick_build_reinstall_declined">Aplikasi Anda perlu diinstal ulang - prompt penginstalan dibatalkan. Ketuk Build Cepat untuk mencoba lagi.</string>
+	<string name="quick_build_reinstall_timed_out">Aplikasi Anda perlu diinstal ulang - prompt penginstalan tidak dijawab selama %1$d detik. Ketuk Build Cepat untuk mencoba lagi.</string>
+	<string name="quick_build_reinstall_waiting_for_gradle">Menunggu build Gradle saat ini selesai - aplikasi Anda masih perlu diinstal ulang. Ketuk Build Cepat untuk mencoba lagi.</string>
+	<string name="quick_build_install_could_not_start">Build Cepat tidak dapat memulai penginstalan aplikasi Anda.</string>
+	<string name="quick_build_install_failed">Build Cepat tidak dapat menginstal aplikasi Anda.</string>
+	<string name="quick_build_installed_but_unresolvable">Build Cepat menginstal %1$s, tetapi Android tidak dapat membukanya. Memulai ulang sesi akan menginstalnya kembali.</string>
+	<string name="quick_build_foreign_app_installed">%1$s sudah terinstal di perangkat ini dan tidak di-build di sini, sehingga Build Cepat tidak dapat menggantinya tanpa menghapus datanya. Cadangkan lalu hapus instalasinya sendiri terlebih dahulu.</string>
+	<string name="quick_build_daemon_start_failed">Build Cepat tidak dapat memulai kompilernya. Ketuk Build Cepat untuk mencoba lagi. (%1$s)</string>
+	<string name="quick_build_daemon_restart_failed">Build Cepat tidak dapat memulai ulang kompilernya. Ketuk Build Cepat untuk mencoba lagi, atau mulai ulang sesi dari menu tekan lama. (%1$s)</string>
+	<string name="quick_build_daemon_restart_retrying">Build Cepat sedang memulai ulang kompilernya - aplikasi Anda tetap berjalan. Jika tidak kembali, tekan lama Build Cepat dan pilih Mulai ulang sesi.</string>
+	<string name="quick_build_not_enough_storage">Build Cepat memerlukan sekitar %1$d MB ruang kosong di penyimpanan aplikasi, tetapi hanya tersedia %2$d MB. Kosongkan ruang dan coba lagi.</string>
+	<string name="quick_build_scratch_dir_unavailable">Build Cepat tidak dapat membuat folder build-nya di %1$s.</string>
+	<string name="quick_build_daemon_rejected_config">Kompiler Build Cepat menolak untuk memulai pada proyek ini. Memulai ulang sesi dari menu tekan lama akan menyiapkannya kembali.</string>
+	<string name="quick_build_reinstall_tap_again">Aplikasi Anda perlu diinstal ulang - kembali ke CoGo dan ketuk Build Cepat untuk mencoba lagi.</string>
 	<string name="cd_undo">Urung</string>
-	<string name="cd_redo">Ulang</string>
+	<string name="cd_redo">Ulangi</string>
 	<string name="cd_delete">Hapus</string>
 	<string name="cd_add">Tambah</string>
+	<string name="cd_navigate_back">Kembali</string>
+	<string name="cd_show_tooltip">Tampilkan keterangan (tooltip) bantuan</string>
 	<string name="cd_search">Cari</string>
 	<string name="cd_diagnostic_error">Ada kesalahan</string>
 	<string name="cd_diagnostic_warning">Peringatan</string>
@@ -932,7 +1189,7 @@
 	<string name="cd_toolbar_start_debugger">Mulai debugger</string>
 	<string name="cd_toolbar_run_gradle_tasks">Jalankan task Gradle</string>
 	<string name="cd_toolbar_undo">Urung</string>
-	<string name="cd_toolbar_redo">Ulang</string>
+	<string name="cd_toolbar_redo">Ulangi</string>
 	<string name="cd_toolbar_save">Simpan</string>
 	<string name="cd_toolbar_preview_layout">Pratinjau layout</string>
 	<string name="cd_toolbar_find">Cari</string>
@@ -959,13 +1216,17 @@
 	<string name="error_no_apk_in_output_listing">Tidak ada APK yang ditemukan di file daftar output.</string>
 	<string name="error_apk_not_exist">File APK yang ditentukan tidak ada: %1$s</string>
 	<string name="info_build_cancelled">Build dibatalkan oleh pengguna.</string>
+	<string name="msg_build_cancel_failed">Tidak dapat menghentikan build.</string>
+	<string name="msg_build_slot_busy">Build Cepat sedang menyiapkan aplikasi. Coba lagi setelah selesai.</string>
 	<string name="error_quick_run_failed">Jalankan cepat gagal.</string>
 	<string name="status_building">Mem-build…</string>
 	<string name="status_installing_plugin">Menginstal plugin…</string>
+	<!-- Editor status line while library JARs are indexed for code completion. %1$d is the number of JARs finished, %2$d the number queued so far. -->
+	<string name="status_indexing_classes">Mengindeks class (%1$d/%2$d)</string>
 	<string name="title_install_plugin">Instal plugin</string>
 	<string name="title_plugin_already_installed">Plugin Sudah Terinstal</string>
 	<string name="msg_plugin_overwrite_confirm">\'%1$s\' v%2$s sudah terinstal. Ganti dengan v%3$s?</string>
-	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' berhasil di build. Apakah Anda ingin menginstalnya sekarang?</string>
+	<string name="msg_install_plugin_prompt">Plugin \'%1$s\' berhasil di-build. Apakah Anda ingin menginstalnya sekarang?</string>
 	<string name="btn_install">Instal</string>
 	<string name="btn_later">Nanti</string>
 	<string name="msg_plugin_installed_restart">Plugin terinstal. Mulai ulang aplikasi untuk mengaktifkannya.</string>
@@ -990,10 +1251,32 @@
 	<string name="msg_plugin_uninstall_error">Terjadi kesalahan saat menghapus plugin: %1$s</string>
 	<string name="msg_source_delete_failed">Tidak dapat menghapus file instalasi</string>
 	<string name="msg_unsupported_plugin_file">Tipe file tidak didukung. Silakan pilih file .cgp</string>
+	<string name="msg_unsupported_extension_file">Tipe file tidak didukung. Pilih file plugin .cgp atau file template .cgt</string>
 	<string name="msg_no_file_manager">Tidak ada pengelola file ditemukan</string>
+	<!-- The Manager screen's + picker: add-on files in Downloads (ADFA-6729). -->
+	<string name="title_choose_plugin_file">Pilih plugin</string>
+	<string name="title_choose_template_file">Pilih template</string>
+	<string name="msg_no_download_files">Tidak ada file %1$s di Unduhan.</string>
+	<string name="action_browse_other_folders">Telusuri folder lain</string>
+	<!-- %1$s is a file size such as "5.5 MB", %2$s a date such as "Oct 21". -->
+	<string name="label_download_file_details">%1$s · %2$s</string>
 	<string name="msg_plugin_manager_init_failed">Gagal menginisialisasi Pengelola Plugin: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Hapus file instalasi setelah terinstal</string>
 	<string name="action_discover_plugins">Temukan plugin</string>
+	<string name="title_uninstall_plugin">Hapus Instalasi Plugin</string>
+	<string name="msg_uninstall_plugin_confirm">Apakah Anda yakin ingin menghapus instalasi \'%1$s\'?</string>
+	<string name="label_plugin_name">Nama</string>
+	<string name="label_plugin_id">ID Plugin</string>
+	<string name="label_plugin_version">Versi</string>
+	<string name="label_plugin_author">Penulis</string>
+	<string name="label_plugin_description">Deskripsi</string>
+	<string name="label_plugin_min_ide_version">Versi IDE Minimum</string>
+	<string name="label_plugin_built_from">Dibangun Dari</string>
+	<string name="label_plugin_built_at">Dibangun Pada</string>
+	<string name="label_value">%1$s: %2$s</string>
+	<string name="template_optional_tag">"- %1$s"</string>
+	<string name="label_separator">" - "</string>
+	<string name="init_failed_with_reason">%1$s: %2$s</string>
 
 	<string name="msg_invalid_incoming_file">Tidak dapat membaca file. Mungkin file tersebut rusak atau tidak tersedia.</string>
 	<string name="msg_unsupported_file_type">Tipe file tidak didukung. Hanya file berformat .cgp dan .cgt yang dapat dibuka dengan cara ini.</string>
@@ -1005,9 +1288,21 @@
 	<string name="btn_overwrite">Timpa</string>
 	<string name="btn_rename_and_install">Ganti nama &amp; Instal</string>
 	<string name="hint_new_template_collection_name">Nama koleksi baru</string>
-	<string name="msg_template_installed">"%1$s" telah berhasil diinstal</string>
 	<string name="msg_template_invalid_file">File koleksi template tidak valid atau rusak.</string>
+	<!--
+	  A .cgt is a collection: the bundled core.cgt alone carries nine templates, so these name the
+	  archive rather than saying "template" singular. Shared by both install paths - the Templates
+	  tab and the external-file install (ADFA-4934) - since both move one whole .cgt.
+	-->
+	<!-- Backticks, not quotes: Android strips unescaped double quotes from a string value, so
+	     "%1$s" would render the name bare. -->
+	<string name="msg_template_installed">`%1$s` berhasil diinstal</string>
 	<string name="msg_template_install_failed">Gagal menginstal koleksi template: %1$s</string>
+	<string name="msg_template_load_failed">Gagal memuat template: %1$s</string>
+	<string name="msg_template_uninstalled">Instalasi template berhasil dihapus</string>
+	<string name="msg_template_uninstall_failed">Gagal menghapus instalasi template: %1$s</string>
+	<string name="msg_template_deleted">Dihapus dari Unduhan</string>
+	<string name="msg_template_delete_failed">Gagal menghapus template: %1$s</string>
 
 	<string name="msg_template_warnings">\n\nPembuatan proyek selesai dengan peringatan/kesalahan. Buka Log IDE untuk detail.</string>
 
@@ -1096,6 +1391,7 @@
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_debugger_requires_a11">Debugger memerlukan Android 11 atau versi yang lebih baru agar dapat berfungsi.</string>
+
 	<!-- Error message displayed when the profiler feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
 	<string name="err_profiler_requires_a11">Profiler memerlukan Android 11 atau versi yang lebih baru agar dapat berfungsi.</string>
@@ -1125,11 +1421,22 @@
 	<string name="debugger_setup_description_footer"><![CDATA[Beberapa perangkat (termasuk perangkat Xiaomi model lama) juga memerlukan pemberian izin "Penggunaan baterai tanpa batasan" kepada Code on the Go. <a href="http://localhost:6174/i/debug-enable.html">Lihat informasi lebih lanjut, termasuk tips pemecahan masalah</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
+	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
 	<string name="tooltip_missing_fallback_html"><![CDATA[Maaf, kami tidak memiliki keterangan (tooltip) untuk itu. <a href="%1$s">Jelajahi dokumentasi</a>.]]></string>
 	<string name="title_alert">Kirim masukan</string>
 
 	<!-- Strings from BaseApplication.java -->
+	<string name="github_discussions_url">https://github.com/appdevforall/CodeOnTheGo/discussions</string>
+	<string name="telegram_channel_url">https://t.me/CodeOnTheGoOfficial</string>
+	<string name="sponsor_url">https://m.androidide.com/donate</string>
 	<string name="support_our_work">Dukung pekerjaan kami</string>
+	<string name="github_sponsors_url">https://github.com/sponsors/appdevforall</string>
+	<string name="docs_url">http://localhost:6174/i/index.html</string>
+	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
+	<string name="adfa_email">info@appdevforall.org</string>
+	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
+	<string name="youtube_channel_url">https://youtube.com/@appdevforall</string>
+	<string name="bilibili_video_url">https://www.bilibili.com/video/BV1AUgR6sE3G/</string>
 
 	<!-- AI Agent -->
 	<string name="ai_setting_saved">💾 Disimpan: %1$s</string>
@@ -1144,7 +1451,7 @@
 	<string name="model_error_verification_failed">Verifikasi file model gagal.</string>
 	<string name="model_error_load_failed">Gagal memuat model \'%1$s\'.</string>
 	<string name="model_error_format_unsupported">Format model ini tidak didukung.</string>
-	<string name="model_error_embedding">Model yang dipilih, \'%1$s\', adalah model embedding yang dirancang untuk pencarian semantik dan tugas-tugas kesamaan. Model ini tidak dapat digunakan untuk obrolan atau pembuatan teks.\n\nSilakan pilih model obrolan/instruksi sebagai gantinya (misalnya, model yang memiliki kata \'obrolan\', \'instruksi\', atau \'percakapan\' dalam namanya).</string>
+	<string name="model_error_embedding">Model yang dipilih, \'%1$s\', adalah model embedding yang dirancang untuk pencarian semantik dan tugas-tugas kesamaan. Model ini tidak dapat digunakan untuk obrolan atau pembuatan teks.\n\nSilakan pilih model obrolan/instruksi sebagai gantinya (misalnya, model yang memiliki kata \'chat\', \'instruct\', atau \'conversational\' dalam namanya).</string>
 	<string name="model_error_format_onnx">Model ONNX (.onnx) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan alat konversi llama.cpp\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
 	<string name="model_error_format_pytorch">Model PyTorch (.pt, .pth, .bin) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_hf_to_gguf.py\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
 	<string name="model_error_format_safetensors">Model SafeTensors (.safetensors) tidak didukung secara langsung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_hf_to_gguf.py\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
@@ -1152,12 +1459,41 @@
 	<string name="model_error_format_tflite">Model TensorFlow Lite (.tflite) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nSilakan pilih model dalam format GGUF.</string>
 	<string name="model_error_format_ggml">Model GGML (.ggml) sudah tidak didukung lagi.\n\nAplikasi ini menggunakan format GGUF yang lebih baru (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_llama_ggml_to_gguf.py\n2. Atau unduh versi GGUF dari Hugging Face</string>
 
-	<string name="ai_disclaimer">Pernyataan</string>
-	<string name="ai_disclaimer_message">Agen AI ini bersifat masih dalam percobaan dan dapat memberikan jawaban yang salah atau berbahaya. Selalu cadangkan pekerjaan Anda sebelum mencobanya, dan selalu periksa kembali sarannya sebelum digunakan. Kami tidak bertanggung jawab atas kesalahan, bug, atau kerusakan yang disebabkan oleh hasilnya. Gunakan dengan risiko Anda sendiri.</string>
+	<string name="ai_disclaimer">Penafian</string>
+	<string name="ai_disclaimer_message">Agen AI ini masih bersifat eksperimental dan dapat memberikan jawaban yang salah atau berbahaya. Selalu cadangkan pekerjaan Anda sebelum mencobanya, dan selalu periksa kembali sarannya sebelum digunakan. Kami tidak bertanggung jawab atas kesalahan, bug, atau kerusakan yang disebabkan oleh hasilnya. Gunakan dengan risiko Anda sendiri.</string>
 	<string name="ai_api_key_not_found">❌ Kunci API Gemini tidak ditemukan.\nJika Anda baru saja memperbarui atau menginstal ulang aplikasi, kunci API Anda mungkin telah direset.\nSilakan tambahkan kembali kunci Gemini Anda di Pengaturan AI.</string>
 
 	<!-- Plugins -->
 	<string name="title_plugin_manager">Pengelola Plugin</string>
+
+	<!-- Combined Plugin/Template Manager screen (ADFA-4928) -->
+	<string name="tab_plugins">Plugin</string>
+	<string name="tab_templates">Template</string>
+	<string name="no_templates_found">Tidak ada template ditemukan</string>
+	<string name="no_templates_found_hint">Template yang Anda unduh akan muncul di sini untuk diinstal</string>
+	<string name="status_template_installed">Terinstal</string>
+	<string name="status_template_not_installed">Belum terinstal</string>
+	<string name="template_provenance_plugin">Dari plugin</string>
+	<string name="template_provenance_user">Diimpor</string>
+	<plurals name="template_contains_count">
+		<item quantity="other">Berisi %1$d template</item>
+	</plurals>
+	<string name="action_install_template">Instal</string>
+	<string name="action_uninstall_template">Hapus instalasi</string>
+	<string name="action_view_templates">Lihat template</string>
+	<string name="action_delete_template">Hapus</string>
+	<string name="template_details">Detail</string>
+	<string name="title_templates_in">Template di %1$s</string>
+	<string name="title_delete_template">Hapus template?</string>
+	<string name="msg_delete_template_confirm">Ini akan menghapus \'%1$s\' secara permanen dari Unduhan.</string>
+	<string name="label_template_file">File</string>
+	<string name="label_template_status">Status</string>
+	<string name="label_template_location">Lokasi</string>
+	<string name="label_template_version">Versi</string>
+	<string name="label_template_description">Deskripsi</string>
+	<string name="label_template_optional_params">Parameter opsional</string>
+	<string name="template_unnamed">(tanpa nama)</string>
+	<string name="msg_template_error_clip_label">Kesalahan template</string>
 
 	<string name="failed_to_save_bitmap_to_file">Gagal menyimpan bitmap ke file</string>
 	<string name="pixel_copy_failed">PixelCopy gagal</string>
@@ -1170,7 +1506,10 @@
 	<string name="url_consent_cancel">Batal</string>
 	<string name="url_consent_proceed">Lanjutkan</string>
 	<string name="url_consent_dont_ask">Jangan tanya lagi</string>
+	<string name="tooltip_link_cannot_open">Tautan ini tidak dapat dibuka dari sini.</string>
 
+	<!-- Documentation urls -->
+	<string name="layout_editor_url">http://localhost:6174/i/layout-top.html</string>
 
 	<string name="retry">Coba lagi</string>
 	<string name="open_ai_settings">Buka pengaturan AI</string>
@@ -1217,6 +1556,7 @@
 	<string name="cloning_repo">Meng-clone repositori…</string>
 	<string name="pick_folder">Pilih folder</string>
 	<string name="git_title">Git</string>
+	<string name="git_refresh">Segarkan</string>
 	<string name="no_uncommitted_changes">Tidak ada perubahan yang belum di-commit</string>
 	<string name="unable_to_load_diff">Tidak dapat memuat diff</string>
 	<string name="diff_viewer">Penampil diff</string>
@@ -1240,22 +1580,43 @@
 	<string name="cancel_clone">Batalkan clone</string>
 	<string name="initialising_clone">Menginisialisasi clone…</string>
 	<string name="cancelling_clone">Membatalkan clone…</string>
+	<string name="add_commit_watermark">Tambahkan watermark pesan commit</string>
+	<string name="git_watermark_disabled_globally">Dinonaktifkan secara global di Preferensi</string>
+	<string name="git_watermark_save_failed">Gagal memperbarui pengaturan watermark</string>
 
 	<!-- Git Preferences -->
 	<string name="idepref_git_summary">Atur dan perbarui konfigurasi Git</string>
 	<string name="idepref_git_author_title">Identitas penulis</string>
-	<string name="idepref_git_author_summary">Atur nama dan email yang digunakan untuk commit</string>
 	<string name="idepref_git_user_name_title">Nama pengguna</string>
 	<string name="idepref_git_user_name_summary">Digunakan sebagai nama penulis dalam commit</string>
 	<string name="idepref_git_user_email_title">Email pengguna</string>
 	<string name="idepref_git_user_email_summary">Digunakan sebagai email penulis dalam commit</string>
 	<string name="idepref_git_author_missing_warning">Konfigurasikan penulis Git di Preferensi untuk mengaktifkan commit.\nKetuk avatar untuk info lebih lanjut.</string>
+	<string name="idepref_git_add_commit_watermark">Tambahkan watermark ke commit</string>
+	<string name="idepref_git_add_commit_watermark_summary">Secara otomatis menambahkan kredit Code on the Go ke commit Git. Anda dapat menonaktifkannya untuk masing-masing proyek di tab Git.</string>
+	<string name="idepref_git_commit_watermark_title">Watermark commit</string>
 	<string name="git_committing_as">Melakukan commit sebagai %1$s</string>
 	<string name="git_committing_email">Email - %1$s</string>
 	<string name="git_update_config_in_preferences">Anda dapat memperbarui konfigurasi Git di Preferensi.</string>
 	<string name="author_not_set">Belum diatur</string>
 	<string name="not_a_git_repo">Proyek ini bukan repositori Git</string>
 	<string name="current_branch_name">Branch saat ini: %1$s</string>
+	<string name="current_branch">Branch saat ini</string>
+	<string name="changed_files_count">File berubah: %1$d</string>
+	<string name="git_branches">Branch</string>
+	<string name="git_local_branches">Lokal</string>
+	<string name="git_remote_branches">Remote</string>
+	<string name="git_create_branch">Buat branch</string>
+	<string name="git_create_branch_title">Buat branch baru</string>
+	<string name="git_branch_name_hint">Nama branch</string>
+	<string name="git_search_branches">Cari branch…</string>
+	<string name="git_checkout_success">Beralih ke branch \'%1$s\'</string>
+	<string name="git_checkout_failed">Gagal beralih branch</string>
+	<string name="git_checkout_conflict_title">Konflik checkout</string>
+	<string name="git_checkout_conflict_msg">Tidak dapat beralih branch karena perubahan yang belum di-commit akan tertimpa. Harap commit atau stash perubahan Anda sebelum beralih branch.\n\nFile yang berkonflik:\n%1$s</string>
+	<string name="git_create_branch_invalid_name">Harap masukkan nama branch yang valid</string>
+	<string name="git_branch_already_exists">Branch bernama %1$s sudah ada</string>
+	<string name="git_branches_load_failed">Tidak dapat memuat branch</string>
 	<string name="push">Push</string>
 	<string name="pushing">Melakukan push…</string>
 	<string name="push_successful">Push berhasil!</string>
@@ -1270,15 +1631,29 @@
 	<string name="git_credentials_clear">Hapus kredensial</string>
 	<string name="repo_authorization_error">Autentikasi gagal. Pastikan Token Akses Pribadi Anda memiliki izin \'repo\', atau coba hapus dan masukkan ulang kredensial.</string>
 	<string name="info_merge_conflicts">Pull selesai dengan konflik.\nSilakan pilih file yang konflik dari daftar, selesaikan masalah yang ditandai di editor, simpan file, lalu commit perubahan Anda.</string>
-	<string name="merge_conflicts">Gabungkan (Merge) Konflik</string>
+	<string name="merge_conflicts">Konflik Penggabungan (Merge)</string>
 	<string name="abort_merge">Batalkan Penggabungan</string>
 	<string name="confirm_abort_merge">Apakah Anda yakin ingin membatalkan proses penggabungan saat ini? Semua penyelesaian konflik akan dibatalkan.</string>
+	<string name="git_merge_branch">Gabungkan %1$s ke branch saat ini</string>
+	<string name="git_no_branches_found">Tidak ada branch yang ditemukan</string>
+	<string name="git_merge_success">Berhasil menggabungkan %1$s ke %2$s</string>
+	<string name="git_merge_failed_title">Penggabungan gagal</string>
+	<string name="git_merge_failed">Gagal menggabungkan %1$s</string>
+	<string name="git_merge_conflict_title">Konflik penggabungan</string>
+	<string name="git_merge_conflict_msg">Terjadi konflik saat menggabungkan %1$s ke %2$s. Harap selesaikan konflik atau batalkan penggabungan.</string>
+	<string name="git_merge_local_changes">Tidak dapat melakukan penggabungan karena Anda memiliki perubahan yang belum di-commit yang akan tertimpa. Commit atau buang perubahan tersebut terlebih dahulu.\n\nFile yang terdampak:\n%1$s</string>
+	<string name="git_already_up_to_date">Sudah terbaru</string>
 	<string name="msg_save_before_git_action">Anda memiliki perubahan yang belum disimpan. Apakah Anda ingin menyimpannya sebelum melanjutkan?</string>
 	<string name="no_save_before_git_action">Lanjutkan tanpa menyimpan</string>
 	<string name="save_before_git_action">Simpan sebelum melanjutkan</string>
 	<string name="mark_as_resolved">Tandai sebagai selesai</string>
 	<string name="check_all">Centang Semua</string>
 	<string name="uncheck_all">Batalkan Centang Semua</string>
+	<string name="merge_dialog_title">Gabungkan branch?</string>
+	<string name="merge_dialog_message">Anda akan menggabungkan \'%1$s\' ke \'%2$s\'. Apakah Anda yakin ingin melanjutkan?</string>
+	<string name="proceed_with_git_action">Lanjutkan</string>
+	<string name="checkout_dialog_title">Beralih branch?</string>
+	<string name="checkout_dialog_message">Anda akan melakukan checkout branch \'%1$s\'. Apakah Anda yakin ingin melanjutkan?</string>
 
 	<!-- Templates -->
 	<string name="template_exec_info_basepath">Memulai pembuatan proyek untuk %1$s</string>
@@ -1293,7 +1668,7 @@
 	<string name="template_exec_error_write">Gagal menulis file output: %1$s %2$s</string>
 	<string name="template_exec_error_copy">Gagal menyalin entri biner: %1$s %2$s</string>
 	<string name="template_exec_error_process">Gagal memproses entri template: %1$s %2$s</string>
-	<string name="template_exec_error_terminated">Pembuatan proyek dihentikan: %1$s\n\nProyek yang belum selesai telah dihapus. Perbaiki file template yang disebutkan di atas (atau pilih templat lain) dan coba lagi.</string>
+	<string name="template_exec_error_terminated">Pembuatan proyek dihentikan: %1$s\n\nProyek yang belum selesai telah dihapus. Perbaiki file template yang disebutkan di atas (atau pilih template lain) dan coba lagi.</string>
 	<string name="template_exec_warn_cleanup_failed">Tidak dapat menghapus proyek yang belum selesai di %1$s. Hapus secara manual sebelum mencoba lagi.</string>
 
 	<string name="template_exec_warn_map_appname">appName tidak ditemukan, menggunakan default %1$s</string>
@@ -1309,8 +1684,8 @@
 	<string name="template_exec_warn_map_javatarget">javaTarget tidak ditemukan, menggunakan default %1$s</string>
 
 	<string name="template_read_error_archive_json">%1$s tidak mengandung %2$s</string>
-	<string name="template_read_error_template_load">Gagal memuat template di %1$s  masalahnya: %2$s</string>
-	<string name="template_read_error_archive_load">Gagal memuat arsip template %1$s  masalahnya: %2$s</string>
+	<string name="template_read_error_template_load">Gagal memuat template di %1$s. Masalahnya: %2$s</string>
+	<string name="template_read_error_archive_load">Gagal memuat arsip template %1$s. Masalahnya: %2$s</string>
 	<string name="navigate_up">Navigasi naik</string>
 
 	<!-- Profiler -->
@@ -1353,7 +1728,7 @@
 	<string name="profiler_hide_framework_classes">Sembunyikan class framework</string>
 	<string name="profiler_heap_shallow">Dangkal %1$s</string>
 	<string name="profiler_heap_retained">Dipertahankan %1$s (%2$s)</string>
-	<string name="profiler_heap_objects">%1$s object</string>
+	<string name="profiler_heap_objects">%1$s objek</string>
 	<string name="profiler_heap_tap_hint">Ketuk frame untuk melihat detail objek</string>
 	<string name="profiler_cancel">Batalkan</string>
 	<string name="profiler_start_another">Mulai tugas lain</string>
@@ -1368,4 +1743,58 @@
 	<string name="floating_window_action_dock">Tempelkan ke editor</string>
 	<string name="floating_window_action_close">Tutup</string>
 
+	<string name="metrics_carousel_memory_chart">Grafik penggunaan memori</string>
+	<string name="metrics_title_memory">Penggunaan memori</string>
+	<string name="metrics_network_chart">Grafik lalu lintas jaringan</string>
+	<string name="metrics_title_network">Lalu lintas jaringan</string>
+	<string name="metrics_carousel_undocked">Metrik berada di jendela mengambang.\nKetuk sekali untuk mengembalikannya.</string>
+	<string name="metrics_carousel_window_title">Metrik</string>
+	<string name="metrics_sampling_rate_title">Laju pengambilan sampel</string>
+	<string name="metrics_sampling_rate_entry">Setiap %1$s</string>
+	<string name="metrics_sampling_rate_unavailable">%1$s (memerlukan perangkat 64-bit)</string>
+	<string name="metrics_title_power">Suhu dan daya</string>
+	<!-- Markers drawn on the metrics charts when a build starts, finishes or fails (ADFA-5509). -->
+	<string name="metrics_annotation_build_started">Build dimulai</string>
+	<string name="metrics_annotation_build_finished">Build selesai</string>
+	<string name="metrics_annotation_build_failed">Build gagal</string>
+	<string name="metrics_annotation_build_cancelled">Build dibatalkan</string>
+	<string name="metrics_power_chart">Grafik suhu dan daya</string>
+	<string name="metrics_power_temperature">Suhu baterai</string>
+	<string name="metrics_power_draw">Daya</string>
+	<string name="metrics_carousel_previous">Metrik sebelumnya</string>
+	<string name="metrics_carousel_next">Metrik berikutnya</string>
+	<string name="metrics_carousel_snapshot">Simpan gambar grafik</string>
+	<string name="msg_metrics_snapshot_failed">Tidak dapat menyimpan gambar grafik.</string>
+	<string name="metrics_carousel_export">Simpan data metrik</string>
+	<string name="msg_metrics_export_failed">Tidak dapat menyimpan data metrik.</string>
+	<string name="metrics_network_received">Diterima</string>
+	<string name="metrics_network_transmitted">Terkirim</string>
+	<string name="metrics_axis_now">sekarang</string>
+	<string name="metrics_value_unavailable">T/A</string>
+	<!-- A chart legend entry: the series name, then its latest value. -->
+	<string name="metrics_legend_entry">%1$s %2$s</string>
+
+	<string name="title_document_outline">Kerangka</string>
+	<string name="outline_no_file_open">Tidak ada file yang dibuka</string>
+	<string name="outline_unsupported">Kerangka tidak tersedia untuk %1$s</string>
+	<string name="outline_empty">Tidak ada simbol ditemukan dalam file ini</string>
+	<string name="outline_loading">Membangun kerangka...</string>
+	<string name="cd_outline_expand">Perluas</string>
+	<string name="cd_outline_collapse">Ciutkan</string>
+	<string name="cd_outline_kind_class">Class</string>
+	<string name="cd_outline_kind_interface">Interface</string>
+	<string name="cd_outline_kind_enum">Enum</string>
+	<string name="cd_outline_kind_enum_member">Anggota enum</string>
+	<string name="cd_outline_kind_record">Record</string>
+	<string name="cd_outline_kind_annotation">Anotasi</string>
+	<string name="cd_outline_kind_object">Objek</string>
+	<string name="cd_outline_kind_companion">Objek companion</string>
+	<string name="cd_outline_kind_type_alias">Alias tipe</string>
+	<string name="cd_outline_kind_constructor">Konstruktor</string>
+	<string name="cd_outline_kind_method">Method</string>
+	<string name="cd_outline_kind_field">Field</string>
+	<string name="cd_outline_kind_property">Properti</string>
+	<string name="cd_outline_kind_element">Elemen</string>
+	<string name="initialize_git_repository">Inisialisasi Repositori Git</string>
+	<string name="git_init_failed">Gagal menginisialisasi repositori Git</string>
 </resources>
