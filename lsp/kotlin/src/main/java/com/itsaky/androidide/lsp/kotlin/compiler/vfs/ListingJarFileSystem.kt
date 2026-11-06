@@ -49,24 +49,41 @@ class ListingJarFileSystem(
 
 	override fun refreshAndFindFileByPath(path: String): VirtualFile? = findFileByPath(path)
 
-	private fun handlerFor(jar: Path): ListingJarHandler? {
-		val key = jar.toString()
-		val snapshot =
-			try {
-				cache.snapshot(jar)
-			} catch (e: IOException) {
-				if (e is NoSuchFileException) handlers.remove(key)?.drop()
-				logger.warn("Cannot list JAR {}", jar, e)
-				return null
-			}
-		return handlerFor(key, snapshot)
-	}
+	private fun handlerFor(jar: Path): ListingJarHandler? = snapshotOf(jar)?.let { handlerFor(jar.toString(), it) }
 
 	/**
 	 * Returns the handler for the JAR at [key], replacing the current one only if [snapshot] was
-	 * built after it, so a lookup that read the cache before a rebuild never installs a stale handler.
+	 * built after it.
+	 *
+	 * A handler is returned only if it matches the snapshot the cache holds afterwards. Otherwise
+	 * another consumer of the cache rebuilt the listing in between, and the listener may already
+	 * have run, so the stale handler is removed and the lookup is retried once; if the JAR changes
+	 * again, this returns null.
 	 */
 	internal fun handlerFor(
+		key: String,
+		snapshot: JarListingCache.Snapshot,
+	): ListingJarHandler? {
+		val handler = install(key, snapshot)
+		if (isCurrent(handler)) return handler
+		retire(key, handler)
+		val retried = install(key, snapshotOf(Path.of(key)) ?: return null)
+		if (isCurrent(retried)) return retried
+		retire(key, retried)
+		logger.warn("JAR {} changed again while it was being looked up", key)
+		return null
+	}
+
+	private fun snapshotOf(jar: Path): JarListingCache.Snapshot? =
+		try {
+			cache.snapshot(jar)
+		} catch (e: IOException) {
+			if (e is NoSuchFileException) handlers.remove(jar.toString())?.drop()
+			logger.warn("Cannot list JAR {}", jar, e)
+			null
+		}
+
+	private fun install(
 		key: String,
 		snapshot: JarListingCache.Snapshot,
 	): ListingJarHandler =
@@ -78,4 +95,17 @@ class ListingJarFileSystem(
 				ListingJarHandler(this, key, snapshot)
 			}
 		}!!
+
+	/** Reads only the cache's map: no stat and no path lock, so it is safe after any lookup. */
+	private fun isCurrent(handler: ListingJarHandler): Boolean {
+		val current = cache.peek(Path.of(handler.jarPath)) ?: return false
+		return current.generation() <= handler.snapshot.generation()
+	}
+
+	private fun retire(
+		key: String,
+		handler: ListingJarHandler,
+	) {
+		if (handlers.remove(key, handler)) handler.drop()
+	}
 }

@@ -3,11 +3,14 @@ package com.itsaky.androidide.lsp.kotlin.compiler.vfs
 import com.itsaky.androidide.zipfs2.listing.JarListing
 import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import org.jetbrains.kotlin.com.intellij.util.containers.ContainerUtil
+import org.slf4j.LoggerFactory
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.util.zip.Inflater
 import java.util.zip.ZipException
+
+private val logger = LoggerFactory.getLogger(ListingJarHandler::class.java)
 
 /**
  * Serves the entries of one JAR, as listed by [snapshot], to [fileSystem], and keeps the
@@ -31,7 +34,7 @@ internal class ListingJarHandler(
 
 	private val jarLock = Any()
 
-	// Guarded by jarLock; RandomAccessFile, unlike FileChannel, is not closed by a thread interrupt.
+	/** Guarded by [jarLock]; a `RandomAccessFile`, unlike a `FileChannel`, is not closed by a thread interrupt. */
 	private var jar: RandomAccessFile? = null
 
 	@Volatile
@@ -99,7 +102,11 @@ internal class ListingJarHandler(
 	fun drop() {
 		synchronized(jarLock) {
 			isValid = false
-			jar?.close()
+			try {
+				jar?.close()
+			} catch (e: IOException) {
+				logger.warn("Cannot close JAR {}", jarPath, e)
+			}
 			jar = null
 		}
 	}
@@ -112,7 +119,7 @@ internal class ListingJarHandler(
 		return ListingJarVirtualFile(this, index, if (parent < 0) null else fileAt(parent))
 	}
 
-	// Reads the entry's raw data, followed by [extra] zero bytes.
+	/** Reads the entry's raw data, followed by [extra] zero bytes, after checking its local header. */
 	private fun readCompressed(
 		index: Int,
 		extra: Int,
@@ -127,25 +134,46 @@ internal class ListingJarHandler(
 			file.seek(offset)
 			file.readFully(header)
 			if (u32(header, 0) != LOC_SIGNATURE) throw ZipException("$jarPath!${listing.name(index)}: bad local header")
-			file.seek(offset + LOC_HEADER_SIZE + u16(header, LOC_NAME_LENGTH) + u16(header, LOC_EXTRA_LENGTH))
+			val name = ByteArray(u16(header, LOC_NAME_LENGTH))
+			file.readFully(name)
+			if (!namesMatch(name, index)) throw IOException("$jarPath changed on disk: ${listing.name(index)} is not at its listed offset")
+			file.seek(offset + LOC_HEADER_SIZE + name.size + u16(header, LOC_EXTRA_LENGTH))
 			file.readFully(data, 0, compressedSize.toInt())
 		}
 		return data
+	}
+
+	/** Returns whether a local header's raw [name] is the listed name of the entry at [index]. */
+	private fun namesMatch(
+		name: ByteArray,
+		index: Int,
+	): Boolean {
+		val listed = listing.nameBytes(index)
+		if (name.size == listed.size - 1 && name.contentEquals(listed.copyOfRange(1, listed.size))) return true
+		// Listed names are normalized; compare a raw name with odd slashes the same way.
+		return "/" +
+			name
+				.decodeToString()
+				.split('/')
+				.filter { it.isNotEmpty() }
+				.joinToString("/") == listing.name(index)
 	}
 
 	private fun openLocked(): RandomAccessFile {
 		if (!isValid) throw IOException("$jarPath was replaced on disk")
 		jar?.let { return it }
 		val opened = RandomAccessFile(jarPath, "r")
-		if (opened.length() != snapshot.size()) {
+		try {
+			if (opened.length() != snapshot.size()) throw IOException("$jarPath changed on disk since it was listed")
+		} catch (e: IOException) {
 			opened.close()
-			throw IOException("$jarPath changed on disk since it was listed")
+			throw e
 		}
 		jar = opened
 		return opened
 	}
 
-	// The trailing zero byte of [compressed] is the dummy input a nowrap Inflater may need.
+	/** Inflates [compressed], whose trailing zero byte is the dummy input a nowrap `Inflater` may need. */
 	private fun inflate(
 		compressed: ByteArray,
 		size: Int,
