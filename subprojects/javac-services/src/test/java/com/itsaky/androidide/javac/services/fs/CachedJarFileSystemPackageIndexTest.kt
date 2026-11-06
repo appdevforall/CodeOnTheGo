@@ -86,6 +86,53 @@ class CachedJarFileSystemPackageIndexTest {
 		assertThat(keys.none { it.startsWith("2fast") }).isTrue()
 	}
 
+	@Test
+	fun `package view is a ListingPackageMap`() {
+		assertThat(openFs().packageIndex()).isInstanceOf(ListingPackageMap::class.java)
+	}
+
+	@Test
+	fun `dir under META-INF versions is not a package`() {
+		val index = openFs().packageIndex()
+
+		assertThat(index[RelativeDirectory("META-INF/versions/9/a/")]).isNull()
+		assertThat(index.containsKey(RelativeDirectory("META-INF/"))).isFalse()
+	}
+
+	@Test
+	fun `lookup resolves the root and nested packages`() {
+		val fs = openFs()
+		val index = fs.packageIndex()
+
+		assertThat(index[RelativeDirectory("")]).isEqualTo(fs.getPath("/"))
+		assertThat(index[RelativeDirectory("com/example/sub/")]).isEqualTo(fs.getPath("/com/example/sub"))
+	}
+
+	@Test
+	fun `lookup rejects files, absent paths and foreign keys`() {
+		@Suppress("UNCHECKED_CAST")
+		val index = openFs().packageIndex() as Map<Any, Path>
+
+		assertThat(index[RelativeDirectory("com/example/A.class/")]).isNull()
+		assertThat(index[RelativeDirectory("com/missing/")]).isNull()
+		assertThat(index["com/example/"]).isNull()
+		assertThat(index.containsKey("com/example/")).isFalse()
+	}
+
+	@Test
+	fun `values come from one pass over the listing`() {
+		val fs = openFs()
+
+		assertThat(fs.packageIndex().values).containsExactlyElementsIn(walkLikeJavac(fs).values)
+	}
+
+	@Test
+	fun `size matches javac's own archive walk`() {
+		val fs = openFs()
+
+		assertThat(fs.packageIndex().size).isEqualTo(walkLikeJavac(fs).size)
+	}
+
 	private fun openFs() = CachingJarFileSystemProvider.newFileSystem(jarPath) as CachedJarFileSystem
 
 	// Same logic as JavacFileManager.ArchiveContainer.walkArchive.
