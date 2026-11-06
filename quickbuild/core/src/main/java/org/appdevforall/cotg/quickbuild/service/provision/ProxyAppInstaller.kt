@@ -16,7 +16,10 @@ import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.security.MessageDigest
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * What the installer needs to know about installed packages; implemented over
@@ -79,11 +82,14 @@ interface InstalledPackages {
  *   failure broadcasts often do not; a waiter must then accept it as its own
  * @property status the mapped status; anything unrecognized arrives as [Status.OTHER]
  * @property message the OS failure text when there is one, shown to the user verbatim
+ * @property sessionId the PackageInstaller EXTRA_SESSION_ID when the broadcast carried one,
+ *   used to ignore stale broadcasts from earlier sessions
  */
 data class InstallBroadcast(
 	val packageName: String?,
 	val status: Status,
 	val message: String? = null,
+	val sessionId: Int? = null,
 ) {
 	/** ABORTED is STATUS_FAILURE_ABORTED: the user cancelled the confirm dialog. */
 	enum class Status { SUCCESS, FAILURE, ABORTED, PENDING_USER_ACTION, OTHER }
@@ -101,6 +107,30 @@ data class InstallBroadcast(
 	 */
 	val isTerminal: Boolean
 		get() = status == Status.SUCCESS || status == Status.FAILURE || status == Status.ABORTED
+}
+
+/**
+ * What became of launching an APK install session.
+ */
+sealed interface InstallLaunchResult {
+	/**
+	 * The install was handed off to Android.
+	 *
+	 * @property sessionId the committed PackageInstaller session ID, or null when the
+	 *   intent-based fallback was used (or when the caller only reports a boolean start)
+	 */
+	data class Started(
+		val sessionId: Int? = null,
+	) : InstallLaunchResult
+
+	/**
+	 * PackageInstaller refused to create a session because this UID has reached the
+	 * system's active-session cap (`MAX_ACTIVE_SESSIONS = 50`).
+	 */
+	data object TooManySessions : InstallLaunchResult
+
+	/** Any other failure before or during session creation/commit. */
+	data object Failed : InstallLaunchResult
 }
 
 /** What became of a [ProxyAppInstaller.ensureInstalled]. */
@@ -165,7 +195,7 @@ class ProxyAppInstaller(
 	/** Installed-package facts; every read goes through here so tests need no PackageManager. */
 	private val packages: InstalledPackages,
 	/** Starts the install (ApkInstaller.installApk); false when it could not start. */
-	private val launchInstall: suspend (File) -> Boolean,
+	private val launchInstall: suspend (File) -> Boolean = { false },
 	/** InstallationResultReceiver broadcasts, adapted app-side. */
 	private val broadcasts: Flow<InstallBroadcast>,
 	/**
@@ -187,9 +217,40 @@ class ProxyAppInstaller(
 	 * always-true keeps the plain wait-for-the-user behavior for callers without a probe.
 	 */
 	private val canShowConfirmDialog: () -> Boolean = { true },
+	/** Starts the install and returns its session ID or launch failure reason. */
+	private val launchInstallSession: suspend (File) -> InstallLaunchResult = { file ->
+		if (launchInstall(file)) {
+			InstallLaunchResult.Started()
+		} else {
+			InstallLaunchResult.Failed
+		}
+	},
+	/**
+	 * Abandons a committed PackageInstaller session by its ID. Called before re-issuing a
+	 * silent prompt and in `finally` on every exit path from [ensureInstalled] so unconfirmed
+	 * sessions never accumulate or intercept subsequent confirm dialogs.
+	 */
+	private val abandonSession: (Int) -> Unit = {},
+	/**
+	 * Sweeps any stale PackageInstaller sessions owned by this UID before launching a new
+	 * install, reclaiming the 50-session pool and dismissing leftover confirm dialogs.
+	 */
+	private val sweepStaleSessions: () -> Unit = {},
 	/** Where the blocking work (APK hashing, PackageManager reads) runs; injectable for tests. */
 	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
+	private val abandonedSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+	/**
+	 * Records [sessionId] as abandoned before `PackageInstaller.abandonSession` runs so that
+	 * Android's resulting `STATUS_FAILURE_ABORTED` broadcast cannot match an in-flight install
+	 * while `activeSessionId` is still `null`.
+	 */
+	fun recordAbandonedSession(sessionId: Int) {
+		abandonedSessionIds.add(sessionId)
+	}
+
 	/**
 	 * Gets [packageName] installed from [apk], skipping the install when the bytes on
 	 * device already match.
@@ -211,117 +272,189 @@ class ProxyAppInstaller(
 			return InstallOutcome.Installed(existingUid)
 		}
 
+		runCatching { sweepStaleSessions() }
+			.onFailure { log.warn("failed to sweep stale install sessions before installing {}", packageName, it) }
+
 		return coroutineScope {
 			// Set when the OS reported PENDING_USER_ACTION, which means a confirm dialog
 			// exists; re-issuing the prompt then would stack a second dialog on it. Atomic
 			// because the write happens in the collector child and the read on this
 			// coroutine while that child is still running, so nothing else orders them.
 			val pendingUserActionSeen = AtomicBoolean(false)
-			// Subscribe before committing the install so a fast broadcast cannot slip
-			// past us. PENDING_USER_ACTION is decisive too when no confirm dialog can be
-			// launched, since nobody will ever tap.
-			val verdict =
-				async(start = CoroutineStart.UNDISPATCHED) {
-					try {
-						Result.success(
-							broadcasts.first { broadcast ->
-								val ours =
-									broadcast.packageName == null || broadcast.packageName == packageName
-								if (ours && broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION) {
-									pendingUserActionSeen.set(true)
-								}
-								ours &&
-									(
-										broadcast.isTerminal ||
+			val activeSessionId = AtomicReference<Int?>(null)
+			val launchedSessionIds = Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+			try {
+				// Subscribe before committing the install so a fast broadcast cannot slip
+				// past us. PENDING_USER_ACTION is decisive too when no confirm dialog can be
+				// launched, since nobody will ever tap.
+				val verdict =
+					async(start = CoroutineStart.UNDISPATCHED) {
+						try {
+							Result.success(
+								broadcasts.first { broadcast ->
+									val currentSessionId = activeSessionId.get()
+									val sessionMatches =
+										broadcast.sessionId?.let { it in abandonedSessionIds } != true &&
 											(
-												broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION &&
-													!canShowConfirmDialog()
+												currentSessionId == null ||
+													broadcast.sessionId == null ||
+													broadcast.sessionId == currentSessionId
 											)
-									)
-							},
-						)
+									val packageMatches =
+										broadcast.packageName == null || broadcast.packageName == packageName
+									val ours = sessionMatches && packageMatches
+									if (ours && broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION) {
+										pendingUserActionSeen.set(true)
+									}
+									ours &&
+										(
+											broadcast.isTerminal ||
+												(
+													broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION &&
+														!canShowConfirmDialog()
+												)
+										)
+								},
+							)
+						} catch (e: CancellationException) {
+							throw e
+						} catch (e: Exception) {
+							// If the flow completes without a match, first() throws and no
+							// verdict can arrive this way. Captured as a failure so that
+							// ensureInstalled still never throws.
+							Result.failure(e)
+						}
+					}
+				val stampChanged = async { awaitStampChange(packageName, initialStamp) }
+
+				val launchResult =
+					try {
+						launchInstallSession(apk)
 					} catch (e: CancellationException) {
 						throw e
 					} catch (e: Exception) {
-						// If the flow completes without a match, first() throws and no
-						// verdict can arrive this way. Captured as a failure so that
-						// ensureInstalled still never throws.
-						Result.failure(e)
+						log.error("could not start the install of {}", packageName, e)
+						InstallLaunchResult.Failed
+					}
+				when (launchResult) {
+					is InstallLaunchResult.Started -> {
+						launchResult.sessionId?.let { sessionId ->
+							abandonedSessionIds.remove(sessionId)
+							activeSessionId.set(sessionId)
+							launchedSessionIds.add(sessionId)
+						}
+					}
+
+					InstallLaunchResult.TooManySessions -> {
+						log.warn(
+							"install of {} from {} hit PackageInstaller session limit; reporting TooManyInstallSessions",
+							packageName,
+							apk,
+						)
+						verdict.cancel()
+						stampChanged.cancel()
+						return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.TooManyInstallSessions)
+					}
+
+					InstallLaunchResult.Failed -> {
+						log.warn("install of {} from {} did not start; reporting InstallCouldNotStart", packageName, apk)
+						verdict.cancel()
+						stampChanged.cancel()
+						return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart)
 					}
 				}
-			val stampChanged = async { awaitStampChange(packageName, initialStamp) }
 
-			val started =
-				try {
-					launchInstall(apk)
-				} catch (e: CancellationException) {
-					throw e
-				} catch (e: Exception) {
-					log.error("could not start the install of {}", packageName, e)
-					false
+				val awaitVerdict: suspend () -> Verdict = {
+					select<Verdict> {
+						verdict.onAwait { result ->
+							result.fold(
+								onSuccess = { broadcast -> classify(broadcast) },
+								onFailure = { Verdict.Settled(InstallOutcome.Failed(QuickBuildMessage.InstallFailed)) },
+							)
+						}
+						stampChanged.onAwait { Verdict.InstalledPendingUid }
+					}
 				}
-			if (!started) {
-				log.warn("install of {} from {} did not start; reporting InstallCouldNotStart", packageName, apk)
+				val outcome =
+					withTimeoutOrNull(timeoutMillis) {
+						// A commit whose confirm dialog never reached the user is indistinguishable
+						// from one the user is still reading, so the first wait is bounded rather than
+						// the whole budget. Re-committing costs a second dialog at worst and is the
+						// only way back from a prompt nobody was shown - what a CoGo process death does
+						// to the next session's first install, the dialog-owning subscriber being
+						// lifecycle-bound. The deferreds are reused, so a late verdict still resolves.
+						withTimeoutOrNull(promptTimeoutMillis) { awaitVerdict() }
+							?: run {
+								// A seen PENDING_USER_ACTION means the OS confirmed a dialog
+								// exists - the user is reading it, and a re-commit would put a
+								// second dialog over the first. Only the silent case (no status
+								// at all) is the lost-prompt one the re-issue repairs.
+								if (canShowConfirmDialog() && !pendingUserActionSeen.get()) {
+									log.info(
+										"no install verdict for {} in {}ms; re-issuing the prompt",
+										packageName,
+										promptTimeoutMillis,
+									)
+									activeSessionId.get()?.let { staleSessionId ->
+										abandonedSessionIds.add(staleSessionId)
+										activeSessionId.set(null)
+										abandonSessionSafely(staleSessionId)
+										launchedSessionIds.remove(staleSessionId)
+									}
+									try {
+										when (val reissued = launchInstallSession(apk)) {
+											is InstallLaunchResult.Started -> {
+												reissued.sessionId?.let { sessionId ->
+													abandonedSessionIds.remove(sessionId)
+													activeSessionId.set(sessionId)
+													launchedSessionIds.add(sessionId)
+												}
+											}
+
+											InstallLaunchResult.TooManySessions,
+											InstallLaunchResult.Failed,
+											-> {
+												log.warn("re-issued install of {} did not start: {}", packageName, reissued)
+											}
+										}
+									} catch (e: CancellationException) {
+										throw e
+									} catch (e: Exception) {
+										// Keep waiting on the remaining budget.
+										log.error("could not re-issue the install of {}", packageName, e)
+									}
+								}
+								awaitVerdict()
+							}
+					}
 				verdict.cancel()
 				stampChanged.cancel()
-				return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart)
-			}
-
-			val awaitVerdict: suspend () -> Verdict = {
-				select<Verdict> {
-					verdict.onAwait { result ->
-						result.fold(
-							onSuccess = { broadcast -> classify(broadcast) },
-							onFailure = { Verdict.Settled(InstallOutcome.Failed(QuickBuildMessage.InstallFailed)) },
-						)
-					}
-					stampChanged.onAwait { Verdict.InstalledPendingUid }
+				// The uid is resolved here, OUTSIDE both timeout windows. It retries over
+				// PackageManager's post-install lag, and inside the prompt budget a plain SUCCESS
+				// arriving late had that retry cut short - which read as "no verdict yet" and
+				// re-prompted the user for an install that had already succeeded.
+				when (outcome) {
+					null -> confirmationNotGivenAtTimeout()
+					Verdict.InstalledPendingUid -> resolveUid(packageName)
+					is Verdict.Settled -> outcome.outcome
 				}
-			}
-			val outcome =
-				withTimeoutOrNull(timeoutMillis) {
-					// A commit whose confirm dialog never reached the user is indistinguishable
-					// from one the user is still reading, so the first wait is bounded rather than
-					// the whole budget. Re-committing costs a second dialog at worst and is the
-					// only way back from a prompt nobody was shown - what a CoGo process death does
-					// to the next session's first install, the dialog-owning subscriber being
-					// lifecycle-bound. The deferreds are reused, so a late verdict still resolves.
-					withTimeoutOrNull(promptTimeoutMillis) { awaitVerdict() }
-						?: run {
-							// A seen PENDING_USER_ACTION means the OS confirmed a dialog
-							// exists - the user is reading it, and a re-commit would put a
-							// second dialog over the first. Only the silent case (no status
-							// at all) is the lost-prompt one the re-issue repairs.
-							if (canShowConfirmDialog() && !pendingUserActionSeen.get()) {
-								log.info(
-									"no install verdict for {} in {}ms; re-issuing the prompt",
-									packageName,
-									promptTimeoutMillis,
-								)
-								try {
-									launchInstall(apk)
-								} catch (e: CancellationException) {
-									throw e
-								} catch (e: Exception) {
-									// The first commit is still pending; keep waiting on it.
-									log.error("could not re-issue the install of {}", packageName, e)
-								}
-							}
-							awaitVerdict()
-						}
+			} finally {
+				for (sessionId in launchedSessionIds) {
+					abandonSessionSafely(sessionId)
 				}
-			verdict.cancel()
-			stampChanged.cancel()
-			// The uid is resolved here, OUTSIDE both timeout windows. It retries over
-			// PackageManager's post-install lag, and inside the prompt budget a plain SUCCESS
-			// arriving late had that retry cut short - which read as "no verdict yet" and
-			// re-prompted the user for an install that had already succeeded.
-			when (outcome) {
-				null -> confirmationNotGivenAtTimeout()
-				Verdict.InstalledPendingUid -> resolveUid(packageName)
-				is Verdict.Settled -> outcome.outcome
 			}
 		}
+	}
+
+	/**
+	 * Marks [sessionId] as abandoned and invokes [abandonSession], swallowing any exception so
+	 * cleanup in `finally` never masks the install outcome.
+	 */
+	private fun abandonSessionSafely(sessionId: Int) {
+		abandonedSessionIds.add(sessionId)
+		runCatching { abandonSession(sessionId) }
+			.onFailure { log.warn("failed to abandon install session {}", sessionId, it) }
 	}
 
 	/**

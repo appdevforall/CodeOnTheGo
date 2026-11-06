@@ -58,15 +58,15 @@ object InstallationResultHandler {
 		val status = extras.getInt(PackageInstaller.EXTRA_STATUS)
 		val message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE)
 
+		ApkInstaller.onInstallStatusBroadcast(intent)
+
 		return when (status) {
 			PackageInstaller.STATUS_PENDING_USER_ACTION -> {
 				log.debug("PENDING_USER_ACTION: extras={}", extras)
 				@Suppress("DEPRECATION")
 				extras.get(Intent.EXTRA_INTENT)?.let { intent ->
 					if (intent is Intent) {
-						if ((intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK) != Intent.FLAG_ACTIVITY_NEW_TASK) {
-							intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-						}
+						intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
 						log.debug("startingActivity: intent={}, intent.extras={}", intent, intent.extras)
 						context.startActivity(intent)
 					}

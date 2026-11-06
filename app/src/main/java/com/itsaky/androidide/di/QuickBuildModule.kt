@@ -31,6 +31,7 @@ import org.appdevforall.cotg.quickbuild.domain.telemetry.QuickBuildMetricsSink
 import org.appdevforall.cotg.quickbuild.service.deploy.DeployChannel
 import org.appdevforall.cotg.quickbuild.service.deploy.DeploySender
 import org.appdevforall.cotg.quickbuild.service.deploy.ProxyAppConnections
+import org.appdevforall.cotg.quickbuild.service.provision.InstallLaunchResult
 import org.appdevforall.cotg.quickbuild.service.provision.InstalledPackages
 import org.appdevforall.cotg.quickbuild.service.provision.ProxyAppInstaller
 import org.appdevforall.cotg.quickbuild.service.provision.QuickBuildClobberCheck
@@ -83,33 +84,53 @@ val quickBuildModule =
 
 		single {
 			val context = androidContext()
-			ProxyAppInstaller(
-				packages = get(),
-				// The exact call the Run button's install flow bottoms out in:
-				// same PackageInstaller session params, same InstallationResultReceiver,
-				// same MIUI intent fallback. Post-install launch is suppressed: the session
-				// switches to the proxy app itself on provisioning success, so the generic
-				// launch-after-install must not fire a duplicate launch on every install.
-				launchInstall = { apk ->
-					withContext(Dispatchers.Main) {
-						ApkInstaller.installApk(context, apk, suppressPostInstallLaunch = true)
-					}
-				},
-				// Register before any install: the receiver's EventBus events become the
-				// installer's completion signal.
-				broadcasts = InstallationEventFlow().also { it.register() }.broadcasts,
-				// Whether the install-confirm dialog can be launched right now. The
-				// dialog-owning subscriber (BaseEditorActivity -> InstallationResultHandler)
-				// is EventBus lifecycle-bound - registered onStart, unregistered onStop -
-				// so it can show the dialog exactly while the process is STARTED. Racy
-				// reads err toward waiting (the installer's timeout is the backstop).
-				canShowConfirmDialog = {
-					ProcessLifecycleOwner
-						.get()
-						.lifecycle.currentState
-						.isAtLeast(Lifecycle.State.STARTED)
-				},
-			)
+			lateinit var installer: ProxyAppInstaller
+			installer =
+				ProxyAppInstaller(
+					packages = get(),
+					// Register before any install: the receiver's EventBus events become the
+					// installer's completion signal.
+					broadcasts = InstallationEventFlow().also { it.register() }.broadcasts,
+					// Whether the install-confirm dialog can be launched right now. The
+					// dialog-owning subscriber (BaseEditorActivity -> InstallationResultHandler)
+					// is EventBus lifecycle-bound - registered onStart, unregistered onStop -
+					// so it can show the dialog exactly while the process is STARTED. Racy
+					// reads err toward waiting (the installer's timeout is the backstop).
+					canShowConfirmDialog = {
+						ProcessLifecycleOwner
+							.get()
+							.lifecycle.currentState
+							.isAtLeast(Lifecycle.State.STARTED)
+					},
+					// The exact call the Run button's install flow bottoms out in:
+					// same PackageInstaller session params, same InstallationResultReceiver,
+					// same MIUI intent fallback. Post-install launch is suppressed: the session
+					// switches to the proxy app itself on provisioning success, so the generic
+					// launch-after-install must not fire a duplicate launch on every install.
+					launchInstallSession = { apk ->
+						val result =
+							withContext(Dispatchers.Main) {
+								ApkInstaller.installApkSession(
+									context = context,
+									apk = apk,
+									suppressPostInstallLaunch = true,
+								)
+							}
+						when (result) {
+							is ApkInstaller.SessionLaunchResult.Started -> InstallLaunchResult.Started(result.sessionId)
+							ApkInstaller.SessionLaunchResult.TooManySessions -> InstallLaunchResult.TooManySessions
+							ApkInstaller.SessionLaunchResult.Failed -> InstallLaunchResult.Failed
+						}
+					},
+					abandonSession = { sessionId -> ApkInstaller.abandonSession(context, sessionId) },
+					sweepStaleSessions = {
+						ApkInstaller.abandonMySessions(
+							context = context,
+							onBeforeAbandon = installer::recordAbandonedSession,
+						)
+					},
+				)
+			installer
 		}
 
 		single<QuickBuildProvisioner> {
@@ -201,6 +222,13 @@ val quickBuildModule =
 				// AssetsProvider, which is API 30+. Below that an asset edit would be
 				// extracted and never read, so those edits rebaseline instead.
 				assetsLiveReloadable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R,
+				sweepInstallSessions = {
+					val installer = get<ProxyAppInstaller>()
+					ApkInstaller.abandonMySessions(
+						context = androidContext(),
+						onBeforeAbandon = installer::recordAbandonedSession,
+					)
+				},
 			).also { manager ->
 				// Narration must be scoped to the session, not to an activity on screen:
 				// an activity-scoped collector misses every generation produced while the

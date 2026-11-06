@@ -158,6 +158,11 @@ class QuickBuildSessionManager(
 	 * Defaults to the capable path so this module's unit tests need no Android runtime.
 	 */
 	private val assetsLiveReloadable: Boolean = true,
+	/**
+	 * Sweeps stale PackageInstaller sessions owned by CoGo at Quick Build startup so an
+	 * already-capped phone (MAX_ACTIVE_SESSIONS = 50) recovers without clearing app data.
+	 */
+	private val sweepInstallSessions: () -> Unit = {},
 ) {
 	/** Builds the project watcher for a live session; overridden with a fake in tests. */
 	fun interface WatcherFactory {
@@ -461,13 +466,19 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * The stale-tree sweep. Nothing is live at construction - this manager is the process's
-	 * only session owner - so every tree under the scratch root belongs to a dead session or
-	 * a deleted project. Launched before any tap can dispatch, but sweep() hops to IO and
-	 * frees the dispatcher, so [provision] joins it rather than trusting the launch order: a
-	 * prepare that overtook it would have its fresh tree swept as stale.
+	 * The stale-tree and stale-install-session sweep. Nothing is live at construction - this
+	 * manager is the process's only session owner - so every tree under the scratch root and
+	 * every active PackageInstaller session belongs to a dead session or a deleted project.
+	 * Launched before any tap can dispatch, but sweep() hops to IO and frees the dispatcher,
+	 * so [provision] joins it rather than trusting the launch order: a prepare that overtook
+	 * it would have its fresh tree swept as stale.
 	 */
-	private val sweepJob = scope.launch { scratch.sweep() }
+	private val sweepJob =
+		scope.launch {
+			runCatching { withContext(ioDispatcher) { sweepInstallSessions() } }
+				.onFailure { log.warn("Could not sweep stale PackageInstaller sessions at startup", it) }
+			scratch.sweep()
+		}
 
 	/**
 	 * Handles the Quick Build tap: starts a session from Idle, triggers a build when live,
