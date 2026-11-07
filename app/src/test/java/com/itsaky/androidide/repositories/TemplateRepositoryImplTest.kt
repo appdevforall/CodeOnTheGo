@@ -113,6 +113,34 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
+	fun installTemplate_destCreatedAfterTheCheck_isNotDeletedWhenTheSourceFailsToOpen() =
+		runTest {
+			val dest = File(templatesDir, "race.cgt")
+			// Another writer creates dest after installTemplate's exists() check, the moment the
+			// install first touches the source, and the source then fails to open.
+			val source =
+				object : File(downloadDir, "race.cgt") {
+					private var raced = false
+
+					private fun race() {
+						if (!raced) {
+							raced = true
+							dest.writeText("another writer")
+						}
+					}
+
+					override fun exists(): Boolean = super.exists().also { race() }
+
+					override fun getPath(): String = super.getPath().also { race() }
+				}
+
+			val result = repository.installTemplate(item(source, installed = false))
+
+			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
+			assertThat(dest.readText()).isEqualTo("another writer")
+		}
+
+	@Test
 	fun uninstallTemplate_deletesTheInstalledCopy_withoutWritingToDownloads() =
 		runTest {
 			// Both provenances behave the same (ADFA-5444): nothing is restored for either.

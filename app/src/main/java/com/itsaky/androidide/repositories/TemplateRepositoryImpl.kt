@@ -11,7 +11,10 @@ import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.json.JSONException
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 
 /**
  * Implementation of [TemplateRepository].
@@ -120,17 +123,7 @@ class TemplateRepositoryImpl(
 				check(!item.installed) { "'${item.name}' is already installed" }
 				val dest = File(templatesDir, item.file.name)
 				check(!dest.exists()) { "A template named '${dest.name}' already exists in $templatesDir" }
-				try {
-					item.file.copyTo(dest, overwrite = false)
-				} catch (e: FileAlreadyExistsException) {
-					// Another writer created dest after the check above; it isn't ours to delete.
-					throw e
-				} catch (e: IOException) {
-					// A copy that failed partway (e.g. storage full) leaves a truncated archive that
-					// never lists, so it can't be uninstalled, and that blocks every retry.
-					dest.delete()
-					throw e
-				}
+				copyIntoNewFile(item.file, dest)
 				ITemplateProvider.getInstance(reload = true)
 				Result.success(Unit)
 			} catch (e: CancellationException) {
@@ -143,6 +136,27 @@ class TemplateRepositoryImpl(
 				Result.failure(e)
 			}
 		}
+
+	/**
+	 * Copies [source] to [dest], which must not exist yet. A copy that fails partway (e.g. storage
+	 * full) is deleted: a truncated archive never lists, so it can't be uninstalled, and it blocks
+	 * every retry. Only a [dest] this call created is deleted: the source is opened first, and
+	 * CREATE_NEW creates [dest] atomically, failing if another writer got there first.
+	 */
+	private fun copyIntoNewFile(
+		source: File,
+		dest: File,
+	) {
+		FileInputStream(source).use { input ->
+			val output = Files.newOutputStream(dest.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+			try {
+				output.use { input.copyTo(it) }
+			} catch (e: IOException) {
+				dest.delete()
+				throw e
+			}
+		}
+	}
 
 	override suspend fun uninstallTemplate(item: CgtFileItem): Result<Unit> =
 		withContext(Dispatchers.IO) {
