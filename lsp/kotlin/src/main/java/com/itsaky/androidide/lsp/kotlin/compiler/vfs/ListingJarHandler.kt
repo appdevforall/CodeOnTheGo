@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.util.zip.DataFormatException
 import java.util.zip.Inflater
 import java.util.zip.ZipException
 
@@ -185,7 +186,12 @@ internal class ListingJarHandler(
 			inflater.setInput(compressed)
 			var read = 0
 			while (read < size) {
-				val n = inflater.inflate(out, read, size - read)
+				val n =
+					try {
+						inflater.inflate(out, read, size - read)
+					} catch (e: DataFormatException) {
+						throw ZipException("$jarPath!${listing.name(index)}: corrupt deflate data").apply { initCause(e) }
+					}
 				if (n == 0 && (inflater.finished() || inflater.needsInput() || inflater.needsDictionary())) break
 				read += n
 			}

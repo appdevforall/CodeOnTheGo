@@ -158,6 +158,22 @@ class ListingJarFileSystemTest : KtLspTest() {
 	}
 
 	@Test
+	fun `corrupt deflate data fails the read with an IOException`() {
+		val jar =
+			lspTestRule.tempDir.root
+				.toPath()
+				.resolve("corrupt.jar")
+		val bytes = zipBytes("p/A.class" to "some deflated content")
+		// 0xFF opens a final block of reserved type 3, which no deflate stream may contain.
+		bytes[LOC_HEADER_SIZE + "p/A.class".length] = 0xFF.toByte()
+		Files.write(jar, bytes)
+
+		val failure = runCatching { find(jar, "p/A.class")!!.contentsToByteArray() }.exceptionOrNull()
+
+		assertThat(failure).isInstanceOf(IOException::class.java)
+	}
+
+	@Test
 	fun `a first read after a rename replaced the jar fails instead of using old offsets`() {
 		val jar = writeJar("a.jar", "p/A.class" to "old")
 		val held = find(jar, "p/A.class")!!
@@ -304,3 +320,5 @@ class ListingJarFileSystemTest : KtLspTest() {
 		return bytes.toByteArray()
 	}
 }
+
+private const val LOC_HEADER_SIZE = 30
