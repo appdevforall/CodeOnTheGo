@@ -1948,7 +1948,7 @@ abstract class BaseEditorActivity :
 					content.apply {
 						val safeOffset = slideOffset.coerceAtLeast(0f)
 						val editorScale = 1 - safeOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-						this.bottomSheet.onSlide(slideOffset)
+						this.bottomSheet.onSlide()
 						this.viewContainer.scaleX = editorScale
 						this.viewContainer.scaleY = editorScale
 					}
