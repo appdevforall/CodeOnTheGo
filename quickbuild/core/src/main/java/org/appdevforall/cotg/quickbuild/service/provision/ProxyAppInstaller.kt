@@ -272,8 +272,13 @@ class ProxyAppInstaller(
 			return InstallOutcome.Installed(existingUid)
 		}
 
-		runCatching { sweepStaleSessions() }
-			.onFailure { log.warn("failed to sweep stale install sessions before installing {}", packageName, it) }
+		try {
+			withContext(ioDispatcher) { sweepStaleSessions() }
+		} catch (e: CancellationException) {
+			throw e
+		} catch (e: Exception) {
+			log.warn("failed to sweep stale install sessions before installing {}", packageName, e)
+		}
 
 		return coroutineScope {
 			// Set when the OS reported PENDING_USER_ACTION, which means a confirm dialog

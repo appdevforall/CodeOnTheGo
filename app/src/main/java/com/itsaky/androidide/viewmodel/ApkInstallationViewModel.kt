@@ -208,7 +208,7 @@ class ApkInstallationViewModel : ViewModel() {
 		}
 
 		try {
-			ApkInstaller.abandonSession(packageInstaller, sessionId)
+			ApkInstaller.abandonSession(context, sessionId)
 		} catch (e: Exception) {
 			logger.error("Failed to abandon session with ID: {}", sessionId, e)
 		} finally {

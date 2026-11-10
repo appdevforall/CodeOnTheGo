@@ -964,6 +964,13 @@ class ProxyAppInstallerTest {
 					promptTimeoutMillis = 45_000L,
 					launchSession = {
 						val id = nextId++
+						if (id == 401) {
+							// Delayed ABORTED for the swept session arrives after the broadcast
+							// collector is subscribed and while activeSessionId is still null.
+							broadcasts.tryEmit(
+								InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 400),
+							)
+						}
 						InstallLaunchResult.Started(id)
 					},
 					onAbandon = { id ->
@@ -976,12 +983,9 @@ class ProxyAppInstallerTest {
 					},
 					onSweep = {
 						sweepCount++
-						// Sweep records and abandons a pre-existing committed session (400)
-						// before activeSessionId is assigned.
+						// Sweep records a pre-existing committed session (400) before
+						// activeSessionId is assigned.
 						installerUnderTest.recordAbandonedSession(400)
-						broadcasts.tryEmit(
-							InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 400),
-						)
 					},
 				)
 

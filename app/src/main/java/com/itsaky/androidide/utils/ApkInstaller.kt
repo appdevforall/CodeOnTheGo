@@ -26,12 +26,25 @@ import java.util.concurrent.ConcurrentHashMap
 object ApkInstaller {
 	private val log = LoggerFactory.getLogger(ApkInstaller::class.java)
 	private const val DEBUG_FALLBACK_INSTALLER = false
+	private const val PREFS_INSTALLER_SESSIONS = "ide.installer.sessions"
+	private const val KEY_QUICK_BUILD_SESSIONS = "quick_build_session_ids"
+	private const val KEY_IN_FLIGHT_USER_SESSIONS = "in_flight_user_session_ids"
+	private const val MAX_ACTIVE_SESSIONS = 50
 
 	/**
-	 * Session IDs of committed non-Quick-Build installs (Run button and `InstallFileAction`)
-	 * that have not yet delivered a terminal status broadcast or been explicitly abandoned.
-	 * Preserved by [abandonMySessions] so a Quick Build sweep does not cancel a user install
-	 * that is still waiting for confirmation.
+	 * Session IDs of Quick Build proxy-app installs created by this app, persisted across
+	 * process restarts in `SharedPreferences` so [abandonMySessions] can identify and sweep
+	 * stale Quick Build sessions without abandoning Standard Run installs.
+	 */
+	private val quickBuildSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+	/**
+	 * Session IDs of active non-Quick-Build installs (Standard Run and `InstallFileAction`)
+	 * recorded immediately at [PackageInstaller.createSession] (covering both APK staging and
+	 * user confirmation) until a terminal status broadcast or explicit abandonment. Persisted
+	 * to `SharedPreferences` so a Quick Build sweep excludes Standard Run sessions even across
+	 * configuration changes or process restarts.
 	 */
 	private val inFlightUserSessionIds: MutableSet<Int> =
 		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
@@ -155,7 +168,10 @@ object ApkInstaller {
 	fun abandonSession(
 		context: Context,
 		sessionId: Int,
-	): Boolean = abandonSession(context.packageManager.packageInstaller, sessionId)
+	): Boolean {
+		removeTrackedSession(context, sessionId)
+		return abandonSession(context.packageManager.packageInstaller, sessionId)
+	}
 
 	/**
 	 * Abandons [sessionId] on [installer], returning `true` if `abandonSession` succeeded and
@@ -166,6 +182,7 @@ object ApkInstaller {
 		sessionId: Int,
 	): Boolean {
 		inFlightUserSessionIds.remove(sessionId)
+		quickBuildSessionIds.remove(sessionId)
 		return runCatching {
 			installer.abandonSession(sessionId)
 		}.onFailure { error ->
@@ -174,36 +191,131 @@ object ApkInstaller {
 	}
 
 	/**
-	 * Records a status broadcast from [InstallationResultReceiver] so any non-Quick-Build
-	 * session that reaches a terminal outcome is removed from [inFlightUserSessionIds].
+	 * Records a status broadcast from [InstallationResultReceiver] so any session that reaches
+	 * a terminal outcome is removed from tracked session sets and persisted storage.
 	 */
-	internal fun onInstallStatusBroadcast(intent: Intent?) {
+	@JvmOverloads
+	internal fun onInstallStatusBroadcast(
+		intent: Intent?,
+		context: Context? = null,
+	) {
 		val extras = intent?.extras ?: return
 		if (!extras.containsKey(PackageInstaller.EXTRA_STATUS)) return
 		val status = extras.getInt(PackageInstaller.EXTRA_STATUS)
 		if (status != PackageInstaller.STATUS_PENDING_USER_ACTION &&
 			extras.containsKey(PackageInstaller.EXTRA_SESSION_ID)
 		) {
-			inFlightUserSessionIds.remove(extras.getInt(PackageInstaller.EXTRA_SESSION_ID))
+			removeTrackedSession(context, extras.getInt(PackageInstaller.EXTRA_SESSION_ID))
 		}
 	}
 
 	/**
-	 * Clears tracked in-flight user session IDs between unit tests.
+	 * Clears in-memory tracked session IDs (and persisted preferences when [context] is given)
+	 * between unit tests.
 	 */
-	internal fun clearInFlightUserSessionsForTesting() {
+	internal fun clearInFlightUserSessionsForTesting(context: Context? = null) {
 		inFlightUserSessionIds.clear()
+		quickBuildSessionIds.clear()
+		if (context != null) {
+			runCatching {
+				context.applicationContext
+					.getSharedPreferences(PREFS_INSTALLER_SESSIONS, Context.MODE_PRIVATE)
+					.edit()
+					.remove(KEY_IN_FLIGHT_USER_SESSIONS)
+					.remove(KEY_QUICK_BUILD_SESSIONS)
+					.commit()
+			}
+		}
 	}
 
 	/**
-	 * Abandons stale [PackageInstaller] sessions owned by this installer package while
-	 * preserving any in-flight non-Quick-Build install sessions ([inFlightUserSessionIds])
-	 * that are still waiting for user confirmation.
+	 * Clears only the in-memory session sets to simulate an app process restart in unit tests
+	 * while keeping `SharedPreferences` state intact.
+	 */
+	internal fun clearInMemorySessionsForTesting() {
+		inFlightUserSessionIds.clear()
+		quickBuildSessionIds.clear()
+	}
+
+	private fun recordQuickBuildSession(
+		context: Context,
+		sessionId: Int,
+	) {
+		loadPersistedSessions(context)
+		inFlightUserSessionIds.remove(sessionId)
+		quickBuildSessionIds.add(sessionId)
+		persistTrackedSessions(context)
+	}
+
+	private fun recordInFlightUserSession(
+		context: Context,
+		sessionId: Int,
+	) {
+		loadPersistedSessions(context)
+		quickBuildSessionIds.remove(sessionId)
+		inFlightUserSessionIds.add(sessionId)
+		persistTrackedSessions(context)
+	}
+
+	private fun removeTrackedSession(
+		context: Context?,
+		sessionId: Int,
+	) {
+		if (context != null) {
+			loadPersistedSessions(context)
+		}
+		val removedUser = inFlightUserSessionIds.remove(sessionId)
+		val removedQb = quickBuildSessionIds.remove(sessionId)
+		if (context != null && (removedUser || removedQb)) {
+			persistTrackedSessions(context)
+		}
+	}
+
+	private fun loadPersistedSessions(context: Context) {
+		runCatching {
+			val prefs =
+				context.applicationContext.getSharedPreferences(
+					PREFS_INSTALLER_SESSIONS,
+					Context.MODE_PRIVATE,
+				)
+			prefs
+				.getStringSet(KEY_IN_FLIGHT_USER_SESSIONS, emptySet())
+				.orEmpty()
+				.mapNotNullTo(inFlightUserSessionIds) { it.toIntOrNull() }
+			prefs
+				.getStringSet(KEY_QUICK_BUILD_SESSIONS, emptySet())
+				.orEmpty()
+				.mapNotNullTo(quickBuildSessionIds) { it.toIntOrNull() }
+		}.onFailure { error ->
+			log.debug("Unable to read persisted installer session IDs", error)
+		}
+	}
+
+	private fun persistTrackedSessions(context: Context) {
+		runCatching {
+			val userSnapshot = inFlightUserSessionIds.mapTo(HashSet()) { it.toString() }
+			val qbSnapshot = quickBuildSessionIds.mapTo(HashSet()) { it.toString() }
+			context.applicationContext
+				.getSharedPreferences(PREFS_INSTALLER_SESSIONS, Context.MODE_PRIVATE)
+				.edit()
+				.putStringSet(KEY_IN_FLIGHT_USER_SESSIONS, userSnapshot)
+				.putStringSet(KEY_QUICK_BUILD_SESSIONS, qbSnapshot)
+				.commit()
+		}.onFailure { error ->
+			log.debug("Unable to persist installer session IDs", error)
+		}
+	}
+
+	/**
+	 * Abandons stale Quick Build [PackageInstaller] sessions owned by this installer package
+	 * while excluding any active Standard Run or `InstallFileAction` install sessions
+	 * ([inFlightUserSessionIds]), including sessions that are currently staging APK bytes or
+	 * awaiting user confirmation across a restart.
 	 *
 	 * Called at Quick Build startup and before Quick Build provisioning so that unconfirmed
-	 * sessions from earlier runs cannot accumulate to Android's 50-session per-UID cap
-	 * (`PackageInstallerService.MAX_ACTIVE_SESSIONS`) or leave a stale confirmation dialog
-	 * in the system `packageinstaller` task, without cancelling a concurrent Run-button or
+	 * Quick Build sessions from earlier runs cannot accumulate to Android's 50-session per-UID
+	 * cap (`PackageInstallerService.MAX_ACTIVE_SESSIONS`) or leave a stale confirmation dialog
+	 * in the system `packageinstaller` task, without cancelling a concurrent Standard Run or
 	 * `InstallFileAction` install.
 	 *
 	 * @param onBeforeAbandon invoked with each session ID before `abandonSession` runs so
@@ -215,11 +327,17 @@ object ApkInstaller {
 	fun abandonMySessions(
 		context: Context,
 		onBeforeAbandon: (Int) -> Unit = {},
-	): Int = abandonMySessions(context.packageManager.packageInstaller, onBeforeAbandon)
+	): Int {
+		loadPersistedSessions(context)
+		val abandoned = abandonMySessions(context.packageManager.packageInstaller, onBeforeAbandon)
+		persistTrackedSessions(context)
+		return abandoned
+	}
 
 	/**
-	 * Queries [PackageInstaller.getMySessions] on [installer] and abandons each stale session
-	 * (excluding [inFlightUserSessionIds]) after notifying [onBeforeAbandon].
+	 * Queries [PackageInstaller.getMySessions] on [installer] and abandons each stale Quick Build
+	 * session (or legacy cap-overflow session when the 50-session limit is reached), always
+	 * excluding [inFlightUserSessionIds], after notifying [onBeforeAbandon].
 	 */
 	internal fun abandonMySessions(
 		installer: PackageInstaller,
@@ -233,14 +351,20 @@ object ApkInstaller {
 
 		val activeIds = sessions.mapTo(HashSet(sessions.size)) { it.sessionId }
 		inFlightUserSessionIds.retainAll(activeIds)
+		quickBuildSessionIds.retainAll(activeIds)
 
+		val isAtSessionCap = sessions.size >= MAX_ACTIVE_SESSIONS
 		var abandoned = 0
 		for (info in sessions) {
-			if (info.sessionId in inFlightUserSessionIds) {
+			val id = info.sessionId
+			if (id in inFlightUserSessionIds) {
 				continue
 			}
-			runCatching { onBeforeAbandon(info.sessionId) }
-			if (abandonSession(installer, info.sessionId)) {
+			if (id !in quickBuildSessionIds && !isAtSessionCap) {
+				continue
+			}
+			runCatching { onBeforeAbandon(id) }
+			if (abandonSession(installer, id)) {
 				abandoned++
 			}
 		}
@@ -291,6 +415,11 @@ object ApkInstaller {
 		return runCatching {
 			withContext(Dispatchers.IO) {
 				val sessionId = installer.createSession(params)
+				if (isQuickBuildInstall) {
+					recordQuickBuildSession(context, sessionId)
+				} else {
+					recordInFlightUserSession(context, sessionId)
+				}
 				var session: PackageInstaller.Session? = null
 
 				try {
@@ -301,12 +430,9 @@ object ApkInstaller {
 						}
 					addToSession(session, apk)
 					session.commit(callback.intentSender)
-					if (!isQuickBuildInstall) {
-						inFlightUserSessionIds.add(sessionId)
-					}
 					sessionId
 				} catch (t: Throwable) {
-					abandonSession(installer, sessionId)
+					abandonSession(context, sessionId)
 					throw t
 				} finally {
 					session?.close()

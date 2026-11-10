@@ -39,7 +39,7 @@ class InstallationResultReceiver : BroadcastReceiver() {
 		context: Context,
 		intent: Intent,
 	) {
-		ApkInstaller.onInstallStatusBroadcast(intent)
+		ApkInstaller.onInstallStatusBroadcast(intent, context)
 		EventBus.getDefault().post(InstallationResultEvent(intent))
 	}
 }

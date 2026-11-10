@@ -58,7 +58,7 @@ object InstallationResultHandler {
 		val status = extras.getInt(PackageInstaller.EXTRA_STATUS)
 		val message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE)
 
-		ApkInstaller.onInstallStatusBroadcast(intent)
+		ApkInstaller.onInstallStatusBroadcast(intent, context)
 
 		return when (status) {
 			PackageInstaller.STATUS_PENDING_USER_ACTION -> {
