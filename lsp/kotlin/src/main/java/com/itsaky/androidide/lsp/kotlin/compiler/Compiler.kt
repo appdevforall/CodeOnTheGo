@@ -70,7 +70,14 @@ internal class Compiler(
 	 */
 	fun compilationEnvironmentFor(file: Path): CompilationEnvironment? {
 		if (!DocumentUtils.isKotlinFile(file)) return null
+		return compilationEnvironmentForKotlinPath(file)
+	}
 
+	/**
+	 * As [compilationEnvironmentFor], but without checking that [file] exists: for a Kotlin path that
+	 * was deleted or renamed away, whose environment still holds its index entries.
+	 */
+	fun compilationEnvironmentForKotlinPath(file: Path): CompilationEnvironment? {
 		val kind = compilationKindFor(file)
 		if (kind == CompilationKind.Script) return null
 

@@ -53,11 +53,14 @@ import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.ui.compose.plugins.PluginManagerContent
 import com.itsaky.androidide.ui.compose.templates.TemplateManagerScreen
+import com.itsaky.androidide.ui.models.AddonFileKind
+import com.itsaky.androidide.ui.models.DownloadPickerUiState
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.getFileName
+import com.itsaky.androidide.viewmodels.DownloadPickerViewModel
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import com.itsaky.androidide.viewmodels.TemplateManagerViewModel
@@ -94,7 +97,7 @@ private const val TAB_TEMPLATES = 1
  * one click.
  */
 @Composable
-private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPressAwareClick {
+internal fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPressAwareClick {
 	val interactionSource = remember { MutableInteractionSource() }
 	val isPressed by interactionSource.collectIsPressedAsState()
 	val longPressTimeoutMillis = LocalViewConfiguration.current.longPressTimeoutMillis
@@ -118,7 +121,7 @@ private fun rememberLongPressInteractionSource(onLongPress: () -> Unit): LongPre
 }
 
 /** See [rememberLongPressInteractionSource]. */
-private class LongPressAwareClick(
+internal class LongPressAwareClick(
 	val interactionSource: MutableInteractionSource,
 	private val suppressNextClick: MutableState<Boolean>,
 ) {
@@ -134,13 +137,14 @@ private class LongPressAwareClick(
  * Root screen for `PluginManagerActivity` (ADFA-4928): a single manager with two tabs, Plugins
  * and Templates, defaulting to Plugins. Owns the one shared Scaffold/TopAppBar.
  *
- * The add FAB is shown on both tabs and accepts either archive type - this screen is the
- * Add-ons Manager, and "add an add-on" means the same thing whichever tab you happen to be
- * looking at. The picked file is routed by extension and the matching tab is brought forward, so
- * the result is visible where it landed. The discover-plugins action stays Plugins-only: it opens
- * a plugin catalog, which has no meaning on the Templates tab.
+ * The add FAB is shown on both tabs and opens [DownloadPickerDialog], which lists only the open
+ * tab's archives in Download: `.cgp` on Plugins, `.cgt` on Templates (ADFA-6729). Its Browse other
+ * folders button falls back to the system picker, which accepts either archive type from any
+ * folder. Either way the picked file is routed by extension and the matching tab is brought
+ * forward, so the result is visible where it landed. The discover-plugins action stays
+ * Plugins-only: it opens a plugin catalog, which has no meaning on the Templates tab.
  *
- * The picker launcher lives here rather than in [PluginManagerContent] because `HorizontalPager`
+ * The system picker's launcher lives here rather than in [PluginManagerContent] because `HorizontalPager`
  * disposes the off-screen page: a launcher owned by the Plugins page would not exist while the
  * Templates tab is showing, and the FAB is reachable from both.
  *
@@ -156,15 +160,44 @@ fun ManagerScreen(
 	pluginViewModel: PluginManagerViewModel,
 	templateViewModel: TemplateManagerViewModel,
 	externalFileInstallViewModel: ExternalFileInstallViewModel,
+	downloadPickerViewModel: DownloadPickerViewModel,
 	modifier: Modifier = Modifier,
 ) {
 	val pagerState = rememberPagerState(pageCount = { 2 })
 	val coroutineScope = rememberCoroutineScope()
 	val rootView = LocalView.current
 	val pluginUiState by pluginViewModel.uiState.collectAsStateWithLifecycle()
+	val downloadPickerState by downloadPickerViewModel.uiState.collectAsStateWithLifecycle()
 
 	fun showTooltip() {
 		TooltipManager.showIdeCategoryTooltip(activity, rootView, TooltipTag.PLUGIN_MANAGER)
+	}
+
+	// One route for both kinds of pick: a content:// Uri from the system picker, or a file:// Uri
+	// from the Downloads list. Neither is ever redelivered, so the template side uses the ungated
+	// onPicked() and picking the same file twice opens its confirmation twice.
+	fun routePick(uri: Uri) {
+		coroutineScope.launch {
+			// Resolving a content:// display name is a ContentResolver IPC call.
+			val name = withContext(Dispatchers.IO) { uri.getFileName(activity) }
+			when {
+				name.endsWith(".$TEMPLATE_ARCHIVE_EXTENSION", ignoreCase = true) -> {
+					pagerState.animateScrollToPage(TAB_TEMPLATES)
+					externalFileInstallViewModel.onPicked(uri)
+				}
+
+				name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) -> {
+					// Bring the Plugins page forward first: it owns the collector for the
+					// resulting confirmation effect, and the pager disposes it while hidden.
+					pagerState.animateScrollToPage(TAB_PLUGINS)
+					pluginViewModel.onEvent(PluginManagerUiEvent.FileSelected(uri))
+				}
+
+				else -> {
+					activity.flashError(activity.getString(R.string.msg_unsupported_extension_file))
+				}
+			}
+		}
 	}
 
 	val filePickerLauncher =
@@ -175,33 +208,49 @@ fun ManagerScreen(
 			} catch (e: SecurityException) {
 				log.warn("Could not take persistable URI permission", e)
 			}
-			coroutineScope.launch {
-				// Resolving a content:// display name is a ContentResolver IPC call.
-				val name = withContext(Dispatchers.IO) { uri.getFileName(activity) }
-				when {
-					name.endsWith(".$TEMPLATE_ARCHIVE_EXTENSION", ignoreCase = true) -> {
-						pagerState.animateScrollToPage(TAB_TEMPLATES)
-						externalFileInstallViewModel.onReceived(uri)
-					}
-
-					name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) -> {
-						// Bring the Plugins page forward first: it owns the collector for the
-						// resulting confirmation effect, and the pager disposes it while hidden.
-						pagerState.animateScrollToPage(TAB_PLUGINS)
-						pluginViewModel.onEvent(PluginManagerUiEvent.FileSelected(uri))
-					}
-
-					else -> {
-						activity.flashError(activity.getString(R.string.msg_unsupported_extension_file))
-					}
-				}
-			}
+			routePick(uri)
 		}
+
+	// The fallback for add-ons kept outside Downloads (another folder, an SD card, a cloud drive).
+	fun launchSystemPicker() {
+		try {
+			// SAF filters by MIME type, not extension, and neither .cgp nor .cgt has a
+			// registered one. Document providers report unrecognized extensions as
+			// "application/octet-stream", but both are zips, and some providers (and most
+			// cloud providers' own mappings) report "application/zip" instead - an
+			// octet-stream-only filter hides those with no way to reach them. "*/*" keeps
+			// every provider's mapping reachable; SAF still honors this ordering for the
+			// initial filter. routePick() validates the actual pick, since this is only an
+			// approximation - and why + opens the filtered Downloads list first (ADFA-6729).
+			filePickerLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
+		} catch (e: ActivityNotFoundException) {
+			log.warn("No document provider available for the extension file picker", e)
+			activity.flashError(activity.getString(R.string.msg_no_file_manager))
+		}
+	}
+
+	(downloadPickerState as? DownloadPickerUiState.Open)?.let { state ->
+		DownloadPickerDialog(
+			state = state,
+			onPick = { file ->
+				downloadPickerViewModel.dismiss()
+				routePick(Uri.fromFile(file.file))
+			},
+			onBrowse = {
+				downloadPickerViewModel.dismiss()
+				launchSystemPicker()
+			},
+			onDismiss = downloadPickerViewModel::dismiss,
+			// The screen-level tooltip until the picker has its own (ADFA-6729 review); anchored on the
+			// dialog's view so the popup shows above the dialog.
+			onShowHelp = { anchor -> TooltipManager.showIdeCategoryTooltip(activity, anchor, TooltipTag.PLUGIN_MANAGER) },
+		)
+	}
 
 	ExternalFileInstallDialogs(
 		viewModel = externalFileInstallViewModel,
 		// A .cgp only reaches this ViewModel via the routing above, which sends plugins down the
-		// ContentUri path instead - so this is defensive, not a live path.
+		// PickedUri path instead - so this is defensive, not a live path.
 		onForwardPlugin = { filePath -> pluginViewModel.onPendingInstallFile(filePath) },
 		onFinish = { templateViewModel.onEvent(TemplateManagerUiEvent.LoadTemplates) },
 	)
@@ -261,20 +310,9 @@ fun ManagerScreen(
 					// on its own - swallow that one click here.
 					if (longPressAwareClick.consumeIfSuppressed()) return@FloatingActionButton
 					if (pluginUiState.isInstalling) return@FloatingActionButton
-					try {
-						// SAF filters by MIME type, not extension, and neither .cgp nor .cgt has a
-						// registered one. Document providers report unrecognized extensions as
-						// "application/octet-stream", but both are zips, and some providers (and most
-						// cloud providers' own mappings) report "application/zip" instead - an
-						// octet-stream-only filter hides those with no way to reach them. "*/*" keeps
-						// every provider's mapping reachable; SAF still honors this ordering for the
-						// initial filter. The routing above validates the actual pick, since this is
-						// only an approximation.
-						filePickerLauncher.launch(arrayOf("application/octet-stream", "application/zip", "*/*"))
-					} catch (e: ActivityNotFoundException) {
-						log.warn("No document provider available for the extension file picker", e)
-						activity.flashError(activity.getString(R.string.msg_no_file_manager))
-					}
+					downloadPickerViewModel.open(
+						if (pagerState.currentPage == TAB_TEMPLATES) AddonFileKind.TEMPLATE else AddonFileKind.PLUGIN,
+					)
 				},
 				modifier = Modifier.alpha(if (pluginUiState.isInstalling) DISABLED_ALPHA else 1f),
 				interactionSource = longPressAwareClick.interactionSource,
