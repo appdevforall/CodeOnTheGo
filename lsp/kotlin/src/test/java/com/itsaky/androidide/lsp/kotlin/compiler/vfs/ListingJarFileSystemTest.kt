@@ -104,6 +104,19 @@ class ListingJarFileSystemTest : KtLspTest() {
 	}
 
 	@Test
+	fun `clearing the cache invalidates every file and serves fresh ones`() {
+		val one = find(writeJar("one.jar", "p/A.class" to "a"), "p/A.class")!!
+		val two = writeJar("two.jar", "q/B.class" to "b")
+		val held = find(two, "q/B.class")!!
+
+		cache.clear()
+
+		assertThat(one.isValid).isFalse()
+		assertThat(held.isValid).isFalse()
+		assertThat(find(two, "q/B.class")!!.isValid).isTrue()
+	}
+
+	@Test
 	fun `stored and deflated contents behind a stub prefix match ZipFile`() {
 		val jar =
 			lspTestRule.tempDir.root
