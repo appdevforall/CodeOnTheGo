@@ -124,11 +124,16 @@ internal class DeclarationProvider(
 	override val hasSpecificCallablePackageNamesComputation = false
 	override val hasSpecificClassifierPackageNamesComputation = false
 
-	@OptIn(ResolutionSideKtFileAccess::class)
-	override fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> =
-		index
-			.sourceFilesForPackage(fqName)
-			.asSequence()
-			.filter { it in scope }
-			.mapNotNull { index.getKtFile(it) }
+	override fun ktFilesForPackage(fqName: FqName): Sequence<KtFile> = index.ktFilesInPackage(fqName, scope)
 }
+
+/** The Kotlin files in [scope] that the file index records under [packageFqName]. */
+@OptIn(ResolutionSideKtFileAccess::class)
+internal fun KtSymbolIndex.ktFilesInPackage(
+	packageFqName: FqName,
+	scope: GlobalSearchScope,
+): Sequence<KtFile> =
+	sourceFilesForPackage(packageFqName)
+		.asSequence()
+		.filter { it in scope }
+		.mapNotNull { getKtFile(it) }

@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.fir.declarations.FirClass
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
@@ -24,6 +25,8 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassOrObject
+import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNullableType
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.KtTypeAlias
@@ -72,6 +75,33 @@ internal class DirectInheritorsProvider :
 		}
 
 		return possibleInheritors.filter { isValidInheritor(it, baseFirClass, scope, includeLocalInheritors) }
+	}
+
+	/*
+	 * Reads only the files of [ktClass]'s package. The sealed inheritors search calls this, and the
+	 * whole-project walk of getDirectKotlinInheritors parsed every source file on each call: ~18 s of
+	 * the first completion after a cold open on a phone.
+	 */
+	@OptIn(SymbolInternals::class)
+	override fun getSamePackageDirectKotlinInheritors(
+		ktClass: KtClass,
+		scope: GlobalSearchScope,
+		includeLocalInheritors: Boolean,
+	): Iterable<KtClassOrObject> {
+		val classId = ktClass.getClassId() ?: return emptyList()
+		val baseModule = KotlinProjectStructureProvider.getModule(project, ktClass, useSiteModule = null)
+		val baseFirClass = classId.toFirSymbol(baseModule)?.fir as? FirClass ?: return emptyList()
+
+		/*
+		 * Every class with a supertype is a candidate: FIR's subclass check expands type aliases, so
+		 * an inheritor written against an alias declared in another package is still found.
+		 */
+		return index
+			.ktFilesInPackage(classId.packageFqName, scope)
+			.flatMap { it.classesOrObjects(includeLocalInheritors) }
+			.filter { it.superTypeListEntries.isNotEmpty() }
+			.filter { isValidInheritor(it, baseFirClass, scope, includeLocalInheritors) }
+			.toList()
 	}
 
 	/*
@@ -194,3 +224,14 @@ private fun findInheritableSimpleNames(typeElement: KtTypeElement): List<String>
 		}
 	}
 }
+
+private fun KtFile.classesOrObjects(includeLocal: Boolean): List<KtClassOrObject> =
+	if (includeLocal) {
+		PsiTreeUtil.collectElementsOfType(this, KtClassOrObject::class.java).toList()
+	} else {
+		declarations.nonLocalClassesOrObjects()
+	}
+
+// Descends through class bodies only, so lazily parsed function bodies stay unparsed.
+private fun List<KtDeclaration>.nonLocalClassesOrObjects(): List<KtClassOrObject> =
+	filterIsInstance<KtClassOrObject>().flatMap { listOf(it) + it.declarations.nonLocalClassesOrObjects() }
