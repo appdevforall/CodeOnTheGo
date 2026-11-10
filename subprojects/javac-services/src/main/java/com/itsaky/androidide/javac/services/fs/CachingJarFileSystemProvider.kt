@@ -31,19 +31,24 @@ import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.io.path.pathString
 
 /**
  * An implementation of [JarFileSystemProvider] that caches the created [CachedJarFileSystem] so
  * that it can be (re)used in multiple compilations.
  *
- * Every open checks the JAR against [JarListingCache.SHARED]; when the JAR changed on disk, the
- * cached file system for it is closed and a new one is opened on the new listing.
+ * Every open checks the JAR against [JarListingCache.SHARED]; when the JAR changed on disk, a new
+ * file system is opened on the new listing. The superseded one is retired, not closed: javac's
+ * archive containers keep the file system they opened until their file manager is closed, and a
+ * closed one throws an unchecked `ClosedFileSystemException` from `Files.exists`. Retired file
+ * systems are closed by [closeRetired] and [clearCache], once the file managers are gone.
  *
  * @author Akash Yadav
  */
 object CachingJarFileSystemProvider : JarFileSystemProvider() {
 	private val cachedFs = ConcurrentHashMap<String, CachedJarFileSystem>()
+	private val retired = ConcurrentLinkedQueue<CachedJarFileSystem>()
 
 	private val log = LoggerFactory.getLogger(CachingJarFileSystemProvider::class.java)
 
@@ -53,7 +58,7 @@ object CachingJarFileSystemProvider : JarFileSystemProvider() {
 		 * inside a map operation, and this listener only touches the map, so the two locks are
 		 * always taken in the order cache lock -> map bin.
 		 */
-		JarListingCache.SHARED.addListener { clearCache(it) }
+		JarListingCache.SHARED.addListener { path -> cachedFs.remove(keyOf(path))?.let(retired::add) }
 	}
 
 	/*
@@ -75,7 +80,7 @@ object CachingJarFileSystemProvider : JarFileSystemProvider() {
 					return cached
 				}
 				if (cachedFs.remove(key, cached)) {
-					closeFs(cached)
+					retired.add(cached)
 				}
 			}
 			val opened = openBound(path, listing)
@@ -126,9 +131,18 @@ object CachingJarFileSystemProvider : JarFileSystemProvider() {
 
 	fun newFileSystem(path: Path): FileSystem? = newFileSystem(path, mutableMapOf<String, Any>())
 
+	/** Closes every cached and retired file system. */
 	fun clearCache() {
 		cachedFs.values.forEach(this::closeFs)
 		cachedFs.clear()
+		closeRetired()
+	}
+
+	/** Closes the file systems superseded by a newer listing of their JAR; call only once no file manager holds them. */
+	fun closeRetired() {
+		while (true) {
+			closeFs(retired.poll() ?: return)
+		}
 	}
 
 	fun clearCaches(predicate: (Path) -> Boolean) = clearCachesForPaths { predicate(Paths.get(it)) }

@@ -21,10 +21,12 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.zipfs2.listing.JarListing
 import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -155,6 +157,51 @@ class JarListingCacheTest {
 		cache.invalidate(jar("a/B.class"))
 
 		assertThat(dropped).isEmpty()
+	}
+
+	@Test
+	fun `a deleted jar drops its listing and notifies`() {
+		val jar = jar("a/B.class")
+		val dropped = ConcurrentLinkedQueue<Path>()
+		cache.addListener { dropped.add(it) }
+		cache.get(jar)
+
+		Files.delete(jar)
+
+		assertThrows(NoSuchFileException::class.java) { cache.get(jar) }
+		assertThat(dropped.toList()).containsExactly(jar.toAbsolutePath().normalize())
+	}
+
+	@Test
+	fun `clear drops every listing and notifies once per jar`() {
+		val one = jar("a/B.class", name = "one.jar")
+		val two = jar("a/C.class", name = "two.jar")
+		val dropped = ConcurrentLinkedQueue<Path>()
+		cache.addListener { dropped.add(it) }
+		cache.get(one)
+		cache.get(two)
+
+		cache.clear()
+		cache.get(one)
+
+		assertThat(dropped.toList()).containsExactly(one.toAbsolutePath().normalize(), two.toAbsolutePath().normalize())
+		assertThat(builds.get()).isEqualTo(3)
+	}
+
+	@Test
+	fun `a throwing listener does not stop clear from dropping the other jars`() {
+		val one = jar("a/B.class", name = "one.jar")
+		val two = jar("a/C.class", name = "two.jar")
+		cache.addListener { throw IllegalStateException("listener") }
+		cache.get(one)
+		cache.get(two)
+
+		val failure = runCatching { cache.clear() }.exceptionOrNull()
+		cache.get(one)
+		cache.get(two)
+
+		assertThat(failure?.message).isEqualTo("listener")
+		assertThat(builds.get()).isEqualTo(4)
 	}
 
 	@Test

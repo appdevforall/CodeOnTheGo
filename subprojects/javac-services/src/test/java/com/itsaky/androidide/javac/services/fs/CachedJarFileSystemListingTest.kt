@@ -19,6 +19,7 @@ package com.itsaky.androidide.javac.services.fs
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.zipfs2.ZipFileSystemProbe
+import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -29,6 +30,7 @@ import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.attribute.FileTime
 import java.util.Random
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
@@ -111,7 +113,50 @@ class CachedJarFileSystemListingTest {
 
 		assertThat(second.getPath("/a/One.txt").readBytes()).isEqualTo(v2Content)
 		assertThat(second).isNotSameInstanceAs(first)
+	}
+
+	@Test
+	fun `a superseded file system stays open until retired file systems are closed`() {
+		val first = openFs(jarPath)
+		rewrite(jarPath, jarOf(mapOf("a/One.txt" to "v2".toByteArray())))
+		openFs(jarPath)
+
+		assertThat(Files.exists(first.getPath("/com/example/A.class"))).isTrue()
+
+		CachingJarFileSystemProvider.closeRetired()
+
 		assertThat(first.isOpen).isFalse()
+	}
+
+	@Test
+	fun `a dropped listing leaves the cached file system open for its holders`() {
+		val first = openFs(jarPath)
+
+		JarListingCache.SHARED.invalidate(jarPath)
+
+		assertThat(first.isOpen).isTrue()
+		assertThat(openFs(jarPath)).isNotSameInstanceAs(first)
+	}
+
+	@Test
+	fun `clearCache closes retired file systems too`() {
+		val first = openFs(jarPath)
+		rewrite(jarPath, jarOf(mapOf("a/One.txt" to "v2".toByteArray())))
+		val second = openFs(jarPath)
+
+		CachingJarFileSystemProvider.clearCache()
+
+		assertThat(first.isOpen).isFalse()
+		assertThat(second.isOpen).isFalse()
+	}
+
+	private fun rewrite(
+		path: Path,
+		bytes: ByteArray,
+	) {
+		val mtime = Files.getLastModifiedTime(path).toMillis()
+		path.writeBytes(bytes)
+		Files.setLastModifiedTime(path, FileTime.fromMillis(mtime + 5_000))
 	}
 
 	@Test

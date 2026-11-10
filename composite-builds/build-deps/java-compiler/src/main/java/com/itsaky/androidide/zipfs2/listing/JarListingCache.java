@@ -19,7 +19,9 @@ package com.itsaky.androidide.zipfs2.listing;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,14 +77,24 @@ public final class JarListingCache {
 	 * <p>Listeners are notified of a dropped listing before its replacement is built. Every
 	 * listener is called even if one throws; the first failure is then rethrown with the others
 	 * suppressed, and the next call builds the replacement. If the build fails, the exception
-	 * propagates and nothing is cached.
+	 * propagates and nothing is cached. A JAR that no longer exists has its listing dropped, and
+	 * listeners notified, before the {@link NoSuchFileException} propagates.
 	 *
 	 * @throws IOException if the JAR cannot be read or its central directory is malformed
 	 */
 	public JarListing get(Path jar) throws IOException {
 		final Path key = normalize(jar);
 		final String id = key.toString();
-		final BasicFileAttributes attrs = Files.readAttributes(key, BasicFileAttributes.class);
+		final BasicFileAttributes attrs;
+		try {
+			attrs = Files.readAttributes(key, BasicFileAttributes.class);
+		} catch (NoSuchFileException e) {
+			// The check keeps lookups of JARs that never existed from adding a lock entry
+			if (entries.containsKey(id)) {
+				invalidate(key);
+			}
+			throw e;
+		}
 		final long size = attrs.size();
 		final long mtime = modifiedNanos(attrs);
 
@@ -120,6 +132,30 @@ public final class JarListingCache {
 			dropAndNotify(id, key);
 		} finally {
 			lock.unlock();
+		}
+	}
+
+	/**
+	 * Drops every cached listing and notifies listeners once per JAR.
+	 *
+	 * <p>Every JAR is dropped even if a listener throws; the first failure is then rethrown with the
+	 * others suppressed. A listing built concurrently with the clear may stay cached.
+	 */
+	public void clear() {
+		RuntimeException failure = null;
+		for (String id : entries.keySet()) {
+			try {
+				invalidate(Paths.get(id));
+			} catch (RuntimeException e) {
+				if (failure == null) {
+					failure = e;
+				} else {
+					failure.addSuppressed(e);
+				}
+			}
+		}
+		if (failure != null) {
+			throw failure;
 		}
 	}
 
