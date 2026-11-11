@@ -260,9 +260,7 @@ jobs:
           echo "BUILD_TYPE=$BUILD_TYPE" >> $GITHUB_ENV
 
       - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+        run: command -v jq || { sudo apt-get update && sudo apt-get install -y jq; }
     
       - name: Get PR and Commit Information
         id: pr_info
