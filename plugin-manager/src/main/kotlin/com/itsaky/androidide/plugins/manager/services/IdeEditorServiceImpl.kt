@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.services.CursorPosition
 import com.itsaky.androidide.plugins.services.EditorContentChangeListener
 import com.itsaky.androidide.plugins.services.FileChangeListener
+import com.itsaky.androidide.plugins.services.FileSaveListener
 import com.itsaky.androidide.plugins.services.IdeEditorService
 import com.itsaky.androidide.plugins.services.SelectionRange
 import com.itsaky.androidide.utils.Environment
@@ -22,6 +23,7 @@ class IdeEditorServiceImpl(
 	private val readPermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_READ),
 	private val writePermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_WRITE),
 	private val pathValidator: PathValidator? = null,
+	private val workspaceEvents: PluginWorkspaceEvents = PluginWorkspaceEvents.getInstance(),
 ) : IdeEditorService {
 	interface PathValidator {
 		fun isPathAllowed(file: File): Boolean
@@ -448,6 +450,15 @@ class IdeEditorServiceImpl(
 
 	override fun removeContentChangeListener(listener: EditorContentChangeListener) {
 		contentChangeListeners.remove(listener)
+	}
+
+	override fun addFileSaveListener(listener: FileSaveListener) {
+		requireRead()
+		workspaceEvents.addFileSaveListener(pluginId, listener)
+	}
+
+	override fun removeFileSaveListener(listener: FileSaveListener) {
+		workspaceEvents.removeFileSaveListener(listener)
 	}
 
 	override fun showInlineSuggestion(text: String) {

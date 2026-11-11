@@ -7,6 +7,7 @@ import com.itsaky.androidide.plugins.extensions.IProject
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.services.IdeProjectService
 import com.itsaky.androidide.plugins.services.ModuleContext
+import com.itsaky.androidide.plugins.services.ProjectLifecycleListener
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.utils.Environment
@@ -24,6 +25,7 @@ class IdeProjectServiceImpl(
 	private val requiredPermissions: Set<PluginPermission> = setOf(PluginPermission.FILESYSTEM_READ),
 	private val pathValidator: PathValidator? = null,
 	private val activityProvider: PluginManager.ActivityProvider? = null,
+	private val workspaceEvents: PluginWorkspaceEvents = PluginWorkspaceEvents.getInstance(),
 ) : IdeProjectService {
 	/**
 	 * Interface for validating project path access
@@ -162,6 +164,17 @@ class IdeProjectServiceImpl(
 			log.error("openProject failed for plugin {}", pluginId, e)
 			false
 		}
+	}
+
+	override fun addProjectLifecycleListener(listener: ProjectLifecycleListener) {
+		if (!hasRequiredPermissions()) {
+			throw SecurityException("Plugin $pluginId does not have required permissions: ${getRequiredPermissionsString()}")
+		}
+		workspaceEvents.addProjectLifecycleListener(pluginId, listener)
+	}
+
+	override fun removeProjectLifecycleListener(listener: ProjectLifecycleListener) {
+		workspaceEvents.removeProjectLifecycleListener(listener)
 	}
 
 	private fun resolveProjectDirUnderProjectsDir(path: File): File? {

@@ -60,6 +60,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.PluginBuildService
+import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.services.IdeArchiveService
@@ -805,6 +806,8 @@ class PluginManager private constructor(
 			snippetRefreshListener?.invoke(pluginId)
 
 			PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
+			// Before deactivate(), so no workspace event reaches a plugin that is tearing down.
+			PluginWorkspaceEvents.getInstance().removeAll(pluginId)
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) {
 				commandService.cancelAllCommands()
@@ -1198,6 +1201,8 @@ class PluginManager private constructor(
 		}.onFailure { logger.error("Failed to clean snippets for: $pluginId", it) }
 		runCatching { PluginBuildActionManager.getInstance().cleanupPlugin(pluginId) }
 			.onFailure { logger.error("Failed to clean build actions for: $pluginId", it) }
+		// A disabled plugin must stop hearing workspace events; activate() registers again on enable.
+		PluginWorkspaceEvents.getInstance().removeAll(pluginId)
 		runCatching {
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
