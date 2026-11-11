@@ -6,7 +6,7 @@
 
 | Claim | Check |
 |-------|-------|
-| `apt install sqlite sqlite-js` installs both; the `sqlite` package provides `sqlite3` | phone: `sqlite3` is provided by package `sqlite` (dpkg -S), 3.51.2. TODO: `apt install sqlite-js` from the stage repo (sqlite-js was installed with `dpkg -i`; production has no sqlite-js) |
+| `apt install sqlite sqlite-js` installs both; the `sqlite` package provides `sqlite3` | phone: `sqlite3` is provided by package `sqlite` (dpkg -S), 3.51.2. `apt install sqlite sqlite-js` from the stage repo (https://stage.appdevforall.org/apt/termux-main/, same signing key as production) installed sqlite-js 1.3.7-1 on aarch64, which loaded and passed run-tests.sh 77 of 77. Production gets it when the package is published there |
 | `.load sqlite-js` finds `$PREFIX/lib/sqlite-js.so`; `.load` does not expand `$PREFIX` | run on phone: `.load sqlite-js`, `.load sqlite-js.so` and the full path without `.so` work; `.load $PREFIX/lib/sqlite-js` fails with `dlopen failed: library "$PREFIX/lib/sqlite-js.so" not found` |
 | `js_create_scalar` prints 0; slugify and titles examples | run. The opening line no longer claims JavaScript is quicker than Java or Kotlin, which was opinion |
 | A function lasts until `sqlite3` closes | run (functions page) |
