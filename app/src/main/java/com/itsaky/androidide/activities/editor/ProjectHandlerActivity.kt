@@ -283,6 +283,9 @@ abstract class ProjectHandlerActivity :
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
 
 		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
+
+		// Pairs each editor's plugin open report with its close; see initializeProject.
+		private val pluginProjectLock = Any()
 	}
 
 	abstract fun doCloseAll()
@@ -1193,8 +1196,10 @@ abstract class ProjectHandlerActivity :
 
 	private fun closeProjectSession() {
 		// Only the live editor's teardown reports the close; a doomed instance (onPause) does not.
-		editorViewModel.pluginOpenedProjectDir?.let { PluginWorkspaceEvents.getInstance().projectClosed(it) }
-		editorViewModel.pluginOpenedProjectDir = null
+		synchronized(pluginProjectLock) {
+			editorViewModel.pluginOpenedProjectDir?.let { PluginWorkspaceEvents.getInstance().projectClosed(it) }
+			editorViewModel.pluginOpenedProjectDir = null
+		}
 		stopLanguageServers()
 		closeProjectState()
 	}
@@ -1598,9 +1603,13 @@ abstract class ProjectHandlerActivity :
 		// As the editor starts opening the project; the sync below does not wait for listeners.
 		// A re-sync of the same project is not reported again. Not from an editor already tearing
 		// down: a late initialize after its close was reported would reopen a closed project.
-		if (!isDestroying && !isFinishing) {
-			PluginWorkspaceEvents.getInstance().projectOpened(projectDir)
-			editorViewModel.pluginOpenedProjectDir = projectDir
+		// Under the lock the close takes: this runs on Dispatchers.Default and can race onPause's
+		// teardown, which would otherwise read no open project between the report and the record.
+		synchronized(pluginProjectLock) {
+			if (!isDestroying && !isFinishing) {
+				PluginWorkspaceEvents.getInstance().projectOpened(projectDir)
+				editorViewModel.pluginOpenedProjectDir = projectDir
+			}
 		}
 
 		val needsSync =
