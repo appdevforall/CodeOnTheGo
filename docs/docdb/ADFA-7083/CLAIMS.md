@@ -31,6 +31,7 @@
 | `js_set_max_stack_size`: default 1 MB; 0 crashes deep recursion | code (`JS_DEFAULT_STACK_SIZE`); run by hand: size 0 + recursion segfaults, default gives "Maximum call stack size exceeded" |
 | `js_version(1)` is quickjs-ng | run (package AC2) |
 | The six fixes listed | code, package tests |
+| quickjs-ng is MIT-licensed; `LICENSE` and `LICENSE.quickjs` are in `$PREFIX/share/doc/sqlite-js/` | code: package build (`LICENSE.quickjs` collected from the sources); file list of the 1.3.7-1 aarch64 `.deb` checked |
 | Apache-2.0 attribution wording | TODO: legal wording check; upstream names no copyright holder |
 
 ## sqlite-js-javascript
