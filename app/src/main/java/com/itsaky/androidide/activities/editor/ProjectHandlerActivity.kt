@@ -74,6 +74,7 @@ import com.itsaky.androidide.plugins.extensions.ProjectSearchExtension
 import com.itsaky.androidide.plugins.extensions.ProjectSearchRequest
 import com.itsaky.androidide.plugins.extensions.ProjectSearchResult
 import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
+import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
@@ -1196,6 +1197,8 @@ abstract class ProjectHandlerActivity :
 	}
 
 	private fun closeProjectState() {
+		PluginWorkspaceEvents.getInstance().projectClosed()
+
 		// reset these values here
 		// sometimes, when the IDE closed and reopened instantly, these values prevent initialization
 		// of the project
@@ -1591,6 +1594,9 @@ abstract class ProjectHandlerActivity :
 			handleMissingProjectDirectory(projectDir)
 			return@launch
 		}
+		// Before the sync, so a hook such as a `git pull` sees the project as soon as it opens.
+		// A re-sync of the same project is not reported again.
+		PluginWorkspaceEvents.getInstance().projectOpened(projectDir)
 
 		val needsSync =
 			try {
