@@ -90,15 +90,15 @@ SELECT big_next(CAST(9223372036854775807 AS TEXT));
 
 ## Run SQL from JavaScript
 
-The global object `db` runs SQL on the same database. `db.exec(sql, ...parameters)` takes a statement, with `?` for each parameter, and returns a result set.
+The global object `db` runs SQL on the same database. `db.exec(sql, ...parameters)` takes a statement, with `?` for each parameter, and returns a result set. The statement runs only when you call `next()` or `toArray()`.
 
 | Result set | What it does |
 |------------|--------------|
-| `next()` | Moves to the next row. It returns `true`, or `false` when there are no more rows. |
+| `next()` | Runs the statement to its next row. It returns `true`, or `false` when there are no more rows, and also when the statement fails. |
 | `get(i)` | Returns column `i` of the current row, counting from 0. |
 | `name(i)` | Returns the name of column `i`. |
 | `columnCount` | The number of columns. |
-| `toArray()` | Returns all the remaining rows, each as an array. |
+| `toArray()` | Returns all the remaining rows, each as an array. If the statement fails partway, you get the rows before the failure. |
 
 ```sql
 SELECT js_eval('(function () {
@@ -113,6 +113,18 @@ SELECT js_eval('JSON.stringify(db.exec("SELECT 1 AS a, 2 AS b UNION ALL SELECT 3
 ```
 
 Parameters convert like function results do, so a `Uint8Array` is bound as a BLOB.
+
+To change data, call `next()` once on the result set. Without it, nothing happens.
+
+```sql
+CREATE TABLE notes(t TEXT);
+SELECT js_eval('db.exec("INSERT INTO notes VALUES (?)", "kept"); db.exec("INSERT INTO notes VALUES (?)", "run").next(); 0');
+SELECT group_concat(t) FROM notes;
+-- 0
+-- run
+```
+
+> An error while the statement runs, such as a failed `UNIQUE` constraint, is not reported: `next()` just returns `false`. An error in the SQL itself, such as a misspelled name, is reported. To be sure a change was made, read the data back.
 
 ## Variables and state
 

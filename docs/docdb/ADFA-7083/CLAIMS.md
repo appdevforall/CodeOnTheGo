@@ -28,9 +28,9 @@
 | `js_init_table()` columns and "whenever that table exists, each function you create is stored" | run on phone: with the table left by an earlier session and no `js_init_table()` call, a new function was stored (`js_functions` listed both), and `js_init_table(1)` in a new session restored both |
 | `js_load_text`/`js_load_blob`: empty file gives empty value; error text `Unable to open the file` | run on phone: empty file gives `''` / `X''`; a missing file gives `Unable to open the file` (the shell prefixes `Error: stepping, `) |
 | `js_set_memory_limit`: default 64 MB, 0 no limit, a whole number 0 or more, error text, returns NULL | run (package AC9), code; probe: `'64'`, `-1` and `1.5` each give the error |
-| `js_set_max_stack_size`: default 1 MB; 0 or non-numeric text turns the check off and deep recursion crashes | code (`JS_DEFAULT_STACK_SIZE`, `sqlite3_value_int` with no check); probe: `0` and `'abc'` each segfault on endless recursion; the default gives "Maximum call stack size exceeded" |
+| `js_set_max_stack_size` (1.3.7-2, patch 0007): default 1 MB; only a whole number the stack allows, else an error naming the largest size; 0 turns the check off and deep recursion crashes | code (patch 0007); probe on the 1.3.7-2 host build: `'abc'`, `-1`, `1.5`, `NULL`, `1073741824` and `16777216` give the error, `262144` and `1048576` are accepted, endless recursion fails cleanly just below the largest size; package run-tests.sh AC13 (87 of 87). 1.3.7-1 instead crashed on text, 0, or sizes above the stack. TODO: phone test of 1.3.7-2 |
 | `js_version(1)` is quickjs-ng | run (package AC2) |
-| The six fixes listed | code, package tests |
+| The seven fixes listed | code, package tests (patches 0001 to 0007) |
 | quickjs-ng is MIT-licensed; `LICENSE` and `LICENSE.quickjs` are in `$PREFIX/share/doc/sqlite-js/` | code: package build (`LICENSE.quickjs` collected from the sources); file list of the 1.3.7-1 aarch64 `.deb` checked |
 | Apache-2.0 attribution wording | TODO: legal wording check; upstream names no copyright holder |
 
@@ -46,7 +46,7 @@
 | `console.log` and `print` write to `sqlite3` standard output | run on phone: `console.log` and `print` both write to standard output |
 | SQL-to-JS and JS-to-SQL conversion tables, including `NaN` -> NULL, other objects -> NULL, BigInt wraps outside 64 bits | run (package AC6, and the BigInt wraparound example), code; probe: BLOB arrives as `[object ArrayBuffer]`; `NaN`, arrays, `Date`, functions give NULL; `Infinity` and `2**60` give REAL; `2n**70n` gives 0 |
 | 3.0 comes back as 3; INTEGER beyond 2^53 - 1 loses digits; BigInt workaround | run |
-| `db.exec` result set: `next`, `get`, `name`, `columnCount`, `toArray` (remaining rows) | run; probe: `next()` is `true` then `false` at the end; `toArray()` after one `next()` returns the remaining two of three rows |
+| `db.exec` result set: `next`, `get`, `name`, `columnCount`, `toArray` (remaining rows); the statement runs only at `next()`/`toArray()`; a run-time error makes `next()` return `false` and `toArray()` return the rows before it; SQL errors are reported | run (the notes example: an INSERT without `next()` adds nothing); probe: `next()` is `true` then `false` at the end; `toArray()` after one `next()` returns the remaining two of three rows; a failed UNIQUE INSERT and `abs(-9223372036854775808)` give `next()` = `false` with no error; `toArray()` returned `[[1]]` for a 3-row query failing on row 2; `db.exec("SELECT nosuchfunc()")` throws. Code: `js_sqlite_exec` only prepares; `js_rowset_next`/`js_rowset_to_array` treat anything but `SQLITE_ROW` as the end |
 | Parameters convert like results | run (package AC6) |
 | Variable sharing: `js_eval`, scalar functions, collations share; each aggregate has its own | run (AC3) |
 | Ctrl-C works "even code that catches every error"; "`sqlite3` keeps running if you were typing commands" | run (AC8) |

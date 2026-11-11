@@ -167,7 +167,7 @@ Sets the most memory, in bytes, that JavaScript may use in this session. The def
 js_set_max_stack_size(bytes)
 ```
 
-Sets the size of the JavaScript stack, which limits how deeply functions can call themselves. The default is 1 MB. Give a whole number of bytes, such as `1048576`. Do not use `0`, or text that is not a number, which counts as `0`: it turns the check off, and code that calls itself without end then crashes `sqlite3`.
+Sets the size of the JavaScript stack, which limits how deeply functions can call themselves. The default is 1 MB. Give a whole number of bytes, such as `1048576`, no larger than the stack of `sqlite3` allows. Anything else is an error, and the error message names the largest size allowed. Do not use `0`: it turns the check off, and code that calls itself without end then crashes `sqlite3`.
 
 ## Version
 
@@ -187,7 +187,7 @@ SELECT js_version();
 
 ## What is different from the upstream project
 
-The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with six fixes, which were also sent to the upstream project. With them:
+The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with seven fixes, which were also sent to the upstream project. With them:
 
 - Ctrl-C stops JavaScript that never ends.
 - JavaScript may use 64 MB of memory, and `js_set_memory_limit` changes the limit.
@@ -195,6 +195,7 @@ The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with si
 - A function can return a BLOB, by returning an `ArrayBuffer` or a typed array such as `Uint8Array`.
 - A whole number comes back as an INTEGER, even beyond the 32-bit range.
 - An exception in an aggregate or window function fails the query.
+- `js_set_max_stack_size` accepts only a size the stack can hold, so code that calls itself without end fails instead of crashing `sqlite3`.
 
 ## Credits
 
