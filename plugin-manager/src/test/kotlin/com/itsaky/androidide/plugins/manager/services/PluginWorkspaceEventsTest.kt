@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.Executor
 
 class PluginWorkspaceEventsTest {
@@ -96,10 +97,10 @@ class PluginWorkspaceEventsTest {
 		val events = direct()
 		val listener = RecordingListener().also { events.addProjectLifecycleListener("p", it) }
 
-		events.projectClosed()
+		events.projectClosed(projectA)
 		events.projectOpened(projectA)
-		events.projectClosed()
-		events.projectClosed()
+		events.projectClosed(projectA)
+		events.projectClosed(projectA)
 
 		assertEquals(listOf("opened a", "closed a"), listener.calls)
 	}
@@ -110,7 +111,7 @@ class PluginWorkspaceEventsTest {
 		val listener = RecordingListener().also { events.addProjectLifecycleListener("p", it) }
 
 		events.projectOpened(projectA)
-		events.projectClosed()
+		events.projectClosed(projectA)
 		events.projectOpened(projectA)
 
 		assertEquals(listOf("opened a", "closed a", "opened a"), listener.calls)
@@ -164,8 +165,8 @@ class PluginWorkspaceEventsTest {
 		events.addProjectLifecycleListener("p", listener)
 		events.addFileSaveListener("p", saveListener)
 
-		events.removeProjectLifecycleListener(listener)
-		events.removeFileSaveListener(saveListener)
+		events.removeProjectLifecycleListener("p", listener)
+		events.removeFileSaveListener("p", saveListener)
 		events.projectOpened(projectA)
 		events.fileSaved(File(projectA, "Main.kt"))
 
@@ -222,10 +223,107 @@ class PluginWorkspaceEventsTest {
 
 		events.projectOpened(projectA)
 		events.fileSaved(File(projectA, "Main.kt"))
-		events.projectClosed()
+		events.projectClosed(projectA)
 		while (queued.isNotEmpty()) queued.removeFirst().run()
 
 		assertEquals(listOf("opened", "saved", "closed"), order)
+	}
+
+	@Test
+	fun aListenerAddedWhileAProjectIsOpenHearsThatOpen() {
+		val events = direct()
+		events.projectOpened(projectA)
+
+		val late = RecordingListener().also { events.addProjectLifecycleListener("late", it) }
+		events.projectClosed(projectA)
+
+		assertEquals(listOf("opened a", "closed a"), late.calls)
+	}
+
+	@Test
+	fun aListenerAddedBeforeAQueuedOpenRunsHearsItOnce() {
+		val events = deferred()
+		// Another plugin is listening, so the open is really queued, not skipped as unheard.
+		events.addProjectLifecycleListener("early", RecordingListener())
+		events.projectOpened(projectA)
+		val late = RecordingListener().also { events.addProjectLifecycleListener("late", it) }
+		while (queued.isNotEmpty()) queued.removeFirst().run()
+
+		assertEquals(listOf("opened a"), late.calls)
+	}
+
+	@Test
+	fun closingAProjectThatIsNotTheOpenOneIsIgnored() {
+		val events = direct()
+		val listener = RecordingListener().also { events.addProjectLifecycleListener("p", it) }
+
+		events.projectOpened(projectA)
+		events.projectClosed(projectB)
+
+		assertEquals(listOf("opened a"), listener.calls)
+	}
+
+	@Test
+	fun aPluginRemovedWhileAnEventIsBeingDeliveredIsNotCalled() {
+		val events = direct()
+		var removedHeard = 0
+		// The first listener unloads the other plugin while this save is being delivered.
+		events.addFileSaveListener("first") { events.removeAll("second") }
+		events.addFileSaveListener("second") { removedHeard++ }
+
+		events.fileSaved(File(projectA, "Main.kt"))
+
+		assertEquals(0, removedHeard)
+	}
+
+	@Test
+	fun aSavedFileHasTheSameFormAsTheProjectDirectory() {
+		val events = direct()
+		val link = File(root, "link").toPath()
+		Files.createSymbolicLink(link, projectA.toPath())
+		val opened = mutableListOf<File>()
+		val saved = mutableListOf<File>()
+		events.addProjectLifecycleListener(
+			"p",
+			object : ProjectLifecycleListener {
+				override fun onProjectOpened(projectDir: File) {
+					opened += projectDir
+				}
+
+				override fun onProjectClosed(projectDir: File) = Unit
+			},
+		)
+		events.addFileSaveListener("p") { saved += it }
+
+		events.projectOpened(link.toFile())
+		events.fileSaved(File(link.toFile(), "Main.kt"))
+
+		assertEquals(true, saved.single().startsWith(opened.single()))
+	}
+
+	@Test
+	fun aPluginCannotRemoveAnotherPluginsListener() {
+		val events = direct()
+		var heard = 0
+		val listener = FileSaveListener { heard++ }
+		events.addFileSaveListener("owner", listener)
+
+		events.removeFileSaveListener("other", listener)
+		events.fileSaved(File(projectA, "Main.kt"))
+
+		assertEquals(1, heard)
+	}
+
+	@Test
+	fun nothingIsQueuedWhenNoPluginListens() {
+		var queuedTasks = 0
+		val events = PluginWorkspaceEvents(Executor { queuedTasks++ })
+
+		events.fileSaved(File(projectA, "Main.kt"))
+		events.projectOpened(projectA)
+		events.projectClosed(projectA)
+
+		assertEquals(0, queuedTasks)
 	}
 
 	@Test(expected = SecurityException::class)

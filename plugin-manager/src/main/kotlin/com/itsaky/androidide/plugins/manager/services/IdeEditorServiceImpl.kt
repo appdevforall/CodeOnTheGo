@@ -458,7 +458,7 @@ class IdeEditorServiceImpl(
 	}
 
 	override fun removeFileSaveListener(listener: FileSaveListener) {
-		workspaceEvents.removeFileSaveListener(listener)
+		workspaceEvents.removeFileSaveListener(pluginId, listener)
 	}
 
 	override fun showInlineSuggestion(text: String) {

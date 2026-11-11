@@ -13,7 +13,6 @@ import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.api.LogsProvider
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
-import com.itsaky.androidide.eventbus.events.editor.DocumentSaveEvent
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
 import com.itsaky.androidide.lookup.Lookup
@@ -25,7 +24,6 @@ import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
-import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
@@ -567,14 +565,6 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				)
 			}
 		}
-	}
-
-	// Plugins hear saves through IdeEditorService.addFileSaveListener. POSTING is enough: the call
-	// only queues the event for the plugins' own thread.
-	@Suppress("unused")
-	@Subscribe(threadMode = ThreadMode.POSTING)
-	fun onDocumentSaved(event: DocumentSaveEvent) {
-		PluginWorkspaceEvents.getInstance().fileSaved(event.savedFile.toFile())
 	}
 
 	@Suppress("unused")

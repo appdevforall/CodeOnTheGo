@@ -56,6 +56,7 @@ import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.cancelIfActive
@@ -417,6 +418,8 @@ class CodeEditorView(
 
 		markUnmodified()
 		notifySaved()
+		// Here, not from DocumentSaveEvent: the editor also posts that on every Enter, with nothing written.
+		PluginWorkspaceEvents.getInstance().fileSaved(file)
 
 		return true
 	}

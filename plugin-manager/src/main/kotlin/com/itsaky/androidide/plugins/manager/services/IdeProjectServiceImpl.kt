@@ -174,7 +174,7 @@ class IdeProjectServiceImpl(
 	}
 
 	override fun removeProjectLifecycleListener(listener: ProjectLifecycleListener) {
-		workspaceEvents.removeProjectLifecycleListener(listener)
+		workspaceEvents.removeProjectLifecycleListener(pluginId, listener)
 	}
 
 	private fun resolveProjectDirUnderProjectsDir(path: File): File? {

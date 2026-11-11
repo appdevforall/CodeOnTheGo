@@ -66,8 +66,9 @@ interface IdeProjectService {
 
 	/**
 	 * Registers [listener] to hear when the editor opens and closes a project. A listener added
-	 * while a project is open hears nothing about it until it closes; ask [getCurrentProject] for
-	 * the project already open. Registering the same listener twice has no effect. The IDE drops
+	 * while a project is open hears [ProjectLifecycleListener.onProjectOpened] for it first, since
+	 * plugins often load after the editor reopened the last project. Registering the same listener
+	 * twice has no effect. The IDE drops
 	 * the listener when the plugin is disabled or unloads, so register it from
 	 * [com.itsaky.androidide.plugins.IPlugin.activate]. Available since 26.47.
 	 *
@@ -88,21 +89,24 @@ interface IdeProjectService {
  */
 interface ProjectLifecycleListener {
 	/**
-	 * The editor opened the project rooted at [projectDir] and is about to sync it. A sync or
-	 * build of the same project later does not call this again.
+	 * The editor opened the project rooted at [projectDir] and is about to sync it, or the project
+	 * was already open when this listener was added. A sync or build of the same project later
+	 * does not call this again. [projectDir] is canonical.
 	 */
 	fun onProjectOpened(projectDir: File)
 
-	/** The editor closed the project rooted at [projectDir]. */
+	/** The editor closed the project rooted at [projectDir], as given to [onProjectOpened]. */
 	fun onProjectClosed(projectDir: File)
 }
 
 /**
  * Hears the editor write a file to disk: the user saving, the IDE saving before a build, or a
- * plugin calling [IdeEditorService.saveFile]. Calls arrive in order on one background thread
- * shared by every plugin, so return quickly. Available since 26.47.
+ * plugin calling [IdeEditorService.saveFile]. Typing alone, without a save, is never reported.
+ * Calls arrive in order on one background thread shared by every plugin, so return quickly.
+ * Available since 26.47.
  */
 fun interface FileSaveListener {
+	/** [file] is canonical, the same form as a project directory, so `file.startsWith(dir)` works. */
 	fun onFileSaved(file: File)
 }
 

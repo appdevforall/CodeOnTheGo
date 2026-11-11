@@ -735,6 +735,8 @@ class PluginManager private constructor(
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
 			loadedPlugin.isEnabled = false
 			savePluginState(manifest.id, false)
+			// activate() may have registered workspace listeners before it failed.
+			PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 		}
 	}
 
@@ -773,6 +775,11 @@ class PluginManager private constructor(
 	fun unloadPlugin(pluginId: String): Boolean {
 		val loadedPlugin = loadedPlugins.remove(pluginId) ?: return false
 
+		// First and on its own: the plugin is already out of loadedPlugins, so if a later cleanup step
+		// throws, nothing could drop its listeners afterwards, and none may reach it while it tears down.
+		runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
+			.onFailure { logger.error("Failed to drop workspace listeners for: $pluginId", it) }
+
 		try {
 			// Remove documentation if plugin implements DocumentationExtension
 			if (loadedPlugin.plugin is DocumentationExtension) {
@@ -806,8 +813,6 @@ class PluginManager private constructor(
 			snippetRefreshListener?.invoke(pluginId)
 
 			PluginBuildActionManager.getInstance().cleanupPlugin(pluginId)
-			// Before deactivate(), so no workspace event reaches a plugin that is tearing down.
-			PluginWorkspaceEvents.getInstance().removeAll(pluginId)
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) {
 				commandService.cancelAllCommands()
@@ -1202,7 +1207,8 @@ class PluginManager private constructor(
 		runCatching { PluginBuildActionManager.getInstance().cleanupPlugin(pluginId) }
 			.onFailure { logger.error("Failed to clean build actions for: $pluginId", it) }
 		// A disabled plugin must stop hearing workspace events; activate() registers again on enable.
-		PluginWorkspaceEvents.getInstance().removeAll(pluginId)
+		runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
+			.onFailure { logger.error("Failed to drop workspace listeners for: $pluginId", it) }
 		runCatching {
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()

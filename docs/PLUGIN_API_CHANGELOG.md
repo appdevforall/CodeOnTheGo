@@ -44,8 +44,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `onFileSaved(file)` after each file the editor writes, whoever asked for the save. Both need
   `filesystem.read`. Calls arrive in order on one background thread shared by every plugin, so
   return quickly. The IDE drops the listeners when the plugin is disabled or unloads, so register
-  them from `activate()`. A listener added while a project is open hears nothing until it closes;
-  ask `getCurrentProject()`. Floor `plugin.min_ide_version` at `26.47` to use them.
+  them from `activate()`. A listener added while a project is open hears `onProjectOpened` for it
+  first. Paths are canonical. Floor `plugin.min_ide_version` at `26.47` to use them.
 
 ### 26.43 — unreleased
 - **tooling — Interface bodies are Java default methods again** _(ADFA-6560)_ **[verified]**

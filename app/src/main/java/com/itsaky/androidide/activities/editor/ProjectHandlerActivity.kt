@@ -1192,13 +1192,17 @@ abstract class ProjectHandlerActivity :
 	}
 
 	private fun closeProjectSession() {
+		// Only the live editor's teardown reports the close; a doomed instance (onPause) does not.
+		ProjectManagerImpl
+			.getInstance()
+			.projectDirPath
+			.takeIf { it.isNotBlank() }
+			?.let { PluginWorkspaceEvents.getInstance().projectClosed(File(it)) }
 		stopLanguageServers()
 		closeProjectState()
 	}
 
 	private fun closeProjectState() {
-		PluginWorkspaceEvents.getInstance().projectClosed()
-
 		// reset these values here
 		// sometimes, when the IDE closed and reopened instantly, these values prevent initialization
 		// of the project
@@ -1595,8 +1599,11 @@ abstract class ProjectHandlerActivity :
 			return@launch
 		}
 		// Before the sync, so a hook such as a `git pull` sees the project as soon as it opens.
-		// A re-sync of the same project is not reported again.
-		PluginWorkspaceEvents.getInstance().projectOpened(projectDir)
+		// A re-sync of the same project is not reported again. Not from an editor already tearing
+		// down: a late initialize after its close was reported would reopen a closed project.
+		if (!isDestroying && !isFinishing) {
+			PluginWorkspaceEvents.getInstance().projectOpened(projectDir)
+		}
 
 		val needsSync =
 			try {
