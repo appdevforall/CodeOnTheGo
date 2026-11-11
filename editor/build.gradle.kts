@@ -27,6 +27,7 @@ dependencies {
 	api(libs.androidide.ts.kotlin)
 	api(libs.androidide.ts.log)
 	api(libs.androidide.ts.xml)
+	api(projects.subprojects.treeSitterJavascript)
 	api(libs.androidx.collection)
 	api(platform(libs.sora.bom))
 	api(libs.common.editor)

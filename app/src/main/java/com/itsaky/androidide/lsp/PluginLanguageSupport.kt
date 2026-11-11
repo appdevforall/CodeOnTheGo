@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp
 import android.os.Handler
 import android.os.Looper
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.editor.language.treesitter.JavaScriptLanguage
 import com.itsaky.androidide.editor.language.treesitter.PluginGrammars
 import com.itsaky.androidide.editor.language.treesitter.PluginTreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TSLanguageRegistry
@@ -23,7 +24,8 @@ import java.util.concurrent.Executors
 
 object PluginLanguageSupport {
 	private val log = LoggerFactory.getLogger(PluginLanguageSupport::class.java)
-	private val hostFileTypes = setOf("java", "kt", "kts", "xml", "json", "log", "gradle", "c", "h", "cc", "cpp", "cxx")
+	private val hostFileTypes =
+		setOf("java", "kt", "kts", "xml", "json", "log", "gradle", "c", "h", "cc", "cpp", "cxx") + JavaScriptLanguage.FILE_TYPES
 	private val mainExecutor = Handler(Looper.getMainLooper()).let { handler -> Executor { handler.post(it) } }
 	private val refreshExecutor = Executors.newSingleThreadExecutor { Thread(it, "plugin-languages") }
 	private val lock = Any()
