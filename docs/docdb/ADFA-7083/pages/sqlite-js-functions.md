@@ -7,7 +7,7 @@ prev: sqlite-js-top.html
 next: sqlite-js-javascript.html
 ---
 
-This page lists every SQL function that sqlite-js adds. First [load sqlite-js](sqlite-js-top.html). Each `js_` function except `js_version` works only in your own SQL statements, not inside a view, trigger, CHECK constraint, generated column or index.
+This page lists every SQL function that sqlite-js adds. First [load sqlite-js](sqlite-js-top.html). Each `js_` function except `js_version` works only in your own SQL statements, not inside a view, trigger, CHECK constraint, generated column or index stored in a database. A TEMP view or trigger, which lasts only for your session, can use them.
 
 An error in your JavaScript, such as a thrown exception or a syntax error, becomes an SQL error that carries the JavaScript message.
 
@@ -15,7 +15,7 @@ An error in your JavaScript, such as a thrown exception or a syntax error, becom
 
 In the code you pass, a **function expression** is a JavaScript function written inside parentheses, like `(function (args) { ... })`. Every `js_create_` function returns `0` when it succeeds.
 
-A function cannot be redefined in the session that created it: you get `Function updates must be performed using a separate database connection.` Close `sqlite3`, open it again and create the new version.
+A function cannot be redefined in a session that already has it: you get `Function updates must be performed using a separate database connection.` Close `sqlite3`, open it again and create the new version before you call `js_init_table(1)`, which would create the old one. If the database keeps your functions, the new version replaces the stored one.
 
 ### js_create_scalar
 
@@ -45,7 +45,7 @@ Creates an aggregate function.
 - `step` is a function expression that runs once for each row, with the array of arguments.
 - `final` is a function expression that runs after the last row and returns the result.
 
-The variables you set up in `init` belong to one group. Each group, and each use of the function in a query, has its own.
+The variables you set up in `init` belong to one group. Each group, and each use of the function in a query, has its own. If there are no rows, the function returns NULL, and neither `init` nor `final` runs.
 
 ```sql
 SELECT js_create_aggregate('longest',
@@ -159,7 +159,7 @@ Return the contents of a file, as TEXT or as a BLOB. An empty file gives an empt
 js_set_memory_limit(bytes)
 ```
 
-Sets the most memory, in bytes, that JavaScript may use in this session. The default is 64 MB. `0` means no limit. The argument must be an integer, or you get the error `The memory limit must be an integer number of bytes, or 0 for no limit`. The function returns NULL.
+Sets the most memory, in bytes, that JavaScript may use in this session. The default is 64 MB. `0` means no limit. The argument must be a whole number, 0 or more, or you get the error `The memory limit must be an integer number of bytes, or 0 for no limit`. The function returns NULL.
 
 ### js_set_max_stack_size
 
@@ -167,7 +167,7 @@ Sets the most memory, in bytes, that JavaScript may use in this session. The def
 js_set_max_stack_size(bytes)
 ```
 
-Sets the size of the JavaScript stack, which limits how deeply functions can call themselves. The default is 1 MB. Do not use `0`: it turns the check off, and code that calls itself without end then crashes `sqlite3`.
+Sets the size of the JavaScript stack, which limits how deeply functions can call themselves. The default is 1 MB. Give a whole number of bytes, such as `1048576`. Do not use `0`, or text that is not a number, which counts as `0`: it turns the check off, and code that calls itself without end then crashes `sqlite3`.
 
 ## Version
 
@@ -191,7 +191,7 @@ The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with si
 
 - Ctrl-C stops JavaScript that never ends.
 - JavaScript may use 64 MB of memory, and `js_set_memory_limit` changes the limit.
-- The functions that run code, read files or change limits cannot be used in a view, trigger or index.
+- The functions that run code, read files or change limits cannot be used in a view, trigger or index stored in a database.
 - A function can return a BLOB, by returning an `ArrayBuffer` or a typed array such as `Uint8Array`.
 - A whole number comes back as an INTEGER, even beyond the 32-bit range.
 - An exception in an aggregate or window function fails the query.

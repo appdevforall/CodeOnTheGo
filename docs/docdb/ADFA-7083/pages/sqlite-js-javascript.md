@@ -60,8 +60,8 @@ Your function receives its SQL arguments in an array, so the first argument is `
 | `null`, `undefined` | NULL |
 | `true`, `false` | INTEGER 1 or 0 |
 | a whole number from -(2^53 - 1) to 2^53 - 1 | INTEGER |
-| any other number | REAL |
-| a BigInt | INTEGER |
+| any other number | REAL (`NaN` becomes NULL) |
+| a BigInt | INTEGER, if it fits (see below) |
 | a string | TEXT |
 | an `ArrayBuffer`, or a typed array such as `Uint8Array` | BLOB |
 | any other object | NULL |
@@ -73,12 +73,19 @@ SELECT quote(js_eval('true')), quote(js_eval('new Uint8Array([1, 2, 3])')), quot
 -- 1|X'010203'|NULL|{"a":1}
 ```
 
-JavaScript has one number type, so it cannot tell 3.0 from 3. A REAL that holds a whole number, such as 3.0, comes back as the INTEGER 3. An INTEGER larger than 2^53 - 1 loses digits in JavaScript. To keep every digit, pass it as TEXT and convert it with `BigInt`:
+Apart from BigInt, JavaScript has one number type, so it cannot tell 3.0 from 3. A REAL that holds a whole number, such as 3.0, comes back as the INTEGER 3. An INTEGER larger than 2^53 - 1 loses digits in JavaScript. To keep every digit, pass it as TEXT and convert it with `BigInt`:
 
 ```sql
 SELECT js_create_scalar('big_next', '(function (args) { return BigInt(args[0]) + 1n; })');
 SELECT big_next(CAST(9223372036854775806 AS TEXT));
 -- 9223372036854775807
+```
+
+A BigInt result must fit in an INTEGER, from -2^63 to 2^63 - 1. A larger one wraps around without an error:
+
+```sql
+SELECT big_next(CAST(9223372036854775807 AS TEXT));
+-- -9223372036854775808
 ```
 
 ## Run SQL from JavaScript

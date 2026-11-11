@@ -9,7 +9,7 @@ next: sqlite-js-functions.html
 
 sqlite-js adds SQL functions written in JavaScript to the `sqlite3` command in Terminal. You write a JavaScript function, give it a name, and then use it in a query like any built-in SQL function.
 
-JavaScript is quicker to write and change than Java or Kotlin, and the code can live in the database next to the data it works on.
+A small JavaScript function is quick to write and change, and the code can live in the database next to the data it works on.
 
 You can write four kinds of function:
 

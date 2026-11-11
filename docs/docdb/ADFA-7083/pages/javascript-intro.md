@@ -24,7 +24,7 @@ SELECT js_eval('
 
 ## Numbers
 
-JavaScript has one kind of number. `Math` has the usual functions.
+JavaScript uses one kind of number for whole numbers and fractions alike. `Math` has the usual functions.
 
 ```sql
 SELECT js_eval('Math.max(3, 9, 4)'), js_eval('Math.round(2.5)'), js_eval('10 % 3'), js_eval('2 ** 10');
