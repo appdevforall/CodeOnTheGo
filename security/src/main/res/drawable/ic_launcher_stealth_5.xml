@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="108dp"
+	android:height="108dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<!-- Variation 5: Crimson Cipher Triangle / Shield -->
+	<path
+		android:fillColor="#2B0927"
+		android:pathData="M10,10h88v88h-88z" />
+	<path
+		android:fillColor="#4A154B"
+		android:pathData="M16,16h76v76h-76z" />
+	<path
+		android:fillColor="#FF4081"
+		android:pathData="M54,26L82,78H26z M54,42L70,72H38z" />
+</vector>

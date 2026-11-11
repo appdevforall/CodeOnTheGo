@@ -124,6 +124,7 @@ include(
 	":lookup",
 	":preferences",
 	":resources",
+	":security",
 	":shared",
 	":templates-api",
 	":templates-impl",

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<application>
+		<!--
+			A task of its own: a hide disables the launcher alias, and Android then removes the task that
+			alias started, with everything in it. In the IDE's task the disguise vanished about a second
+			after it appeared.
+		-->
+		<activity
+			android:name=".CryptogramActivity"
+			android:exported="false"
+			android:icon="@drawable/ic_launcher_stealth_1"
+			android:label="@string/stealth_app_name"
+			android:taskAffinity="com.itsaky.androidide.disguise"
+			android:theme="@style/Theme.Material3.DayNight.NoActionBar"
+			android:windowSoftInputMode="adjustResize" />
+	</application>
+</manifest>
