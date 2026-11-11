@@ -89,9 +89,10 @@ interface IdeProjectService {
  */
 interface ProjectLifecycleListener {
 	/**
-	 * The editor opened the project rooted at [projectDir] and is about to sync it, or the project
-	 * was already open when this listener was added. A sync or build of the same project later
-	 * does not call this again. [projectDir] is canonical.
+	 * The editor started opening the project rooted at [projectDir], or the project was already open
+	 * when this listener was added. The IDE does not wait for this call: the project's sync may
+	 * already be running, so do not rely on finishing work before it starts. A later sync or build
+	 * of the same project does not call this again. [projectDir] is canonical.
 	 */
 	fun onProjectOpened(projectDir: File)
 

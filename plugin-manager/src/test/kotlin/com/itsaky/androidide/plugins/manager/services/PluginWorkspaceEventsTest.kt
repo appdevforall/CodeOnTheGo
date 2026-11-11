@@ -315,6 +315,20 @@ class PluginWorkspaceEventsTest {
 	}
 
 	@Test
+	fun twoPluginsSharingOneListenerKeepSeparateRegistrations() {
+		val events = direct()
+		var heard = 0
+		val shared = FileSaveListener { heard++ }
+		events.addFileSaveListener("a", shared)
+		events.addFileSaveListener("b", shared)
+
+		events.removeAll("a")
+		events.fileSaved(File(projectA, "Main.kt"))
+
+		assertEquals(1, heard)
+	}
+
+	@Test
 	fun nothingIsQueuedWhenNoPluginListens() {
 		var queuedTasks = 0
 		val events = PluginWorkspaceEvents(Executor { queuedTasks++ })

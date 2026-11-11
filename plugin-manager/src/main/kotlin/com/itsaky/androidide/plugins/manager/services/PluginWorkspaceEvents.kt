@@ -105,13 +105,14 @@ class PluginWorkspaceEvents internal constructor(
 		saveListeners.removeAll { it.pluginId == pluginId }
 	}
 
-	/** The new registration, or null when [listener] was already registered. */
+	/** The new registration, or null when [pluginId] already registered [listener]. */
 	private fun <L> add(
 		registrations: CopyOnWriteArrayList<Registration<L>>,
 		pluginId: String,
 		listener: L,
 	): Registration<L>? {
-		if (registrations.any { it.listener === listener }) return null
+		// Per plugin: two plugins sharing one listener object each keep their own registration.
+		if (registrations.any { it.pluginId == pluginId && it.listener === listener }) return null
 		return Registration(pluginId, listener).also(registrations::add)
 	}
 

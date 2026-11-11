@@ -38,7 +38,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 ### 26.47 — unreleased
 - **added — Hear the editor open and close a project, and save a file** _(ADFA-3570)_ **[verified]**
   `IdeProjectService.addProjectLifecycleListener(ProjectLifecycleListener)` calls
-  `onProjectOpened(projectDir)` when the editor opens a project, before its sync, and
+  `onProjectOpened(projectDir)` when the editor starts opening a project (its sync does not wait
+  for listeners), and
   `onProjectClosed(projectDir)` when it closes one; a re-sync is not another open, and switching
   projects reports the close first. `IdeEditorService.addFileSaveListener(FileSaveListener)` calls
   `onFileSaved(file)` after each file the editor writes, whoever asked for the save. Both need

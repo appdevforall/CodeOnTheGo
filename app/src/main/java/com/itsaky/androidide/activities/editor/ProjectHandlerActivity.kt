@@ -1193,11 +1193,8 @@ abstract class ProjectHandlerActivity :
 
 	private fun closeProjectSession() {
 		// Only the live editor's teardown reports the close; a doomed instance (onPause) does not.
-		ProjectManagerImpl
-			.getInstance()
-			.projectDirPath
-			.takeIf { it.isNotBlank() }
-			?.let { PluginWorkspaceEvents.getInstance().projectClosed(File(it)) }
+		editorViewModel.pluginOpenedProjectDir?.let { PluginWorkspaceEvents.getInstance().projectClosed(it) }
+		editorViewModel.pluginOpenedProjectDir = null
 		stopLanguageServers()
 		closeProjectState()
 	}
@@ -1598,11 +1595,12 @@ abstract class ProjectHandlerActivity :
 			handleMissingProjectDirectory(projectDir)
 			return@launch
 		}
-		// Before the sync, so a hook such as a `git pull` sees the project as soon as it opens.
+		// As the editor starts opening the project; the sync below does not wait for listeners.
 		// A re-sync of the same project is not reported again. Not from an editor already tearing
 		// down: a late initialize after its close was reported would reopen a closed project.
 		if (!isDestroying && !isFinishing) {
 			PluginWorkspaceEvents.getInstance().projectOpened(projectDir)
+			editorViewModel.pluginOpenedProjectDir = projectDir
 		}
 
 		val needsSync =
