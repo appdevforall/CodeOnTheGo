@@ -35,6 +35,18 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.47 — unreleased
+- **added — Hear the editor open and close a project, and save a file** _(ADFA-3570)_ **[verified]**
+  `IdeProjectService.addProjectLifecycleListener(ProjectLifecycleListener)` calls
+  `onProjectOpened(projectDir)` when the editor opens a project, before its sync, and
+  `onProjectClosed(projectDir)` when it closes one; a re-sync is not another open, and switching
+  projects reports the close first. `IdeEditorService.addFileSaveListener(FileSaveListener)` calls
+  `onFileSaved(file)` after each file the editor writes, whoever asked for the save. Both need
+  `filesystem.read`. Calls arrive in order on one background thread shared by every plugin, so
+  return quickly. The IDE drops the listeners when the plugin is disabled or unloads, so register
+  them from `activate()`. A listener added while a project is open hears nothing until it closes;
+  ask `getCurrentProject()`. Floor `plugin.min_ide_version` at `26.47` to use them.
+
 ### 26.43 — unreleased
 - **tooling — Interface bodies are Java default methods again** _(ADFA-6560)_ **[verified]**
   Since ADFA-4058 (May 2026) pinned `languageVersion`, `plugin-api` compiled each Kotlin interface
