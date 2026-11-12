@@ -24,7 +24,7 @@ jobs:
 
       - name: Download sqlite-js
         run: |
-          eval "$(grep -E '^(VERSION|COMMIT|URL)=' subprojects/sqlite-js/vendor.sh)"
+          eval "$(grep -E '^(VERSION|URL)=' subprojects/sqlite-js/vendor.sh)"
           curl -fsSL -o "$RUNNER_TEMP/sqlite-js.tar.gz" "$URL"
 
       - name: Check the vendored sqlite-js

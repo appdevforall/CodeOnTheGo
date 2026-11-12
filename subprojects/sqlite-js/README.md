@@ -6,7 +6,7 @@ An AAR that lets apps built with Code on the Go define and call JavaScript funct
 
 ## Contents
 
-- `upstream/`: sqlite-js (Apache-2.0) at commit c8ae85a of its main branch, which upstream merged our changes into (pull requests #11 to #19) after its 1.3.7 release, with QuickJS amalgamated in `libs/quickjs.c` (MIT), and `patches/` applied. Only the files the build uses, plus `LICENSE` and `LICENSE.quickjs`.
+- `upstream/`: the sqlite-js 1.4.1 release (Apache-2.0), the first with our earlier changes (upstream pull requests #11 to #19), with QuickJS amalgamated in `libs/quickjs.c` (MIT), and `patches/` applied. Only the files the build uses, plus `LICENSE` and `LICENSE.quickjs`.
 - `patches/`: our change, 0001, which adds `sqlitejs_cancel_all()`: Android cannot otherwise stop JavaScript that never returns. It is not upstream; it is offered there in sqliteai/sqlite-js issue 20.
 - `src/main/cpp/`: the CMake build of `libsqlitejs.so`, and `sqlitejs_android.c`, which is ours: JNI for `SqliteJs`, and the two entry points it names. The version script exports only the entry points (and upstream's `sqlite3_js_init`) and `JNI_OnLoad`.
 - `src/test/c/glue_test.c` and `test.sh`: the tests the Android build cannot run. See Testing.
@@ -37,7 +37,7 @@ Room.databaseBuilder(context, AppDb::class.java, name).openHelperFactory(factory
 - SQLite loads the extension from a file, so set `packaging.jniLibs.useLegacyPackaging = true`.
 - Neither Room nor Android's cancelling can stop a JavaScript function that never returns: Room 2.7 and later pass no cancellation signal, and Android cancels with a progress handler, which SQLite never calls while a function runs. `SqliteJs.cancelAll()` stops the JavaScript running at that moment, in every query on every connection: each call fails with "interrupted", and its statement is interrupted too, so that one whose JavaScript cannot report an error (a collation) also stops. That includes calls in queries the app did not mean to stop, which then need to be retried. An interrupted `INSERT`, `UPDATE` or `DELETE` inside an explicit transaction rolls the whole transaction back, so retry the transaction, not only the statement. So call it only when a runaway function is known to be running, for example from a Cancel button, not whenever a coroutine is cancelled. It stops only JavaScript that has started, so call it again until the query being stopped ends, as the template's `cancellable()` does. It takes effect when JavaScript next runs: SQL that the JavaScript runs itself, through `db.exec` (a long `next()` or `toArray()`), finishes before the cancel reaches it.
 
-Built from 1.3.7 with the same changes as patches, it was tested in a trial app (requery 3.49.0, Room 2.8.4) on a Galaxy Note20 Ultra, as a 64-bit and as a 32-bit process, on a new and an existing database, with Room's default write-ahead logging: a scalar and an aggregate from DAOs, deep recursion from four pool threads, 32 parallel queries, and a runaway query stopped by `cancelAll()` within 5 ms.
+Built from 1.3.7 with our changes as patches, it was tested in a trial app (requery 3.49.0, Room 2.8.4) on a Galaxy Note20 Ultra, as a 64-bit and as a 32-bit process, on a new and an existing database, with Room's default write-ahead logging: a scalar and an aggregate from DAOs, deep recursion from four pool threads, 32 parallel queries, and a runaway query stopped by `cancelAll()` within 5 ms.
 
 ## Testing
 
@@ -45,4 +45,4 @@ The Android build compiles but does not run sqlite-js. `test.sh` builds it on th
 
 ## Updating
 
-`vendor.sh` rebuilds `upstream/` and the license notices from the sqlite-js source at `COMMIT` (checked against its SHA-256) and `patches/`. `vendor.sh --check` tells whether they match. To move to a new upstream commit, change `VERSION`, `COMMIT` and `SHA256` in `vendor.sh`; for a release, point `URL` at its tag again. Drop the patch once upstream has it, refresh it otherwise, and run `vendor.sh`.
+`vendor.sh` rebuilds `upstream/` and the license notices from the source archive of the sqlite-js release `VERSION` (checked against its SHA-256) and `patches/`. `vendor.sh --check` tells whether they match. To move to a new release, change `VERSION` and `SHA256` in `vendor.sh`. For a commit between releases, point `URL` at the commit's archive (`archive/<commit>.tar.gz`) and name `VERSION` as the Termux package does; the scripts take the archive's top directory, whatever it is named. Drop a patch once upstream has it, refresh the rest, and run `vendor.sh`.

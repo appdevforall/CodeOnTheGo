@@ -1,4 +1,4 @@
-From d703446ff1a37ef0c623d20bf363e51590a0fae7 Mon Sep 17 00:00:00 2001
+From d6ad4f0e7af22e964acad62beb25e95035fa6c07 Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Thu, 12 Nov 2026 00:05:58 -0800
 Subject: [PATCH] Let the host cancel all running JavaScript
@@ -127,7 +127,7 @@ index 9137ca8..339fee1 100644
      // the default stack size must fit in the stack of the thread that loads the extension: Windows
      // gives a main thread 1 MB, and apps often give their threads no more
 diff --git a/src/sqlitejs.h b/src/sqlitejs.h
-index 80fe49d..fea0870 100644
+index 048d62b..2d6bb3d 100644
 --- a/src/sqlitejs.h
 +++ b/src/sqlitejs.h
 @@ -21,5 +21,6 @@

@@ -6,14 +6,15 @@
 # Needs gcc, make, curl and a JDK (JAVA_HOME, or javac on the PATH) for jni.h.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-eval "$(grep -E '^(VERSION|COMMIT|SHA256|URL)=' "$HERE/vendor.sh")"
+eval "$(grep -E '^(VERSION|SHA256|URL)=' "$HERE/vendor.sh")"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-TARBALL=${1:-$WORK/sqlite-js-$COMMIT.tar.gz}
+TARBALL=${1:-$WORK/sqlite-js-$VERSION.tar.gz}
 [ -f "$TARBALL" ] || curl -fsSL -o "$TARBALL" "$URL"
 echo "$SHA256  $TARBALL" | sha256sum -c --quiet -
-tar -xzf "$TARBALL" -C "$WORK"
-SRC=$WORK/sqlite-js-$COMMIT
+SRC=$WORK/src
+mkdir "$SRC"
+tar -xzf "$TARBALL" -C "$SRC" --strip-components=1
 for p in "$HERE"/patches/*.patch; do
 	patch -d "$SRC" -p1 --quiet --no-backup-if-mismatch <"$p"
 done
