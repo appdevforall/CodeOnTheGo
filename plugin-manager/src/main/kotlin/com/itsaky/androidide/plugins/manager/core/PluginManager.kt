@@ -424,7 +424,7 @@ class PluginManager private constructor(
 								loadPlugin(pluginFile)
 							} catch (e: CancellationException) {
 								throw e
-							} catch (e: Exception) {
+							} catch (e: Throwable) {
 								Result.failure(e)
 							}
 						result.onFailure { error -> recordLoadFailure(pluginFile, error) }
@@ -652,9 +652,7 @@ class PluginManager private constructor(
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
 			val initResult =
-				try {
-					plugin.initialize(pluginContext)
-				} catch (e: Exception) {
+				initializePlugin(plugin, pluginContext).getOrElse { e ->
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
@@ -697,7 +695,7 @@ class PluginManager private constructor(
 
 			activateLoadedPlugin(loadedPlugin)
 			Result.success(plugin)
-		} catch (e: Exception) {
+		} catch (e: Throwable) {
 			reservedSlotsPluginId?.let { pluginId ->
 				SidebarSlotManager.releasePluginSlots(pluginId)
 			}
@@ -783,7 +781,7 @@ class PluginManager private constructor(
 						} else {
 							logger.warn("Failed to remove documentation for plugin: $pluginId")
 						}
-					} catch (e: Exception) {
+					} catch (e: Throwable) {
 						logger.error("Error removing documentation for plugin: $pluginId", e)
 					}
 
@@ -1994,3 +1992,13 @@ fun LoadedPlugin.toPluginMetadata(): PluginMetadata =
 		iconDayPath = iconDayPath,
 		iconNightPath = iconNightPath,
 	)
+
+/**
+ * Runs [IPlugin.initialize], catching Errors too: a plugin built against a newer plugin API throws
+ * [LinkageError] (e.g. NoClassDefFoundError) on an older CoGo, and that must disable the plugin, not
+ * crash the app.
+ */
+internal fun initializePlugin(
+	plugin: IPlugin,
+	context: PluginContext,
+): Result<Boolean> = runCatching { plugin.initialize(context) }
