@@ -50,6 +50,14 @@ object ApkInstaller {
 		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
 
 	/**
+	 * Session IDs of active Standard Run or `InstallFileAction` installs created in the current
+	 * process (never loaded from `SharedPreferences`). Even when the 50-session cap is reached,
+	 * these belong to a live install in this process and are never swept.
+	 */
+	private val liveInFlightUserSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+	/**
 	 * Boolean extra riding the install callback intent: on STATUS_SUCCESS, do not run the
 	 * launch-after-install behavior for this package.
 	 *
@@ -181,6 +189,7 @@ object ApkInstaller {
 		installer: PackageInstaller,
 		sessionId: Int,
 	): Boolean {
+		liveInFlightUserSessionIds.remove(sessionId)
 		inFlightUserSessionIds.remove(sessionId)
 		quickBuildSessionIds.remove(sessionId)
 		return runCatching {
@@ -214,6 +223,7 @@ object ApkInstaller {
 	 * between unit tests.
 	 */
 	internal fun clearInFlightUserSessionsForTesting(context: Context? = null) {
+		liveInFlightUserSessionIds.clear()
 		inFlightUserSessionIds.clear()
 		quickBuildSessionIds.clear()
 		if (context != null) {
@@ -233,6 +243,7 @@ object ApkInstaller {
 	 * while keeping `SharedPreferences` state intact.
 	 */
 	internal fun clearInMemorySessionsForTesting() {
+		liveInFlightUserSessionIds.clear()
 		inFlightUserSessionIds.clear()
 		quickBuildSessionIds.clear()
 	}
@@ -242,6 +253,7 @@ object ApkInstaller {
 		sessionId: Int,
 	) {
 		loadPersistedSessions(context)
+		liveInFlightUserSessionIds.remove(sessionId)
 		inFlightUserSessionIds.remove(sessionId)
 		quickBuildSessionIds.add(sessionId)
 		persistTrackedSessions(context)
@@ -253,6 +265,7 @@ object ApkInstaller {
 	) {
 		loadPersistedSessions(context)
 		quickBuildSessionIds.remove(sessionId)
+		liveInFlightUserSessionIds.add(sessionId)
 		inFlightUserSessionIds.add(sessionId)
 		persistTrackedSessions(context)
 	}
@@ -264,6 +277,7 @@ object ApkInstaller {
 		if (context != null) {
 			loadPersistedSessions(context)
 		}
+		liveInFlightUserSessionIds.remove(sessionId)
 		val removedUser = inFlightUserSessionIds.remove(sessionId)
 		val removedQb = quickBuildSessionIds.remove(sessionId)
 		if (context != null && (removedUser || removedQb)) {
@@ -350,6 +364,7 @@ object ApkInstaller {
 				?: return 0
 
 		val activeIds = sessions.mapTo(HashSet(sessions.size)) { it.sessionId }
+		liveInFlightUserSessionIds.retainAll(activeIds)
 		inFlightUserSessionIds.retainAll(activeIds)
 		quickBuildSessionIds.retainAll(activeIds)
 
@@ -357,7 +372,10 @@ object ApkInstaller {
 		var abandoned = 0
 		for (info in sessions) {
 			val id = info.sessionId
-			if (id in inFlightUserSessionIds) {
+			if (id in liveInFlightUserSessionIds) {
+				continue
+			}
+			if (id in inFlightUserSessionIds && !isAtSessionCap) {
 				continue
 			}
 			if (id !in quickBuildSessionIds && !isAtSessionCap) {
