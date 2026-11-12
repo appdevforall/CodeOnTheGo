@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.itsaky.androidide.editor.schemes.LanguageSpecProvider
 import com.itsaky.androidide.treesitter.TSParser
 import com.itsaky.androidide.treesitter.TSQuery
 import com.itsaky.androidide.treesitter.TSQueryError
@@ -47,6 +48,20 @@ class JavaScriptLanguageTest {
 				assertWithMessage(name).that(query.patternCount).isGreaterThan(0)
 			}
 		}
+	}
+
+	// The path the app takes when a .js file opens. It checks more than the compile above: it
+	// joins locals to highlights, rejects characters the query loader cannot read, and validates
+	// the blocks, brackets and indents queries.
+	@Test
+	fun editorLoadsTheLanguageSpec() {
+		val context = InstrumentationRegistry.getInstrumentation().targetContext
+		LanguageSpecProvider
+			.getLanguageSpec(context, JavaScriptLanguage.TS_TYPE, TSLanguageJavascript.getInstance())
+			.use { spec ->
+				assertThat(spec.spec.tsQuery.patternCount).isGreaterThan(0)
+				assertThat(spec.indentsQuery).isNotNull()
+			}
 	}
 
 	private fun hasErrors(source: String): Boolean =
