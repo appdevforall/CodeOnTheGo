@@ -541,6 +541,8 @@ class PluginManager private constructor(
 	 */
 	fun loadPlugin(file: File): Result<IPlugin> {
 		var reservedSlotsPluginId: String? = null
+		// Set once initialize() may have registered workspace listeners, so a later failure drops them.
+		var listenersPluginId: String? = null
 		return try {
 			logger.debug("Loading plugin from: ${file.absolutePath}")
 
@@ -565,6 +567,14 @@ class PluginManager private constructor(
 			}
 
 			logger.debug("Parsed manifest for plugin: ${manifest.name} (${manifest.id})")
+
+			// loadPlugins() runs on every install. Loading a plugin that is already loaded again would
+			// leave the old instance active, its listeners still registered, beside the new one.
+			// Installing over a plugin unloads it first, so its new file still loads.
+			loadedPlugins[manifest.id]?.let { loaded ->
+				logger.debug("Plugin already loaded, keeping its instance: ${manifest.id}")
+				return Result.success(loaded.plugin)
+			}
 
 			if (!securityManager.validatePlugin(file, manifest)) {
 				return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
@@ -652,11 +662,13 @@ class PluginManager private constructor(
 			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
+			listenersPluginId = manifest.id
 			val initResult =
 				try {
 					plugin.initialize(pluginContext)
 				} catch (e: Exception) {
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
+					PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
 					}
@@ -665,6 +677,7 @@ class PluginManager private constructor(
 
 			if (!initResult) {
 				logger.warn(" plugin initialization returned false for: ${manifest.id}")
+				PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -692,6 +705,8 @@ class PluginManager private constructor(
 			loadedPlugins[manifest.id] = loadedPlugin
 
 			if (!isEnabled) {
+				// A disabled plugin hears no workspace events, as after disablePlugin().
+				PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 				logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
 				return Result.success(plugin)
 			}
@@ -701,6 +716,9 @@ class PluginManager private constructor(
 		} catch (e: Exception) {
 			reservedSlotsPluginId?.let { pluginId ->
 				SidebarSlotManager.releasePluginSlots(pluginId)
+			}
+			listenersPluginId?.let { pluginId ->
+				runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
 			}
 			logger.error("Failed to load plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
 			val prefix = if (e is RuntimeException) "" else "[${e.javaClass.simpleName}] "

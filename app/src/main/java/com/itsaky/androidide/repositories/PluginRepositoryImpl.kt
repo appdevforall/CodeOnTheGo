@@ -141,6 +141,10 @@ class PluginRepositoryImpl(
 				} catch (e: Exception) {
 					Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
 				}
+				// loadPlugins() keeps a plugin that is still loaded, so the new file would never load.
+				check(manager.getPlugin(pluginId) == null) {
+					"Could not unload the installed version of \"$pluginId\"."
+				}
 
 				val fileExtension =
 					if (pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)) ".$PLUGIN_ARCHIVE_EXTENSION" else ".apk"
