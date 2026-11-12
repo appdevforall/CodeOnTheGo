@@ -172,6 +172,36 @@ class JarListingTest {
 	}
 
 	@Test
+	fun `an entry nested deeper than the stack allows still gets every ancestor`() {
+		val depth = 8_000
+		val name = "a/".repeat(depth) + "C.class"
+		val jar = zip { add(name) }
+
+		var listing: JarListing? = null
+		var failure: Throwable? = null
+		// A small fixed stack makes a per-segment recursion overflow regardless of the runner's -Xss.
+		val reader =
+			Thread(null, {
+				try {
+					listing = JarListing.read(jar.toPath())
+				} catch (t: Throwable) {
+					failure = t
+				}
+			}, "deep-jar-reader", 256L * 1024)
+		reader.start()
+		reader.join()
+
+		assertThat(failure).isNull()
+		var i = listing!!.find("/$name")
+		var ancestors = 0
+		while (listing!!.parent(i) != -1) {
+			i = listing!!.parent(i)
+			ancestors++
+		}
+		assertThat(ancestors).isEqualTo(depth + 1)
+	}
+
+	@Test
 	fun `root is index 0 and has no parent`() {
 		val listing = JarListing.read(fixture().toPath())
 
