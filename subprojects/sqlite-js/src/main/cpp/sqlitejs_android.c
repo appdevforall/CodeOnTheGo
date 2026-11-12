@@ -60,7 +60,7 @@ int sqlite3_sqlitejs_trusted_init (sqlite3 *db, char **pzErrMsg, const sqlite3_a
     // Most databases have no stored functions. The table is looked up first, so that SQLite does
     // not log a "no such table" error for each of their connections.
     sqlite3_stmt *vm = NULL;
-    rc = sqlite3_prepare_v2(db, "SELECT 1 FROM main.sqlite_master WHERE type = 'table' AND name = 'js_functions'", -1, &vm, NULL);
+    rc = sqlite3_prepare_v2(db, "SELECT 1 FROM main.sqlite_master WHERE type = 'table' AND name = 'js_functions' COLLATE NOCASE", -1, &vm, NULL);
     if (rc == SQLITE_OK) rc = sqlite3_step(vm);
     if ((rc != SQLITE_ROW) && (rc != SQLITE_DONE)) sqlite3_log(rc, "sqlite-js: cannot look for stored functions: %s", sqlite3_errmsg(db));
     sqlite3_finalize(vm);

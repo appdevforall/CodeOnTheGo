@@ -133,6 +133,22 @@ int main (void) {
     sqlite3_close(db);
     unlink(odd);
 
+    // The table is found whatever the case of its name, as SQLite finds a table (CodeRabbit)
+    char upper[512];
+    snprintf(upper, sizeof(upper), "%s/upper.db", dir);
+    db = open_with(upper, sqlite3_sqlitejs_init);
+    check(exec(db, "SELECT js_init_table()") == SQLITE_OK
+          && exec(db, "SELECT js_create_scalar('u', '(function (args) { return 7; })')") == SQLITE_OK
+          && exec(db, "ALTER TABLE js_functions RENAME TO renamed") == SQLITE_OK
+          && exec(db, "ALTER TABLE renamed RENAME TO JS_FUNCTIONS") == SQLITE_OK
+          && answers(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'js_functions'", "JS_FUNCTIONS"),
+          "a database whose stored functions are in a table named JS_FUNCTIONS");
+    sqlite3_close(db);
+    db = open_with(upper, sqlite3_sqlitejs_trusted_init);
+    check(answers(db, "SELECT u()", "7"), "the trusted entry point loads them");
+    sqlite3_close(db);
+    unlink(upper);
+
     unlink(path);
     unlink(plain);
     rmdir(dir);

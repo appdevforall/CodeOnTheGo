@@ -1,4 +1,4 @@
-From 7501bdd1a9b67a886180b7e7ac3fdc527ca10706 Mon Sep 17 00:00:00 2001
+From d9cd5e185c7d809f9d684f1c216084216fc00b89 Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Wed, 11 Nov 2026 16:43:39 -0800
 Subject: [PATCH 10/10] Let the host cancel all running JavaScript
@@ -22,11 +22,15 @@ collation cannot report an error: without this, a sort went on calling
 it, each call beginning after the cancel, and never ended. Add to the
 Cancel all test a runaway collation that one cancel stops; it hung
 without this.
+
+The test's worker cancels only once the JavaScript under test has called
+started(), an SQL function, so a slow start cannot leave the JavaScript
+running past the cancel and end the test at its alarm.
 ---
- src/sqlitejs.c | 42 +++++++++++++++++++++++++++++++++++---
+ src/sqlitejs.c | 42 +++++++++++++++++++++++++++---
  src/sqlitejs.h |  1 +
- test/main.c    | 55 ++++++++++++++++++++++++++++++++++++++++++++++++++
- 3 files changed, 95 insertions(+), 3 deletions(-)
+ test/main.c    | 70 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 110 insertions(+), 3 deletions(-)
 
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
 index ee45a06..6718066 100644
@@ -128,19 +132,30 @@ index 80fe49d..fea0870 100644
  
  #endif
 diff --git a/test/main.c b/test/main.c
-index 128d320..8e7f48e 100644
+index 128d320..1e76b3f 100644
 --- a/test/main.c
 +++ b/test/main.c
-@@ -669,6 +669,60 @@ abort_test:
+@@ -669,6 +669,75 @@ abort_test:
      return rc;
  }
  
 +// MARK: - Cancel all -
 +
++// Set by started(), an SQL function that the JavaScript under test calls before it spins, so
++// that the worker cancels only JavaScript that is running: a cancel that came first would not
++// stop it, and the test would end at its alarm instead of failing
++static int test_js_started;
++
++static void test_started (sqlite3_context *context, int argc, sqlite3_value **argv) {
++    (void)argc; (void)argv;
++    __atomic_store_n(&test_js_started, 1, __ATOMIC_RELEASE);
++    sqlite3_result_null(context);
++}
++
 +static void *test_cancel_all_worker (void *ptr) {
 +    (void)ptr;
-+    // give the statement time to start running JavaScript
-+    usleep(200 * 1000);
++    // wait for the JavaScript to start, for at most 10 s
++    for (int i = 0; i < 1000 && !__atomic_load_n(&test_js_started, __ATOMIC_ACQUIRE); ++i) usleep(10 * 1000);
 +    sqlitejs_cancel_all();
 +    return NULL;
 +}
@@ -156,10 +171,13 @@ index 128d320..8e7f48e 100644
 +
 +    int rc = test_open(&db);
 +    if (rc != SQLITE_OK) goto abort_test;
-+    rc = db_exec(db, "SELECT js_create_scalar('spin', '(function (args) { for (;;) { try { while (true) {} } catch (e) {} } })');");
++    rc = sqlite3_create_function(db, "started", 0, SQLITE_UTF8, NULL, test_started, NULL, NULL);
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = db_exec(db, "SELECT js_create_scalar('spin', '(function (args) { db.exec(\"SELECT started()\").next(); for (;;) { try { while (true) {} } catch (e) {} } })');");
 +    if (rc != SQLITE_OK) goto abort_test;
 +
 +    // JavaScript running now stops, even code that catches every exception
++    test_js_started = 0;
 +    if (pthread_create(&thread, NULL, test_cancel_all_worker, NULL) != 0) { rc = SQLITE_ERROR; goto abort_test; }
 +    rc = check_error(db, "SELECT spin();", "interrupted");
 +    pthread_join(thread, NULL);
@@ -167,8 +185,9 @@ index 128d320..8e7f48e 100644
 +
 +    // a collation cannot report an error, so its statement is interrupted too: otherwise the sort
 +    // would go on calling it, and each call, begun after the cancel, would run
-+    rc = db_exec(db, "SELECT js_create_collation('spin_collation', '(function (a, b) { for (;;) {} })');");
++    rc = db_exec(db, "SELECT js_create_collation('spin_collation', '(function (a, b) { db.exec(\"SELECT started()\").next(); for (;;) {} })');");
 +    if (rc != SQLITE_OK) goto abort_test;
++    test_js_started = 0;
 +    if (pthread_create(&thread, NULL, test_cancel_all_worker, NULL) != 0) { rc = SQLITE_ERROR; goto abort_test; }
 +    rc = check_error(db, "SELECT column1 FROM (VALUES ('a'), ('b'), ('c')) ORDER BY column1 COLLATE spin_collation;", "interrupted");
 +    pthread_join(thread, NULL);
@@ -192,7 +211,7 @@ index 128d320..8e7f48e 100644
  // MARK: - Stack size -
  
  int test_stack_size (void) {
-@@ -1045,6 +1099,7 @@ int main (void) {
+@@ -1045,6 +1114,7 @@ int main (void) {
      result += test_report("Serialization 3", test_serialization(DB_PATH, true,  3)); // load the new implementations
      result += test_report("Thread", test_thread());
      result += test_report("Interrupt", test_interrupt());
