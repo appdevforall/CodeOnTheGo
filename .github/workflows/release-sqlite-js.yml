@@ -62,14 +62,25 @@ jobs:
           TAG_REF="repos/${GITHUB_REPOSITORY}/git/refs/tags/sqlite-js-latest"
           PREVIOUS_SHA="$(gh api "$TAG_REF" --jq .object.sha)"
           mkdir -p .previous
-          gh release download sqlite-js-latest --dir .previous --pattern sqlite-js.aar --pattern checksums.txt
+          # A run that stopped during an upload can leave an asset missing. Back up only the assets
+          # that exist: the upload below then replaces the missing ones, so running again repairs it.
+          PREVIOUS_ASSETS="$(gh release view sqlite-js-latest --json assets --jq '.assets[].name')"
+          for asset in sqlite-js.aar checksums.txt; do
+            if grep -qx "$asset" <<<"$PREVIOUS_ASSETS"; then
+              gh release download sqlite-js-latest --dir .previous --pattern "$asset"
+            fi
+          done
           if ! { gh release upload sqlite-js-latest .release/sqlite-js.aar .release/checksums.txt --clobber &&
                  gh api -X PATCH "$TAG_REF" -f sha="$TARGET_SHA" -F force=true >/dev/null &&
                  gh release edit sqlite-js-latest --latest=false --notes "$NOTES"; }; then
             echo "::error::updating sqlite-js-latest failed; putting back the previous assets and tag"
             # each is attempted even if the other fails, since bash -e would stop at the first
-            gh release upload sqlite-js-latest .previous/sqlite-js.aar .previous/checksums.txt --clobber ||
-              echo "::error::could not put back the previous assets"
+            if [ -f .previous/sqlite-js.aar ] && [ -f .previous/checksums.txt ]; then
+              gh release upload sqlite-js-latest .previous/sqlite-js.aar .previous/checksums.txt --clobber ||
+                echo "::error::could not put back the previous assets"
+            else
+              echo "::error::the release lacked an asset before this run, so none are put back; run the workflow again"
+            fi
             gh api -X PATCH "$TAG_REF" -f sha="$PREVIOUS_SHA" -F force=true >/dev/null ||
               echo "::error::could not put back the tag at $PREVIOUS_SHA"
             exit 1
