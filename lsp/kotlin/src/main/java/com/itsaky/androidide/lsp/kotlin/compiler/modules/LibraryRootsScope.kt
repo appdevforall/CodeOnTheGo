@@ -8,18 +8,23 @@ import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
 /**
  * A library scope that holds [roots] and every file below them, decided by walking a file's
  * parents instead of by a per-entry set.
+ *
+ * A file whose top-most ancestor has the URL of a root also counts, so the entries of a JAR
+ * replaced on disk, which hang off a new root file, stay in a scope built from the old root.
  */
 internal class LibraryRootsScope(
 	project: Project,
 	val roots: Set<VirtualFile>,
 ) : GlobalSearchScope(project) {
+	private val rootUrls = roots.mapTo(HashSet()) { it.url }
+
 	override fun contains(file: VirtualFile): Boolean {
-		var current: VirtualFile? = file
-		while (current != null) {
-			if (current in roots) return true
-			current = current.parent
+		var top = file
+		while (true) {
+			if (top in roots) return true
+			top = top.parent ?: break
 		}
-		return false
+		return top.url in rootUrls
 	}
 
 	override fun isSearchInModuleContent(aModule: Module): Boolean = false
