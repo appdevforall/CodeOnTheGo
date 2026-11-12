@@ -26,6 +26,8 @@ EXT = os.environ.get("EXT", "sqlite-js")
 EXISTING = {"terminal-top.html", "cogo-top.html"}
 # An example that makes something cannot simply run again: a second CREATE TABLE fails.
 MAKES_SOMETHING = re.compile(r"\b(CREATE|INSERT|js_create_\w+|js_init_table)\b", re.I)
+# Printed just before the run under test, so that only its own output is compared.
+BOUNDARY = "test_examples: run under test"
 
 
 def run(sql):
@@ -45,14 +47,16 @@ def main():
         for k, block in enumerate(re.findall(r"^```sql\n(.*?)^```", text, re.M | re.S), 1):
             want = [m.group(1) for m in re.finditer(r"^-- ?(.*)$", block, re.M)]
             sql = "\n".join(l for l in block.split("\n") if not l.startswith("--"))
-            earlier.append(sql)
-            runs = [("", "\n".join(earlier))]
+            mark = "SELECT '%s';" % BOUNDARY
+            runs = [("", "\n".join(earlier + [mark, sql]))]
             if not MAKES_SOMETHING.search(sql):
-                runs.append((" run again", "\n".join(earlier + [sql])))
+                runs.append((" run again", "\n".join(earlier + [sql, mark, sql])))
+            earlier.append(sql)
             for label, all_sql in runs:
                 n += 1
-                r, got = run(all_sql)
-                ok = r.returncode == 0 and (not want or got[-len(want):] == want)
+                r, out = run(all_sql)
+                got = out[len(out) - out[::-1].index(BOUNDARY):] if BOUNDARY in out else []
+                ok = r.returncode == 0 and BOUNDARY in out and (not want or got[-len(want):] == want)
                 print("%s %d - %s example %d%s" % ("ok" if ok else "not ok", n, name, k, label))
                 if not ok:
                     failed += 1
