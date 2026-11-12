@@ -1,5 +1,7 @@
 package com.itsaky.androidide.quickbuild
 
+import java.io.File
+
 /**
  * Composes the Gradle task path for the quick-build proxy app build's `assemble<Variant>` task from
  * a module's Gradle project path and the variant CoGo has selected.
@@ -36,10 +38,16 @@ object QuickBuildTaskPaths {
 	}
 
 	/**
-	 * Where the Gradle plugin writes that variant's proxy app report, relative to the
-	 * directory owning the `build/` dir - the other half of the same contract, kept next to
-	 * the task name so the two cannot drift apart. Variant-scoped like every other Quick
-	 * Build output: a flavored project has one report per debuggable variant.
+	 * Where the Gradle plugin writes that variant's proxy app report - the other half of the same
+	 * contract, kept next to the task name so the two cannot drift apart. Variant-scoped like
+	 * every other Quick Build output: a flavored project has one report per debuggable variant.
+	 *
+	 * @param buildDir the module's build directory as the project model has it; relocated build
+	 *   output (ADFA-4930) is not under `<module>/build`.
+	 * @param variantName the variant; blank falls back to [DEFAULT_VARIANT].
 	 */
-	fun setupJson(variantName: String = DEFAULT_VARIANT): String = "build/quickbuild/${variantName.ifBlank { DEFAULT_VARIANT }}/setup.json"
+	fun setupJson(
+		buildDir: File,
+		variantName: String = DEFAULT_VARIANT,
+	): File = File(buildDir, "quickbuild/${variantName.ifBlank { DEFAULT_VARIANT }}/setup.json")
 }

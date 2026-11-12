@@ -26,72 +26,82 @@ import java.io.File
  *
  * @author Akash Yadav
  */
-enum class FileExtension(val extension: String, @DrawableRes val icon: Int) {
-  JAVA("java", R.drawable.ic_language_java),
-  JAR("jar", R.drawable.ic_language_java),
-  KT("kt", R.drawable.ic_language_kotlin),
-  KTS("kts", R.drawable.ic_language_kts),
-  XML("xml", R.drawable.ic_language_xml),
-  GRADLE("gradle", R.drawable.ic_gradle),
-  JSON("json", R.drawable.ic_language_json),
-  PROPERTIES("properties", R.drawable.ic_language_properties),
-  APK("apk", R.drawable.ic_file_apk),
-  TXT("txt", R.drawable.ic_file_txt),
-  LOG("log", R.drawable.ic_file_txt),
-  CPP("cpp", R.drawable.ic_language_cpp),
-  H("h", R.drawable.ic_language_cpp),
-  BAT("bat", R.drawable.ic_terminal),
-  DIRECTORY("", R.drawable.ic_folder),
-  IMAGE("", R.drawable.ic_file_image),
-  GRADLEW("", R.drawable.ic_terminal),
-  UNKNOWN("", R.drawable.ic_file_unknown);
+enum class FileExtension(
+	val extension: String,
+	@param:DrawableRes @get:DrawableRes val icon: Int,
+) {
+	JAVA("java", R.drawable.ic_language_java),
+	JAR("jar", R.drawable.ic_language_java),
+	KT("kt", R.drawable.ic_language_kotlin),
+	KTS("kts", R.drawable.ic_language_kts),
+	XML("xml", R.drawable.ic_language_xml),
+	GRADLE("gradle", R.drawable.ic_gradle),
+	JSON("json", R.drawable.ic_language_json),
+	PROPERTIES("properties", R.drawable.ic_language_properties),
+	APK("apk", R.drawable.ic_file_apk),
+	TXT("txt", R.drawable.ic_file_txt),
+	LOG("log", R.drawable.ic_file_txt),
+	CPP("cpp", R.drawable.ic_language_cpp),
+	H("h", R.drawable.ic_language_cpp),
+	BAT("bat", R.drawable.ic_terminal),
+	DIRECTORY("", R.drawable.ic_folder),
+	IMAGE("", R.drawable.ic_file_image),
+	GRADLEW("", R.drawable.ic_terminal),
+	UNKNOWN("", R.drawable.ic_file_unknown),
+	;
 
-  /** Factory class for getting [FileExtension] instances. */
-  class Factory {
-    companion object {
+	/** Factory class for getting [FileExtension] instances. */
+	class Factory {
+		companion object {
+			/** Get [FileExtension] for the given file. */
+			@JvmStatic
+			fun forFile(
+				file: File?,
+				isDirectory: Boolean? = null,
+			): FileExtension =
+				when {
+					file == null -> {
+						UNKNOWN
+					}
 
-      /** Get [FileExtension] for the given file. */
-      @JvmStatic
-      fun forFile(file: File?, isDirectory: Boolean? = null): FileExtension {
-          return when {
-              file == null -> UNKNOWN
-              isDirectory == true -> DIRECTORY
-              else -> {
-                  val name = file.name
-                  val ext = file.extension.lowercase()
-                  when {
-                      isImageExtension(ext) -> IMAGE
-                      name == "gradlew" -> GRADLEW
-                      else -> forExtension(ext)
-                  }
-              }
-          }
-      }
+					isDirectory == true -> {
+						DIRECTORY
+					}
 
-        private fun isImageExtension(extension: String?): Boolean {
-            return when (extension?.lowercase()) {
-                "jpg", "jpeg", "png", "gif", "webp", "bmp", "ico" -> true
-                else -> false
-            }
-        }
+					else -> {
+						val name = file.name
+						val ext = file.extension.lowercase()
+						when {
+							isImageExtension(ext) -> IMAGE
+							name == "gradlew" -> GRADLEW
+							else -> forExtension(ext)
+						}
+					}
+				}
 
-      /** Get [FileExtension] for the given extension. */
-      @JvmStatic
-      fun forExtension(extension: String?): FileExtension {
-        // To not assign IMAGE, GRADLEW and DIRECTORY in case of an empty extension,
-        // we check if an extension is empty here
-        if (extension.isNullOrEmpty()) {
-          return UNKNOWN
-        }
-        
-        for (value in entries) {
-          if (value.extension == extension) {
-            return value
-          }
-        }
+			private fun isImageExtension(extension: String?): Boolean =
+				when (extension?.lowercase()) {
+					"jpg", "jpeg", "png", "gif", "webp", "bmp", "ico" -> true
+					else -> false
+				}
 
-        return UNKNOWN
-      }
-    }
-  }
+			/** Get [FileExtension] for the given extension. */
+			@JvmStatic
+			fun forExtension(extension: String?): FileExtension {
+				// To not assign IMAGE, GRADLEW and DIRECTORY in case of an empty extension,
+				// we check if an extension is empty here
+				if (extension.isNullOrEmpty()) {
+					return UNKNOWN
+				}
+
+				for (value in entries) {
+					if (value.extension == extension) {
+						return value
+					}
+				}
+
+				return UNKNOWN
+			}
+		}
+	}
 }

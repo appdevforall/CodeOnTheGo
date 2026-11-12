@@ -27,6 +27,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.resources.localization.LocaleProvider
+import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
 import com.itsaky.androidide.ui.themes.IDETheme
 import com.itsaky.androidide.ui.themes.IThemeManager
@@ -140,6 +141,13 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				// color schemes are stored in files
 				// initialize scheme provider on the IO dispatcher
 				IDEColorSchemeProvider.init()
+			}
+
+			app.coroutineScope.launch(Dispatchers.IO) {
+				// ADFA-4930: relocated build output of projects deleted, moved or renamed outside
+				// the IDE.
+				val removed = BuildOutputLocation.sweep(app.noBackupFilesDir)
+				if (removed > 0) logger.info("Swept {} orphaned build output tree(s)", removed)
 			}
 
 			if (!VMUtils.isJvm || VMUtils.isInstrumentedTest) {

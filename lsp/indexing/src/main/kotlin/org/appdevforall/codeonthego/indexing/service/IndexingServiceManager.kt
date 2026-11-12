@@ -177,6 +177,7 @@ class IndexingServiceManager(
 	 */
 	override fun close() {
 		log.info("Shutting down indexing services")
+		registry.lifetime.end()
 
 		// Called from ProjectHandlerActivity.onPause on the main thread, so the
 		// closes (SERVICE_CLOSE_TIMEOUT only bounds cooperative ones; SQLiteIndex and
@@ -242,12 +243,21 @@ class IndexingServiceManager(
 			}
 	}
 
-	/** Returns false when setup was skipped because the previous close has not finished. */
+	/**
+	 * Returns false when setup did not happen, so the next [onProjectSynced] retries it: the previous
+	 * close has not finished, no service is registered yet, or this manager closed meanwhile.
+	 */
 	private suspend fun initializeServices(): Boolean {
 		if (!awaitPendingClose()) return false
-		log.info("Initializing {} indexing services", services.size)
 
 		val allServices = allServices()
+		if (allServices.isEmpty()) {
+			// A sync can reach a new manager before its services register; latching here would skip them.
+			log.info("No indexing services registered yet; initializing on the next sync")
+			return false
+		}
+		log.info("Initializing {} indexing services", allServices.size)
+
 		for (service in allServices) {
 			try {
 				service.initialize(registry)
@@ -256,6 +266,10 @@ class IndexingServiceManager(
 					service.id,
 					service.providedKeys.joinToString { it.name },
 				)
+			} catch (e: IndexRegistryClosedException) {
+				// Returning true would set initialized after close() reset it.
+				log.info("Indexing session closed while initializing '{}'; stopping", service.id)
+				return false
 			} catch (e: Exception) {
 				log.error("Failed to initialize service: {}", service.id, e)
 			}

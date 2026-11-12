@@ -1,12 +1,18 @@
 package com.itsaky.androidide.repositories
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.templates.ITemplateProvider
 import com.itsaky.androidide.templates.manager.models.CgtFileItem
 import com.itsaky.androidide.templates.manager.models.TemplateMetadata
 import com.itsaky.androidide.templates.manager.models.TemplateProvenance
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.test.runTest
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import org.junit.After
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -19,13 +25,9 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Pins the two riskiest branches in [TemplateRepositoryImpl.installTemplate]/
- * [TemplateRepositoryImpl.uninstallTemplate]: a name collision must fail without touching either
- * copy, and a failed delete after a successful copy must roll back to leave exactly one copy
- * behind. Both are reachable without [com.itsaky.androidide.templates.ITemplateProvider], which is
- * only touched on the success path (`ITemplateProvider.getInstance(reload = true)`, a
- * ServiceLoader-backed singleton not wired up on the unit test classpath) - so a happy-path
- * install/uninstall test is intentionally not included here.
+ * Install copies (the Downloads original stays), uninstall deletes (nothing is restored), and
+ * neither touches the other directory. [ITemplateProvider.getInstance] - a ServiceLoader-backed
+ * singleton not wired up on the unit test classpath - is stubbed so the success paths run.
  *
  * Runs under Robolectric rather than plain JUnit4 because the `listTemplateFiles` cases build
  * real `.cgt` archives, and parsing one reaches `org.json.JSONObject` - a "not mocked" stub
@@ -45,10 +47,13 @@ class TemplateRepositoryImplTest {
 		templatesDir = tempFolder.newFolder("templates")
 		downloadDir = tempFolder.newFolder("downloads")
 		repository = TemplateRepositoryImpl(templatesDir, downloadDir)
+		mockkObject(ITemplateProvider.Companion)
+		every { ITemplateProvider.getInstance(any()) } returns mockk(relaxed = true)
 	}
 
 	@After
 	fun tearDown() {
+		unmockkObject(ITemplateProvider.Companion)
 		// Undo any permission changes a test made, or TemporaryFolder can't clean up after itself.
 		templatesDir.setWritable(true)
 		downloadDir.setWritable(true)
@@ -57,13 +62,41 @@ class TemplateRepositoryImplTest {
 	private fun item(
 		file: File,
 		installed: Boolean,
+		provenance: TemplateProvenance = TemplateProvenance.USER,
 	) = CgtFileItem(
 		file = file,
 		name = file.name,
 		templates = listOf(TemplateMetadata("T", "d", "1.0")),
 		installed = installed,
-		provenance = TemplateProvenance.USER,
+		provenance = provenance,
 	)
+
+	@Test
+	fun installTemplate_copiesIntoTheStore_andLeavesTheDownloadsOriginal() =
+		runTest {
+			val source = File(downloadDir, "install.cgt").apply { writeText("source") }
+
+			val result = repository.installTemplate(item(source, installed = false))
+
+			assertThat(result.isSuccess).isTrue()
+			assertThat(File(templatesDir, "install.cgt").readText()).isEqualTo("source")
+			assertThat(source.readText()).isEqualTo("source")
+		}
+
+	@Test
+	fun installTemplate_copyFailsPartway_leavesNoPartialFileInTheStore() =
+		runTest {
+			// /proc/self/mem opens but fails its first read with EIO, so copyTo has already
+			// created the destination when it throws - the "storage filled up mid-copy" case.
+			val failingSource = File("/proc/self/mem")
+			assumeTrue("needs Linux /proc", failingSource.exists())
+
+			val result = repository.installTemplate(item(failingSource, installed = false))
+
+			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
+			// A truncated archive would be unlisted (it doesn't parse) and block every retry.
+			assertThat(File(templatesDir, failingSource.name).exists()).isFalse()
+		}
 
 	@Test
 	fun installTemplate_nameCollision_failsWithoutTouchingEitherCopy() =
@@ -80,52 +113,75 @@ class TemplateRepositoryImplTest {
 		}
 
 	@Test
-	fun installTemplate_deleteFails_rollsBackAndLeavesExactlyOneCopy() =
+	fun installTemplate_destCreatedAfterTheCheck_isNotDeletedWhenTheSourceFailsToOpen() =
 		runTest {
-			val source = File(downloadDir, "install.cgt").apply { writeText("source") }
-			val dest = File(templatesDir, "install.cgt")
+			val dest = File(templatesDir, "race.cgt")
+			// Another writer creates dest after installTemplate's exists() check, the moment the
+			// install first touches the source, and the source then fails to open.
+			val source =
+				object : File(downloadDir, "race.cgt") {
+					private var raced = false
 
-			// File.delete() needs write permission on the *parent directory*, not the file
-			// itself - this is what makes item.file.delete() fail after copyTo() already
-			// succeeded (dest is in the unaffected templatesDir).
-			check(downloadDir.setWritable(false)) { "test setup: could not make downloadDir read-only" }
+					private fun race() {
+						if (!raced) {
+							raced = true
+							dest.writeText("another writer")
+						}
+					}
+
+					override fun exists(): Boolean = super.exists().also { race() }
+
+					override fun getPath(): String = super.getPath().also { race() }
+				}
 
 			val result = repository.installTemplate(item(source, installed = false))
 
-			assertThat(result.isFailure).isTrue()
 			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
-			assertThat(source.exists()).isTrue()
-			assertThat(dest.exists()).isFalse()
+			assertThat(dest.readText()).isEqualTo("another writer")
 		}
 
 	@Test
-	fun uninstallTemplate_nameCollision_failsWithoutTouchingEitherCopy() =
+	fun uninstallTemplate_deletesTheInstalledCopy_withoutWritingToDownloads() =
 		runTest {
-			val source = File(templatesDir, "dup.cgt").apply { writeText("installed") }
-			val existingDownload = File(downloadDir, "dup.cgt").apply { writeText("already in downloads") }
+			// Both provenances behave the same (ADFA-5444): nothing is restored for either.
+			for (provenance in TemplateProvenance.entries) {
+				val installed = File(templatesDir, "uninstall_$provenance.cgt").apply { writeText("installed") }
 
-			val result = repository.uninstallTemplate(item(source, installed = true))
+				val result = repository.uninstallTemplate(item(installed, installed = true, provenance = provenance))
 
-			assertThat(result.isFailure).isTrue()
-			assertThat(source.exists()).isTrue()
-			assertThat(source.readText()).isEqualTo("installed")
-			assertThat(existingDownload.readText()).isEqualTo("already in downloads")
+				assertThat(result.isSuccess).isTrue()
+				assertThat(installed.exists()).isFalse()
+			}
+			assertThat(downloadDir.list()).isEmpty()
 		}
 
 	@Test
-	fun uninstallTemplate_deleteFails_rollsBackAndLeavesExactlyOneCopy() =
+	fun uninstallTemplate_succeeds_whenTheDownloadsOriginalIsStillThere() =
 		runTest {
-			val source = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
-			val restored = File(downloadDir, "uninstall.cgt")
+			// The normal state after a copy-install - the old restore path failed here on its
+			// "already exists in Downloads" check, which is what made uninstall look broken.
+			val installed = File(templatesDir, "dup.cgt").apply { writeText("installed") }
+			val original = File(downloadDir, "dup.cgt").apply { writeText("original") }
 
+			val result = repository.uninstallTemplate(item(installed, installed = true))
+
+			assertThat(result.isSuccess).isTrue()
+			assertThat(installed.exists()).isFalse()
+			assertThat(original.readText()).isEqualTo("original")
+		}
+
+	@Test
+	fun uninstallTemplate_deleteFails_reportsIOException_andKeepsTheInstalledCopy() =
+		runTest {
+			val installed = File(templatesDir, "uninstall.cgt").apply { writeText("installed") }
+
+			// File.delete() needs write permission on the *parent directory*, not the file itself.
 			check(templatesDir.setWritable(false)) { "test setup: could not make templatesDir read-only" }
 
-			val result = repository.uninstallTemplate(item(source, installed = true))
+			val result = repository.uninstallTemplate(item(installed, installed = true))
 
-			assertThat(result.isFailure).isTrue()
 			assertThat(result.exceptionOrNull()).isInstanceOf(IOException::class.java)
-			assertThat(source.exists()).isTrue()
-			assertThat(restored.exists()).isFalse()
+			assertThat(installed.exists()).isTrue()
 		}
 
 	@Test
@@ -250,6 +306,45 @@ class TemplateRepositoryImplTest {
 			assertThat(result.exceptionOrNull()).isInstanceOf(IllegalStateException::class.java)
 			assertThat(core.readText()).isEqualTo("bundled")
 			assertThat(downloadDir.list()).isEmpty()
+		}
+
+	@Test
+	fun listTemplateFiles_skipsPendingAndTrashedDownloads() =
+		runTest {
+			// MediaProvider's names for a download still in progress and a trashed file
+			// (Android 11+). Both keep the .cgt extension and must not be offered for install.
+			writeCgt(downloadDir, ".pending-1733000000-partial.cgt")
+			writeCgt(downloadDir, ".trashed-1733000000-deleted.cgt")
+			writeCgt(downloadDir, "real.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly("real.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_keepsAnInstalledCollectionWithAHiddenName() =
+		runTest {
+			// The installer accepts a collection named ".hidden" and stores it as ".hidden.cgt";
+			// it must stay listed so it can be uninstalled.
+			writeCgt(templatesDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name }).containsExactly(".hidden.cgt")
+		}
+
+	@Test
+	fun listTemplateFiles_keepsAHiddenCollectionInDownloads() =
+		runTest {
+			// Where uninstall leaves ".hidden.cgt": in Downloads under the same name. The user must
+			// still be able to reinstall or delete it. (A successful uninstall reloads the global
+			// template provider, which unit tests cannot, so this sets up its result directly.)
+			writeCgt(downloadDir, ".hidden.cgt")
+
+			val items = repository.listTemplateFiles().getOrThrow()
+
+			assertThat(items.map { it.name to it.installed }).containsExactly(".hidden.cgt" to false)
 		}
 
 	@Test

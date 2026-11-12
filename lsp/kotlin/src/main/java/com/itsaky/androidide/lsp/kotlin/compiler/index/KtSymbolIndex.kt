@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
+import androidx.annotation.VisibleForTesting
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
@@ -12,6 +13,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.compiler.writeUnlessDisposed
+import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.DocumentUtils
@@ -38,11 +40,13 @@ import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
 import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -107,6 +111,15 @@ internal class KtSymbolIndex(
 			.newBuilder()
 			.maximumSize(cacheSize)
 			.build<Path, KtFile>()
+
+	private val packageFiles =
+		PackageFileCache(
+			maxCachedFiles = PackageFileCache.DEFAULT_MAX_CACHED_FILES,
+			pathOf = { it.toNioPathOrNull()?.pathString.orEmpty() },
+			query = ::findSourceFiles,
+		)
+
+	private val packageFilesRegistration: AutoCloseable = fileIndex.addWriteListener(packageFiles)
 
 	/** Set by AbstractCompilationEnvironment.initialize once the env's KtPsiFactory exists. */
 	lateinit var parser: KtPsiFactory
@@ -210,6 +223,7 @@ internal class KtSymbolIndex(
 	}
 
 	suspend fun removeFromIndex(path: Path) {
+		ktFileCache.invalidate(path)
 		indexWorker.submitCommand(IndexCommand.RemoveFromIndex(path))
 	}
 
@@ -316,6 +330,10 @@ internal class KtSymbolIndex(
 		}
 		return VersionedKtFile(version, newKtFile)
 	}
+
+	/** Whether the disk copy of [path] is held in the parsed-file cache. */
+	@VisibleForTesting
+	internal fun isDiskCopyCached(path: Path): Boolean = ktFileCache.getIfPresent(path) != null
 
 	fun evictDiskCopy(path: Path) {
 		ktFileCache.invalidate(path)
@@ -526,6 +544,15 @@ internal class KtSymbolIndex(
 		}
 	}
 
+	/** Returns the source files the metadata index lists for [packageFqName]. */
+	internal fun sourceFilesForPackage(packageFqName: FqName): List<VirtualFile> = packageFiles.filesFor(packageFqName.asString())
+
+	private fun findSourceFiles(packageFqName: String): List<VirtualFile> =
+		fileIndex
+			.getFilePathsForPackage(packageFqName)
+			.mapNotNull { Paths.get(it).toVirtualFileOrNull() }
+			.toList()
+
 	/** [getKtFile] for [vf], keyed by the path it maps to. */
 	@ResolutionSideKtFileAccess
 	internal fun getKtFile(vf: VirtualFile): KtFile? = getKtFile(vf.toNioPath(), vf)
@@ -583,10 +610,14 @@ internal class KtSymbolIndex(
 		}
 
 	suspend fun close() {
-		indexWorker.submitCommand(IndexCommand.Stop)
+		packageFilesRegistration.close()
 
+		/*
+		 * Cancel the worker rather than queueing a stop: a stop waits behind every queued file, and
+		 * a large pass outlasts the caller's bounded wait, so disposal would proceed under a live worker.
+		 */
 		scanningJob?.cancelAndJoin()
-		indexingJob?.join()
+		indexingJob?.cancelAndJoin()
 
 		/*
 		 * Cancel AND JOIN the index's own scope. Beyond the main worker loop drained above, the
@@ -605,8 +636,6 @@ internal class KtSymbolIndex(
 }
 
 internal fun KtSymbolIndex.packageExistsInSource(packageFqn: String) = fileIndex.packageExists(packageFqn)
-
-internal fun KtSymbolIndex.filesForPackage(packageFqn: String) = fileIndex.getFilesForPackage(packageFqn)
 
 internal fun KtSymbolIndex.subpackageNames(packageFqn: String) = fileIndex.getSubpackageNames(packageFqn)
 

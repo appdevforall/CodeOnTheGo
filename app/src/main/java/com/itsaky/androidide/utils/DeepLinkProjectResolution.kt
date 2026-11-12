@@ -18,6 +18,7 @@
 package com.itsaky.androidide.utils
 
 import android.app.Activity
+import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.resources.R.string
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +42,13 @@ sealed interface DeepLinkProjectLookup {
 	/** No project of that name exists. Definitive, so callers may remember it. */
 	data object NotFound : DeepLinkProjectLookup
 
+	/**
+	 * A wildcard link reached a path that looks projects up by name, with no open project to resolve
+	 * it against. Definitive, like [NotFound]. Unlike the other failures, nothing has been shown to
+	 * the user: the caller reports it (`msg_deeplink_no_project_open`).
+	 */
+	data object NoProjectOpen : DeepLinkProjectLookup
+
 	/** The lookup failed for a reason unrelated to the project's existence. Remember nothing. */
 	data object Unverifiable : DeepLinkProjectLookup
 }
@@ -58,6 +66,16 @@ suspend fun Activity.resolveDeepLinkProject(
 	projectsRoot: File,
 	projectName: String,
 ): DeepLinkProjectLookup {
+	// The wildcard has no directory under projectsRoot to find -- it means the OPEN project, which
+	// this lookup cannot see. A caller that gets here has no open project (a live editor resolves it
+	// itself), so say that, rather than reporting `No project named "<*>" was found.` Unlike every
+	// other failure here the message is left to the caller: this is an ordinary state, not a failure
+	// of the lookup, and the caller knows whether anything else is about to be shown.
+	if (projectName == DeepLinkRequest.WILDCARD_PROJECT) {
+		log.warn("Wildcard deep link reached a by-name lookup; no project is open")
+		return DeepLinkProjectLookup.NoProjectOpen
+	}
+
 	val lookup =
 		try {
 			lookupValidProjectByName(projectsRoot, projectName)

@@ -18,7 +18,7 @@ sealed interface QuickBuildFlash {
 	 * @property text the string resource to show.
 	 */
 	data class Failure(
-		@StringRes val text: Int,
+		@param:StringRes @get:StringRes val text: Int,
 	) : QuickBuildFlash
 
 	/**
@@ -27,7 +27,7 @@ sealed interface QuickBuildFlash {
 	 * @property text the string resource to show.
 	 */
 	data class Recovery(
-		@StringRes val text: Int,
+		@param:StringRes @get:StringRes val text: Int,
 	) : QuickBuildFlash
 }
 

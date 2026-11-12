@@ -136,7 +136,7 @@ class PluginDocumentationManager(
 		withContext(Dispatchers.IO) {
 			try {
 				plugin?.onDocumentationUninstall()
-			} catch (e: Exception) {
+			} catch (e: Throwable) {
 				if (e is CancellationException) throw e
 				Log.e(TAG, "Plugin onDocumentationUninstall() threw during removal: $pluginId", e)
 			}
@@ -675,7 +675,7 @@ class PluginDocumentationManager(
 							recreatedCount++
 						}
 					}
-				} catch (e: Exception) {
+				} catch (e: Throwable) {
 					if (e is CancellationException) throw e
 					Log.e(TAG, "Failed to verify/recreate documentation for $pluginId", e)
 				}
