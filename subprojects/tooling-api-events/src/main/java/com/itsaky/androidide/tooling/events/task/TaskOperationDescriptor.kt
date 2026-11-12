@@ -20,9 +20,17 @@ package com.itsaky.androidide.tooling.events.task
 import com.itsaky.androidide.tooling.events.OperationDescriptor
 import com.itsaky.androidide.tooling.model.PluginIdentifier
 
-/** @author Akash Yadav */
+/**
+ * A Gradle task operation, as the IDE receives it in progress events.
+ *
+ * [dependencies] holds the direct dependencies' task paths (an operation name for one that is not a
+ * task), not their descriptors: those nest the whole task graph, and a single event serialized that
+ * way reached 23.7 MB.
+ *
+ * @author Akash Yadav
+ */
 class TaskOperationDescriptor(
-	val dependencies: Set<OperationDescriptor>,
+	val dependencies: Set<String>,
 	val originPlugin: PluginIdentifier,
 	val taskPath: String,
 	override val name: String,

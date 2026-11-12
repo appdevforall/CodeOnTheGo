@@ -102,6 +102,16 @@ class EventTransformer {
 				}
 			}
 
+	/*
+	 * Direct dependencies as task paths only. Converting them to descriptors recursed through the
+	 * whole task graph, and JSON copies a shared subtree once per path to it: a single task event
+	 * for the CoGo app reached 23.7 MB and ran the IDE's message reader out of heap.
+	 */
+		private fun dependencyPaths(dependencies: Set<OperationDescriptor?>): Set<String> =
+			dependencies.filterNotNull().mapTo(LinkedHashSet()) { dependency ->
+				(dependency as? TaskOperationDescriptor)?.taskPath ?: dependency.name
+			}
+
 		// ----------------- PROJECT CONFIGURATION --------------------
 		@JvmStatic
 		fun projectConfigurationStart(
@@ -281,11 +291,7 @@ class EventTransformer {
 
 		private fun taskDescriptor(descriptor: TaskOperationDescriptor): com.itsaky.androidide.tooling.events.task.TaskOperationDescriptor =
 			com.itsaky.androidide.tooling.events.task.TaskOperationDescriptor(
-				dependencies =
-					descriptor.dependencies
-						.filterNotNull()
-						.mapNotNull { operationDescriptor(it) }
-						.toSet(),
+				dependencies = dependencyPaths(descriptor.dependencies),
 				originPlugin = PluginIdentifier(descriptor.originPlugin?.displayName ?: "Unknown plugin"),
 				taskPath = descriptor.taskPath,
 				name = descriptor.name,
@@ -374,7 +380,7 @@ class EventTransformer {
 				transformer =
 					com.itsaky.androidide.tooling.events.transform.TransformOperationDescriptor
 						.TransformerDescriptor(descriptor.transformer.displayName),
-				dependencies = descriptor.dependencies.mapNotNull { operationDescriptor(it) }.toSet(),
+				dependencies = dependencyPaths(descriptor.dependencies),
 			)
 
 		// ----------------------- WORK ITEM -------------------------

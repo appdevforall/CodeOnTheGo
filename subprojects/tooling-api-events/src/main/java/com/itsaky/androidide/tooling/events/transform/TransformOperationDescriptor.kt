@@ -19,9 +19,16 @@ package com.itsaky.androidide.tooling.events.transform
 
 import com.itsaky.androidide.tooling.events.OperationDescriptor
 
-/** @author Akash Yadav */
+/**
+ * A Gradle artifact transform operation, as the IDE receives it in progress events.
+ *
+ * [dependencies] holds the direct dependencies' task paths (an operation name for one that is not a
+ * task), for the same reason as [TaskOperationDescriptor.dependencies].
+ *
+ * @author Akash Yadav
+ */
 class TransformOperationDescriptor(
-	val dependencies: Set<OperationDescriptor>,
+	val dependencies: Set<String>,
 	val subject: SubjectDescriptor,
 	val transformer: TransformerDescriptor,
 	override val name: String,
