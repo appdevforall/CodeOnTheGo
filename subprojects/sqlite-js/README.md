@@ -1,13 +1,16 @@
 # sqlite-js for apps
 
-An AAR that lets apps built with Code on the Go define and call JavaScript functions in SQLite (ADFA-7082). It is the sqlite-js SQLite extension, which runs JavaScript with QuickJS (quickjs-ng), with our patch. Nothing in CoGo itself depends on it: the JavaScript-in-SQLite project template does.
+An AAR that lets apps built with Code on the Go define and call JavaScript functions in SQLite (ADFA-7082). It is the sqlite-js SQLite extension, which runs JavaScript with QuickJS (quickjs-ng), with our patches. Nothing in CoGo itself depends on it: the JavaScript-in-SQLite project template does.
 
 `createSqliteJsAar` writes `build/libs/sqlite-js.aar`. The manual `release-sqlite-js.yml` workflow builds it from `main` and publishes it to the moving `sqlite-js-latest` release, from which dev-assets fetches it into the template.
 
 ## Contents
 
 - `upstream/`: the sqlite-js 1.4.1 release (Apache-2.0), the first with our earlier changes (upstream pull requests #11 to #19), with QuickJS amalgamated in `libs/quickjs.c` (MIT), and `patches/` applied. Only the files the build uses, plus `LICENSE` and `LICENSE.quickjs`.
-- `patches/`: our change, 0001, which adds `sqlitejs_cancel_all()`: Android cannot otherwise stop JavaScript that never returns. It is not upstream; it is offered there in sqliteai/sqlite-js issue 20.
+- `patches/`: our changes, none of them upstream yet:
+  - 0001 adds `sqlitejs_cancel_all()`: Android cannot otherwise stop JavaScript that never returns. It is offered upstream in sqliteai/sqlite-js issue 20.
+  - 0002 keeps QuickJS's stack check within the thread's stack in two cases where code that called itself without end crashed the process: a thread with less than 64 KB of stack left, and a main thread first measured deep in its stack.
+  - 0003 collects garbage after any "out of memory" error and whenever a memory limit is set. Before, garbage could leave an allocation that fits in the limit failing on every try.
 - `src/main/cpp/`: the CMake build of `libsqlitejs.so`, and `sqlitejs_android.c`, which is ours: JNI for `SqliteJs`, and the two entry points it names. The version script exports only the entry points (and upstream's `sqlite3_js_init`) and `JNI_OnLoad`.
 - `src/test/c/glue_test.c` and `test.sh`: the tests the Android build cannot run. See Testing.
 - `src/main/java/`: `SqliteJs`.
