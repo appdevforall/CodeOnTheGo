@@ -1,0 +1,247 @@
+From 7695849c414c04fd6b237a6a50325c43402ddfbf Mon Sep 17 00:00:00 2001
+From: David Schachter <davidschachter@appdevforall.org>
+Date: Tue, 10 Nov 2026 21:01:52 -0800
+Subject: [PATCH 04/10] Return ArrayBuffers and typed arrays as BLOBs
+
+A BLOB argument reaches JavaScript as an ArrayBuffer, but a function
+that returned an ArrayBuffer, or a typed array such as Uint8Array, gave
+NULL: js_value_to_sqlite() turned every object into NULL. So no function
+could return binary data, and `identity(x'00ff')` with
+`(function(args){ return args[0]; })` returned NULL. db.exec() bound an
+ArrayBuffer but not a typed array, and bound an empty ArrayBuffer as
+NULL.
+
+Add js_get_bytes(), which gets the bytes of an ArrayBuffer or of the part
+of a buffer that a typed array views, and use it for function results and
+for db.exec() parameters. An empty buffer is an empty BLOB. Returning a
+detached buffer is an error; binding one still binds NULL, as before.
+A typed array's offset and length come from its byteOffset and
+byteLength getters, read before its bytes: one that tracks the length
+of a resizable buffer keeps the length QuickJS recorded when it was
+made, which goes stale when the buffer is resized, and reading it
+after a shrink would read past the buffer. A typed array of fixed
+length that its shrunken buffer no longer holds is an error.
+Document how values convert in both directions in the README.
+
+Add a Blobs test: BLOBs round-trip through a function, typed arrays,
+subarrays and ArrayBuffers made in JavaScript become BLOBs, a function
+can build a BLOB from a BLOB, a detached buffer is an error, and
+db.exec() binds typed arrays and empty buffers as BLOBs. It also checks
+typed arrays over resizable buffers that shrink and grow.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
+---
+ README.md      | 13 ++++++++
+ src/sqlitejs.c | 82 +++++++++++++++++++++++++++++++++++++++++++++-----
+ test/main.c    | 50 ++++++++++++++++++++++++++++++
+ 3 files changed, 138 insertions(+), 7 deletions(-)
+
+diff --git a/README.md b/README.md
+index ff51b2f..99abfb9 100644
+--- a/README.md
++++ b/README.md
+@@ -176,6 +176,19 @@ SQLite-JS provides several ways to extend SQLite functionality with JavaScript:
+ | Collation Sequences | Define custom sort orders for text values |
+ | JavaScript Evaluation | Directly evaluate JavaScript code within SQLite |
+ 
++### Values
++
++SQL values reach JavaScript as follows:
++
++| SQL | JavaScript |
++|-----|------------|
++| NULL | `null` |
++| INTEGER, REAL | number |
++| TEXT | string |
++| BLOB | `ArrayBuffer` |
++
++A JavaScript result goes back to SQL as follows: `null` and `undefined` become NULL, a boolean an INTEGER (1 or 0), a number an INTEGER if it is a whole number in the 32-bit range and a REAL otherwise, a BigInt an INTEGER, a string TEXT, and an `ArrayBuffer` or a typed array such as `Uint8Array` a BLOB. Other objects become NULL; return `JSON.stringify(value)` to keep one as TEXT. The parameters of `db.exec()` convert the same way.
++
+ ## Scalar Functions
+ 
+ Scalar functions process one row at a time and return a single value. They are useful for data transformation, calculations, text manipulation, etc.
+diff --git a/src/sqlitejs.c b/src/sqlitejs.c
+index 6b48ef2..cb4d75d 100644
+--- a/src/sqlitejs.c
++++ b/src/sqlitejs.c
+@@ -372,6 +372,56 @@ static void functionjs_free (functionjs_context *fctx) {
+ 
+ // MARK: - Utils -
+ 
++// Gets the bytes of an ArrayBuffer, or of the part of an ArrayBuffer that a typed array such
++// as a Uint8Array views: the forms a BLOB takes in JavaScript (a BLOB arrives as an
++// ArrayBuffer). Returns 1 and sets *pbytes and *psize if value is one of them (*pbytes may be
++// NULL when *psize is 0), 0 if it is not, and -1 with a pending JavaScript exception if its
++// buffer is detached or the typed array is out of its bounds.
++static int js_get_bytes (JSContext *ctx, JSValueConst value, const uint8_t **pbytes, size_t *psize) {
++    *pbytes = NULL;
++    *psize = 0;
++
++    if (JS_IsArrayBuffer(value)) {
++        uint8_t *buf = JS_GetArrayBuffer(ctx, psize, value);
++        if (!buf && JS_HasException(ctx)) return -1;
++        *pbytes = buf;
++        return 1;
++    }
++
++    if (JS_GetTypedArrayType(value) >= 0) {
++        // The offset and length come from the byteOffset and byteLength getters: a typed array
++        // can track the length of a resizable buffer, and the length QuickJS records when the
++        // array is made goes stale when the buffer is resized. They are read before the bytes,
++        // because a getter can run JavaScript, which could resize or detach the buffer.
++        int64_t offset = 0, length = 0;
++        JSValue prop = JS_GetPropertyStr(ctx, value, "byteOffset");
++        int rc = JS_IsException(prop) ? -1 : JS_ToInt64(ctx, &offset, prop);
++        JS_FreeValue(ctx, prop);
++        if (rc < 0) return -1;
++        prop = JS_GetPropertyStr(ctx, value, "byteLength");
++        rc = JS_IsException(prop) ? -1 : JS_ToInt64(ctx, &length, prop);
++        JS_FreeValue(ctx, prop);
++        if (rc < 0) return -1;
++
++        size_t size = 0;
++        JSValue buffer = JS_GetTypedArrayBuffer(ctx, value, NULL, NULL, NULL);
++        if (JS_IsException(buffer)) return -1;
++        uint8_t *buf = JS_GetArrayBuffer(ctx, &size, buffer);
++        // the typed array keeps its buffer alive, so buf stays valid
++        JS_FreeValue(ctx, buffer);
++        if (!buf && JS_HasException(ctx)) return -1;
++        if ((offset < 0) || (length < 0) || ((uint64_t)offset > size) || ((uint64_t)length > size - (size_t)offset)) {
++            JS_ThrowRangeError(ctx, "typed array is out of the bounds of its buffer");
++            return -1;
++        }
++        *pbytes = (buf) ? buf + offset : NULL;
++        *psize = (size_t)length;
++        return 1;
++    }
++
++    return 0;
++}
++
+ static int js_bind_value (JSContext *ctx, sqlite3_stmt *vm, int index, JSValueConst val) {
+     if (JS_IsNull(val) || JS_IsUndefined(val)) {
+         return sqlite3_bind_null(vm, index);
+@@ -406,14 +456,18 @@ static int js_bind_value (JSContext *ctx, sqlite3_stmt *vm, int index, JSValueCo
+         JS_FreeCString(ctx, str);
+         return rc;
+     }
+-    if (JS_IsArrayBuffer(val)) {
+-        size_t size = 0;
+-        uint8_t *buf = JS_GetArrayBuffer(ctx, &size, val);
+-        if (buf) {
+-            return sqlite3_bind_blob(vm, index, buf, (int)size, SQLITE_TRANSIENT);
+-        }
++    const uint8_t *bytes = NULL;
++    size_t size = 0;
++    int is_blob = js_get_bytes(ctx, val, &bytes, &size);
++    if (is_blob < 0) {
++        // a detached buffer has no bytes to bind, so it binds NULL
++        JS_FreeValue(ctx, JS_GetException(ctx));
+         return sqlite3_bind_null(vm, index);
+     }
++    if (is_blob) {
++        if (size == 0) return sqlite3_bind_zeroblob(vm, index, 0);
++        return sqlite3_bind_blob64(vm, index, bytes, (sqlite3_uint64)size, SQLITE_TRANSIENT);
++    }
+     return sqlite3_bind_null(vm, index);
+ }
+ 
+@@ -642,11 +696,25 @@ static void js_value_to_sqlite (sqlite3_context *context, JSContext *js_ctx, JSV
+         return;
+     }
+     
++    // handle ArrayBuffer and typed arrays, the forms a BLOB takes in JavaScript
++    const uint8_t *bytes = NULL;
++    size_t size = 0;
++    int is_blob = js_get_bytes(js_ctx, value, &bytes, &size);
++    if (is_blob < 0) {
++        js_error_to_sqlite(context, js_ctx, JS_EXCEPTION, NULL);
++        return;
++    }
++    if (is_blob) {
++        if (size == 0) sqlite3_result_zeroblob(context, 0);
++        else sqlite3_result_blob64(context, bytes, (sqlite3_uint64)size, SQLITE_TRANSIENT);
++        return;
++    }
++
+     if (JS_IsObject(value)) {
+         sqlite3_result_null(context);
+         return;
+     }
+-    
++
+     // fallback for unsupported types
+     sqlite3_result_error(context, "Unsupported JS value type", -1);
+ }
+diff --git a/test/main.c b/test/main.c
+index dfa3306..b6c6a8a 100644
+--- a/test/main.c
++++ b/test/main.c
+@@ -699,6 +699,55 @@ abort_test:
+     return rc;
+ }
+ 
++// MARK: - Blobs -
++
++int test_blobs (void) {
++    sqlite3 *db = NULL;
++    int rc = test_open(&db);
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // a BLOB arrives as an ArrayBuffer and goes back as the same BLOB
++    rc = db_exec(db, "SELECT js_create_scalar('identity', '(function(args){ return args[0]; })');");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_query_v2(db, "SELECT quote(identity(x'00ff10')), quote(identity(x'')), typeof(identity(zeroblob(3)));", (const char*[]){"X'00FF10'", "X''", "blob"}, 3);
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // ArrayBuffers and typed arrays made in JavaScript, including a view of part of a buffer
++    rc = check_query_v2(db, "SELECT quote(js_eval('new Uint8Array([1, 2, 3])')), quote(js_eval('new Uint8Array([1, 2, 3, 4, 5]).subarray(1, 3)')), quote(js_eval('new Uint8Array([7, 8]).buffer')), quote(js_eval('new ArrayBuffer(0)'));", (const char*[]){"X'010203'", "X'0203'", "X'0708'", "X''"}, 4);
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // a function that makes a BLOB from a BLOB
++    rc = db_exec(db, "SELECT js_create_scalar('reverse_bytes', '(function(args){ return new Uint8Array(args[0]).reverse(); })');");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_query(db, "SELECT quote(reverse_bytes(x'010203'));", "X'030201'");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // a detached buffer has no bytes, so returning it is an error
++    rc = check_error(db, "SELECT js_eval('(function () { const b = new ArrayBuffer(4); b.transfer(); return b; })()');", "detached");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // db.exec() binds them as BLOBs too
++    rc = check_query(db, "SELECT js_eval('(function () { const rs = db.exec(\"SELECT quote(?), quote(?)\", new Uint8Array([1, 2]), new ArrayBuffer(0)); rs.next(); return rs.get(0) + \" \" + rs.get(1); })()');", "X'0102' X''");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // a typed array that tracks the length of a resizable buffer has the buffer's current length,
++    // after the buffer shrinks (by 1 MB, so that reading the old length would read far past it)
++    // or grows
++    rc = check_query_v2(db, "SELECT quote(js_eval('(function () { const ab = new ArrayBuffer(16, { maxByteLength: 16 }); const u = new Uint8Array(ab); u.fill(7); ab.resize(2); return u; })()')), length(js_eval('(function () { const ab = new ArrayBuffer(1024 * 1024, { maxByteLength: 1024 * 1024 }); const u = new Uint8Array(ab); ab.resize(1); return u; })()')), length(js_eval('(function () { const ab = new ArrayBuffer(4, { maxByteLength: 16 }); const u = new Uint8Array(ab, 2); ab.resize(16); return u; })()'));", (const char*[]){"X'0707'", "1", "14"}, 3);
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_query(db, "SELECT js_eval('(function () { const ab = new ArrayBuffer(1024 * 1024, { maxByteLength: 1024 * 1024 }); const u = new Uint8Array(ab); ab.resize(3); const rs = db.exec(\"SELECT length(?)\", u); rs.next(); return rs.get(0); })()');", "3");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // a typed array of fixed length that a shrunken buffer no longer holds is an error
++    rc = check_error(db, "SELECT js_eval('(function () { const ab = new ArrayBuffer(16, { maxByteLength: 16 }); const u = new Uint8Array(ab, 0, 8); ab.resize(4); return u; })()');", "detached or resized");
++    if (rc != SQLITE_OK) goto abort_test;
++
++abort_test:
++    if (rc != SQLITE_OK && db) printf("Error: %s\n", sqlite3_errmsg(db));
++    if (db) sqlite3_close(db);
++    return rc;
++}
++
+ // MARK: -
+ 
+ int test_report(const char *description, int rc){
+@@ -718,6 +767,7 @@ int main (void) {
+     result += test_report("Interrupt", test_interrupt());
+     result += test_report("Memory limit", test_memory_limit());
+     result += test_report("Direct only", test_direct_only());
++    result += test_report("Blobs", test_blobs());
+ 
+     sqlite3_int64 current = 0;
+     sqlite3_int64 highwater = 0;
+-- 
+2.53.0
+

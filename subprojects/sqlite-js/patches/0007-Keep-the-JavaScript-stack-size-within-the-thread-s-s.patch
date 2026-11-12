@@ -1,0 +1,276 @@
+From b373edbd9fed351c558fbc27da2c5a774c6ae889 Mon Sep 17 00:00:00 2001
+From: David Schachter <davidschachter@appdevforall.org>
+Date: Wed, 11 Nov 2026 11:47:56 -0800
+Subject: [PATCH 07/10] Keep the JavaScript stack size within the thread's
+ stack
+
+QuickJS stops code that calls itself too deeply when the stack falls
+below a limit it computes from the size it was given. It trusts that
+size, so a size larger than the thread's stack never trips the check,
+and code that calls itself without end crashes the process instead of
+failing with "Maximum call stack size exceeded".
+
+js_set_max_stack_size() passed its argument to JS_SetMaxStackSize()
+unchecked, through sqlite3_value_int(): text such as '1MB' or 'abc'
+read as 1 or 0, and a size above the thread's stack, such as 16 MB on
+a thread with 8 MB, crashed sqlite3 on endless recursion. The 1 MB
+default could itself be too large: on a thread with 512 KB of stack,
+endless recursion crashed at the default, and Windows gives a main
+thread 1 MB, apps often their threads no more.
+
+Measure the calling thread's stack (pthread_getattr_np() on Linux and
+Android, pthread_get_stackaddr_np() and pthread_get_stacksize_np() on
+Apple platforms, VirtualQuery() on Windows) and keep a margin,
+SQLITE_JS_STACK_MARGIN (256 KB), for the native code that runs between
+two of QuickJS's checks, such as SQLite when JavaScript runs SQL
+through db.exec. js_set_max_stack_size() now accepts an integer up to
+what the stack allows, and reports the largest size in its error
+message; elsewhere it allows up to the default. When the extension is
+loaded, the default is lowered to what the loading thread's stack
+allows. The stack position is read the way QuickJS reads it, because
+under AddressSanitizer a local variable lives on a separate stack.
+
+0 still turns the check off, as the 1.3.7 changelog documents for a
+connection used from several threads, and test_thread relies on.
+
+Add a Stack size test: endless recursion fails at the default, invalid
+sizes are errors, and endless recursion, also through db.exec, fails
+cleanly just below the largest size allowed and at a smaller one. It
+fails without this change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
+---
+ README.md      |  5 ++-
+ src/sqlitejs.c | 84 ++++++++++++++++++++++++++++++++++++++++++++++++--
+ test/main.c    | 58 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 144 insertions(+), 3 deletions(-)
+
+diff --git a/README.md b/README.md
+index d2cf41b..8ef6804 100644
+--- a/README.md
++++ b/README.md
+@@ -419,10 +419,13 @@ SELECT js_load_blob('/path/to/file.bin');   -- Returns file contents as a blob
+ 
+ ### js_set_max_stack_size
+ 
+-Configures the maximum stack size (in bytes) for the JavaScript engine.
++Sets the most stack, in bytes, that JavaScript may use, which limits how deeply functions can call themselves; code that goes deeper fails with "Maximum call stack size exceeded". The default is 1 MB, or less when the thread that loads the extension has less stack. The size must be an integer no larger than the calling thread's stack allows, less a margin for the native code that runs between QuickJS's checks (`SQLITE_JS_STACK_MARGIN`, 256 KB); the error message gives the largest size allowed. A larger size, or text, which would read as 0, is an error, because QuickJS's check would never trip and code that calls itself without end would crash the process.
++
++`0` turns the check off, for a connection used from several threads: the check measures from the stack of the thread that loaded the extension. With the check off, code that calls itself without end crashes the process.
+ 
+ ```sql
+ SELECT js_set_max_stack_size(1048576);  -- Set max stack size to 1 MB
++SELECT js_set_max_stack_size(0);        -- No check, for use from several threads
+ ```
+ 
+ ### js_set_memory_limit
+diff --git a/src/sqlitejs.c b/src/sqlitejs.c
+index 790dc82..e5562f4 100644
+--- a/src/sqlitejs.c
++++ b/src/sqlitejs.c
+@@ -5,6 +5,11 @@
+ //  Created by Marco Bambini on 31/03/25.
+ //
+ 
++// glibc declares pthread_getattr_np() (see js_stack_room) only for _GNU_SOURCE
++#if defined(__linux__) && !defined(_GNU_SOURCE)
++#define _GNU_SOURCE
++#endif
++
+ #include <stdio.h>
+ #include <ctype.h>
+ #include <stdlib.h>
+@@ -16,6 +21,15 @@
+ #include "quickjs.h"
+ #include "quickjs-libc.h"
+ 
++#if defined(_WIN32)
++#include <windows.h>
++#if defined(_MSC_VER)
++#include <intrin.h>
++#endif
++#elif defined(__APPLE__) || defined(__linux__)
++#include <pthread.h>
++#endif
++
+ #ifndef SQLITE_CORE
+ SQLITE_EXTENSION_INIT1
+ #endif
+@@ -197,6 +211,53 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
+ #define SQLITE_JS_DEFAULT_MEMORY_LIMIT  (64 * 1024 * 1024)
+ #endif
+ 
++// Stack, in bytes, kept free below the JavaScript stack limit for the native code that runs
++// between two of QuickJS's stack checks: QuickJS's own C functions, and SQLite when JavaScript
++// runs SQL through db.exec.
++#ifndef SQLITE_JS_STACK_MARGIN
++#define SQLITE_JS_STACK_MARGIN  (256 * 1024)
++#endif
++
++// The stack, in bytes, that the calling thread has left below this function, less the margin.
++// QuickJS trusts its stack size: one larger than the thread has never trips its check, and code
++// that calls itself without end then crashes the process. Returns false where the thread's stack
++// cannot be found.
++static bool js_stack_room (size_t *room) {
++    // where the stack is now, found the way QuickJS finds it: the address of a local variable
++    // can be elsewhere, for example on AddressSanitizer's separate stack
++#if defined(__clang__) || defined(__GNUC__)
++    uintptr_t sp = (uintptr_t)__builtin_frame_address(0);
++#elif defined(_MSC_VER)
++    uintptr_t sp = (uintptr_t)_AddressOfReturnAddress();
++#else
++    volatile char here = 0;
++    uintptr_t sp = (uintptr_t)&here;
++#endif
++    uintptr_t low = 0;
++#if defined(_WIN32)
++    // the stack is one allocation, reserved from its lowest address
++    MEMORY_BASIC_INFORMATION mbi;
++    if (VirtualQuery((LPCVOID)sp, &mbi, sizeof(mbi)) == 0) return false;
++    low = (uintptr_t)mbi.AllocationBase;
++#elif defined(__APPLE__)
++    pthread_t self = pthread_self();
++    low = (uintptr_t)pthread_get_stackaddr_np(self) - pthread_get_stacksize_np(self);
++#elif defined(__linux__)
++    pthread_attr_t attr;
++    void *addr = NULL;
++    size_t size = 0;
++    if (pthread_getattr_np(pthread_self(), &attr) != 0) return false;
++    int rc = pthread_attr_getstack(&attr, &addr, &size);
++    pthread_attr_destroy(&attr);
++    if (rc != 0) return false;
++    low = (uintptr_t)addr;
++#else
++    return false;
++#endif
++    *room = (sp > low + SQLITE_JS_STACK_MARGIN) ? (size_t)(sp - low - SQLITE_JS_STACK_MARGIN) : 0;
++    return true;
++}
++
+ // QuickJS calls this from time to time while it runs code. A non-zero result stops the code
+ // with an uncatchable "interrupted" error, so sqlite3_interrupt() (Ctrl-C in the sqlite3 shell,
+ // a cancelled query in an app) also stops JavaScript that never returns to SQLite.
+@@ -224,6 +285,11 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
+     // in its sqlite3_api_routines, so JavaScript cannot be interrupted there
+     if (sqlite3_libversion_number() >= 3041000) JS_SetInterruptHandler(rt, js_interrupt_handler, js);
+ 
++    // the default stack size must fit in the stack of the thread that loads the extension: Windows
++    // gives a main thread 1 MB, and apps often give their threads no more
++    size_t room = 0;
++    if (js_stack_room(&room) && (room < JS_DEFAULT_STACK_SIZE)) JS_SetMaxStackSize(rt, (room > 0) ? room : 1);
++
+     js_std_init_handlers(rt);
+     JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
+     
+@@ -1409,8 +1475,22 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
+     UNUSED(argc);
+     globaljs_context *js = (globaljs_context *)sqlite3_user_data(context);
+ 
+-    int stack_size = sqlite3_value_int(argv[0]);
+-    JS_SetMaxStackSize(js->runtime, stack_size);
++    // 0 turns QuickJS's check off, for a connection used from several threads (the check measures
++    // from the stack of the thread that loaded the extension). Text would read as 0, and a size
++    // larger than the thread's stack is no limit either: code that calls itself without end
++    // would crash the process. Where the stack cannot be measured, allow up to the default.
++    size_t most = JS_DEFAULT_STACK_SIZE;
++    js_stack_room(&most);
++    sqlite3_int64 size = sqlite3_value_int64(argv[0]);
++    if ((sqlite3_value_type(argv[0]) != SQLITE_INTEGER) || (size < 0) || ((sqlite3_uint64)size > most)) {
++        char *msg = sqlite3_mprintf("The stack size must be an integer number of bytes from 1 to %llu, which this thread's stack allows, or 0 for no check", (unsigned long long)most);
++        if (msg) sqlite3_result_error(context, msg, -1);
++        else sqlite3_result_error_nomem(context);
++        sqlite3_free(msg);
++        return;
++    }
++
++    JS_SetMaxStackSize(js->runtime, (size_t)size);
+ }
+ 
+ void js_set_memory_limit (sqlite3_context *context, int argc, sqlite3_value **argv) {
+diff --git a/test/main.c b/test/main.c
+index 0af4d22..ff1c0e7 100644
+--- a/test/main.c
++++ b/test/main.c
+@@ -10,6 +10,7 @@
+ #include "sqlitejs.h"
+ #include <pthread.h>
+ #include <math.h>
++#include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
+ 
+@@ -647,6 +648,62 @@ abort_test:
+     return rc;
+ }
+ 
++// MARK: - Stack size -
++
++int test_stack_size (void) {
++    sqlite3 *db = NULL;
++    char sql[256];
++    int rc = test_open(&db);
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // code that calls itself without end fails, and the connection stays usable
++    const char *recurse = "SELECT js_eval('(function f(n) { return f(n + 1); })(0)');";
++    rc = check_error(db, recurse, "Maximum call stack size exceeded");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_query(db, "SELECT js_eval('1 + 1');", "2");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // a size is an integer no larger than the thread's stack, or 0 for no check: text would read
++    // as 0, and a size larger than the stack never trips the check, so the code above would
++    // crash the process
++    const char *invalid[] = {"'abc'", "-1", "1.5", "'1048576'", "NULL", "x'00'", "1073741824"};
++    for (size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
++        snprintf(sql, sizeof(sql), "SELECT js_set_max_stack_size(%s);", invalid[i]);
++        rc = check_error(db, sql, "The stack size must be an integer number of bytes from 1 to ");
++        if (rc != SQLITE_OK) goto abort_test;
++    }
++
++    // close to the largest size allowed, the code still stops, also when it calls itself
++    // through SQL, which puts SQLite's frames between QuickJS's stack checks
++    const char *most_text = strstr(sqlite3_errmsg(db), "from 1 to ");
++    long long most = most_text ? strtoll(most_text + strlen("from 1 to "), NULL, 10) : 0;
++    if (most <= 64 * 1024) { printf("FAIL: no stack size range in: %s\n", sqlite3_errmsg(db)); rc = SQLITE_ERROR; goto abort_test; }
++    snprintf(sql, sizeof(sql), "SELECT js_set_max_stack_size(%lld);", most - 4096);
++    rc = db_exec(db, sql);
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_error(db, recurse, "Maximum call stack size exceeded");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = db_exec(db, "SELECT js_create_scalar('recurse_sql', '(function (args) { try { const rs = db.exec(\"SELECT recurse_sql(?)\", args[0] + 1); if (rs.next()) return rs.get(0); } catch (e) {} throw new Error(\"stopped\"); })');");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_error(db, "SELECT recurse_sql(0);", "stopped");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // a smaller size
++    rc = db_exec(db, "SELECT js_set_max_stack_size(256 * 1024);");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_error(db, recurse, "Maximum call stack size exceeded");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // 0 is still allowed, for connections used from several threads (see test_thread)
++    rc = check_query(db, "SELECT quote(js_set_max_stack_size(0));", "NULL");
++    if (rc != SQLITE_OK) goto abort_test;
++
++abort_test:
++    if (rc != SQLITE_OK && db) printf("Error: %s\n", sqlite3_errmsg(db));
++    if (db) sqlite3_close(db);
++    return rc;
++}
++
+ // MARK: - Direct only -
+ 
+ int test_direct_only (void) {
+@@ -840,6 +897,7 @@ int main (void) {
+     result += test_report("Thread", test_thread());
+     result += test_report("Interrupt", test_interrupt());
+     result += test_report("Memory limit", test_memory_limit());
++    result += test_report("Stack size", test_stack_size());
+     result += test_report("Direct only", test_direct_only());
+     result += test_report("Blobs", test_blobs());
+     result += test_report("Numbers", test_numbers());
+-- 
+2.53.0
+

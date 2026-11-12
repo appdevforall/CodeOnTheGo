@@ -1,0 +1,172 @@
+From 8704591e47af9f9ac685c3e9e62f73ec3b106592 Mon Sep 17 00:00:00 2001
+From: David Schachter <davidschachter@appdevforall.org>
+Date: Tue, 10 Nov 2026 20:56:10 -0800
+Subject: [PATCH 01/10] Stop JavaScript when the connection is interrupted
+
+JavaScript runs inside the SQL statement that calls it, but QuickJS had
+no interrupt handler, so sqlite3_interrupt() could not stop code that
+never returns to SQLite. `SELECT js_eval('while (true) {}')` hung the
+sqlite3 shell, where Ctrl-C calls sqlite3_interrupt(), and an app could
+not cancel the query.
+
+Install a QuickJS interrupt handler that reports the connection's
+sqlite3_is_interrupted(). QuickJS then stops the code with an
+uncatchable "interrupted" error, and the statement fails as interrupted.
+sqlite3_is_interrupted() is new in SQLite 3.41.0, so the handler is only
+installed when the library is at least that version.
+
+Add an Interrupt test that interrupts endless loops in js_eval() and in a
+scalar function from another thread, and checks that the connection
+still works afterwards.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
+---
+ README.md      |  4 +++
+ src/sqlitejs.c | 15 ++++++++++-
+ test/main.c    | 67 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 85 insertions(+), 1 deletion(-)
+
+diff --git a/README.md b/README.md
+index e389272..45bf583 100644
+--- a/README.md
++++ b/README.md
+@@ -410,6 +410,10 @@ Configures the maximum stack size (in bytes) for the JavaScript engine.
+ SELECT js_set_max_stack_size(1048576);  -- Set max stack size to 1 MB
+ ```
+ 
++### Interrupting JavaScript
++
++JavaScript runs inside the SQL statement that calls it, so `sqlite3_interrupt()` stops it as it stops any statement: the statement fails with an "interrupted" error, even if the code catches exceptions. In the `sqlite3` shell, Ctrl-C does this. Interrupting JavaScript needs SQLite 3.41.0 or later.
++
+ ## Examples
+ 
+ ### Example 1: String Manipulation
+diff --git a/src/sqlitejs.c b/src/sqlitejs.c
+index 024a2f8..524581e 100644
+--- a/src/sqlitejs.c
++++ b/src/sqlitejs.c
+@@ -187,6 +187,15 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
+ 
+ // MARK: - Initializer -
+ 
++// QuickJS calls this from time to time while it runs code. A non-zero result stops the code
++// with an uncatchable "interrupted" error, so sqlite3_interrupt() (Ctrl-C in the sqlite3 shell,
++// a cancelled query in an app) also stops JavaScript that never returns to SQLite.
++static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
++    UNUSED(rt);
++    globaljs_context *js = (globaljs_context *)opaque;
++    return (js->db != NULL) && sqlite3_is_interrupted(js->db);
++}
++
+ static globaljs_context *globaljs_init (sqlite3 *db) {
+     JSRuntime *rt = NULL;
+     JSContext *ctx = NULL;
+@@ -200,7 +209,11 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
+     
+     //JS_SetMemoryLimit(rt, 80 * 1024);
+     //JS_SetMaxStackSize(rt, 10 * 1024);
+-    
++
++    // sqlite3_is_interrupted() is new in SQLite 3.41.0: an older library has no such entry
++    // in its sqlite3_api_routines, so JavaScript cannot be interrupted there
++    if (sqlite3_libversion_number() >= 3041000) JS_SetInterruptHandler(rt, js_interrupt_handler, js);
++
+     js_std_init_handlers(rt);
+     JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
+     
+diff --git a/test/main.c b/test/main.c
+index d0ed2e7..0f8da0c 100644
+--- a/test/main.c
++++ b/test/main.c
+@@ -11,6 +11,7 @@
+ #include <pthread.h>
+ #include <math.h>
+ #include <string.h>
++#include <unistd.h>
+ 
+ #define DB_PATH                 "js_functions.sqlite"
+ #define VERBOSE                 1
+@@ -488,6 +489,71 @@ abort_test:
+     return rc;
+ }
+ 
++// MARK: - Interrupt -
++
++int test_open (sqlite3 **db) {
++    int rc = sqlite3_open(":memory:", db);
++    if (rc != SQLITE_OK) return rc;
++
++    #if JS_LOAD_EMBEDDED
++    return sqlite3_js_init(*db, NULL, NULL);
++    #else
++    rc = sqlite3_enable_load_extension(*db, 1);
++    if (rc != SQLITE_OK) return rc;
++    return db_exec(*db, "SELECT load_extension('./dist/js');");
++    #endif
++}
++
++void *test_interrupt_worker (void *ptr) {
++    // give the statement time to start running JavaScript
++    usleep(200 * 1000);
++    sqlite3_interrupt((sqlite3 *)ptr);
++    return NULL;
++}
++
++// Runs sql, which never ends unless it is interrupted, and interrupts it from another thread.
++// The statement must fail as interrupted, and the connection must stay usable.
++int test_interrupt_sql (sqlite3 *db, const char *sql) {
++    pthread_t thread;
++    if (pthread_create(&thread, NULL, test_interrupt_worker, (void *)db) != 0) return SQLITE_ERROR;
++    int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
++    pthread_join(thread, NULL);
++
++    if (rc == SQLITE_OK || strstr(sqlite3_errmsg(db), "interrupted") == NULL) {
++        printf("FAIL: %s\n      Expected: interrupted, Got: %d %s\n", sql, rc, sqlite3_errmsg(db));
++        return SQLITE_ERROR;
++    }
++    return check_query(db, "SELECT js_eval('1+1');", "2");
++}
++
++int test_interrupt (void) {
++    sqlite3 *db = NULL;
++
++    // if the code cannot be interrupted, end the test program instead of hanging forever
++    alarm(30);
++
++    int rc = test_open(&db);
++    if (rc != SQLITE_OK) goto abort_test;
++
++    rc = test_interrupt_sql(db, "SELECT js_eval('while (true) {}');");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    rc = db_exec(db, "SELECT js_create_scalar('forever', '(function(args){ for (;;) {} })');");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = test_interrupt_sql(db, "SELECT forever();");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // JavaScript catch blocks cannot keep running code alive
++    rc = test_interrupt_sql(db, "SELECT js_eval('for (;;) { try { while (true) {} } catch (e) {} }');");
++    if (rc != SQLITE_OK) goto abort_test;
++
++abort_test:
++    alarm(0);
++    if (rc != SQLITE_OK && db) printf("Error: %s\n", sqlite3_errmsg(db));
++    if (db) sqlite3_close(db);
++    return rc;
++}
++
+ // MARK: -
+ 
+ int test_report(const char *description, int rc){
+@@ -504,6 +570,7 @@ int main (void) {
+     result += test_report("Serialization 2", test_serialization(DB_PATH, false, 2)); // update functions previously registered in the js_functions table
+     result += test_report("Serialization 3", test_serialization(DB_PATH, true,  3)); // load the new implementations
+     result += test_report("Thread", test_thread());
++    result += test_report("Interrupt", test_interrupt());
+ 
+     sqlite3_int64 current = 0;
+     sqlite3_int64 highwater = 0;
+-- 
+2.53.0
+
