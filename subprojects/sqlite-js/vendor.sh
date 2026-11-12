@@ -22,7 +22,8 @@ done
 # QuickJS (quickjs-ng, amalgamated into libs/quickjs.c) is MIT-licensed, with the license only in
 # the comment that heads each amalgamated file: every copyright line, then the license text once.
 {
-	grep -o 'Copyright (c) [^*]*' "$SRC/libs/quickjs.c" | sed 's/[[:space:]]*$//' | sort -u
+	# LC_ALL=C: the order must not depend on the machine's locale, or --check fails elsewhere
+	grep -o 'Copyright (c) [^*]*' "$SRC/libs/quickjs.c" | sed 's/[[:space:]]*$//' | LC_ALL=C sort -u
 	echo
 	awk '/Permission is hereby granted/ { on = 1 }
 		on { sub(/^ \* ?/, ""); print }
