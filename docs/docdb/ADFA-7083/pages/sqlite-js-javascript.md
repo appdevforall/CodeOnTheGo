@@ -94,11 +94,11 @@ The global object `db` runs SQL on the same database. `db.exec(sql, ...parameter
 
 | Result set | What it does |
 |------------|--------------|
-| `next()` | Runs the statement to its next row. It returns `true`, or `false` when there are no more rows, and also when the statement fails. |
+| `next()` | Runs the statement to its next row. It returns `true`, or `false` when there are no more rows. If the statement fails, it throws an error. |
 | `get(i)` | Returns column `i` of the current row, counting from 0. |
 | `name(i)` | Returns the name of column `i`. |
 | `columnCount` | The number of columns. |
-| `toArray()` | Returns all the remaining rows, each as an array. If the statement fails partway, you get the rows before the failure. |
+| `toArray()` | Returns all the remaining rows, each as an array. If the statement fails partway, it throws an error. |
 
 ```sql
 SELECT js_eval('(function () {
@@ -124,7 +124,21 @@ SELECT group_concat(t) FROM notes;
 -- run
 ```
 
-> An error while the statement runs, such as a failed `UNIQUE` constraint, is not reported: `next()` just returns `false`. An error in the SQL itself, such as a misspelled name, is reported. To be sure a change was made, read the data back.
+If the statement fails, for example on a `UNIQUE` constraint, `next()` or `toArray()` throws an error with SQLite's message. Unless your JavaScript catches it, the SQL that called the JavaScript fails with that message. An error in the SQL itself, such as a misspelled name, is thrown by `db.exec`.
+
+```sql
+CREATE TABLE colors(name TEXT UNIQUE);
+INSERT INTO colors VALUES ('red');
+SELECT js_eval('(function () {
+  try {
+    db.exec("INSERT INTO colors VALUES (?)", "red").next();
+    return "added";
+  } catch (e) {
+    return "not added: " + e.message;
+  }
+})()');
+-- not added: UNIQUE constraint failed: colors.name
+```
 
 ## Variables and state
 

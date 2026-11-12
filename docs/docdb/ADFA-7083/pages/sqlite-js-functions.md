@@ -187,7 +187,7 @@ SELECT js_version();
 
 ## What is different from the upstream project
 
-The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with seven fixes, which were also sent to the upstream project. With them:
+The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with eight fixes, which were also sent to the upstream project. With them:
 
 - Ctrl-C stops JavaScript that never ends.
 - JavaScript may use 64 MB of memory, and `js_set_memory_limit` changes the limit.
@@ -196,6 +196,7 @@ The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with se
 - A whole number comes back as an INTEGER, even beyond the 32-bit range.
 - An exception in an aggregate or window function fails the query.
 - `js_set_max_stack_size` accepts only a size the stack can hold, so code that calls itself without end fails instead of crashing `sqlite3`.
+- An error while `db.exec` runs a statement, such as a failed constraint, is thrown instead of being ignored.
 
 ## Credits
 
