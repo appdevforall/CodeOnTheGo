@@ -67,7 +67,10 @@ jobs:
                  gh api -X PATCH "$TAG_REF" -f sha="$TARGET_SHA" -F force=true >/dev/null &&
                  gh release edit sqlite-js-latest --latest=false --notes "$NOTES"; }; then
             echo "::error::updating sqlite-js-latest failed; putting back the previous assets and tag"
-            gh release upload sqlite-js-latest .previous/sqlite-js.aar .previous/checksums.txt --clobber
-            gh api -X PATCH "$TAG_REF" -f sha="$PREVIOUS_SHA" -F force=true >/dev/null
+            # each is attempted even if the other fails, since bash -e would stop at the first
+            gh release upload sqlite-js-latest .previous/sqlite-js.aar .previous/checksums.txt --clobber ||
+              echo "::error::could not put back the previous assets"
+            gh api -X PATCH "$TAG_REF" -f sha="$PREVIOUS_SHA" -F force=true >/dev/null ||
+              echo "::error::could not put back the tag at $PREVIOUS_SHA"
             exit 1
           fi
