@@ -1,4 +1,4 @@
-From 76cc3a2ad153d623f71a9a5a251340f5c41a3f41 Mon Sep 17 00:00:00 2001
+From d1a8930a6c095a54df562ab7ec395975c99777f1 Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Tue, 10 Nov 2026 21:16:06 -0800
 Subject: [PATCH 06/10] Report exceptions thrown by aggregate and window steps
@@ -27,10 +27,10 @@ Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
  2 files changed, 36 insertions(+)
 
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index c56b241..790dc82 100644
+index 2802421..d29ec40 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
-@@ -896,6 +896,9 @@ static void js_execute_common (sqlite3_context *context, JSContext *js_context,
+@@ -1027,6 +1027,9 @@ static void js_execute_common (sqlite3_context *context, JSContext *js_context,
      JS_FreeValue(js_context, args);
      
      if (return_value) js_value_to_sqlite(context, js_context, result);
@@ -41,10 +41,10 @@ index c56b241..790dc82 100644
  }
  
 diff --git a/test/main.c b/test/main.c
-index cb2f899..0af4d22 100644
+index 2c66aa7..20e34a0 100644
 --- a/test/main.c
 +++ b/test/main.c
-@@ -790,6 +790,38 @@ abort_test:
+@@ -821,6 +821,38 @@ abort_test:
      return rc;
  }
  
@@ -83,7 +83,7 @@ index cb2f899..0af4d22 100644
  // MARK: -
  
  int test_report(const char *description, int rc){
-@@ -811,6 +843,7 @@ int main (void) {
+@@ -842,6 +874,7 @@ int main (void) {
      result += test_report("Direct only", test_direct_only());
      result += test_report("Blobs", test_blobs());
      result += test_report("Numbers", test_numbers());

@@ -1,4 +1,4 @@
-From b373edbd9fed351c558fbc27da2c5a774c6ae889 Mon Sep 17 00:00:00 2001
+From 7152a86c5819add432a222da234ffcc5c80cc63c Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Wed, 11 Nov 2026 11:47:56 -0800
 Subject: [PATCH 07/10] Keep the JavaScript stack size within the thread's
@@ -47,7 +47,7 @@ Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
  3 files changed, 144 insertions(+), 3 deletions(-)
 
 diff --git a/README.md b/README.md
-index d2cf41b..8ef6804 100644
+index 3215216..a8cdea4 100644
 --- a/README.md
 +++ b/README.md
 @@ -419,10 +419,13 @@ SELECT js_load_blob('/path/to/file.bin');   -- Returns file contents as a blob
@@ -66,7 +66,7 @@ index d2cf41b..8ef6804 100644
  
  ### js_set_memory_limit
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index 790dc82..e5562f4 100644
+index d29ec40..126d248 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
 @@ -5,6 +5,11 @@
@@ -81,7 +81,7 @@ index 790dc82..e5562f4 100644
  #include <stdio.h>
  #include <ctype.h>
  #include <stdlib.h>
-@@ -16,6 +21,15 @@
+@@ -21,6 +26,15 @@
  #include "quickjs.h"
  #include "quickjs-libc.h"
  
@@ -97,7 +97,7 @@ index 790dc82..e5562f4 100644
  #ifndef SQLITE_CORE
  SQLITE_EXTENSION_INIT1
  #endif
-@@ -197,6 +211,53 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
+@@ -207,6 +221,53 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
  #define SQLITE_JS_DEFAULT_MEMORY_LIMIT  (64 * 1024 * 1024)
  #endif
  
@@ -148,10 +148,10 @@ index 790dc82..e5562f4 100644
 +    return true;
 +}
 +
- // QuickJS calls this from time to time while it runs code. A non-zero result stops the code
- // with an uncatchable "interrupted" error, so sqlite3_interrupt() (Ctrl-C in the sqlite3 shell,
- // a cancelled query in an app) also stops JavaScript that never returns to SQLite.
-@@ -224,6 +285,11 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
+ // QuickJS collects cyclic garbage only when its memory use passes a threshold, which it resets
+ // after each collection to 1.5 times the memory still in use. With more than two thirds of the
+ // memory limit in use, that is beyond the limit: garbage would fill the rest, and code that fits
+@@ -320,6 +381,11 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
      // in its sqlite3_api_routines, so JavaScript cannot be interrupted there
      if (sqlite3_libversion_number() >= 3041000) JS_SetInterruptHandler(rt, js_interrupt_handler, js);
  
@@ -163,7 +163,7 @@ index 790dc82..e5562f4 100644
      js_std_init_handlers(rt);
      JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
      
-@@ -1409,8 +1475,22 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
+@@ -1540,8 +1606,22 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
      UNUSED(argc);
      globaljs_context *js = (globaljs_context *)sqlite3_user_data(context);
  
@@ -189,7 +189,7 @@ index 790dc82..e5562f4 100644
  
  void js_set_memory_limit (sqlite3_context *context, int argc, sqlite3_value **argv) {
 diff --git a/test/main.c b/test/main.c
-index 0af4d22..ff1c0e7 100644
+index 20e34a0..6dbcadc 100644
 --- a/test/main.c
 +++ b/test/main.c
 @@ -10,6 +10,7 @@
@@ -200,7 +200,7 @@ index 0af4d22..ff1c0e7 100644
  #include <string.h>
  #include <unistd.h>
  
-@@ -647,6 +648,62 @@ abort_test:
+@@ -668,6 +669,62 @@ abort_test:
      return rc;
  }
  
@@ -263,7 +263,7 @@ index 0af4d22..ff1c0e7 100644
  // MARK: - Direct only -
  
  int test_direct_only (void) {
-@@ -840,6 +897,7 @@ int main (void) {
+@@ -871,6 +928,7 @@ int main (void) {
      result += test_report("Thread", test_thread());
      result += test_report("Interrupt", test_interrupt());
      result += test_report("Memory limit", test_memory_limit());

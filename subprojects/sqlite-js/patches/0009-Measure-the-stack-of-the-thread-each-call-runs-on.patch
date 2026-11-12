@@ -1,4 +1,4 @@
-From 734b4e1e76476714ec3c51950309dd16a39ca019 Mon Sep 17 00:00:00 2001
+From 8070f92f8b06a4d25f1a60d06b25f0c0bdd60097 Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Wed, 11 Nov 2026 16:13:38 -0800
 Subject: [PATCH 09/10] Measure the stack of the thread each call runs on
@@ -22,7 +22,7 @@ reads /proc/self/maps.
  3 files changed, 186 insertions(+), 33 deletions(-)
 
 diff --git a/README.md b/README.md
-index abec56b..9e58b81 100644
+index a1fcea1..55b2cee 100644
 --- a/README.md
 +++ b/README.md
 @@ -431,13 +431,13 @@ SELECT js_load_blob('/path/to/file.bin');   -- Returns file contents as a blob
@@ -43,10 +43,10 @@ index abec56b..9e58b81 100644
  
  ### js_set_memory_limit
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index 8f6e3a9..5abf713 100644
+index bd7937a..ee45a06 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
-@@ -34,6 +34,12 @@
+@@ -39,6 +39,12 @@
  SQLITE_EXTENSION_INIT1
  #endif
  
@@ -59,16 +59,16 @@ index 8f6e3a9..5abf713 100644
  #ifdef _WIN32
  #define APIEXPORT       __declspec(dllexport)
  #else
-@@ -47,6 +53,8 @@ typedef struct {
-     JSClassID           rowSetClassID;
-     int                 ref_count;
-     size_t              memory_limit;   // in bytes, 0 for none: see js_set_memory_limit()
+@@ -55,6 +61,8 @@ typedef struct {
+     size_t              gc_threshold;   // QuickJS's GC threshold when last checked: see js_keep_gc_below_limit()
+     size_t              mem_used;       // memory the runtime has allocated: see js_mem_malloc()
+     size_t              mem_peak;       // the most in use since the last result or error
 +    size_t              stack_size;     // in bytes, 0 for no check: see js_set_max_stack_size()
 +    int                 depth;          // calls into JavaScript in progress: see js_enter()
+     JSValue             typed_array_byte_offset;    // the getters of every typed array's own
+     JSValue             typed_array_byte_length;    // offset and length: see js_get_bytes()
  } globaljs_context;
- 
- typedef struct {
-@@ -229,6 +237,41 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
+@@ -239,6 +247,41 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
  #define SQLITE_JS_STACK_MARGIN  (256 * 1024)
  #endif
  
@@ -110,7 +110,7 @@ index 8f6e3a9..5abf713 100644
  // The stack, in bytes, that the calling thread has left below this function, less the margin.
  // QuickJS trusts its stack size: one larger than the thread has never trips its check, and code
  // that calls itself without end then crashes the process. Returns false where the thread's stack
-@@ -245,30 +288,30 @@ static bool js_stack_room (size_t *room) {
+@@ -255,30 +298,30 @@ static bool js_stack_room (size_t *room) {
      uintptr_t sp = (uintptr_t)&here;
  #endif
      uintptr_t low = 0;
@@ -158,10 +158,10 @@ index 8f6e3a9..5abf713 100644
 +    js->depth--;
 +}
 +
- // QuickJS calls this from time to time while it runs code. A non-zero result stops the code
- // with an uncatchable "interrupted" error, so sqlite3_interrupt() (Ctrl-C in the sqlite3 shell,
- // a cancelled query in an app) also stops JavaScript that never returns to SQLite.
-@@ -311,6 +354,7 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
+ // QuickJS collects cyclic garbage only when its memory use passes a threshold, which it resets
+ // after each collection to 1.5 times the memory still in use. With more than two thirds of the
+ // memory limit in use, that is beyond the limit: garbage would fill the rest, and code that fits
+@@ -407,6 +450,7 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
      js->runtime = rt;
      js->context = ctx;
      js->ref_count = 0;
@@ -169,7 +169,7 @@ index 8f6e3a9..5abf713 100644
      
      JS_SetContextOpaque(ctx, js);
      JS_SetRuntimeOpaque(rt, js);
-@@ -981,7 +1025,9 @@ static void js_execute_common (sqlite3_context *context, JSContext *js_context,
+@@ -1112,7 +1156,9 @@ static void js_execute_common (sqlite3_context *context, JSContext *js_context,
  
  static void js_execute_scalar (sqlite3_context *context, int nvalues, sqlite3_value **values) {
      functionjs_context *fctx = (functionjs_context *)sqlite3_user_data(context);
@@ -179,7 +179,7 @@ index 8f6e3a9..5abf713 100644
  }
  
  static void js_execute_step (sqlite3_context *context, int nvalues, sqlite3_value **values) {
-@@ -996,12 +1042,11 @@ static void js_execute_step (sqlite3_context *context, int nvalues, sqlite3_valu
+@@ -1127,12 +1173,11 @@ static void js_execute_step (sqlite3_context *context, int nvalues, sqlite3_valu
      
      // if there is an init code then create a separate aggregate context
      // to avoid shared state corruption across parallel aggregates
@@ -196,7 +196,7 @@ index 8f6e3a9..5abf713 100644
  }
  
  static void js_execute_value (sqlite3_context *context) {
-@@ -1009,21 +1054,30 @@ static void js_execute_value (sqlite3_context *context) {
+@@ -1140,21 +1185,30 @@ static void js_execute_value (sqlite3_context *context) {
      // new allocation here could only fail and there would be nothing to report anyway
      functionjs_aggregate_context *agg_ctx = sqlite3_aggregate_context(context, 0);
      if (!agg_ctx || !agg_ctx->context) { sqlite3_result_null(context); return; }
@@ -227,7 +227,7 @@ index 8f6e3a9..5abf713 100644
      } else {
          sqlite3_result_null(context);
      }
-@@ -1032,6 +1086,7 @@ static void js_execute_final (sqlite3_context *context) {
+@@ -1163,6 +1217,7 @@ static void js_execute_final (sqlite3_context *context) {
  static int js_execute_collation (void *xdata, int len1, const void *v1, int len2, const void *v2) {
      functionjs_context *fctx = (functionjs_context *)xdata;
      globaljs_context *js = fctx->js_ctx;
@@ -235,7 +235,7 @@ index 8f6e3a9..5abf713 100644
  
      // create arguments
      JSValue val1 = (v1) ? JS_NewStringLen(js->context, (const char *)v1, (size_t)len1) : JS_NULL;
-@@ -1056,6 +1111,7 @@ static int js_execute_collation (void *xdata, int len1, const void *v1, int len2
+@@ -1187,6 +1242,7 @@ static int js_execute_collation (void *xdata, int len1, const void *v1, int len2
          if (JS_ToFloat64(js->context, &num, result) == 0) nresult = (num < 0.0) ? -1 : ((num > 0.0) ? 1 : 0);
      }
      JS_FreeValue(js->context, result);
@@ -243,7 +243,7 @@ index 8f6e3a9..5abf713 100644
      
      return nresult;
  }
-@@ -1159,7 +1215,7 @@ insert_function:
+@@ -1290,7 +1346,7 @@ insert_function:
      return (rc == SQLITE_DONE);
  }
  
@@ -252,7 +252,7 @@ index 8f6e3a9..5abf713 100644
      
      globaljs_context *js = (globaljs_context *)sqlite3_user_data(context);
      
-@@ -1254,6 +1310,14 @@ bool js_create_common (sqlite3_context *context, const char *type, const char *n
+@@ -1385,6 +1441,14 @@ bool js_create_common (sqlite3_context *context, const char *type, const char *n
      return (rc == SQLITE_OK);
  }
  
@@ -267,7 +267,7 @@ index 8f6e3a9..5abf713 100644
  void js_create_scalar (sqlite3_context *context, int argc, sqlite3_value **argv) {
      UNUSED(argc);
      // get/check parameters first
-@@ -1326,9 +1390,11 @@ void js_eval (sqlite3_context *context, int argc, sqlite3_value **argv) {
+@@ -1457,9 +1521,11 @@ void js_eval (sqlite3_context *context, int argc, sqlite3_value **argv) {
          return;
      }
      
@@ -279,7 +279,7 @@ index 8f6e3a9..5abf713 100644
  }
  
  static void js_load_fromfile (sqlite3_context *context, int argc, sqlite3_value **argv, bool is_blob) {
-@@ -1486,10 +1552,11 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
+@@ -1617,10 +1683,11 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
      UNUSED(argc);
      globaljs_context *js = (globaljs_context *)sqlite3_user_data(context);
  
@@ -295,7 +295,7 @@ index 8f6e3a9..5abf713 100644
      size_t most = JS_DEFAULT_STACK_SIZE;
      js_stack_room(&most);
      sqlite3_int64 size = sqlite3_value_int64(argv[0]);
-@@ -1501,6 +1568,7 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
+@@ -1632,6 +1699,7 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
          return;
      }
  
@@ -304,10 +304,10 @@ index 8f6e3a9..5abf713 100644
  }
  
 diff --git a/test/main.c b/test/main.c
-index 3b562dd..53f77de 100644
+index a23b3aa..128d320 100644
 --- a/test/main.c
 +++ b/test/main.c
-@@ -704,6 +704,90 @@ abort_test:
+@@ -725,6 +725,90 @@ abort_test:
      return rc;
  }
  
@@ -398,7 +398,7 @@ index 3b562dd..53f77de 100644
  // MARK: - Direct only -
  
  int test_direct_only (void) {
-@@ -932,6 +1016,7 @@ int main (void) {
+@@ -963,6 +1047,7 @@ int main (void) {
      result += test_report("Interrupt", test_interrupt());
      result += test_report("Memory limit", test_memory_limit());
      result += test_report("Stack size", test_stack_size());

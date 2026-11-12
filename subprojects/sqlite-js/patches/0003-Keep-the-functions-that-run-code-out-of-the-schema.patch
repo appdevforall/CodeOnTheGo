@@ -1,4 +1,4 @@
-From 24122de40f992d098f022576b41af596d6e438ac Mon Sep 17 00:00:00 2001
+From e4b4a5ec87400df1a8c3087f391316977b84b6b0 Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Tue, 10 Nov 2026 20:59:46 -0800
 Subject: [PATCH 03/10] Keep the functions that run code out of the schema
@@ -12,7 +12,9 @@ run JavaScript or read files just by being queried:
 `CREATE VIEW v AS SELECT js_eval('...')`.
 
 Register every function but js_version() with SQLITE_DIRECTONLY, so only
-top-level SQL can call them. The functions created with js_create_* are
+top-level SQL can call them. TEMP views and triggers still can: SQLite
+trusts them, since only the connection itself can make them, and the
+README says so. The functions created with js_create_* are
 unchanged, so they still work in views, triggers and indexes. The flag
 is computed from the function's name rather than from a table that
 parallels the function list, so a function added later gets it without
@@ -33,7 +35,7 @@ Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
  3 files changed, 66 insertions(+), 2 deletions(-)
 
 diff --git a/README.md b/README.md
-index 52efd7b..ff51b2f 100644
+index d88b539..bcbb7f0 100644
 --- a/README.md
 +++ b/README.md
 @@ -419,6 +419,12 @@ SELECT js_set_memory_limit(268435456);  -- Allow 256 MB
@@ -42,7 +44,7 @@ index 52efd7b..ff51b2f 100644
  
 +### Using the functions from the schema
 +
-+Every function above but `js_version` runs JavaScript, reads files or changes the JavaScript runtime, so it is registered with `SQLITE_DIRECTONLY`: only top-level SQL can call it, never a view, trigger, CHECK constraint, generated column or index. That way a database from an untrusted source cannot run JavaScript just by being queried. The functions you create with `js_create_scalar`, `js_create_aggregate`, `js_create_window` and `js_create_collation` are not restricted.
++Every function above but `js_version` runs JavaScript, reads files or changes the JavaScript runtime, so it is registered with `SQLITE_DIRECTONLY`: only top-level SQL can call it, never a view, trigger, CHECK constraint, generated column or index stored in the database. (TEMP views and triggers can call it: SQLite trusts them, since only the connection itself can make them.) That way a database from an untrusted source cannot run JavaScript just by being queried. The functions you create with `js_create_scalar`, `js_create_aggregate`, `js_create_window` and `js_create_collation` are not restricted.
 +
 +A database can still store JavaScript in its `js_functions` table, and `js_init_table(1)` runs it. Call it only on databases you trust.
 +
@@ -50,10 +52,10 @@ index 52efd7b..ff51b2f 100644
  
  JavaScript runs inside the SQL statement that calls it, so `sqlite3_interrupt()` stops it as it stops any statement: the statement fails with an "interrupted" error, even if the code catches exceptions. In the `sqlite3` shell, Ctrl-C does this. Interrupting JavaScript needs SQLite 3.41.0 or later.
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index 6f00635..6b48ef2 100644
+index 1ba634e..8a48d92 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
-@@ -1363,11 +1363,16 @@ APIEXPORT int sqlite3_js_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_r
+@@ -1471,11 +1471,16 @@ APIEXPORT int sqlite3_js_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_r
      const char *f_name[] = {"js_version", "js_version", "js_create_scalar", "js_create_aggregate", "js_create_window", "js_create_collation", "js_eval", "js_load_text", "js_load_blob", "js_init_table", "js_init_table", "js_set_max_stack_size", "js_set_memory_limit"};
      const void *f_ptr[] = {js_version0, js_version1, js_create_scalar, js_create_aggregate, js_create_window, js_create_collation, js_eval, js_load_text, js_load_blob, js_init_table0, js_init_table1, js_set_max_stack_size, js_set_memory_limit};
      int f_arg[] = {0, 1, 2, 4, 6, 2, 1, 1, 1, 0, 1, 1, 1};
@@ -73,10 +75,10 @@ index 6f00635..6b48ef2 100644
              if (pzErrMsg) *pzErrMsg = sqlite3_mprintf("Error creating function %s: %s", f_name[i], sqlite3_errmsg(db));
              // sqlite3_create_function_v2 always invokes the xDestroy callback when it fails,
 diff --git a/test/main.c b/test/main.c
-index 7855bfb..dfa3306 100644
+index 4adeb82..c13e043 100644
 --- a/test/main.c
 +++ b/test/main.c
-@@ -647,6 +647,58 @@ abort_test:
+@@ -668,6 +668,58 @@ abort_test:
      return rc;
  }
  
@@ -135,7 +137,7 @@ index 7855bfb..dfa3306 100644
  // MARK: -
  
  int test_report(const char *description, int rc){
-@@ -665,6 +717,7 @@ int main (void) {
+@@ -686,6 +738,7 @@ int main (void) {
      result += test_report("Thread", test_thread());
      result += test_report("Interrupt", test_interrupt());
      result += test_report("Memory limit", test_memory_limit());

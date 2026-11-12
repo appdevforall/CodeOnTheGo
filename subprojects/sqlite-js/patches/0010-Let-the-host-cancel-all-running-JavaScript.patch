@@ -1,4 +1,4 @@
-From ef4e501a7a691d38fbd1ca46454d921d1e30cd9f Mon Sep 17 00:00:00 2001
+From 7501bdd1a9b67a886180b7e7ac3fdc527ca10706 Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Wed, 11 Nov 2026 16:43:39 -0800
 Subject: [PATCH 10/10] Let the host cancel all running JavaScript
@@ -15,26 +15,33 @@ by the existing interrupt handler, makes the cancel reach every runtime
 without a list of connections. The interrupt handler is now installed
 even when sqlite3_is_interrupted() is unavailable (SQLite before 3.41),
 so cancelling still works there.
+
+When the cancel stops a call, the handler also interrupts that call's
+connection with sqlite3_interrupt(), so its statement stops too. A
+collation cannot report an error: without this, a sort went on calling
+it, each call beginning after the cancel, and never ended. Add to the
+Cancel all test a runaway collation that one cancel stops; it hung
+without this.
 ---
- src/sqlitejs.c | 36 +++++++++++++++++++++++++++++++++---
+ src/sqlitejs.c | 42 +++++++++++++++++++++++++++++++++++---
  src/sqlitejs.h |  1 +
- test/main.c    | 46 ++++++++++++++++++++++++++++++++++++++++++++++
- 3 files changed, 80 insertions(+), 3 deletions(-)
+ test/main.c    | 55 ++++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 95 insertions(+), 3 deletions(-)
 
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index 5abf713..e853b0e 100644
+index ee45a06..6718066 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
-@@ -55,6 +55,8 @@ typedef struct {
-     size_t              memory_limit;   // in bytes, 0 for none: see js_set_memory_limit()
+@@ -63,6 +63,8 @@ typedef struct {
+     size_t              mem_peak;       // the most in use since the last result or error
      size_t              stack_size;     // in bytes, 0 for no check: see js_set_max_stack_size()
      int                 depth;          // calls into JavaScript in progress: see js_enter()
 +    unsigned            cancel_epoch;   // js_cancel_epoch when the outermost call began
 +    bool                check_interrupted;  // sqlite3_is_interrupted() is available
+     JSValue             typed_array_byte_offset;    // the getters of every typed array's own
+     JSValue             typed_array_byte_length;    // offset and length: see js_get_bytes()
  } globaljs_context;
- 
- typedef struct {
-@@ -237,6 +239,29 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
+@@ -247,6 +249,30 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
  #define SQLITE_JS_STACK_MARGIN  (256 * 1024)
  #endif
  
@@ -50,7 +57,8 @@ index 5abf713..e853b0e 100644
 +}
 +
 +// Stops all JavaScript that is running now, in every connection: each call fails with an
-+// "interrupted" error. JavaScript that begins afterwards runs normally. Safe from any thread.
++// "interrupted" error, and the statement that called it is interrupted. JavaScript that begins
++// afterwards runs normally. Safe from any thread.
 +// For hosts whose own cancelling cannot reach JavaScript: Android cancels a query with a
 +// progress handler, which SQLite never calls while a JavaScript function runs.
 +void sqlitejs_cancel_all (void) {
@@ -64,7 +72,7 @@ index 5abf713..e853b0e 100644
  // The lowest address of the calling thread's stack, found once per thread: on Linux, finding the
  // main thread's stack reads /proc/self/maps. Returns false where the stack cannot be found.
  static bool js_stack_low (uintptr_t sp, uintptr_t *low) {
-@@ -302,6 +327,7 @@ static bool js_stack_room (size_t *room) {
+@@ -312,6 +338,7 @@ static bool js_stack_room (size_t *room) {
  // runs JavaScript) is on the same thread and keeps the outer call's limit.
  static void js_enter (globaljs_context *js) {
      if (js->depth++ > 0) return;
@@ -72,26 +80,31 @@ index 5abf713..e853b0e 100644
      JS_UpdateStackTop(js->runtime);
      size_t size = js->stack_size, room = 0;
      if ((size > 0) && js_stack_room(&room) && (room < size)) size = (room > 0) ? room : 1;
-@@ -318,7 +344,8 @@ static void js_leave (globaljs_context *js) {
- static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
+@@ -347,7 +374,13 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
      UNUSED(rt);
      globaljs_context *js = (globaljs_context *)opaque;
+     js_keep_gc_below_limit(js);
 -    return (js->db != NULL) && sqlite3_is_interrupted(js->db);
-+    if (js->cancel_epoch != js_cancel_epoch_load()) return 1;
++    if (js->cancel_epoch != js_cancel_epoch_load()) {
++        // The statement is interrupted too: a collation cannot report an error, so the
++        // statement would go on calling JavaScript, each call beginning after the cancel.
++        if (js->db) sqlite3_interrupt(js->db);
++        return 1;
++    }
 +    return js->check_interrupted && (js->db != NULL) && sqlite3_is_interrupted(js->db);
  }
  
- static globaljs_context *globaljs_init (sqlite3 *db) {
-@@ -328,6 +355,8 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
-     globaljs_context *js = (globaljs_context *)sqlite3_malloc(sizeof(globaljs_context));
-     if (!js) return NULL;
+ // The runtime's allocator: the system's, as QuickJS's default is, counting the memory in use the
+@@ -424,6 +457,8 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
      memset(js, 0, sizeof(globaljs_context));
+     js->typed_array_byte_offset = JS_UNDEFINED;
+     js->typed_array_byte_length = JS_UNDEFINED;
 +    // JavaScript that runs while the connection is set up must not count as begun before a cancel
 +    js->cancel_epoch = js_cancel_epoch_load();
      
-     rt = JS_NewRuntime();
+     rt = JS_NewRuntime2(&js_mem_funcs, js);
      if (!rt) goto abort_init;
-@@ -336,8 +365,9 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
+@@ -432,8 +467,9 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
      //JS_SetMaxStackSize(rt, 10 * 1024);
  
      // sqlite3_is_interrupted() is new in SQLite 3.41.0: an older library has no such entry
@@ -115,10 +128,10 @@ index 80fe49d..fea0870 100644
  
  #endif
 diff --git a/test/main.c b/test/main.c
-index 53f77de..49ac377 100644
+index 128d320..8e7f48e 100644
 --- a/test/main.c
 +++ b/test/main.c
-@@ -648,6 +648,51 @@ abort_test:
+@@ -669,6 +669,60 @@ abort_test:
      return rc;
  }
  
@@ -152,6 +165,15 @@ index 53f77de..49ac377 100644
 +    pthread_join(thread, NULL);
 +    if (rc != SQLITE_OK) goto abort_test;
 +
++    // a collation cannot report an error, so its statement is interrupted too: otherwise the sort
++    // would go on calling it, and each call, begun after the cancel, would run
++    rc = db_exec(db, "SELECT js_create_collation('spin_collation', '(function (a, b) { for (;;) {} })');");
++    if (rc != SQLITE_OK) goto abort_test;
++    if (pthread_create(&thread, NULL, test_cancel_all_worker, NULL) != 0) { rc = SQLITE_ERROR; goto abort_test; }
++    rc = check_error(db, "SELECT column1 FROM (VALUES ('a'), ('b'), ('c')) ORDER BY column1 COLLATE spin_collation;", "interrupted");
++    pthread_join(thread, NULL);
++    if (rc != SQLITE_OK) goto abort_test;
++
 +    // JavaScript that begins afterwards runs normally, on this connection and on a new one
 +    rc = check_query(db, "SELECT js_eval('1 + 1');", "2");
 +    if (rc != SQLITE_OK) goto abort_test;
@@ -170,7 +192,7 @@ index 53f77de..49ac377 100644
  // MARK: - Stack size -
  
  int test_stack_size (void) {
-@@ -1014,6 +1059,7 @@ int main (void) {
+@@ -1045,6 +1099,7 @@ int main (void) {
      result += test_report("Serialization 3", test_serialization(DB_PATH, true,  3)); // load the new implementations
      result += test_report("Thread", test_thread());
      result += test_report("Interrupt", test_interrupt());
