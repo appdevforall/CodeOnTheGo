@@ -112,12 +112,26 @@ int main (void) {
           "a function made afterwards is stored in the database");
     sqlite3_close(db);
 
-    // A database without js_functions opens with the trusted entry point
+    // A database without js_functions opens with the trusted entry point, and logs nothing
     char plain[512];
     snprintf(plain, sizeof(plain), "%s/plain.db", dir);
+    logged[0] = 0;
     db = open_with(plain, sqlite3_sqlitejs_trusted_init);
     check(answers(db, "SELECT js_eval('1+1')", "2"), "the trusted entry point opens a database without js_functions");
+    check(logged[0] == 0, "it logs nothing for a database without js_functions");
     sqlite3_close(db);
+
+    // A js_functions that cannot be listed (a table without rowid) is logged, not silent
+    char odd[512];
+    snprintf(odd, sizeof(odd), "%s/odd.db", dir);
+    db = open_with(odd, sqlite3_sqlitejs_init);
+    exec(db, "CREATE TABLE js_functions (name TEXT PRIMARY KEY) WITHOUT ROWID");
+    sqlite3_close(db);
+    logged[0] = 0;
+    db = open_with(odd, sqlite3_sqlitejs_trusted_init);
+    check(strstr(logged, "cannot list the stored functions") != NULL, "it logs a js_functions it cannot list");
+    sqlite3_close(db);
+    unlink(odd);
 
     unlink(path);
     unlink(plain);

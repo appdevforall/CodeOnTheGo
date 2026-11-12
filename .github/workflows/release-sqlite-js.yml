@@ -41,7 +41,7 @@ jobs:
           ls -la .release
 
       # The release is updated in place, never deleted, so dev-assets can always fetch an AAR. If
-      # the new assets fail to upload, the previous ones, downloaded first, are put back.
+      # any step of the update fails, the previous assets (downloaded first) and tag are put back.
       - name: Update sqlite-js-latest release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,13 +59,15 @@ jobs:
                 .release/checksums.txt
             exit 0
           fi
+          TAG_REF="repos/${GITHUB_REPOSITORY}/git/refs/tags/sqlite-js-latest"
+          PREVIOUS_SHA="$(gh api "$TAG_REF" --jq .object.sha)"
           mkdir -p .previous
           gh release download sqlite-js-latest --dir .previous --pattern sqlite-js.aar --pattern checksums.txt
-          if ! gh release upload sqlite-js-latest .release/sqlite-js.aar .release/checksums.txt --clobber; then
-            echo "::error::upload failed; putting back the previous sqlite-js.aar and checksums.txt"
+          if ! { gh release upload sqlite-js-latest .release/sqlite-js.aar .release/checksums.txt --clobber &&
+                 gh api -X PATCH "$TAG_REF" -f sha="$TARGET_SHA" -F force=true >/dev/null &&
+                 gh release edit sqlite-js-latest --latest=false --notes "$NOTES"; }; then
+            echo "::error::updating sqlite-js-latest failed; putting back the previous assets and tag"
             gh release upload sqlite-js-latest .previous/sqlite-js.aar .previous/checksums.txt --clobber
+            gh api -X PATCH "$TAG_REF" -f sha="$PREVIOUS_SHA" -F force=true >/dev/null
             exit 1
           fi
-          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/sqlite-js-latest" \
-              -f sha="$TARGET_SHA" -F force=true >/dev/null
-          gh release edit sqlite-js-latest --latest=false --notes "$NOTES"

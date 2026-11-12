@@ -57,22 +57,40 @@ int sqlite3_sqlitejs_trusted_init (sqlite3 *db, char **pzErrMsg, const sqlite3_a
     int rc = sqlite3_js_init(db, pzErrMsg, pApi);
     if (rc != SQLITE_OK) return rc;
 
-    // the rows are listed first: loading one changes the TEMP schema
+    // Most databases have no stored functions. The table is looked up first, so that SQLite does
+    // not log a "no such table" error for each of their connections.
     sqlite3_stmt *vm = NULL;
-    if (sqlite3_prepare_v2(db, "SELECT rowid FROM main.js_functions ORDER BY rowid", -1, &vm, NULL) != SQLITE_OK) {
+    rc = sqlite3_prepare_v2(db, "SELECT 1 FROM main.sqlite_master WHERE type = 'table' AND name = 'js_functions'", -1, &vm, NULL);
+    if (rc == SQLITE_OK) rc = sqlite3_step(vm);
+    if ((rc != SQLITE_ROW) && (rc != SQLITE_DONE)) sqlite3_log(rc, "sqlite-js: cannot look for stored functions: %s", sqlite3_errmsg(db));
+    sqlite3_finalize(vm);
+    if (rc != SQLITE_ROW) return SQLITE_OK;
+
+    // the rows are listed first: loading one changes the TEMP schema
+    rc = sqlite3_prepare_v2(db, "SELECT rowid FROM main.js_functions ORDER BY rowid", -1, &vm, NULL);
+    if (rc != SQLITE_OK) {
+        sqlite3_log(rc, "sqlite-js: cannot list the stored functions: %s", sqlite3_errmsg(db));
         sqlite3_finalize(vm);
-        return SQLITE_OK; // no js_functions table
+        return SQLITE_OK;
     }
     sqlite3_int64 *rowids = NULL;
     int count = 0, room = 0;
-    while (sqlite3_step(vm) == SQLITE_ROW) {
+    while ((rc = sqlite3_step(vm)) == SQLITE_ROW) {
         if (count == room) {
-            room = (room) ? room * 2 : 16;
-            sqlite3_int64 *more = sqlite3_realloc64(rowids, (sqlite3_uint64)room * sizeof(*rowids));
-            if (!more) break;
+            int more_room = (room) ? room * 2 : 16;
+            sqlite3_int64 *more = sqlite3_realloc64(rowids, (sqlite3_uint64)more_room * sizeof(*rowids));
+            if (!more) {
+                rc = SQLITE_NOMEM;
+                break;
+            }
             rowids = more;
+            room = more_room;
         }
         rowids[count++] = sqlite3_column_int64(vm, 0);
+    }
+    if (rc != SQLITE_DONE) {
+        sqlite3_log(rc, "sqlite-js: cannot list all the stored functions, so only %d load: %s", count,
+                    (rc == SQLITE_NOMEM) ? sqlite3_errstr(rc) : sqlite3_errmsg(db));
     }
     sqlite3_finalize(vm);
     for (int i = 0; i < count; i++) load_stored_function(db, rowids[i]);
