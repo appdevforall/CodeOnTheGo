@@ -182,14 +182,12 @@ js_version(1)
 
 ```sql
 SELECT js_version();
--- 1.3.7
+-- 1.4.1
 ```
 
-A package built from upstream code newer than 1.3.7, such as 1.3.7-p20261112-0, still reports `1.3.7`. To see the package version, enter `dpkg -s sqlite-js` in Terminal.
+## What changed in sqlite-js 1.4
 
-## What is different from sqlite-js 1.3.7
-
-The sqlite-js in Code on the Go is built from the upstream project's code of 12 November 2026, which is newer than its 1.3.7 release. That code includes fixes that App Dev For All sent to the upstream project. Compared with 1.3.7:
+sqlite-js 1.4.0 includes fixes that App Dev For All sent to the upstream project. Compared with 1.3.7:
 
 - Ctrl-C stops JavaScript that never ends.
 - JavaScript may use 64 MB of memory, and `js_set_memory_limit` changes the limit.
