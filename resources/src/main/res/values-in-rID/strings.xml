@@ -979,7 +979,6 @@
 	<string name="project_directory_invalid">%s bukan folder proyek Android yang valid. Silakan buka folder lain.</string>
 	<string name="open_from_folder">Buka dari folder</string>
 	<string name="msg_delete_selected_project">Apakah Anda yakin ingin menghapus proyek yang dipilih? Tindakan ini tidak dapat dibatalkan.</string>
-	<string name="feedback_email">feedback@appdevforall.org</string>
 	<string name="no_email_apps">Tidak ada aplikasi email yang ditemukan</string>
 	<string name="msg_internet_access_required">Akses internet diperlukan.</string>
 	<string name="msg_contact_app_dev_title">Hubungi App Dev for All</string>
@@ -1054,34 +1053,8 @@
 	<string name="bootstrap_installer_linking">Memproses tautan file (symlinks)…</string>
 
 	<!-- Tooltip HTML Template -->
-	<string name="tooltip_html_template"><![CDATA[
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <style>
-                     body {
-                        margin: 0;
-                        padding: 10px;
-                        word-wrap: break-word;
-                        color: %1$s;
-                     }
-                     a{
-                        color: %3$s;
-                        text-decoration: underline;
-                       }
-                </style>
-            </head>
-            <body>
-                %2$s
-            </body>
-
-		</html>
-		]]></string>
 
 	<!-- Tooltip HTML Components -->
-	<string name="tooltip_buttons_separator"><![CDATA[<br>]]></string>
-	<string name="tooltip_detail_links_template"><![CDATA[%1$s<br><br>%2$s]]></string>
 	<string name="plugin_documentation_third_party_disclaimer">&lt;br&gt;&lt;br&gt;&lt;em style=&quot;color: #888; font-size: 0.9em;&quot;&gt;Dokumentasi ini disediakan oleh plugin pihak ketiga.&lt;/em&gt;</string>
 
 	<!-- Tooltip Debug Dialog -->
@@ -1090,9 +1063,6 @@
 	<string name="tooltip_debug_plugin_html"><![CDATA[<h3>Info Debug Tooltip Plugin</h3>\n<b>Versi:</b> <small>%1$s</small><br/>\n<b>Baris:</b> %2$d<br/>\n<b>ID:</b> %3$d<br/>\n<b>Kategori:</b> %4$s<br/>\n<b>Tag:</b> %5$s<br/>\n<br/>\n<b>Ringkasan Mentah:</b><br/>\n<small>%6$s</small><br/>\n<br/>\n<b>Detail Mentah:</b><br/>\n<small>%7$s</small><br/>\n<br/>\n<b>Tombol:</b> %8$s]]></string>
 
 	<!-- Tooltip Debug Button Formatting -->
-	<string name="tooltip_debug_button_separator"><![CDATA[<br/>]]></string>
-	<string name="tooltip_debug_button_item_template_simple">• %1$s</string>
-	<string name="tooltip_debug_button_item_template">\'%1$s \u2192 %2$s\'</string>
 
 	<string name="info_icon_content_description">Ikon info</string>
 	<string name="feedback_button_description">Kirim masukan tentang keterangan (tooltip) ini</string>
@@ -1420,13 +1390,11 @@
 	<string name="debugger_setup_description_footer"><![CDATA[Beberapa perangkat (termasuk perangkat Xiaomi model lama) juga memerlukan pemberian izin "Penggunaan baterai tanpa batasan" kepada Code on the Go. <a href="http://localhost:6174/i/debug-enable.html">Lihat informasi lebih lanjut, termasuk tips pemecahan masalah</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
-	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
 	<string name="tooltip_missing_fallback_html"><![CDATA[Maaf, kami tidak memiliki keterangan (tooltip) untuk itu. <a href="%1$s">Jelajahi dokumentasi</a>.]]></string>
 	<string name="title_alert">Kirim masukan</string>
 
 	<!-- Strings from BaseApplication.java -->
 	<string name="support_our_work">Dukung pekerjaan kami</string>
-	<string name="adfa_email">info@appdevforall.org</string>
 
 	<!-- AI Agent -->
 	<string name="ai_setting_saved">💾 Disimpan: %1$s</string>
