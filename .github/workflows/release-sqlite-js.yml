@@ -40,8 +40,9 @@ jobs:
           ( cd .release && sha256sum sqlite-js.aar > checksums.txt )
           ls -la .release
 
-      # The release is updated in place, never deleted, so dev-assets can always fetch an AAR. If
-      # any step of the update fails, the previous assets (downloaded first) and tag are put back.
+      # Once published, the release is updated in place, never deleted, so dev-assets can always
+      # fetch an AAR. If any step of the update fails, the previous assets (downloaded first) and
+      # tag are put back.
       - name: Update sqlite-js-latest release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,6 +50,12 @@ jobs:
         run: |
           TARGET_SHA="$(git rev-parse HEAD)"
           NOTES="built from ${TARGET_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          # gh release create makes a draft and publishes it once its assets are uploaded, so a first
+          # run that stopped during the upload leaves a draft. It has no tag yet and dev-assets cannot
+          # fetch from it: delete it, and create the release again.
+          if [ "$(gh release view sqlite-js-latest --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then
+            gh release delete sqlite-js-latest --yes
+          fi
           if ! gh release view sqlite-js-latest >/dev/null 2>&1; then
             gh release create sqlite-js-latest \
                 --target "$TARGET_SHA" \
