@@ -170,6 +170,7 @@ include(
 	":subprojects:shizuku-server-shared",
 	":subprojects:shizuku-shared",
 	":subprojects:shizuku-starter",
+	":subprojects:sqlite-js",
 	":subprojects:tooling-api",
 	":subprojects:tooling-api-events",
 	":subprojects:tooling-api-impl",

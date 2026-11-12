@@ -1,0 +1,8 @@
+{
+	global:
+		sqlite3_js_init;
+		sqlite3_sqlitejs_init;
+		JNI_OnLoad;
+	local:
+		*;
+};

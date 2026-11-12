@@ -10,7 +10,7 @@ The app bundles large native components per ABI — llama.cpp, plus the on-devic
 
 ## Decision
 
-Define two **product flavors** on an `abi` dimension — `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) — **centrally** in `composite-builds/build-logic` (`conf/AndroidModuleConf.kt`), applied to every Android module except `:plugin-api`.
+Define two **product flavors** on an `abi` dimension — `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) — **centrally** in `composite-builds/build-logic` (`conf/AndroidModuleConf.kt`), applied to every Android module except `:plugin-api` and `:subprojects:sqlite-js` (an AAR for apps built with CoGo, which needs every ABI they run on; ADFA-7082).
 
 Consequences for the build:
 - Build tasks are flavor-qualified: `assembleV8Debug`, `assembleV7Release`, etc. **There is no flavorless `assembleDebug`.**
