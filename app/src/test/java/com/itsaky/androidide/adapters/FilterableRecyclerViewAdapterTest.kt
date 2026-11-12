@@ -3,7 +3,10 @@ package com.itsaky.androidide.adapters
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,7 +32,9 @@ class FilterableRecyclerViewAdapterTest {
 		override fun onCreateViewHolder(
 			parent: ViewGroup,
 			viewType: Int,
-		) = object : RecyclerView.ViewHolder(View(parent.context)) {}
+		) = object : RecyclerView.ViewHolder(
+			View(parent.context).apply { layoutParams = RecyclerView.LayoutParams(MATCH_PARENT, ROW_HEIGHT) },
+		) {}
 
 		override fun onBindViewHolder(
 			holder: RecyclerView.ViewHolder,
@@ -108,5 +113,38 @@ class FilterableRecyclerViewAdapterTest {
 			// A surviving row in the wrong place, or a stale one, differs from the data at its index.
 			assertThat(shown.rows.mapIndexed { i, row -> row ?: expected.getOrNull(i) }).isEqualTo(expected)
 		}
+	}
+
+	@Test
+	fun `a new result is shown from its first match, not from where the list was scrolled`() {
+		val adapter = StringAdapter(tasks)
+		val list =
+			RecyclerView(ApplicationProvider.getApplicationContext()).apply {
+				layoutManager = LinearLayoutManager(context)
+				this.adapter = adapter
+			}
+		val layoutManager = list.layoutManager as LinearLayoutManager
+
+		fun layOut() {
+			list.measure(exactly(1_000), exactly(2 * ROW_HEIGHT))
+			list.layout(0, 0, 1_000, 2 * ROW_HEIGHT)
+		}
+
+		adapter.filterAndWait("co")
+		layOut()
+		list.scrollToPosition(4)
+		layOut()
+		assertThat(layoutManager.findFirstVisibleItemPosition()).isGreaterThan(0)
+
+		// Clearing the search inserts rows above the visible ones; the list must not stay anchored there.
+		adapter.filterAndWait("")
+		layOut()
+		assertThat(layoutManager.findFirstVisibleItemPosition()).isEqualTo(0)
+	}
+
+	private fun exactly(size: Int) = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
+
+	private companion object {
+		const val ROW_HEIGHT = 100
 	}
 }

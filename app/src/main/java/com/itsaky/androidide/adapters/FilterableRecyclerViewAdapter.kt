@@ -46,6 +46,8 @@ abstract class FilterableRecyclerViewAdapter<V : RecyclerView.ViewHolder, D : An
 			): Boolean = oldItem == newItem
 		},
 	) {
+	private var recyclerView: RecyclerView? = null
+
 	init {
 		submitList(items)
 	}
@@ -57,7 +59,21 @@ abstract class FilterableRecyclerViewAdapter<V : RecyclerView.ViewHolder, D : An
 	 */
 	fun filter(query: String?) {
 		val query = query?.trim()
-		submitList(if (query.isNullOrEmpty()) items else items.filter { onFilter(it, query) })
+		// A new result starts at its first match. ListAdapter would otherwise keep the scroll anchor,
+		// leaving rows inserted above it (widening the query, clearing it) out of view.
+		submitList(if (query.isNullOrEmpty()) items else items.filter { onFilter(it, query) }) {
+			recyclerView?.scrollToPosition(0)
+		}
+	}
+
+	override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+		super.onAttachedToRecyclerView(recyclerView)
+		this.recyclerView = recyclerView
+	}
+
+	override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+		super.onDetachedFromRecyclerView(recyclerView)
+		this.recyclerView = null
 	}
 
 	/** Get the list item at given index. */
