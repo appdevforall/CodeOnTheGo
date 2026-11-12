@@ -88,9 +88,21 @@ internal class ListingJarHandler(
 		val size = listing.size(index)
 		if (size > MAX_ENTRY_SIZE) throw ZipException("$jarPath!${listing.name(index)} is too large: $size bytes")
 		return when (val method = listing.method(index)) {
-			METHOD_STORED -> readCompressed(index, extra = 0)
-			METHOD_DEFLATED -> inflate(readCompressed(index, extra = 1), size.toInt(), index)
-			else -> throw ZipException("$jarPath!${listing.name(index)} has unsupported method $method")
+			METHOD_STORED -> {
+				readCompressed(index, extra = 0)
+			}
+
+			METHOD_DEFLATED -> {
+				// The output array is sized from metadata, so refuse a size no deflate stream of this length can produce.
+				if (size > (listing.compressedSize(index) + 1) * MAX_DEFLATE_RATIO) {
+					throw ZipException("$jarPath!${listing.name(index)}: $size bytes cannot inflate from ${listing.compressedSize(index)}")
+				}
+				inflate(readCompressed(index, extra = 1), size.toInt(), index)
+			}
+
+			else -> {
+				throw ZipException("$jarPath!${listing.name(index)} has unsupported method $method")
+			}
 		}
 	}
 
@@ -127,6 +139,10 @@ internal class ListingJarHandler(
 	): ByteArray {
 		val compressedSize = listing.compressedSize(index)
 		if (compressedSize > MAX_ENTRY_SIZE) throw ZipException("$jarPath!${listing.name(index)} is too large: $compressedSize bytes")
+		// Checked before allocating, so a corrupt central directory cannot claim more heap than the file holds.
+		if (listing.localHeaderOffset(index) + LOC_HEADER_SIZE + compressedSize > snapshot.size()) {
+			throw ZipException("$jarPath!${listing.name(index)}: $compressedSize bytes run past the end of the JAR")
+		}
 		val data = ByteArray(compressedSize.toInt() + extra)
 		val header = ByteArray(LOC_HEADER_SIZE)
 		synchronized(jarLock) {
@@ -208,6 +224,9 @@ internal class ListingJarHandler(
 		const val ROOT = 0
 		const val NANOS_PER_MILLI = 1_000_000L
 		const val MAX_ENTRY_SIZE = Int.MAX_VALUE - 16L
+
+		// Deflate's upper bound: a 258-byte match costs at least 2 bits (1-bit length and distance codes).
+		const val MAX_DEFLATE_RATIO = 1032L
 		const val METHOD_STORED = 0
 		const val METHOD_DEFLATED = 8
 		const val LOC_SIGNATURE = 0x04034b50L

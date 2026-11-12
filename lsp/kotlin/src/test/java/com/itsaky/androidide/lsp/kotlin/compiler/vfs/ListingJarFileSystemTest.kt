@@ -15,6 +15,7 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.FileTime
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
+import java.util.zip.ZipException
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
@@ -174,6 +175,24 @@ class ListingJarFileSystemTest : KtLspTest() {
 	}
 
 	@Test
+	fun `a compressed size past the end of the jar fails before allocating it`() {
+		val jar = writeCorrupt("p/A.class" to "a", cenOffset = CEN_COMPRESSED_SIZE, value = HUGE_SIZE)
+
+		val failure = runCatching { find(jar, "p/A.class")!!.contentsToByteArray() }.exceptionOrNull()
+
+		assertThat(failure).isInstanceOf(ZipException::class.java)
+	}
+
+	@Test
+	fun `an uncompressed size deflate cannot reach fails before allocating it`() {
+		val jar = writeCorrupt("p/A.class" to "a", cenOffset = CEN_SIZE, value = HUGE_SIZE)
+
+		val failure = runCatching { find(jar, "p/A.class")!!.contentsToByteArray() }.exceptionOrNull()
+
+		assertThat(failure).isInstanceOf(ZipException::class.java)
+	}
+
+	@Test
 	fun `a first read after a rename replaced the jar fails instead of using old offsets`() {
 		val jar = writeJar("a.jar", "p/A.class" to "old")
 		val held = find(jar, "p/A.class")!!
@@ -289,6 +308,30 @@ class ListingJarFileSystemTest : KtLspTest() {
 		return jar
 	}
 
+	/** Writes a one-entry JAR whose central directory field at [cenOffset] is overwritten with [value]. */
+	private fun writeCorrupt(
+		entry: Pair<String, String?>,
+		cenOffset: Int,
+		value: Long,
+	): Path {
+		val bytes = zipBytes(entry)
+		val cen = (bytes.size - 4 downTo 0).first { u32(bytes, it) == CEN_SIGNATURE }
+		for (k in 0 until 4) {
+			bytes[cen + cenOffset + k] = (value ushr (8 * k)).toByte()
+		}
+		val jar =
+			lspTestRule.tempDir.root
+				.toPath()
+				.resolve("corrupt-size.jar")
+		Files.write(jar, bytes)
+		return jar
+	}
+
+	private fun u32(
+		bytes: ByteArray,
+		at: Int,
+	): Long = (0 until 4).fold(0L) { acc, k -> acc or ((bytes[at + k].toLong() and 0xFF) shl (8 * k)) }
+
 	private fun renameOver(
 		jar: Path,
 		vararg entries: Pair<String, String?>,
@@ -322,3 +365,9 @@ class ListingJarFileSystemTest : KtLspTest() {
 }
 
 private const val LOC_HEADER_SIZE = 30
+private const val CEN_SIGNATURE = 0x02014b50L
+private const val CEN_COMPRESSED_SIZE = 20
+private const val CEN_SIZE = 24
+
+// Below the 0xFFFFFFFF zip64 marker, and far beyond the 1 GB test heap.
+private const val HUGE_SIZE = 0x7FFF_0000L

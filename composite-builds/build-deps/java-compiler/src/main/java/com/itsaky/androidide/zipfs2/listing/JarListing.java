@@ -631,20 +631,30 @@ public final class JarListing {
 			return lookup(table, names, nameOffsets, key, off, len);
 		}
 
-		/* Creates an entry for key[0..len), plus any missing ancestors, and links it to its parent. */
+		/*
+		 * Creates an entry for key[0..len), plus any missing ancestors, and links each to its parent.
+		 * Iterative because one entry name can hold tens of thousands of segments. The entry and its
+		 * missing ancestors get consecutive indices, deepest first, so the links are made by walking
+		 * those indices back from the shallowest.
+		 */
 		private int create(byte[] key, int len) {
-			int i = append(key, 0, len);
-			int slash = len - 1;
-			while (key[slash] != '/') {
-				slash--;
+			final int first = count;
+			int end = len;
+			int parent;
+			do {
+				append(key, 0, end);
+				end--;
+				while (key[end] != '/') {
+					end--;
+				}
+				parent = end == 0 ? 0 : find(key, 0, end);
+			} while (parent < 0);
+			for (int i = count - 1; i >= first; i--) {
+				nextSiblings[i] = firstChildren[parent];
+				firstChildren[parent] = i;
+				parent = i;
 			}
-			int parent = slash == 0 ? 0 : find(key, 0, slash);
-			if (parent < 0) {
-				parent = create(key, slash);
-			}
-			nextSiblings[i] = firstChildren[parent];
-			firstChildren[parent] = i;
-			return i;
+			return first;
 		}
 
 		private int append(byte[] src, int off, int len) {
