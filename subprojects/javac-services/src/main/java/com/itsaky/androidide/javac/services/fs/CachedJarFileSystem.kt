@@ -19,33 +19,30 @@ package com.itsaky.androidide.javac.services.fs
 
 import com.itsaky.androidide.zipfs2.ZipFileSystem
 import com.itsaky.androidide.zipfs2.ZipFileSystemProvider
-import jdkx.lang.model.SourceVersion
+import com.itsaky.androidide.zipfs2.listing.JarListing
 import openjdk.tools.javac.file.RelativePath.RelativeDirectory
 import org.slf4j.LoggerFactory
 import java.io.IOException
-import java.nio.file.FileVisitResult
-import java.nio.file.Files
+import java.nio.channels.SeekableByteChannel
 import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.attribute.BasicFileAttributes
-import java.util.Collections
 
 /**
- * A cached file system for JAR files.
+ * A cached, read-only file system for a JAR that reads its entries through the shared [JarListing].
  *
  * @author Akash Yadav
  */
-class CachedJarFileSystem(
-	provider: ZipFileSystemProvider?,
-	zfpath: Path?,
-	env: MutableMap<String, *>?,
-) : ZipFileSystem(provider, zfpath, env) {
+class CachedJarFileSystem internal constructor(
+	provider: ZipFileSystemProvider,
+	zfpath: Path,
+	internal val listing: JarListing,
+	channel: SeekableByteChannel,
+) : ZipFileSystem(provider, zfpath, listing, channel) {
 	companion object {
 		private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
 	}
 
 	private val packageIndex: Map<RelativeDirectory, Path> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-		Collections.unmodifiableMap(walkPackages())
+		ListingPackageMap(this, listing)
 	}
 
 	override fun close() {
@@ -67,42 +64,7 @@ class CachedJarFileSystem(
 	/**
 	 * Returns the package directories of this JAR keyed the way javac's archive walk keys them.
 	 *
-	 * The map is built on first use, is read-only, and is the same instance on every call.
+	 * The map is a read-only view of the listing, resolved on demand, and is the same instance on every call.
 	 */
 	fun packageIndex(): Map<RelativeDirectory, Path> = packageIndex
-
-	private fun walkPackages(): Map<RelativeDirectory, Path> {
-		val packages = HashMap<RelativeDirectory, Path>()
-		for (root in rootDirectories) {
-			Files.walkFileTree(
-				root,
-				emptySet(),
-				Int.MAX_VALUE,
-				object : SimpleFileVisitor<Path>() {
-					override fun preVisitDirectory(
-						dir: Path,
-						attrs: BasicFileAttributes,
-					): FileVisitResult {
-						if (!isValid(dir.fileName)) {
-							return FileVisitResult.SKIP_SUBTREE
-						}
-						packages[RelativeDirectory(root.relativize(dir).toString())] = dir
-						return FileVisitResult.CONTINUE
-					}
-				},
-			)
-		}
-		return packages
-	}
-
-	private fun isValid(fileName: Path?): Boolean =
-		if (fileName == null) {
-			true
-		} else {
-			var name = fileName.toString()
-			if (name.endsWith("/")) {
-				name = name.substring(0, name.length - 1)
-			}
-			SourceVersion.isIdentifier(name)
-		}
 }
