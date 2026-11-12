@@ -14,6 +14,9 @@ import com.itsaky.androidide.lsp.java.debug.utils.kotlinDisplayName
 import com.itsaky.androidide.lsp.java.debug.utils.kotlinLambdaScopes
 import com.itsaky.androidide.lsp.java.debug.utils.lineNumberInKotlin
 import com.itsaky.androidide.lsp.java.debug.utils.sourceNameInKotlinOrNull
+import com.sun.jdi.AbsentInformationException
+import com.sun.jdi.IncompatibleThreadStateException
+import com.sun.jdi.InvalidStackFrameException
 import com.sun.jdi.Location
 import com.sun.jdi.Method
 import com.sun.jdi.ObjectCollectedException
@@ -66,88 +69,116 @@ class JavaStackFrame(
 					return@evaluate emptyList()
 				}
 
-				return@evaluate thread
-					.frames()
-					.firstOrNull { frame ->
-						frame.location() == location
-					}?.run {
-						val variables = mutableListOf<AbstractJavaVariable<*>>()
+				val currentFrame =
+					try {
+						thread.frames().firstOrNull { frame ->
+							frame.location() == location
+						}
+					} catch (e: Exception) {
+						when (e) {
+							is InvalidStackFrameException,
+							is IncompatibleThreadStateException,
+							is ObjectCollectedException,
+							is VMDisconnectedException,
+							-> {
+								logger.warn("Skipping variables for stale frame at {}: {}", location, e.message)
+							}
 
-						val thisObject =
-							runCatching {
-								this.thisObject()
-							}.getOrElse { e ->
-								when (e) {
-									is VMDisconnectedException -> {
-										logger.warn("VM disconnected while fetching 'this' object.", e)
-										return@evaluate emptyList()
-									}
+							else -> {
+								logger.error("Failed to read stack frames for thread {}", thread.name(), e)
+							}
+						}
+						return@evaluate emptyList()
+					}
 
-									is ObjectCollectedException -> {
-										logger.warn("Object collected by GC during debug", e)
-										null
-									}
+				return@evaluate currentFrame?.run {
+					val variables = mutableListOf<AbstractJavaVariable<*>>()
 
-									else -> {
-										logger.error("Unexpected error fetching thisObject", e)
-										null
-									}
+					val thisObject =
+						runCatching {
+							this.thisObject()
+						}.getOrElse { e ->
+							when (e) {
+								is VMDisconnectedException,
+								is InvalidStackFrameException,
+								is IncompatibleThreadStateException,
+								-> {
+									logger.warn("Frame or VM unavailable while fetching 'this' object: {}", e.message)
+									return@evaluate emptyList()
+								}
+
+								is ObjectCollectedException -> {
+									logger.warn("Object collected by GC during debug", e)
+									null
+								}
+
+								else -> {
+									logger.error("Unexpected error fetching thisObject", e)
+									null
 								}
 							}
-						if (thisObject != null) {
-							variables.add(
-								ThisVariable<Value>(
-									thread = thread,
-									ref = thisObject,
-									refType = thisObject.referenceType(),
-								),
-							)
 						}
-
-						try {
-							val locals = visibleVariables()
-							val lambdaScopes = kotlinLambdaScopes(locals?.map { it.name() }.orEmpty())
-							locals
-								?.mapNotNull { variable ->
-									if (variable.name().isBlank()) {
-										// some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
-										return@mapNotNull null
-									}
-
-									if (isSyntheticKotlinLocal(variable.name())) {
-										return@mapNotNull null
-									}
-
-									try {
-										JavaLocalVariable.forVariable(
-											thread = thread,
-											stackFrame = this@JavaStackFrame,
-											variable = variable,
-											value = getValue(variable),
-											name = kotlinDisplayName(variable.name(), lambdaScopes),
-										)
-									} catch (e: VMDisconnectedException) {
-										throw e
-									} catch (err: Throwable) {
-										logger.error(
-											"Failed to create variable wrapper for {}",
-											variable.name(),
-											err,
-										)
-										null
-									}
-								}?.also { localVariables ->
-									variables.addAll(localVariables as List<AbstractJavaVariable<*>>)
-								}
-						} catch (e: VMDisconnectedException) {
-							logger.warn("VM disconnected while reading local variables. Aborting.")
-							return@evaluate emptyList()
-						} catch (e: Throwable) {
-							logger.error("Error reading local variables", e)
-						}
-
-						variables
+					if (thisObject != null) {
+						variables.add(
+							ThisVariable<Value>(
+								thread = thread,
+								ref = thisObject,
+								refType = thisObject.referenceType(),
+							),
+						)
 					}
+
+					try {
+						val locals = visibleVariables()
+						val lambdaScopes = kotlinLambdaScopes(locals?.map { it.name() }.orEmpty())
+						locals
+							?.mapNotNull { variable ->
+								if (variable.name().isBlank()) {
+									// some opaque frames in core Android classes have empty variable names (like in ZygoteInit)
+									return@mapNotNull null
+								}
+
+								if (isSyntheticKotlinLocal(variable.name())) {
+									return@mapNotNull null
+								}
+
+								try {
+									JavaLocalVariable.forVariable(
+										thread = thread,
+										stackFrame = this@JavaStackFrame,
+										variable = variable,
+										value = getValue(variable),
+										name = kotlinDisplayName(variable.name(), lambdaScopes),
+									)
+								} catch (e: VMDisconnectedException) {
+									throw e
+								} catch (e: InvalidStackFrameException) {
+									throw e
+								} catch (err: Throwable) {
+									logger.error(
+										"Failed to create variable wrapper for {}",
+										variable.name(),
+										err,
+									)
+									null
+								}
+							}?.also { localVariables ->
+								variables.addAll(localVariables as List<AbstractJavaVariable<*>>)
+							}
+					} catch (e: VMDisconnectedException) {
+						logger.warn("VM disconnected while reading local variables. Aborting.")
+						return@evaluate emptyList()
+					} catch (e: InvalidStackFrameException) {
+						logger.warn("Frame invalidated while reading local variables: {}", e.message)
+						return@evaluate emptyList()
+					} catch (e: AbsentInformationException) {
+						logger.debug("No local variable information available for {}", location)
+					} catch (e: Throwable) {
+						logger.error("Error reading local variables", e)
+					}
+
+					variables
+				}
 			} ?: emptyList()
 		}
 
@@ -188,7 +219,9 @@ class JavaStackFrame(
 
 internal class LspThreadInfo(
 	val thread: ThreadInfo,
-	val frames: List<StackFrame> = thread.frames(),
+	private val evalContextProvider: () -> com.itsaky.androidide.lsp.java.debug.utils.EvaluationContext = {
+		JavaDebugAdapter.requireInstance().evalContext()
+	},
 ) : LspThreadInfo {
 	companion object {
 		private val logger = LoggerFactory.getLogger(LspThreadInfo::class.java)
@@ -198,26 +231,70 @@ internal class LspThreadInfo(
 
 	override suspend fun descriptor(): ThreadDescriptor =
 		withContext(Dispatchers.IO) {
-			val thread = thread.thread
-			val group = thread.threadGroup()
+			val jdiThread = thread.thread
+			val id = runCatching { jdiThread.uniqueID().toString() }.getOrDefault("<unknown>")
+			val name = runCatching { jdiThread.name() }.getOrDefault("<collected>")
+			val group = runCatching { jdiThread.threadGroup()?.name() }.getOrNull() ?: "<unknown>"
+			val state =
+				runCatching {
+					threadStateOf(jdiThread.status())
+				}.getOrDefault(LspThreadState.UNKNOWN)
 
 			ThreadDescriptor(
-				id = thread.uniqueID().toString(),
-				name = thread.name(),
-				group = group.name(),
-				state = threadStateOf(thread.status()),
+				id = id,
+				name = name,
+				group = group,
+				state = state,
 			)
 		}
 
 	override suspend fun getFrames(): List<JavaStackFrame> {
 		if (!::cachedFrames.isInitialized) {
 			cachedFrames =
-				JavaDebugAdapter.requireInstance().evalContext().evaluate(thread.thread) {
-					frames.map { frame ->
-						JavaStackFrame(
-							thread = thread.thread,
-							frame = frame,
-						)
+				evalContextProvider().evaluate(thread.thread) {
+					try {
+						thread.frames().mapNotNull { frame ->
+							try {
+								JavaStackFrame(
+									thread = thread.thread,
+									frame = frame,
+								)
+							} catch (e: Exception) {
+								when (e) {
+									is InvalidStackFrameException,
+									is IncompatibleThreadStateException,
+									is VMDisconnectedException,
+									-> {
+										throw e
+									}
+
+									is ObjectCollectedException -> {
+										logger.warn("Skipping collected stack frame in thread {}", thread.thread.name())
+										null
+									}
+
+									else -> {
+										logger.error("Failed to materialize stack frame", e)
+										null
+									}
+								}
+							}
+						}
+					} catch (e: Exception) {
+						when (e) {
+							is InvalidStackFrameException,
+							is IncompatibleThreadStateException,
+							is ObjectCollectedException,
+							is VMDisconnectedException,
+							-> {
+								logger.warn("Cannot read frames for stale/resumed thread: {}", e.message)
+							}
+
+							else -> {
+								logger.error("Unexpected error reading stack frames", e)
+							}
+						}
+						emptyList()
 					}
 				} ?: emptyList()
 		}
