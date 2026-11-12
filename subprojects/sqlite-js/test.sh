@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Tests sqlite-js on this host: upstream's suite (test/main.c, not vendored) on the release with
+# Tests sqlite-js on this host: upstream's suite (test/main.c, not vendored) on its source with
 # patches/ applied, then src/test/c/glue_test.c, the test of the Android entry points, on the
 # vendored upstream/. Run vendor.sh --check first: it shows the two are the same.
-# Usage: test.sh [TARBALL]   (without TARBALL, downloads the release)
+# Usage: test.sh [TARBALL]   (without TARBALL, downloads it)
 # Needs gcc, make, curl and a JDK (JAVA_HOME, or javac on the PATH) for jni.h.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-eval "$(grep -E '^(VERSION|SHA256|URL)=' "$HERE/vendor.sh")"
+eval "$(grep -E '^(VERSION|COMMIT|SHA256|URL)=' "$HERE/vendor.sh")"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-TARBALL=${1:-$WORK/sqlite-js-$VERSION.tar.gz}
+TARBALL=${1:-$WORK/sqlite-js-$COMMIT.tar.gz}
 [ -f "$TARBALL" ] || curl -fsSL -o "$TARBALL" "$URL"
 echo "$SHA256  $TARBALL" | sha256sum -c --quiet -
 tar -xzf "$TARBALL" -C "$WORK"
-SRC=$WORK/sqlite-js-$VERSION
+SRC=$WORK/sqlite-js-$COMMIT
 for p in "$HERE"/patches/*.patch; do
 	patch -d "$SRC" -p1 --quiet --no-backup-if-mismatch <"$p"
 done

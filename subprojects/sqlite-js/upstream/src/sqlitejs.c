@@ -33,6 +33,11 @@
 #endif
 #elif defined(__APPLE__) || defined(__linux__)
 #include <pthread.h>
+#if defined(__linux__)
+#include <unistd.h>             // getpid, for the initial thread in js_stack_low
+#include <sys/syscall.h>        // SYS_gettid
+#include <sys/resource.h>       // RLIMIT_STACK
+#endif
 #endif
 
 #ifndef SQLITE_CORE
@@ -57,6 +62,8 @@ typedef struct {
     sqlite3             *db;
     JSClassID           rowSetClassID;
     int                 ref_count;
+    JSValue             typed_array_byte_offset;    // the getters of every typed array's own
+    JSValue             typed_array_byte_length;    // offset and length: see js_get_bytes()
     size_t              memory_limit;   // in bytes, 0 for none: see js_set_memory_limit()
     size_t              gc_threshold;   // QuickJS's GC threshold when last checked: see js_keep_gc_below_limit()
     size_t              mem_used;       // memory the runtime has allocated: see js_mem_malloc()
@@ -65,8 +72,6 @@ typedef struct {
     int                 depth;          // calls into JavaScript in progress: see js_enter()
     unsigned            cancel_epoch;   // js_cancel_epoch when the outermost call began
     bool                check_interrupted;  // sqlite3_is_interrupted() is available
-    JSValue             typed_array_byte_offset;    // the getters of every typed array's own
-    JSValue             typed_array_byte_length;    // offset and length: see js_get_bytes()
 } globaljs_context;
 
 typedef struct {
@@ -234,20 +239,32 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
 
 // MARK: - Initializer -
 
-// The most memory, in bytes, the JavaScript runtime of a connection may allocate until
-// js_set_memory_limit() changes it; 0 means no limit. Without a limit, code that keeps
-// allocating takes all the memory of the process, which on a phone ends with the operating
-// system killing it. 64 MB is room for over a thousand aggregate contexts (about 54 KB each).
-#ifndef SQLITE_JS_DEFAULT_MEMORY_LIMIT
-#define SQLITE_JS_DEFAULT_MEMORY_LIMIT  (64 * 1024 * 1024)
-#endif
+// QuickJS collects cyclic garbage only when its memory use passes a threshold, which it resets
+// after each collection to 1.5 times the memory still in use. With more than two thirds of the
+// memory limit in use, that is beyond the limit: garbage would fill the rest, and code that fits
+// in the limit would fail. So the threshold is lowered to halfway between the memory in use and
+// the limit. Called often, so it does nothing until a collection has changed the threshold.
+static void js_keep_gc_below_limit (globaljs_context *js) {
+    size_t threshold = JS_GetGCThreshold(js->runtime);
+    if (threshold == js->gc_threshold) return;
+    size_t limit = js->memory_limit;
+    if ((limit > 0) && (threshold > limit - limit / 4)) {
+        size_t used = threshold / 3 * 2;
+        if (used > limit) used = limit;
+        threshold = used + (limit - used) / 2;
+        JS_SetGCThreshold(js->runtime, threshold);
+    }
+    js->gc_threshold = threshold;
+}
 
-// Stack, in bytes, kept free below the JavaScript stack limit for the native code that runs
-// between two of QuickJS's stack checks: QuickJS's own C functions, and SQLite when JavaScript
-// runs SQL through db.exec.
-#ifndef SQLITE_JS_STACK_MARGIN
-#define SQLITE_JS_STACK_MARGIN  (256 * 1024)
-#endif
+// Collects, then puts the GC threshold back under the limit. Only to be called where no
+// JavaScript is running: between a call from SQLite and the next, or as the limit changes.
+static void js_collect_below_limit (globaljs_context *js) {
+    if (!js || !js->runtime) return;
+    JS_RunGC(js->runtime);
+    js->gc_threshold = 0;   // JS_RunGC left a threshold of its own
+    js_keep_gc_below_limit(js);
+}
 
 // Bumped by sqlitejs_cancel_all(): JavaScript that began before stops, as if interrupted.
 static unsigned js_cancel_epoch;
@@ -273,100 +290,6 @@ void sqlitejs_cancel_all (void) {
 #endif
 }
 
-// The lowest address of the calling thread's stack, found once per thread: on Linux, finding the
-// main thread's stack reads /proc/self/maps. Returns false where the stack cannot be found.
-static bool js_stack_low (uintptr_t sp, uintptr_t *low) {
-    static JS_THREAD_LOCAL uintptr_t thread_low;
-    static JS_THREAD_LOCAL bool thread_unknown;
-    if (thread_low != 0) { *low = thread_low; return true; }
-    if (thread_unknown) return false;
-#if defined(_WIN32)
-    // the stack is one allocation, reserved from its lowest address
-    MEMORY_BASIC_INFORMATION mbi;
-    if (VirtualQuery((LPCVOID)sp, &mbi, sizeof(mbi)) == 0) { thread_unknown = true; return false; }
-    thread_low = (uintptr_t)mbi.AllocationBase;
-#elif defined(__APPLE__)
-    UNUSED(sp);
-    pthread_t self = pthread_self();
-    thread_low = (uintptr_t)pthread_get_stackaddr_np(self) - pthread_get_stacksize_np(self);
-#elif defined(__linux__)
-    UNUSED(sp);
-    pthread_attr_t attr;
-    void *addr = NULL;
-    size_t size = 0;
-    if (pthread_getattr_np(pthread_self(), &attr) != 0) { thread_unknown = true; return false; }
-    int rc = pthread_attr_getstack(&attr, &addr, &size);
-    pthread_attr_destroy(&attr);
-    if (rc != 0) { thread_unknown = true; return false; }
-    thread_low = (uintptr_t)addr;
-#else
-    UNUSED(sp);
-    thread_unknown = true;
-    return false;
-#endif
-    *low = thread_low;
-    return true;
-}
-
-// The stack, in bytes, that the calling thread has left below this function, less the margin.
-// QuickJS trusts its stack size: one larger than the thread has never trips its check, and code
-// that calls itself without end then crashes the process. Returns false where the thread's stack
-// cannot be found.
-static bool js_stack_room (size_t *room) {
-    // where the stack is now, found the way QuickJS finds it: the address of a local variable
-    // can be elsewhere, for example on AddressSanitizer's separate stack
-#if defined(__clang__) || defined(__GNUC__)
-    uintptr_t sp = (uintptr_t)__builtin_frame_address(0);
-#elif defined(_MSC_VER)
-    uintptr_t sp = (uintptr_t)_AddressOfReturnAddress();
-#else
-    volatile char here = 0;
-    uintptr_t sp = (uintptr_t)&here;
-#endif
-    uintptr_t low = 0;
-    if (!js_stack_low(sp, &low)) return false;
-    *room = (sp > low + SQLITE_JS_STACK_MARGIN) ? (size_t)(sp - low - SQLITE_JS_STACK_MARGIN) : 0;
-    return true;
-}
-
-// Points QuickJS's stack check at the calling thread before JavaScript runs on a connection.
-// QuickJS measures the stack from the top it recorded on the thread that created the runtime,
-// so on any other thread its check is wrong: code fails at once with "Maximum call stack size
-// exceeded", or code that calls itself without end is never stopped and crashes the process.
-// An app's connection pool runs a connection on many threads. The size is also kept within
-// what this thread's stack has left. A call nested in another (JavaScript running SQL that
-// runs JavaScript) is on the same thread and keeps the outer call's limit.
-static void js_enter (globaljs_context *js) {
-    if (js->depth++ > 0) return;
-    js->cancel_epoch = js_cancel_epoch_load();
-    JS_UpdateStackTop(js->runtime);
-    size_t size = js->stack_size, room = 0;
-    if ((size > 0) && js_stack_room(&room) && (room < size)) size = (room > 0) ? room : 1;
-    JS_SetMaxStackSize(js->runtime, size);
-}
-
-static void js_leave (globaljs_context *js) {
-    js->depth--;
-}
-
-// QuickJS collects cyclic garbage only when its memory use passes a threshold, which it resets
-// after each collection to 1.5 times the memory still in use. With more than two thirds of the
-// memory limit in use, that is beyond the limit: garbage would fill the rest, and code that fits
-// in the limit would fail. So the threshold is lowered to halfway between the memory in use and
-// the limit. Called often, so it does nothing until a collection has changed the threshold.
-static void js_keep_gc_below_limit (globaljs_context *js) {
-    size_t threshold = JS_GetGCThreshold(js->runtime);
-    if (threshold == js->gc_threshold) return;
-    size_t limit = js->memory_limit;
-    if ((limit > 0) && (threshold > limit - limit / 4)) {
-        size_t used = threshold / 3 * 2;
-        if (used > limit) used = limit;
-        threshold = used + (limit - used) / 2;
-        JS_SetGCThreshold(js->runtime, threshold);
-    }
-    js->gc_threshold = threshold;
-}
-
 // QuickJS calls this from time to time while it runs code. A non-zero result stops the code
 // with an uncatchable "interrupted" error, so sqlite3_interrupt() (Ctrl-C in the sqlite3 shell,
 // a cancelled query in an app) also stops JavaScript that never returns to SQLite.
@@ -382,6 +305,14 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
     }
     return js->check_interrupted && (js->db != NULL) && sqlite3_is_interrupted(js->db);
 }
+
+// The most memory, in bytes, the JavaScript runtime of a connection may allocate until
+// js_set_memory_limit() changes it; 0 means no limit. Without a limit, code that keeps
+// allocating takes all the memory of the process, which on a phone ends with the operating
+// system killing it. 64 MB is room for over a thousand aggregate contexts (about 54 KB each).
+#ifndef SQLITE_JS_DEFAULT_MEMORY_LIMIT
+#define SQLITE_JS_DEFAULT_MEMORY_LIMIT  (64 * 1024 * 1024)
+#endif
 
 // The runtime's allocator: the system's, as QuickJS's default is, counting the memory in use the
 // way QuickJS counts it against the memory limit, and the most in use since the last result or
@@ -448,6 +379,112 @@ static void js_mem_reset_peak (globaljs_context *js) {
     if (js) js->mem_peak = js->mem_used;
 }
 
+// Stack, in bytes, kept free below the JavaScript stack limit for the native code that runs
+// between two of QuickJS's stack checks: QuickJS's own C functions, and SQLite when JavaScript
+// runs SQL through db.exec.
+#ifndef SQLITE_JS_STACK_MARGIN
+#define SQLITE_JS_STACK_MARGIN  (256 * 1024)
+#endif
+
+// The least stack worth giving JavaScript. QuickJS cannot even create a context below about
+// 16 KB (measured: 4 KB fails, 16 KB works), and it reads 0 as "no check at all", so a smaller
+// measurement is treated as no measurement and leaves the default alone. Failing to catch
+// runaway recursion is the lesser evil next to an extension that cannot load.
+#ifndef SQLITE_JS_STACK_MIN
+#define SQLITE_JS_STACK_MIN     (32 * 1024)
+#endif
+
+// The lowest address of the calling thread's stack, found once per thread: on Linux, finding the
+// main thread's stack reads /proc/self/maps. Returns false where the stack cannot be found.
+static bool js_stack_low (uintptr_t sp, uintptr_t *low) {
+    static JS_THREAD_LOCAL uintptr_t thread_low;
+    static JS_THREAD_LOCAL bool thread_unknown;
+    if (thread_low != 0) { *low = thread_low; return true; }
+    if (thread_unknown) return false;
+#if defined(_WIN32)
+    // the stack is one allocation, reserved from its lowest address
+    MEMORY_BASIC_INFORMATION mbi;
+    if (VirtualQuery((LPCVOID)sp, &mbi, sizeof(mbi)) == 0) { thread_unknown = true; return false; }
+    thread_low = (uintptr_t)mbi.AllocationBase;
+#elif defined(__APPLE__)
+    UNUSED(sp);
+    pthread_t self = pthread_self();
+    thread_low = (uintptr_t)pthread_get_stackaddr_np(self) - pthread_get_stacksize_np(self);
+#elif defined(__linux__)
+    UNUSED(sp);
+    pthread_attr_t attr;
+    void *addr = NULL;
+    size_t size = 0;
+    if (pthread_getattr_np(pthread_self(), &attr) != 0) { thread_unknown = true; return false; }
+    int rc = pthread_attr_getstack(&attr, &addr, &size);
+    pthread_attr_destroy(&attr);
+    if (rc != 0) { thread_unknown = true; return false; }
+    thread_low = (uintptr_t)addr;
+    // For the initial thread, musl reports the part of the stack that is mapped so far, which
+    // grows as the stack is used, rather than the stack it may still grow to: 132 KB at load
+    // time, where the process may use 8 MB. (glibc reads /proc/self/maps and reports all of it.)
+    // RLIMIT_STACK is how far it may grow, so for that thread it is the bound that counts.
+    if (syscall(SYS_gettid) == (long)getpid()) {
+        struct rlimit limit;
+        if ((getrlimit(RLIMIT_STACK, &limit) == 0) && (limit.rlim_cur != RLIM_INFINITY)) {
+            uintptr_t grows_to = (sp > (uintptr_t)limit.rlim_cur) ? sp - (uintptr_t)limit.rlim_cur : 0;
+            if (grows_to < thread_low) thread_low = grows_to;
+        }
+    }
+#else
+    UNUSED(sp);
+    thread_unknown = true;
+    return false;
+#endif
+    *low = thread_low;
+    return true;
+}
+
+// The stack, in bytes, that the calling thread has left below this function, less the margin.
+// QuickJS trusts its stack size: one larger than the thread has never trips its check, and code
+// that calls itself without end then crashes the process. Returns false where the thread's stack
+// cannot be found.
+static bool js_stack_room (size_t *room) {
+    // where the stack is now, found the way QuickJS finds it: the address of a local variable
+    // can be elsewhere, for example on AddressSanitizer's separate stack
+#if defined(__clang__) || defined(__GNUC__)
+    uintptr_t sp = (uintptr_t)__builtin_frame_address(0);
+#elif defined(_MSC_VER)
+    uintptr_t sp = (uintptr_t)_AddressOfReturnAddress();
+#else
+    volatile char here = 0;
+    uintptr_t sp = (uintptr_t)&here;
+#endif
+    uintptr_t low = 0;
+    if (!js_stack_low(sp, &low)) return false;
+    // The margin is for the native code that runs between two of QuickJS's stack checks, but on
+    // a stack smaller than twice the margin, keeping all of it would leave JavaScript nothing,
+    // so the stack is split instead of reported as no room at all.
+    size_t have = (sp > low) ? (size_t)(sp - low) : 0;
+    *room = (have > 2 * SQLITE_JS_STACK_MARGIN) ? have - SQLITE_JS_STACK_MARGIN : have / 2;
+    return true;
+}
+
+// Points QuickJS's stack check at the calling thread before JavaScript runs on a connection.
+// QuickJS measures the stack from the top it recorded on the thread that created the runtime,
+// so on any other thread its check is wrong: code fails at once with "Maximum call stack size
+// exceeded", or code that calls itself without end is never stopped and crashes the process.
+// An app's connection pool runs a connection on many threads. The size is also kept within
+// what this thread's stack has left. A call nested in another (JavaScript running SQL that
+// runs JavaScript) is on the same thread and keeps the outer call's limit.
+static void js_enter (globaljs_context *js) {
+    if (js->depth++ > 0) return;
+    js->cancel_epoch = js_cancel_epoch_load();
+    JS_UpdateStackTop(js->runtime);
+    size_t size = js->stack_size, room = 0;
+    if ((size > 0) && js_stack_room(&room) && (room >= SQLITE_JS_STACK_MIN) && (room < size)) size = room;
+    JS_SetMaxStackSize(js->runtime, size);
+}
+
+static void js_leave (globaljs_context *js) {
+    js->depth--;
+}
+
 static globaljs_context *globaljs_init (sqlite3 *db) {
     JSRuntime *rt = NULL;
     JSContext *ctx = NULL;
@@ -465,16 +502,16 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
     
     //JS_SetMemoryLimit(rt, 80 * 1024);
     //JS_SetMaxStackSize(rt, 10 * 1024);
-
+    
     // sqlite3_is_interrupted() is new in SQLite 3.41.0: an older library has no such entry
     // in its sqlite3_api_routines, so JavaScript cannot be interrupted there, only cancelled
     js->check_interrupted = (sqlite3_libversion_number() >= 3041000);
     JS_SetInterruptHandler(rt, js_interrupt_handler, js);
-
+    
     // the default stack size must fit in the stack of the thread that loads the extension: Windows
     // gives a main thread 1 MB, and apps often give their threads no more
     size_t room = 0;
-    if (js_stack_room(&room) && (room < JS_DEFAULT_STACK_SIZE)) JS_SetMaxStackSize(rt, (room > 0) ? room : 1);
+    if (js_stack_room(&room) && (room >= SQLITE_JS_STACK_MIN) && (room < JS_DEFAULT_STACK_SIZE)) JS_SetMaxStackSize(rt, room);
 
     js_std_init_handlers(rt);
     JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
@@ -491,7 +528,7 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
     JS_SetContextOpaque(ctx, js);
     JS_SetRuntimeOpaque(rt, js);
     js_global_init(ctx, js);
-
+    
     // taken before any other code runs: a script can shadow or redefine a typed array's
     // byteOffset and byteLength, but these are its own
     static const char offset_getter[] = "Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Uint8Array.prototype), 'byteOffset').get";
@@ -499,12 +536,11 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
     js->typed_array_byte_offset = JS_Eval(ctx, offset_getter, sizeof(offset_getter) - 1, "<init>", JS_EVAL_TYPE_GLOBAL);
     js->typed_array_byte_length = JS_Eval(ctx, length_getter, sizeof(length_getter) - 1, "<init>", JS_EVAL_TYPE_GLOBAL);
     if (!JS_IsFunction(ctx, js->typed_array_byte_offset) || !JS_IsFunction(ctx, js->typed_array_byte_length)) goto abort_init;
-
     // set only now: QuickJS cannot always recover from running out of memory while it creates
     // a context (see js_setup_aggregate)
     js->memory_limit = SQLITE_JS_DEFAULT_MEMORY_LIMIT;
     JS_SetMemoryLimit(rt, js->memory_limit);
-
+    
     return js;
     
 abort_init:
@@ -662,14 +698,14 @@ static bool js_number_to_int64 (double num, sqlite3_int64 *out) {
 static int js_get_bytes (JSContext *ctx, JSValueConst value, const uint8_t **pbytes, size_t *psize) {
     *pbytes = NULL;
     *psize = 0;
-
+    
     if (JS_IsArrayBuffer(value)) {
         uint8_t *buf = JS_GetArrayBuffer(ctx, psize, value);
         if (!buf && JS_HasException(ctx)) return -1;
         *pbytes = buf;
         return 1;
     }
-
+    
     if (JS_GetTypedArrayType(value) >= 0) {
         // The offset and length come from the byteOffset and byteLength getters: a typed array
         // can track the length of a resizable buffer, and the length QuickJS records when the
@@ -686,7 +722,7 @@ static int js_get_bytes (JSContext *ctx, JSValueConst value, const uint8_t **pby
         rc = JS_IsException(prop) ? -1 : JS_ToInt64(ctx, &length, prop);
         JS_FreeValue(ctx, prop);
         if (rc < 0) return -1;
-
+        
         size_t size = 0;
         JSValue buffer = JS_GetTypedArrayBuffer(ctx, value, NULL, NULL, NULL);
         if (JS_IsException(buffer)) return -1;
@@ -702,7 +738,7 @@ static int js_get_bytes (JSContext *ctx, JSValueConst value, const uint8_t **pby
         *psize = (size_t)length;
         return 1;
     }
-
+    
     return 0;
 }
 
@@ -925,6 +961,7 @@ static void js_error_to_sqlite (sqlite3_context *context, JSContext *js_ctx, JSV
             default_error = "out of memory";
         }
     }
+    bool out_of_memory = js_reached_memory_limit(JS_GetContextOpaque(js_ctx));
     js_mem_reset_peak(JS_GetContextOpaque(js_ctx));
 
     // set a default error message and code
@@ -934,6 +971,12 @@ static void js_error_to_sqlite (sqlite3_context *context, JSContext *js_ctx, JSV
     // clean-up
     if (err_msg) JS_FreeCString(js_ctx, err_msg);
     if (!JS_IsNull(exception)) JS_FreeValue(js_ctx, exception);
+
+    // QuickJS refuses every allocation once the memory in use is over the limit, and it collects
+    // only when it creates an object, which it cannot do without allocating: the connection
+    // would stay out of memory for good. No JavaScript is running here, so collect now, while
+    // the garbage that filled the limit is still reachable from nothing.
+    if (out_of_memory) js_collect_below_limit(JS_GetContextOpaque(js_ctx));
 }
 
 static void js_value_to_sqlite (sqlite3_context *context, JSContext *js_ctx, JSValue value) {
@@ -1010,12 +1053,12 @@ static void js_value_to_sqlite (sqlite3_context *context, JSContext *js_ctx, JSV
         else sqlite3_result_blob64(context, bytes, (sqlite3_uint64)size, SQLITE_TRANSIENT);
         return;
     }
-
+    
     if (JS_IsObject(value)) {
         sqlite3_result_null(context);
         return;
     }
-
+    
     // fallback for unsupported types
     sqlite3_result_error(context, "Unsupported JS value type", -1);
 }
@@ -1057,7 +1100,7 @@ static bool js_setup_aggregate (sqlite3_context *context, globaljs_context *js, 
         sqlite3_result_error(context, "Unable to create a JS context.", -1);
         return false;
     }
-
+    
     // init code is optional
     if (init_code) {
         JSValue init_result = JS_Eval(ctx, init_code, strlen(init_code), NULL, JS_EVAL_TYPE_GLOBAL);
@@ -1724,8 +1767,9 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
     // read as 0, and a size larger than the thread's stack is no limit either: code that calls
     // itself without end would crash the process. Where the stack cannot be measured, allow up
     // to the default.
-    size_t most = JS_DEFAULT_STACK_SIZE;
-    js_stack_room(&most);
+    // an unusable measurement allows up to the default, as an unmeasurable stack does
+    size_t most = JS_DEFAULT_STACK_SIZE, room = 0;
+    if (js_stack_room(&room) && (room >= SQLITE_JS_STACK_MIN)) most = room;
     sqlite3_int64 size = sqlite3_value_int64(argv[0]);
     if ((sqlite3_value_type(argv[0]) != SQLITE_INTEGER) || (size < 0) || ((sqlite3_uint64)size > most)) {
         char *msg = sqlite3_mprintf("The stack size must be an integer number of bytes from 1 to %llu, which this thread's stack allows, or 0 for no check", (unsigned long long)most);
@@ -1742,18 +1786,22 @@ void js_set_max_stack_size (sqlite3_context *context, int argc, sqlite3_value **
 void js_set_memory_limit (sqlite3_context *context, int argc, sqlite3_value **argv) {
     UNUSED(argc);
     globaljs_context *js = (globaljs_context *)sqlite3_user_data(context);
-
+    
     if ((sqlite3_value_type(argv[0]) != SQLITE_INTEGER) || (sqlite3_value_int64(argv[0]) < 0)) {
         sqlite3_result_error(context, "The memory limit must be an integer number of bytes, or 0 for no limit", -1);
         return;
     }
-
+    
     // a limit beyond the address space (on a 32-bit system) can never be reached, so it is no limit
     sqlite3_uint64 limit = (sqlite3_uint64)sqlite3_value_int64(argv[0]);
     js->memory_limit = (limit > SIZE_MAX) ? 0 : (size_t)limit;
     JS_SetMemoryLimit(js->runtime, js->memory_limit);
     js->gc_threshold = 0;   // check the GC threshold against the new limit
-    js_keep_gc_below_limit(js);
+    // a limit at or under the memory in use leaves nothing to allocate from, and QuickJS cannot
+    // collect without allocating, so collect here instead
+    if ((js->memory_limit > 0) && (js->mem_used + 64 * 1024 >= js->memory_limit)) js_collect_below_limit(js);
+    else js_keep_gc_below_limit(js);
+    js_mem_reset_peak(js);
 }
 
 // MARK: -
@@ -1779,7 +1827,7 @@ APIEXPORT int sqlite3_js_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_r
     const char *f_name[] = {"js_version", "js_version", "js_create_scalar", "js_create_aggregate", "js_create_window", "js_create_collation", "js_eval", "js_load_text", "js_load_blob", "js_init_table", "js_init_table", "js_set_max_stack_size", "js_set_memory_limit"};
     const void *f_ptr[] = {js_version0, js_version1, js_create_scalar, js_create_aggregate, js_create_window, js_create_collation, js_eval, js_load_text, js_load_blob, js_init_table0, js_init_table1, js_set_max_stack_size, js_set_memory_limit};
     int f_arg[] = {0, 1, 2, 4, 6, 2, 1, 1, 1, 0, 1, 1, 1};
-
+    
     size_t f_count = sizeof(f_name) / sizeof(const char *);
     for (size_t i=0; i<f_count; ++i) {
         js->ref_count++;

@@ -1,13 +1,13 @@
 # sqlite-js for apps
 
-An AAR that lets apps built with Code on the Go define and call JavaScript functions in SQLite (ADFA-7082). It is the sqlite-js SQLite extension, which runs JavaScript with QuickJS (quickjs-ng), with our patches. Nothing in CoGo itself depends on it: the JavaScript-in-SQLite project template does.
+An AAR that lets apps built with Code on the Go define and call JavaScript functions in SQLite (ADFA-7082). It is the sqlite-js SQLite extension, which runs JavaScript with QuickJS (quickjs-ng), with our patch. Nothing in CoGo itself depends on it: the JavaScript-in-SQLite project template does.
 
 `createSqliteJsAar` writes `build/libs/sqlite-js.aar`. The manual `release-sqlite-js.yml` workflow builds it from `main` and publishes it to the moving `sqlite-js-latest` release, from which dev-assets fetches it into the template.
 
 ## Contents
 
-- `upstream/`: sqlite-js 1.3.7 (Apache-2.0), with QuickJS amalgamated in `libs/quickjs.c` (MIT), and `patches/` applied. Only the files the build uses, plus `LICENSE` and `LICENSE.quickjs`.
-- `patches/`: our changes, in order. 0001 to 0008 are the same as the Termux package's (terminal-packages `packages/sqlite-js`). 0009 makes each call measure its own thread's stack, which a connection pool needs. 0010 adds `sqlitejs_cancel_all()`. 0001 to 0009 are sent upstream as sqliteai/sqlite-js pull requests #11 to #19; 0010 is ours.
+- `upstream/`: sqlite-js (Apache-2.0) at commit c8ae85a of its main branch, which upstream merged our changes into (pull requests #11 to #19) after its 1.3.7 release, with QuickJS amalgamated in `libs/quickjs.c` (MIT), and `patches/` applied. Only the files the build uses, plus `LICENSE` and `LICENSE.quickjs`.
+- `patches/`: our change, 0001, which adds `sqlitejs_cancel_all()`: Android cannot otherwise stop JavaScript that never returns. It is not upstream; it is offered there in sqliteai/sqlite-js issue 20.
 - `src/main/cpp/`: the CMake build of `libsqlitejs.so`, and `sqlitejs_android.c`, which is ours: JNI for `SqliteJs`, and the two entry points it names. The version script exports only the entry points (and upstream's `sqlite3_js_init`) and `JNI_OnLoad`.
 - `src/test/c/glue_test.c` and `test.sh`: the tests the Android build cannot run. See Testing.
 - `src/main/java/`: `SqliteJs`.
@@ -37,12 +37,12 @@ Room.databaseBuilder(context, AppDb::class.java, name).openHelperFactory(factory
 - SQLite loads the extension from a file, so set `packaging.jniLibs.useLegacyPackaging = true`.
 - Neither Room nor Android's cancelling can stop a JavaScript function that never returns: Room 2.7 and later pass no cancellation signal, and Android cancels with a progress handler, which SQLite never calls while a function runs. `SqliteJs.cancelAll()` stops the JavaScript running at that moment, in every query on every connection: each call fails with "interrupted", and its statement is interrupted too, so that one whose JavaScript cannot report an error (a collation) also stops. That includes calls in queries the app did not mean to stop, which then need to be retried. An interrupted `INSERT`, `UPDATE` or `DELETE` inside an explicit transaction rolls the whole transaction back, so retry the transaction, not only the statement. So call it only when a runaway function is known to be running, for example from a Cancel button, not whenever a coroutine is cancelled. It stops only JavaScript that has started, so call it again until the query being stopped ends, as the template's `cancellable()` does. It takes effect when JavaScript next runs: SQL that the JavaScript runs itself, through `db.exec` (a long `next()` or `toArray()`), finishes before the cancel reaches it.
 
-Tested in a trial app (requery 3.49.0, Room 2.8.4) on a Galaxy Note20 Ultra, as a 64-bit and as a 32-bit process, on a new and an existing database, with Room's default write-ahead logging: a scalar and an aggregate from DAOs, deep recursion from four pool threads, 32 parallel queries, and a runaway query stopped by `cancelAll()` within 5 ms.
+Built from 1.3.7 with the same changes as patches, it was tested in a trial app (requery 3.49.0, Room 2.8.4) on a Galaxy Note20 Ultra, as a 64-bit and as a 32-bit process, on a new and an existing database, with Room's default write-ahead logging: a scalar and an aggregate from DAOs, deep recursion from four pool threads, 32 parallel queries, and a runaway query stopped by `cancelAll()` within 5 ms.
 
 ## Testing
 
-The Android build compiles but does not run sqlite-js. `test.sh` builds it on the host and runs upstream's test suite (`test/main.c`, which is not vendored) on the release with `patches/` applied, and `src/test/c/glue_test.c` on `upstream/` and `sqlitejs_android.c`: what each entry point loads and runs, and that a stored function that fails to load is skipped. It needs gcc, make and a JDK (for `jni.h`). The `test-sqlite-js.yml` workflow runs `vendor.sh --check` and `test.sh` on every pull request that changes this module.
+The Android build compiles but does not run sqlite-js. `test.sh` builds it on the host and runs upstream's test suite (`test/main.c`, which is not vendored) on its source with `patches/` applied, and `src/test/c/glue_test.c` on `upstream/` and `sqlitejs_android.c`: what each entry point loads and runs, and that a stored function that fails to load is skipped. It needs gcc, make and a JDK (for `jni.h`). The `test-sqlite-js.yml` workflow runs `vendor.sh --check` and `test.sh` on every pull request that changes this module.
 
 ## Updating
 
-`vendor.sh` rebuilds `upstream/` and the license notices from the sqlite-js release (checked against its SHA-256) and `patches/`. `vendor.sh --check` tells whether they match. To move to a new sqlite-js release, change `VERSION` and `SHA256` in `vendor.sh`, drop the patches upstream has released, refresh the rest, and run `vendor.sh`.
+`vendor.sh` rebuilds `upstream/` and the license notices from the sqlite-js source at `COMMIT` (checked against its SHA-256) and `patches/`. `vendor.sh --check` tells whether they match. To move to a new upstream commit, change `VERSION`, `COMMIT` and `SHA256` in `vendor.sh`; for a release, point `URL` at its tag again. Drop the patch once upstream has it, refresh it otherwise, and run `vendor.sh`.
