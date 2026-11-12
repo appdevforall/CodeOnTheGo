@@ -23,6 +23,7 @@ import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.nio.file.FileSystemNotFoundException
 import java.nio.file.FileVisitResult
 import java.nio.file.FileVisitResult.CONTINUE
 import java.nio.file.Files
@@ -73,6 +74,10 @@ class JarFsClasspathReader : IClasspathReader {
 				_unreadableJars.add(path.toFile())
 			} catch (e: IOException) {
 				log.warn("Skipping JAR that could not be read while indexing classpath: {}", path, e)
+				_unreadableJars.add(path.toFile())
+			} catch (e: FileSystemNotFoundException) {
+				// The provider reports a JAR that is gone by the time it opens it this way, not as an IOException.
+				log.warn("Skipping JAR that disappeared while indexing classpath: {}", path, e)
 				_unreadableJars.add(path.toFile())
 			}
 		}
