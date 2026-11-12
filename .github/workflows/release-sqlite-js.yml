@@ -1,0 +1,58 @@
+name: Release sqlite-js AAR (manual)
+
+# Publishes the sqlite-js AAR (subprojects/sqlite-js) to the moving sqlite-js-latest release, from
+# which dev-assets fetches it into the template that uses it (ADFA-7082).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-sqlite-js
+  cancel-in-progress: false
+
+jobs:
+
+  release-sqlite-js:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Check the vendored sqlite-js
+        run: subprojects/sqlite-js/vendor.sh --check
+
+      - name: Build the sqlite-js AAR
+        run: |
+          flox activate -d flox/base -- \
+              ./gradlew --console=plain --no-daemon :subprojects:sqlite-js:createSqliteJsAar
+
+      - name: Stage sqlite-js release assets
+        run: |
+          mkdir -p .release
+          cp subprojects/sqlite-js/build/libs/sqlite-js.aar .release/sqlite-js.aar
+          ( cd .release && sha256sum sqlite-js.aar > checksums.txt )
+          ls -la .release
+
+      - name: Replace sqlite-js-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: flox activate -d flox/base -- bash -eo pipefail {0}
+        run: |
+          TARGET_SHA="$(git rev-parse HEAD)"
+          if gh release view sqlite-js-latest >/dev/null 2>&1; then
+            gh release delete sqlite-js-latest --cleanup-tag --yes
+            sleep 10
+          fi
+          gh release create sqlite-js-latest \
+              --target "$TARGET_SHA" \
+              --title "sqlite-js AAR (latest)" \
+              --notes "built from ${TARGET_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
+              .release/sqlite-js.aar \
+              .release/checksums.txt
