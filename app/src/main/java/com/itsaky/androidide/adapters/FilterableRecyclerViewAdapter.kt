@@ -50,9 +50,11 @@ abstract class FilterableRecyclerViewAdapter<V : RecyclerView.ViewHolder, D>(
 		filterJob?.cancel(CancellationException("A new query has been submitted for filtering"))
 
 		val items = this.items
+		// Diff from the rows on screen, not the full list. Taken here on Main, where filtered is written.
+		val shown = filtered.toList()
 		filterJob =
 			CoroutineScope(Dispatchers.Default).launch {
-				val (filtered, result) = doFilter(query?.trim(), items)
+				val (filtered, result) = doFilter(query?.trim(), items, shown)
 
 				withContext(Dispatchers.Main) {
 					val adapter = this@FilterableRecyclerViewAdapter
@@ -71,6 +73,7 @@ abstract class FilterableRecyclerViewAdapter<V : RecyclerView.ViewHolder, D>(
 	private fun doFilter(
 		query: String?,
 		items: List<D>,
+		shown: List<D>,
 	): Pair<List<D>, DiffResult?> {
 		if (query.isNullOrBlank()) {
 			return items to null
@@ -84,19 +87,19 @@ abstract class FilterableRecyclerViewAdapter<V : RecyclerView.ViewHolder, D>(
 		val result =
 			DiffUtil.calculateDiff(
 				object : Callback() {
-					override fun getOldListSize(): Int = items.size
+					override fun getOldListSize(): Int = shown.size
 
 					override fun getNewListSize(): Int = filtered.size
 
 					override fun areItemsTheSame(
 						oldItemPosition: Int,
 						newItemPosition: Int,
-					): Boolean = items[oldItemPosition] == filtered[newItemPosition]
+					): Boolean = shown[oldItemPosition] == filtered[newItemPosition]
 
 					override fun areContentsTheSame(
 						oldItemPosition: Int,
 						newItemPosition: Int,
-					): Boolean = items[oldItemPosition] == filtered[newItemPosition]
+					): Boolean = shown[oldItemPosition] == filtered[newItemPosition]
 				},
 			)
 
