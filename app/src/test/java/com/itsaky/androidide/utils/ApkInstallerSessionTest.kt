@@ -225,4 +225,61 @@ class ApkInstallerSessionTest {
 			assertThat(capResult).isEqualTo(ApkInstaller.SessionLaunchResult.TooManySessions)
 			assertThat(genericResult).isEqualTo(ApkInstaller.SessionLaunchResult.Failed)
 		}
+
+	@Test
+	fun `abandonMySessions at 50-session cap sweeps persisted user sessions from dead process but preserves live ones`() =
+		runTest {
+			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+			val activeSessions = mutableListOf<Int>()
+
+			fun sessionInfo(id: Int): PackageInstaller.SessionInfo =
+				mockk<PackageInstaller.SessionInfo>().apply {
+					every { sessionId } returns id
+				}
+
+			val session = mockk<PackageInstaller.Session>(relaxed = true)
+			every { session.openWrite(any(), any(), any()) } answers { java.io.ByteArrayOutputStream() }
+			justRun { session.fsync(any()) }
+			justRun { session.commit(any()) }
+			justRun { session.close() }
+
+			val installer = mockk<PackageInstaller>()
+			every { installer.mySessions } answers { activeSessions.map(::sessionInfo) }
+			every { installer.abandonSession(any()) } answers {
+				activeSessions.remove(firstArg<Int>())
+			}
+			var nextId = 1
+			every { installer.createSession(any()) } answers {
+				val id = nextId++
+				activeSessions += id
+				id
+			}
+			every { installer.openSession(any()) } returns session
+
+			val baseContext = ApplicationProvider.getApplicationContext<Context>()
+			val pm = spyk(baseContext.packageManager)
+			every { pm.packageInstaller } returns installer
+			val context = spyk(baseContext)
+			every { context.packageManager } returns pm
+
+			// 1. Standard Run session (1) from a previous process, persisted before restart.
+			val deadProcessSession = ApkInstaller.installUsingSession(context, apk, Intent())
+			assertThat(deadProcessSession).isEqualTo(ApkInstaller.SessionLaunchResult.Started(1))
+			ApkInstaller.clearInMemorySessionsForTesting()
+
+			// 2. Fill up to 49 sessions with untracked sessions, then start a live Standard Run (50).
+			for (id in 2..49) {
+				activeSessions += id
+			}
+			nextId = 50
+			val liveSession = ApkInstaller.installUsingSession(context, apk, Intent())
+			assertThat(liveSession).isEqualTo(ApkInstaller.SessionLaunchResult.Started(50))
+			assertThat(activeSessions).hasSize(50)
+
+			// 3. At the 50-session cap, sweep abandons the persisted dead-process session (1) and
+			//    untracked sessions (2..49), while preserving the live Standard Run session (50).
+			val swept = ApkInstaller.abandonMySessions(context)
+			assertThat(swept).isEqualTo(49)
+			assertThat(activeSessions).containsExactly(50)
+		}
 }

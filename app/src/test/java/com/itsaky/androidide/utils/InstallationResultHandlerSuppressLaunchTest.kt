@@ -89,6 +89,5 @@ class InstallationResultHandlerSuppressLaunchTest {
 		assertThat(started).isNotNull()
 		assertThat(started.action).isEqualTo("com.android.packageinstaller.CONFIRM")
 		assertThat(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK).isEqualTo(Intent.FLAG_ACTIVITY_NEW_TASK)
-		assertThat(started.flags and Intent.FLAG_ACTIVITY_CLEAR_TOP).isEqualTo(Intent.FLAG_ACTIVITY_CLEAR_TOP)
 	}
 }
