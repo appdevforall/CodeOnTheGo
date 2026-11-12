@@ -3,6 +3,8 @@
 // src/test/c/glue_test.c (test.sh).
 
 #include <jni.h>
+#include <stdbool.h>
+#include <string.h>
 #include "sqlitejs.h"
 // for SQLITE_EXTENSION_INIT3, which is a no-op when glue_test.c builds SQLite in (SQLITE_CORE)
 #include "sqlite3ext.h"
@@ -20,13 +22,28 @@ int sqlite3_sqlitejs_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routi
 // stops at the first that fails, so it is given a TEMP table of the same name that holds only
 // this row: an unqualified name finds the TEMP table first, and js_init_table's
 // CREATE TABLE IF NOT EXISTS still sees the main one.
+// A cancel (SqliteJs.cancelAll(), for a query on any connection) that lands while a function
+// loads stops its code as it stops any JavaScript then running, and only loading it again puts the
+// function on this connection. So such a load is tried again, up to STORED_FUNCTION_TRIES times
+// in all, and its stored code runs again each time.
+#define STORED_FUNCTION_TRIES   3
+
 static void load_stored_function (sqlite3 *db, sqlite3_int64 rowid) {
     char *err = NULL;
     char *sql = sqlite3_mprintf(
         "CREATE TEMP TABLE js_functions AS SELECT name, kind, init_code, step_code, final_code, "
         "value_code, inverse_code FROM main.js_functions WHERE rowid = %lld; "
         "SELECT js_init_table(1);", rowid);
-    int rc = (sql) ? sqlite3_exec(db, sql, NULL, NULL, &err) : SQLITE_NOMEM;
+    int rc = SQLITE_NOMEM;
+    for (int tries = 0; sql && (tries < STORED_FUNCTION_TRIES); tries++) {
+        if (tries > 0) sqlite3_exec(db, "DROP TABLE IF EXISTS temp.js_functions", NULL, NULL, NULL);
+        sqlite3_free(err);
+        err = NULL;
+        rc = sqlite3_exec(db, sql, NULL, NULL, &err);
+        // a cancel ends the code with an uncatchable "interrupted" error, and interrupts the statement
+        bool cancelled = (rc == SQLITE_INTERRUPT) || (err && strstr(err, "interrupted"));
+        if ((rc == SQLITE_OK) || !cancelled) break;
+    }
     if (rc != SQLITE_OK) {
         char *name = sqlite3_mprintf("%lld", rowid);
         sqlite3_stmt *vm = NULL;

@@ -297,7 +297,9 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
     UNUSED(rt);
     globaljs_context *js = (globaljs_context *)opaque;
     js_keep_gc_below_limit(js);
-    if (js->cancel_epoch != js_cancel_epoch_load()) {
+    // Only a call (see js_enter) is cancelled: the JavaScript a connection runs while it is set
+    // up is not one, and stopping it would make the connection fail to load the extension.
+    if ((js->depth > 0) && (js->cancel_epoch != js_cancel_epoch_load())) {
         // The statement is interrupted too: a collation cannot report an error, so the
         // statement would go on calling JavaScript, each call beginning after the cancel.
         if (js->db) sqlite3_interrupt(js->db);
@@ -494,8 +496,6 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
     memset(js, 0, sizeof(globaljs_context));
     js->typed_array_byte_offset = JS_UNDEFINED;
     js->typed_array_byte_length = JS_UNDEFINED;
-    // JavaScript that runs while the connection is set up must not count as begun before a cancel
-    js->cancel_epoch = js_cancel_epoch_load();
     
     rt = JS_NewRuntime2(&js_mem_funcs, js);
     if (!rt) goto abort_init;

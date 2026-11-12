@@ -1,4 +1,4 @@
-From d6ad4f0e7af22e964acad62beb25e95035fa6c07 Mon Sep 17 00:00:00 2001
+From 45278f053210e570fad37d1ef2af7a6d4461064b Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Thu, 12 Nov 2026 00:05:58 -0800
 Subject: [PATCH] Let the host cancel all running JavaScript
@@ -30,16 +30,22 @@ worker fails the test with a message instead of cancelling. Like the
 Interrupt test, a watchdog ends the program if the JavaScript cannot be
 stopped.
 
+Only a call into JavaScript is cancelled, not the JavaScript a connection
+runs while it is set up: a cancel then made the connection fail to load
+the extension (SQLITE_NOMEM), and an app's query on a new pool
+connection failed. The Cancel all test now opens 200 connections while
+another thread cancels without pause; without this, the first failed.
+
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
 ---
- src/sqlitejs.c | 42 +++++++++++++++++++++++++--
- src/sqlitejs.h |  1 +
- test/main.c    | 79 ++++++++++++++++++++++++++++++++++++++++++++++++++
- 3 files changed, 119 insertions(+), 3 deletions(-)
+ src/sqlitejs.c |  42 +++++++++++++++++--
+ src/sqlitejs.h |   1 +
+ test/main.c    | 109 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 149 insertions(+), 3 deletions(-)
 
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index 9137ca8..339fee1 100644
+index 9137ca8..a0cacb0 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
 @@ -70,6 +70,8 @@ typedef struct {
@@ -82,12 +88,14 @@ index 9137ca8..339fee1 100644
  // QuickJS calls this from time to time while it runs code. A non-zero result stops the code
  // with an uncatchable "interrupted" error, so sqlite3_interrupt() (Ctrl-C in the sqlite3 shell,
  // a cancelled query in an app) also stops JavaScript that never returns to SQLite.
-@@ -271,7 +297,13 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
+@@ -271,7 +297,15 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
      UNUSED(rt);
      globaljs_context *js = (globaljs_context *)opaque;
      js_keep_gc_below_limit(js);
 -    return (js->db != NULL) && sqlite3_is_interrupted(js->db);
-+    if (js->cancel_epoch != js_cancel_epoch_load()) {
++    // Only a call (see js_enter) is cancelled: the JavaScript a connection runs while it is set
++    // up is not one, and stopping it would make the connection fail to load the extension.
++    if ((js->depth > 0) && (js->cancel_epoch != js_cancel_epoch_load())) {
 +        // The statement is interrupted too: a collation cannot report an error, so the
 +        // statement would go on calling JavaScript, each call beginning after the cancel.
 +        if (js->db) sqlite3_interrupt(js->db);
@@ -97,7 +105,7 @@ index 9137ca8..339fee1 100644
  }
  
  // The most memory, in bytes, the JavaScript runtime of a connection may allocate until
-@@ -442,6 +474,7 @@ static bool js_stack_room (size_t *room) {
+@@ -442,6 +476,7 @@ static bool js_stack_room (size_t *room) {
  // runs JavaScript) is on the same thread and keeps the outer call's limit.
  static void js_enter (globaljs_context *js) {
      if (js->depth++ > 0) return;
@@ -105,15 +113,6 @@ index 9137ca8..339fee1 100644
      JS_UpdateStackTop(js->runtime);
      size_t size = js->stack_size, room = 0;
      if ((size > 0) && js_stack_room(&room) && (room >= SQLITE_JS_STACK_MIN) && (room < size)) size = room;
-@@ -461,6 +494,8 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
-     memset(js, 0, sizeof(globaljs_context));
-     js->typed_array_byte_offset = JS_UNDEFINED;
-     js->typed_array_byte_length = JS_UNDEFINED;
-+    // JavaScript that runs while the connection is set up must not count as begun before a cancel
-+    js->cancel_epoch = js_cancel_epoch_load();
-     
-     rt = JS_NewRuntime2(&js_mem_funcs, js);
-     if (!rt) goto abort_init;
 @@ -469,8 +504,9 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
      //JS_SetMaxStackSize(rt, 10 * 1024);
      
@@ -138,10 +137,10 @@ index 048d62b..2d6bb3d 100644
  
  #endif
 diff --git a/test/main.c b/test/main.c
-index 0c8a47b..389fc1f 100644
+index 0c8a47b..20e7764 100644
 --- a/test/main.c
 +++ b/test/main.c
-@@ -932,6 +932,84 @@ abort_test:
+@@ -932,6 +932,114 @@ abort_test:
      return rc;
  }
  
@@ -170,6 +169,32 @@ index 0c8a47b..389fc1f 100644
 +    }
 +    sqlitejs_cancel_all();
 +    return NULL;
++}
++
++static int test_cancelling;
++
++static void *test_cancel_loop (void *ptr) {
++    (void)ptr;
++    while (__atomic_load_n(&test_cancelling, __ATOMIC_ACQUIRE)) sqlitejs_cancel_all();
++    return NULL;
++}
++
++// Opens connections while another thread cancels without pause. Setting up a connection runs
++// JavaScript of its own, and a cancel that stopped it made the connection fail to load.
++static int test_cancel_during_open (void) {
++    pthread_t thread;
++    __atomic_store_n(&test_cancelling, 1, __ATOMIC_RELEASE);
++    if (pthread_create(&thread, NULL, test_cancel_loop, NULL) != 0) return SQLITE_ERROR;
++    int rc = SQLITE_OK;
++    for (int i = 0; (i < 200) && (rc == SQLITE_OK); ++i) {
++        sqlite3 *db = NULL;
++        rc = test_open(&db);
++        if (rc != SQLITE_OK) printf("FAIL: connection %d did not open while another thread cancelled: %s\n", i, db ? sqlite3_errmsg(db) : sqlite3_errstr(rc));
++        if (db) sqlite3_close(db);
++    }
++    __atomic_store_n(&test_cancelling, 0, __ATOMIC_RELEASE);
++    pthread_join(thread, NULL);
++    return rc;
 +}
 +
 +// sqlitejs_cancel_all() stops the JavaScript running in every connection, as Android's own
@@ -213,6 +238,10 @@ index 0c8a47b..389fc1f 100644
 +    rc = test_open(&db2);
 +    if (rc != SQLITE_OK) goto abort_test;
 +    rc = check_query(db2, "SELECT js_eval('2 + 2');", "4");
++    if (rc != SQLITE_OK) goto abort_test;
++
++    // and a connection opened while cancels go on still loads the extension
++    rc = test_cancel_during_open();
 +
 +abort_test:
 +    test_watchdog_stop = 1;
@@ -226,7 +255,7 @@ index 0c8a47b..389fc1f 100644
  // MARK: - Stack size -
  
  int test_stack_size (void) {
-@@ -1114,6 +1192,7 @@ int main (void) {
+@@ -1114,6 +1222,7 @@ int main (void) {
      result += test_report("Serialization 3", test_serialization(DB_PATH, true,  3)); // load the new implementations
      result += test_report("Thread", test_thread());
      result += test_report("Interrupt", test_interrupt());

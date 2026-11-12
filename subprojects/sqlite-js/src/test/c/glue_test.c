@@ -9,6 +9,7 @@
 
 int sqlite3_sqlitejs_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 int sqlite3_sqlitejs_trusted_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
+void sqlitejs_cancel_all (void);
 
 typedef int (*entry_point) (sqlite3 *, char **, const sqlite3_api_routines *);
 
@@ -31,6 +32,28 @@ static sqlite3 *open_with (const char *path, entry_point init) {
     sqlite3 *db = NULL;
     char *err = NULL;
     if (sqlite3_open(path, &db) != SQLITE_OK || init(db, &err, NULL) != SQLITE_OK) {
+        fprintf(stderr, "cannot open %s: %s\n", path, err ? err : sqlite3_errmsg(db));
+        exit(2);
+    }
+    return db;
+}
+
+// cancel_once(): cancels all running JavaScript the first time it is called, as cancelAll() for
+// a query on another connection would; counts its calls
+static int cancel_calls = 0;
+
+static void cancel_once (sqlite3_context *context, int argc, sqlite3_value **argv) {
+    (void)argc; (void)argv;
+    if (cancel_calls++ == 0) sqlitejs_cancel_all();
+    sqlite3_result_null(context);
+}
+
+static sqlite3 *open_trusted_with_cancel_once (const char *path) {
+    sqlite3 *db = NULL;
+    char *err = NULL;
+    if (sqlite3_open(path, &db) != SQLITE_OK
+        || sqlite3_create_function(db, "cancel_once", 0, SQLITE_UTF8, NULL, cancel_once, NULL, NULL) != SQLITE_OK
+        || sqlite3_sqlitejs_trusted_init(db, &err, NULL) != SQLITE_OK) {
         fprintf(stderr, "cannot open %s: %s\n", path, err ? err : sqlite3_errmsg(db));
         exit(2);
     }
@@ -148,6 +171,26 @@ int main (void) {
     check(answers(db, "SELECT u()", "7"), "the trusted entry point loads them");
     sqlite3_close(db);
     unlink(upper);
+
+    // A cancel that lands while a stored function loads, from cancelAll() for a query on another
+    // connection, stops its code as it stops any JavaScript then running. The function is loaded
+    // again, rather than left out of this connection for good.
+    char cancelled[512];
+    snprintf(cancelled, sizeof(cancelled), "%s/cancelled.db", dir);
+    db = open_with(cancelled, sqlite3_sqlitejs_init);
+    check(exec(db, "SELECT js_init_table()") == SQLITE_OK
+          && exec(db, "INSERT INTO js_functions (name, kind, step_code) VALUES ('w', 'scalar', "
+                      "'(db.exec(\"SELECT cancel_once()\").next(), (function () { for (let i = 0; i < 1000000; i++); })(), "
+                      "function (args) { return 8; })')") == SQLITE_OK,
+          "a database with a function w whose code cancels the first time it loads");
+    sqlite3_close(db);
+    logged[0] = 0;
+    db = open_trusted_with_cancel_once(cancelled);
+    check(cancel_calls == 2, "the trusted entry point loads w again after the cancel stops it");
+    check(answers(db, "SELECT w()", "8"), "w is loaded");
+    check(strstr(logged, "stored function w did not load") == NULL, "it does not log that w did not load");
+    sqlite3_close(db);
+    unlink(cancelled);
 
     unlink(path);
     unlink(plain);
