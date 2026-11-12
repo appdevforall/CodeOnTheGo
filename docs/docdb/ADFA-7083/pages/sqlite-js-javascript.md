@@ -14,11 +14,11 @@ sqlite-js runs your code with quickjs-ng, a small JavaScript engine. This page e
 The engine supports modern JavaScript: `const` and `let`, arrow functions, classes, template strings, destructuring, `Map` and `Set`, `BigInt`, regular expressions, `JSON`, `Math`, `Date`, typed arrays and the standard array and string methods.
 
 ```sql
-SELECT js_eval('
+SELECT js_eval('{
   class Point { constructor(x, y) { this.x = x; this.y = y; } get sum() { return this.x + this.y; } }
   const { sum } = new Point(3, 4);
   `${[1, 2, 3].map(n => n * n).join("+")} and ${sum}`;
-');
+}');
 -- 1+4+9 and 7
 ```
 
@@ -142,7 +142,8 @@ SELECT js_eval('(function () {
 
 ## Variables and state
 
-- Variables that you create with `js_eval`, such as `globalThis.rate = 0.2`, are shared by `js_eval`, your scalar functions and your collations.
+- Variables that you create with `js_eval`, such as `globalThis.rate = 0.2`, are shared by `js_eval`, your scalar functions and your collations. Aggregate and window functions cannot see them: define what they need in their `init` code.
+- A name declared with `const`, `let` or `class` at the top level of `js_eval` code also lasts for the session, so running the same code again fails with `redeclaration of`. Put the code in braces, `{ ... }`, to keep its names to one run. `js_eval` still returns the value of the last expression.
 - Each running aggregate or window function has variables of its own, which its `init` code sets up. That is why two groups never mix their state.
 
 ## Limits

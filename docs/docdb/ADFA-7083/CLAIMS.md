@@ -1,12 +1,14 @@
 # Claims in the ADFA-7083 pages and how each was checked
 
-`run` = executed by `test_examples.py` against a host build of the package (35 of 35 on 1.3.7-4, patches 0001 to 0008, 2026-11-12; earlier, 1.3.7-1 and 1.3.7-2). `code` = read in the patched source. `probe` = run by hand against the host build during the accuracy review (2026-11-11). `TODO` = still open.
+`run` = executed by `test_examples.py` against a host build of the package (64 of 64 on 1.3.7-4, patches 0001 to 0008, 2026-11-12: 27 SQL examples, 18 of them run a second time in the same session, and 19 links; earlier, 1.3.7-1 and 1.3.7-2). `code` = read in the patched source. `probe` = run by hand against the host build, in the accuracy review (2026-11-11) or the review of PR 2241 (2026-11-12). `TODO` = still open.
 
 ## sqlite-js-top
 
 | Claim | Check |
 |-------|-------|
 | `apt install sqlite sqlite-js` installs both; the `sqlite` package provides `sqlite3` | phone: `sqlite3` is provided by package `sqlite` (dpkg -S), 3.51.2. `apt install sqlite sqlite-js` from the stage repo (https://stage.appdevforall.org/apt/termux-main/, same signing key as production) installed sqlite-js 1.3.7-1 on aarch64, which loaded and passed run-tests.sh 77 of 77. 1.3.7-3 and 1.3.7-4 from stage passed 91 of 91 on aarch64, and the arm packages passed 91 of 91 as a 32-bit process on the same phone, which runs 32-bit code. Production gets it when the package is published there |
+| These pages describe 1.3.7-3 and later; `dpkg -s sqlite-js` shows the installed version; `apt install` brings an older one up to date | code: 0008, which the javascript page describes, is in 1.3.7-3; host: `dpkg -s` prints a `Version:` line. TODO: `dpkg -s sqlite-js` on the phone |
+| `.shell echo $PREFIX/lib/sqlite-js` in `sqlite3` prints the path | probe on host `sqlite3` 3.46.1: `.shell echo $HOME` prints the expanded path. TODO: on the phone |
 | `.load sqlite-js` finds `$PREFIX/lib/sqlite-js.so`; `.load` does not expand `$PREFIX` | run on phone: `.load sqlite-js`, `.load sqlite-js.so` and the full path without `.so` work; `.load $PREFIX/lib/sqlite-js` fails with `dlopen failed: library "$PREFIX/lib/sqlite-js.so" not found` |
 | `js_create_scalar` prints 0; slugify and titles examples | run. The opening line no longer claims JavaScript is quicker than Java or Kotlin, which was opinion |
 | A function lasts until `sqlite3` closes | run (functions page) |
@@ -21,7 +23,8 @@
 |-------|-------|
 | Each `js_` function but `js_version` cannot be used in a view, trigger, CHECK, generated column or index stored in a database; TEMP views and triggers can use them | run (AC10, flags check); probe: `pragma_function_list` flags, a main-schema trigger fails with `unsafe use of js_eval()`, a TEMP view and TEMP trigger work |
 | Examples for scalar, aggregate (per-group state), window, collation, `js_eval`, `js_init_table`, `js_version` | run |
-| Redefining in a session that has the function fails with the quoted message; redefine before `js_init_table(1)`; the new version replaces the stored one | run (package AC4); probe: after `js_init_table(1)` the redefinition fails; without it, it succeeds and the next session's `js_init_table(1)` loads the new version |
+| Redefining in a session that has the function fails with the quoted message; create the new version first in a new session, without `js_init_table(1)`; it replaces the stored one, and the next session's `js_init_table(1)` creates it | run (package AC4); probe: after `js_init_table(1)` the redefinition fails; without it, it succeeds and the next session's `js_init_table(1)` loads the new version. Probe on 1.3.7-4 (2026-11-12), file database: in a new session the redefinition succeeded and `f()` gave the new version; the next session's `js_init_table(1)` gave the new `f` and the unchanged `g` |
+| `js_init_table(1)` runs once per session and fails with the same message if a stored function already exists in it | probe on 1.3.7-4: a second `js_init_table(1)`, and `js_init_table(1)` after creating any function, fail with the message. Code: `sqlite3_create_function_v2` returns `SQLITE_BUSY` when it replaces a function while the calling statement runs, and sqlite-js reports that as the message |
 | `init` can be NULL; no rows gives NULL without running `init` or `final` | run on phone (NULL init); probe and code (`js_execute_final` returns NULL without a context). No NULL-init example on the page, deliberately: the `init` example shows the usual pattern |
 | `value`/`inverse` semantics | code, run |
 | Collation: only the sign counts; a throwing collation compares as equal | run on phone: a throwing collation leaves the rows in their original order, i.e. equal |
@@ -48,7 +51,8 @@
 | 3.0 comes back as 3; INTEGER beyond 2^53 - 1 loses digits; BigInt workaround | run |
 | `db.exec` result set: `next`, `get`, `name`, `columnCount`, `toArray` (remaining rows); the statement runs only at `next()`/`toArray()`; a run-time error makes `next()` and `toArray()` throw with SQLite's message (1.3.7-3, patch 0008); SQL errors are thrown by `db.exec` | run (the notes example: an INSERT without `next()` adds nothing; the colors example: a failed UNIQUE INSERT is caught with SQLite's message, and it fails on 1.3.7-2, which returns `added`); probe on the 1.3.7-4 host build: a failed UNIQUE INSERT through `next()` fails the query with `UNIQUE constraint failed: u.x`, caught as `InternalError`; `toArray()` over a 3-row query whose second row overflows (`abs(-9223372036854775808)`) fails with `integer overflow`; `next()` is `false` at the end of the rows and after a successful INSERT; `db.exec("SELEC 1")` throws `near "SELEC": syntax error`. Before 0008, run-time errors were dropped: `next()` returned `false` and `toArray()` the rows before the error. Code: `js_rowset_next`/`js_rowset_to_array` throw unless `sqlite3_step` returns `SQLITE_ROW` or `SQLITE_DONE` |
 | Parameters convert like results | run (package AC6) |
-| Variable sharing: `js_eval`, scalar functions, collations share; each aggregate has its own | run (AC3) |
+| Variable sharing: `js_eval`, scalar functions, collations share; each aggregate has its own; aggregate and window functions cannot see `js_eval` variables, and can define what they need in `init` | run (AC3); probe on 1.3.7-4: after `globalThis.rate = 2`, an aggregate's and a window function's `step` fail with `rate is not defined`; `const rate = 2` in `init` gives 6 for rows 1 and 2 |
+| Top-level `const`, `let` and `class` names last for the session, so running the code again fails with `redeclaration of`; braces keep them to one run and still return the last expression | run: `test_examples.py` runs each example that creates nothing twice; before the braces it failed with `redeclaration of 'name'`, `'total'`, `'half'`, `'result'` and `'Point'` |
 | Ctrl-C works "even code that catches every error"; "`sqlite3` keeps running if you were typing commands" | run (AC8) |
 | Stack overflow message `Maximum call stack size exceeded` | run by hand |
 | `js_create_` reports syntax errors when the function is created | run (package AC5) |
@@ -57,12 +61,14 @@
 
 | Claim | Check |
 |-------|-------|
-| Every snippet and its output | run |
+| Every snippet and its output, also when run a second time | run |
+| Months count from 0; `true` shows as 1 | run (the Dates and Text examples) |
 | `const` is never reassigned, `let` can be; arrow function syntax; one kind of number for whole numbers and fractions (BigInt aside, which the intro does not cover) | JavaScript language facts |
 
 ## Format
 
 | Claim | Check |
 |-------|-------|
-| Pages render through `helpmanual-topic.peb` | rendered with Jinja2 as a Pebble stand-in: title, body, breadcrumbs present. TODO: render in the app |
+| Pages render through `helpmanual-topic.peb` | rendered with Pebble 4.1.1, the app's engine before it was vendored, from a test database built by `apply.py`: the four pages, `terminal-top` and `cogo-top` render, with titles, unescaped bodies and working links. TODO: render in the app |
+| `apply.py`: a second run changes nothing; it refuses a database below version 2; the Terminal page's link has a heading of its own | run on copies of documentation.db 3.0.0: the second run printed `unchanged` for each page and left the file byte-identical; one declaring 1.9.0 was refused with no row changed; `LastChange`'s `content-i` and `wholedb` rows were stamped, not added |
 | Phone layout of tables and code blocks | body-only render in headless Chrome (code blocks wrap, tables fit); TODO: on a device at font scale 1.0 and 2.0 |

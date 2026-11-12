@@ -15,7 +15,7 @@ An error in your JavaScript, such as a thrown exception or a syntax error, becom
 
 In the code you pass, a **function expression** is a JavaScript function written inside parentheses, like `(function (args) { ... })`. Every `js_create_` function returns `0` when it succeeds.
 
-A function cannot be redefined in a session that already has it: you get `Function updates must be performed using a separate database connection.` Close `sqlite3`, open it again and create the new version before you call `js_init_table(1)`, which would create the old one. If the database keeps your functions, the new version replaces the stored one.
+A function cannot be redefined in a session that already has it: you get `Function updates must be performed using a separate database connection.` To change one, close `sqlite3`, open it again and create the new version first, without calling `js_init_table(1)`, which would create the old one. If the database keeps your functions, the new version replaces the stored one, and `js_init_table(1)` creates it in your next session.
 
 ### js_create_scalar
 
@@ -129,7 +129,7 @@ js_init_table(1)
 
 `js_init_table()` creates the table `js_functions`, with the columns `name`, `kind`, `init_code`, `step_code`, `final_code`, `value_code` and `inverse_code`. Whenever that table exists, each function you create is stored in it, under the same name.
 
-`js_init_table(1)` also creates every function stored in the table, which is how a new session gets them back.
+`js_init_table(1)` also creates every function stored in the table, which is how a new session gets them back. Call it once, at the start of the session: if a stored function already exists in the session, because you created it or already called `js_init_table(1)`, it fails with `Function updates must be performed using a separate database connection.`
 
 ```sql
 SELECT js_init_table();
@@ -195,7 +195,7 @@ The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with ei
 - A function can return a BLOB, by returning an `ArrayBuffer` or a typed array such as `Uint8Array`.
 - A whole number comes back as an INTEGER, even beyond the 32-bit range.
 - An exception in an aggregate or window function fails the query.
-- `js_set_max_stack_size` accepts only a size the stack can hold, so code that calls itself without end fails instead of crashing `sqlite3`.
+- `js_set_max_stack_size` accepts only a size the stack can hold, or 0, which turns the check off. With a size set, code that calls itself without end fails instead of crashing `sqlite3`.
 - An error while `db.exec` runs a statement, such as a failed constraint, is thrown instead of being ignored.
 
 ## Credits

@@ -13,8 +13,8 @@ They document the terminal package ([ADFA-7081](https://appdevforall.atlassian.n
 
 - `pages/*.md`: the source, a small Markdown subset (see `build.py`).
 - `build.py OUT_DIR`: turns each page into the JSON facts that `helpmanual-topic.peb` renders.
-- `apply.py DB`: adds the pages to a `documentation.db` in one transaction, compressed against its `CompressionDictionary`, and appends a link to `i/terminal-top.html`. Run it on a copy first; the master is edited by a `docdb-studio` maintainer. Needs the `brotli` command.
-- `test_examples.py`: runs every ` ```sql ` example against a real `sqlite3` with sqlite-js loaded, and checks that links resolve: `SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so python3 test_examples.py`.
+- `apply.py DB`: adds the pages to a `documentation.db` in one transaction, compressed against its `CompressionDictionary`, and appends a section with a link to `i/terminal-top.html`. A second run changes nothing. It refuses a database that declares a version below 2. Run it on a copy first; the master is edited by a `docdb-studio` maintainer. Needs the `brotli` command.
+- `test_examples.py`: runs every ` ```sql ` example against a real `sqlite3` with sqlite-js loaded, runs again each one that creates nothing, as a reader would, and checks that links, including each page's parent, prev and next, resolve: `SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so python3 test_examples.py`.
 - `CLAIMS.md`: every factual claim in the pages, and how each was checked.
 
 ## Not done here
