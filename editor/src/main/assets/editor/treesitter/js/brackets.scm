@@ -43,3 +43,35 @@
 (template_substitution
   "${" @editor.brackets.open
   "}" @editor.brackets.close)
+
+(for_statement
+  "(" @editor.brackets.open
+  ")" @editor.brackets.close)
+
+(for_in_statement
+  "(" @editor.brackets.open
+  ")" @editor.brackets.close)
+
+(catch_clause
+  "(" @editor.brackets.open
+  ")" @editor.brackets.close)
+
+(subscript_expression
+  "[" @editor.brackets.open
+  "]" @editor.brackets.close)
+
+(computed_property_name
+  "[" @editor.brackets.open
+  "]" @editor.brackets.close)
+
+(named_imports
+  "{" @editor.brackets.open
+  "}" @editor.brackets.close)
+
+(export_clause
+  "{" @editor.brackets.open
+  "}" @editor.brackets.close)
+
+(jsx_expression
+  "{" @editor.brackets.open
+  "}" @editor.brackets.close)

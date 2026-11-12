@@ -35,7 +35,9 @@
   "]"
 ] @indent.end
 
-(template_string) @indent.ignore
+; Lines inside a template string's text keep their indentation; lines inside a ${ }
+; substitution are indented like other code.
+(template_string (string_fragment) @indent.ignore)
 
 [
   (ERROR)
