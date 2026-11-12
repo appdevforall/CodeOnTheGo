@@ -29,7 +29,7 @@ apt install sqlite sqlite-js
 
 The `sqlite` package provides the `sqlite3` command that sqlite-js works with.
 
-These pages describe sqlite-js 1.3.7-3 and later. To see which version you have, enter `dpkg -s sqlite-js` and read its `Version` line. `apt update` and then `apt install sqlite-js` bring an older one up to date.
+These pages describe sqlite-js 1.3.7-3 and later versions, such as 1.3.7-p20261112. To see which version you have, enter `dpkg -s sqlite-js` and read its `Version` line. `apt update` and then `apt install sqlite-js` bring an older one up to date.
 
 ## Load sqlite-js
 
@@ -78,4 +78,4 @@ A function you create lasts until you close `sqlite3`. To keep your functions in
 - [JavaScript in sqlite-js](sqlite-js-javascript.html): how SQL values and JavaScript values convert, what the engine supports, and the limits.
 - [JavaScript basics](javascript-intro.html): a short introduction for new JavaScript users.
 
-sqlite-js is developed at github.com/sqliteai/sqlite-js under the Apache License 2.0. The version in Code on the Go includes some fixes, described in the reference.
+sqlite-js is developed at github.com/sqliteai/sqlite-js under the Apache License 2.0. The version in Code on the Go is newer than the 1.3.7 release and includes fixes from App Dev For All, described in the reference.

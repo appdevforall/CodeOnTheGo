@@ -159,7 +159,7 @@ Return the contents of a file, as TEXT or as a BLOB. An empty file gives an empt
 js_set_memory_limit(bytes)
 ```
 
-Sets the most memory, in bytes, that JavaScript may use in this session. The default is 64 MB. `0` means no limit. The argument must be a whole number, 0 or more, or you get the error `The memory limit must be an integer number of bytes, or 0 for no limit`. The function returns NULL.
+Sets the most memory, in bytes, that JavaScript may use in this session. The default is 64 MB. `0` means no limit. The argument must be a whole number, 0 or more, or you get the error `The memory limit must be an integer number of bytes, or 0 for no limit`. The function returns NULL. A limit below the memory that variables still hold leaves no room for any JavaScript until you raise it again.
 
 ### js_set_max_stack_size
 
@@ -185,9 +185,11 @@ SELECT js_version();
 -- 1.3.7
 ```
 
-## What is different from the upstream project
+A package built from upstream code newer than 1.3.7, such as 1.3.7-p20261112, still reports `1.3.7`. To see the package version, enter `dpkg -s sqlite-js` in Terminal.
 
-The sqlite-js in Code on the Go is version 1.3.7 of the upstream project with eight fixes, which were also sent to the upstream project. With them:
+## What is different from sqlite-js 1.3.7
+
+The sqlite-js in Code on the Go is built from the upstream project's code of 12 November 2026, which is newer than its 1.3.7 release. That code includes fixes that App Dev For All sent to the upstream project. Compared with 1.3.7:
 
 - Ctrl-C stops JavaScript that never ends.
 - JavaScript may use 64 MB of memory, and `js_set_memory_limit` changes the limit.

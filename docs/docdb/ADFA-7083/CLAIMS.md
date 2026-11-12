@@ -1,13 +1,13 @@
 # Claims in the ADFA-7083 pages and how each was checked
 
-`run` = executed by `test_examples.py` against a host build of the package (64 of 64 on 1.3.7-4, patches 0001 to 0008, 2026-11-12: 27 SQL examples, 18 of them run a second time in the same session, and 19 links; earlier, 1.3.7-1 and 1.3.7-2). `code` = read in the patched source. `probe` = run by hand against the host build, in the accuracy review (2026-11-11) or the review of PR 2241 (2026-11-12). `TODO` = still open.
+`run` = executed by `test_examples.py` against a host build of the package (64 of 64 on 1.3.7-p20261112, upstream main at c8ae85a with no patches, and on 1.3.7-5, 2026-11-12: 27 SQL examples, 18 of them run a second time in the same session, and 19 links; earlier, 1.3.7-1, 1.3.7-2 and 1.3.7-4, patches 0001 to 0008). `code` = read in the source: the patched 1.3.7 up to 1.3.7-5, upstream main from 1.3.7-p20261112. `probe` = run by hand against the host build, in the accuracy review (2026-11-11) or the review of PR 2241 (2026-11-12). `TODO` = still open.
 
 ## sqlite-js-top
 
 | Claim | Check |
 |-------|-------|
 | `apt install sqlite sqlite-js` installs both; the `sqlite` package provides `sqlite3` | phone: `sqlite3` is provided by package `sqlite` (dpkg -S), 3.51.2. `apt install sqlite sqlite-js` from the stage repo (https://stage.appdevforall.org/apt/termux-main/, same signing key as production) installed sqlite-js 1.3.7-1 on aarch64, which loaded and passed run-tests.sh 77 of 77. 1.3.7-3 and 1.3.7-4 from stage passed 91 of 91 on aarch64, and the arm packages passed 91 of 91 as a 32-bit process on the same phone, which runs 32-bit code. Production gets it when the package is published there |
-| These pages describe 1.3.7-3 and later; `dpkg -s sqlite-js` shows the installed version; `apt install` brings an older one up to date | code: 0008, which the javascript page describes, is in 1.3.7-3; host: `dpkg -s` prints a `Version:` line. TODO: `dpkg -s sqlite-js` on the phone |
+| These pages describe 1.3.7-3 and later, such as 1.3.7-p20261112; `dpkg -s sqlite-js` shows the installed version; `apt install` brings an older one up to date | code: 0008, which the javascript page describes, is in 1.3.7-3; `dpkg --compare-versions 1.3.7-p20261112 gt 1.3.7-3` is true; the examples pass on 1.3.7-5 and 1.3.7-p20261112; host: `dpkg -s` prints a `Version:` line. TODO: `dpkg -s sqlite-js` on the phone |
 | `.shell echo $PREFIX/lib/sqlite-js` in `sqlite3` prints the path | probe on host `sqlite3` 3.46.1: `.shell echo $HOME` prints the expanded path. TODO: on the phone |
 | `.load sqlite-js` finds `$PREFIX/lib/sqlite-js.so`; `.load` does not expand `$PREFIX` | run on phone: `.load sqlite-js`, `.load sqlite-js.so` and the full path without `.so` work; `.load $PREFIX/lib/sqlite-js` fails with `dlopen failed: library "$PREFIX/lib/sqlite-js.so" not found` |
 | `js_create_scalar` prints 0; slugify and titles examples | run. The opening line no longer claims JavaScript is quicker than Java or Kotlin, which was opinion |
@@ -16,6 +16,7 @@
 | Ctrl-C stops code, query fails with `interrupted` | run (package run-tests AC8) |
 | 64 MB memory limit; `out of memory` | run (AC9) |
 | Do not put `.load` in `~/.sqliterc` | advice, follows from the above |
+| The version in Code on the Go is newer than the 1.3.7 release and includes fixes from App Dev For All | code: 1.3.7-p20261112's `build.sh` (terminal-packages 428a196) builds upstream main at c8ae85a, committed 2026-11-12; the 1.3.7 tag is its ancestor, and it merges App Dev For All's PRs #11 to #19 (git log 1.3.7..c8ae85a) |
 
 ## sqlite-js-functions
 
@@ -30,10 +31,11 @@
 | Collation: only the sign counts; a throwing collation compares as equal | run on phone: a throwing collation leaves the rows in their original order, i.e. equal |
 | `js_init_table()` columns and "whenever that table exists, each function you create is stored" | run on phone: with the table left by an earlier session and no `js_init_table()` call, a new function was stored (`js_functions` listed both), and `js_init_table(1)` in a new session restored both |
 | `js_load_text`/`js_load_blob`: empty file gives empty value; error text `Unable to open the file` | run on phone: empty file gives `''` / `X''`; a missing file gives `Unable to open the file` (the shell prefixes `Error: stepping, `) |
-| `js_set_memory_limit`: default 64 MB, 0 no limit, a whole number 0 or more, error text, returns NULL | run (package AC9), code; probe: `'64'`, `-1` and `1.5` each give the error |
+| `js_set_memory_limit`: default 64 MB, 0 no limit, a whole number 0 or more, error text, returns NULL; a limit below the memory variables still hold leaves no room for any JavaScript until raised | run (package AC9), code; probe: `'64'`, `-1` and `1.5` each give the error; probe on 1.3.7-5 and 1.3.7-p20261112: with 40 MB held in a global and the limit at 4 MB, `js_eval('1 + 1')` and `js_eval('2 + 2')` fail with `out of memory`, and after raising it to 64 MB `js_eval('3 + 3')` gives 6 |
 | `js_set_max_stack_size` (1.3.7-2, patch 0007): default 1 MB; only a whole number the stack allows, else an error naming the largest size; 0 turns the check off and deep recursion crashes | code (patch 0007); probe on the 1.3.7-2 host build: `'abc'`, `-1`, `1.5`, `NULL`, `1073741824` and `16777216` give the error, `262144` and `1048576` are accepted, endless recursion fails cleanly just below the largest size; package run-tests.sh AC13 (87 of 87). 1.3.7-1 instead crashed on text, 0, or sizes above the stack. Phone: 1.3.7-2 passed 87 of 87; 1.3.7-3 and 1.3.7-4 passed 91 of 91 on aarch64 and arm |
 | `js_version(1)` is quickjs-ng | run (package AC2) |
-| The eight fixes listed | code, package tests (patches 0001 to 0008) |
+| `js_version()` gives `1.3.7`; a package built from newer upstream code, such as 1.3.7-p20261112, still reports `1.3.7`; `dpkg -s sqlite-js` shows the package version | run; probe on the 1.3.7-p20261112 host build: `SELECT js_version()` gives 1.3.7, and `SQLITE_JS_VERSION` is "1.3.7" at c8ae85a |
+| Built from upstream code of 12 November 2026, newer than 1.3.7, which includes fixes from App Dev For All; the eight differences from 1.3.7 listed | code: upstream main c8ae85a (2026-11-12) merges PRs #11 to #18, the changes of patches 0001 to 0008, and #19; package run-tests.sh: 98 of 98 on the 1.3.7-p20261112 host build |
 | quickjs-ng is MIT-licensed; `LICENSE` and `LICENSE.quickjs` are in `$PREFIX/share/doc/sqlite-js/` | code: package build (`LICENSE.quickjs` collected from the sources); file list of the 1.3.7-1 aarch64 `.deb` checked |
 | Apache-2.0 attribution wording | TODO: legal wording check; upstream names no copyright holder |
 

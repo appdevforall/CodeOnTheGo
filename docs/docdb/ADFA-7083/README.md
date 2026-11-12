@@ -9,7 +9,7 @@ Four Help+Manual style pages for `documentation.db`, in the `i/` set, reached fr
 | JavaScript in sqlite-js | `i/sqlite-js-javascript.html` |
 | JavaScript basics | `i/javascript-intro.html` |
 
-They document the terminal package ([ADFA-7081](https://appdevforall.atlassian.net/browse/ADFA-7081)), sqlite-js 1.3.7-3 and later. Apps built with Code on the Go ([ADFA-7082](https://appdevforall.atlassian.net/browse/ADFA-7082)) are not covered yet.
+They document the terminal package ([ADFA-7081](https://appdevforall.atlassian.net/browse/ADFA-7081)), sqlite-js 1.3.7-3 and later, including 1.3.7-p20261112, which is upstream's main branch after 1.3.7 with our fixes merged. Apps built with Code on the Go ([ADFA-7082](https://appdevforall.atlassian.net/browse/ADFA-7082)) are not covered yet.
 
 - `pages/*.md`: the source, a small Markdown subset (see `build.py`).
 - `build.py OUT_DIR`: turns each page into the JSON facts that `helpmanual-topic.peb` renders.
