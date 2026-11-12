@@ -19,63 +19,52 @@ package com.itsaky.androidide.javac.services.fs
 
 import com.itsaky.androidide.zipfs2.ZipFileSystem
 import com.itsaky.androidide.zipfs2.ZipFileSystemProvider
-import jdkx.lang.model.SourceVersion
+import com.itsaky.androidide.zipfs2.listing.JarListing
 import openjdk.tools.javac.file.RelativePath.RelativeDirectory
 import org.slf4j.LoggerFactory
 import java.io.IOException
+import java.nio.channels.SeekableByteChannel
 import java.nio.file.Path
 
 /**
- * A cached file system for JAR files.
+ * A cached, read-only file system for a JAR that reads its entries through the shared [JarListing].
  *
  * @author Akash Yadav
  */
-class CachedJarFileSystem(
-  provider: ZipFileSystemProvider?,
-  zfpath: Path?,
-  env: MutableMap<String, *>?
-) : ZipFileSystem(provider, zfpath, env) {
+class CachedJarFileSystem internal constructor(
+	provider: ZipFileSystemProvider,
+	zfpath: Path,
+	internal val listing: JarListing,
+	channel: SeekableByteChannel,
+) : ZipFileSystem(provider, zfpath, listing, channel) {
+	companion object {
+		private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
+	}
 
-  companion object {
-    private val log = LoggerFactory.getLogger(CachedJarFileSystem::class.java)
-  }
+	private val packageIndex: Map<RelativeDirectory, Path> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+		ListingPackageMap(this, listing)
+	}
 
-  internal val packages = mutableMapOf<RelativeDirectory, Path>()
+	override fun close() {
+		// Do nothing
+		// This is called manually by the Java LSP
+	}
 
-  override fun close() {
-    // Do nothing
-    // This is called manually by the Java LSP
-  }
+	@Throws(IOException::class)
+	fun doClose() {
+		try {
+			super.close()
+		} catch (e: IOException) {
+			log.warn("IOException during CachedJarFileSystem close", e)
+		} catch (e: java.io.UncheckedIOException) {
+			log.warn("UncheckedIOException during CachedJarFileSystem close", e)
+		}
+	}
 
-  @Throws(IOException::class)
-  fun doClose() {
-    try {
-      super.close()
-    } catch (e: IOException) {
-      log.warn("IOException during CachedJarFileSystem close", e)
-    } catch (e: java.io.UncheckedIOException) {
-      log.warn("UncheckedIOException during CachedJarFileSystem close", e)
-    }
-  }
-
-  fun storeJARPackageDir(dir: Path?): Boolean {
-    if (isValid(dir?.fileName)) {
-      packages[RelativeDirectory(rootDir.relativize(dir!!).toString())] = dir
-      return true
-    }
-
-    return false
-  }
-
-  private fun isValid(fileName: Path?): Boolean {
-    return if (fileName == null) {
-      true
-    } else {
-      var name = fileName.toString()
-      if (name.endsWith("/")) {
-        name = name.substring(0, name.length - 1)
-      }
-      SourceVersion.isIdentifier(name)
-    }
-  }
+	/**
+	 * Returns the package directories of this JAR keyed the way javac's archive walk keys them.
+	 *
+	 * The map is a read-only view of the listing, resolved on demand, and is the same instance on every call.
+	 */
+	fun packageIndex(): Map<RelativeDirectory, Path> = packageIndex
 }
