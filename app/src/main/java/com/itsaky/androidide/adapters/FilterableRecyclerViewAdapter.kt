@@ -19,97 +19,49 @@ package com.itsaky.androidide.adapters
 
 import android.annotation.SuppressLint
 import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.DiffUtil.Callback
-import androidx.recyclerview.widget.DiffUtil.DiffResult
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Filterable [RecyclerView.Adapter].
  *
+ * [ListAdapter] diffs each result against the list on screen and drops results superseded by a
+ * later query.
+ *
  * @author Akash Yadav
  */
-abstract class FilterableRecyclerViewAdapter<V : RecyclerView.ViewHolder, D>(
+abstract class FilterableRecyclerViewAdapter<V : RecyclerView.ViewHolder, D : Any>(
 	val items: List<D>,
-) : RecyclerView.Adapter<V>() {
-	protected var filtered: List<D> = mutableListOf<D>().apply { addAll(items) }
-	private var filterJob: Job? = null
+) : ListAdapter<D, V>(
+		object : DiffUtil.ItemCallback<D>() {
+			override fun areItemsTheSame(
+				oldItem: D,
+				newItem: D,
+			): Boolean = oldItem == newItem
+
+			@SuppressLint("DiffUtilEquals")
+			override fun areContentsTheSame(
+				oldItem: D,
+				newItem: D,
+			): Boolean = oldItem == newItem
+		},
+	) {
+	init {
+		submitList(items)
+	}
 
 	/**
 	 * Filter the list with the given query.
 	 *
 	 * @param query The query.
 	 */
-	@SuppressLint("NotifyDataSetChanged")
 	fun filter(query: String?) {
-		filterJob?.cancel(CancellationException("A new query has been submitted for filtering"))
-
-		val items = this.items
-		// Diff from the rows on screen, not the full list. Taken here on Main, where filtered is written.
-		val shown = filtered.toList()
-		filterJob =
-			CoroutineScope(Dispatchers.Default).launch {
-				val (filtered, result) = doFilter(query?.trim(), items, shown)
-
-				withContext(Dispatchers.Main) {
-					val adapter = this@FilterableRecyclerViewAdapter
-					if (result == null) {
-						adapter.filtered = adapter.items
-						notifyDataSetChanged()
-						return@withContext
-					}
-
-					adapter.filtered = filtered
-					result.dispatchUpdatesTo(adapter)
-				}
-			}
-	}
-
-	private fun doFilter(
-		query: String?,
-		items: List<D>,
-		shown: List<D>,
-	): Pair<List<D>, DiffResult?> {
-		if (query.isNullOrBlank()) {
-			return items to null
-		}
-
-		val filtered =
-			items.filter {
-				onFilter(it, query)
-			}
-
-		val result =
-			DiffUtil.calculateDiff(
-				object : Callback() {
-					override fun getOldListSize(): Int = shown.size
-
-					override fun getNewListSize(): Int = filtered.size
-
-					override fun areItemsTheSame(
-						oldItemPosition: Int,
-						newItemPosition: Int,
-					): Boolean = shown[oldItemPosition] == filtered[newItemPosition]
-
-					override fun areContentsTheSame(
-						oldItemPosition: Int,
-						newItemPosition: Int,
-					): Boolean = shown[oldItemPosition] == filtered[newItemPosition]
-				},
-			)
-
-		return filtered to result
+		val query = query?.trim()
+		submitList(if (query.isNullOrEmpty()) items else items.filter { onFilter(it, query) })
 	}
 
 	/** Get the list item at given index. */
-	fun getItem(index: Int): D = filtered[index]
-
-	override fun getItemCount(): Int = filtered.size
+	public override fun getItem(position: Int): D = super.getItem(position)
 
 	/** Get the query candidate for the given list item. */
 	abstract fun getQueryCandidate(item: D): String

@@ -15,6 +15,15 @@ class FilterableRecyclerViewAdapterTest {
 	private class StringAdapter(
 		items: List<String>,
 	) : FilterableRecyclerViewAdapter<RecyclerView.ViewHolder, String>(items) {
+		var commits = 0
+
+		override fun onCurrentListChanged(
+			previousList: List<String>,
+			currentList: List<String>,
+		) {
+			commits++
+		}
+
 		override fun getQueryCandidate(item: String) = item
 
 		override fun onCreateViewHolder(
@@ -35,10 +44,8 @@ class FilterableRecyclerViewAdapterTest {
 		// Inserted rows are null: their content comes from a later bind, not the notification.
 		val rows = MutableList<String?>(adapter.itemCount) { adapter.getItem(it) }
 
-		override fun onChanged() {
-			rows.clear()
-			rows.addAll(List(adapter.itemCount) { adapter.getItem(it) })
-		}
+		// A full reset would resync the mirror and hide drift left by earlier queries.
+		override fun onChanged(): Unit = error("filtering must dispatch a diff, not a full reset")
 
 		override fun onItemRangeInserted(
 			positionStart: Int,
@@ -76,12 +83,12 @@ class FilterableRecyclerViewAdapterTest {
 		)
 
 	private fun StringAdapter.filterAndWait(query: String) {
-		val expected = tasks.filter { it.contains(query.trim(), ignoreCase = true) }
+		val before = commits
 		filter(query)
-		// Filtering runs on Dispatchers.Default, then posts its result to the main looper.
+		// The diff runs on a background executor, then commits on the main looper.
 		val deadline = System.currentTimeMillis() + 2_000
-		while (List(itemCount) { getItem(it) } != expected) {
-			check(System.currentTimeMillis() < deadline) { "filter('$query') did not finish" }
+		while (commits == before) {
+			check(System.currentTimeMillis() < deadline) { "filter('$query') did not commit" }
 			shadowOf(Looper.getMainLooper()).idle()
 		}
 	}
@@ -92,11 +99,14 @@ class FilterableRecyclerViewAdapterTest {
 		val shown = ShownRows(adapter)
 		adapter.registerAdapterDataObserver(shown)
 
-		for (query in listOf("c", "co", "cor", "core", "core:c", "", "comp")) {
+		// Narrowing, a query matching the same rows as the last, widening from a filtered list,
+		// clearing, then filtering from the full list again.
+		for (query in listOf("c", "co", "cor", "core", "core:c", "comp", "", "a", "app")) {
 			adapter.filterAndWait(query)
-			val data = List(adapter.itemCount) { adapter.getItem(it) }
-			assertThat(shown.rows.filterNotNull()).isEqualTo(data.filter { it in shown.rows })
-			assertThat(shown.rows).hasSize(data.size)
+			val expected = tasks.filter { it.contains(query, ignoreCase = true) }
+			assertThat(List(adapter.itemCount) { adapter.getItem(it) }).isEqualTo(expected)
+			// A surviving row in the wrong place, or a stale one, differs from the data at its index.
+			assertThat(shown.rows.mapIndexed { i, row -> row ?: expected.getOrNull(i) }).isEqualTo(expected)
 		}
 	}
 }
