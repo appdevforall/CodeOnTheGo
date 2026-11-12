@@ -343,6 +343,10 @@ class PluginManager private constructor(
 	private val statePersistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 	private val statePersistMutex = Mutex()
 
+	// One plugin load at a time. Startup and an install can both load plugins, and two loads that
+	// overlap could each find a plugin not loaded yet and load it twice.
+	private val loadMutex = Mutex()
+
 	fun setTemplateReloadListener(listener: (() -> Unit)?) {
 		this.templateReloadListener = listener
 		PluginProjectManager.getInstance().setTemplateReloadListener(listener)
@@ -396,7 +400,16 @@ class PluginManager private constructor(
 		}
 	}
 
-	suspend fun loadPlugins() =
+	/** Loads every plugin file not loaded yet. Waits for a load already under way. */
+	suspend fun loadPlugins() = loadMutex.withLock { loadAllPlugins() }
+
+	/**
+	 * Runs [block] while no plugin load is under way. Install swaps a plugin's file in it, so a load
+	 * that started first can't load the old file after the old version was unloaded.
+	 */
+	suspend fun <T> whileNotLoading(block: suspend () -> T): T = loadMutex.withLock { block() }
+
+	private suspend fun loadAllPlugins() =
 		withContext(Dispatchers.IO) {
 			logger.info("Loading plugins from directory: ${pluginsDir.absolutePath}")
 
