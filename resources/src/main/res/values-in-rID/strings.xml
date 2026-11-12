@@ -919,7 +919,6 @@
 	<string name="debugger_resume">Lanjutkan</string>
 	<string name="debugger_restart">Mulai ulang</string>
 	<string name="debugger_status_resolving">Memproses…</string>
-	<string name="debugger_thread_resolution_failure"><![CDATA[<resolution-failure>]]></string>
 	<string name="debugger_loading_variable_value">Memuat nilai variabel</string>
 	<string name="debugger_variable_truncated">Dipangkas karena ukuran</string>
 
@@ -932,7 +931,6 @@
 	<string name="debugger_value_error">&lt;ada kesalahan&gt;</string>
 	<string name="debugger_variable_value_hint">Nilai variabel</string>
 	<string name="debugger_variable_dialog_title">%1$s: %2$s</string>
-	<string name="debugger_value_null">null</string>
 	<string name="debugger_dialog_hint_enter_value">Masukkan nilai</string>
 	<string name="debugger_dialog_button_set">Atur</string>
 	<string name="debugger_variable_value_invalid">Nilai tidak valid untuk variabel ini</string>
