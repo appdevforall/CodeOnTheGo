@@ -13,11 +13,11 @@ android {
 	defaultConfig {
 		// upstream's AAR needs 26 too; an app built with CoGo that uses this needs at least it
 		minSdk = 26
-		// One AAR for every ABI an app may run on, unlike CoGo's own modules: this module has no
-		// v7/v8 flavors (AndroidModuleConf).
+		// One AAR for both ABIs of the phones apps built with CoGo run on, unlike CoGo's own
+		// modules: this module has no v7/v8 flavors (AndroidModuleConf).
 		ndk {
 			abiFilters.clear()
-			abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+			abiFilters += listOf("arm64-v8a", "armeabi-v7a")
 		}
 		externalNativeBuild {
 			cmake {

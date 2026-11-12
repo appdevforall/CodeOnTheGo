@@ -26,7 +26,7 @@ When the user names a CI/CD job ("the sonar job", "the analyze workflow"), read 
 
 ### ABI product flavors (v7 / v8)
 
-Every module carries `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) flavors, so build tasks are `assembleV8Debug`, `assembleV7Release`, etc. — there is **no** flavorless `assembleDebug`. See [ARCHITECTURE.md](ARCHITECTURE.md) (Build & Module Configuration) for flavors, native asset bundling, and SDK levels.
+Every module except `:plugin-api` and `:subprojects:sqlite-js` carries `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) flavors, so build tasks are `assembleV8Debug`, `assembleV7Release`, etc. — there is **no** flavorless `assembleDebug`. Those two build one artifact for other projects. See [ARCHITECTURE.md](ARCHITECTURE.md) (Build & Module Configuration) for flavors, native asset bundling, and SDK levels.
 
 ### Emulator / device
 
