@@ -73,11 +73,21 @@ object PluginGrammars {
 	private val libraries = IdentityHashMap<TSLanguage, String>()
 	private val retired = mutableSetOf<String>()
 
+	// The IDE's own grammars share TSLanguageCache with plugin grammars, keyed by name. A plugin
+	// grammar loaded first under one of these names would serve the IDE's editors, and retiring
+	// the plugin would close it under them, so these names are refused whatever the load order.
+	internal val HOST_GRAMMAR_NAMES = setOf("java", "javascript", "json", "kotlin", "log", "xml")
+
 	@Synchronized
 	fun acquire(
 		library: File,
 		name: String,
 	): TSLanguage {
+		if (name in HOST_GRAMMAR_NAMES) {
+			throw PluginTreeSitterLanguage.GrammarLoadException(
+				"tree_sitter_$name is the IDE's own grammar; a plugin grammar cannot reuse its name",
+			)
+		}
 		val path = library.absolutePath
 		TSLanguageCache.get(name)?.let { cached -> evictUnlessReusable(cached, name, path) }
 		val grammar =

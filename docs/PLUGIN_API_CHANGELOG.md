@@ -36,6 +36,16 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.43 — unreleased
+- **breaking — JavaScript files and the IDE's grammar names are the IDE's** _(ADFA-7084)_
+  The IDE now highlights JavaScript itself, so a `LanguageDefinition` can no longer claim
+  `js`, `mjs`, `cjs` or `jsx`: each is refused with a log warning, grammar and language server
+  alike, and a definition left with no extension is not installed. The IDE has no JavaScript
+  language server. A plugin grammar can no longer be named `java`, `javascript`, `json`,
+  `kotlin`, `log` or `xml`, the IDE's own grammars; before, that failed only when the IDE had
+  loaded its grammar first. No published plugin claims these extensions or names (in
+  appdevforall/addons only Python-Tools contributes a language, for `py`). A plugin with its
+  own JavaScript grammar or server claims another extension, and builds its grammar to export
+  `tree_sitter_<name>` under a name of its own.
 - **tooling — Interface bodies are Java default methods again** _(ADFA-6560)_ **[verified]**
   Since ADFA-4058 (May 2026) pinned `languageVersion`, `plugin-api` compiled each Kotlin interface
   body as an abstract method plus a `DefaultImpls` static. Plugins built against an earlier
