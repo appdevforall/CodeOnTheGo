@@ -66,7 +66,9 @@ object InstallationResultHandler {
 				@Suppress("DEPRECATION")
 				extras.get(Intent.EXTRA_INTENT)?.let { intent ->
 					if (intent is Intent) {
-						intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+						if ((intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK) != Intent.FLAG_ACTIVITY_NEW_TASK) {
+							intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+						}
 						log.debug("startingActivity: intent={}, intent.extras={}", intent, intent.extras)
 						context.startActivity(intent)
 					}
