@@ -1,10 +1,14 @@
 package com.itsaky.androidide.di
 
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.repositories.DownloadFilesRepository
+import com.itsaky.androidide.repositories.DownloadFilesRepositoryImpl
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.PluginRepositoryImpl
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepositoryImpl
+import com.itsaky.androidide.utils.Environment
+import com.itsaky.androidide.viewmodels.DownloadPickerViewModel
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
 import com.itsaky.androidide.viewmodels.PluginManagerViewModel
 import org.koin.android.ext.koin.androidContext
@@ -30,6 +34,10 @@ val pluginModule =
 			TemplateCollectionRepositoryImpl()
 		}
 
+		single<DownloadFilesRepository> {
+			DownloadFilesRepositoryImpl(downloadDir = Environment.DOWNLOAD_DIR)
+		}
+
 		// ViewModel
 		viewModel {
 			PluginManagerViewModel(
@@ -37,6 +45,10 @@ val pluginModule =
 				contentResolver = androidContext().contentResolver,
 				filesDir = IDEApplication.cachedFilesDir,
 			)
+		}
+
+		viewModel {
+			DownloadPickerViewModel(downloadFilesRepository = get())
 		}
 
 		viewModel {

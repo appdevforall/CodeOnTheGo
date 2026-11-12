@@ -596,14 +596,20 @@ class EditorBottomSheet
 			}
 		}
 
-		fun onSlide(sheetOffset: Float) {
-			val safeOffset = sheetOffset.coerceIn(0f, 1f)
-
-			val heightScale = 1f - safeOffset
+		/** Shrinks and fades the header as the sheet rises, to nothing at the half-expanded position. */
+		fun onSlide() {
+			val parentHeight = (parent as View).height
+			val collapse =
+				headerCollapseFraction(
+					sheetTop = top,
+					collapsedTop = parentHeight - behavior.peekHeight,
+					halfExpandedTop = (parentHeight * (1 - behavior.halfExpandedRatio)).toInt(),
+				)
+			val heightScale = 1f - collapse
 
 			val paddingScale =
 				if (!isImeVisible) {
-					1f - safeOffset
+					heightScale
 				} else {
 					0f
 				}
@@ -613,6 +619,7 @@ class EditorBottomSheet
 				updateLayoutParams<LayoutParams> {
 					height = ((collapsedHeight + padding) * heightScale).roundToInt()
 				}
+				alpha = (1f - 2f * collapse).coerceAtLeast(0f)
 				// The chrome padding goes with the header: as the sheet rises the header shrinks to
 				// nothing, and none of it hangs below the window any more.
 				updatePaddingRelative(
@@ -958,3 +965,16 @@ internal fun statusHeightAfterMeasure(
 	measuredPx: Float,
 	buildNarrating: Boolean,
 ): Float = if (buildNarrating) maxOf(previousPx, measuredPx) else measuredPx
+
+/** How far the header has collapsed: 0 with the sheet at its peek, 1 from the half-expanded position up. */
+internal fun headerCollapseFraction(
+	sheetTop: Int,
+	collapsedTop: Int,
+	halfExpandedTop: Int,
+): Float {
+	val span = collapsedTop - halfExpandedTop
+	if (span <= 0) {
+		return if (sheetTop < collapsedTop) 1f else 0f
+	}
+	return ((collapsedTop - sheetTop).toFloat() / span).coerceIn(0f, 1f)
+}
