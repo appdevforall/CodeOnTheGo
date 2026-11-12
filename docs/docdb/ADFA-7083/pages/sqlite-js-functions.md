@@ -185,7 +185,7 @@ SELECT js_version();
 -- 1.3.7
 ```
 
-A package built from upstream code newer than 1.3.7, such as 1.3.7-p20261112, still reports `1.3.7`. To see the package version, enter `dpkg -s sqlite-js` in Terminal.
+A package built from upstream code newer than 1.3.7, such as 1.3.7-p20261112-0, still reports `1.3.7`. To see the package version, enter `dpkg -s sqlite-js` in Terminal.
 
 ## What is different from sqlite-js 1.3.7
 
