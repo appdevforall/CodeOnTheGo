@@ -40,19 +40,32 @@ jobs:
           ( cd .release && sha256sum sqlite-js.aar > checksums.txt )
           ls -la .release
 
-      - name: Replace sqlite-js-latest release
+      # The release is updated in place, never deleted, so dev-assets can always fetch an AAR. If
+      # the new assets fail to upload, the previous ones, downloaded first, are put back.
+      - name: Update sqlite-js-latest release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: flox activate -d flox/base -- bash -eo pipefail {0}
         run: |
           TARGET_SHA="$(git rev-parse HEAD)"
-          if gh release view sqlite-js-latest >/dev/null 2>&1; then
-            gh release delete sqlite-js-latest --cleanup-tag --yes
-            sleep 10
+          NOTES="built from ${TARGET_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          if ! gh release view sqlite-js-latest >/dev/null 2>&1; then
+            gh release create sqlite-js-latest \
+                --target "$TARGET_SHA" \
+                --latest=false \
+                --title "sqlite-js AAR (latest)" \
+                --notes "$NOTES" \
+                .release/sqlite-js.aar \
+                .release/checksums.txt
+            exit 0
           fi
-          gh release create sqlite-js-latest \
-              --target "$TARGET_SHA" \
-              --title "sqlite-js AAR (latest)" \
-              --notes "built from ${TARGET_SHA} on $(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
-              .release/sqlite-js.aar \
-              .release/checksums.txt
+          mkdir -p .previous
+          gh release download sqlite-js-latest --dir .previous --pattern sqlite-js.aar --pattern checksums.txt
+          if ! gh release upload sqlite-js-latest .release/sqlite-js.aar .release/checksums.txt --clobber; then
+            echo "::error::upload failed; putting back the previous sqlite-js.aar and checksums.txt"
+            gh release upload sqlite-js-latest .previous/sqlite-js.aar .previous/checksums.txt --clobber
+            exit 1
+          fi
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/sqlite-js-latest" \
+              -f sha="$TARGET_SHA" -F force=true >/dev/null
+          gh release edit sqlite-js-latest --latest=false --notes "$NOTES"
