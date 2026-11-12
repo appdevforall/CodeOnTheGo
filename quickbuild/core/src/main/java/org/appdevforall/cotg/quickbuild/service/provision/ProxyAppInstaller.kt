@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -404,30 +405,50 @@ class ProxyAppInstaller(
 									activeSessionId.get()?.let { staleSessionId ->
 										abandonedSessionIds.add(staleSessionId)
 										activeSessionId.set(null)
-										abandonSessionSafely(staleSessionId)
+										withContext(ioDispatcher + NonCancellable) {
+											abandonSessionSafely(staleSessionId)
+										}
 										launchedSessionIds.remove(staleSessionId)
 									}
-									try {
-										when (val reissued = launchInstallSession(apk)) {
-											is InstallLaunchResult.Started -> {
-												reissued.sessionId?.let { sessionId ->
-													abandonedSessionIds.remove(sessionId)
-													activeSessionId.set(sessionId)
-													launchedSessionIds.add(sessionId)
-												}
-											}
-
-											InstallLaunchResult.TooManySessions,
-											InstallLaunchResult.Failed,
-											-> {
-												log.warn("re-issued install of {} did not start: {}", packageName, reissued)
+									val reissued =
+										try {
+											launchInstallSession(apk)
+										} catch (e: CancellationException) {
+											throw e
+										} catch (e: Exception) {
+											log.error("could not re-issue the install of {}", packageName, e)
+											InstallLaunchResult.Failed
+										}
+									when (reissued) {
+										is InstallLaunchResult.Started -> {
+											reissued.sessionId?.let { sessionId ->
+												abandonedSessionIds.remove(sessionId)
+												activeSessionId.set(sessionId)
+												launchedSessionIds.add(sessionId)
 											}
 										}
-									} catch (e: CancellationException) {
-										throw e
-									} catch (e: Exception) {
-										// Keep waiting on the remaining budget.
-										log.error("could not re-issue the install of {}", packageName, e)
+
+										InstallLaunchResult.TooManySessions -> {
+											log.warn(
+												"re-issued install of {} from {} hit PackageInstaller session limit; reporting TooManyInstallSessions",
+												packageName,
+												apk,
+											)
+											return@run Verdict.Settled(
+												InstallOutcome.Failed(QuickBuildMessage.TooManyInstallSessions),
+											)
+										}
+
+										InstallLaunchResult.Failed -> {
+											log.warn(
+												"re-issued install of {} from {} did not start; reporting InstallCouldNotStart",
+												packageName,
+												apk,
+											)
+											return@run Verdict.Settled(
+												InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart),
+											)
+										}
 									}
 								}
 								awaitVerdict()
@@ -445,8 +466,12 @@ class ProxyAppInstaller(
 					is Verdict.Settled -> outcome.outcome
 				}
 			} finally {
-				for (sessionId in launchedSessionIds) {
-					abandonSessionSafely(sessionId)
+				if (launchedSessionIds.isNotEmpty()) {
+					withContext(ioDispatcher + NonCancellable) {
+						for (sessionId in launchedSessionIds) {
+							abandonSessionSafely(sessionId)
+						}
+					}
 				}
 			}
 		}

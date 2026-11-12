@@ -1008,4 +1008,153 @@ class ProxyAppInstallerTest {
 			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
 			assertThat(abandonedSessionIds).containsExactly(401, 402).inOrder()
 		}
+
+	@Test
+	fun `re-issue returning Failed fails immediately with InstallCouldNotStart instead of timing out`() =
+		runTest {
+			var launchCount = 0
+			val result =
+				async {
+					sessionInstaller(
+						timeoutMillis = 120_000L,
+						promptTimeoutMillis = 45_000L,
+						launchSession = {
+							launchCount++
+							if (launchCount == 1) {
+								InstallLaunchResult.Started(501)
+							} else {
+								InstallLaunchResult.Failed
+							}
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			// Must fail immediately after re-issue without waiting out the remaining 75s budget.
+			assertThat(result.isCompleted).isTrue()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart))
+			assertThat(abandonedSessionIds).containsExactly(501)
+		}
+
+	@Test
+	fun `re-issue returning TooManySessions fails immediately with TooManyInstallSessions instead of timing out`() =
+		runTest {
+			var launchCount = 0
+			val result =
+				async {
+					sessionInstaller(
+						timeoutMillis = 120_000L,
+						promptTimeoutMillis = 45_000L,
+						launchSession = {
+							launchCount++
+							if (launchCount == 1) {
+								InstallLaunchResult.Started(502)
+							} else {
+								InstallLaunchResult.TooManySessions
+							}
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			assertThat(result.isCompleted).isTrue()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Failed(QuickBuildMessage.TooManyInstallSessions))
+			assertThat(abandonedSessionIds).containsExactly(502)
+		}
+
+	@Test
+	fun `re-issue throwing fails immediately with InstallCouldNotStart instead of timing out`() =
+		runTest {
+			var launchCount = 0
+			val result =
+				async {
+					sessionInstaller(
+						timeoutMillis = 120_000L,
+						promptTimeoutMillis = 45_000L,
+						launchSession = {
+							launchCount++
+							if (launchCount == 1) {
+								InstallLaunchResult.Started(503)
+							} else {
+								error("boom during re-issue")
+							}
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			assertThat(result.isCompleted).isTrue()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart))
+			assertThat(abandonedSessionIds).containsExactly(503)
+		}
+
+	@Test
+	fun `re-issue and finally abandonSession calls dispatch through ioDispatcher`() =
+		runTest {
+			val abandonedOnIoDispatcher = mutableListOf<Boolean>()
+			val inIoDispatcher =
+				java.util.concurrent.atomic
+					.AtomicBoolean(false)
+			val delegate = StandardTestDispatcher(testScheduler)
+			val trackingIoDispatcher =
+				object : kotlinx.coroutines.CoroutineDispatcher() {
+					override fun isDispatchNeeded(context: kotlin.coroutines.CoroutineContext): Boolean = true
+
+					override fun dispatch(
+						context: kotlin.coroutines.CoroutineContext,
+						block: Runnable,
+					) {
+						delegate.dispatch(context) {
+							val prev = inIoDispatcher.getAndSet(true)
+							try {
+								block.run()
+							} finally {
+								inIoDispatcher.set(prev)
+							}
+						}
+					}
+				}
+			var nextId = 601
+			val installerUnderTest =
+				ProxyAppInstaller(
+					packages = packages,
+					broadcasts = broadcasts,
+					timeoutMillis = 120_000L,
+					promptTimeoutMillis = 45_000L,
+					canShowConfirmDialog = { true },
+					launchInstallSession = { InstallLaunchResult.Started(nextId++) },
+					abandonSession = { id ->
+						abandonedSessionIds += id
+						abandonedOnIoDispatcher += inIoDispatcher.get()
+					},
+					sweepStaleSessions = { sweepCount++ },
+					ioDispatcher = trackingIoDispatcher,
+				)
+
+			val result = async { installerUnderTest.ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			// Trigger prompt-timeout re-issue (abandons 601 on ioDispatcher).
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 602))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(601, 602).inOrder()
+			assertThat(abandonedOnIoDispatcher).containsExactly(true, true)
+		}
 }
