@@ -13,7 +13,7 @@ add_library(sqlitejs SHARED
 target_include_directories(sqlitejs PRIVATE ${UPSTREAM}/src ${UPSTREAM}/libs)
 target_compile_definitions(sqlitejs PRIVATE QJS_BUILD_LIBC)
 target_link_libraries(sqlitejs m)
-# Only the two entry points and JNI_OnLoad: SQLite opens extensions with RTLD_GLOBAL, so an exported
+# Only the entry points and JNI_OnLoad: SQLite opens extensions with RTLD_GLOBAL, so an exported
 # QuickJS function or sqlite3_api could bind to another extension's copy.
 target_link_options(sqlitejs PRIVATE
 	-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/sqlitejs_android.map

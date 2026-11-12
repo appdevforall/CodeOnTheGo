@@ -1,24 +1,82 @@
 // Android additions to sqlite-js for apps built with Code on the Go (ADFA-7082). Not sent
-// upstream: JNI for SqliteJs, and the entry point that loads stored functions.
+// upstream: JNI for SqliteJs, and the two entry points it names. Tested by
+// src/test/c/glue_test.c (test.sh).
 
 #include <jni.h>
 #include "sqlitejs.h"
+// for SQLITE_EXTENSION_INIT3, which is a no-op when glue_test.c builds SQLite in (SQLITE_CORE)
+#include "sqlite3ext.h"
 
 SQLITE_EXTENSION_INIT3
 
-// The entry point SQLite derives from libsqlitejs.so: loads sqlite-js, then the functions stored
-// in the database's js_functions table (see js_init_table), if it has one. Each connection has
-// its own JavaScript runtime, so every connection of a pool, as with write-ahead logging, must
-// load them. A function stored after a connection opened is not in that connection. A stored
-// function that fails to load is logged (sqlite3_log) instead of failing the connection, which
-// would leave the app unable to open its database.
+// SqliteJs.ENTRY_POINT, and the entry point SQLite derives from libsqlitejs.so when none is
+// given: sqlite-js alone. It runs none of the code stored in the database, so it is safe for a
+// database file from anywhere.
 int sqlite3_sqlitejs_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
+    return sqlite3_js_init(db, pzErrMsg, pApi);
+}
+
+// Loads the stored function in row rowid of js_functions. js_init_table(1) loads every row and
+// stops at the first that fails, so it is given a TEMP table of the same name that holds only
+// this row: an unqualified name finds the TEMP table first, and js_init_table's
+// CREATE TABLE IF NOT EXISTS still sees the main one.
+static void load_stored_function (sqlite3 *db, sqlite3_int64 rowid) {
+    char *err = NULL;
+    char *sql = sqlite3_mprintf(
+        "CREATE TEMP TABLE js_functions AS SELECT name, kind, init_code, step_code, final_code, "
+        "value_code, inverse_code FROM main.js_functions WHERE rowid = %lld; "
+        "SELECT js_init_table(1);", rowid);
+    int rc = (sql) ? sqlite3_exec(db, sql, NULL, NULL, &err) : SQLITE_NOMEM;
+    if (rc != SQLITE_OK) {
+        char *name = sqlite3_mprintf("%lld", rowid);
+        sqlite3_stmt *vm = NULL;
+        if (sqlite3_prepare_v2(db, "SELECT name FROM main.js_functions WHERE rowid = ?", -1, &vm, NULL) == SQLITE_OK) {
+            sqlite3_bind_int64(vm, 1, rowid);
+            if ((sqlite3_step(vm) == SQLITE_ROW) && sqlite3_column_text(vm, 0)) {
+                sqlite3_free(name);
+                name = sqlite3_mprintf("%s", (const char *)sqlite3_column_text(vm, 0));
+            }
+        }
+        sqlite3_finalize(vm);
+        sqlite3_log(rc, "sqlite-js: stored function %s did not load: %s", name ? name : "?", err ? err : sqlite3_errstr(rc));
+        sqlite3_free(name);
+    }
+    sqlite3_free(err);
+    sqlite3_free(sql);
+    sqlite3_exec(db, "DROP TABLE IF EXISTS temp.js_functions", NULL, NULL, NULL);
+}
+
+// SqliteJs.ENTRY_POINT_FOR_TRUSTED_DATABASE: sqlite-js, then the functions stored in the
+// database's js_functions table (see js_init_table), if it has one. Loading a function runs its
+// stored code, which can run SQL and read files, so this is only for a database the app made and
+// keeps. Each connection has its own JavaScript runtime, so every connection of a pool, as with
+// write-ahead logging, loads them; a function stored after a connection opened is not in that
+// connection. A stored function that fails to load is logged (sqlite3_log) and skipped, and the
+// rest still load: failing the connection would leave the app unable to open its database.
+int sqlite3_sqlitejs_trusted_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
     int rc = sqlite3_js_init(db, pzErrMsg, pApi);
     if (rc != SQLITE_OK) return rc;
-    char *err = NULL;
-    rc = sqlite3_exec(db, "SELECT js_init_table(1) FROM sqlite_master WHERE type = 'table' AND name = 'js_functions'", NULL, NULL, &err);
-    if (rc != SQLITE_OK) sqlite3_log(rc, "sqlite-js: the stored functions did not load: %s", err ? err : sqlite3_errstr(rc));
-    sqlite3_free(err);
+
+    // the rows are listed first: loading one changes the TEMP schema
+    sqlite3_stmt *vm = NULL;
+    if (sqlite3_prepare_v2(db, "SELECT rowid FROM main.js_functions ORDER BY rowid", -1, &vm, NULL) != SQLITE_OK) {
+        sqlite3_finalize(vm);
+        return SQLITE_OK; // no js_functions table
+    }
+    sqlite3_int64 *rowids = NULL;
+    int count = 0, room = 0;
+    while (sqlite3_step(vm) == SQLITE_ROW) {
+        if (count == room) {
+            room = (room) ? room * 2 : 16;
+            sqlite3_int64 *more = sqlite3_realloc64(rowids, (sqlite3_uint64)room * sizeof(*rowids));
+            if (!more) break;
+            rowids = more;
+        }
+        rowids[count++] = sqlite3_column_int64(vm, 0);
+    }
+    sqlite3_finalize(vm);
+    for (int i = 0; i < count; i++) load_stored_function(db, rowids[i]);
+    sqlite3_free(rowids);
     return SQLITE_OK;
 }
 
