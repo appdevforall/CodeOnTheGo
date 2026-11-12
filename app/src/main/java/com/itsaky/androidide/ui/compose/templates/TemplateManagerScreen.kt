@@ -63,6 +63,16 @@ private sealed interface TemplateManagerDialogState : Parcelable {
 	data object None : TemplateManagerDialogState
 
 	@Parcelize
+	data class InstallConfirm(
+		val path: String,
+	) : TemplateManagerDialogState
+
+	@Parcelize
+	data class UninstallConfirm(
+		val path: String,
+	) : TemplateManagerDialogState
+
+	@Parcelize
 	data class DeleteConfirm(
 		val path: String,
 	) : TemplateManagerDialogState
@@ -150,6 +160,14 @@ fun TemplateManagerScreen(
 						)
 					}
 
+					is TemplateManagerUiEffect.ShowInstallConfirmation -> {
+						dialogState = TemplateManagerDialogState.InstallConfirm(effect.item.file.absolutePath)
+					}
+
+					is TemplateManagerUiEffect.ShowUninstallConfirmation -> {
+						dialogState = TemplateManagerDialogState.UninstallConfirm(effect.item.file.absolutePath)
+					}
+
 					is TemplateManagerUiEffect.ShowDeleteConfirmation -> {
 						dialogState = TemplateManagerDialogState.DeleteConfirm(effect.item.file.absolutePath)
 					}
@@ -201,6 +219,34 @@ fun TemplateManagerScreen(
 
 	when (val dialog = dialogState) {
 		is TemplateManagerDialogState.None -> {}
+
+		is TemplateManagerDialogState.InstallConfirm -> {
+			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
+			if (item != null) {
+				InstallTemplateConfirmationDialog(
+					item = item,
+					onConfirm = { deleteSource ->
+						viewModel.confirmInstallTemplate(item, deleteSource)
+						dialogState = TemplateManagerDialogState.None
+					},
+					onDismiss = { dialogState = TemplateManagerDialogState.None },
+				)
+			}
+		}
+
+		is TemplateManagerDialogState.UninstallConfirm -> {
+			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
+			if (item != null) {
+				UninstallTemplateConfirmationDialog(
+					item = item,
+					onConfirm = {
+						viewModel.confirmUninstallTemplate(item)
+						dialogState = TemplateManagerDialogState.None
+					},
+					onDismiss = { dialogState = TemplateManagerDialogState.None },
+				)
+			}
+		}
 
 		is TemplateManagerDialogState.DeleteConfirm -> {
 			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
