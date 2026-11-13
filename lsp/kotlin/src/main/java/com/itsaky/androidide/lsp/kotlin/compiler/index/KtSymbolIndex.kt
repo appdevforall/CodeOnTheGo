@@ -548,7 +548,8 @@ internal class KtSymbolIndex(
 	/**
 	 * The current instance for [path] with no pin, or `null` if none is cached.
 	 *
-	 * Non-blocking and PSI-only. See [UnpinnedKtFileAccess] for why this is opt-in.
+	 * Non-blocking and PSI-only. See [UnpinnedKtFileAccess] for why this is opt-in. The instance is
+	 * edited in place by later refreshes, so read it only inside `project.read`.
 	 */
 	@UnpinnedKtFileAccess
 	fun peekLiveKtFile(path: Path): KtFile? = getCurrentKtFileIfPresent(path)
