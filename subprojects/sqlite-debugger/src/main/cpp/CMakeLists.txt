@@ -7,10 +7,13 @@ project(sqlitedbg C)
 set(SQLITE_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../../../../sqlite-js/upstream/libs)
 
 add_library(sqlitedbg SHARED
-	sqlitedbg.c)
+	sqlitedbg.c
+	sqlitedbg_jni.c)
 
 target_include_directories(sqlitedbg PRIVATE ${SQLITE_HEADERS} ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(sqlitedbg PRIVATE -Wall -Wextra -fvisibility=hidden)
+# dlopen/dlsym to find sqlite3_auto_extension in requery's libsqlite3x.so
+target_link_libraries(sqlitedbg dl)
 # Only JNI_OnLoad is exported, so sqlite3_api and our other symbols cannot bind to another library's.
 target_link_options(sqlitedbg PRIVATE
 	-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/sqlitedbg.map
