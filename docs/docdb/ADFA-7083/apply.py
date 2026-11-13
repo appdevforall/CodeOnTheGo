@@ -110,10 +110,12 @@ def main():
         db = sqlite3.connect(db_path, isolation_level=None)
         db.execute("PRAGMA foreign_keys = ON")
         template = db.execute("SELECT id FROM Templates WHERE name = 'helpmanual-topic.peb'").fetchone()
+        # the app renders the new pages' jstopics files with it: without it, moving to them fails
+        jstopic_template = db.execute("SELECT id FROM Templates WHERE name = 'helpmanual-jstopic.peb'").fetchone()
         html_type = db.execute("SELECT id FROM ContentTypes WHERE value = 'text/html'").fetchone()
         lang = db.execute("SELECT id FROM Languages WHERE lower(value) = 'en-us'").fetchone()
         dictionary = db.execute("SELECT data FROM CompressionDictionary WHERE id = 1").fetchone()
-        if not (template and html_type and lang and dictionary):
+        if not (template and jstopic_template and html_type and lang and dictionary):
             sys.exit("this does not look like a documentation.db: a template, content type, language or "
                      "dictionary is missing")
         # The app's own query and order (DatabaseVersionResolver): the newest row's version counts.
