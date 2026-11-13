@@ -202,4 +202,21 @@ internal class InBlockInvalidationTest : KtLspTest() {
 		// The first edit's reindex, had it been queued, was launched before the second's.
 		assertThat(reindexed.poll(500, TimeUnit.MILLISECONDS)).isNull()
 	}
+
+	@Test
+	fun `an in-body edit removing a block's only local class queues a reindex`() {
+		val reindexed = LinkedBlockingQueue<KtFile>()
+		env.ktSymbolIndex.indexWorker.commandIntakeObserver = { cmd ->
+			if (cmd is IndexCommand.IndexModifiedFile) reindexed.add(cmd.ktFile)
+		}
+		val withLocalClass = original.replace("val x = 1", "class L\n    val x = 1")
+		val path = open("RemovedLocalClass.kt", withLocalClass)
+		propertyType(path, "x")
+		val document = env.ktSymbolIndex.incrementalDocument(path)!!.ktFile
+		assertThat(reindexed.poll(5, TimeUnit.SECONDS)).isSameInstanceAs(document)
+
+		edit(path, original, 2)
+
+		assertThat(reindexed.poll(5, TimeUnit.SECONDS)).isSameInstanceAs(document)
+	}
 }

@@ -7,7 +7,9 @@ import org.jetbrains.kotlin.com.intellij.openapi.util.text.StringUtil
 import org.jetbrains.kotlin.com.intellij.psi.impl.BlockSupportImpl
 import org.jetbrains.kotlin.com.intellij.psi.impl.ChangedPsiRangeUtil
 import org.jetbrains.kotlin.com.intellij.psi.impl.source.tree.FileElement
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.com.intellij.testFramework.LightVirtualFile
+import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import java.util.concurrent.CancellationException
@@ -72,6 +74,10 @@ internal class IncrementalKtDocument(
 		val viewProvider = ktFile.viewProvider
 		val result =
 			BlockSupportImpl.reparse(ktFile, fileNode, range, text, EmptyProgressIndicator(), viewProvider.contents)
+		val oldRoot = result.oldRoot
+		// The diff below moves the new children into oldRoot, so its old contents are only readable now.
+		val replacedHadClassOrObject =
+			oldRoot !is FileElement && PsiTreeUtil.findChildOfType(oldRoot.psi, KtClassOrObject::class.java) != null
 		// PomModelImpl refuses to change physical PSI outside a command. CoreCommandProcessor swallows
 		// whatever the runnable throws, so the text check below is the only reliable failure signal.
 		CommandProcessor.getInstance().executeCommand(
@@ -87,11 +93,10 @@ internal class IncrementalKtDocument(
 		(viewProvider.virtualFile as LightVirtualFile).setContent(null, text, false)
 		syncDocument(text)
 
-		val oldRoot = result.oldRoot
 		if (oldRoot is FileElement) return ReparseOutcome.WholeFile
 		// A reparseable node outside the Kotlin PSI (KDoc) has no KtElement to report; the whole file is
 		// the conservative answer.
-		return (oldRoot.psi as? KtElement)?.let { ReparseOutcome.InBlock(it) } ?: ReparseOutcome.WholeFile
+		return (oldRoot.psi as? KtElement)?.let { ReparseOutcome.InBlock(it, replacedHadClassOrObject) } ?: ReparseOutcome.WholeFile
 	}
 
 	/**
@@ -113,9 +118,16 @@ internal sealed interface ReparseOutcome {
 	/** The text already matched the tree; nothing changed. */
 	data object Unchanged : ReparseOutcome
 
-	/** Only [reparsed], a reparseable node still attached to the file, was replaced. */
+	/**
+	 * Only [reparsed], a reparseable node still attached to the file, was replaced.
+	 *
+	 * @property reparsed The replaced node, now holding the new children.
+	 * @property replacedHadClassOrObject Whether the children it held before the edit included a class
+	 *   or object declaration.
+	 */
 	data class InBlock(
 		val reparsed: KtElement,
+		val replacedHadClassOrObject: Boolean,
 	) : ReparseOutcome
 
 	/** The file element itself was reparsed, though the [KtFile] instance is kept. */
