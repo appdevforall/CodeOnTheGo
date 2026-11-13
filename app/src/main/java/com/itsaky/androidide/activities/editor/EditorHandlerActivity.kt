@@ -72,6 +72,7 @@ import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.di.APPLICATION_SCOPE
 import com.itsaky.androidide.editor.floating.MetricsCarouselDockableContent
 import com.itsaky.androidide.editor.language.treesitter.JavaLanguage
+import com.itsaky.androidide.editor.language.treesitter.JavaScriptLanguage
 import com.itsaky.androidide.editor.language.treesitter.JsonLanguage
 import com.itsaky.androidide.editor.language.treesitter.KotlinLanguage
 import com.itsaky.androidide.editor.language.treesitter.LogLanguage
@@ -400,6 +401,7 @@ open class EditorHandlerActivity :
 			TSLanguageRegistry.instance.registerIfNeeded(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
+			JavaScriptLanguage.FILE_TYPES.forEach { TSLanguageRegistry.instance.registerIfNeeded(it, JavaScriptLanguage.FACTORY) }
 			PluginLanguageSupport.registerGrammars()
 			IDEColorSchemeProvider.initIfNeeded()
 		}
