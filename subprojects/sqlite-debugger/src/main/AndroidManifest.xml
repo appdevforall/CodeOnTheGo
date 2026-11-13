@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+	<uses-permission android:name="android.permission.INTERNET" />
+
+	<application>
+		<!-- initOrder: run before the app's own providers and Application.onCreate, so the
+		     extension is registered before the app opens a database. -->
+		<provider
+			android:name="org.appdevforall.sqlitedebugger.DebuggerStartup"
+			android:authorities="${applicationId}.sqlitedebugger.startup"
+			android:exported="false"
+			android:initOrder="2147483647" />
+	</application>
+</manifest>
