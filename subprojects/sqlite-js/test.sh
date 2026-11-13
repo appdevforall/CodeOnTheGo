@@ -39,7 +39,7 @@ build gcc -O1 -g -Wall -Wextra -Werror "${DEFS[@]}" "${INC[@]}" \
 	"$WORK/sqlitejs.o" "$WORK/quickjs.o" "$WORK/sqlite3.o" -o "$WORK/glue_test" -lm -lpthread -ldl
 "$WORK/glue_test"
 
-# again with sqlite-js working as on SQLite before 3.41, which patches 0006 and 0007 are for
+# again with sqlite-js working as on SQLite before 3.41, which patch 0002 is for
 echo "# sqlitejs_android.c, as on SQLite 3.40"
 build gcc -O1 -g -w "${DEFS[@]}" "${INC[@]}" -Dsqlite3_libversion_number=glue_sqlite3_libversion_number \
 	-c "$U/src/sqlitejs.c" -o "$WORK/sqlitejs-3.40.o"

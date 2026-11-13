@@ -288,13 +288,13 @@ int main (void) {
     check(cancel_calls == 2, "the trusted entry point loads h again after the cancel stops it");
     check(answers(db, "SELECT h()", "9"), "h is loaded");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL afterwards");
-    exec(db, "SELECT js_eval('held.toArray(); 0')");
     sqlite3_close(db);
     unlink(held);
 
-    // After a cancel, the result sets JavaScript keeps open are ended, as the interrupt would
-    // otherwise stay in effect: every later statement on the connection failed. Run as on SQLite
-    // before 3.41 too (GLUE_AS_SQLITE_3_40), where the cancel's own record shows it (0006).
+    // A result set JavaScript keeps is ended when the call that made it returns (sqlite-js 1.4.2),
+    // or the interrupt would stay in effect and every later statement on the connection fail.
+    // After a cancel, reading on throws "interrupted", also as on SQLite before 3.41
+    // (GLUE_AS_SQLITE_3_40), where only the cancel itself shows it (patch 0002).
     signal(SIGALRM, on_alarm);
     char kept[512];
     snprintf(kept, sizeof(kept), "%s/kept.db", dir);
@@ -308,7 +308,7 @@ int main (void) {
           "the kept result set was ended");
 
     // Ending a result set that is computing a window function runs the function's final, which
-    // begins after the cancel: the cancel must still stop it, also before SQLite 3.41 (0007).
+    // begins after the cancel: the cancel must still stop it, also before SQLite 3.41 (patch 0002).
     check(exec(db, "SELECT js_create_window('loop_final', 'total = 0;', '(function (args) { total += args[0]; })', "
                    "'(function () { while (true) {} })', '(function () { return total; })', "
                    "'(function (args) { total -= args[0]; })')") == SQLITE_OK,
@@ -319,33 +319,32 @@ int main (void) {
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
 
     // A direct sqlite3_interrupt() that reaches the SQL of a db.exec, while another result set is
-    // kept: the kept one is ended, so the connection runs SQL afterwards. Before SQLite 3.41, the
-    // step's SQLITE_INTERRUPT is the only sign of it (0007), and that query never ends otherwise.
+    // kept: the kept one is ended, so the connection runs SQL afterwards. Before SQLite 3.41 no
+    // interrupt shows, so it reads as a result set that outlived its call.
     check(exec_interrupted(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); held.next(); "
                                "db.exec(\"SELECT started()\").next(); "
                                "db.exec(\"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c\").next()')") != SQLITE_OK,
           "sqlite3_interrupt() stops db.exec SQL while another result set is kept");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that interrupt");
-    check(answers(db, "SELECT js_eval('try { held.next(); \"open\" } catch (e) { \"ended: \" + e.message }')", "ended: interrupted"),
+#ifdef GLUE_AS_SQLITE_3_40
+    check(answers(db, "SELECT js_eval('try { held.next(); \"open\" } catch (e) { \"ended: \" + e.message }')",
+                  "ended: The result set was closed when the call into JavaScript that created it returned"),
           "the kept result set was ended");
+#else
+    check(answers(db, "SELECT js_eval('try { held.next(); \"open\" } catch (e) { \"ended: \" + e.message }')", "ended: interrupted"),
+          "the kept result set was ended, as interrupted");
+#endif
 
     // A progress handler that stops a statement, as Android's cancelling does, interrupts nothing
-    // else, so it leaves result sets that earlier calls kept. Before 3.41, which cannot tell it
-    // from an interrupt, they are ended.
-    check(answers(db, "SELECT js_eval('globalThis.kept = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); kept.next()')", "1"),
-          "JavaScript keeps a result set open");
+    // else: the call's other result sets read on, on any SQLite.
     sqlite3_progress_handler(db, 1000, stop_statement, NULL);
-    exec(db, "SELECT js_eval('try { db.exec(\"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100000000) "
-             "SELECT count(*) FROM c\").next(); } catch (e) {} 0')");
+    check(answers(db, "SELECT js_eval('const kept = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); kept.next(); "
+                      "try { db.exec(\"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100000000) "
+                      "SELECT count(*) FROM c\").next(); } catch (e) {} kept.next() && kept.get(0)')", "2"),
+          "a statement a progress handler stopped leaves the call's other result set readable");
     sqlite3_progress_handler(db, 0, NULL, NULL);
-#ifdef GLUE_AS_SQLITE_3_40
-    check(answers(db, "SELECT js_eval('kept.next()')", "interrupted"),
-          "before 3.41, a statement a progress handler stopped ends the kept result set");
-#else
-    check(answers(db, "SELECT js_eval('kept.next()')", "1"),
-          "a statement a progress handler stopped leaves the kept result set");
-#endif
-    exec(db, "SELECT js_eval('kept = null; held = null; 0')");
+    check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after a progress handler stopped a statement");
+    exec(db, "SELECT js_eval('held = null; 0')");
     sqlite3_close_v2(db);
     unlink(kept);
 
