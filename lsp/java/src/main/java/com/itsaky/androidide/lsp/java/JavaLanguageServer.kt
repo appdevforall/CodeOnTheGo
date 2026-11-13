@@ -25,6 +25,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.javac.services.fs.CacheFSInfoSingleton
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clearCache
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clearCachesForPaths
+import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.closeRetired
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
@@ -71,6 +72,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.VMUtils
+import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -174,6 +176,8 @@ class JavaLanguageServer : ILanguageServer {
 		EventBus.getDefault().unregister(this)
 		timer.cancel()
 		serverScope.cancel()
+		// Last, so a throwing listener cannot skip the rest; the listings would otherwise outlive the project.
+		JarListingCache.SHARED.clear()
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
@@ -228,6 +232,9 @@ class JavaLanguageServer : ILanguageServer {
 		// TODO Clearing caches for JAR files ending with '/R.jar' is probably not a good idea
 		//    Maybe this could be improved by using data from the AndroidModule project model
 		clearCachesForPaths { path: String -> path.endsWith("/R.jar") }
+
+		// The file managers that held the superseded JAR file systems were closed above
+		closeRetired()
 
 		// Clear cached module-specific compilers
 		JavaCompilerProvider.getInstance().destroy()

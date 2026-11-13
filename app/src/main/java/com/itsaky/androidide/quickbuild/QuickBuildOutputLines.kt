@@ -83,10 +83,7 @@ fun quickBuildOutputLines(
 					// of narrating upcoming work.
 					listOf("the rebuild failed - save a fix to retry.")
 				} else {
-					listOf(
-						"a full build is needed - ${describe(transition.reason)}. " +
-							"Tap Quick Build to rebuild.",
-					)
+					listOf("a full build is needed - ${describe(transition.reason)}. Starting it now.")
 				}
 			}
 

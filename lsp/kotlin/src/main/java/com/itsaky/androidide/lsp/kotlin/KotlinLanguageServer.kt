@@ -64,6 +64,7 @@ import com.itsaky.androidide.tasks.createJobCancelChecker
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ifNotEmpty
+import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
@@ -191,6 +192,8 @@ class KotlinLanguageServer : ILanguageServer {
 		EventBus.getDefault().unregister(this)
 		session.shutdown()
 		scope.cancel("LSP is being shut down")
+		// Drops the VFS handlers too, closing their JAR handles; the registry shuts every server down on project close.
+		JarListingCache.SHARED.clear()
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
@@ -475,12 +478,13 @@ class KotlinLanguageServer : ILanguageServer {
 	@Suppress("unused")
 	fun onFileDeleted(event: FileDeletionEvent) {
 		val path = event.file.toPath()
-		if (!DocumentUtils.isKotlinFile(path)) {
+		// The file is already gone, so only its extension can say it was Kotlin.
+		if (!DocumentUtils.hasKotlinExtension(path)) {
 			return
 		}
 
 		scope.launch {
-			runCatching { compiler?.compilationEnvironmentFor(path) }
+			runCatching { compiler?.compilationEnvironmentForKotlinPath(path) }
 				.getOrNull()
 				?.onFileRemoved(path)
 		}
@@ -495,7 +499,8 @@ class KotlinLanguageServer : ILanguageServer {
 		scope.launch {
 			// One read: a rebuild can swap the compiler between two reads of the property.
 			val compiler = compiler ?: return@launch
-			val oldIsKotlinFile = DocumentUtils.isKotlinFile(fromPath)
+			// The old path no longer exists, so only its extension can say it was Kotlin.
+			val oldIsKotlinFile = DocumentUtils.hasKotlinExtension(fromPath)
 			val newIsKotlinFile = DocumentUtils.isKotlinFile(toPath)
 
 			if (!oldIsKotlinFile && newIsKotlinFile) {
@@ -511,17 +516,16 @@ class KotlinLanguageServer : ILanguageServer {
 				// only the old file was a Kotlin file
 				// so just remove it from the index
 				compiler
-					.compilationEnvironmentFor(fromPath)
+					.compilationEnvironmentForKotlinPath(fromPath)
 					?.onFileRemoved(fromPath)
 				return@launch
 			}
 
-			val fromKind = runCatching { compiler.compilationKindFor(fromPath) }.getOrNull()
-			val toKind = runCatching { compiler.compilationKindFor(toPath) }.getOrNull()
-			val fromEnv = fromKind?.let { compiler.compilationEnvironmentFor(it) }
-			val toEnv = toKind?.let { compiler.compilationEnvironmentFor(it) }
+			// Path-based, so a .kts side yields no environment instead of the kind-based overload's throw.
+			val fromEnv = runCatching { compiler.compilationEnvironmentForKotlinPath(fromPath) }.getOrNull()
+			val toEnv = runCatching { compiler.compilationEnvironmentForKotlinPath(toPath) }.getOrNull()
 
-			if (fromKind != null && fromEnv == toEnv && toEnv != null) {
+			if (fromEnv != null && fromEnv == toEnv) {
 				// file was renamed within the same compilation environment
 				toEnv.onFileMoved(fromPath, toPath)
 				return@launch

@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AbstractKtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisScheduler
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
@@ -9,18 +10,28 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAccessibilityChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAnnotationsProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
+import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
+import com.itsaky.androidide.lsp.kotlin.compiler.services.ResolutionScopeProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.util.SLF4JLogger
+import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.progress.ICancelChecker
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
+import org.jetbrains.kotlin.analysis.api.platform.analysisMessageBus
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinAnnotationsResolverFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDeclarationProviderFactory
 import org.jetbrains.kotlin.analysis.api.platform.declarations.KotlinDirectInheritorsProvider
 import org.jetbrains.kotlin.analysis.api.platform.java.KotlinJavaModuleAccessibilityChecker
 import org.jetbrains.kotlin.analysis.api.platform.java.KotlinJavaModuleAnnotationsProvider
+import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
+import org.jetbrains.kotlin.analysis.api.platform.modification.KaSourceModificationService
+import org.jetbrains.kotlin.analysis.api.platform.modification.KotlinModuleStateModificationEvent
+import org.jetbrains.kotlin.analysis.api.platform.modification.KotlinModuleStateModificationKind
+import org.jetbrains.kotlin.analysis.api.platform.modification.publishModificationEvent
 import org.jetbrains.kotlin.analysis.api.platform.packages.KotlinPackagePartProviderFactory
 import org.jetbrains.kotlin.analysis.api.platform.packages.KotlinPackageProviderFactory
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinModuleDependentsProvider
@@ -31,6 +42,7 @@ import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.Standa
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectExtensionPoints
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectModelServices
 import org.jetbrains.kotlin.analysis.api.standalone.base.projectStructure.registerProjectServices
+import org.jetbrains.kotlin.analysis.low.level.api.fir.sessions.LLFirSessionInvalidationTopics
 import org.jetbrains.kotlin.cli.common.intellijPluginRoot
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
@@ -80,6 +92,7 @@ import org.jetbrains.kotlin.config.useFir
 import org.jetbrains.kotlin.load.kotlin.MetadataFinderFactory
 import org.jetbrains.kotlin.load.kotlin.VirtualFileFinderFactory
 import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmProtoBufUtil
+import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -194,6 +207,8 @@ internal abstract class AbstractCompilationEnvironment(
 		) -> KtSymbolIndex,
 	) {
 		val configuration = createCompilerConfiguration()
+		// The factory is read when the application environment is created, inside createProjectEnvironment.
+		KotlinApplicationEnvironmentPin.useListingJarFileSystem()
 		projectEnv =
 			StandaloneProjectFactory.createProjectEnvironment(
 				projectDisposable = disposable,
@@ -337,6 +352,72 @@ internal abstract class AbstractCompilationEnvironment(
 		ktSymbolIndex.parser = parser
 
 		postInit(libraryRoots)
+	}
+
+	suspend fun onFileCreated(path: Path) {
+		if (project.isDisposed) return
+		notifyElementModifiedForPath(path) { KaElementModificationType.ElementAdded }
+		ktSymbolIndex.submitForIndexing(path)
+	}
+
+	suspend fun onFileRemoved(path: Path) {
+		if (project.isDisposed) return
+		notifyElementModifiedForPath(path) { ktFile ->
+			KaElementModificationType.ElementRemoved(ktFile)
+		}
+		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
+		ktSymbolIndex.removeFromIndex(path)
+	}
+
+	@OptIn(KaImplementationDetail::class)
+	protected inline fun notifyElementModifiedForPath(
+		path: Path,
+		crossinline typeProvider: (KtFile) -> KaElementModificationType,
+	) {
+		// Resolve PSI/module structure under the read lock; driving psiManager.findFile /
+		// structureProvider concurrently with an `analyze` read section otherwise races.
+		val (ktFile, module) =
+			project.readUnlessDisposed {
+				val structureProvider = ProjectStructureProvider.getInstance(project)
+				val ktFile =
+					path.toVirtualFileOrNull()?.let {
+						psiManager.findFile(it) as? KtFile
+					}
+
+				val module =
+					(
+						ktFile?.let { structureProvider.getModule(it, null) }
+							?: structureProvider.findModuleForSourceId(path.pathString)
+					) as? AbstractKtModule
+
+				ktFile to module
+			} ?: return
+
+		project.writeUnlessDisposed {
+			// Must run under the write lock so the session mutation can't race a concurrent
+			// `analyze` (which only holds the read lock); see KtSymbolIndex.refreshToCurrent.
+			if (ktFile != null) {
+				KaSourceModificationService
+					.getInstance(project)
+					.handleElementModification(ktFile, typeProvider(ktFile))
+			}
+
+			// A path in no module is in no session's scope; invalidating globally would only force
+			// the platform and library sessions to rebuild.
+			if (module != null) {
+				module.invalidateSearchScope()
+				project.publishModificationEvent(
+					KotlinModuleStateModificationEvent(
+						module,
+						KotlinModuleStateModificationKind.UPDATE,
+					),
+				)
+				project.analysisMessageBus
+					.syncPublisher(LLFirSessionInvalidationTopics.SESSION_INVALIDATION)
+					.afterInvalidation(setOf(module))
+				ResolutionScopeProvider.getInstance(project).invalidate(module)
+			}
+		}
 	}
 
 	private fun createCompilerConfiguration(): CompilerConfiguration =

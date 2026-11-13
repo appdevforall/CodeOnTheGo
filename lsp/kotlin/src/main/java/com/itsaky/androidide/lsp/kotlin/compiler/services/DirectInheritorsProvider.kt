@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.cli.jvm.index.JavaRoot
 import org.jetbrains.kotlin.com.intellij.mock.MockProject
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.psi.search.GlobalSearchScope
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.fir.declarations.FirClass
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
@@ -24,6 +25,8 @@ import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtClassOrObject
+import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNullableType
 import org.jetbrains.kotlin.psi.KtTreeVisitorVoid
 import org.jetbrains.kotlin.psi.KtTypeAlias
@@ -39,9 +42,6 @@ internal class DirectInheritorsProvider :
 	private lateinit var index: KtSymbolIndex
 	private lateinit var modules: List<KtModule>
 	private lateinit var project: Project
-
-	private val classesBySupertypeName = mutableMapOf<Name, MutableSet<KtClassOrObject>>()
-	private val inheritableTypeAliasesByAliasedName = mutableMapOf<Name, MutableSet<KtTypeAlias>>()
 
 	override fun setupWith(
 		project: MockProject,
@@ -60,16 +60,16 @@ internal class DirectInheritorsProvider :
 		scope: GlobalSearchScope,
 		includeLocalInheritors: Boolean,
 	): Iterable<KtClassOrObject> {
-		computeIndex()
+		val inheritors = computeIndex()
 
 		val classId = ktClass.getClassId() ?: return emptyList()
 		val baseModule = KotlinProjectStructureProvider.getModule(project, ktClass, useSiteModule = null)
 		val baseFirClass = classId.toFirSymbol(baseModule)?.fir as? FirClass ?: return emptyList()
 
 		val baseClassNames = mutableSetOf(classId.shortClassName)
-		calculateAliases(classId.shortClassName, baseClassNames)
+		calculateAliases(inheritors.inheritableTypeAliasesByAliasedName, classId.shortClassName, baseClassNames)
 
-		val possibleInheritors = baseClassNames.flatMap { classesBySupertypeName[it].orEmpty() }
+		val possibleInheritors = baseClassNames.flatMap { inheritors.classesBySupertypeName[it].orEmpty() }
 		if (possibleInheritors.isEmpty()) {
 			return emptyList()
 		}
@@ -77,11 +77,47 @@ internal class DirectInheritorsProvider :
 		return possibleInheritors.filter { isValidInheritor(it, baseFirClass, scope, includeLocalInheritors) }
 	}
 
-	// Let's say this operation is not frequently called, if we discover it's not the case we should cache it
+	/*
+	 * Reads only the files of [ktClass]'s package. The sealed inheritors search calls this, and the
+	 * whole-project walk of getDirectKotlinInheritors parsed every source file on each call: ~18 s of
+	 * the first completion after a cold open on a phone.
+	 */
+	@OptIn(SymbolInternals::class)
+	override fun getSamePackageDirectKotlinInheritors(
+		ktClass: KtClass,
+		scope: GlobalSearchScope,
+		includeLocalInheritors: Boolean,
+	): Iterable<KtClassOrObject> {
+		val classId = ktClass.getClassId() ?: return emptyList()
+		val baseModule = KotlinProjectStructureProvider.getModule(project, ktClass, useSiteModule = null)
+		val baseFirClass = classId.toFirSymbol(baseModule)?.fir as? FirClass ?: return emptyList()
+
+		/*
+		 * Every class with a supertype is a candidate: FIR's subclass check expands type aliases, so
+		 * an inheritor written against an alias declared in another package is still found.
+		 */
+		return index
+			.ktFilesInPackage(classId.packageFqName, scope)
+			.flatMap { it.classesOrObjects(includeLocalInheritors) }
+			.filter { it.superTypeListEntries.isNotEmpty() }
+			.filter { isValidInheritor(it, baseFirClass, scope, includeLocalInheritors) }
+			.toList()
+	}
+
+	/*
+	 * Built per call and dropped on return: each KtClassOrObject pins its file's whole PSI tree, so a
+	 * long-lived copy keeps every source file's tree in the heap.
+	 */
+	private class InheritorsIndex {
+		val classesBySupertypeName = mutableMapOf<Name, MutableSet<KtClassOrObject>>()
+		val inheritableTypeAliasesByAliasedName = mutableMapOf<Name, MutableSet<KtTypeAlias>>()
+	}
+
 	@OptIn(ResolutionSideKtFileAccess::class)
-	private fun computeIndex() {
-		classesBySupertypeName.clear()
-		inheritableTypeAliasesByAliasedName.clear()
+	private fun computeIndex(): InheritorsIndex {
+		val result = InheritorsIndex()
+		val classesBySupertypeName = result.classesBySupertypeName
+		val inheritableTypeAliasesByAliasedName = result.inheritableTypeAliasesByAliasedName
 
 		modules
 			.asFlatSequence()
@@ -114,17 +150,19 @@ internal class DirectInheritorsProvider :
 					},
 				)
 			}
+		return result
 	}
 
 	private fun calculateAliases(
+		aliasesByAliasedName: Map<Name, Set<KtTypeAlias>>,
 		aliasedName: Name,
 		aliases: MutableSet<Name>,
 	) {
-		inheritableTypeAliasesByAliasedName[aliasedName].orEmpty().forEach { alias ->
+		aliasesByAliasedName[aliasedName].orEmpty().forEach { alias ->
 			val aliasName = alias.nameAsSafeName
 			val isNewAliasName = aliases.add(aliasName)
 			if (isNewAliasName) {
-				calculateAliases(aliasName, aliases)
+				calculateAliases(aliasesByAliasedName, aliasName, aliases)
 			}
 		}
 	}
@@ -186,3 +224,14 @@ private fun findInheritableSimpleNames(typeElement: KtTypeElement): List<String>
 		}
 	}
 }
+
+private fun KtFile.classesOrObjects(includeLocal: Boolean): List<KtClassOrObject> =
+	if (includeLocal) {
+		PsiTreeUtil.collectElementsOfType(this, KtClassOrObject::class.java).toList()
+	} else {
+		declarations.nonLocalClassesOrObjects()
+	}
+
+// Descends through class bodies only, so lazily parsed function bodies stay unparsed.
+private fun List<KtDeclaration>.nonLocalClassesOrObjects(): List<KtClassOrObject> =
+	filterIsInstance<KtClassOrObject>().flatMap { listOf(it) + it.declarations.nonLocalClassesOrObjects() }
