@@ -192,6 +192,29 @@ int main (void) {
     sqlite3_close(db);
     unlink(cancelled);
 
+    // The same with code that keeps a result set open (CodeRabbit). The cancel interrupts the
+    // connection, and an open result set kept that interrupt in effect: every try to load the
+    // function failed, and so did every later statement on the connection.
+    char held[512];
+    snprintf(held, sizeof(held), "%s/held.db", dir);
+    db = open_with(held, sqlite3_sqlitejs_init);
+    check(exec(db, "SELECT js_init_table()") == SQLITE_OK
+          && exec(db, "INSERT INTO js_functions (name, kind, step_code) VALUES ('h', 'scalar', "
+                      "'(globalThis.held = db.exec(\"SELECT 1 UNION ALL SELECT 2\"), held.next(), "
+                      "db.exec(\"SELECT cancel_once()\").next(), (function () { for (let i = 0; i < 1000000; i++); })(), "
+                      "function (args) { return 9; })')") == SQLITE_OK,
+          "a database with a function h whose code keeps a result set open and cancels the first time it loads");
+    sqlite3_close(db);
+    cancel_calls = 0;
+    logged[0] = 0;
+    db = open_trusted_with_cancel_once(held);
+    check(cancel_calls == 2, "the trusted entry point loads h again after the cancel stops it");
+    check(answers(db, "SELECT h()", "9"), "h is loaded");
+    check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL afterwards");
+    exec(db, "SELECT js_eval('held.toArray(); 0')");
+    sqlite3_close(db);
+    unlink(held);
+
     unlink(path);
     unlink(plain);
     rmdir(dir);
