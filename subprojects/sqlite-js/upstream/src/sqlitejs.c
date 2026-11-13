@@ -74,7 +74,7 @@ typedef struct {
     bool                check_interrupted;  // sqlite3_is_interrupted() is available
     struct rowset       *rowsets;       // result sets not yet freed: see js_end_rowsets()
     bool                ending_rowsets; // js_end_rowsets() is running
-    bool                cancel_interrupted; // a cancel interrupted the connection: see js_leave()
+    bool                cancel_interrupted; // the connection is known to be interrupted: see js_leave()
 } globaljs_context;
 
 typedef struct {
@@ -147,6 +147,8 @@ static JSValue js_rowset_next(JSContext *ctx, JSValueConst this_val, int argc, J
     if (!rs->vm) return rs->interrupted ? JS_ThrowInternalError(ctx, "interrupted") : JS_FALSE;
     int rc = sqlite3_step(rs->vm);
     if (rc == SQLITE_ROW) return JS_TRUE;
+    // before SQLite 3.41, the only sign of an interrupt that js_leave() can see
+    if (rc == SQLITE_INTERRUPT) js->cancel_interrupted = true;
 
     // an error while the statement runs (a constraint, an overflow, an interrupt) is an
     // exception, as an error while it is prepared is in js_sqlite_exec; only the end of the
@@ -224,6 +226,7 @@ static JSValue js_rowset_to_array(JSContext *ctx, JSValueConst this_val, int arg
     }
 
     // as in js_rowset_next: an error is an exception, not a shorter array
+    if (rc == SQLITE_INTERRUPT) js->cancel_interrupted = true;
     if (rc != SQLITE_DONE) {
         JS_FreeValue(ctx, result);
         result = JS_ThrowInternalError(ctx, "%s", sqlite3_errmsg(sqlite3_db_handle(rs->vm)));
@@ -329,6 +332,10 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
     UNUSED(rt);
     globaljs_context *js = (globaljs_context *)opaque;
     js_keep_gc_below_limit(js);
+    // JavaScript that ending result sets runs, the final of a window or aggregate function as its
+    // statement is finalized, belongs to a call already stopped. Before SQLite 3.41 nothing else
+    // would stop it: it begins after the cancel, and sqlite3_is_interrupted() is missing.
+    if (js->ending_rowsets) return 1;
     // Only a call (see js_enter) is cancelled: the JavaScript a connection runs while it is set
     // up is not one, and stopping it would make the connection fail to load the extension.
     if ((js->depth > 0) && (js->cancel_epoch != js_cancel_epoch_load())) {
