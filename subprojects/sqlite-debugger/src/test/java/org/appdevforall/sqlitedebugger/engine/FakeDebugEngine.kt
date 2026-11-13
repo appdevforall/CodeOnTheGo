@@ -34,6 +34,14 @@ class FakeDebugEngine(
 	/** Drops the [count] oldest buffered events, as a full native buffer would. */
 	fun dropOldest(count: Int) = repeat(count) { buffered.removeFirstOrNull() }
 
+	private fun cellBytes(value: Any?): Long =
+		when (value) {
+			is String -> value.toByteArray().size.toLong()
+			is ByteArray -> value.size.toLong()
+			is Long, is Int, is Double -> 8
+			else -> 0
+		}
+
 	override fun connections() = appConnections.toList()
 
 	override fun readEvents(
@@ -82,8 +90,30 @@ class FakeDebugEngine(
 			): QueryResult {
 				check(!closed) { "closed" }
 				val all = answer(path, writable, sql, args)
-				val rows = all.rows.drop(offset.toInt())
-				return all.copy(rows = rows.take(limits.maxRows), hasMore = rows.size > limits.maxRows)
+				val skip = offset.toInt().coerceAtMost(all.rows.size)
+				val rest = all.rows.drop(skip)
+				// the native rule: the first row always goes in, then rows while the total stays within the budget
+				var taken = 0
+				var total = 0L
+				for (row in rest) {
+					if (taken >= limits.maxRows) break
+					val bytes = row.sumOf { cellBytes(it) }
+					if (taken > 0 && total + bytes > limits.maxTotalBytes) break
+					total += bytes
+					taken++
+				}
+				val columns = all.columns.size
+				val cut =
+					all.truncatedCellIndexes
+						.map { it - skip.toLong() * columns }
+						.filter { it >= 0 && it < taken.toLong() * columns }
+						.toSet()
+				return all.copy(
+					rows = rest.take(taken),
+					hasMore = rest.size > taken,
+					truncatedCells = if (all.truncatedCellIndexes.isEmpty()) all.truncatedCells else cut.size,
+					truncatedCellIndexes = cut,
+				)
 			}
 
 			override fun close() {

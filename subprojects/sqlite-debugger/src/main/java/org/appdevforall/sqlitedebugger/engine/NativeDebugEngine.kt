@@ -78,7 +78,9 @@ class NativeDebugEngine : DebugEngine {
 		): QueryResult {
 			check(handle != 0L) { "the connection is closed" }
 			require(offset >= 0) { "offset $offset is negative" }
-			require(limits.maxRows > 0 && limits.maxTextBytes >= 0 && limits.maxBlobBytes >= 0) { "bad limits $limits" }
+			require(limits.maxRows > 0 && limits.maxTextBytes >= 0 && limits.maxBlobBytes >= 0 && limits.maxTotalBytes > 0) {
+				"bad limits $limits"
+			}
 			val result =
 				NativeBridge.query(
 					handle,
@@ -88,6 +90,7 @@ class NativeDebugEngine : DebugEngine {
 					limits.maxRows,
 					limits.maxTextBytes,
 					limits.maxBlobBytes,
+					limits.maxTotalBytes,
 					deadlineMillis,
 				)
 
@@ -97,7 +100,9 @@ class NativeDebugEngine : DebugEngine {
 			@Suppress("UNCHECKED_CAST")
 			val rows = (result[1] as List<Array<Any?>>).map { it.asList() }
 			val counts = result[2] as LongArray
-			return QueryResult(columns, rows, truncatedCells = counts[0].toInt(), hasMore = counts[1] != 0L)
+			val cut = HashSet<Long>()
+			for (i in 2 until counts.size) cut += counts[i]
+			return QueryResult(columns, rows, truncatedCells = counts[0].toInt(), hasMore = counts[1] != 0L, truncatedCellIndexes = cut)
 		}
 
 		override fun close() {

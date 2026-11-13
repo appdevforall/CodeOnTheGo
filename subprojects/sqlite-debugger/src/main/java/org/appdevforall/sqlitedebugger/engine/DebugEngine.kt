@@ -112,6 +112,12 @@ data class QueryLimits(
 	val maxTextBytes: Int,
 	/** Longer BLOB values are cut and counted in [QueryResult.truncatedCells]. */
 	val maxBlobBytes: Int,
+	/**
+	 * A bound on the cell bytes of one result, so a wide SELECT cannot exhaust the app's heap: the
+	 * TEXT and BLOB bytes kept, plus 8 for each number. Rows are added until the next one would pass
+	 * it; the rest is [QueryResult.hasMore]. The first row is always returned.
+	 */
+	val maxTotalBytes: Int,
 )
 
 data class QueryResult(
@@ -119,9 +125,19 @@ data class QueryResult(
 	/** Each value is null, [Long], [Double], [String] or [ByteArray]. Doubles may be NaN or infinite. */
 	val rows: List<List<Any?>>,
 	val truncatedCells: Int,
-	/** More rows follow the last one returned. */
+	/** More rows follow the last one returned: the row limit or [QueryLimits.maxTotalBytes] was reached. */
 	val hasMore: Boolean,
-)
+	/**
+	 * Which cells were cut, as `row * columns.size + column`: a BLOB of exactly [QueryLimits.maxBlobBytes]
+	 * is whole and not listed, one byte more is. [truncatedCells] is its size.
+	 */
+	val truncatedCellIndexes: Set<Long> = emptySet(),
+) {
+	fun isTruncated(
+		row: Int,
+		column: Int,
+	) = (row.toLong() * columns.size + column) in truncatedCellIndexes
+}
 
 class DebugEngineException(
 	/** The SQLite result code, or [SQLITE_MISUSE] when no app connection has opened yet. */

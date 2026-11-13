@@ -140,6 +140,15 @@ class McpProtocolTest {
 		assertEquals("text", result.getJSONArray("content").getJSONObject(0).getString("type"))
 	}
 
+	@Test fun toolResultTextIsCompactSoTheResultIsNotSentTwiceInFull() {
+		val p = protocol()
+		val s = session(p)
+		val result = call(p, s, "echo", JSONObject().put("x", 3)).getJSONObject("result")
+		val text = result.getJSONArray("content").getJSONObject(0).getString("text")
+		assertFalse(text, text.contains("\n"))
+		assertEquals(result.getJSONObject("structuredContent").toString(), text)
+	}
+
 	@Test fun toolCallWithoutArgumentsGetsEmptyObject() {
 		val p = protocol()
 		val s = session(p)

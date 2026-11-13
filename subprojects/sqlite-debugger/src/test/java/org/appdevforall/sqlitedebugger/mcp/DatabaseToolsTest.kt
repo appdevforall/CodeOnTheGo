@@ -282,8 +282,37 @@ class DatabaseToolsTest {
 		assertEquals(3, blob.getInt("bytes"))
 		assertFalse(blob.getBoolean("truncated"))
 		assertTrue(row.isNull(7))
-		assertEquals(true, DatabaseTools.encodeValue(ByteArray(1024).also { }).let { (it as JSONObject).getBoolean("truncated") })
+		assertEquals(true, (DatabaseTools.encodeValue(ByteArray(8), truncated = true) as JSONObject).getBoolean("truncated"))
+		assertEquals(false, (DatabaseTools.encodeValue(ByteArray(1024)) as JSONObject).getBoolean("truncated"))
 		assertEquals(1.5, DatabaseTools.encodeValue(1.5))
+	}
+
+	@Test fun aBlobExactlyAtTheLimitIsNotTruncatedButOneByteMoreIs() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val whole = ByteArray(DatabaseTools.MAX_BLOB_BYTES)
+		val cut = ByteArray(DatabaseTools.MAX_BLOB_BYTES) // the engine kept maxBlobBytes of a longer value
+		engine.answer = { _, _, _, _ ->
+			QueryResult(listOf("a", "b"), listOf(listOf(whole, cut)), 1, false, setOf(1L))
+		}
+		val r = ok("query", db().put("sql", "x"))
+		val row = r.getJSONArray("rows").getJSONArray(0)
+		assertFalse(row.getJSONObject(0).getBoolean("truncated"))
+		assertTrue(row.getJSONObject(1).getBoolean("truncated"))
+		assertEquals(1, r.getInt("truncated_cells"))
+	}
+
+	@Test fun aResultStopsAtTheTotalBudgetAndPages() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val big = "x".repeat(3 * 1024 * 1024)
+		engine.answer = { _, _, _, _ -> QueryResult(listOf("v"), listOf(listOf(big), listOf(big), listOf(big)), 0, false) }
+		val r = ok("query", db().put("sql", "x"))
+		assertEquals(1, r.getInt("row_count"))
+		assertTrue(r.getBoolean("has_more"))
+		assertEquals(1, r.getInt("next_offset"))
+		val next = ok("query", db().put("sql", "x").put("offset", 1))
+		assertEquals(1, next.getInt("row_count"))
+		assertEquals(2, next.getInt("next_offset"))
+		assertEquals(4 * 1024 * 1024, DatabaseTools.MAX_TOTAL_BYTES)
 	}
 
 	@Test fun getSchemaGroupsByType() {
@@ -307,7 +336,8 @@ class DatabaseToolsTest {
 		assertEquals("CREATE INDEX i1 ON t(a)", r.getJSONArray("indexes").getJSONObject(0).getString("sql"))
 		assertEquals(1, r.getJSONArray("views").length())
 		assertEquals(1, r.getJSONArray("triggers").length())
-		assertTrue(seenSql.single().contains("sqlite_schema"))
+		assertTrue(seenSql.single().contains("FROM sqlite_master"))
+		assertFalse(seenSql.single().contains("sqlite_schema")) // an alias that needs SQLite 3.33
 	}
 
 	@Test fun explainQueryPlanPrefixesTheSql() {
@@ -344,6 +374,8 @@ class DatabaseToolsTest {
 		assertEquals(40960, r.getInt("size_bytes"))
 		assertEquals(7, r.getJSONObject("row_counts").getInt("a\"b"))
 		assertTrue(seenSql.contains("SELECT COUNT(*) FROM \"a\"\"b\""))
+		assertTrue(seenSql.any { it.contains("FROM sqlite_master") })
+		assertTrue(seenSql.none { it.contains("sqlite_schema") })
 	}
 
 	@Test fun getStatsSkipsCountsFromTenTables() {

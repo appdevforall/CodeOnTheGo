@@ -28,6 +28,9 @@ class DatabaseTools(
 		const val MAX_TEXT_BYTES = 4096
 		const val MAX_BLOB_BYTES = 1024
 
+		/** The most cell bytes one tool result holds (the engine's `maxTotalBytes`); the rest is paged. */
+		const val MAX_TOTAL_BYTES = 4 * 1024 * 1024
+
 		/** Below the client's 60 s limit on a tool call. */
 		const val DEADLINE_MS = 50_000L
 		const val EVENT_BATCH_BYTES = 256 * 1024
@@ -41,7 +44,7 @@ class DatabaseTools(
 		/** A SQLite value as JSON: org.json throws on NaN and infinities, and JSON numbers lose integers past 2^53. */
 		fun encodeValue(
 			value: Any?,
-			maxBlobBytes: Int = MAX_BLOB_BYTES,
+			truncated: Boolean = false,
 		): Any =
 			when (value) {
 				null -> {
@@ -73,8 +76,7 @@ class DatabaseTools(
 					JSONObject()
 						.put("base64", McpHttp.base64(value, urlSafe = false, pad = true))
 						.put("bytes", value.size)
-						// the engine cuts at the limit without saying how long the BLOB was
-						.put("truncated", value.size >= maxBlobBytes)
+						.put("truncated", truncated)
 				}
 
 				else -> {
@@ -119,14 +121,15 @@ class DatabaseTools(
 			tool(
 				"get_schema",
 				"Get schema",
-				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_schema.",
+				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_master.",
 				databaseSchema(),
 			) { getSchema(it) },
 			tool(
 				"query",
 				"Run a query",
 				"Runs one read-only SQL statement. Returns at most max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS); " +
-					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. Use offset to page. " +
+					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. A result also stops at about " +
+					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true). Use offset to page. " +
 					"$PAGING_NOTE Writes are refused.",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
@@ -235,10 +238,10 @@ class DatabaseTools(
 		val result =
 			run(
 				args,
-				"SELECT type, name, tbl_name, sql FROM sqlite_schema ORDER BY type, name",
+				"SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name",
 				emptyList(),
 				0,
-				QueryLimits(MAX_ROWS, 65536, MAX_BLOB_BYTES),
+				QueryLimits(MAX_ROWS, 65536, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
 			)
 		val groups = linkedMapOf("table" to JSONArray(), "index" to JSONArray(), "view" to JSONArray(), "trigger" to JSONArray())
 		for (row in result.rows) {
@@ -257,7 +260,7 @@ class DatabaseTools(
 		val sql = stringArg(args, "sql")
 		val offset = intArg(args, "offset", 0, 0, Long.MAX_VALUE)
 		val maxRows = intArg(args, "max_rows", DEFAULT_MAX_ROWS.toLong(), 1, MAX_ROWS.toLong()).toInt()
-		val result = run(args, sql, bindArgs(args), offset, QueryLimits(maxRows, MAX_TEXT_BYTES, MAX_BLOB_BYTES))
+		val result = run(args, sql, bindArgs(args), offset, QueryLimits(maxRows, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
 		val out = encodeResult(result, offset)
 		out.put("note", PAGING_NOTE)
 		return out
@@ -270,13 +273,13 @@ class DatabaseTools(
 				"EXPLAIN QUERY PLAN " + stringArg(args, "sql"),
 				bindArgs(args),
 				0,
-				QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES),
+				QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
 			)
 		return JSONObject().put("plan", rowsAsObjects(result))
 	}
 
 	private fun getStats(args: JSONObject): JSONObject {
-		val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES)
+		val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
 		val deadline = clock() + DEADLINE_MS
 		val path = checkedPath(args)
 
@@ -292,7 +295,7 @@ class DatabaseTools(
 		val tables =
 			runChecked(
 				path,
-				"SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
 				emptyList(),
 				0,
 				limits,
@@ -332,7 +335,7 @@ class DatabaseTools(
 				else -> throw McpToolError("full must be true or false.")
 			}
 		val pragma = if (full) "PRAGMA integrity_check" else "PRAGMA quick_check"
-		val result = run(args, pragma, emptyList(), 0, QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES))
+		val result = run(args, pragma, emptyList(), 0, QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
 		val messages = result.rows.map { it.firstOrNull()?.toString() ?: "" }
 		return JSONObject()
 			.put("check", if (full) "integrity_check" else "quick_check")
@@ -377,7 +380,9 @@ class DatabaseTools(
 		offset: Long,
 	): JSONObject {
 		val rows = JSONArray()
-		for (row in result.rows) rows.put(JSONArray().also { a -> row.forEach { a.put(encodeValue(it)) } })
+		result.rows.forEachIndexed { r, row ->
+			rows.put(JSONArray().also { a -> row.forEachIndexed { c, v -> a.put(encodeValue(v, result.isTruncated(r, c))) } })
+		}
 		val out =
 			JSONObject()
 				.put("columns", JSONArray(result.columns))
@@ -392,9 +397,9 @@ class DatabaseTools(
 
 	private fun rowsAsObjects(result: QueryResult): JSONArray {
 		val arr = JSONArray()
-		for (row in result.rows) {
+		result.rows.forEachIndexed { r, row ->
 			val o = JSONObject()
-			result.columns.forEachIndexed { i, c -> o.put(c, encodeValue(row[i])) }
+			result.columns.forEachIndexed { i, c -> o.put(c, encodeValue(row[i], result.isTruncated(r, i))) }
 			arr.put(o)
 		}
 		return arr

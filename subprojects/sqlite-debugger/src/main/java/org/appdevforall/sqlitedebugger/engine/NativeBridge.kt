@@ -33,7 +33,8 @@ internal object NativeBridge {
 
 	/**
 	 * `[Array<String>, ArrayList<Array<Any?>>, LongArray]`: the column names, the rows, and
-	 * `{truncatedCells, hasMore}`. Throws [DebugEngineException].
+	 * `{truncatedCells, hasMore, then the index of each cut cell}` (row * columns + column).
+	 * Throws [DebugEngineException].
 	 */
 	@JvmStatic
 	external fun query(
@@ -44,6 +45,7 @@ internal object NativeBridge {
 		maxRows: Int,
 		maxTextBytes: Int,
 		maxBlobBytes: Int,
+		maxTotalBytes: Int,
 		deadlineMillis: Long,
 	): Array<Any?>
 

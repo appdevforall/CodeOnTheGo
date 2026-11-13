@@ -258,24 +258,40 @@ static int utf8_prefix(const unsigned char *s, int len, int max) {
 }
 
 // One cell as a Java object, or NULL for SQL NULL (or on failure, with an exception pending).
-static jobject cell_value(JNIEnv *env, sqlite3_stmt *st, int col, jint max_text, jint max_blob, int *truncated) {
+// *cut is set when a TEXT or BLOB was cut at its limit, and *bytes grows by what the cell costs the
+// result: the TEXT or BLOB bytes kept, 8 for a number.
+static jobject cell_value(JNIEnv *env, sqlite3_stmt *st, int col, jint max_text, jint max_blob, int *cut,
+                          int64_t *bytes) {
+	*cut = 0;
 	switch (sqlite3_column_type(st, col)) {
 		case SQLITE_INTEGER:
+			*bytes += 8;
 			return (*env)->CallStaticObjectMethod(env, g_long, g_long_value_of, (jlong)sqlite3_column_int64(st, col));
 		case SQLITE_FLOAT:
+			*bytes += 8;
 			return (*env)->CallStaticObjectMethod(env, g_double, g_double_value_of, (jdouble)sqlite3_column_double(st, col));
 		case SQLITE_TEXT: {
 			const unsigned char *text = sqlite3_column_text(st, col);
+			if (!text) {  // out of memory
+				throw_engine(env, SQLITE_NOMEM, "out of memory");
+				return NULL;
+			}
 			int len = sqlite3_column_bytes(st, col);
 			int keep = utf8_prefix(text, len, max_text);
-			if (keep < len) (*truncated)++;
+			if (keep < len) *cut = 1;
+			*bytes += keep;
 			return utf8_string(env, (const char *)text, keep);
 		}
 		case SQLITE_BLOB: {
 			const void *blob = sqlite3_column_blob(st, col);
 			int len = sqlite3_column_bytes(st, col);
+			if (!blob && len > 0) {  // out of memory
+				throw_engine(env, SQLITE_NOMEM, "out of memory");
+				return NULL;
+			}
 			int keep = len > max_blob ? max_blob : len;
-			if (keep < len) (*truncated)++;
+			if (keep < len) *cut = 1;
+			*bytes += keep;
 			jbyteArray array = (*env)->NewByteArray(env, keep);
 			if (array && keep > 0) (*env)->SetByteArrayRegion(env, array, 0, keep, (const jbyte *)blob);
 			return array;
@@ -286,11 +302,13 @@ static jobject cell_value(JNIEnv *env, sqlite3_stmt *st, int col, jint max_text,
 }
 
 static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args, jlong offset,
-                                 jint max_rows, jint max_text, jint max_blob, jlong deadline_ms) {
+                                 jint max_rows, jint max_text, jint max_blob, jint max_total, jlong deadline_ms) {
 	(void)cls;
 	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
 	sqlite3_stmt *st = NULL;
 	jobjectArray result = NULL;
+	jlong *cut_cells = NULL;  // row * columns + column of each cut cell
+	size_t cut_n = 0, cut_cap = 0;
 	deadline dl = {(int64_t)deadline_ms, 0};
 	int handler_set = 0;
 	const char *message = NULL;
@@ -333,7 +351,8 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		(*env)->DeleteLocalRef(env, s);
 	}
 
-	int truncated = 0, has_more = 0, row_count = 0;
+	int has_more = 0, row_count = 0;
+	int64_t total = 0;
 	jlong skipped = 0;
 	while (st && (rc = sqlite3_step(st)) == SQLITE_ROW) {
 		if (skipped < offset) {
@@ -346,14 +365,39 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		}
 		jobjectArray row = (*env)->NewObjectArray(env, ncols, g_object, NULL);
 		if (!row) goto done;
+		int64_t row_bytes = 0;
+		size_t cut_before = cut_n;
 		for (int c = 0; c < ncols; c++) {
-			jobject cell = cell_value(env, st, c, max_text, max_blob, &truncated);
+			int cut;
+			jobject cell = cell_value(env, st, c, max_text, max_blob, &cut, &row_bytes);
 			if ((*env)->ExceptionCheck(env)) goto done;
+			if (cut) {
+				if (cut_n == cut_cap) {
+					size_t cap = cut_cap ? cut_cap * 2 : 16;
+					jlong *grown = realloc(cut_cells, cap * sizeof(jlong));
+					if (!grown) {
+						throw_engine(env, SQLITE_NOMEM, "out of memory");
+						goto done;
+					}
+					cut_cells = grown;
+					cut_cap = cap;
+				}
+				cut_cells[cut_n++] = (jlong)row_count * ncols + c;
+			}
 			if (cell) {
 				(*env)->SetObjectArrayElement(env, row, c, cell);
 				(*env)->DeleteLocalRef(env, cell);
 			}
 		}
+		// The total bounds the host app's heap. The first row always goes in, so a page makes
+		// progress; one row is bounded by the per-cell limits.
+		if (row_count > 0 && total + row_bytes > max_total) {
+			(*env)->DeleteLocalRef(env, row);
+			cut_n = cut_before;
+			has_more = 1;
+			break;
+		}
+		total += row_bytes;
 		(*env)->CallBooleanMethod(env, rows, g_list_add, row);
 		(*env)->DeleteLocalRef(env, row);
 		if ((*env)->ExceptionCheck(env)) goto done;
@@ -365,11 +409,13 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		goto done;
 	}
 
-	jlongArray counts = (*env)->NewLongArray(env, 2);
+	// {cut cell count, hasMore, then the index of each cut cell}
+	jlongArray counts = (*env)->NewLongArray(env, (jsize)(2 + cut_n));
 	result = counts ? (*env)->NewObjectArray(env, 3, g_object, NULL) : NULL;
 	if (!result) goto done;
-	jlong values[2] = {truncated, has_more};
-	(*env)->SetLongArrayRegion(env, counts, 0, 2, values);
+	jlong head[2] = {(jlong)cut_n, has_more};
+	(*env)->SetLongArrayRegion(env, counts, 0, 2, head);
+	if (cut_n) (*env)->SetLongArrayRegion(env, counts, 2, (jsize)cut_n, cut_cells);
 	(*env)->SetObjectArrayElement(env, result, 0, names);
 	(*env)->SetObjectArrayElement(env, result, 1, rows);
 	(*env)->SetObjectArrayElement(env, result, 2, counts);
@@ -377,6 +423,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
 	sqlite3_finalize(st);
+	free(cut_cells);
 	// Backstop: a transaction left open (a writable connection, or a way past the authorizer)
 	// would hold a lock on the app's database until the next query.
 	if (sqlite3_get_autocommit(db) == 0) sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL);
@@ -413,7 +460,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	    {"readEvents", "(J[B[J)V", (void *)bridge_read_events},
 	    {"setClientConnected", "(Z)V", (void *)bridge_set_client_connected},
 	    {"openServer", "([BZ)J", (void *)bridge_open_server},
-	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;JIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
+	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;JIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
 	    {"close", "(J)V", (void *)bridge_close},
 	};
 	jclass bridge = (*env)->FindClass(env, BRIDGE_CLASS);

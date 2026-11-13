@@ -199,7 +199,7 @@ class McpProtocol(
 		val result =
 			try {
 				val out = tool.run(args)
-				JSONObject().put("content", JSONArray().put(text(out.toString(2)))).put("structuredContent", out).put("isError", false)
+				JSONObject().put("content", JSONArray().put(text(out.toString()))).put("structuredContent", out).put("isError", false)
 			} catch (e: McpToolError) {
 				JSONObject().put("content", JSONArray().put(text(e.message ?: "The tool failed."))).put("isError", true).also { r ->
 					e.details?.let { r.put("structuredContent", it) }

@@ -35,7 +35,7 @@ The layout of `sqlitedbg_event_record` lives in `sqlitedbg.h`. The JNI layer han
 - **Only databases an app connection has open.** `DatabaseTools` refuses any other path before the engine is called: opening a file Android's own SQLite has open, with requery's, can corrupt it. The extension has no SQLite API until an app connection has opened, so `sqlitedbg_open_server` returns `SQLITE_MISUSE` before that.
 - **The app's connections are never altered.** The extension never sets the progress handler or the update hook of an app connection: requery sets and clears the progress handler around cancellable statements, and the update hook belongs to the app. Only server connections use a progress handler, for the time limit.
 - **Bound values are recorded only while a client is connected.** Expanding the SQL costs memory on every run, so `sqlitedbg_set_client_connected` turns it on; the first `get_events` call does.
-- **Limits.** Connections opened before `install` are not seen, so `DebuggerStartup` runs as early as the process allows. Events are dropped, oldest first, when the buffer (4 MiB by default) is full, and `get_events` reports how many.
+- **Limits.** Connections opened before `install` are not seen, so `DebuggerStartup` runs as early as the process allows. Events are dropped, oldest first, when the buffer (4 MiB by default) is full, and `get_events` reports how many. A query result holds at most 4 MiB of cell bytes (`QueryLimits.maxTotalBytes`: TEXT and BLOB bytes kept, 8 per number), so a wide SELECT cannot exhaust the app's heap; the rest is paged (`has_more`). The engine reports which cells were cut (`QueryResult.truncatedCellIndexes`), so a BLOB of exactly the limit is not flagged.
 
 ## Testing
 
