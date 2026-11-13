@@ -4,6 +4,7 @@ import androidx.annotation.VisibleForTesting
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisScheduler
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis
@@ -320,13 +321,17 @@ internal class KtSymbolIndex(
 			.registerInMemoryFile(path.pathString, newKtFile.viewProvider.virtualFile)
 		// project.write serializes the mutation against a concurrent `analyze` (read lock); runWriteAction
 		// supplies the platform write access handleElementModification asserts, which our RW lock does not.
-		project.write {
-			ApplicationManager.getApplication().runWriteAction {
-				KaSourceModificationService
-					.getInstance(project)
-					.handleElementModification(old ?: newKtFile, KaElementModificationType.Unknown)
+		// The barrier preempts running analyses: completion waits on this refresh before it reaches the
+		// scheduler, so without it the keystroke waits out a whole indexing analysis.
+		AnalysisScheduler.preemptingAnalysis {
+			project.write {
+				ApplicationManager.getApplication().runWriteAction {
+					KaSourceModificationService
+						.getInstance(project)
+						.handleElementModification(old ?: newKtFile, KaElementModificationType.Unknown)
+				}
+				queueOnFileChangedAsync(newKtFile)
 			}
-			queueOnFileChangedAsync(newKtFile)
 		}
 		return VersionedKtFile(version, newKtFile)
 	}

@@ -174,6 +174,9 @@ internal object AnalysisScheduler {
 	private var holderPreempted = false
 	private var holderPreempt: (() -> Unit)? = null
 
+	/** Number of [preemptingAnalysis] blocks currently running; non-zero turns every new requester away. */
+	private var barriers = 0
+
 	/** Number of threads currently waiting to acquire, per priority. */
 	private val waiting = IntArray(AnalysisPriority.entries.size)
 
@@ -206,6 +209,10 @@ internal object AnalysisScheduler {
 				while (true) {
 					// Bail out (rather than keep waiting) if this requester was cancelled while queued.
 					cancelChecker.abortIfCancelled()
+
+					if (barriers > 0) {
+						throw AnalysisPreemptedException()
+					}
 
 					val hp = holderPriority
 					if (holderThread != null && hp != null && !holderPreempted &&
@@ -273,6 +280,41 @@ internal object AnalysisScheduler {
 			holderPreempt = null
 			holderPreempted = false
 			available.signalAll()
+		}
+	}
+
+	/**
+	 * Runs [block] with analysis held off, so [block] can take `project.write` without waiting for
+	 * analyses to finish.
+	 *
+	 * Every analysis holds `project.read` for its whole run and takes this scheduler's slot while still
+	 * holding it, so a write has to wait for all of them. While [block] runs:
+	 * - the current holder, whatever its priority, is preempted (its `onPreempt` is invoked once);
+	 * - every requester waiting in [acquire], and every new one, leaves with
+	 *   [AnalysisPreemptedException], releasing its read lock on the way out;
+	 * - a reentrant [acquire] by the holder's own thread is unaffected, so the holder can unwind.
+	 *
+	 * Barriers nest and overlap: analysis resumes when the last one ends.
+	 *
+	 * The caller must not hold `project.read` or the analysis slot: [block] would then wait on itself.
+	 */
+	fun <R> preemptingAnalysis(block: () -> R): R {
+		mutex.withLock {
+			barriers++
+			if (holderThread != null && !holderPreempted) {
+				holderPreempted = true
+				holderPreempt?.invoke()
+			}
+			// Waiters park on a timed await; wake them so they leave now rather than at the next poll.
+			available.signalAll()
+		}
+		try {
+			return block()
+		} finally {
+			mutex.withLock {
+				barriers--
+				available.signalAll()
+			}
 		}
 	}
 
