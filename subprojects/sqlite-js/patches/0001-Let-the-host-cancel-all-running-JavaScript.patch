@@ -1,7 +1,7 @@
-From 45278f053210e570fad37d1ef2af7a6d4461064b Mon Sep 17 00:00:00 2001
+From 8ba5688b1cd9c9560345da31989288760049da8f Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
 Date: Thu, 12 Nov 2026 00:05:58 -0800
-Subject: [PATCH 1/3] Let the host cancel all running JavaScript
+Subject: [PATCH 1/2] Let the host cancel all running JavaScript
 
 sqlitejs_cancel_all() stops the JavaScript running in every connection:
 each call fails with an "interrupted" error, even code that catches
@@ -45,7 +45,7 @@ Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
  3 files changed, 149 insertions(+), 3 deletions(-)
 
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index 9137ca8..a0cacb0 100644
+index 26af849..e5fea55 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
 @@ -70,6 +70,8 @@ typedef struct {
@@ -54,10 +54,10 @@ index 9137ca8..a0cacb0 100644
      int                 depth;          // calls into JavaScript in progress: see js_enter()
 +    unsigned            cancel_epoch;   // js_cancel_epoch when the outermost call began
 +    bool                check_interrupted;  // sqlite3_is_interrupted() is available
- } globaljs_context;
- 
- typedef struct {
-@@ -264,6 +266,30 @@ static void js_collect_below_limit (globaljs_context *js) {
+     struct rowset       *rowsets;       // result sets not yet freed: see js_end_rowsets()
+     int                 orphans;        // of those, the ones whose JavaScript object is gone
+     bool                ending_rowsets; // js_end_rowsets() is running
+@@ -325,6 +327,30 @@ static void js_collect_below_limit (globaljs_context *js) {
      js_keep_gc_below_limit(js);
  }
  
@@ -88,7 +88,7 @@ index 9137ca8..a0cacb0 100644
  // QuickJS calls this from time to time while it runs code. A non-zero result stops the code
  // with an uncatchable "interrupted" error, so sqlite3_interrupt() (Ctrl-C in the sqlite3 shell,
  // a cancelled query in an app) also stops JavaScript that never returns to SQLite.
-@@ -271,7 +297,15 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
+@@ -332,7 +358,15 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
      UNUSED(rt);
      globaljs_context *js = (globaljs_context *)opaque;
      js_keep_gc_below_limit(js);
@@ -105,15 +105,15 @@ index 9137ca8..a0cacb0 100644
  }
  
  // The most memory, in bytes, the JavaScript runtime of a connection may allocate until
-@@ -442,6 +476,7 @@ static bool js_stack_room (size_t *room) {
+@@ -542,6 +576,7 @@ static bool js_stack_room (size_t *room) {
  // runs JavaScript) is on the same thread and keeps the outer call's limit.
  static void js_enter (globaljs_context *js) {
      if (js->depth++ > 0) return;
 +    js->cancel_epoch = js_cancel_epoch_load();
      JS_UpdateStackTop(js->runtime);
-     size_t size = js->stack_size, room = 0;
-     if ((size > 0) && js_stack_room(&room) && (room >= SQLITE_JS_STACK_MIN) && (room < size)) size = room;
-@@ -469,8 +504,9 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
+     // A thread with less room than SQLITE_JS_STACK_MIN keeps it too: JavaScript there then fails
+     // with "Maximum call stack size exceeded" rather than running past the end of the stack. A
+@@ -577,8 +612,9 @@ static globaljs_context *globaljs_init (sqlite3 *db) {
      //JS_SetMaxStackSize(rt, 10 * 1024);
      
      // sqlite3_is_interrupted() is new in SQLite 3.41.0: an older library has no such entry
@@ -126,7 +126,7 @@ index 9137ca8..a0cacb0 100644
      // the default stack size must fit in the stack of the thread that loads the extension: Windows
      // gives a main thread 1 MB, and apps often give their threads no more
 diff --git a/src/sqlitejs.h b/src/sqlitejs.h
-index 048d62b..2d6bb3d 100644
+index fb0172d..ed6ce4e 100644
 --- a/src/sqlitejs.h
 +++ b/src/sqlitejs.h
 @@ -21,5 +21,6 @@
@@ -137,10 +137,10 @@ index 048d62b..2d6bb3d 100644
  
  #endif
 diff --git a/test/main.c b/test/main.c
-index 0c8a47b..20e7764 100644
+index 8cc3706..d0930e6 100644
 --- a/test/main.c
 +++ b/test/main.c
-@@ -932,6 +932,114 @@ abort_test:
+@@ -1047,6 +1047,114 @@ abort_test:
      return rc;
  }
  
@@ -255,7 +255,7 @@ index 0c8a47b..20e7764 100644
  // MARK: - Stack size -
  
  int test_stack_size (void) {
-@@ -1114,6 +1222,7 @@ int main (void) {
+@@ -1276,6 +1384,7 @@ int main (void) {
      result += test_report("Serialization 3", test_serialization(DB_PATH, true,  3)); // load the new implementations
      result += test_report("Thread", test_thread());
      result += test_report("Interrupt", test_interrupt());

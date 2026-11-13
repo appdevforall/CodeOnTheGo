@@ -2,8 +2,8 @@
 # Rebuilds upstream/ from the sqlite-js release VERSION and patches/, or checks that it matches.
 # Usage: vendor.sh [--check] [TARBALL]   (without TARBALL, downloads it)
 set -euo pipefail
-VERSION=1.4.1
-SHA256=d45d394fc7cb37070a64fa248994c7fef7c10cff31541eb57608405753fc3078
+VERSION=1.4.2
+SHA256=1aa4c566491f1b56f3fd676b80880fdccbf0806b8f3cd015f60cd0f1c171cf24
 URL=https://github.com/sqliteai/sqlite-js/archive/refs/tags/$VERSION.tar.gz
 HERE=$(cd "$(dirname "$0")" && pwd)
 CHECK=false
