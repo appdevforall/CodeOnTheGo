@@ -318,6 +318,17 @@ class QuickBuildAction(
 		}
 
 		/**
+		 * Why the bolt is greyed out right now, for the toolbar to show when it is tapped anyway;
+		 * null when the bolt is enabled.
+		 */
+		fun disabledReason(context: Context): String? =
+			if (isBlockedByStandardBuild()) {
+				context.getString(R.string.quick_build_standard_build_in_progress)
+			} else {
+				unsupportedProjectReason(context)
+			}
+
+		/**
 		 * Whether a build the USER started is running - [BuildService.isUserVisibleBuildInProgress],
 		 * not the raw flag, which an internal Quick Build build also sets.
 		 */
