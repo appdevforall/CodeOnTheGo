@@ -38,8 +38,27 @@ import kotlin.coroutines.EmptyCoroutineContext
  * An [ICancelChecker] which when cancelled, cancels the corresponding [Job].
  */
 class JobCancelChecker @JvmOverloads constructor(
-	var job: Job? = null
+	job: Job? = null
 ) : ICancelChecker.Default() {
+
+	/**
+	 * The job this checker follows. Cancelling the job cancels the checker, so
+	 * [isCancelled] and [invokeOnCancel] listeners see cancellations that did not
+	 * originate from [cancel].
+	 */
+	var job: Job? = null
+		set(value) {
+			field = value
+			value?.invokeOnCompletion { cause ->
+				if (cause is CancellationException) {
+					cancel()
+				}
+			}
+		}
+
+	init {
+		this.job = job
+	}
 
 	override fun cancel() {
 		job?.cancel("Cancelled by user")
