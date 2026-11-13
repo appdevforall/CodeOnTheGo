@@ -356,7 +356,7 @@ open class EditorHandlerActivity :
 			if (tabPosition >= 0) {
 				this.content.editorContainer.displayedChild = tabPosition
 			}
-			EditorEvents.notifyFileChanged(editorViewModel.getCurrentFile())
+			EditorEvents.notifyFileChanged(editorViewModel.displayedFile())
 		}
 
 		pluginEditorProvider =

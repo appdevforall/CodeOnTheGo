@@ -408,7 +408,9 @@ class EditorViewModel : ViewModel() {
 			files.removeAt(index)
 
 			if (files.isEmpty()) {
-				mCurrentFile.value = null
+				// As removeAllFiles does: no tab is left to select, so nothing else would tell the
+				// displayed-file observers that no file is shown.
+				setCurrentFile(-1, null)
 			}
 		}
 
@@ -471,6 +473,13 @@ class EditorViewModel : ViewModel() {
 	fun getCurrentFileIndex(): Int = mCurrentFile.value?.first ?: -1
 
 	fun getCurrentFile(): File? = mCurrentFile.value?.second
+
+	/**
+	 * The file at [displayedFileIndex], or null when it is -1 (a plugin tab, or no tab). Observers
+	 * of the displayed index read this, not [getCurrentFile]: [setCurrentFile] and the tab-selected
+	 * callback set the index first, so the current file still names the tab being left.
+	 */
+	fun displayedFile(): File? = files.getOrNull(displayedFileIndex)
 
 	/**
 	 * Get the [OpenedFilesCache] if it is already loaded, otherwise read the cache from the file system
