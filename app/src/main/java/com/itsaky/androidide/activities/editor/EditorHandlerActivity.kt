@@ -356,7 +356,7 @@ open class EditorHandlerActivity :
 			if (tabPosition >= 0) {
 				this.content.editorContainer.displayedChild = tabPosition
 			}
-			EditorEvents.notifyFileChanged(editorViewModel.getCurrentFile())
+			EditorEvents.notifyFileChanged(editorViewModel.displayedFile())
 		}
 
 		pluginEditorProvider =
@@ -1151,7 +1151,7 @@ open class EditorHandlerActivity :
 			if (fileIndex < 0) return@withContext null
 
 			editorViewModel.startDrawerOpened = false
-			editorViewModel.displayedFileIndex = fileIndex
+			editorViewModel.setCurrentFile(fileIndex, file)
 
 			val tabPosition = getTabPositionForFileIndex(fileIndex)
 			val tab = content.tabs.getTabAt(tabPosition)

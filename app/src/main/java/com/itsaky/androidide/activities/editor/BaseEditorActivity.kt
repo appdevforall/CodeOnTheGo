@@ -1347,7 +1347,9 @@ abstract class BaseEditorActivity :
 			return
 		}
 
-		editorViewModel.displayedFileIndex = fileIndex
+		// With the current file, not the index alone: plugins hear the switch as the index is set, and
+		// may ask for the current file.
+		editorViewModel.selectFile(fileIndex)
 
 		val editorView =
 			if (this is EditorHandlerActivity) {
@@ -1362,7 +1364,7 @@ abstract class BaseEditorActivity :
 		}
 
 		editorView.onEditorSelected()
-		editorViewModel.setCurrentFile(fileIndex, editorView.file)
+		editorViewModel.selectFile(fileIndex, editorView.file)
 		refreshSymbolInput(editorView)
 		invalidateOptionsMenu()
 	}
