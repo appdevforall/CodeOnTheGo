@@ -45,9 +45,14 @@ android {
 	}
 }
 
+// Set on the tasks, not the extension: the root build sets every KotlinCompile task's jvmTarget
+// to 17, which overrides the extension and no longer matches compileOptions above.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+	compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+}
+
 kotlin {
 	compilerOptions {
-		jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
 		// Apps compile against this library with Code on the Go's on-device Kotlin compiler,
 		// which can be older than the one that builds it (as in :plugin-api).
 		apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
