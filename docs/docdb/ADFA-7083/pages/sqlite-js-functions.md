@@ -167,7 +167,7 @@ Sets the most memory, in bytes, that JavaScript may use in this session. The def
 js_set_max_stack_size(bytes)
 ```
 
-Sets the size of the JavaScript stack, which limits how deeply functions can call themselves. The default is 1 MB. Give a whole number of bytes, such as `1048576`, no larger than the stack of `sqlite3` allows. Anything else is an error, and the error message names the largest size allowed. Do not use `0`: it turns the check off, and code that calls itself without end then crashes `sqlite3`.
+Sets the size of the JavaScript stack, which limits how deeply functions can call themselves. The default is 1 MB. Give a whole number of bytes, such as `1048576`, no larger than the stack of `sqlite3` allows. Anything else is an error, and the error message names the largest size allowed. If the stack has no limit, as after `ulimit -s unlimited`, sqlite-js cannot measure it and allows at most 1 MB. Do not use `0`: it turns the check off, and code that calls itself without end then crashes `sqlite3`.
 
 ## Version
 
@@ -182,7 +182,7 @@ js_version(1)
 
 ```sql
 SELECT js_version();
--- 1.4.1
+-- 1.4.2
 ```
 
 ## What changed in sqlite-js 1.4
@@ -197,6 +197,14 @@ sqlite-js 1.4.0 includes fixes that App Dev For All sent to the upstream project
 - An exception in an aggregate or window function fails the query.
 - `js_set_max_stack_size` accepts only a size the stack can hold, or 0, which turns the check off. With a size set, code that calls itself without end fails instead of crashing `sqlite3`.
 - An error while `db.exec` runs a statement, such as a failed constraint, is thrown instead of being ignored.
+
+sqlite-js 1.4.2 has more fixes, several of them sent or reported by App Dev For All. Compared with 1.4.1:
+
+- A result set from `db.exec` lasts only until the call into JavaScript that created it returns. Reading it in a later call throws an error, where before it went on with its rows.
+- Ctrl-C no longer leaves `sqlite3` failing every later query with `interrupted` when JavaScript kept a result set.
+- Code that calls itself without end fails instead of crashing `sqlite3` in more cases. If the stack has no limit, `js_set_max_stack_size` allows at most 1 MB.
+- JavaScript that runs out of memory while much of its memory is garbage no longer fails again on every try.
+- A query that computes a JavaScript window function no longer crashes `sqlite3` when JavaScript drops its result set partway.
 
 ## Credits
 

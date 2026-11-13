@@ -29,7 +29,7 @@ apt install sqlite sqlite-js
 
 The `sqlite` package provides the `sqlite3` command that sqlite-js works with.
 
-These pages describe sqlite-js 1.4.1 and later versions. To see which version you have, enter `dpkg -s sqlite-js` and read its `Version` line. `apt update` and then `apt install sqlite-js` bring an older one up to date.
+These pages describe sqlite-js 1.4.2 and later versions. To see which version you have, enter `dpkg -s sqlite-js` and read its `Version` line. `apt update` and then `apt install sqlite-js` bring an older one up to date.
 
 ## Load sqlite-js
 
