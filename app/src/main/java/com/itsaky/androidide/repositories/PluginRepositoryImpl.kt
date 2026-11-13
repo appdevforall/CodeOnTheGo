@@ -154,9 +154,7 @@ class PluginRepositoryImpl(
 						Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
 					}
 					// loadPlugins() keeps a plugin that is still loaded, so the new file would never load.
-					check(manager.getPlugin(pluginId) == null) {
-						"Could not unload the installed version of \"$pluginId\"."
-					}
+					if (manager.getPlugin(pluginId) != null) throw PluginStillLoadedException(pluginId)
 
 					try {
 						pluginFile.copyTo(finalFile, overwrite = true)

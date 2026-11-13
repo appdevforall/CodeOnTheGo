@@ -95,6 +95,7 @@ import com.itsaky.androidide.quickbuild.QuickBuildWontStayUpRestart
 import com.itsaky.androidide.quickbuild.quickBuildStatusBarUpdate
 import com.itsaky.androidide.quickbuild.resolve
 import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.repositories.PluginStillLoadedException
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.search.replace.ReplaceCoordinator
 import com.itsaky.androidide.search.replace.ReplaceHost
@@ -1160,10 +1161,14 @@ abstract class ProjectHandlerActivity :
 					showRestartPrompt(this@ProjectHandlerActivity)
 				}.onFailure { error ->
 					flashError(
-						getString(
-							string.msg_plugin_install_failed,
-							error.message ?: "Unknown error",
-						),
+						if (error is PluginStillLoadedException) {
+							getString(string.msg_plugin_install_still_loaded, error.pluginId)
+						} else {
+							getString(
+								string.msg_plugin_install_failed,
+								error.message ?: "Unknown error",
+							)
+						},
 					)
 				}
 			setStatus("")

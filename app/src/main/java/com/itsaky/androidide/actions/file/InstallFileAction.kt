@@ -26,6 +26,7 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.activities.ExternalFileInstallActivity
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.repositories.PluginStillLoadedException
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
 import com.itsaky.androidide.utils.fileProviderUriFor
@@ -108,7 +109,13 @@ class InstallFileAction(
 							flashSuccess(getString(R.string.msg_plugin_installed_restart))
 							DialogUtils.showRestartPrompt(this@doAction)
 						}.onFailure { e ->
-							flashError(getString(R.string.msg_plugin_install_failed, e.message))
+							flashError(
+								if (e is PluginStillLoadedException) {
+									getString(R.string.msg_plugin_install_still_loaded, e.pluginId)
+								} else {
+									getString(R.string.msg_plugin_install_failed, e.message)
+								},
+							)
 						}
 				}
 			}
