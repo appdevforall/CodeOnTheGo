@@ -10,6 +10,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.isSourceModule
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAccessibilityChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.services.JavaModuleAnnotationsProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.KtLspService
+import com.itsaky.androidide.lsp.kotlin.compiler.services.NoFormattingCodeStyleManager
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ResolutionScopeProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
@@ -74,7 +75,13 @@ import org.jetbrains.kotlin.com.intellij.openapi.roots.PackageIndex
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
 import org.jetbrains.kotlin.com.intellij.psi.ClassTypePointerFactory
+import org.jetbrains.kotlin.com.intellij.pom.PomModel
+import org.jetbrains.kotlin.com.intellij.pom.core.impl.PomModelImpl
+import org.jetbrains.kotlin.com.intellij.pom.tree.TreeAspect
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
+import org.jetbrains.kotlin.com.intellij.psi.PsiTreeChangeAdapter
+import org.jetbrains.kotlin.com.intellij.psi.PsiTreeChangeListener
+import org.jetbrains.kotlin.com.intellij.psi.codeStyle.CodeStyleManager
 import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.JavaFileManager
 import org.jetbrains.kotlin.com.intellij.psi.impl.smartPointers.PsiClassReferenceTypePointerFactory
 import org.jetbrains.kotlin.com.intellij.psi.search.ProjectScope
@@ -344,6 +351,16 @@ internal abstract class AbstractCompilationEnvironment(
 				MetadataFinderFactory::class.java,
 				CliMetadataFinderFactory(fileFinderFactory),
 			)
+			if (!extensionArea.hasExtensionPoint(PsiTreeChangeListener.EP.name)) {
+				CoreApplicationEnvironment.registerExtensionPoint(
+					extensionArea,
+					PsiTreeChangeListener.EP.name,
+					PsiTreeChangeAdapter::class.java,
+				)
+			}
+			registerService(TreeAspect::class.java)
+			registerService(PomModel::class.java, PomModelImpl::class.java)
+			registerService(CodeStyleManager::class.java, NoFormattingCodeStyleManager(this))
 		}
 
 		setupServices(libraryRoots)
