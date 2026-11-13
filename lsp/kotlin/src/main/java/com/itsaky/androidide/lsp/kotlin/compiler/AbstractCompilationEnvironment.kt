@@ -207,6 +207,8 @@ internal abstract class AbstractCompilationEnvironment(
 		) -> KtSymbolIndex,
 	) {
 		val configuration = createCompilerConfiguration()
+		// The factory is read when the application environment is created, inside createProjectEnvironment.
+		KotlinApplicationEnvironmentPin.useListingJarFileSystem()
 		projectEnv =
 			StandaloneProjectFactory.createProjectEnvironment(
 				projectDisposable = disposable,

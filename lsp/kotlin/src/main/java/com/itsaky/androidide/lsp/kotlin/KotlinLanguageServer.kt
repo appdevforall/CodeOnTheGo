@@ -64,6 +64,7 @@ import com.itsaky.androidide.tasks.createJobCancelChecker
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ifNotEmpty
+import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
@@ -191,6 +192,8 @@ class KotlinLanguageServer : ILanguageServer {
 		EventBus.getDefault().unregister(this)
 		session.shutdown()
 		scope.cancel("LSP is being shut down")
+		// Drops the VFS handlers too, closing their JAR handles; the registry shuts every server down on project close.
+		JarListingCache.SHARED.clear()
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
