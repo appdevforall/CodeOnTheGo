@@ -91,6 +91,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -347,6 +348,9 @@ class PluginManager private constructor(
 	// overlap could each find a plugin not loaded yet and load it twice.
 	private val loadMutex = Mutex()
 
+	// How long a load, install or uninstall waits for the load lock. Internal so tests can shorten it.
+	internal var loadLockWaitMs = 30_000L
+
 	fun setTemplateReloadListener(listener: (() -> Unit)?) {
 		this.templateReloadListener = listener
 		PluginProjectManager.getInstance().setTemplateReloadListener(listener)
@@ -400,14 +404,35 @@ class PluginManager private constructor(
 		}
 	}
 
-	/** Loads every plugin file not loaded yet. Waits for a load already under way. */
-	suspend fun loadPlugins() = loadMutex.withLock { loadAllPlugins() }
+	/** Loads every plugin file not loaded yet. Waits for a load already under way: see [withLoadLock]. */
+	suspend fun loadPlugins() = withLoadLock("load plugins") { loadAllPlugins() }
 
 	/**
 	 * Runs [block] while no plugin load is under way. Install swaps a plugin's file in it, so a load
-	 * that started first can't load the old file after the old version was unloaded.
+	 * that started first can't load the old file after the old version was unloaded. See [withLoadLock].
 	 */
-	suspend fun <T> whileNotLoading(block: suspend () -> T): T = loadMutex.withLock { block() }
+	suspend fun <T> whileNotLoading(block: suspend () -> T): T = withLoadLock("change a plugin file", block)
+
+	/**
+	 * Runs [block] holding the load lock, waiting at most [loadLockWaitMs] for it, then without it.
+	 * A load holds the lock while plugins' initialize() and activate() run, so a plugin that never
+	 * returns would otherwise block every later install and uninstall for good, including installing
+	 * its fixed version. Going on without the lock is how loads behaved before it existed.
+	 */
+	private suspend fun <T> withLoadLock(
+		action: String,
+		block: suspend () -> T,
+	): T {
+		val locked = withTimeoutOrNull(loadLockWaitMs) { loadMutex.lock() } != null
+		if (!locked) {
+			logger.warn("A plugin load has held the load lock for over ${loadLockWaitMs / 1000} s; going on to $action without it")
+		}
+		return try {
+			block()
+		} finally {
+			if (locked) loadMutex.unlock()
+		}
+	}
 
 	private suspend fun loadAllPlugins() =
 		withContext(Dispatchers.IO) {
@@ -679,7 +704,10 @@ class PluginManager private constructor(
 			val initResult =
 				try {
 					plugin.initialize(pluginContext)
-				} catch (e: Exception) {
+				} catch (e: Throwable) {
+					// LinkageError too: a plugin built against another API version fails with one, such as
+					// NoSuchMethodError, and its listeners must still go. Other Errors are not the plugin's.
+					if (e !is Exception && e !is LinkageError) throw e
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
 					PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 					if (manifest.sidebarItems > 0) {

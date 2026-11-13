@@ -18,6 +18,7 @@ import org.robolectric.annotation.Config
 /**
  * Plugin loads run one at a time, and install swaps a plugin's file between them: two overlapping
  * loads could each load the same plugin, and a load under way could load a file install replaced.
+ * The wait is bounded, so a load stuck in a plugin's code can't block every later one.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE, sdk = [28])
@@ -46,6 +47,32 @@ class PluginManagerLoadLockTest {
 			withTimeout(10_000) {
 				swap.join()
 				load.await()
+			}
+		}
+
+	@Test
+	fun aLoadStuckHoldingTheLockDoesNotBlockTheNextForever() =
+		runBlocking {
+			val manager = PluginManager.getInstance(RuntimeEnvironment.getApplication(), Any(), SilentLogger)
+			manager.loadLockWaitMs = 300
+			val stuck = CompletableDeferred<Unit>()
+			val holding = CompletableDeferred<Unit>()
+			// Stands in for a load whose plugin never returns from initialize() or activate().
+			val holder =
+				launch(Dispatchers.Default) {
+					manager.whileNotLoading {
+						holding.complete(Unit)
+						stuck.await()
+					}
+				}
+			holding.await()
+			try {
+				// Waits out loadLockWaitMs, then loads without the lock instead of waiting for good.
+				withTimeout(10_000) { manager.loadPlugins() }
+			} finally {
+				stuck.complete(Unit)
+				holder.join()
+				manager.loadLockWaitMs = 30_000L
 			}
 		}
 
