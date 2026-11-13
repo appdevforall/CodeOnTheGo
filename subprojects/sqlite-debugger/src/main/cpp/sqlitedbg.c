@@ -414,11 +414,17 @@ static int server_authorizer(void *unused, int action, const char *a1, const cha
 		case SQLITE_ANALYZE:
 		case SQLITE_ATTACH:
 		case SQLITE_DETACH:
+		// A client could open a transaction or savepoint and hold a lock on the app's database.
+		case SQLITE_TRANSACTION:
+		case SQLITE_SAVEPOINT:
 			return SQLITE_DENY;
 		case SQLITE_PRAGMA:
 			// PRAGMA query_only=0 would lift the guard, and a PRAGMA that stores a value writes.
 			// PRAGMA table_info(t) also has a second argument, so only these names are checked.
+			// locking_mode=EXCLUSIVE keeps the lock after a read, and busy_timeout (any form) lets a
+			// statement wait on the app's lock for as long as the client likes.
 			if (a1 && (sqlite3_stricmp(a1, "query_only") == 0 || sqlite3_stricmp(a1, "writable_schema") == 0 ||
+			           sqlite3_stricmp(a1, "locking_mode") == 0 || sqlite3_stricmp(a1, "busy_timeout") == 0 ||
 			           sqlite3_stricmp(a1, "wal_checkpoint") == 0 ||
 			           sqlite3_stricmp(a1, "incremental_vacuum") == 0 || sqlite3_stricmp(a1, "optimize") == 0))
 				return SQLITE_DENY;

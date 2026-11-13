@@ -608,6 +608,45 @@ static void test_server(void) {
 	CHECK_EQ(sqlite3_close(app), SQLITE_OK);
 }
 
+// Each of these would let a client keep a lock on the app's database (ADFA-7135 review, H3).
+static void test_server_holds_no_locks(void) {
+	static const char *const denied[] = {
+		"BEGIN",
+		"BEGIN IMMEDIATE",
+		"BEGIN EXCLUSIVE",
+		"SAVEPOINT s",
+		"PRAGMA locking_mode=EXCLUSIVE",
+		"PRAGMA locking_mode",
+		"PRAGMA busy_timeout=60000",
+		"PRAGMA busy_timeout",
+	};
+	for (size_t i = 0; i < sizeof denied / sizeof denied[0]; i++) {
+		sqlite3 *srv = NULL;
+		CHECK_EQ(sqlitedbg_open_server(g_db_path, 0, &srv), SQLITE_OK);
+		int rc = step_all(srv, denied[i]);
+		if (rc != SQLITE_AUTH) fprintf(stderr, "not refused: %s (%d)\n", denied[i], rc);
+		CHECK_EQ(rc, SQLITE_AUTH);
+		// a read on the same connection, then the app must still be able to write
+		CHECK_EQ(step_all(srv, "SELECT count(*) FROM t"), SQLITE_DONE);
+		char *err = NULL;
+		rc = sqlite3_exec(g_main, "INSERT INTO t VALUES(4242)", NULL, NULL, &err);
+		if (rc != SQLITE_OK) fprintf(stderr, "app write after \"%s\": %s\n", denied[i], err ? err : "?");
+		sqlite3_free(err);
+		CHECK_EQ(rc, SQLITE_OK);
+		exec_ok(g_main, "DELETE FROM t WHERE a=4242");
+		CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	}
+
+	// an ordinary read leaves the server connection with no lock and in autocommit
+	sqlite3 *srv = NULL;
+	CHECK_EQ(sqlitedbg_open_server(g_db_path, 0, &srv), SQLITE_OK);
+	CHECK_EQ(step_all(srv, "SELECT * FROM t"), SQLITE_DONE);
+	CHECK_EQ(sqlite3_get_autocommit(srv), 1);
+	exec_ok(g_main, "INSERT INTO t VALUES(4243)");
+	exec_ok(g_main, "DELETE FROM t WHERE a=4243");
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+}
+
 typedef struct worker {
 	int index;
 	atomic_int *stop;
@@ -880,6 +919,8 @@ int main(int argc, char **argv) {
 		test_init_failure();
 		printf("# server connections\n");
 		test_server();
+		printf("# server holds no locks\n");
+		test_server_holds_no_locks();
 		printf("# threads\n");
 		test_threads();
 		if (argc == 4 && strcmp(argv[1], "--write-fixture") == 0) write_fixture(argv[2], argv[3]);

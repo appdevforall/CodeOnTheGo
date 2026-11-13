@@ -135,7 +135,8 @@ void sqlitedbg_set_client_connected(int connected);
 
 // Opens path for the server with the same SQLite the app uses: SQLITE_OPEN_READONLY unless
 // writable, PRAGMA query_only when read-only, and an authorizer that refuses ordinary writes when
-// read-only. Read-only mode guards against accidents; it is not a security boundary (ADFA-7131,
+// read-only, and also BEGIN, SAVEPOINT, PRAGMA locking_mode and PRAGMA busy_timeout: a client must not
+// be able to hold a lock on the app's database. Read-only mode guards against accidents; it is not a security boundary (ADFA-7131,
 // D11). Never traced and never listed. The caller owns *db and closes it with sqlite3_close_v2.
 // A server connection, unlike an app connection, may use a progress handler (for time limits).
 // Returns SQLITE_MISUSE before any app connection has opened (the extension then has no SQLite

@@ -377,6 +377,9 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
 	sqlite3_finalize(st);
+	// Backstop: a transaction left open (a writable connection, or a way past the authorizer)
+	// would hold a lock on the app's database until the next query.
+	if (sqlite3_get_autocommit(db) == 0) sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL);
 	return result;
 }
 
