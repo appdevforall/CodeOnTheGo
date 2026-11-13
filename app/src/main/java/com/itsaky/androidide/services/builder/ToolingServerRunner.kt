@@ -171,7 +171,8 @@ internal class ToolingServerRunner(
 
 					log.info("Tooling API server running with PID: {}", pid)
 
-					val inputStream = process.inputStream
+					val messageTap = ToolingMessageTap.factory?.invoke()
+					val inputStream = messageTap?.wrapInput(process.inputStream) ?: process.inputStream
 					val outputStream = process.outputStream
 					val errorStream = process.errorStream
 
@@ -192,6 +193,7 @@ internal class ToolingServerRunner(
 							observer!!.getClient(),
 							inputStream,
 							outputStream,
+							wrapMessages = { consumer -> messageTap?.wrapMessages(consumer) ?: consumer },
 						)
 
 					val future = launcher.startListening()
@@ -224,7 +226,11 @@ internal class ToolingServerRunner(
 							}
 						}
 
-					joinAll(serverJob, processJob)
+					try {
+						joinAll(serverJob, processJob)
+					} finally {
+						messageTap?.onServerStopped()
+					}
 				} catch (e: Throwable) {
 					if (e !is CancellationException) {
 						log.error("Unable to start tooling API server", e)
