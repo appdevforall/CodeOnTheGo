@@ -90,7 +90,7 @@ SELECT big_next(CAST(9223372036854775807 AS TEXT));
 
 ## Run SQL from JavaScript
 
-The global object `db` runs SQL on the same database. `db.exec(sql, ...parameters)` takes a statement, with `?` for each parameter, and returns a result set. The statement runs when you call `next()` or `toArray()`. One exception: some `PRAGMA` statements, such as `PRAGMA foreign_keys = ON`, take effect already in `db.exec`. Which ones do depends on the `PRAGMA`.
+The global object `db` runs SQL on the same database. `db.exec(sql, ...parameters)` takes a statement, with `?` for each parameter, and returns a result set. The statement runs when you call `next()` or `toArray()`. One exception: some `PRAGMA` statements, such as `PRAGMA foreign_keys = ON`, take effect already in `db.exec`. Which ones do depends on the `PRAGMA`. `PRAGMA foreign_keys` has no effect inside a transaction or savepoint, so set it before you run `BEGIN` or `SAVEPOINT`.
 
 | Result set | What it does |
 |------------|--------------|
