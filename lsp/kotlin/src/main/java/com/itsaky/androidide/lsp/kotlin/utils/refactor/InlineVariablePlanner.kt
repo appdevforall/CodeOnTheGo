@@ -3,8 +3,8 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
-import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.progress.ICancelChecker
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaImplicitReceiverValue

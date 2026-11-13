@@ -12,11 +12,10 @@ internal class KotlinAutoImportEditHandler(
 	analysisContext: AnalysisContext,
 	private val symbolToImport: JvmSymbol? = null,
 ) : AdvancedKotlinEditHandler(analysisContext) {
-
 	context(ctx: AnalysisContext)
 	override fun computeEdits(
 		ktFile: KtFile,
-		item: CompletionItem
+		item: CompletionItem,
 	): List<TextEdit> {
 		val fqnToImport =
 			symbolToImport?.fqName

@@ -92,6 +92,7 @@ internal class KtSymbolIndex(
 	}
 
 	private val workerQueue = WorkerQueue<IndexCommand>()
+
 	@VisibleForTesting
 	internal val indexWorker =
 		IndexWorker(
@@ -421,10 +422,17 @@ internal class KtSymbolIndex(
 	/** SourceFileIndexer records local classes and objects, so only an in-block edit adding or removing one needs a reindex. */
 	private fun ReparseOutcome.needsReindex(): Boolean =
 		when (this) {
-			is ReparseOutcome.InBlock ->
+			is ReparseOutcome.InBlock -> {
 				replacedHadClassOrObject || PsiTreeUtil.findChildOfType(reparsed, KtClassOrObject::class.java) != null
-			ReparseOutcome.WholeFile -> true
-			ReparseOutcome.Unchanged, is ReparseOutcome.Failed -> false
+			}
+
+			ReparseOutcome.WholeFile -> {
+				true
+			}
+
+			ReparseOutcome.Unchanged, is ReparseOutcome.Failed -> {
+				false
+			}
 		}
 
 	/**

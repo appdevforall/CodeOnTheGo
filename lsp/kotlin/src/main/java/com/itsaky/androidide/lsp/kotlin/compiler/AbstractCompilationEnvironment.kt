@@ -75,10 +75,10 @@ import org.jetbrains.kotlin.com.intellij.openapi.editor.impl.DocumentWriteAccess
 import org.jetbrains.kotlin.com.intellij.openapi.roots.PackageIndex
 import org.jetbrains.kotlin.com.intellij.openapi.util.Disposer
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFileManager
-import org.jetbrains.kotlin.com.intellij.psi.ClassTypePointerFactory
 import org.jetbrains.kotlin.com.intellij.pom.PomModel
 import org.jetbrains.kotlin.com.intellij.pom.core.impl.PomModelImpl
 import org.jetbrains.kotlin.com.intellij.pom.tree.TreeAspect
+import org.jetbrains.kotlin.com.intellij.psi.ClassTypePointerFactory
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.com.intellij.psi.PsiTreeChangeAdapter
 import org.jetbrains.kotlin.com.intellij.psi.PsiTreeChangeListener

@@ -3,7 +3,6 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
-import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import com.itsaky.androidide.lsp.refactor.BlockPlacement
 import com.itsaky.androidide.lsp.refactor.TextSpan
@@ -12,6 +11,7 @@ import com.itsaky.androidide.lsp.refactor.excludeUnsoundOccurrences
 import com.itsaky.androidide.lsp.refactor.hoistSkipsWrite
 import com.itsaky.androidide.lsp.refactor.hoistsOverLoopWrite
 import com.itsaky.androidide.lsp.refactor.servableOccurrences
+import com.itsaky.androidide.progress.ICancelChecker
 import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
