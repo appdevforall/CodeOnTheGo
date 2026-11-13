@@ -282,4 +282,75 @@ class ApkInstallerSessionTest {
 			assertThat(swept).isEqualTo(49)
 			assertThat(activeSessions).containsExactly(50)
 		}
+
+	@Test
+	fun `abandonSession retains tracking when abandonment throws and session is not finalized`() =
+		runTest {
+			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+			val installer = mockk<PackageInstaller>()
+			val session = mockk<PackageInstaller.Session>(relaxed = true)
+			every { session.openWrite(any(), any(), any()) } returns ByteArrayOutputStream()
+
+			every { installer.createSession(any()) } returns 77
+			every { installer.openSession(77) } returns session
+			every { installer.abandonSession(77) } throws RuntimeException("transient IPC binder failure")
+			every { installer.getSessionInfo(77) } returns sessionInfo(77)
+			every { installer.mySessions } returns listOf(sessionInfo(77))
+
+			val baseContext = ApplicationProvider.getApplicationContext<Context>()
+			val pm = spyk(baseContext.packageManager)
+			every { pm.packageInstaller } returns installer
+			val context = spyk(baseContext)
+			every { context.packageManager } returns pm
+
+			val quickBuildIntent =
+				Intent().putExtra(ApkInstaller.EXTRA_SUPPRESS_POST_INSTALL_LAUNCH, true)
+			val launch = ApkInstaller.installUsingSession(context, apk, quickBuildIntent)
+			assertThat(launch).isEqualTo(ApkInstaller.SessionLaunchResult.Started(77))
+
+			val abandonedContext = ApkInstaller.abandonSession(context, 77)
+			assertThat(abandonedContext).isFalse()
+
+			var sweptId: Int? = null
+			every { installer.abandonSession(77) } answers {
+				sweptId = 77
+			}
+			val swept = ApkInstaller.abandonMySessions(installer)
+			assertThat(swept).isEqualTo(1)
+			assertThat(sweptId).isEqualTo(77)
+		}
+
+	@Test
+	fun `abandonSession removes tracking when abandonment throws but session is confirmed finalized`() =
+		runTest {
+			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+			val installer = mockk<PackageInstaller>()
+			val session = mockk<PackageInstaller.Session>(relaxed = true)
+			every { session.openWrite(any(), any(), any()) } returns ByteArrayOutputStream()
+
+			every { installer.createSession(any()) } returns 88
+			every { installer.openSession(88) } returns session
+			every { installer.abandonSession(88) } throws SecurityException("Session 88 already finalized")
+			every { installer.getSessionInfo(88) } returns null
+			every { installer.mySessions } returns listOf(sessionInfo(88))
+
+			val baseContext = ApplicationProvider.getApplicationContext<Context>()
+			val pm = spyk(baseContext.packageManager)
+			every { pm.packageInstaller } returns installer
+			val context = spyk(baseContext)
+			every { context.packageManager } returns pm
+
+			val quickBuildIntent =
+				Intent().putExtra(ApkInstaller.EXTRA_SUPPRESS_POST_INSTALL_LAUNCH, true)
+			ApkInstaller.installUsingSession(context, apk, quickBuildIntent)
+
+			val abandoned = ApkInstaller.abandonSession(context, 88)
+			assertThat(abandoned).isFalse()
+
+			var sweepCalled = false
+			every { installer.abandonSession(88) } answers { sweepCalled = true }
+			val swept = ApkInstaller.abandonMySessions(installer)
+			assertThat(swept).isEqualTo(0)
+			assertThat(sweepCalled).isFalse()
+		}
 }

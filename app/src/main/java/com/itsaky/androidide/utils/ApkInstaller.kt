@@ -179,28 +179,62 @@ object ApkInstaller {
 		context: Context,
 		sessionId: Int,
 	): Boolean {
-		removeTrackedSession(context, sessionId)
-		return abandonSession(context.packageManager.packageInstaller, sessionId)
+		val installer = context.packageManager.packageInstaller
+		return synchronized(sessionTrackingLock) {
+			var abandonError: Throwable? = null
+			val abandoned =
+				runCatching {
+					installer.abandonSession(sessionId)
+				}.onFailure { error ->
+					abandonError = error
+					log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
+				}.isSuccess
+			if (abandoned || isSessionFinalized(installer, sessionId, abandonError)) {
+				removeTrackedSession(context, sessionId)
+			}
+			abandoned
+		}
 	}
 
 	/**
 	 * Abandons [sessionId] on [installer], returning `true` if `abandonSession` succeeded and
-	 * `false` if the session was already finalized or no longer exists.
+	 * `false` if the session was already finalized or could not be abandoned.
 	 */
 	internal fun abandonSession(
 		installer: PackageInstaller,
 		sessionId: Int,
 	): Boolean =
 		synchronized(sessionTrackingLock) {
-			liveInFlightUserSessionIds.remove(sessionId)
-			inFlightUserSessionIds.remove(sessionId)
-			quickBuildSessionIds.remove(sessionId)
-			runCatching {
-				installer.abandonSession(sessionId)
-			}.onFailure { error ->
-				log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
-			}.isSuccess
+			var abandonError: Throwable? = null
+			val abandoned =
+				runCatching {
+					installer.abandonSession(sessionId)
+				}.onFailure { error ->
+					abandonError = error
+					log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
+				}.isSuccess
+			if (abandoned || isSessionFinalized(installer, sessionId, abandonError)) {
+				removeTrackedSession(context = null, sessionId = sessionId)
+			}
+			abandoned
 		}
+
+	/**
+	 * Returns `true` when [sessionId] is confirmed to no longer exist or have already been
+	 * finalized in [installer].
+	 */
+	internal fun isSessionFinalized(
+		installer: PackageInstaller,
+		sessionId: Int,
+		error: Throwable? = null,
+	): Boolean {
+		if (error is SecurityException && error.message?.contains("finalized", ignoreCase = true) == true) {
+			return true
+		}
+		return runCatching {
+			installer.getSessionInfo(sessionId) == null
+		}.getOrDefault(false)
+	}
 
 	/**
 	 * Records a status broadcast from [InstallationResultReceiver] so any session that reaches
