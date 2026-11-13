@@ -20,6 +20,7 @@ package com.itsaky.androidide.memprof
 import android.content.Context
 import android.os.Process
 import android.os.SystemClock
+import com.itsaky.androidide.services.builder.ToolingMessageTap
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,7 +37,7 @@ internal object MemprofSession {
 		private set
 
 	/**
-	 * Installs the [Memprof] sink and starts the allocation sampler.
+	 * Installs the [Memprof] sink and the tooling message probe, and starts the allocation sampler.
 	 *
 	 * Safe on the main thread: resolving the files directory touches the disk, so it happens on a
 	 * background thread, and the report writer does its own I/O on its own thread.
@@ -50,6 +51,7 @@ internal object MemprofSession {
 
 		writer = reportWriter
 		Memprof.sink = ProfileableMemprofSink(report, reportWriter)
+		ToolingMessageTap.factory = ::ToolingMessageProbe
 		AllocationSampler.onTick = { usedBytes ->
 			report.sampled(usedBytes)
 			/*

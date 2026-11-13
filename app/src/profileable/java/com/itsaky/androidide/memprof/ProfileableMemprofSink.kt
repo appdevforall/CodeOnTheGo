@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.memprof
 
-import org.slf4j.LoggerFactory
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -42,7 +41,7 @@ internal class ProfileableMemprofSink(
 		guarded("beginPhase", marker) {
 			val start = Start.now()
 			val phase = report.phaseStarted(title, start.epochMs, start.counters)
-			logger.info("MEMPROF|phase_begin|{}|marker={}|title={}", start.epochMs, marker, title)
+			logger.i("MEMPROF|phase_begin|{}|marker={}|title={}", start.epochMs, marker, title)
 			writer.write()
 			PhaseSpan(marker, phase, start, AsyncTraceSection(title))
 		}
@@ -57,7 +56,7 @@ internal class ProfileableMemprofSink(
 		}
 
 	override fun mark(marker: String) {
-		logger.info("PHASE|{}|{}", marker, System.currentTimeMillis())
+		logger.i("PHASE|{}|{}", marker, System.currentTimeMillis())
 	}
 
 	/**
@@ -72,7 +71,7 @@ internal class ProfileableMemprofSink(
 		try {
 			block()
 		} catch (failure: Throwable) {
-			logger.error("MEMPROF|sink_failed|{}|op={}|label={}", System.currentTimeMillis(), op, label, failure)
+			logger.e("MEMPROF|sink_failed|{}|op={}|label={}", System.currentTimeMillis(), op, label, failure)
 			MemprofSpan.None
 		}
 
@@ -115,7 +114,7 @@ internal class ProfileableMemprofSink(
 			try {
 				onEnd(System.currentTimeMillis(), RuntimeHeapCounters.read(), completed)
 			} catch (failure: Throwable) {
-				logger.error("MEMPROF|sink_failed|{}|op=end|completed={}", System.currentTimeMillis(), completed, failure)
+				logger.e("MEMPROF|sink_failed|{}|op=end|completed={}", System.currentTimeMillis(), completed, failure)
 			}
 		}
 
@@ -140,14 +139,14 @@ internal class ProfileableMemprofSink(
 			trace.end()
 			val putDetails = detailsSnapshot()
 			report.phaseEnded(phase, nowMs, counters, putDetails, completed)
-			logger.info(
+			logger.i(
 				if (completed) {
 					MemprofLines.phaseLine(marker, nowMs, putDetails)
 				} else {
 					MemprofLines.phaseAbandonedLine(marker, nowMs, putDetails)
 				},
 			)
-			logger.info(
+			logger.i(
 				MemprofLines.phaseEndLine(
 					marker,
 					nowMs,
@@ -185,12 +184,12 @@ internal class ProfileableMemprofSink(
 				report.sectionEnded(name, detail, durationMs, allocatedBytes)
 			}
 			// DEBUG, not INFO: an INFO line becomes a Sentry breadcrumb, and this fires once per file.
-			logger.debug(MemprofLines.fileLine(nowMs, allocatedBytes, durationMs, detail, name, completed))
+			logger.d(MemprofLines.fileLine(nowMs, allocatedBytes, durationMs, detail, name, completed))
 			writer.markDirty()
 		}
 	}
 
 	private companion object {
-		val logger = LoggerFactory.getLogger(ProfileableMemprofSink::class.java)
+		val logger = MemprofLog("ProfileableMemprofSink")
 	}
 }

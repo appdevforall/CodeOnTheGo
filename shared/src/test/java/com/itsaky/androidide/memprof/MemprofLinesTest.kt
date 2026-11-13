@@ -66,7 +66,14 @@ class MemprofLinesTest {
 		assertThat(match).isNotNull()
 		assertThat(match!!.groupValues[1]).isEqualTo("1700000000456")
 		assertThat(match.groupValues[2])
-			.isEqualTo("allocBytes=2048|durationMs=12|path=/proj/Foo.kt|name=Index Kotlin file|completed=true")
+			.isEqualTo("procAllocBytes=2048|durationMs=12|path=/proj/Foo.kt|name=Index Kotlin file|completed=true")
+	}
+
+	@Test
+	fun `phaseEndLine names its allocation as process-wide`() {
+		val line = MemprofLines.phaseEndLine("cache_parsed", 1_700_000_000_000, durationMs = 40, allocBytes = 512)
+
+		assertThat(line).isEqualTo("MEMPROF|phase_end|1700000000000|marker=cache_parsed|durationMs=40|procAllocBytes=512")
 	}
 
 	private companion object {
