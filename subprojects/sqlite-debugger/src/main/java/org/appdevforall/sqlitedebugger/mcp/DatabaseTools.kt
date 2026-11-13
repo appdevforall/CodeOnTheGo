@@ -1,5 +1,6 @@
 package org.appdevforall.sqlitedebugger.mcp
 
+import org.appdevforall.sqlitedebugger.engine.AppConnection
 import org.appdevforall.sqlitedebugger.engine.DebugEngine
 import org.appdevforall.sqlitedebugger.engine.DebugEngineException
 import org.appdevforall.sqlitedebugger.engine.QueryLimits
@@ -8,6 +9,8 @@ import org.appdevforall.sqlitedebugger.engine.ServerConnection
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.Timer
+import java.util.TimerTask
 
 /**
  * The debugger's MCP tools, all read-only: they open server connections through [engine] with
@@ -15,6 +18,10 @@ import java.io.File
  * names a database by the path one of the app's own connections has open; any other path is
  * refused before the engine is called (opening a file Android's SQLite has open, with the
  * extension's SQLite, can corrupt it).
+ *
+ * One lock guards the cached server connections and every query, so tool calls run one at a time:
+ * a slow query (up to [DEADLINE_MS]) makes the others wait. That is accepted: the debugger serves
+ * one agent, and a connection per call would open the app's file many times over.
  */
 class DatabaseTools(
 	private val engine: DebugEngine,
@@ -35,6 +42,9 @@ class DatabaseTools(
 		const val DEADLINE_MS = 50_000L
 		const val EVENT_BATCH_BYTES = 256 * 1024
 		const val MAX_TABLES_FOR_COUNTS = 10
+
+		/** Bound values stop being recorded this long after the last get_events call. */
+		const val EVENTS_IDLE_MS = 60_000L
 
 		private const val MAX_SAFE_INTEGER = 9007199254740992L // 2^53
 		private val SIDE_FILE_SUFFIXES = listOf("-wal", "-shm", "-journal")
@@ -90,19 +100,58 @@ class DatabaseTools(
 	}
 
 	private val lock = Any()
-	private val serverConnections = HashMap<String, ServerConnection>()
+	private val serverConnections = HashMap<String, CachedConnection>()
 	private var clientConnected = false
+	private var lastEventsCallMs = 0L
+	private var idleTimer: Timer? = null
+
+	/** A server connection and the ids of the app connections to its path when it was opened. */
+	private class CachedConnection(
+		val connection: ServerConnection,
+		val appConnectionIds: Set<Long>,
+	)
 
 	/** Closes the server connections and tells the engine no client is watching. Call when the server stops. */
 	fun onServerStopped() {
 		synchronized(lock) {
-			serverConnections.values.forEach { runCatching { it.close() } }
+			serverConnections.values.forEach { runCatching { it.connection.close() } }
 			serverConnections.clear()
+			idleTimer?.cancel()
+			idleTimer = null
 			if (clientConnected) {
 				clientConnected = false
 				engine.setClientConnected(false)
 			}
 		}
+	}
+
+	/**
+	 * Stops recording bound values once [EVENTS_IDLE_MS] have passed since the last get_events call:
+	 * expanding every statement costs memory, and nobody is reading. Checked on every tool call and
+	 * by a timer, so it also happens when no call comes.
+	 */
+	fun expireIdleClient() {
+		synchronized(lock) {
+			if (clientConnected && clock() - lastEventsCallMs >= EVENTS_IDLE_MS) {
+				clientConnected = false
+				engine.setClientConnected(false)
+			}
+		}
+	}
+
+	private fun scheduleIdleCheck() {
+		val timer = idleTimer ?: Timer("sqlite-debugger-idle", true).also { idleTimer = it }
+		timer.schedule(
+			object : TimerTask() {
+				override fun run() {
+					expireIdleClient()
+					synchronized(lock) {
+						if (clientConnected && idleTimer === timer) scheduleIdleCheck()
+					}
+				}
+			},
+			EVENTS_IDLE_MS / 4,
+		)
 	}
 
 	fun tools(): List<McpTool> =
@@ -167,7 +216,8 @@ class DatabaseTools(
 				"get_events",
 				"Get SQL events",
 				"Returns the SQL the app ran, oldest first, after the cursor. Pass the returned next as after to continue; " +
-					"dropped counts events that left the buffer unread. The first call starts recording bound values into the SQL.",
+					"dropped counts events that left the buffer unread. The first call starts recording bound values into the SQL; " +
+					"that stops ${EVENTS_IDLE_MS / 1000} s after the last get_events call, so call it at least that often while watching.",
 				JSONObject()
 					.put("type", "object")
 					.put("additionalProperties", false)
@@ -182,7 +232,10 @@ class DatabaseTools(
 		description: String,
 		inputSchema: JSONObject = JSONObject().put("type", "object").put("properties", JSONObject()).put("additionalProperties", false),
 		run: (JSONObject) -> JSONObject,
-	) = McpTool(name, title, description, inputSchema, readOnly = true, run = run)
+	) = McpTool(name, title, description, inputSchema, readOnly = true, run = { args ->
+		expireIdleClient()
+		run(args)
+	})
 
 	private fun prop(
 		type: String,
@@ -346,9 +399,11 @@ class DatabaseTools(
 	private fun getEvents(args: JSONObject): JSONObject {
 		val after = intArg(args, "after", 0, 0, Long.MAX_VALUE)
 		synchronized(lock) {
+			lastEventsCallMs = clock()
 			if (!clientConnected) {
 				engine.setClientConnected(true)
 				clientConnected = true
+				scheduleIdleCheck()
 			}
 		}
 		val batch =
@@ -413,6 +468,7 @@ class DatabaseTools(
 				.map { it.path }
 				.filter { it.isNotEmpty() }
 				.distinct()
+		synchronized(lock) { dropStaleServerConnections(engine.connections()) }
 		if (path !in known) {
 			throw McpToolError(
 				"Unknown database \"$path\": use a path from list_databases that is available.",
@@ -440,12 +496,37 @@ class DatabaseTools(
 	): QueryResult =
 		synchronized(lock) {
 			try {
-				val conn = serverConnections.getOrPut(path) { engine.openServerConnection(path, writable = false) }
+				val live = engine.connections()
+				dropStaleServerConnections(live)
+				val conn =
+					serverConnections
+						.getOrPut(path) {
+							val ids = live.filter { it.path == path && !it.closing }.map { it.id }.toSet()
+							CachedConnection(engine.openServerConnection(path, writable = false), ids)
+						}.connection
 				conn.query(sql, bind, offset, limits, deadline)
 			} catch (e: DebugEngineException) {
 				throw engineError(e)
 			}
 		}
+
+	/**
+	 * Closes cached server connections whose file may be gone: after the app deletes and recreates a
+	 * database, a connection opened before still reads the old file. A connection is kept while some
+	 * app connection to its path that was there when it opened is still open; a path no app connection
+	 * has any more, or only new ones, is stale. Call with [lock] held.
+	 */
+	private fun dropStaleServerConnections(live: List<AppConnection>) {
+		val it = serverConnections.entries.iterator()
+		while (it.hasNext()) {
+			val (path, cached) = it.next()
+			val ids = live.filter { c -> c.path == path && !c.closing }.map { c -> c.id }
+			if (ids.none { id -> id in cached.appConnectionIds }) {
+				runCatching { cached.connection.close() }
+				it.remove()
+			}
+		}
+	}
 
 	private fun engineError(e: DebugEngineException) =
 		McpToolError(e.message ?: "SQLite error ${e.sqliteCode}", JSONObject().put("sqlite_code", e.sqliteCode))

@@ -423,6 +423,63 @@ class DatabaseToolsTest {
 		assertFalse(engine.clientConnected)
 	}
 
+	@Test fun aServerConnectionIsDroppedWhenTheAppRecreatesTheDatabase() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val t = tools
+		ok("get_stats", db(), t)
+		assertEquals(1, engine.openedServerConnections.size)
+		// the app closed connection 1, deleted the file and opened a new one: no overlap with {1}
+		engine.appConnections.clear()
+		engine.appConnections += conn(2, "/data/a.db")
+		ok("get_stats", db(), t)
+		assertEquals(2, engine.openedServerConnections.size)
+		assertEquals(1, engine.closedServerConnections)
+	}
+
+	@Test fun aServerConnectionIsKeptWhileASeenAppConnectionRemains() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val t = tools
+		ok("get_stats", db(), t)
+		engine.appConnections += conn(2, "/data/a.db")
+		ok("get_stats", db(), t)
+		engine.appConnections.removeAll { it.id == 2L }
+		ok("get_stats", db(), t)
+		assertEquals(1, engine.openedServerConnections.size)
+		assertEquals(0, engine.closedServerConnections)
+	}
+
+	@Test fun aServerConnectionIsDroppedWhenNoAppConnectionHasThePathAnyMore() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val t = tools
+		ok("get_stats", db(), t)
+		engine.appConnections.clear()
+		engine.appConnections += conn(3, "/data/b.db")
+		assertTrue(runTool(t, "get_stats", db()).getBoolean("isError")) // refused: no longer a known path
+		assertEquals(1, engine.closedServerConnections)
+	}
+
+	@Test fun boundValuesStopBeingRecordedSixtySecondsAfterTheLastGetEvents() {
+		val t = tools
+		ok("get_events", t = t)
+		assertTrue(engine.clientConnected)
+		now += 59_000
+		ok("list_connections", t = t)
+		assertTrue("still within 60 s", engine.clientConnected)
+		ok("get_events", t = t) // renews the 60 s
+		now += 59_000
+		ok("list_connections", t = t)
+		assertTrue(engine.clientConnected)
+		now += 2_000
+		ok("list_connections", t = t)
+		assertFalse("60 s after the last get_events", engine.clientConnected)
+		ok("get_events", t = t)
+		assertTrue("the next get_events turns it on again", engine.clientConnected)
+		now += 61_000
+		t.expireIdleClient() // what the timer calls when no tool call comes
+		assertFalse(engine.clientConnected)
+		t.onServerStopped()
+	}
+
 	@Test fun stoppingTheServerClosesServerConnections() {
 		engine.appConnections += conn(1, "/data/a.db")
 		val t = tools

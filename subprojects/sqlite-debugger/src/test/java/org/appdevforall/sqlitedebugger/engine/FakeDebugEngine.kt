@@ -21,6 +21,10 @@ class FakeDebugEngine(
 
 	val openedServerConnections = mutableListOf<Pair<String, Boolean>>()
 
+	/** How many server connections were closed. */
+	var closedServerConnections = 0
+		private set
+
 	fun addEvent(
 		kind: EventKind,
 		sql: String,
@@ -117,6 +121,7 @@ class FakeDebugEngine(
 			}
 
 			override fun close() {
+				if (!closed) closedServerConnections++
 				closed = true
 			}
 		}
