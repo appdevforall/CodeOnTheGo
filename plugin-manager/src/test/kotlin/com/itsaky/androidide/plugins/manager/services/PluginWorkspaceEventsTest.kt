@@ -10,7 +10,10 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class PluginWorkspaceEventsTest {
 	private lateinit var root: File
@@ -409,5 +412,40 @@ class PluginWorkspaceEventsTest {
 		override fun isFileOpen(file: File): Boolean = false
 
 		override fun getCurrentSelection(): String? = null
+	}
+
+	@Test
+	fun registrationsChangedOnManyThreadsAreNeitherLostNorDoubled() {
+		// One plugin registers while another plugin's listeners are dropped, as at startup when a
+		// disabled plugin loads beside one that activates. The registration must survive, once.
+		val saved = File(projectA, "Main.kt")
+		val pool = Executors.newFixedThreadPool(2)
+		val start = CyclicBarrier(2)
+		var wrong = 0
+		try {
+			repeat(20_000) {
+				val events = direct()
+				repeat(8) { i -> events.addFileSaveListener("other", FileSaveListener { _ -> i.hashCode() }) }
+				val heard = AtomicInteger()
+				val listener = FileSaveListener { heard.incrementAndGet() }
+				val drop =
+					pool.submit {
+						start.await()
+						events.removeAll("other")
+					}
+				val add =
+					pool.submit {
+						start.await()
+						events.addFileSaveListener("p", listener)
+					}
+				drop.get()
+				add.get()
+				events.fileSaved(saved)
+				if (heard.get() != 1) wrong++
+			}
+		} finally {
+			pool.shutdownNow()
+		}
+		assertThat(wrong).isEqualTo(0)
 	}
 }

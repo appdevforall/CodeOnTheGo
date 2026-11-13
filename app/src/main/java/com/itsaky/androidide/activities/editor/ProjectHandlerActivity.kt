@@ -1197,7 +1197,11 @@ abstract class ProjectHandlerActivity :
 	private fun closeProjectSession() {
 		// Only the live editor's teardown reports the close; a doomed instance (onPause) does not.
 		synchronized(pluginProjectLock) {
-			editorViewModel.pluginOpenedProjectDir?.let { PluginWorkspaceEvents.getInstance().projectClosed(it) }
+			editorViewModel.pluginOpenedProjectDir?.let { dir ->
+				// Reporting to plugins must never stop the editor's teardown.
+				runCatching { PluginWorkspaceEvents.getInstance().projectClosed(dir) }
+					.onFailure { logger.error("Failed to report a project close to plugins", it) }
+			}
 			editorViewModel.pluginOpenedProjectDir = null
 		}
 		stopLanguageServers()
@@ -1607,8 +1611,10 @@ abstract class ProjectHandlerActivity :
 		// teardown, which would otherwise read no open project between the report and the record.
 		synchronized(pluginProjectLock) {
 			if (!isDestroying && !isFinishing) {
-				PluginWorkspaceEvents.getInstance().projectOpened(projectDir)
-				editorViewModel.pluginOpenedProjectDir = projectDir
+				// The directory as plugins heard it, so the close compares it without touching the disk.
+				runCatching { PluginWorkspaceEvents.getInstance().projectOpened(projectDir) }
+					.onSuccess { editorViewModel.pluginOpenedProjectDir = it }
+					.onFailure { logger.error("Failed to report a project open to plugins", it) }
 			}
 		}
 

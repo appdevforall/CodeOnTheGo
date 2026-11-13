@@ -416,10 +416,13 @@ class CodeEditorView(
 			_binding?.rwProgress?.isVisible = false
 		}
 
+		// Here, not from DocumentSaveEvent: the editor also posts that on every Enter, with nothing
+		// written. Before markUnmodified(), which throws once the tab is closed mid-save, though the
+		// file is written. A failure here must not fail the save.
+		runCatching { PluginWorkspaceEvents.getInstance().fileSaved(file) }
+			.onFailure { log.error("Failed to report a save to plugins", it) }
 		markUnmodified()
 		notifySaved()
-		// Here, not from DocumentSaveEvent: the editor also posts that on every Enter, with nothing written.
-		PluginWorkspaceEvents.getInstance().fileSaved(file)
 
 		return true
 	}

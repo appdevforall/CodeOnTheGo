@@ -15,7 +15,8 @@ import java.util.concurrent.Executors
  *
  * Listeners run in order on [executor], one thread by default: the editor never waits on a plugin,
  * and every plugin hears an open before the saves that follow it and the close after them. Each
- * event is queued under [lock], so the queue order is the order the state changed in.
+ * event is queued, and every registration added or removed, under [lock], so the queue order is the
+ * order the state changed in and an event's recipients are a consistent snapshot.
  */
 class PluginWorkspaceEvents internal constructor(
 	private val executor: Executor,
@@ -33,37 +34,43 @@ class PluginWorkspaceEvents internal constructor(
 	// The project the listeners last heard open, so a re-sync of it is not reported as another open.
 	private var openProjectDir: File? = null
 
-	/** The editor opened [projectDir]. Repeats for the project already open are ignored. */
-	fun projectOpened(projectDir: File) {
+	/**
+	 * The editor opened [projectDir]. Repeats for the project already open are ignored. Returns the
+	 * directory as listeners hear it, canonical; report the close with that.
+	 */
+	fun projectOpened(projectDir: File): File {
 		val dir = normalize(projectDir)
 		synchronized(lock) {
-			if (dir == openProjectDir) return
+			if (dir == openProjectDir) return dir
 			// Switching projects without a close report still tells listeners the old one went away.
 			openProjectDir?.let { closed -> dispatch(projectListeners, "onProjectClosed") { it.onProjectClosed(closed) } }
 			openProjectDir = dir
 			dispatch(projectListeners, "onProjectOpened") { it.onProjectOpened(dir) }
 		}
+		return dir
 	}
 
 	/**
-	 * The editor closed [projectDir]. Ignored unless it is the project last reported open, so an
-	 * editor tearing down a project that is no longer the open one cannot close the open one.
+	 * The editor closed [projectDir], the directory [projectOpened] returned. It is compared as given,
+	 * without resolving it on disk, because the close is reported from the main thread. Ignored
+	 * unless it is the project last reported open, so an editor tearing down a project that is no
+	 * longer the open one cannot close the open one.
 	 */
 	fun projectClosed(projectDir: File) {
-		val dir = normalize(projectDir)
 		synchronized(lock) {
-			if (dir != openProjectDir) return
+			if (projectDir != openProjectDir) return
 			openProjectDir = null
-			dispatch(projectListeners, "onProjectClosed") { it.onProjectClosed(dir) }
+			dispatch(projectListeners, "onProjectClosed") { it.onProjectClosed(projectDir) }
 		}
 	}
 
 	/** The editor wrote [file] to disk. */
 	fun fileSaved(file: File) {
-		// The same form as the project directory, so a listener can test saved.startsWith(projectDir).
-		val saved = normalize(file)
+		// Canonical like the project directory, so a listener can test saved.startsWith(projectDir).
+		// Resolved on the listeners' thread: the caller is often the main thread.
+		val saved = lazy { normalize(file) }
 		synchronized(lock) {
-			dispatch(saveListeners, "onFileSaved") { it.onFileSaved(saved) }
+			dispatch(saveListeners, "onFileSaved") { it.onFileSaved(saved.value) }
 		}
 	}
 
@@ -71,7 +78,7 @@ class PluginWorkspaceEvents internal constructor(
 	 * Registers [listener] for [pluginId]. A listener added while a project is open hears that open
 	 * first: plugins load in the background, often after the editor reopened the last project.
 	 */
-	fun addProjectLifecycleListener(
+	internal fun addProjectLifecycleListener(
 		pluginId: String,
 		listener: ProjectLifecycleListener,
 	) {
@@ -82,27 +89,31 @@ class PluginWorkspaceEvents internal constructor(
 		}
 	}
 
-	fun removeProjectLifecycleListener(
+	internal fun removeProjectLifecycleListener(
 		pluginId: String,
 		listener: ProjectLifecycleListener,
 	) = remove(projectListeners, pluginId, listener)
 
-	fun addFileSaveListener(
+	internal fun addFileSaveListener(
 		pluginId: String,
 		listener: FileSaveListener,
 	) {
 		synchronized(lock) { add(saveListeners, pluginId, listener) }
 	}
 
-	fun removeFileSaveListener(
+	internal fun removeFileSaveListener(
 		pluginId: String,
 		listener: FileSaveListener,
 	) = remove(saveListeners, pluginId, listener)
 
 	/** Drops every listener [pluginId] registered. */
-	fun removeAll(pluginId: String) {
-		projectListeners.removeAll { it.pluginId == pluginId }
-		saveListeners.removeAll { it.pluginId == pluginId }
+	internal fun removeAll(pluginId: String) {
+		synchronized(lock) {
+			// removeIf, not Kotlin's removeAll {}: on a RandomAccess list that edits the list index by
+			// index, and invoke() reads it without the lock while it is half done.
+			projectListeners.removeIf { it.pluginId == pluginId }
+			saveListeners.removeIf { it.pluginId == pluginId }
+		}
 	}
 
 	/** The new registration, or null when [pluginId] already registered [listener]. */
@@ -122,7 +133,7 @@ class PluginWorkspaceEvents internal constructor(
 		pluginId: String,
 		listener: L,
 	) {
-		registrations.removeAll { it.pluginId == pluginId && it.listener === listener }
+		synchronized(lock) { registrations.removeIf { it.pluginId == pluginId && it.listener === listener } }
 	}
 
 	private fun <L> dispatch(
@@ -133,7 +144,7 @@ class PluginWorkspaceEvents internal constructor(
 		if (registrations.isEmpty()) return
 		// The listeners registered now: one added later hears the open project through its replay
 		// instead, so it never hears an open twice.
-		val targets = registrations.toList()
+		val targets = ArrayList(registrations)
 		executor.execute {
 			targets.forEach { invoke(registrations, it, event, call) }
 		}
