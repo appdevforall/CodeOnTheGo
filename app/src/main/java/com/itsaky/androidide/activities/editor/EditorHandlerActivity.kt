@@ -926,6 +926,9 @@ open class EditorHandlerActivity :
 		if (action.id == QuickRunAction.ID && buildInProgress) {
 			return getString(string.cd_toolbar_cancel_build)
 		}
+		if (action.id == QuickBuildAction.ID && !QuickBuildAction.isBlockedByStandardBuild()) {
+			QuickBuildAction.unsupportedProjectReason(this)?.let { return it }
+		}
 		val resId =
 			when (action.id) {
 				QuickRunAction.ID -> {

@@ -16,8 +16,12 @@ import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lookup.Lookup
+import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.builder.BuildService
+import com.itsaky.androidide.projects.isPluginProject
+import com.itsaky.androidide.quickbuild.GradleQuickBuildProvisioner
 import com.itsaky.androidide.quickbuild.QuickBuildGraphWarmUp
+import com.itsaky.androidide.quickbuild.QuickBuildProjectSupport
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashInfoLong
@@ -91,7 +95,7 @@ class QuickBuildAction(
 		// long-press dropdown row is one line and "Standard build in progress" was cut off at 2x
 		// font scale. The full reason stays on the content description and the blocked-tap flash.
 		val blocked = blockedByStandardBuild(tone, standardBuildInProgress())
-		enabled = !blocked
+		enabled = !blocked && unsupportedProjectReason(context) == null
 		// The label moves with the icon: it is what the long-press dropdown and the
 		// overflow menu read, so leaving it on "Quick Build" while the icon says stop would
 		// offer the user two different actions for one button.
@@ -275,6 +279,43 @@ class QuickBuildAction(
 		 * button's own state cannot disagree about why it is greyed.
 		 */
 		fun isBlockedByStandardBuild(): Boolean = blockedByStandardBuild(currentTone(), standardBuildInProgress())
+
+		/**
+		 * Why the bolt is greyed out for the open project, or null when Quick Build can run it:
+		 * a plugin project builds no runnable app, and a release variant is not debuggable.
+		 *
+		 * @param tone what the button is presenting; the stop button of a running Quick Build
+		 *   stays tappable whatever is selected now.
+		 * @param isPluginProject whether the open project builds a plugin package.
+		 * @param variantName the Build Variants selection, or null while the project model has none.
+		 */
+		@StringRes
+		internal fun unsupportedProjectMessage(
+			tone: QuickBuildTone,
+			isPluginProject: Boolean,
+			variantName: String?,
+		): Int? =
+			if (tone == QuickBuildTone.BUILDING) {
+				null
+			} else {
+				QuickBuildProjectSupport.unsupportedProjectTypeMessage(isPluginProject)
+					?: variantName?.let(QuickBuildProjectSupport::nonDebuggableVariantMessage)
+			}
+
+		/**
+		 * The live reading of [unsupportedProjectMessage] as text, so the toolbar's spoken label
+		 * gives the same reason the button is greyed for.
+		 */
+		fun unsupportedProjectReason(context: Context): String? {
+			val variantName = GradleQuickBuildProvisioner.selectedVariantName()
+			val message =
+				unsupportedProjectMessage(
+					currentTone(),
+					IProjectManager.getInstance().isPluginProject(),
+					variantName,
+				) ?: return null
+			return context.getString(message, variantName)
+		}
 
 		/**
 		 * Whether a build the USER started is running - [BuildService.isUserVisibleBuildInProgress],
