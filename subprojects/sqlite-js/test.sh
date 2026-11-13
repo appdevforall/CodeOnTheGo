@@ -38,3 +38,12 @@ build gcc -O1 -g -Wall -Wextra -Werror "${DEFS[@]}" "${INC[@]}" \
 	"$HERE/src/test/c/glue_test.c" "$HERE/src/main/cpp/sqlitejs_android.c" \
 	"$WORK/sqlitejs.o" "$WORK/quickjs.o" "$WORK/sqlite3.o" -o "$WORK/glue_test" -lm -lpthread -ldl
 "$WORK/glue_test"
+
+# again with sqlite-js working as on SQLite before 3.41, which patches 0006 and 0007 are for
+echo "# sqlitejs_android.c, as on SQLite 3.40"
+build gcc -O1 -g -w "${DEFS[@]}" "${INC[@]}" -Dsqlite3_libversion_number=glue_sqlite3_libversion_number \
+	-c "$U/src/sqlitejs.c" -o "$WORK/sqlitejs-3.40.o"
+build gcc -O1 -g -Wall -Wextra -Werror "${DEFS[@]}" "${INC[@]}" -DGLUE_AS_SQLITE_3_40 \
+	"$HERE/src/test/c/glue_test.c" "$HERE/src/main/cpp/sqlitejs_android.c" \
+	"$WORK/sqlitejs-3.40.o" "$WORK/quickjs.o" "$WORK/sqlite3.o" -o "$WORK/glue_test-3.40" -lm -lpthread -ldl
+"$WORK/glue_test-3.40"

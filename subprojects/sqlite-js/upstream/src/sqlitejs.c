@@ -147,8 +147,10 @@ static JSValue js_rowset_next(JSContext *ctx, JSValueConst this_val, int argc, J
     if (!rs->vm) return rs->interrupted ? JS_ThrowInternalError(ctx, "interrupted") : JS_FALSE;
     int rc = sqlite3_step(rs->vm);
     if (rc == SQLITE_ROW) return JS_TRUE;
-    // before SQLite 3.41, the only sign of an interrupt that js_leave() can see
-    if (rc == SQLITE_INTERRUPT) js->cancel_interrupted = true;
+    // Before SQLite 3.41, the only sign of an interrupt that js_leave() can see. Not from 3.41,
+    // where sqlite3_is_interrupted() tells, since SQLITE_INTERRUPT is also what a progress handler
+    // that stops a statement gives (Android's cancelling), which leaves nothing interrupted.
+    if ((rc == SQLITE_INTERRUPT) && !js->check_interrupted) js->cancel_interrupted = true;
 
     // an error while the statement runs (a constraint, an overflow, an interrupt) is an
     // exception, as an error while it is prepared is in js_sqlite_exec; only the end of the
@@ -226,7 +228,7 @@ static JSValue js_rowset_to_array(JSContext *ctx, JSValueConst this_val, int arg
     }
 
     // as in js_rowset_next: an error is an exception, not a shorter array
-    if (rc == SQLITE_INTERRUPT) js->cancel_interrupted = true;
+    if ((rc == SQLITE_INTERRUPT) && !js->check_interrupted) js->cancel_interrupted = true;
     if (rc != SQLITE_DONE) {
         JS_FreeValue(ctx, result);
         result = JS_ThrowInternalError(ctx, "%s", sqlite3_errmsg(sqlite3_db_handle(rs->vm)));

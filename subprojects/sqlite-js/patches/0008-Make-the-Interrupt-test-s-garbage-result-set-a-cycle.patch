@@ -1,0 +1,33 @@
+From 7c86bfb57d7018afaff9e90b72fb398f45dfa45b Mon Sep 17 00:00:00 2001
+From: David Schachter <davidschachter@appdevforall.org>
+Date: Thu, 12 Nov 2026 19:04:33 -0800
+Subject: [PATCH 8/9] Make the Interrupt test's garbage result set a cycle
+
+The test's "garbage" result set was freed by reference counting as the
+interrupt unwound the call, so the case passed without the change it
+tests, found by an independent review. Referring to itself, it stays
+until the collector runs, as garbage a cleanup has to reach: the case
+now fails on 1.4.1 without the change and passes with it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
+---
+ test/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/main.c b/test/main.c
+index d7edb9e..3bd49a8 100644
+--- a/test/main.c
++++ b/test/main.c
+@@ -586,7 +586,7 @@ int test_interrupt (void) {
+     if (rc != SQLITE_OK) goto abort_test;
+     rc = check_error(db, "SELECT js_eval('held.next()');", "interrupted");
+     if (rc != SQLITE_OK) goto abort_test;
+-    rc = test_interrupt_sql(db, "SELECT js_eval('(function () { const r = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); r.next(); while (true) {} })()');");
++    rc = test_interrupt_sql(db, "SELECT js_eval('(function () { const r = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); r.self = r; r.next(); while (true) {} })()');");
+     if (rc != SQLITE_OK) goto abort_test;
+     rc = check_query(db, "SELECT 1 + 2;", "3");
+     if (rc != SQLITE_OK) goto abort_test;
+-- 
+2.53.0
+

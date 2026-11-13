@@ -1,11 +1,21 @@
 // Host test of sqlitejs_android.c's entry points (ADFA-7082), built and run by ../../../test.sh
 // with sqlite-js and SQLite compiled in (SQLITE_CORE). Prints TAP; exits non-zero on a failure.
 
+#include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "sqlite3.h"
+
+// test.sh builds this a second time with GLUE_AS_SQLITE_3_40, and sqlitejs.c told to ask this
+// function for SQLite's version: sqlite-js then works as on SQLite before 3.41, which has no
+// sqlite3_is_interrupted(), and only its own records show that a connection was interrupted.
+#ifdef GLUE_AS_SQLITE_3_40
+int glue_sqlite3_libversion_number (void);
+int glue_sqlite3_libversion_number (void) { return 3040000; }
+#endif
 
 int sqlite3_sqlitejs_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 int sqlite3_sqlitejs_trusted_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
@@ -58,6 +68,50 @@ static sqlite3 *open_trusted_with_cancel_once (const char *path) {
         exit(2);
     }
     return db;
+}
+
+// started(): marks that the JavaScript under test is running; cancel_when_started() runs on another
+// thread and cancels then, so that the cancel lands while that JavaScript runs
+static int js_started = 0;
+
+static void started (sqlite3_context *context, int argc, sqlite3_value **argv) {
+    (void)argc; (void)argv;
+    __atomic_store_n(&js_started, 1, __ATOMIC_RELEASE);
+    sqlite3_result_null(context);
+}
+
+static void *cancel_when_started (void *arg) {
+    (void)arg;
+    for (int i = 0; (i < 2000) && !__atomic_load_n(&js_started, __ATOMIC_ACQUIRE); i++) usleep(10 * 1000);
+    usleep(20 * 1000);
+    sqlitejs_cancel_all();
+    return NULL;
+}
+
+// a statement whose JavaScript a cancel must stop: one that never ends would hang the test
+static void on_alarm (int sig) {
+    (void)sig;
+    static const char msg[] = "not ok - a cancelled statement did not end in 30 s\n";
+    if (write(STDOUT_FILENO, msg, sizeof(msg) - 1) < 0) _exit(3);
+    _exit(1);
+}
+
+// Runs sql, cancelling all JavaScript once it has called started(); returns its result code
+static int exec_cancelled (sqlite3 *db, const char *sql) {
+    pthread_t thread;
+    js_started = 0;
+    if (pthread_create(&thread, NULL, cancel_when_started, NULL) != 0) return SQLITE_ERROR;
+    alarm(30);
+    int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+    alarm(0);
+    pthread_join(thread, NULL);
+    return rc;
+}
+
+// stops every statement once it has run 1000 instructions, as Android's cancelling does
+static int stop_statement (void *arg) {
+    (void)arg;
+    return 1;
 }
 
 static int exec (sqlite3 *db, const char *sql) {
@@ -214,6 +268,51 @@ int main (void) {
     exec(db, "SELECT js_eval('held.toArray(); 0')");
     sqlite3_close(db);
     unlink(held);
+
+    // After a cancel, the result sets JavaScript keeps open are ended, as the interrupt would
+    // otherwise stay in effect: every later statement on the connection failed. Run as on SQLite
+    // before 3.41 too (GLUE_AS_SQLITE_3_40), where the cancel's own record shows it (0006).
+    signal(SIGALRM, on_alarm);
+    char kept[512];
+    snprintf(kept, sizeof(kept), "%s/kept.db", dir);
+    db = open_with(kept, sqlite3_sqlitejs_init);
+    sqlite3_create_function(db, "started", 0, SQLITE_UTF8, NULL, started, NULL, NULL);
+    check(exec_cancelled(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); held.next(); "
+                             "db.exec(\"SELECT started()\").next(); for (;;) {}')") != SQLITE_OK,
+          "a cancel stops JavaScript that keeps a result set open");
+    check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
+    check(answers(db, "SELECT js_eval('held.next()')", "interrupted"), "the kept result set was ended");
+
+    // Ending a result set that is computing a window function runs the function's final, which
+    // begins after the cancel: the cancel must still stop it, also before SQLite 3.41 (0007).
+    check(exec(db, "SELECT js_create_window('loop_final', 'total = 0;', '(function (args) { total += args[0]; })', "
+                   "'(function () { while (true) {} })', '(function () { return total; })', "
+                   "'(function (args) { total -= args[0]; })')") == SQLITE_OK,
+          "a window function whose final never ends");
+    check(exec_cancelled(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT loop_final(column1) OVER (ORDER BY column1) "
+                             "FROM (VALUES (1), (2), (3))\"); held.next(); db.exec(\"SELECT started()\").next(); for (;;) {}')") != SQLITE_OK,
+          "a cancel ends a kept result set whose window function's final never ends");
+    check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
+
+    // A progress handler that stops a statement, as Android's cancelling does, interrupts nothing
+    // else, so it leaves result sets that earlier calls kept. Before 3.41, which cannot tell it
+    // from an interrupt, they are ended.
+    check(answers(db, "SELECT js_eval('globalThis.kept = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); kept.next()')", "1"),
+          "JavaScript keeps a result set open");
+    sqlite3_progress_handler(db, 1000, stop_statement, NULL);
+    exec(db, "SELECT js_eval('try { db.exec(\"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100000000) "
+             "SELECT count(*) FROM c\").next(); } catch (e) {} 0')");
+    sqlite3_progress_handler(db, 0, NULL, NULL);
+#ifdef GLUE_AS_SQLITE_3_40
+    check(answers(db, "SELECT js_eval('kept.next()')", "interrupted"),
+          "before 3.41, a statement a progress handler stopped ends the kept result set");
+#else
+    check(answers(db, "SELECT js_eval('kept.next()')", "1"),
+          "a statement a progress handler stopped leaves the kept result set");
+#endif
+    exec(db, "SELECT js_eval('kept = null; held = null; 0')");
+    sqlite3_close_v2(db);
+    unlink(kept);
 
     unlink(path);
     unlink(plain);
