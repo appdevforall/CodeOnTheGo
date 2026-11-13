@@ -18,15 +18,27 @@ class McpTool(
 	val readOnly: Boolean = true,
 	val run: (JSONObject) -> JSONObject,
 ) {
-	fun describe(): JSONObject = JSONObject()
-		.put("name", name).put("title", title).put("description", description)
-		.put("inputSchema", inputSchema)
-		.put("annotations", JSONObject().put("title", title).put("readOnlyHint", readOnly)
-			.put("destructiveHint", false).put("openWorldHint", false))
+	fun describe(): JSONObject =
+		JSONObject()
+			.put("name", name)
+			.put("title", title)
+			.put("description", description)
+			.put("inputSchema", inputSchema)
+			.put(
+				"annotations",
+				JSONObject()
+					.put("title", title)
+					.put("readOnlyHint", readOnly)
+					.put("destructiveHint", false)
+					.put("openWorldHint", false),
+			)
 }
 
 /** A tool's failure, told to the client as a tool result with isError, with [details] when there are any. */
-class McpToolError(message: String, val details: JSONObject? = null) : Exception(message)
+class McpToolError(
+	message: String,
+	val details: JSONObject? = null,
+) : Exception(message)
 
 /**
  * The Model Context Protocol, as the SQLite debugger speaks it: JSON-RPC 2.0 over the Streamable HTTP
@@ -52,31 +64,54 @@ class McpProtocol(
 		const val INVALID_REQUEST = -32600
 		const val METHOD_NOT_FOUND = -32601
 		const val INVALID_PARAMS = -32602
-		const val INSTRUCTIONS = "Inspects and queries the SQLite databases of the app this server runs in, a debug " +
-			"build made with Code on the Go. Read-only unless the app's developer turned on read-write mode."
+		const val INSTRUCTIONS =
+			"Inspects and queries the SQLite databases of the app this server runs in, a debug " +
+				"build made with Code on the Go. Read-only unless the app's developer turned on read-write mode."
 	}
 
 	/** What to send back: an HTTP status, a JSON body (or none), and extra headers. */
-	class Reply(val status: Int, val body: String?, val headers: Map<String, String> = emptyMap())
+	class Reply(
+		val status: Int,
+		val body: String?,
+		val headers: Map<String, String> = emptyMap(),
+	)
 
 	/** Live sessions, oldest first; the oldest is dropped when there are too many. */
 	private val sessions = LinkedHashSet<String>()
 
 	/** A POST to the endpoint: one JSON-RPC message, or a batch of them. */
-	fun post(body: String, sessionId: String?, versionHeader: String?): Reply {
-		val parsed = try { JSONTokener(body).nextValue() } catch (e: Exception) { null }
-		if (parsed !is JSONObject && parsed !is JSONArray) return Reply(400, error(null, PARSE_ERROR, "That isn't a JSON object or array.").toString())
+	fun post(
+		body: String,
+		sessionId: String?,
+		versionHeader: String?,
+	): Reply {
+		val parsed =
+			try {
+				JSONTokener(body).nextValue()
+			} catch (e: Exception) {
+				null
+			}
+		if (parsed !is JSONObject && parsed !is JSONArray) {
+			return Reply(400, error(null, PARSE_ERROR, "That isn't a JSON object or array.").toString())
+		}
 		val messages: List<Any?> = if (parsed is JSONArray) (0 until parsed.length()).map { parsed.opt(it) } else listOf(parsed)
 		if (messages.isEmpty()) return Reply(400, error(null, INVALID_REQUEST, "An empty batch.").toString())
 
 		if (messages.any { (it as? JSONObject)?.optString("method") == "initialize" }) {
-			if (messages.size != 1) return Reply(400, error(null, INVALID_REQUEST, "Send initialize on its own, not in a batch.").toString())
+			if (messages.size != 1) {
+				return Reply(400, error(null, INVALID_REQUEST, "Send initialize on its own, not in a batch.").toString())
+			}
 			return initialize(messages[0] as JSONObject)
 		}
-		if (sessionId.isNullOrEmpty()) return Reply(400, error(null, INVALID_REQUEST, "No $SESSION_HEADER header: send initialize first.").toString())
-		if (!touch(sessionId)) return Reply(404, error(null, INVALID_REQUEST, "That session has ended or doesn't exist: send initialize again.").toString())
+		if (sessionId.isNullOrEmpty()) {
+			return Reply(400, error(null, INVALID_REQUEST, "No $SESSION_HEADER header: send initialize first.").toString())
+		}
+		if (!touch(sessionId)) {
+			return Reply(404, error(null, INVALID_REQUEST, "That session has ended or doesn't exist: send initialize again.").toString())
+		}
 		if (versionHeader != null && versionHeader !in VERSIONS) {
-			return Reply(400, error(null, INVALID_REQUEST, "Unsupported MCP-Protocol-Version $versionHeader; this server speaks ${VERSIONS.joinToString()}.").toString())
+			val detail = "Unsupported MCP-Protocol-Version $versionHeader; this server speaks ${VERSIONS.joinToString()}."
+			return Reply(400, error(null, INVALID_REQUEST, detail).toString())
 		}
 		val replies = messages.mapNotNull { handle(it) }
 		if (replies.isEmpty()) return Reply(202, null)
@@ -87,7 +122,11 @@ class McpProtocol(
 	fun delete(sessionId: String?): Reply {
 		if (sessionId.isNullOrEmpty()) return Reply(400, error(null, INVALID_REQUEST, "No $SESSION_HEADER header.").toString())
 		val removed = synchronized(sessions) { sessions.remove(sessionId) }
-		return if (removed) Reply(204, null) else Reply(404, error(null, INVALID_REQUEST, "That session has ended or doesn't exist.").toString())
+		return if (removed) {
+			Reply(204, null)
+		} else {
+			Reply(404, error(null, INVALID_REQUEST, "That session has ended or doesn't exist.").toString())
+		}
 	}
 
 	/** Ends every session, so clients must initialize again. */
@@ -95,11 +134,12 @@ class McpProtocol(
 
 	fun sessionCount(): Int = synchronized(sessions) { sessions.size }
 
-	private fun touch(id: String): Boolean = synchronized(sessions) {
-		if (!sessions.remove(id)) return false
-		sessions += id   // most recently used goes last, so it's dropped last
-		true
-	}
+	private fun touch(id: String): Boolean =
+		synchronized(sessions) {
+			if (!sessions.remove(id)) return false
+			sessions += id // most recently used goes last, so it's dropped last
+			true
+		}
 
 	private fun initialize(m: JSONObject): Reply {
 		val id = m.opt("id")
@@ -112,11 +152,12 @@ class McpProtocol(
 			sessions += session
 			while (sessions.size > maxSessions) sessions.remove(sessions.first())
 		}
-		val result = JSONObject()
-			.put("protocolVersion", version)
-			.put("capabilities", JSONObject().put("tools", JSONObject().put("listChanged", false)))
-			.put("serverInfo", JSONObject().put("name", SERVER_NAME).put("title", "SQLite debugger").put("version", serverVersion))
-			.put("instructions", INSTRUCTIONS)
+		val result =
+			JSONObject()
+				.put("protocolVersion", version)
+				.put("capabilities", JSONObject().put("tools", JSONObject().put("listChanged", false)))
+				.put("serverInfo", JSONObject().put("name", SERVER_NAME).put("title", "SQLite debugger").put("version", serverVersion))
+				.put("instructions", INSTRUCTIONS)
 		return Reply(200, ok(id, result).toString(), mapOf(SESSION_HEADER to session))
 	}
 
@@ -131,7 +172,7 @@ class McpProtocol(
 			if (m.has("result") || m.has("error")) return null
 			return error(if (validId(id)) id else null, INVALID_REQUEST, "A request needs a method.")
 		}
-		if (!hasId) return null   // a notification, such as notifications/initialized: no answer
+		if (!hasId) return null // a notification, such as notifications/initialized: no answer
 		if (!validId(id)) return error(null, INVALID_REQUEST, "id must be a string or a number.")
 		if (m.optString("jsonrpc") != "2.0") return error(id, INVALID_REQUEST, "jsonrpc must be \"2.0\".")
 		return when (method) {
@@ -142,31 +183,50 @@ class McpProtocol(
 		}
 	}
 
-	private fun call(id: Any, rawParams: Any?): JSONObject {
+	private fun call(
+		id: Any,
+		rawParams: Any?,
+	): JSONObject {
 		val params = rawParams as? JSONObject ?: return error(id, INVALID_PARAMS, "tools/call needs params, with the tool's name.")
 		val name = params.opt("name") as? String ?: return error(id, INVALID_PARAMS, "tools/call needs the tool's name.")
 		val tool = tools.firstOrNull { it.name == name } ?: return error(id, INVALID_PARAMS, "Unknown tool \"$name\".")
-		val args = when (val a = params.opt("arguments")) {
-			null, JSONObject.NULL -> JSONObject()
-			is JSONObject -> a
-			else -> return error(id, INVALID_PARAMS, "arguments must be an object.")
-		}
-		val result = try {
-			val out = tool.run(args)
-			JSONObject().put("content", JSONArray().put(text(out.toString(2)))).put("structuredContent", out).put("isError", false)
-		} catch (e: McpToolError) {
-			JSONObject().put("content", JSONArray().put(text(e.message ?: "The tool failed."))).put("isError", true).also { r ->
-				e.details?.let { r.put("structuredContent", it) }
+		val args =
+			when (val a = params.opt("arguments")) {
+				null, JSONObject.NULL -> JSONObject()
+				is JSONObject -> a
+				else -> return error(id, INVALID_PARAMS, "arguments must be an object.")
 			}
-		} catch (e: Exception) {
-			JSONObject().put("content", JSONArray().put(text("The tool failed: ${e.message ?: e.javaClass.simpleName}"))).put("isError", true)
-		}
+		val result =
+			try {
+				val out = tool.run(args)
+				JSONObject().put("content", JSONArray().put(text(out.toString(2)))).put("structuredContent", out).put("isError", false)
+			} catch (e: McpToolError) {
+				JSONObject().put("content", JSONArray().put(text(e.message ?: "The tool failed."))).put("isError", true).also { r ->
+					e.details?.let { r.put("structuredContent", it) }
+				}
+			} catch (e: Exception) {
+				JSONObject()
+					.put("content", JSONArray().put(text("The tool failed: ${e.message ?: e.javaClass.simpleName}")))
+					.put("isError", true)
+			}
 		return ok(id, result)
 	}
 
 	private fun validId(id: Any?) = id is String || id is Number
+
 	private fun text(t: String) = JSONObject().put("type", "text").put("text", t)
-	private fun ok(id: Any, result: JSONObject) = JSONObject().put("jsonrpc", "2.0").put("id", id).put("result", result)
-	private fun error(id: Any?, code: Int, message: String) = JSONObject().put("jsonrpc", "2.0").put("id", id ?: JSONObject.NULL)
+
+	private fun ok(
+		id: Any,
+		result: JSONObject,
+	) = JSONObject().put("jsonrpc", "2.0").put("id", id).put("result", result)
+
+	private fun error(
+		id: Any?,
+		code: Int,
+		message: String,
+	) = JSONObject()
+		.put("jsonrpc", "2.0")
+		.put("id", id ?: JSONObject.NULL)
 		.put("error", JSONObject().put("code", code).put("message", message))
 }

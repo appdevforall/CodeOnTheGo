@@ -1,5 +1,6 @@
 package org.appdevforall.sqlitedebugger.mcp
 
+import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -16,7 +17,6 @@ import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
-import org.json.JSONObject
 
 /**
  * The MCP endpoint's HTTP side: a small HTTP/1.1 listener on 127.0.0.1 only, so it's never
@@ -47,7 +47,11 @@ class McpHttp(
 		fun newToken(): String = base64(ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }, urlSafe = true, pad = false)
 
 		/** By hand: java.util.Base64 needs API 26 and this library's minSdk is 21. */
-		fun base64(bytes: ByteArray, urlSafe: Boolean, pad: Boolean): String {
+		fun base64(
+			bytes: ByteArray,
+			urlSafe: Boolean,
+			pad: Boolean,
+		): String {
 			val out = StringBuilder()
 			var i = 0
 			while (i < bytes.size) {
@@ -56,7 +60,15 @@ class McpHttp(
 				for (k in 0 until 3) v = (v shl 8) or (if (k < n) bytes[i + k].toInt() and 0xff else 0)
 				for (k in 0..n) {
 					val idx = (v shr (18 - 6 * k)) and 63
-					out.append(if (idx < 62) B64[idx] else if (idx == 62) (if (urlSafe) '-' else '+') else (if (urlSafe) '_' else '/'))
+					out.append(
+						if (idx < 62) {
+							B64[idx]
+						} else if (idx == 62) {
+							(if (urlSafe) '-' else '+')
+						} else {
+							(if (urlSafe) '_' else '/')
+						},
+					)
 				}
 				if (pad) repeat(3 - n) { out.append('=') }
 				i += 3
@@ -68,21 +80,44 @@ class McpHttp(
 		const val MAX_CONNECTIONS = 8
 		private const val MAX_HEADER_BYTES = 16 * 1024
 		const val MAX_BODY_BYTES = 1024 * 1024
+
 		/** A connection with no request for this long is closed. */
 		const val IDLE_TIMEOUT_MS = 30_000
-		private val STATUS = mapOf(
-			200 to "OK", 202 to "Accepted", 204 to "No Content", 400 to "Bad Request", 401 to "Unauthorized",
-			403 to "Forbidden", 404 to "Not Found", 405 to "Method Not Allowed", 413 to "Payload Too Large",
-			415 to "Unsupported Media Type", 431 to "Request Header Fields Too Large", 500 to "Internal Server Error",
-			501 to "Not Implemented", 503 to "Service Unavailable",
-		)
+		private val STATUS =
+			mapOf(
+				200 to "OK",
+				202 to "Accepted",
+				204 to "No Content",
+				400 to "Bad Request",
+				401 to "Unauthorized",
+				403 to "Forbidden",
+				404 to "Not Found",
+				405 to "Method Not Allowed",
+				413 to "Payload Too Large",
+				415 to "Unsupported Media Type",
+				431 to "Request Header Fields Too Large",
+				500 to "Internal Server Error",
+				501 to "Not Implemented",
+				503 to "Service Unavailable",
+			)
 		private val LOOPBACK_NAMES = setOf("127.0.0.1", "localhost")
 	}
 
-	private class Request(val method: String, val target: String, val version: String, val headers: Map<String, String>, val body: ByteArray)
-	private class HttpError(val status: Int, message: String) : Exception(message)
+	private class Request(
+		val method: String,
+		val target: String,
+		val version: String,
+		val headers: Map<String, String>,
+		val body: ByteArray,
+	)
+
+	private class HttpError(
+		val status: Int,
+		message: String,
+	) : Exception(message)
 
 	@Volatile private var socket: ServerSocket? = null
+
 	@Volatile private var running = false
 	private val open = AtomicInteger(0)
 	private val clients: MutableSet<Socket> = Collections.newSetFromMap(ConcurrentHashMap())
@@ -97,7 +132,10 @@ class McpHttp(
 			s.reuseAddress = true
 			s.bind(InetSocketAddress(InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)), port), 16)
 		} catch (e: IOException) {
-			try { s.close() } catch (ignored: IOException) { }
+			try {
+				s.close()
+			} catch (ignored: IOException) {
+			}
 			throw IOException("Can't listen on 127.0.0.1:$port: ${e.message}", e)
 		}
 		socket = s
@@ -108,7 +146,10 @@ class McpHttp(
 	/** Stops listening and closes every connection. */
 	fun stop() {
 		running = false
-		try { socket?.close() } catch (ignored: IOException) { }
+		try {
+			socket?.close()
+		} catch (ignored: IOException) {
+		}
 		socket = null
 		clients.forEach { close(it) }
 		clients.clear()
@@ -116,17 +157,24 @@ class McpHttp(
 
 	private fun acceptLoop(s: ServerSocket) {
 		while (running && !s.isClosed) {
-			val c = try { s.accept() } catch (e: IOException) {
-				if (running && !s.isClosed) log("couldn't accept a connection: ${e.message}")
+			val c =
+				try {
+					s.accept()
+				} catch (e: IOException) {
+					if (running && !s.isClosed) log("couldn't accept a connection: ${e.message}")
+					continue
+				}
+			if (!c.inetAddress.isLoopbackAddress) {
+				close(c)
 				continue
 			}
-			if (!c.inetAddress.isLoopbackAddress) { close(c); continue }
 			if (open.incrementAndGet() > MAX_CONNECTIONS) {
 				open.decrementAndGet()
 				try {
 					c.soTimeout = 1000
 					respond(c.getOutputStream(), 503, rpcError("Too many connections at once; try again."), emptyMap(), close = true)
-				} catch (ignored: IOException) { }
+				} catch (ignored: IOException) {
+				}
 				close(c)
 				continue
 			}
@@ -153,22 +201,31 @@ class McpHttp(
 		val input = BufferedInputStream(c.getInputStream())
 		val out = c.getOutputStream()
 		while (running) {
-			val req = try {
-				readRequest(input) ?: return
-			} catch (e: SocketTimeoutException) {
-				return
-			} catch (e: HttpError) {
-				respond(out, e.status, rpcError(e.message ?: "Bad request."), emptyMap(), close = true)
-				return
-			}
+			val req =
+				try {
+					readRequest(input) ?: return
+				} catch (e: SocketTimeoutException) {
+					return
+				} catch (e: HttpError) {
+					respond(out, e.status, rpcError(e.message ?: "Bad request."), emptyMap(), close = true)
+					return
+				}
 			if (!handle(req, out)) return
 		}
 	}
 
 	/** Answers one request. Returns whether the connection stays open for another. */
-	private fun handle(r: Request, out: OutputStream): Boolean {
+	private fun handle(
+		r: Request,
+		out: OutputStream,
+	): Boolean {
 		val close = r.version == "HTTP/1.0" || r.headers["connection"]?.lowercase()?.contains("close") == true
-		fun send(status: Int, body: String?, headers: Map<String, String> = emptyMap()): Boolean {
+
+		fun send(
+			status: Int,
+			body: String?,
+			headers: Map<String, String> = emptyMap(),
+		): Boolean {
 			respond(out, status, body, headers, close)
 			return !close
 		}
@@ -177,25 +234,45 @@ class McpHttp(
 		if (origin != null && !originAllowed(origin)) return send(403, rpcError("Requests from web pages aren't accepted."))
 		if (r.target.substringBefore('?') != PATH) return send(404, rpcError("Not found: the MCP endpoint is $PATH."))
 		if (!authorized(r.headers["authorization"])) {
-			return send(401, rpcError("Missing or wrong token. Code on the Go gives it to its Agent; send it as Authorization: Bearer <token>."),
-				mapOf("WWW-Authenticate" to "Bearer realm=\"SQLite debugger\""))
+			return send(
+				401,
+				rpcError(
+					"Missing or wrong token. Code on the Go gives it to its Agent; " +
+						"send it as Authorization: Bearer <token>.",
+				),
+				mapOf("WWW-Authenticate" to "Bearer realm=\"SQLite debugger\""),
+			)
 		}
 		val session = r.headers["mcp-session-id"]
-		val reply = when (r.method) {
-			"POST" -> {
-				val type = r.headers["content-type"]?.substringBefore(';')?.trim()?.lowercase()
-				if (type != null && type != "application/json") return send(415, rpcError("Send the request as application/json."))
-				try {
-					protocol.post(String(r.body, Charsets.UTF_8), session, r.headers["mcp-protocol-version"])
-				} catch (e: Exception) {
-					log("a request failed: ${e.javaClass.simpleName}: ${e.message}")
-					McpProtocol.Reply(500, rpcError("The server failed: ${e.message ?: e.javaClass.simpleName}"))
+		val reply =
+			when (r.method) {
+				"POST" -> {
+					val type =
+						r.headers["content-type"]
+							?.substringBefore(';')
+							?.trim()
+							?.lowercase()
+					if (type != null && type != "application/json") return send(415, rpcError("Send the request as application/json."))
+					try {
+						protocol.post(String(r.body, Charsets.UTF_8), session, r.headers["mcp-protocol-version"])
+					} catch (e: Exception) {
+						log("a request failed: ${e.javaClass.simpleName}: ${e.message}")
+						McpProtocol.Reply(500, rpcError("The server failed: ${e.message ?: e.javaClass.simpleName}"))
+					}
+				}
+
+				"DELETE" -> {
+					protocol.delete(session)
+				}
+
+				"GET" -> {
+					return send(405, rpcError("This server doesn't offer an event stream: use POST."), mapOf("Allow" to "POST, DELETE"))
+				}
+
+				else -> {
+					return send(405, rpcError("Use POST."), mapOf("Allow" to "POST, DELETE"))
 				}
 			}
-			"DELETE" -> protocol.delete(session)
-			"GET" -> return send(405, rpcError("This server doesn't offer an event stream: use POST."), mapOf("Allow" to "POST, DELETE"))
-			else -> return send(405, rpcError("Use POST."), mapOf("Allow" to "POST, DELETE"))
-		}
 		return send(reply.status, reply.body, reply.headers)
 	}
 
@@ -209,10 +286,13 @@ class McpHttp(
 		return name in LOOPBACK_NAMES
 	}
 
-	private fun originAllowed(origin: String): Boolean = try {
-		val u = URI(origin.trim())
-		(u.scheme == "http" || u.scheme == "https") && u.host?.lowercase() in LOOPBACK_NAMES
-	} catch (e: Exception) { false }
+	private fun originAllowed(origin: String): Boolean =
+		try {
+			val u = URI(origin.trim())
+			(u.scheme == "http" || u.scheme == "https") && u.host?.lowercase() in LOOPBACK_NAMES
+		} catch (e: Exception) {
+			false
+		}
 
 	private fun authorized(header: String?): Boolean {
 		val expected = token()
@@ -227,11 +307,14 @@ class McpHttp(
 	/** One request, or null if the connection closed before one began. */
 	private fun readRequest(input: InputStream): Request? {
 		var budget = MAX_HEADER_BYTES
+
 		fun line(): String? {
 			val b = ByteArrayOutputStream()
 			while (true) {
 				val ch = input.read()
-				if (ch < 0) { if (b.size() == 0) return null else throw HttpError(400, "The request ended early.") }
+				if (ch < 0) {
+					if (b.size() == 0) return null else throw HttpError(400, "The request ended early.")
+				}
 				if (--budget < 0) throw HttpError(431, "The request's headers are too long.")
 				if (ch == '\n'.code) break
 				b.write(ch)
@@ -239,7 +322,7 @@ class McpHttp(
 			return b.toString("ISO-8859-1").removeSuffix("\r")
 		}
 		var first = line() ?: return null
-		while (first.isEmpty()) first = line() ?: return null   // stray line ends between requests
+		while (first.isEmpty()) first = line() ?: return null // stray line ends between requests
 		val parts = first.split(' ')
 		if (parts.size != 3 || !parts[2].startsWith("HTTP/1.")) throw HttpError(400, "That isn't an HTTP/1.x request.")
 		val headers = HashMap<String, String>()
@@ -256,7 +339,10 @@ class McpHttp(
 		return Request(parts[0], parts[1], parts[2], headers, readBody(input, headers))
 	}
 
-	private fun readBody(input: InputStream, h: Map<String, String>): ByteArray {
+	private fun readBody(
+		input: InputStream,
+		h: Map<String, String>,
+	): ByteArray {
 		val te = h["transfer-encoding"]
 		if (te != null) {
 			if (!te.equals("chunked", ignoreCase = true)) throw HttpError(501, "Transfer-Encoding $te isn't supported.")
@@ -273,7 +359,12 @@ class McpHttp(
 		val out = ByteArrayOutputStream()
 		while (true) {
 			val sizeLine = shortLine(input, 1024) ?: throw HttpError(400, "The request ended early.")
-			val size = sizeLine.substringBefore(';').trim().toIntOrNull(16)?.takeIf { it >= 0 } ?: throw HttpError(400, "A bad chunk size.")
+			val size =
+				sizeLine
+					.substringBefore(';')
+					.trim()
+					.toIntOrNull(16)
+					?.takeIf { it >= 0 } ?: throw HttpError(400, "A bad chunk size.")
 			if (out.size().toLong() + size > MAX_BODY_BYTES) throw HttpError(413, "The request is larger than ${MAX_BODY_BYTES / 1024} KB.")
 			if (size == 0) {
 				// Trailers, if any, up to a blank line.
@@ -290,7 +381,10 @@ class McpHttp(
 		}
 	}
 
-	private fun shortLine(input: InputStream, max: Int): String? {
+	private fun shortLine(
+		input: InputStream,
+		max: Int,
+	): String? {
 		val b = ByteArrayOutputStream()
 		var left = max
 		while (true) {
@@ -303,7 +397,10 @@ class McpHttp(
 		return b.toString("ISO-8859-1").removeSuffix("\r")
 	}
 
-	private fun readExactly(input: InputStream, n: Int): ByteArray {
+	private fun readExactly(
+		input: InputStream,
+		n: Int,
+	): ByteArray {
 		val b = ByteArray(n)
 		var off = 0
 		while (off < n) {
@@ -314,14 +411,26 @@ class McpHttp(
 		return b
 	}
 
-	private fun respond(out: OutputStream, status: Int, body: String?, headers: Map<String, String>, close: Boolean) {
+	private fun respond(
+		out: OutputStream,
+		status: Int,
+		body: String?,
+		headers: Map<String, String>,
+		close: Boolean,
+	) {
 		val bytes = body?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
 		val head = StringBuilder("HTTP/1.1 $status ${STATUS[status] ?: "Status"}\r\n")
 		if (body != null) head.append("Content-Type: application/json; charset=utf-8\r\n")
 		if (status != 204) head.append("Content-Length: ${bytes.size}\r\n")
 		head.append("Cache-Control: no-store\r\n")
 		if (close) head.append("Connection: close\r\n")
-		for ((k, v) in headers) head.append(k).append(": ").append(v.replace("\r", "").replace("\n", "")).append("\r\n")
+		for ((k, v) in headers) {
+			head
+				.append(k)
+				.append(": ")
+				.append(v.replace("\r", "").replace("\n", ""))
+				.append("\r\n")
+		}
 		head.append("\r\n")
 		out.write(head.toString().toByteArray(Charsets.ISO_8859_1))
 		if (status != 204) out.write(bytes)
@@ -329,8 +438,17 @@ class McpHttp(
 	}
 
 	/** An HTTP-level refusal, as a JSON-RPC error with no id, which MCP clients know how to show. */
-	private fun rpcError(message: String): String = JSONObject().put("jsonrpc", "2.0").put("id", JSONObject.NULL)
-		.put("error", JSONObject().put("code", McpProtocol.INVALID_REQUEST).put("message", message)).toString()
+	private fun rpcError(message: String): String =
+		JSONObject()
+			.put("jsonrpc", "2.0")
+			.put("id", JSONObject.NULL)
+			.put("error", JSONObject().put("code", McpProtocol.INVALID_REQUEST).put("message", message))
+			.toString()
 
-	private fun close(s: Socket) { try { s.close() } catch (ignored: IOException) { } }
+	private fun close(s: Socket) {
+		try {
+			s.close()
+		} catch (ignored: IOException) {
+		}
+	}
 }

@@ -6,13 +6,13 @@ import android.content.pm.ApplicationInfo
 import android.database.Cursor
 import android.net.Uri
 import android.util.Log
-import java.io.File
-import kotlin.concurrent.thread
 import org.appdevforall.sqlitedebugger.engine.NativeDebugEngine
 import org.appdevforall.sqlitedebugger.mcp.DatabaseTools
 import org.appdevforall.sqlitedebugger.mcp.McpHttp
 import org.appdevforall.sqlitedebugger.mcp.McpProtocol
+import java.io.File
 import java.util.UUID
+import kotlin.concurrent.thread
 
 /**
  * Starts the debugger when the app's process starts. Refuses to run in a build that is not
@@ -45,15 +45,33 @@ class DebuggerStartup : ContentProvider() {
 		return true
 	}
 
-	override fun query(uri: Uri, projection: Array<String>?, selection: String?, selectionArgs: Array<String>?, sortOrder: String?): Cursor? = null
+	override fun query(
+		uri: Uri,
+		projection: Array<String>?,
+		selection: String?,
+		selectionArgs: Array<String>?,
+		sortOrder: String?,
+	): Cursor? = null
 
 	override fun getType(uri: Uri): String? = null
 
-	override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+	override fun insert(
+		uri: Uri,
+		values: ContentValues?,
+	): Uri? = null
 
-	override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?): Int = 0
+	override fun delete(
+		uri: Uri,
+		selection: String?,
+		selectionArgs: Array<String>?,
+	): Int = 0
 
-	override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<String>?): Int = 0
+	override fun update(
+		uri: Uri,
+		values: ContentValues?,
+		selection: String?,
+		selectionArgs: Array<String>?,
+	): Int = 0
 
 	companion object {
 		private const val TAG = "SqliteDebugger"

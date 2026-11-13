@@ -1,6 +1,5 @@
 package org.appdevforall.sqlitedebugger.mcp
 
-import java.io.File
 import org.appdevforall.sqlitedebugger.engine.AppConnection
 import org.appdevforall.sqlitedebugger.engine.DebugEngineException
 import org.appdevforall.sqlitedebugger.engine.EventKind
@@ -12,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class DatabaseToolsTest {
 	private val engine = FakeDebugEngine()
@@ -32,11 +32,21 @@ class DatabaseToolsTest {
 		args: JSONObject = JSONObject(),
 	): JSONObject {
 		val protocol = McpProtocol(t.tools(), "test", { "s" }, 4)
-		val init = JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "initialize")
-			.put("params", JSONObject().put("protocolVersion", "2025-06-18")).toString()
+		val init =
+			JSONObject()
+				.put("jsonrpc", "2.0")
+				.put("id", 1)
+				.put("method", "initialize")
+				.put("params", JSONObject().put("protocolVersion", "2025-06-18"))
+				.toString()
 		val session = protocol.post(init, null, null).headers[McpProtocol.SESSION_HEADER]!!
-		val call = JSONObject().put("jsonrpc", "2.0").put("id", 2).put("method", "tools/call")
-			.put("params", JSONObject().put("name", name).put("arguments", args)).toString()
+		val call =
+			JSONObject()
+				.put("jsonrpc", "2.0")
+				.put("id", 2)
+				.put("method", "tools/call")
+				.put("params", JSONObject().put("name", name).put("arguments", args))
+				.toString()
 		return JSONObject(protocol.post(call, session, null).body!!).getJSONObject("result")
 	}
 
@@ -62,7 +72,16 @@ class DatabaseToolsTest {
 	@Test fun everyToolIsReadOnly() {
 		val list = tools.tools()
 		assertEquals(
-			listOf("list_databases", "list_connections", "get_schema", "query", "explain_query_plan", "get_stats", "integrity_check", "get_events"),
+			listOf(
+				"list_databases",
+				"list_connections",
+				"get_schema",
+				"query",
+				"explain_query_plan",
+				"get_stats",
+				"integrity_check",
+				"get_events",
+			),
 			list.map { it.name },
 		)
 		list.forEach { assertTrue(it.name, it.describe().getJSONObject("annotations").getBoolean("readOnlyHint")) }
@@ -78,7 +97,10 @@ class DatabaseToolsTest {
 	}
 
 	@Test fun listDatabasesAddsUnopenedFilesButNotSideFiles() {
-		val d = kotlin.io.path.createTempDirectory("dbs").toFile()
+		val d =
+			kotlin.io.path
+				.createTempDirectory("dbs")
+				.toFile()
 		try {
 			listOf("open.db", "closed.db", "closed.db-wal", "closed.db-shm", "closed.db-journal").forEach { File(d, it).writeText("x") }
 			dir = d
@@ -104,7 +126,15 @@ class DatabaseToolsTest {
 
 	@Test fun everyDatabaseToolRefusesAnUnknownPathBeforeTheEngine() {
 		engine.appConnections += conn(1, "/data/a.db")
-		for ((name, extra) in listOf("get_schema" to JSONObject(), "query" to JSONObject().put("sql", "select 1"), "explain_query_plan" to JSONObject().put("sql", "select 1"), "get_stats" to JSONObject(), "integrity_check" to JSONObject())) {
+		val cases =
+			listOf(
+				"get_schema" to JSONObject(),
+				"query" to JSONObject().put("sql", "select 1"),
+				"explain_query_plan" to JSONObject().put("sql", "select 1"),
+				"get_stats" to JSONObject(),
+				"integrity_check" to JSONObject(),
+			)
+		for ((name, extra) in cases) {
 			for (bad in listOf("/data/other.db", "", "/data/a.db-wal")) {
 				val r = runTool(tools, name, db(bad).also { o -> extra.keys().forEach { k -> o.put(k, extra.get(k)) } })
 				assertTrue("$name $bad", r.getBoolean("isError"))
@@ -131,12 +161,23 @@ class DatabaseToolsTest {
 		assertTrue(r.getBoolean("has_more"))
 		assertEquals(3, r.getInt("next_offset"))
 		assertTrue(r.getString("note").contains("re-runs"))
-		assertTrue(tools.tools().first { it.name == "query" }.description.contains("re-runs"))
+		assertTrue(
+			tools
+				.tools()
+				.first { it.name == "query" }
+				.description
+				.contains("re-runs"),
+		)
 	}
 
 	@Test fun queryChecksItsArguments() {
 		engine.appConnections += conn(1, "/data/a.db")
-		fun bad(vararg kv: Pair<String, Any>) = assertTrue(kv.toString(), runTool(tools, "query", db().also { o -> kv.forEach { o.put(it.first, it.second) } }).getBoolean("isError"))
+
+		fun bad(vararg kv: Pair<String, Any>) =
+			assertTrue(
+				kv.toString(),
+				runTool(tools, "query", db().also { o -> kv.forEach { o.put(it.first, it.second) } }).getBoolean("isError"),
+			)
 		bad()
 		bad("sql" to "x", "max_rows" to 1001)
 		bad("sql" to "x", "max_rows" to 0)
@@ -150,8 +191,22 @@ class DatabaseToolsTest {
 	@Test fun queryBindsArgsByType() {
 		engine.appConnections += conn(1, "/data/a.db")
 		var got: List<Any?> = emptyList()
-		engine.answer = { _, _, _, a -> got = a; QueryResult(emptyList(), emptyList(), 0, false) }
-		ok("query", db().put("sql", "x").put("args", JSONArray().put(JSONObject.NULL).put(3).put(2.5).put("s").put(true)))
+		engine.answer = { _, _, _, a ->
+			got = a
+			QueryResult(emptyList(), emptyList(), 0, false)
+		}
+		ok(
+			"query",
+			db().put("sql", "x").put(
+				"args",
+				JSONArray()
+					.put(JSONObject.NULL)
+					.put(3)
+					.put(2.5)
+					.put("s")
+					.put(true),
+			),
+		)
 		assertEquals(listOf(null, 3L, 2.5, "s", 1L), got)
 	}
 
@@ -169,16 +224,26 @@ class DatabaseToolsTest {
 		val real = engine
 		engine.answer = { _, _, _, _ -> QueryResult(emptyList(), emptyList(), 0, false) }
 		// the fake ignores the deadline, so check the arithmetic through the constant and a wrapper engine
-		val wrapper = object : org.appdevforall.sqlitedebugger.engine.DebugEngine by real {
-			override fun openServerConnection(path: String, writable: Boolean) = real.openServerConnection(path, writable).let { c ->
-				object : org.appdevforall.sqlitedebugger.engine.ServerConnection by c {
-					override fun query(sql: String, args: List<Any?>, offset: Long, limits: org.appdevforall.sqlitedebugger.engine.QueryLimits, deadlineMillis: Long): QueryResult {
-						deadline = deadlineMillis
-						return c.query(sql, args, offset, limits, deadlineMillis)
+		val wrapper =
+			object : org.appdevforall.sqlitedebugger.engine.DebugEngine by real {
+				override fun openServerConnection(
+					path: String,
+					writable: Boolean,
+				) = real.openServerConnection(path, writable).let { c ->
+					object : org.appdevforall.sqlitedebugger.engine.ServerConnection by c {
+						override fun query(
+							sql: String,
+							args: List<Any?>,
+							offset: Long,
+							limits: org.appdevforall.sqlitedebugger.engine.QueryLimits,
+							deadlineMillis: Long,
+						): QueryResult {
+							deadline = deadlineMillis
+							return c.query(sql, args, offset, limits, deadlineMillis)
+						}
 					}
 				}
 			}
-		}
 		ok("query", db().put("sql", "x"), DatabaseTools(wrapper, null, { now }))
 		assertEquals(now + 50_000, deadline)
 	}
@@ -189,7 +254,18 @@ class DatabaseToolsTest {
 		engine.answer = { _, _, _, _ ->
 			QueryResult(
 				listOf("a", "b", "c", "d", "e", "f", "g", "h"),
-				listOf(listOf(Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, big, -big, 9_007_199_254_740_992L, byteArrayOf(1, 2, 3), null)),
+				listOf(
+					listOf(
+						Double.NaN,
+						Double.POSITIVE_INFINITY,
+						Double.NEGATIVE_INFINITY,
+						big,
+						-big,
+						9_007_199_254_740_992L,
+						byteArrayOf(1, 2, 3),
+						null,
+					),
+				),
 				0,
 				false,
 			)
@@ -213,17 +289,18 @@ class DatabaseToolsTest {
 	@Test fun getSchemaGroupsByType() {
 		engine.appConnections += conn(1, "/data/a.db")
 		answerWith(
-			"SELECT type" to QueryResult(
-				listOf("type", "name", "tbl_name", "sql"),
-				listOf(
-					listOf("index", "i1", "t", "CREATE INDEX i1 ON t(a)"),
-					listOf("table", "t", "t", "CREATE TABLE t(a)"),
-					listOf("trigger", "tr", "t", "CREATE TRIGGER tr ..."),
-					listOf("view", "v", "v", "CREATE VIEW v AS ..."),
+			"SELECT type" to
+				QueryResult(
+					listOf("type", "name", "tbl_name", "sql"),
+					listOf(
+						listOf("index", "i1", "t", "CREATE INDEX i1 ON t(a)"),
+						listOf("table", "t", "t", "CREATE TABLE t(a)"),
+						listOf("trigger", "tr", "t", "CREATE TRIGGER tr ..."),
+						listOf("view", "v", "v", "CREATE VIEW v AS ..."),
+					),
+					0,
+					false,
 				),
-				0,
-				false,
-			),
 		)
 		val r = ok("get_schema", db())
 		assertEquals("t", r.getJSONArray("tables").getJSONObject(0).getString("name"))
@@ -235,7 +312,15 @@ class DatabaseToolsTest {
 
 	@Test fun explainQueryPlanPrefixesTheSql() {
 		engine.appConnections += conn(1, "/data/a.db")
-		answerWith("EXPLAIN QUERY PLAN" to QueryResult(listOf("id", "parent", "notused", "detail"), listOf(listOf(3L, 0L, 0L, "SCAN t")), 0, false))
+		answerWith(
+			"EXPLAIN QUERY PLAN" to
+				QueryResult(
+					listOf("id", "parent", "notused", "detail"),
+					listOf(listOf(3L, 0L, 0L, "SCAN t")),
+					0,
+					false,
+				),
+		)
 		val plan = ok("explain_query_plan", db().put("sql", "select * from t")).getJSONArray("plan")
 		assertEquals("SCAN t", plan.getJSONObject(0).getString("detail"))
 		assertEquals("EXPLAIN QUERY PLAN select * from t", seenSql.single())
@@ -243,6 +328,7 @@ class DatabaseToolsTest {
 
 	@Test fun getStatsCountsRowsUnderTenTables() {
 		engine.appConnections += conn(1, "/data/a.db")
+
 		fun one(v: Long) = QueryResult(listOf("x"), listOf(listOf(v)), 0, false)
 		answerWith(
 			"PRAGMA page_count" to one(10),

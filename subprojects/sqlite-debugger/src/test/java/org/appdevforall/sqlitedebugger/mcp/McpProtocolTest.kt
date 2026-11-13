@@ -16,23 +16,39 @@ import java.net.Socket
  * HTTP side (token, Host and Origin checks, methods and paths), on a real loopback socket.
  */
 class McpProtocolTest {
-
 	private var sessionNumber = 0
 	private val echo = McpTool("echo", "Echo", "Returns its arguments.") { args -> JSONObject().put("got", args) }
-	private val needsPerson = McpTool("needs_person", "Needs a person", "Always says a person is needed.", readOnly = false) { _ ->
-		throw McpToolError("A person is needed: tap Allow on the sharing phone.", JSONObject().put("person_needed", true))
-	}
+	private val needsPerson =
+		McpTool("needs_person", "Needs a person", "Always says a person is needed.", readOnly = false) { _ ->
+			throw McpToolError("A person is needed: tap Allow on the sharing phone.", JSONObject().put("person_needed", true))
+		}
 	private val crashes = McpTool("crashes", "Crashes", "Throws an unexpected exception.") { _ -> throw IllegalStateException("boom") }
 
 	private fun protocol(maxSessions: Int = 16) =
 		McpProtocol(listOf(echo, needsPerson, crashes), "test", { "s${++sessionNumber}" }, maxSessions)
 
-	private fun initBody(version: String = "2025-06-18") = JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "initialize")
-		.put("params", JSONObject().put("protocolVersion", version).put("capabilities", JSONObject())
-			.put("clientInfo", JSONObject().put("name", "test").put("version", "1"))).toString()
+	private fun initBody(version: String = "2025-06-18") =
+		JSONObject()
+			.put("jsonrpc", "2.0")
+			.put("id", 1)
+			.put("method", "initialize")
+			.put(
+				"params",
+				JSONObject()
+					.put("protocolVersion", version)
+					.put("capabilities", JSONObject())
+					.put("clientInfo", JSONObject().put("name", "test").put("version", "1")),
+			).toString()
 
-	private fun request(id: Any, method: String, params: JSONObject? = null) = JSONObject().put("jsonrpc", "2.0").put("id", id)
-		.put("method", method).also { if (params != null) it.put("params", params) }
+	private fun request(
+		id: Any,
+		method: String,
+		params: JSONObject? = null,
+	) = JSONObject()
+		.put("jsonrpc", "2.0")
+		.put("id", id)
+		.put("method", method)
+		.also { if (params != null) it.put("params", params) }
 
 	private fun session(p: McpProtocol): String {
 		val r = p.post(initBody(), null, null)
@@ -40,7 +56,12 @@ class McpProtocolTest {
 		return r.headers[McpProtocol.SESSION_HEADER]!!
 	}
 
-	private fun call(p: McpProtocol, s: String, tool: String, args: JSONObject? = null): JSONObject {
+	private fun call(
+		p: McpProtocol,
+		s: String,
+		tool: String,
+		args: JSONObject? = null,
+	): JSONObject {
 		val params = JSONObject().put("name", tool).also { if (args != null) it.put("arguments", args) }
 		val r = p.post(request(7, "tools/call", params).toString(), s, null)
 		assertEquals(200, r.status)
@@ -75,27 +96,31 @@ class McpProtocolTest {
 	}
 
 	@Test fun unsupportedVersionHeaderIsRefused() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		assertEquals(400, p.post(request(1, "ping").toString(), s, "1999-01-01").status)
 		assertEquals(200, p.post(request(1, "ping").toString(), s, "2025-06-18").status)
 	}
 
 	@Test fun notificationsGetNoAnswer() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val r = p.post(JSONObject().put("jsonrpc", "2.0").put("method", "notifications/initialized").toString(), s, null)
 		assertEquals(202, r.status)
 		assertNull(r.body)
 	}
 
 	@Test fun pingAnswersEmptyResult() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val r = JSONObject(p.post(request("a", "ping").toString(), s, null).body!!)
 		assertEquals("a", r.get("id"))
 		assertEquals(0, r.getJSONObject("result").length())
 	}
 
 	@Test fun toolsListDescribesEveryTool() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val tools = JSONObject(p.post(request(2, "tools/list").toString(), s, null).body!!).getJSONObject("result").getJSONArray("tools")
 		val names = (0 until tools.length()).map { tools.getJSONObject(it).getString("name") }
 		assertEquals(listOf("echo", "needs_person", "crashes"), names)
@@ -106,7 +131,8 @@ class McpProtocolTest {
 	}
 
 	@Test fun toolCallReturnsStructuredContent() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val result = call(p, s, "echo", JSONObject().put("x", 3)).getJSONObject("result")
 		assertFalse(result.getBoolean("isError"))
 		assertEquals(3, result.getJSONObject("structuredContent").getJSONObject("got").getInt("x"))
@@ -114,35 +140,52 @@ class McpProtocolTest {
 	}
 
 	@Test fun toolCallWithoutArgumentsGetsEmptyObject() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val got = call(p, s, "echo").getJSONObject("result").getJSONObject("structuredContent").getJSONObject("got")
 		assertEquals(0, got.length())
 	}
 
 	@Test fun toolErrorIsAResultWithIsError() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val result = call(p, s, "needs_person").getJSONObject("result")
 		assertTrue(result.getBoolean("isError"))
-		assertTrue(result.getJSONArray("content").getJSONObject(0).getString("text").contains("person is needed"))
+		assertTrue(
+			result
+				.getJSONArray("content")
+				.getJSONObject(0)
+				.getString("text")
+				.contains("person is needed"),
+		)
 		assertTrue(result.getJSONObject("structuredContent").getBoolean("person_needed"))
 	}
 
 	@Test fun unexpectedExceptionIsAResultWithIsError() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val result = call(p, s, "crashes").getJSONObject("result")
 		assertTrue(result.getBoolean("isError"))
-		assertTrue(result.getJSONArray("content").getJSONObject(0).getString("text").contains("boom"))
+		assertTrue(
+			result
+				.getJSONArray("content")
+				.getJSONObject(0)
+				.getString("text")
+				.contains("boom"),
+		)
 	}
 
 	@Test fun unknownToolAndBadArgumentsAreInvalidParams() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		assertEquals(McpProtocol.INVALID_PARAMS, call(p, s, "nope").getJSONObject("error").getInt("code"))
 		val bad = request(3, "tools/call", JSONObject().put("name", "echo").put("arguments", JSONArray())).toString()
 		assertEquals(McpProtocol.INVALID_PARAMS, JSONObject(p.post(bad, s, null).body!!).getJSONObject("error").getInt("code"))
 	}
 
 	@Test fun unknownMethodIsMethodNotFound() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		val r = JSONObject(p.post(request(4, "resources/list").toString(), s, null).body!!)
 		assertEquals(McpProtocol.METHOD_NOT_FOUND, r.getJSONObject("error").getInt("code"))
 	}
@@ -154,8 +197,13 @@ class McpProtocolTest {
 	}
 
 	@Test fun batchGetsAnArrayOfReplies() {
-		val p = protocol(); val s = session(p)
-		val batch = JSONArray().put(request(1, "ping")).put(JSONObject().put("jsonrpc", "2.0").put("method", "notifications/x")).put(request(2, "tools/list"))
+		val p = protocol()
+		val s = session(p)
+		val batch =
+			JSONArray()
+				.put(request(1, "ping"))
+				.put(JSONObject().put("jsonrpc", "2.0").put("method", "notifications/x"))
+				.put(request(2, "tools/list"))
 		val r = p.post(batch.toString(), s, null)
 		assertEquals(200, r.status)
 		val replies = JSONArray(r.body!!)
@@ -170,7 +218,8 @@ class McpProtocolTest {
 	}
 
 	@Test fun deleteEndsTheSession() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		assertEquals(204, p.delete(s).status)
 		assertEquals(404, p.delete(s).status)
 		assertEquals(404, p.post(request(1, "ping").toString(), s, null).status)
@@ -178,9 +227,10 @@ class McpProtocolTest {
 
 	@Test fun oldestSessionIsDroppedBeyondTheLimit() {
 		val p = protocol(maxSessions = 2)
-		val a = session(p); val b = session(p)
-		p.post(request(1, "ping").toString(), a, null)   // a is now the most recently used
-		val c = session(p)                                  // drops b
+		val a = session(p)
+		val b = session(p)
+		p.post(request(1, "ping").toString(), a, null) // a is now the most recently used
+		val c = session(p) // drops b
 		assertEquals(2, p.sessionCount())
 		assertEquals(200, p.post(request(1, "ping").toString(), a, null).status)
 		assertEquals(404, p.post(request(1, "ping").toString(), b, null).status)
@@ -188,7 +238,8 @@ class McpProtocolTest {
 	}
 
 	@Test fun endAllEndsEverySession() {
-		val p = protocol(); val s = session(p)
+		val p = protocol()
+		val s = session(p)
 		p.endAll()
 		assertEquals(0, p.sessionCount())
 		assertEquals(404, p.post(request(1, "ping").toString(), s, null).status)
@@ -199,7 +250,10 @@ class McpProtocolTest {
 	private val token = "secret-token"
 	private var server: McpHttp? = null
 
-	@After fun stopServer() { server?.stop(); server = null }
+	@After fun stopServer() {
+		server?.stop()
+		server = null
+	}
 
 	private fun startServer(): Int {
 		val s = McpHttp(protocol(), { token }, port = 0)
@@ -208,20 +262,43 @@ class McpProtocolTest {
 		return s.boundPort
 	}
 
-	private class Answer(val status: Int, val headers: Map<String, String>, val body: String)
+	private class Answer(
+		val status: Int,
+		val headers: Map<String, String>,
+		val body: String,
+	)
 
 	/** One request on its own connection; [headers] may replace Host. */
-	private fun http(port: Int, method: String, path: String = McpHttp.PATH, headers: Map<String, String> = emptyMap(), body: String? = null): Answer {
+	private fun http(
+		port: Int,
+		method: String,
+		path: String = McpHttp.PATH,
+		headers: Map<String, String> = emptyMap(),
+		body: String? = null,
+	): Answer {
 		Socket("127.0.0.1", port).use { s ->
 			s.soTimeout = 5000
 			val bytes = body?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
 			val all = linkedMapOf("Host" to "127.0.0.1:$port", "Connection" to "close")
 			all.putAll(headers)
-			if (body != null) { all["Content-Type"] = "application/json"; all["Content-Length"] = bytes.size.toString() }
+			if (body != null) {
+				all["Content-Type"] = "application/json"
+				all["Content-Length"] = bytes.size.toString()
+			}
 			val head = StringBuilder("$method $path HTTP/1.1\r\n")
-			for ((k, v) in all) head.append(k).append(": ").append(v).append("\r\n")
+			for ((k, v) in all) {
+				head
+					.append(k)
+					.append(": ")
+					.append(v)
+					.append("\r\n")
+			}
 			head.append("\r\n")
-			s.getOutputStream().apply { write(head.toString().toByteArray(Charsets.ISO_8859_1)); write(bytes); flush() }
+			s.getOutputStream().apply {
+				write(head.toString().toByteArray(Charsets.ISO_8859_1))
+				write(bytes)
+				flush()
+			}
 			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
 			val lines = text.substringBefore("\r\n\r\n").split("\r\n")
 			val status = lines[0].split(' ')[1].toInt()
@@ -242,8 +319,19 @@ class McpProtocolTest {
 	@Test fun base64MatchesTheJdkEncoder() {
 		for (n in 0..40) {
 			val bytes = ByteArray(n) { (it * 37 + 250).toByte() }
-			assertEquals(java.util.Base64.getEncoder().encodeToString(bytes), McpHttp.base64(bytes, urlSafe = false, pad = true))
-			assertEquals(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes), McpHttp.base64(bytes, urlSafe = true, pad = false))
+			assertEquals(
+				java.util.Base64
+					.getEncoder()
+					.encodeToString(bytes),
+				McpHttp.base64(bytes, urlSafe = false, pad = true),
+			)
+			assertEquals(
+				java.util.Base64
+					.getUrlEncoder()
+					.withoutPadding()
+					.encodeToString(bytes),
+				McpHttp.base64(bytes, urlSafe = true, pad = false),
+			)
 		}
 	}
 
@@ -263,7 +351,9 @@ class McpProtocolTest {
 				val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
 				assertTrue(text.startsWith("HTTP/1.1 503"))
 			}
-		} finally { held.forEach { it.close() } }
+		} finally {
+			held.forEach { it.close() }
+		}
 	}
 
 	@Test fun httpNeedsTheToken() {
@@ -315,8 +405,12 @@ class McpProtocolTest {
 		val port = startServer()
 		Socket("127.0.0.1", port).use { s ->
 			val body = initBody().toByteArray()
-			s.getOutputStream().write(("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer $token\r\nConnection: close\r\n" +
-				"Content-Type: text/plain\r\nContent-Length: ${body.size}\r\n\r\n").toByteArray() + body)
+			s.getOutputStream().write(
+				(
+					"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer $token\r\nConnection: close\r\n" +
+						"Content-Type: text/plain\r\nContent-Length: ${body.size}\r\n\r\n"
+				).toByteArray() + body,
+			)
 			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
 			assertTrue(text.startsWith("HTTP/1.1 415"))
 		}
