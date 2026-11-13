@@ -34,6 +34,8 @@ import org.checkerframework.checker.index.qual.NonNegative
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaElementModificationType
 import org.jetbrains.kotlin.analysis.api.platform.modification.KaSourceModificationService
+import org.jetbrains.kotlin.analysis.low.level.api.fir.LLFirInternals
+import org.jetbrains.kotlin.analysis.low.level.api.fir.file.structure.LLFirDeclarationModificationService
 import org.jetbrains.kotlin.analysis.low.level.api.fir.util.originalKtFile
 import org.jetbrains.kotlin.com.intellij.openapi.application.ApplicationManager
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
@@ -41,7 +43,9 @@ import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiManager
 import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
 import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
+import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtPsiFactory
@@ -88,7 +92,8 @@ internal class KtSymbolIndex(
 	}
 
 	private val workerQueue = WorkerQueue<IndexCommand>()
-	private val indexWorker =
+	@VisibleForTesting
+	internal val indexWorker =
 		IndexWorker(
 			project = project,
 			queue = workerQueue,
@@ -374,22 +379,47 @@ internal class KtSymbolIndex(
 			project.write {
 				val outcome =
 					ApplicationManager.getApplication().runWriteAction<ReparseOutcome> {
-						doc.apply(content, version).also { outcome ->
-							if (outcome.changedTree()) {
-								KaSourceModificationService
-									.getInstance(project)
-									.handleElementModification(doc.ktFile, KaElementModificationType.Unknown)
-							}
-						}
+						doc.apply(content, version).also { reportModification(doc.ktFile, it) }
 					}
-				if (outcome.changedTree()) {
+				if (outcome.needsReindex()) {
 					queueOnFileChangedAsync(doc.ktFile)
 				}
 				outcome
 			}
 		}
 
-	private fun ReparseOutcome.changedTree(): Boolean = this !is ReparseOutcome.Unchanged && this !is ReparseOutcome.Failed
+	/** Reports [outcome]'s change to FIR; caller runs inside runWriteAction. */
+	@OptIn(LLFirInternals::class)
+	private fun reportModification(
+		ktFile: KtFile,
+		outcome: ReparseOutcome,
+	) {
+		val modificationService = KaSourceModificationService.getInstance(project)
+		when (outcome) {
+			is ReparseOutcome.InBlock -> {
+				// `reparsed` is the old, still-attached node; the detached new root would be classified
+				// out-of-block against the wrong module.
+				modificationService.handleElementModification(outcome.reparsed, KaElementModificationType.Unknown)
+				// In-block changes are only queued; the platform's flush on writeActionFinished never fires
+				// because MockApplication.runWriteAction notifies no listeners.
+				LLFirDeclarationModificationService.getInstance(project).flushModifications()
+			}
+
+			ReparseOutcome.WholeFile -> {
+				modificationService.handleElementModification(ktFile, KaElementModificationType.Unknown)
+			}
+
+			ReparseOutcome.Unchanged, is ReparseOutcome.Failed -> {}
+		}
+	}
+
+	/** SourceFileIndexer records local classes and objects, so only an in-block edit containing one needs a reindex. */
+	private fun ReparseOutcome.needsReindex(): Boolean =
+		when (this) {
+			is ReparseOutcome.InBlock -> PsiTreeUtil.findChildOfType(reparsed, KtClassOrObject::class.java) != null
+			ReparseOutcome.WholeFile -> true
+			ReparseOutcome.Unchanged, is ReparseOutcome.Failed -> false
+		}
 
 	/**
 	 * Parses [path]'s live document into a fresh [KtFile], registers it as the in-memory file, makes it
