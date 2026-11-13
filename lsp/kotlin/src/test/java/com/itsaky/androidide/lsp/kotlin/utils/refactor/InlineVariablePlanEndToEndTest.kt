@@ -1075,4 +1075,22 @@ class InlineVariablePlanEndToEndTest : KtLspTest() {
 			apply(content, buildInlineVariableRewrites(result, InlineMode.AllReferences)!!),
 		)
 	}
+
+	@Test
+	fun `a plan preempted once by another edit is retried rather than dropped`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int, b: Int): Int {
+				val total = a + b
+				return total * 2
+			}
+			""".trimIndent()
+		createSourceFile("Main.kt", content)
+		val path = env.sourceRoots.first().resolve("Main.kt")
+
+		val result = buildInlineVariablePlan(env, path, at(content, "total"), 1, preemptedOnceCancelChecker())
+
+		assertNull(result.refusal)
+	}
 }

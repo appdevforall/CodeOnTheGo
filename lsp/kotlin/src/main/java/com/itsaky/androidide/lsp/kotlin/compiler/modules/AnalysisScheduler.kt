@@ -118,10 +118,11 @@ internal class ScheduledCancelChecker(
 /**
  * Runs [attempt] and, if it was preempted, runs it exactly once more.
  *
- * The retry policy every [AnalysisPriority.COMMAND] call site needs. A command is preempted by
- * keystroke-driven work ([AnalysisPriority.INTERACTIVE]), which - unlike a genuine cancellation -
- * leaves the user's own request alive, so reporting the empty/failed result would be a lie: "no
- * references" for a symbol that has plenty, or a silently skipped organize-imports.
+ * The retry policy every user-invoked call site needs. A command is preempted by keystroke-driven
+ * work ([AnalysisPriority.INTERACTIVE]), and any request, the INTERACTIVE refactoring planners
+ * included, by the barrier an edit raises. Unlike a genuine cancellation, a preemption leaves the
+ * user's own request alive, so reporting the empty/failed result would be a lie: "no references" for
+ * a symbol that has plenty, or a silently skipped organize-imports.
  *
  * Two details this centralises:
  * - **A fresh [ScheduledCancelChecker] per attempt.** [ScheduledCancelChecker.preempt] latches, so

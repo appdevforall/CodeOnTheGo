@@ -1,6 +1,7 @@
 package com.itsaky.androidide.lsp.kotlin.fixtures
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.toMetadata
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis
@@ -82,6 +83,26 @@ abstract class KtLspTest {
 
 	/** A fresh scheduler-aware checker with no upstream cancellation source, for call sites that require one. */
 	internal fun noopCancelChecker(): ScheduledCancelChecker = ScheduledCancelChecker(ICancelChecker.NOOP)
+
+	/**
+	 * A checker whose first checkpoint reports a preemption and every later one passes, as when another
+	 * path's edit raises the analysis barrier once while a request runs.
+	 */
+	internal fun preemptedOnceCancelChecker(): ICancelChecker =
+		object : ICancelChecker {
+			private var preempted = false
+
+			override fun cancel() {}
+
+			override fun isCancelled(): Boolean = false
+
+			override fun abortIfCancelled() {
+				if (!preempted) {
+					preempted = true
+					throw AnalysisPreemptedException()
+				}
+			}
+		}
 
 	/** Resolves [call] to a function call and runs [action] inside the analyze block. */
 	protected fun <R> analyzeMaybeDanglingForTest(

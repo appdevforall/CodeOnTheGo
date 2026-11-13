@@ -1085,4 +1085,22 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 
 		assertEquals(listOf("b", "b * c", "a + b * c"), result.candidates.map { it.label })
 	}
+
+	@Test
+	fun `a plan preempted once by another edit is retried rather than reported empty`() {
+		val content =
+			"""
+			package p
+			fun demo(n: Int): Int {
+				return n * 2
+			}
+			""".trimIndent()
+		createSourceFile("Main.kt", content)
+		val path = env.sourceRoots.first().resolve("Main.kt")
+		val start = content.indexOf("n * 2")
+
+		val result = buildExtractionPlan(env, path, start, start + "n * 2".length, 1, preemptedOnceCancelChecker())
+
+		assertEquals(listOf("n * 2"), result.candidates.map { it.label })
+	}
 }

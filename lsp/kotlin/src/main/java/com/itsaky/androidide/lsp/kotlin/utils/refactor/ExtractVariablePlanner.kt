@@ -2,7 +2,8 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
+import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.lsp.kotlin.utils.renderName
 import com.itsaky.androidide.lsp.refactor.BlockPlacement
 import com.itsaky.androidide.lsp.refactor.TextSpan
@@ -42,37 +43,43 @@ internal fun buildExtractionPlan(
 	selectionStart: Int,
 	selectionEnd: Int,
 	documentVersion: Int?,
-	cancelChecker: ScheduledCancelChecker,
+	cancelChecker: ICancelChecker,
 ): ExtractionPlan =
 	runCatching {
-		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
-			if (live.isStale) {
-				/*
-				 * Joining another feature's scope hands over its text, which can be older than the buffer.
-				 * The caller stamps `documentVersion` from the live buffer, so the apply-time version guard
-				 * would compare an honest stamp against text one edit behind and pass - and offsets computed
-				 * here would replace the wrong span. Refusing is the only safe answer.
-				 */
-				logger.debug("refusing extract-variable plan for {}: pinned text is behind the buffer", nioPath)
-				return@withLiveKtFile ExtractionPlan.empty()
-			}
-
-			live.read { ktFile ->
-				val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
-				if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
-
-				/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
-				 * threads it down to every candidate and rung. */
-				val fileText = ktFile.text
-				live.analyzing(AnalysisPriority.INTERACTIVE, cancelChecker) {
-					ExtractionPlan(
-						fileText = fileText,
-						documentVersion = documentVersion,
-						candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
-					)
+		/*
+		 * Another path's edit raises the analysis barrier for every priority, which preempts this
+		 * user-invoked plan; it is retried once, re-pinning the file, rather than failing the action.
+		 */
+		retryingOnPreemption(cancelChecker, "Extract-variable plan for $nioPath") { checker ->
+			env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+				if (live.isStale) {
+					/*
+					 * Joining another feature's scope hands over its text, which can be older than the buffer.
+					 * The caller stamps `documentVersion` from the live buffer, so the apply-time version guard
+					 * would compare an honest stamp against text one edit behind and pass - and offsets computed
+					 * here would replace the wrong span. Refusing is the only safe answer.
+					 */
+					logger.debug("refusing extract-variable plan for {}: pinned text is behind the buffer", nioPath)
+					return@withLiveKtFile ExtractionPlan.empty()
 				}
-			}
-		} ?: ExtractionPlan.empty()
+
+				live.read { ktFile ->
+					val syntax = candidateExpressionsAt(ktFile, selectionStart, selectionEnd)
+					if (syntax.expressions.isEmpty()) return@read ExtractionPlan.empty(ktFile.text, documentVersion)
+
+					/* PsiFileImpl.getText() allocates a fresh String each call, so the plan pass reads it once and
+					 * threads it down to every candidate and rung. */
+					val fileText = ktFile.text
+					live.analyzing(AnalysisPriority.INTERACTIVE, checker) {
+						ExtractionPlan(
+							fileText = fileText,
+							documentVersion = documentVersion,
+							candidates = syntax.expressions.mapNotNull { candidateFor(it, fileText) },
+						)
+					}
+				}
+			} ?: ExtractionPlan.empty()
+		}
 	}.getOrElse { error ->
 		logger.warn("Failed to build extract-variable plan for {}", nioPath, error)
 		ExtractionPlan.empty()

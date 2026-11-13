@@ -2,7 +2,8 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
+import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.lsp.refactor.TextSpan
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
@@ -65,17 +66,23 @@ internal fun buildInlineVariablePlan(
 	nioPath: Path,
 	offset: Int,
 	documentVersion: Int,
-	cancelChecker: ScheduledCancelChecker,
+	cancelChecker: ICancelChecker,
 ): InlineVariablePlan =
 	runCatching {
-		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
-			live.read { ktFile ->
-				val fileText = ktFile.text
-				live.analyzing(AnalysisPriority.INTERACTIVE, cancelChecker) {
-					planFor(ktFile, fileText, offset, documentVersion)
+		/*
+		 * Another path's edit raises the analysis barrier for every priority, which preempts this
+		 * user-invoked plan; it is retried once, re-pinning the file, rather than failing the action.
+		 */
+		retryingOnPreemption(cancelChecker, "Inline-variable plan for $nioPath") { checker ->
+			env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+				live.read { ktFile ->
+					val fileText = ktFile.text
+					live.analyzing(AnalysisPriority.INTERACTIVE, checker) {
+						planFor(ktFile, fileText, offset, documentVersion)
+					}
 				}
-			}
-		} ?: InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
+			} ?: InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
+		}
 	}.getOrElse { error ->
 		if (error is CancellationException) throw error
 		logger.warn("Failed to build inline-variable plan for {}", nioPath, error)
