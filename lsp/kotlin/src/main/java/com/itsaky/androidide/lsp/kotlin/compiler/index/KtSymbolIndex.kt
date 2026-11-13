@@ -53,6 +53,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.StampedLock
 import kotlin.io.path.pathString
 
 /**
@@ -139,6 +140,13 @@ internal class KtSymbolIndex(
 	/** path -> last-launched version; read/written only inside that same `compute` section. */
 	private val currentVersions = ConcurrentHashMap<Path, Int>()
 
+	/** path -> the one [KtFile] an open document keeps across versions, edited in place. */
+	private val documents = ConcurrentHashMap<Path, IncrementalKtDocument>()
+
+	/** The in-place document held for [path], if it is open and has been parsed. */
+	@VisibleForTesting
+	internal fun incrementalDocument(path: Path): IncrementalKtDocument? = documents[path]
+
 	/**
 	 * path -> the instance pinned for the duration of one or more open [LiveKtFile] scopes.
 	 *
@@ -154,9 +162,15 @@ internal class KtSymbolIndex(
 	 */
 	private val pins = ConcurrentHashMap<Path, Pin>()
 
+	/**
+	 * @property stamp The read stamp held on [editLock] for the pin's lifetime, so no in-place edit
+	 * changes [file] under it; `0L` with no lock for a disk file.
+	 */
 	private class Pin(
 		val file: KtFile,
 		val version: Int,
+		val editLock: StampedLock?,
+		val stamp: Long,
 	) {
 		var count: Int = 0
 
@@ -277,7 +291,12 @@ internal class KtSymbolIndex(
 		val version = doc.version
 		val future =
 			currentFiles.compute(path) { p, existing ->
-				if (existing != null && !existing.isCompletedExceptionally && currentVersions[p] == version) {
+				val reusable =
+					existing != null &&
+						!existing.isCompletedExceptionally &&
+						currentVersions[p] == version &&
+						!existing.isDeferredBelow(version)
+				if (reusable) {
 					existing
 				} else {
 					currentVersions[p] = version
@@ -298,15 +317,85 @@ internal class KtSymbolIndex(
 	}
 
 	/**
-	 * Parses [path]'s live document into a fresh [KtFile], registers it as the in-memory file, and
-	 * transitions the module's FIR session (invalidate + reindex) so later analysis sees the content.
+	 * A refresh that found its document locked by a pin settles at the older applied version; it must
+	 * not count as the refresh for the version it was launched for.
+	 */
+	private fun CompletableFuture<VersionedKtFile>.isDeferredBelow(version: Int): Boolean =
+		getNow(null)?.let { it.version != version } ?: false
+
+	/**
+	 * Brings [path]'s [IncrementalKtDocument] to the live document and transitions the module's FIR
+	 * session (invalidate + reindex) so later analysis sees the content.
+	 *
+	 * The text is applied to the document's one [KtFile] in place. A path with no document yet, or an
+	 * edit that cannot be applied in place, takes a full parse into a fresh [KtFile] instead. A pinned
+	 * document is not edited: the edit is owed to the pin's release and the applied version returned.
 	 *
 	 * The result is stamped with [version] (captured when the refresh was launched) even though the
 	 * content is read later, here. FileManager writes version-before-content unsynchronized, so the
 	 * stamp may lag the content but never lead it: callers never get older-than-requested content, and
-	 * a lagging stamp only costs one redundant re-parse on the next request.
+	 * a lagging stamp only costs one redundant refresh on the next request.
 	 */
 	private fun refreshToCurrent(
+		path: Path,
+		version: Int,
+		old: KtFile?,
+	): VersionedKtFile {
+		// A document whose file is not the one this refresh succeeds was left behind by a close racing a
+		// refresh; editing it in place would skip the in-memory registration the close undid.
+		val doc =
+			documents[path]?.takeIf { old != null && it.ktFile === old }
+				?: return parseIntoNewDocument(path, version, old)
+		val stamp = doc.editLock.tryWriteLock()
+		if (stamp == 0L) {
+			// Never wait for the pin: it can be held across a whole analysis. Its release refreshes again.
+			pins[path]?.refreshOwed = true
+			return VersionedKtFile(doc.appliedVersion, doc.ktFile)
+		}
+		try {
+			val content = FileManager.getDocumentContents(path)
+			val outcome = applyInPlace(doc, content, version)
+			if (outcome is ReparseOutcome.Failed) {
+				logger.warn("in-place reparse of {} failed, parsing in full: {}", path, outcome.reason, outcome.cause)
+				return parseIntoNewDocument(path, version, doc.ktFile)
+			}
+			return VersionedKtFile(version, doc.ktFile)
+		} finally {
+			doc.editLock.unlockWrite(stamp)
+		}
+	}
+
+	private fun applyInPlace(
+		doc: IncrementalKtDocument,
+		content: CharSequence,
+		version: Int,
+	): ReparseOutcome =
+		AnalysisScheduler.preemptingAnalysis {
+			project.write {
+				val outcome =
+					ApplicationManager.getApplication().runWriteAction<ReparseOutcome> {
+						doc.apply(content, version).also { outcome ->
+							if (outcome.changedTree()) {
+								KaSourceModificationService
+									.getInstance(project)
+									.handleElementModification(doc.ktFile, KaElementModificationType.Unknown)
+							}
+						}
+					}
+				if (outcome.changedTree()) {
+					queueOnFileChangedAsync(doc.ktFile)
+				}
+				outcome
+			}
+		}
+
+	private fun ReparseOutcome.changedTree(): Boolean = this !is ReparseOutcome.Unchanged && this !is ReparseOutcome.Failed
+
+	/**
+	 * Parses [path]'s live document into a fresh [KtFile], registers it as the in-memory file, makes it
+	 * the path's [IncrementalKtDocument], and reports [old] (or the new file) modified.
+	 */
+	private fun parseIntoNewDocument(
 		path: Path,
 		version: Int,
 		old: KtFile?,
@@ -333,6 +422,7 @@ internal class KtSymbolIndex(
 				queueOnFileChangedAsync(newKtFile)
 			}
 		}
+		documents[path] = IncrementalKtDocument(newKtFile, version)
 		return VersionedKtFile(version, newKtFile)
 	}
 
@@ -353,6 +443,7 @@ internal class KtSymbolIndex(
 
 	/** Drops the cached current file for [path] (e.g. on close). */
 	fun invalidateCurrent(path: Path) {
+		documents.remove(path)
 		currentFiles.remove(path)
 		currentVersions.remove(path)
 		ProjectStructureProvider.getInstance(project).unregisterInMemoryFile(path.pathString)
@@ -454,13 +545,24 @@ internal class KtSymbolIndex(
 		path: Path,
 		resolved: VersionedKtFile,
 	): Pin {
+		val locked = if (resolved.version == NO_DOCUMENT_VERSION) null else lockCurrentDocument(path)
+		// The document's file is pinned rather than the resolved one: an in-place edit or a fallback may
+		// have moved on since the resolve, and the stamp only guards the document's own file.
+		val candidate =
+			locked?.let { (doc, stamp) -> Pin(doc.ktFile, doc.appliedVersion, doc.editLock, stamp) }
+				?: Pin(resolved.ktFile, resolved.version, null, 0L)
+		var joined = false
 		val pin =
 			pins.compute(path) { _, existing ->
-				// A concurrent acquirer may have won the race; join its pin and let this file go. Both
-				// resolved through the same single-flight future, so they are the same instance anyway.
-				existing?.also { it.count++ }
-					?: Pin(resolved.ktFile, resolved.version).also { it.count = 1 }
+				// A concurrent acquirer may have won the race; join its pin and let this file go.
+				existing?.also {
+					it.count++
+					joined = true
+				} ?: candidate.also { it.count = 1 }
 			}!!
+		if (joined) {
+			candidate.unlockStamp()
+		}
 
 		/*
 		 * The document can move on while the resolve is still parsing, so the pinned instance may already
@@ -475,14 +577,36 @@ internal class KtSymbolIndex(
 		return pin
 	}
 
+	/**
+	 * Read-locks [path]'s current document, or returns `null` if it has none (a disk file).
+	 *
+	 * The stamp is taken before the pin is published, so it may wait out an in-flight edit; that edit
+	 * can replace the document with a full parse, hence the re-check after the lock.
+	 */
+	private fun lockCurrentDocument(path: Path): Pair<IncrementalKtDocument, Long>? {
+		while (true) {
+			val doc = documents[path] ?: return null
+			val stamp = doc.editLock.readLock()
+			if (documents[path] === doc) return doc to stamp
+			doc.editLock.unlockRead(stamp)
+		}
+	}
+
+	private fun Pin.unlockStamp() {
+		editLock?.unlockRead(stamp)
+	}
+
 	private fun releasePin(path: Path) {
-		var refreshOwed = false
+		var released: Pin? = null
 		pins.compute(path) { _, pin ->
 			if (pin == null) return@compute null
 			if (--pin.count > 0) return@compute pin
-			refreshOwed = pin.refreshOwed
+			released = pin
 			null
 		}
+		val refreshOwed = released?.refreshOwed ?: false
+		// Unlocked before the owed refresh below is launched, so that refresh can take the write stamp.
+		released?.unlockStamp()
 
 		/*
 		 * Applied on the way out rather than during the pin: the version bump that arrived while the path

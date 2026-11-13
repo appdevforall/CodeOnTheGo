@@ -5,6 +5,7 @@ import com.itsaky.androidide.eventbus.events.editor.ChangeType
 import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
+import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
@@ -59,9 +60,10 @@ internal class LiveKtFilePinTest : KtLspTest() {
 	private fun bumpVersion(
 		path: Path,
 		version: Int,
+		text: String = content,
 	) {
 		FileManager.onDocumentContentChange(
-			DocumentChangeEvent(path, content, content, version, ChangeType.NEW_TEXT, 0, Range.NONE),
+			DocumentChangeEvent(path, text, text, version, ChangeType.NEW_TEXT, 0, Range.NONE),
 		)
 	}
 
@@ -164,31 +166,34 @@ internal class LiveKtFilePinTest : KtLspTest() {
 	fun `a refresh owed during a pin is applied after release`() {
 		val path = openDocument()
 
-		val pinnedId =
-			env.ktSymbolIndex.withLiveKtFile(path) { live ->
-				bumpVersion(path, 2)
-				// Answered from the pin, which leaves the refresh for the new version owed.
-				runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
-				val id = live.read { System.identityHashCode(it) }
-				val cached = env.ktSymbolIndex.peekLiveKtFile(path)
-				assertThat(System.identityHashCode(cached)).isEqualTo(id)
-				id
-			}!!
+		val bumped = "$content\n\nfun added(): Int = 0"
+		env.ktSymbolIndex.withLiveKtFile(path) { live ->
+			bumpVersion(path, 2, bumped)
+			// Answered from the pin, which leaves the refresh for the new version owed.
+			runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+			val id = live.read { System.identityHashCode(it) }
+			val cached = env.ktSymbolIndex.peekLiveKtFile(path)
+			assertThat(System.identityHashCode(cached)).isEqualTo(id)
+		}
 
 		// Nothing below asks for the current file, so only the release's own deferred refresh can
-		// replace the cached instance.
-		assertThat(awaitInstanceChange(path, pinnedId)).isTrue()
+		// bring the live file to the new text.
+		assertThat(awaitLiveText(path, bumped)).isTrue()
 	}
 
+	/**
+	 * Polls through [KtSymbolIndex.peekLiveKtFile] because it never refreshes: acquiring a pin would
+	 * launch the refresh itself and hide a release that forgot to.
+	 */
 	@OptIn(UnpinnedKtFileAccess::class)
-	private fun awaitInstanceChange(
+	private fun awaitLiveText(
 		path: Path,
-		staleId: Int,
+		expected: String,
 	): Boolean {
 		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(REFRESH_TIMEOUT_SECONDS)
 		while (System.nanoTime() < deadline) {
-			val current = env.ktSymbolIndex.peekLiveKtFile(path)
-			if (current != null && System.identityHashCode(current) != staleId) return true
+			val text = env.project.read { env.ktSymbolIndex.peekLiveKtFile(path)?.text }
+			if (text == expected) return true
 			Thread.sleep(POLL_INTERVAL_MILLIS)
 		}
 		return false

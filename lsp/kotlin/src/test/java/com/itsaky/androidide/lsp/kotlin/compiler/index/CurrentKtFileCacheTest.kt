@@ -104,7 +104,7 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 	}
 
 	@Test
-	fun `new version returns new instance reflecting new content`() {
+	fun `new version keeps the same instance with the new content`() {
 		createSourceFile("B.kt", "fun b() {}")
 		val path = sourcePath("B.kt")
 		openDocument(path, "fun b() {}")
@@ -113,7 +113,7 @@ internal class CurrentKtFileCacheTest : KtLspTest() {
 		changeDocument(path, "fun b() {}\nfun c() {}", 2)
 		val v2 =
 			env.ktSymbolIndex.withLiveKtFile(path) { live ->
-				live.read { (it !== v1) to it.text }
+				live.read { (it === v1) to it.text }
 			}!!
 
 		assertNotNull(v1)
