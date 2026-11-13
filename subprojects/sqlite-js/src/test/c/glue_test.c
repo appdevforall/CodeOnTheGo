@@ -108,6 +108,29 @@ static int exec_cancelled (sqlite3 *db, const char *sql) {
     return rc;
 }
 
+// Runs sql, interrupting its connection with sqlite3_interrupt() once it has called started()
+static sqlite3 *interrupt_db;
+
+static void *interrupt_when_started (void *arg) {
+    (void)arg;
+    for (int i = 0; (i < 2000) && !__atomic_load_n(&js_started, __ATOMIC_ACQUIRE); i++) usleep(10 * 1000);
+    usleep(20 * 1000);
+    sqlite3_interrupt(interrupt_db);
+    return NULL;
+}
+
+static int exec_interrupted (sqlite3 *db, const char *sql) {
+    pthread_t thread;
+    js_started = 0;
+    interrupt_db = db;
+    if (pthread_create(&thread, NULL, interrupt_when_started, NULL) != 0) return SQLITE_ERROR;
+    alarm(30);
+    int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+    alarm(0);
+    pthread_join(thread, NULL);
+    return rc;
+}
+
 // stops every statement once it has run 1000 instructions, as Android's cancelling does
 static int stop_statement (void *arg) {
     (void)arg;
@@ -281,7 +304,8 @@ int main (void) {
                              "db.exec(\"SELECT started()\").next(); for (;;) {}')") != SQLITE_OK,
           "a cancel stops JavaScript that keeps a result set open");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
-    check(answers(db, "SELECT js_eval('held.next()')", "interrupted"), "the kept result set was ended");
+    check(answers(db, "SELECT js_eval('try { held.next(); \"open\" } catch (e) { \"ended: \" + e.message }')", "ended: interrupted"),
+          "the kept result set was ended");
 
     // Ending a result set that is computing a window function runs the function's final, which
     // begins after the cancel: the cancel must still stop it, also before SQLite 3.41 (0007).
@@ -293,6 +317,17 @@ int main (void) {
                              "FROM (VALUES (1), (2), (3))\"); held.next(); db.exec(\"SELECT started()\").next(); for (;;) {}')") != SQLITE_OK,
           "a cancel ends a kept result set whose window function's final never ends");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
+
+    // A direct sqlite3_interrupt() that reaches the SQL of a db.exec, while another result set is
+    // kept: the kept one is ended, so the connection runs SQL afterwards. Before SQLite 3.41, the
+    // step's SQLITE_INTERRUPT is the only sign of it (0007), and that query never ends otherwise.
+    check(exec_interrupted(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); held.next(); "
+                               "db.exec(\"SELECT started()\").next(); "
+                               "db.exec(\"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c\").next()')") != SQLITE_OK,
+          "sqlite3_interrupt() stops db.exec SQL while another result set is kept");
+    check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that interrupt");
+    check(answers(db, "SELECT js_eval('try { held.next(); \"open\" } catch (e) { \"ended: \" + e.message }')", "ended: interrupted"),
+          "the kept result set was ended");
 
     // A progress handler that stops a statement, as Android's cancelling does, interrupts nothing
     // else, so it leaves result sets that earlier calls kept. Before 3.41, which cannot tell it
