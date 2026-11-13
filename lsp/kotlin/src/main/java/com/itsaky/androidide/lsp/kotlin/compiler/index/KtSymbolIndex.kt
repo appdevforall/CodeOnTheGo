@@ -296,11 +296,12 @@ internal class KtSymbolIndex(
 		val version = doc.version
 		val future =
 			currentFiles.compute(path) { p, existing ->
+				// The failure check runs last so a refresh that fails while the others are evaluated is relaunched.
 				val reusable =
 					existing != null &&
-						!existing.isCompletedExceptionally &&
 						currentVersions[p] == version &&
-						!existing.isDeferredBelow(version)
+						!existing.isDeferredBelow(version) &&
+						!existing.isCompletedExceptionally
 				if (reusable) {
 					existing
 				} else {
@@ -323,10 +324,11 @@ internal class KtSymbolIndex(
 
 	/**
 	 * A refresh that found its document locked by a pin settles at the older applied version; it must
-	 * not count as the refresh for the version it was launched for.
+	 * not count as the refresh for the version it was launched for. A failed refresh has no value, so
+	 * it does not count as deferred; the caller's own failure check relaunches it.
 	 */
 	private fun CompletableFuture<VersionedKtFile>.isDeferredBelow(version: Int): Boolean =
-		getNow(null)?.let { it.version != version } ?: false
+		valueNowOrNull()?.let { it.version != version } ?: false
 
 	/**
 	 * Brings [path]'s [IncrementalKtDocument] to the live document and transitions the module's FIR
@@ -456,7 +458,10 @@ internal class KtSymbolIndex(
 				queueOnFileChangedAsync(newKtFile)
 			}
 		}
-		documents[path] = IncrementalKtDocument(newKtFile, version)
+		// A close during the parse already ran invalidateCurrent; a document stored now would outlive it.
+		if (FileManager.isActive(path)) {
+			documents[path] = IncrementalKtDocument(newKtFile, version)
+		}
 		return VersionedKtFile(version, newKtFile)
 	}
 
@@ -824,3 +829,7 @@ internal fun KtSymbolIndex.findSymbolBySimpleName(
 	sourceIndex.findBySimpleName(name, limit, kinds) +
 		libraryIndex.findBySimpleName(name, limit, kinds)
 ).let { if (limit <= 0) it else it.take(limit) }
+
+/** This future's value if it has completed normally, else `null`. */
+@VisibleForTesting
+internal fun <T> CompletableFuture<T>.valueNowOrNull(): T? = runCatching { getNow(null) }.getOrNull()

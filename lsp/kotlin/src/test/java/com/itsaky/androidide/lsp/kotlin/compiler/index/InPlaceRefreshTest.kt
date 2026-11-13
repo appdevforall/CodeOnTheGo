@@ -5,9 +5,14 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.future.future
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.psi.KtFile
@@ -18,6 +23,7 @@ import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Test
 import java.nio.file.Path
+import java.util.concurrent.TimeUnit.SECONDS
 
 /** Requirement: an open document keeps one [KtFile], edited in place, with pins deferring the edit. */
 internal class InPlaceRefreshTest : KtLspTest() {
@@ -162,5 +168,28 @@ internal class InPlaceRefreshTest : KtLspTest() {
 		assertNotSame(failing, env.ktSymbolIndex.incrementalDocument(path))
 		assertEquals("fun e(): Int = 1\nfun f(): Int = e()", pinnedText(path))
 		assertEquals(emptyList<String>(), diagnosticMessages)
+	}
+
+	@Test
+	fun `a full parse that finishes after close leaves no document behind`() {
+		createSourceFile("G.kt", "fun g() {}")
+		val path = sourcePath("G.kt")
+		openDocument(path, "fun g() {}")
+
+		// The parse needs project.read, so holding the write lock keeps it in flight across the close.
+		val refresh =
+			env.project.write {
+				// Undispatched, so the refresh is launched on this thread before the close below.
+				val inFlight =
+					CoroutineScope(Dispatchers.IO).future(start = CoroutineStart.UNDISPATCHED) {
+						env.ktSymbolIndex.refreshCurrentKtFile(path)
+					}
+				closeDocument(path)
+				env.ktSymbolIndex.invalidateCurrent(path)
+				inFlight
+			}
+		refresh.get(10, SECONDS)
+
+		assertEquals(null, env.ktSymbolIndex.incrementalDocument(path))
 	}
 }
