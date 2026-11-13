@@ -10,7 +10,13 @@ pipeline does), and in ONE transaction:
     i/<file>, templateId of helpmanual-topic.peb, text/html, EN-us;
   - appends a section that links to the new pages to i/terminal-top.html,
     unless it has one. The page's other sections start collapsed, so the link
-    gets a heading of its own, where readers see it;
+    gets a heading of its own, where readers see it. The page is either a
+    template context (JSON, rendered by helpmanual-topic.peb), as in databases
+    up to wholedb 2026-10-16, or a finished Help+Manual page (HTML), as from
+    wholedb 2026-11-02; the section goes at the end of the topic's body in both.
+    A database of the second kind also stores the page's i/jstopics/
+    terminal-top.js, which the help viewer loads to move between pages, so the
+    section goes into that file's hmBody too;
   - if a page or the link changed, stamps the content-i and wholedb rows of
     LastChange, inserting any that is missing, as docdb-studio does.
 Any failure rolls everything back. A second run changes nothing.
@@ -23,6 +29,7 @@ file in place, and the master lives in OfflineDocumentationTools' workflow.
 """
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -37,6 +44,43 @@ LINK_HTML = ('<h1 class="p_Heading1" style="page-break-after: avoid;"><a id="sql
              '<p class="p_Normal">To write SQL functions in JavaScript, see '
              '<a href="sqlite-js-top.html" class="topiclink">JavaScript in SQLite (sqlite-js)</a>.</p>\r\n')
 WHO = "ADFA-7083"
+# A finished page's topic body ends where the skin closes its scroller div.
+HTML_BODY_END = re.compile(r"\n\s*</div>\s*<!-- hmpagebody_scroller -->")
+# A stored jstopics file is hmLoadTopic({...}) whose last property is the hmBody string.
+JSTOPIC_BODY_END = re.compile(r'"\s*\}\)\s*$')
+
+
+def add_link(text):
+    """The page with the link section added, or None if it already has it."""
+    if text.lstrip("\ufeff \t\r\n").startswith("{"):
+        page = json.loads(text)
+        if 'id="sqlite-js"' in page["hmBody"]:
+            return None
+        page["hmBody"] += LINK_HTML
+        return json.dumps(page, ensure_ascii=False)
+    if 'id="sqlite-js"' in text:
+        return None
+    ends = list(HTML_BODY_END.finditer(text))
+    if len(ends) != 1:
+        raise RuntimeError("i/%s is HTML, but its topic body's end was found %d times, not once"
+                           % (LINK_FILE, len(ends)))
+    at = ends[0].start()
+    return text[:at] + "\n" + LINK_HTML.replace("\r\n", "\n").rstrip("\n") + text[at:]
+
+
+def add_link_to_jstopic(text):
+    """The jstopics file with the link section added to its hmBody, or None if it has it."""
+    if 'id=\\"sqlite-js\\"' in text:
+        return None
+    ends = list(JSTOPIC_BODY_END.finditer(text))
+    body = text.rfind("hmBody:")
+    if len(ends) != 1 or body < 0 or re.search(r"\n\s*hm\w+:", text[body:]):
+        raise RuntimeError("i/jstopics/%s does not end with its hmBody string" % LINK_FILE.replace(".html", ".js"))
+    # escaped as Help+Manual writes these strings: \" for quotes, <\/ for </, \n\r at line ends
+    escaped = (LINK_HTML.replace("\\", "\\\\").replace('"', '\\"').replace("</", "<\\/")
+               .replace("\r\n", "\\n\\r"))
+    at = ends[0].start()
+    return text[:at] + escaped + text[at:]
 
 
 def brotli(args, data, workdir):
@@ -111,16 +155,28 @@ def main():
             row = db.execute("SELECT content FROM Content WHERE path = ?", ("i/" + LINK_FILE,)).fetchone()
             if row is None:
                 raise RuntimeError("i/%s is not in the database" % LINK_FILE)
-            page = json.loads(brotli(["-d", "-D", dict_path], row[0], work))
-            if LINK_TARGET in page["hmBody"]:
+            linked = add_link(brotli(["-d", "-D", dict_path], row[0], work).decode("utf-8"))
+            if linked is None:
                 print("i/%s already links to %s" % (LINK_FILE, LINK_TARGET))
             else:
-                page["hmBody"] += LINK_HTML
-                blob = brotli(["-q", "11", "-w", "24", "-D", dict_path],
-                              json.dumps(page, ensure_ascii=False).encode("utf-8"), work)
+                blob = brotli(["-q", "11", "-w", "24", "-D", dict_path], linked.encode("utf-8"), work)
                 db.execute("UPDATE Content SET content = ? WHERE path = ?", (blob, "i/" + LINK_FILE))
                 changed = True
                 print("added a link to i/%s" % LINK_FILE)
+
+            jstopic = "i/jstopics/" + LINK_FILE.replace(".html", ".js")
+            row = db.execute("SELECT content FROM Content WHERE path = ?", (jstopic,)).fetchone()
+            if row is None:
+                print("%s is not stored: the app renders it from the page" % jstopic)
+            else:
+                linked = add_link_to_jstopic(brotli(["-d", "-D", dict_path], row[0], work).decode("utf-8"))
+                if linked is None:
+                    print("%s already links to %s" % (jstopic, LINK_TARGET))
+                else:
+                    blob = brotli(["-q", "11", "-w", "24", "-D", dict_path], linked.encode("utf-8"), work)
+                    db.execute("UPDATE Content SET content = ? WHERE path = ?", (blob, jstopic))
+                    changed = True
+                    print("added a link to %s" % jstopic)
 
             # Stamp the sets' rows rather than add rows: the app reads wholedb with LIMIT 1 and no order.
             if changed:
