@@ -70,7 +70,8 @@ class JobCancelChecker @JvmOverloads constructor(
 	}
 
 	override fun abortIfCancelled() {
-		job?.ensureActive()
+		// cancel() drops the job reference, so fall back to the flag once it is gone.
+		job?.ensureActive() ?: super.abortIfCancelled()
 	}
 }
 

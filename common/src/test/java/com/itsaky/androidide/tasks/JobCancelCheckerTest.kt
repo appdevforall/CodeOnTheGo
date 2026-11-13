@@ -1,6 +1,7 @@
 package com.itsaky.androidide.tasks
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,6 +10,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class JobCancelCheckerTest {
@@ -80,6 +82,25 @@ class JobCancelCheckerTest {
 			assertThat(fired).isTrue()
 			gate.complete(Unit)
 		}
+
+	@Test
+	fun `abortIfCancelled throws after the job is cancelled`() {
+		val job = Job()
+		val checker = JobCancelChecker(job)
+
+		job.cancel()
+
+		assertThrows(CancellationException::class.java) { checker.abortIfCancelled() }
+	}
+
+	@Test
+	fun `abortIfCancelled throws after the checker is cancelled`() {
+		val checker = JobCancelChecker(Job())
+
+		checker.cancel()
+
+		assertThrows(CancellationException::class.java) { checker.abortIfCancelled() }
+	}
 
 	/** A plain child Job completes as soon as its parent is cancelled, so use a body that ignores cancellation. */
 	private suspend fun runUncancellableChild(parent: Job): CompletableDeferred<Unit> {
