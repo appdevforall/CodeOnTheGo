@@ -123,6 +123,25 @@ class MemprofTest {
 	}
 
 	@Test
+	fun `a manually started section without a sink is the inert span`() {
+		assertThat(Memprof.beginSection("Tooling message", "bytes=1")).isSameInstanceAs(MemprofSpan.None)
+	}
+
+	@Test
+	fun `a manually started section stays open until its owner ends it`() {
+		Memprof.sink = sink
+
+		val span = Memprof.beginSection("Tooling message", "bytes=1")
+		val eventsWhileOpen = sink.events.toList()
+		span.end()
+
+		assertThat(eventsWhileOpen).containsExactly("begin section Tooling message bytes=1")
+		assertThat(sink.events)
+			.containsExactly("begin section Tooling message bytes=1", "end section Tooling message")
+			.inOrder()
+	}
+
+	@Test
 	fun `a mark reaches an installed sink`() {
 		Memprof.sink = sink
 

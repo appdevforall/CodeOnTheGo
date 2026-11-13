@@ -23,30 +23,31 @@ import org.eclipse.lsp4j.jsonrpc.RemoteEndpoint
 import org.eclipse.lsp4j.jsonrpc.messages.Message
 import org.eclipse.lsp4j.jsonrpc.messages.NotificationMessage
 import org.eclipse.lsp4j.jsonrpc.messages.RequestMessage
-import java.io.FilterInputStream
 import java.io.InputStream
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Measures what the tooling server sends the IDE, so the cost of a build in the IDE's heap can be
  * told apart from the Gradle daemon's.
  *
  * Each build is a [Memprof] phase from `client/prepareBuild` to `client/onBuildSuccessful` or
- * `client/onBuildFailed`, reporting message counts and bytes per JSON-RPC method. Every message of
- * at least [LARGE_MESSAGE_BYTES] is also a [Memprof] section of its own.
+ * `client/onBuildFailed`, reporting message counts and content bytes per JSON-RPC method. Every
+ * message of at least [LARGE_MESSAGE_BYTES] is also a [Memprof] section of its own, opened once its
+ * headers are read so it covers reading, decoding and parsing the content as well as handling it.
  *
  * [MemprofSession] installs it as the [ToolingMessageTap] factory. It logs a line per
  * [PROGRESS_EVERY] messages to logcat (see [MemprofLog] for why not slf4j).
  */
 internal class ToolingMessageProbe : ToolingMessageTap {
-	private val bytesRead = AtomicLong()
-	private var bytesAtLastMessage = 0L
+	private var size = 0L
+
+	@Volatile
+	private var largeMessage: MemprofSpan? = null
 
 	@Volatile
 	private var build: BuildStats? = null
 
-	/** Counts the server's output so the probe can size each message it carries. */
-	override fun wrapInput(input: InputStream): InputStream = CountingInputStream(input, bytesRead)
+	/** Follows the server's message framing, to size each message before it is read. */
+	override fun wrapInput(input: InputStream): InputStream = MessageBoundaryInputStream(input, ::onContentStart)
 
 	/** Wraps the consumer of incoming messages; outgoing ones pass through untouched. */
 	override fun wrapMessages(consumer: MessageConsumer): MessageConsumer =
@@ -56,9 +57,16 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 			consumer
 		}
 
-	/** Abandons the open build span, in case the server exited mid-build. */
+	/** Abandons the open spans, in case the server exited mid-build or mid-message. */
 	override fun onServerStopped() {
+		abandonLargeMessage()
 		abandonBuild()
+	}
+
+	private fun abandonLargeMessage() {
+		val open = largeMessage
+		largeMessage = null
+		open?.abandon()
 	}
 
 	private fun abandonBuild() {
@@ -68,17 +76,25 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 	}
 
 	/*
-	 * Runs on the launcher's single reader thread. That thread reads exactly one message's bytes
-	 * before handing it over, so the byte count since the previous message is this message's size.
+	 * Runs on the launcher's single reader thread, as does receive(), so each message's start is
+	 * seen before that message is handed over.
 	 */
+	private fun onContentStart(contentLength: Long) {
+		// A message that failed to parse never reached receive(), so its section is still open.
+		abandonLargeMessage()
+		size = contentLength
+		if (contentLength >= LARGE_MESSAGE_BYTES) {
+			largeMessage = Memprof.beginSection("Tooling message", "bytes=$contentLength")
+		}
+	}
+
 	private fun receive(
 		message: Message,
 		delegate: MessageConsumer,
 	) {
-		val total = bytesRead.get()
-		val size = total - bytesAtLastMessage
-		bytesAtLastMessage = total
 		val method = methodOf(message)
+		val section = largeMessage
+		largeMessage = null
 
 		if (method == PREPARE_BUILD) {
 			abandonBuild()
@@ -86,11 +102,14 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 		}
 		build?.record(method, size)
 
-		if (size >= LARGE_MESSAGE_BYTES) {
+		if (section != null) {
 			log.i("MEMPROF|tooling_large_message|{}|method={}|bytes={}", System.currentTimeMillis(), method, size)
-			Memprof.section("Tooling message", "$method bytes=$size") { span ->
-				span.put("bytes", size)
+			section.put("bytes", size)
+			try {
 				delegate.consume(message)
+				section.end()
+			} finally {
+				section.abandon()
 			}
 		} else {
 			delegate.consume(message)
@@ -154,25 +173,6 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 			}
 			span.end()
 		}
-	}
-
-	private class CountingInputStream(
-		input: InputStream,
-		private val count: AtomicLong,
-	) : FilterInputStream(input) {
-		override fun read(): Int =
-			super.read().also { byte ->
-				if (byte >= 0) count.incrementAndGet()
-			}
-
-		override fun read(
-			buffer: ByteArray,
-			offset: Int,
-			length: Int,
-		): Int =
-			super.read(buffer, offset, length).also { n ->
-				if (n > 0) count.addAndGet(n.toLong())
-			}
 	}
 
 	companion object {
