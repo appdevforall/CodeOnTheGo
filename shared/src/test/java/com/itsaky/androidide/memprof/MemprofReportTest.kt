@@ -84,6 +84,19 @@ class MemprofReportTest {
 	}
 
 	@Test
+	fun `allocation columns say they count the whole process, not the phase or work alone`() {
+		val phase = report.phaseStarted("Parse project model", START, counters())
+		report.phaseEnded(phase, START + 1, counters(), emptyMap())
+		report.sectionEnded("Index Kotlin file", "Foo.kt", durationMs = 1, allocatedBytes = MB)
+
+		val rendered = render()
+
+		assertThat(rowOf(rendered, "Phase ")).containsAtLeast("Proc alloc", "Proc alloc - freed").inOrder()
+		assertThat(rowOf(rendered, "Work ")).contains("Proc alloc")
+		assertThat(rowOf(rendered, "Phase ")).doesNotContain("Allocated")
+	}
+
+	@Test
 	fun `the heap peak names the phase it happened in`() {
 		val phase = report.phaseStarted("Index Kotlin sources", START, counters())
 		report.sampled(usedBytes = 512 * MB)

@@ -165,7 +165,7 @@ class BackgroundIndexer<T : Indexable>(
 								progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
 							}
 						}
-					// The section's allocatedBytes counts the whole process, and sources index concurrently,
+					// The section's procAllocBytes counts the whole process, and sources index concurrently,
 					// so each source's figure also holds its neighbours' allocations: an upper bound, not
 					// this source's share. Duration and entry count are this source's own.
 					Memprof.section("Index library source", sourceId) { span ->

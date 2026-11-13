@@ -131,7 +131,7 @@ class MemprofReport(
 		}
 
 		val header =
-			listOf("Phase", "Start", "Time", "Allocated", "Alloc - freed", "Peak heap", "Blocking GCs", "")
+			listOf("Phase", "Start", "Time", "Proc alloc", "Proc alloc - freed", "Peak heap", "Blocking GCs", "")
 		appendTable(listOf(header) + phases.map { it.row(nowMs, counters) })
 	}
 
@@ -142,7 +142,7 @@ class MemprofReport(
 
 		appendLine()
 		appendLine("Repeated work")
-		val header = listOf("Work", "Count", "Total time", "Allocated", "Largest single instance")
+		val header = listOf("Work", "Count", "Total time", "Proc alloc", "Largest single instance")
 		appendTable(listOf(header) + repeatedWork.values.map { it.row() })
 	}
 
