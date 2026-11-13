@@ -10,8 +10,8 @@ import java.io.File
 
 /**
  * What plugins hear as the active file (ADFA-7141). EditorHandlerActivity reports
- * [EditorViewModel.displayedFile] each time the displayed index changes; reading the current file
- * there named the tab being left, because the index is set before the current file.
+ * [EditorViewModel.displayedFile] each time the displayed index changes, and plugins may read the
+ * current file in that callback; both used to name the tab being left.
  */
 class EditorViewModelDisplayedFileTest {
 	@get:Rule
@@ -56,11 +56,26 @@ class EditorViewModelDisplayedFileTest {
 		open(b)
 		heard.clear()
 
-		// What BaseEditorActivity.onTabSelected does: the file at the index, then the editor's file.
-		viewModel.setCurrentFile(0, viewModel.getOpenedFiles().getOrNull(0))
-		viewModel.setCurrentFile(0, a)
+		currentInCallback.clear()
+
+		// What BaseEditorActivity.onTabSelected does: select the index, then again with the editor's file.
+		viewModel.selectFile(0)
+		viewModel.selectFile(0, a)
 
 		assertThat(heard).containsExactly(a, a)
+		assertThat(currentInCallback).containsExactly(a, a)
+	}
+
+	@Test
+	fun aTabWhoseEditorHasNotLoadedKeepsTheOpenedFileCurrent() {
+		open(a)
+		open(b)
+
+		// A new editor knows its file only once its text has loaded.
+		viewModel.selectFile(0)
+		viewModel.selectFile(0, editorFile = null)
+
+		assertThat(viewModel.getCurrentFile()).isEqualTo(a)
 	}
 
 	@Test

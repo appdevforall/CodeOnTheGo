@@ -477,11 +477,22 @@ class EditorViewModel : ViewModel() {
 	fun getCurrentFile(): File? = mCurrentFile.value?.second
 
 	/**
-	 * The file at [displayedFileIndex], or null when it is -1 (a plugin tab just added, or no file
-	 * open). Observers of the displayed index read this rather than [getCurrentFile], which a new
-	 * plugin tab leaves at the last file.
+	 * The file at [displayedFileIndex], or null when there is none there: -1 (a plugin tab just
+	 * added, or no file open), or briefly an index past the end while a tab is added or closed.
+	 * Observers of the displayed index read this rather than [getCurrentFile], which a new plugin
+	 * tab leaves at the last file.
 	 */
 	fun displayedFile(): File? = files.getOrNull(displayedFileIndex)
+
+	/**
+	 * Shows the opened file at [index], as a selected tab does. [editorFile] is the tab's editor's
+	 * own file, null until a new editor has loaded its text; the opened file stands in until then,
+	 * so the current file is never null while a file is shown.
+	 */
+	fun selectFile(
+		index: Int,
+		editorFile: File? = null,
+	) = setCurrentFile(index, editorFile ?: files.getOrNull(index))
 
 	/**
 	 * Get the [OpenedFilesCache] if it is already loaded, otherwise read the cache from the file system
