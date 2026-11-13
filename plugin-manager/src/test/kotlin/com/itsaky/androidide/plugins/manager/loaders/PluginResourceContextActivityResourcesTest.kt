@@ -1,13 +1,13 @@
 package com.itsaky.androidide.plugins.manager.loaders
 
 import android.app.Activity
-import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.content.res.loader.ResourcesLoader
 import android.util.TypedValue
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.widget.TextView
 import com.google.common.truth.Truth.assertThat
@@ -21,10 +21,18 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * A plugin with its own resource package id must leave the activity's Resources alone: adding its
- * loader there makes Android 11+ rebuild them during the tab's first inflation, and the views built
- * then drew sp text at about half size (ADFA-7142). Robolectric does not reproduce the size error,
- * so this pins the mutation and that sp text through the plugin keeps matching the activity's.
+ * A plugin with its own resource package id inflates its views against a copy of the activity's
+ * Resources, which adding its loader never rebuilds mid-inflation (ADFA-7142). The activity's own
+ * Resources carry the loader too, because plugins also resolve their ids through the activity:
+ * AI Core's ChatFragment calls Fragment.getString and builds dialogs on
+ * ContextThemeWrapper(requireContext(), R.style.PluginTheme).
+ *
+ * Robolectric does not reproduce the half-size text and cannot load an APK into a ResourcesLoader,
+ * so these pin where the loader goes, not that a plugin id resolves. It also has no shadow for the
+ * native theme rebase that adding a loader to the activity triggers: any theme made on the
+ * activity's Resources before that, the activity's own included, can then neither build views nor
+ * be copied. So sp sizes are resolved through each side's DisplayMetrics, and the one inflation
+ * test snapshots a host theme made after the patch.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "xxhdpi")
@@ -67,26 +75,47 @@ class PluginResourceContextActivityResourcesTest {
 	}
 
 	@Test
-	fun theFirstInflationAddsThePluginsLoaderToACopyNotToTheActivity() {
-		val activityAssets = activity.resources.assets
+	fun onceThePluginContextIsUsedItsLoaderIsReachableThroughTheActivity() {
+		pluginInflater.context.resources
 
-		val view = pluginInflater.inflate(android.R.layout.simple_list_item_1, null, false)
+		// AI Core: Fragment.getString resolves through requireContext(), and its dialogs through
+		// ContextThemeWrapper(requireContext(), R.style.PluginTheme).
+		assertThat(loadersOf(activity.resources)).contains(pluginLoader)
+		assertThat(loadersOf(ContextThemeWrapper(activity, android.R.style.Theme_Material).resources))
+			.contains(pluginLoader)
+	}
+
+	@Test
+	fun thePluginContextHandsOutACopyOfTheActivitysResourcesThatCarriesTheLoader() {
+		val resources = pluginInflater.context.resources
+
+		assertThat(resources).isNotSameInstanceAs(activity.resources)
+		assertThat(loadersOf(resources)).contains(pluginLoader)
+	}
+
+	@Test
+	fun pluginViewsAndThemeAreBuiltOnTheCopy() {
+		pluginInflater.context.resources
+		val host = ContextThemeWrapper(activity, android.R.style.Theme_Material)
+		val inflater = PluginFragmentHelper.getPluginInflater(PLUGIN_ID, LayoutInflater.from(host))
+
+		val view = inflater.inflate(android.R.layout.simple_list_item_1, null, false)
 
 		assertThat(view).isInstanceOf(TextView::class.java)
-		assertThat(loadersOf(activity.resources)).isEmpty()
-		assertThat(activity.resources.assets).isSameInstanceAs(activityAssets)
-		assertThat(loadersOf(pluginInflater.context.resources)).containsExactly(pluginLoader)
+		assertThat(view.resources).isNotSameInstanceAs(activity.resources)
+		assertThat(view.resources).isSameInstanceAs(inflater.context.resources)
+		assertThat(inflater.context.theme.resources).isSameInstanceAs(view.resources)
 	}
 
 	@Test
-	fun spTextThroughThePluginMatchesTheActivity() {
-		assertThat(spTextSize(pluginInflater.context)).isEqualTo(spTextSize(activity))
+	fun spThroughThePluginMatchesTheActivity() {
+		assertThat(sp15(pluginInflater.context.resources)).isEqualTo(sp15(activity.resources))
 	}
 
 	@Test
-	fun spTextThroughThePluginFollowsAFontScaleChangeTheActivityHandlesItself() {
-		val before = spTextSize(activity)
-		assertThat(spTextSize(pluginInflater.context)).isEqualTo(before)
+	fun spThroughThePluginFollowsAFontScaleChangeTheActivityHandlesItself() {
+		val before = sp15(pluginInflater.context.resources)
+		assertThat(before).isEqualTo(sp15(activity.resources))
 
 		// EditorActivityKt declares fontScale in configChanges, so its Resources object is kept and
 		// updated in place rather than replaced.
@@ -96,11 +125,11 @@ class PluginResourceContextActivityResourcesTest {
 			activity.resources.displayMetrics,
 		)
 
-		assertThat(spTextSize(activity)).isGreaterThan(before)
-		assertThat(spTextSize(pluginInflater.context)).isEqualTo(spTextSize(activity))
+		assertThat(sp15(activity.resources)).isGreaterThan(before)
+		assertThat(sp15(pluginInflater.context.resources)).isEqualTo(sp15(activity.resources))
 	}
 
-	private fun spTextSize(context: Context): Float = TextView(context).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f) }.textSize
+	private fun sp15(resources: Resources): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 15f, resources.displayMetrics)
 
 	/** Resources.getLoaders() is hidden; Robolectric's framework jar still has it. */
 	private fun loadersOf(resources: Resources): List<*> = Resources::class.java.getMethod("getLoaders").invoke(resources) as List<*>

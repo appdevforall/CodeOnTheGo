@@ -85,13 +85,19 @@ class PluginResourceContext(
 		oldAssetManager?.close()
 	}
 
+	// The activity's Resources only: each copy gets the loader once, when it is built.
 	private var patchedResources: Resources? = null
 	private var cachedLoader: ResourcesLoader? = null
 	private var cachedProvider: ResourcesProvider? = null
 
-	@Suppress("NewApi")
 	private fun ensurePluginResourcesAdded(targetResources: Resources) {
 		if (patchedResources === targetResources) return
+		addPluginResources(targetResources)
+		patchedResources = targetResources
+	}
+
+	@Suppress("NewApi")
+	private fun addPluginResources(targetResources: Resources) {
 		val sourceDir = pluginSourceDir ?: return
 
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -103,20 +109,16 @@ class PluginResourceContext(
 					}
 				}
 				targetResources.addLoaders(cachedLoader!!)
-				patchedResources = targetResources
 				Log.d(TAG, "Added plugin resources via ResourcesLoader for ${pluginPackageInfo?.packageName}")
 			} catch (e: FileNotFoundException) {
 				Log.e(TAG, "ResourcesLoader failed, falling back to addAssetPath", e)
 				addAssetPathFallback(targetResources.assets, sourceDir)
-				patchedResources = targetResources
 			} catch (e: IOException) {
 				Log.e(TAG, "ResourcesLoader failed, falling back to addAssetPath", e)
 				addAssetPathFallback(targetResources.assets, sourceDir)
-				patchedResources = targetResources
 			}
 		} else {
 			addAssetPathFallback(targetResources.assets, sourceDir)
-			patchedResources = targetResources
 		}
 	}
 
@@ -136,24 +138,24 @@ class PluginResourceContext(
 	private var hostResources: Resources? = null
 
 	/**
-	 * [actCtx]'s resources with this plugin's APK added. On Android 11+ that goes on a copy pinned to
-	 * the activity's current configuration: adding a loader to the activity's own Resources rebuilds
-	 * them and rebases its themes during the tab's first inflation, and the views built then drew sp
-	 * text at about half size (ADFA-7142). Before R there are no loaders and the activity's assets are
-	 * patched in place.
+	 * The Resources this plugin's views are built on. On Android 11+ that is a copy of [actCtx]'s,
+	 * pinned to its current configuration and never changed once handed out: built on the activity's
+	 * own, which addLoaders had just rebuilt, a tab's first views drew sp text at about half size
+	 * (ADFA-7142). The activity's Resources still get the loader, and first, because plugins also
+	 * resolve their ids through the activity, as AI Core's ChatFragment does with Fragment.getString
+	 * and ContextThemeWrapper(requireContext(), R.style.PluginTheme). Before R there are no loaders,
+	 * and the activity's assets are patched in place.
 	 */
 	private fun pluginResourcesFor(actCtx: Context): Resources {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-			ensurePluginResourcesAdded(actCtx.resources)
-			return actCtx.resources
-		}
+		ensurePluginResourcesAdded(actCtx.resources)
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return actCtx.resources
 		val config = actCtx.resources.configuration
 		val cached = hostResources
 		if (cached != null && hostResourcesOwner?.get() === actCtx && hostResourcesConfig == config) return cached
 
 		val pinned = Configuration(config)
 		val res = actCtx.createConfigurationContext(pinned).resources
-		ensurePluginResourcesAdded(res)
+		addPluginResources(res)
 		hostResourcesOwner = WeakReference(actCtx)
 		hostResourcesConfig = pinned
 		hostResources = res
@@ -184,8 +186,8 @@ class PluginResourceContext(
 		return pluginResourcesFor(actCtx)
 	}
 
-	// Never the resources': those also hold the host APK (and before Android 11 every other such
-	// plugin's), and asset paths carry no package id, so a path shipped twice can open the wrong one.
+	// Never the activity's: every plugin with its own package id adds its APK to those, and asset
+	// paths carry no package id, so a path two plugins both ship opens whichever was added last.
 	override fun getAssets(): AssetManager = pluginResources.assets
 
 	override fun getTheme(): Theme {
