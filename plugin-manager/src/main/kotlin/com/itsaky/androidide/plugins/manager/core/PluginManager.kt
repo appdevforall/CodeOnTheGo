@@ -417,13 +417,16 @@ class PluginManager private constructor(
 	 * Runs [block] holding the load lock, waiting at most [loadLockWaitMs] for it, then without it.
 	 * A load holds the lock while plugins' initialize() and activate() run, so a plugin that never
 	 * returns would otherwise block every later install and uninstall for good, including installing
-	 * its fixed version. Going on without the lock is how loads behaved before it existed.
+	 * its fixed version. Going on without the lock is how loads behaved before it existed, with the
+	 * same risks, now only behind a plugin stuck past the wait: if that stuck load later finishes,
+	 * it can register a second instance of its plugin beside one loaded meanwhile, or, failing,
+	 * drop by plugin id the listeners and sidebar slots of the instance installed meanwhile.
 	 */
 	private suspend fun <T> withLoadLock(
 		action: String,
 		block: suspend () -> T,
 	): T {
-		val locked = withTimeoutOrNull(loadLockWaitMs) { loadMutex.lock() } != null
+		val locked = loadMutex.lockWithin(loadLockWaitMs)
 		if (!locked) {
 			logger.warn("A plugin load has held the load lock for over ${loadLockWaitMs / 1000} s; going on to $action without it")
 		}
@@ -2069,3 +2072,17 @@ internal fun initializePlugin(
 	plugin: IPlugin,
 	context: PluginContext,
 ): Result<Boolean> = runCatching { plugin.initialize(context) }
+
+/**
+ * Waits at most [timeoutMs] for this mutex. True when the caller now holds it, and must unlock it.
+ * The flag is set inside the wait, not taken from its result: the timeout can fire just after
+ * lock() returned, and withTimeoutOrNull then reports null for a lock the caller holds.
+ */
+internal suspend fun Mutex.lockWithin(timeoutMs: Long): Boolean {
+	var locked = false
+	withTimeoutOrNull(timeoutMs) {
+		lock()
+		locked = true
+	}
+	return locked
+}

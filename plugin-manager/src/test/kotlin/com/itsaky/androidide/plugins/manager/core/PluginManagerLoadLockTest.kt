@@ -54,6 +54,7 @@ class PluginManagerLoadLockTest {
 	fun aLoadStuckHoldingTheLockDoesNotBlockTheNextForever() =
 		runBlocking {
 			val manager = PluginManager.getInstance(RuntimeEnvironment.getApplication(), Any(), SilentLogger)
+			val wait = manager.loadLockWaitMs
 			manager.loadLockWaitMs = 300
 			val stuck = CompletableDeferred<Unit>()
 			val holding = CompletableDeferred<Unit>()
@@ -72,7 +73,7 @@ class PluginManagerLoadLockTest {
 			} finally {
 				stuck.complete(Unit)
 				holder.join()
-				manager.loadLockWaitMs = 30_000L
+				manager.loadLockWaitMs = wait
 			}
 		}
 
