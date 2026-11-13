@@ -79,6 +79,9 @@ class ProxyAppInstallerTest {
 	/** Scripted "can the confirm dialog be launched right now" probe. */
 	private var confirmDialogShowable = true
 
+	private val abandonedSessionIds = mutableListOf<Int>()
+	private var sweepCount = 0
+
 	// A TestScope extension so the installer's IO hops run on the test scheduler's
 	// virtual time instead of a real Dispatchers.IO thread.
 	private fun TestScope.installer(
@@ -96,6 +99,31 @@ class ProxyAppInstallerTest {
 		timeoutMillis = timeoutMillis,
 		promptTimeoutMillis = promptTimeoutMillis,
 		canShowConfirmDialog = { confirmDialogShowable },
+		abandonSession = { abandonedSessionIds += it },
+		sweepStaleSessions = { sweepCount++ },
+		ioDispatcher = StandardTestDispatcher(testScheduler),
+	)
+
+	private fun TestScope.sessionInstaller(
+		timeoutMillis: Long = 180_000L,
+		promptTimeoutMillis: Long = 45_000L,
+		broadcastFlow: Flow<InstallBroadcast> = broadcasts,
+		launchSession: suspend (File) -> InstallLaunchResult,
+		onAbandon: (Int) -> Unit = { abandonedSessionIds += it },
+		onSweep: () -> Unit = { sweepCount++ },
+	) = ProxyAppInstaller(
+		packages = packages,
+		broadcasts = broadcastFlow,
+		timeoutMillis = timeoutMillis,
+		promptTimeoutMillis = promptTimeoutMillis,
+		canShowConfirmDialog = { confirmDialogShowable },
+		launchInstallSession = { file ->
+			installLaunches += file
+			onLaunch()
+			launchSession(file)
+		},
+		abandonSession = onAbandon,
+		sweepStaleSessions = onSweep,
 		ioDispatcher = StandardTestDispatcher(testScheduler),
 	)
 
@@ -693,5 +721,496 @@ class ProxyAppInstallerTest {
 			runCurrent()
 
 			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+		}
+
+	@Test
+	fun `a committed session is abandoned in every terminal outcome and on cancellation`() =
+		runTest {
+			// 1. SUCCESS
+			val r1 =
+				async {
+					sessionInstaller(launchSession = { InstallLaunchResult.Started(101) })
+						.ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 101))
+			advanceUntilIdle()
+			assertThat(r1.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(101)
+
+			// Reset package so subsequent calls don't skip as identical bytes
+			packages.uid = null
+			abandonedSessionIds.clear()
+
+			// 2. FAILURE
+			val r2 =
+				async {
+					sessionInstaller(launchSession = { InstallLaunchResult.Started(102) })
+						.ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.FAILURE, "INSTALL_FAILED", sessionId = 102))
+			advanceUntilIdle()
+			assertThat(r2.await()).isInstanceOf(InstallOutcome.Failed::class.java)
+			assertThat(abandonedSessionIds).containsExactly(102)
+			abandonedSessionIds.clear()
+
+			// 3. DECLINED (ABORTED)
+			val r3 =
+				async {
+					sessionInstaller(launchSession = { InstallLaunchResult.Started(103) })
+						.ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 103))
+			advanceUntilIdle()
+			assertThat(r3.await())
+				.isEqualTo(
+					InstallOutcome.ConfirmationNotGiven(
+						QuickBuildMessage.ReinstallDeclined,
+						InstallOutcome.ConfirmationNotGiven.Reason.DECLINED,
+					),
+				)
+			assertThat(abandonedSessionIds).containsExactly(103)
+			abandonedSessionIds.clear()
+
+			// 4. DIALOG_NOT_SHOWN (backgrounded when PENDING_USER_ACTION arrives)
+			confirmDialogShowable = false
+			val r4 =
+				async {
+					sessionInstaller(launchSession = { InstallLaunchResult.Started(104) })
+						.ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION, sessionId = 104))
+			advanceUntilIdle()
+			assertThat(r4.await())
+				.isEqualTo(
+					InstallOutcome.ConfirmationNotGiven(
+						QuickBuildMessage.ReinstallReturnToCoGo,
+						InstallOutcome.ConfirmationNotGiven.Reason.DIALOG_NOT_SHOWN,
+					),
+				)
+			assertThat(abandonedSessionIds).containsExactly(104)
+			confirmDialogShowable = true
+			abandonedSessionIds.clear()
+
+			// 5. TIMED_OUT (user never confirms)
+			val r5 =
+				async {
+					sessionInstaller(
+						timeoutMillis = 10_000L,
+						promptTimeoutMillis = 5_000L,
+						launchSession = { InstallLaunchResult.Started(105) },
+					).ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION, sessionId = 105))
+			advanceTimeBy(11_000L)
+			advanceUntilIdle()
+			assertThat(r5.await())
+				.isEqualTo(
+					InstallOutcome.ConfirmationNotGiven(
+						QuickBuildMessage.ReinstallTimedOut(10),
+						InstallOutcome.ConfirmationNotGiven.Reason.TIMED_OUT,
+					),
+				)
+			assertThat(abandonedSessionIds).containsExactly(105)
+			abandonedSessionIds.clear()
+
+			// 6. Coroutine cancellation while waiting for user confirmation
+			val r6 =
+				async {
+					sessionInstaller(launchSession = { InstallLaunchResult.Started(106) })
+						.ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+			r6.cancel()
+			advanceUntilIdle()
+			assertThat(abandonedSessionIds).containsExactly(106)
+		}
+
+	@Test
+	fun `re-issuing a silent prompt abandons the first session before committing the second`() =
+		runTest {
+			var nextId = 201
+			val events = mutableListOf<String>()
+
+			val result =
+				async {
+					sessionInstaller(
+						timeoutMillis = 120_000L,
+						promptTimeoutMillis = 45_000L,
+						launchSession = {
+							val id = nextId++
+							events += "launch:$id"
+							InstallLaunchResult.Started(id)
+						},
+						onAbandon = { id ->
+							abandonedSessionIds += id
+							events += "abandon:$id"
+						},
+					).ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+			assertThat(events).containsExactly("launch:201")
+
+			advanceTimeBy(46_000L)
+			runCurrent()
+
+			// Session 201 must be abandoned BEFORE session 202 is launched so two
+			// confirm dialogs / sessions are never active at the same time.
+			assertThat(events).containsExactly("launch:201", "abandon:201", "launch:202").inOrder()
+
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 202))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(events)
+				.containsExactly("launch:201", "abandon:201", "launch:202", "abandon:202")
+				.inOrder()
+		}
+
+	@Test
+	fun `broadcasts from a stale sessionId for the same package are ignored`() =
+		runTest {
+			val result =
+				async {
+					sessionInstaller(launchSession = { InstallLaunchResult.Started(302) })
+						.ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+
+			// A leftover dialog from an earlier session (301) for the SAME package is
+			// cancelled by the user; it must not abort session 302.
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 301))
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			// Now session 302's own confirmation succeeds.
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 302))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(302)
+		}
+
+	@Test
+	fun `TooManySessions launch result reports TooManyInstallSessions distinctly from InstallCouldNotStart`() =
+		runTest {
+			val outcome =
+				sessionInstaller(launchSession = { InstallLaunchResult.TooManySessions })
+					.ensureInstalled(apk, PKG)
+
+			assertThat(outcome)
+				.isEqualTo(InstallOutcome.Failed(QuickBuildMessage.TooManyInstallSessions))
+			assertThat(outcome)
+				.isNotEqualTo(InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart))
+		}
+
+	@Test
+	fun `provisioning still installs when 50 committed sessions are outstanding at the start`() =
+		runTest {
+			// Models Android's PackageInstallerService.MAX_ACTIVE_SESSIONS = 50 cap.
+			val activeSessions = (1..50).toMutableSet()
+			var nextSessionId = 51
+
+			val result =
+				async {
+					sessionInstaller(
+						launchSession = {
+							if (activeSessions.size >= 50) {
+								InstallLaunchResult.TooManySessions
+							} else {
+								val id = nextSessionId++
+								activeSessions += id
+								InstallLaunchResult.Started(id)
+							}
+						},
+						onAbandon = { id ->
+							activeSessions -= id
+							abandonedSessionIds += id
+						},
+						onSweep = {
+							sweepCount++
+							activeSessions.clear()
+						},
+					).ensureInstalled(apk, PKG)
+				}
+			runCurrent()
+
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 51))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(sweepCount).isEqualTo(1)
+			assertThat(activeSessions).isEmpty()
+			assertThat(abandonedSessionIds).containsExactly(51)
+		}
+
+	@Test
+	fun `ABORTED broadcasts triggered by abandoning committed sessions during sweep or re-issue do not cause false ReinstallDeclined`() =
+		runTest {
+			var nextId = 401
+			lateinit var installerUnderTest: ProxyAppInstaller
+
+			installerUnderTest =
+				sessionInstaller(
+					timeoutMillis = 120_000L,
+					promptTimeoutMillis = 45_000L,
+					launchSession = {
+						val id = nextId++
+						if (id == 401) {
+							// Delayed ABORTED for the swept session arrives after the broadcast
+							// collector is subscribed and while activeSessionId is still null.
+							broadcasts.tryEmit(
+								InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 400),
+							)
+						}
+						InstallLaunchResult.Started(id)
+					},
+					onAbandon = { id ->
+						abandonedSessionIds += id
+						// Android's PackageInstallerSession.abandon() dispatches
+						// STATUS_FAILURE_ABORTED when a committed session is abandoned.
+						broadcasts.tryEmit(
+							InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = id),
+						)
+					},
+					onSweep = {
+						sweepCount++
+						// Sweep records a pre-existing committed session (400) before
+						// activeSessionId is assigned.
+						installerUnderTest.recordAbandonedSession(400)
+					},
+				)
+
+			val result = async { installerUnderTest.ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			// Neither the sweep's ABORTED(400) nor the 45s re-issue's ABORTED(401)
+			// (emitted while activeSessionId is null) may terminate ensureInstalled as ReinstallDeclined.
+			assertThat(result.isCompleted).isFalse()
+
+			advanceTimeBy(46_000L)
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			// Session 402 succeeds.
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 402))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(401, 402).inOrder()
+		}
+
+	@Test
+	fun `re-issue returning Failed fails immediately with InstallCouldNotStart instead of timing out`() =
+		runTest {
+			var launchCount = 0
+			val result =
+				async {
+					sessionInstaller(
+						timeoutMillis = 120_000L,
+						promptTimeoutMillis = 45_000L,
+						launchSession = {
+							launchCount++
+							if (launchCount == 1) {
+								InstallLaunchResult.Started(501)
+							} else {
+								InstallLaunchResult.Failed
+							}
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			// Must fail immediately after re-issue without waiting out the remaining 75s budget.
+			assertThat(result.isCompleted).isTrue()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart))
+			assertThat(abandonedSessionIds).containsExactly(501)
+		}
+
+	@Test
+	fun `re-issue returning TooManySessions fails immediately with TooManyInstallSessions instead of timing out`() =
+		runTest {
+			var launchCount = 0
+			val result =
+				async {
+					sessionInstaller(
+						timeoutMillis = 120_000L,
+						promptTimeoutMillis = 45_000L,
+						launchSession = {
+							launchCount++
+							if (launchCount == 1) {
+								InstallLaunchResult.Started(502)
+							} else {
+								InstallLaunchResult.TooManySessions
+							}
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			assertThat(result.isCompleted).isTrue()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Failed(QuickBuildMessage.TooManyInstallSessions))
+			assertThat(abandonedSessionIds).containsExactly(502)
+		}
+
+	@Test
+	fun `re-issue throwing fails immediately with InstallCouldNotStart instead of timing out`() =
+		runTest {
+			var launchCount = 0
+			val result =
+				async {
+					sessionInstaller(
+						timeoutMillis = 120_000L,
+						promptTimeoutMillis = 45_000L,
+						launchSession = {
+							launchCount++
+							if (launchCount == 1) {
+								InstallLaunchResult.Started(503)
+							} else {
+								error("boom during re-issue")
+							}
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			assertThat(result.isCompleted).isTrue()
+			assertThat(result.await()).isEqualTo(InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart))
+			assertThat(abandonedSessionIds).containsExactly(503)
+		}
+
+	@Test
+	fun `re-issue and finally abandonSession calls dispatch through ioDispatcher`() =
+		runTest {
+			val abandonedOnIoDispatcher = mutableListOf<Boolean>()
+			val inIoDispatcher =
+				java.util.concurrent.atomic
+					.AtomicBoolean(false)
+			val delegate = StandardTestDispatcher(testScheduler)
+			val trackingIoDispatcher =
+				object : kotlinx.coroutines.CoroutineDispatcher() {
+					override fun isDispatchNeeded(context: kotlin.coroutines.CoroutineContext): Boolean = true
+
+					override fun dispatch(
+						context: kotlin.coroutines.CoroutineContext,
+						block: Runnable,
+					) {
+						delegate.dispatch(context) {
+							val prev = inIoDispatcher.getAndSet(true)
+							try {
+								block.run()
+							} finally {
+								inIoDispatcher.set(prev)
+							}
+						}
+					}
+				}
+			var nextId = 601
+			val installerUnderTest =
+				ProxyAppInstaller(
+					packages = packages,
+					broadcasts = broadcasts,
+					timeoutMillis = 120_000L,
+					promptTimeoutMillis = 45_000L,
+					canShowConfirmDialog = { true },
+					launchInstallSession = { InstallLaunchResult.Started(nextId++) },
+					abandonSession = { id ->
+						abandonedSessionIds += id
+						abandonedOnIoDispatcher += inIoDispatcher.get()
+					},
+					sweepStaleSessions = { sweepCount++ },
+					ioDispatcher = trackingIoDispatcher,
+				)
+
+			val result = async { installerUnderTest.ensureInstalled(apk, PKG) }
+			runCurrent()
+
+			// Trigger prompt-timeout re-issue (abandons 601 on ioDispatcher).
+			advanceTimeBy(45_001L)
+			runCurrent()
+
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 602))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(601, 602).inOrder()
+			assertThat(abandonedOnIoDispatcher).containsExactly(true, true)
+		}
+
+	@Test
+	fun `broadcasts from unrelated sessions while launchInstallSession is running are not matched`() =
+		runTest {
+			val result =
+				async {
+					sessionInstaller(
+						launchSession = {
+							// While launchInstallSession is running for session 302, an unrelated session 301
+							// emits ABORTED. This must not match session 302 or fail the install as DECLINED.
+							broadcasts.emit(
+								InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 301),
+							)
+							InstallLaunchResult.Started(302)
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			// Session 302 succeeds.
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 302))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(302)
+		}
+
+	@Test
+	fun `early broadcast for the launched session emitted during launch is buffered and matched`() =
+		runTest {
+			val result =
+				async {
+					sessionInstaller(
+						launchSession = {
+							// Early PENDING_USER_ACTION arrives for session 303 before launchInstallSession returns.
+							broadcasts.emit(
+								InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION, sessionId = 303),
+							)
+							InstallLaunchResult.Started(303)
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 303))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(303)
 		}
 }

@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service.session
 
 import android.content.ComponentCallbacks2
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -158,6 +159,12 @@ class QuickBuildSessionManager(
 	 * Defaults to the capable path so this module's unit tests need no Android runtime.
 	 */
 	private val assetsLiveReloadable: Boolean = true,
+	/**
+	 * Sweeps stale Quick Build PackageInstaller sessions at Quick Build startup (excluding any
+	 * active Standard Run or `InstallFileAction` install sessions) so an already-capped phone
+	 * (MAX_ACTIVE_SESSIONS = 50) recovers without clearing app data.
+	 */
+	private val sweepInstallSessions: () -> Unit = {},
 ) {
 	/** Builds the project watcher for a live session; overridden with a fake in tests. */
 	fun interface WatcherFactory {
@@ -461,13 +468,25 @@ class QuickBuildSessionManager(
 	}
 
 	/**
-	 * The stale-tree sweep. Nothing is live at construction - this manager is the process's
-	 * only session owner - so every tree under the scratch root belongs to a dead session or
-	 * a deleted project. Launched before any tap can dispatch, but sweep() hops to IO and
-	 * frees the dispatcher, so [provision] joins it rather than trusting the launch order: a
-	 * prepare that overtook it would have its fresh tree swept as stale.
+	 * The stale-tree and stale-install-session sweep. No Quick Build session is live at
+	 * construction - this manager is the process's only Quick Build session owner - so every
+	 * tree under the scratch root and every stale Quick Build PackageInstaller session
+	 * (excluding any active Standard Run or `InstallFileAction` install) can be reclaimed.
+	 * Launched before any tap can dispatch, but sweep() hops to IO and frees the dispatcher,
+	 * so [provision] joins it rather than trusting the launch order: a prepare that overtook
+	 * it would have its fresh tree swept as stale.
 	 */
-	private val sweepJob = scope.launch { scratch.sweep() }
+	private val sweepJob =
+		scope.launch {
+			try {
+				withContext(ioDispatcher) { sweepInstallSessions() }
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.warn("Could not sweep stale PackageInstaller sessions at startup", e)
+			}
+			scratch.sweep()
+		}
 
 	/**
 	 * Handles the Quick Build tap: starts a session from Idle, triggers a build when live,

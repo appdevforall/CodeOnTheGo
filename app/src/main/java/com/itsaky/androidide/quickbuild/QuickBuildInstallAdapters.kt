@@ -160,11 +160,14 @@ class InstallationEventFlow {
 					InstallBroadcast.Status.OTHER
 				}
 			}
+		val sessionId =
+			extras.getInt(PackageInstaller.EXTRA_SESSION_ID, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
 		_broadcasts.tryEmit(
 			InstallBroadcast(
 				packageName = extras.getString(PackageInstaller.EXTRA_PACKAGE_NAME),
 				status = status,
 				message = extras.getString(PackageInstaller.EXTRA_STATUS_MESSAGE),
+				sessionId = sessionId,
 			),
 		)
 	}

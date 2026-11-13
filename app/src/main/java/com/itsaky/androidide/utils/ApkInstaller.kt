@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Utility class for installing APKs.
@@ -24,6 +26,38 @@ import java.io.File
 object ApkInstaller {
 	private val log = LoggerFactory.getLogger(ApkInstaller::class.java)
 	private const val DEBUG_FALLBACK_INSTALLER = false
+	private const val PREFS_INSTALLER_SESSIONS = "ide.installer.sessions"
+	private const val KEY_QUICK_BUILD_SESSIONS = "quick_build_session_ids"
+	private const val KEY_IN_FLIGHT_USER_SESSIONS = "in_flight_user_session_ids"
+	private const val MAX_ACTIVE_SESSIONS = 50
+
+	/**
+	 * Session IDs of Quick Build proxy-app installs created by this app, persisted across
+	 * process restarts in `SharedPreferences` so [abandonMySessions] can identify and sweep
+	 * stale Quick Build sessions without abandoning Standard Run installs.
+	 */
+	private val quickBuildSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+	/**
+	 * Session IDs of active non-Quick-Build installs (Standard Run and `InstallFileAction`)
+	 * recorded immediately at [PackageInstaller.createSession] (covering both APK staging and
+	 * user confirmation) until a terminal status broadcast or explicit abandonment. Persisted
+	 * to `SharedPreferences` so a Quick Build sweep excludes Standard Run sessions even across
+	 * configuration changes or process restarts.
+	 */
+	private val inFlightUserSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+	/**
+	 * Session IDs of active Standard Run or `InstallFileAction` installs created in the current
+	 * process (never loaded from `SharedPreferences`). Even when the 50-session cap is reached,
+	 * these belong to a live install in this process and are never swept.
+	 */
+	private val liveInFlightUserSessionIds: MutableSet<Int> =
+		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+
+	private val sessionTrackingLock = Any()
 
 	/**
 	 * Boolean extra riding the install callback intent: on STATUS_SUCCESS, do not run the
@@ -41,6 +75,28 @@ object ApkInstaller {
 	const val EXTRA_SUPPRESS_POST_INSTALL_LAUNCH = "ide.installer.suppressPostInstallLaunch"
 
 	/**
+	 * Outcome of starting an APK install session.
+	 */
+	sealed interface SessionLaunchResult {
+		/**
+		 * The install was handed off to Android. [sessionId] is the committed
+		 * [PackageInstaller] session ID, or `null` when the intent-based fallback was used.
+		 */
+		data class Started(
+			val sessionId: Int?,
+		) : SessionLaunchResult
+
+		/**
+		 * [PackageInstaller.createSession] rejected the request because this app UID already
+		 * has the maximum number of active sessions (`MAX_ACTIVE_SESSIONS = 50`).
+		 */
+		data object TooManySessions : SessionLaunchResult
+
+		/** Any other failure before or during session creation/commit. */
+		data object Failed : SessionLaunchResult
+	}
+
+	/**
 	 * Starts a session-based package installation workflow.
 	 *
 	 * @param context The context.
@@ -55,14 +111,35 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		suppressPostInstallLaunch: Boolean = false,
-	): Boolean {
+	): Boolean =
+		installApkSession(
+			context = context,
+			apk = apk,
+			launchInDebugMode = launchInDebugMode,
+			debugFallbackInstaller = debugFallbackInstaller,
+			suppressPostInstallLaunch = suppressPostInstallLaunch,
+		) is SessionLaunchResult.Started
+
+	/**
+	 * Starts a session-based package installation workflow and returns a [SessionLaunchResult]
+	 * with the committed `sessionId` (or a distinct [SessionLaunchResult.TooManySessions]
+	 * when the UID's active session quota is exhausted).
+	 */
+	@JvmStatic
+	suspend fun installApkSession(
+		context: Context,
+		apk: File,
+		launchInDebugMode: Boolean = false,
+		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
+		suppressPostInstallLaunch: Boolean = false,
+	): SessionLaunchResult {
 		val isValidApk =
 			withContext(Dispatchers.IO) {
 				apk.exists() && apk.isFile && apk.extension.equals("apk", ignoreCase = true)
 			}
 		if (!isValidApk) {
 			log.error("File is not an APK: {}", apk)
-			return false
+			return SessionLaunchResult.Failed
 		}
 
 		log.info("Installing APK: {}", apk)
@@ -83,43 +160,326 @@ object ApkInstaller {
 					" Falling back to intent-based installer.",
 			)
 
-			installUsingIntent(context, apk, baseIntent)
-			return true
+			return if (installUsingIntent(context, apk, baseIntent)) {
+				SessionLaunchResult.Started(sessionId = null)
+			} else {
+				SessionLaunchResult.Failed
+			}
 		}
 
 		return installUsingSession(context, apk, baseIntent)
 	}
 
+	/**
+	 * Abandons a single [PackageInstaller] session if it is still active. Safe to call after
+	 * the session has already succeeded, failed, or been abandoned.
+	 */
+	@JvmStatic
+	fun abandonSession(
+		context: Context,
+		sessionId: Int,
+	): Boolean {
+		val installer = context.packageManager.packageInstaller
+		return synchronized(sessionTrackingLock) {
+			var abandonError: Throwable? = null
+			val abandoned =
+				runCatching {
+					installer.abandonSession(sessionId)
+				}.onFailure { error ->
+					abandonError = error
+					log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
+				}.isSuccess
+			if (abandoned || isSessionFinalized(installer, sessionId, abandonError)) {
+				removeTrackedSession(context, sessionId)
+			}
+			abandoned
+		}
+	}
+
+	/**
+	 * Abandons [sessionId] on [installer], returning `true` if `abandonSession` succeeded and
+	 * `false` if the session was already finalized or could not be abandoned.
+	 */
+	internal fun abandonSession(
+		installer: PackageInstaller,
+		sessionId: Int,
+	): Boolean =
+		synchronized(sessionTrackingLock) {
+			var abandonError: Throwable? = null
+			val abandoned =
+				runCatching {
+					installer.abandonSession(sessionId)
+				}.onFailure { error ->
+					abandonError = error
+					log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
+				}.isSuccess
+			if (abandoned || isSessionFinalized(installer, sessionId, abandonError)) {
+				removeTrackedSession(context = null, sessionId = sessionId)
+			}
+			abandoned
+		}
+
+	/**
+	 * Returns `true` when [sessionId] is confirmed to no longer exist or have already been
+	 * finalized in [installer].
+	 */
+	internal fun isSessionFinalized(
+		installer: PackageInstaller,
+		sessionId: Int,
+		error: Throwable? = null,
+	): Boolean {
+		if (error is SecurityException && error.message?.contains("finalized", ignoreCase = true) == true) {
+			return true
+		}
+		return runCatching {
+			installer.getSessionInfo(sessionId) == null
+		}.getOrDefault(false)
+	}
+
+	/**
+	 * Records a status broadcast from [InstallationResultReceiver] so any session that reaches
+	 * a terminal outcome is removed from tracked session sets and persisted storage.
+	 */
+	@JvmOverloads
+	internal fun onInstallStatusBroadcast(
+		intent: Intent?,
+		context: Context? = null,
+	) {
+		val extras = intent?.extras ?: return
+		if (!extras.containsKey(PackageInstaller.EXTRA_STATUS)) return
+		val status = extras.getInt(PackageInstaller.EXTRA_STATUS)
+		if (status != PackageInstaller.STATUS_PENDING_USER_ACTION &&
+			extras.containsKey(PackageInstaller.EXTRA_SESSION_ID)
+		) {
+			removeTrackedSession(context, extras.getInt(PackageInstaller.EXTRA_SESSION_ID))
+		}
+	}
+
+	/**
+	 * Clears in-memory tracked session IDs (and persisted preferences when [context] is given)
+	 * between unit tests.
+	 */
+	internal fun clearInFlightUserSessionsForTesting(context: Context? = null) {
+		liveInFlightUserSessionIds.clear()
+		inFlightUserSessionIds.clear()
+		quickBuildSessionIds.clear()
+		if (context != null) {
+			runCatching {
+				context.applicationContext
+					.getSharedPreferences(PREFS_INSTALLER_SESSIONS, Context.MODE_PRIVATE)
+					.edit()
+					.remove(KEY_IN_FLIGHT_USER_SESSIONS)
+					.remove(KEY_QUICK_BUILD_SESSIONS)
+					.commit()
+			}
+		}
+	}
+
+	/**
+	 * Clears only the in-memory session sets to simulate an app process restart in unit tests
+	 * while keeping `SharedPreferences` state intact.
+	 */
+	internal fun clearInMemorySessionsForTesting() {
+		liveInFlightUserSessionIds.clear()
+		inFlightUserSessionIds.clear()
+		quickBuildSessionIds.clear()
+	}
+
+	private fun recordQuickBuildSession(
+		context: Context,
+		sessionId: Int,
+	) = synchronized(sessionTrackingLock) {
+		loadPersistedSessions(context)
+		liveInFlightUserSessionIds.remove(sessionId)
+		inFlightUserSessionIds.remove(sessionId)
+		quickBuildSessionIds.add(sessionId)
+		persistTrackedSessions(context)
+	}
+
+	private fun recordInFlightUserSession(
+		context: Context,
+		sessionId: Int,
+	) = synchronized(sessionTrackingLock) {
+		loadPersistedSessions(context)
+		quickBuildSessionIds.remove(sessionId)
+		liveInFlightUserSessionIds.add(sessionId)
+		inFlightUserSessionIds.add(sessionId)
+		persistTrackedSessions(context)
+	}
+
+	private fun removeTrackedSession(
+		context: Context?,
+		sessionId: Int,
+	) = synchronized(sessionTrackingLock) {
+		if (context != null) {
+			loadPersistedSessions(context)
+		}
+		liveInFlightUserSessionIds.remove(sessionId)
+		val removedUser = inFlightUserSessionIds.remove(sessionId)
+		val removedQb = quickBuildSessionIds.remove(sessionId)
+		if (context != null && (removedUser || removedQb)) {
+			persistTrackedSessions(context)
+		}
+	}
+
+	private fun loadPersistedSessions(context: Context) {
+		runCatching {
+			val prefs =
+				context.applicationContext.getSharedPreferences(
+					PREFS_INSTALLER_SESSIONS,
+					Context.MODE_PRIVATE,
+				)
+			prefs
+				.getStringSet(KEY_IN_FLIGHT_USER_SESSIONS, emptySet())
+				.orEmpty()
+				.mapNotNullTo(inFlightUserSessionIds) { it.toIntOrNull() }
+			prefs
+				.getStringSet(KEY_QUICK_BUILD_SESSIONS, emptySet())
+				.orEmpty()
+				.mapNotNullTo(quickBuildSessionIds) { it.toIntOrNull() }
+		}.onFailure { error ->
+			log.debug("Unable to read persisted installer session IDs", error)
+		}
+	}
+
+	private fun persistTrackedSessions(context: Context) {
+		runCatching {
+			val userSnapshot = inFlightUserSessionIds.mapTo(HashSet()) { it.toString() }
+			val qbSnapshot = quickBuildSessionIds.mapTo(HashSet()) { it.toString() }
+			context.applicationContext
+				.getSharedPreferences(PREFS_INSTALLER_SESSIONS, Context.MODE_PRIVATE)
+				.edit()
+				.putStringSet(KEY_IN_FLIGHT_USER_SESSIONS, userSnapshot)
+				.putStringSet(KEY_QUICK_BUILD_SESSIONS, qbSnapshot)
+				.apply()
+		}.onFailure { error ->
+			log.debug("Unable to persist installer session IDs", error)
+		}
+	}
+
+	/**
+	 * Abandons stale Quick Build [PackageInstaller] sessions owned by this installer package
+	 * while excluding any active Standard Run or `InstallFileAction` install sessions
+	 * ([inFlightUserSessionIds]), including sessions that are currently staging APK bytes or
+	 * awaiting user confirmation across a restart.
+	 *
+	 * Called at Quick Build startup and before Quick Build provisioning so that unconfirmed
+	 * Quick Build sessions from earlier runs cannot accumulate to Android's 50-session per-UID
+	 * cap (`PackageInstallerService.MAX_ACTIVE_SESSIONS`) or leave a stale confirmation dialog
+	 * in the system `packageinstaller` task, without cancelling a concurrent Standard Run or
+	 * `InstallFileAction` install.
+	 *
+	 * @param onBeforeAbandon invoked with each session ID before `abandonSession` runs so
+	 *   callers can ignore the `STATUS_FAILURE_ABORTED` broadcast Android emits on abandonment.
+	 * @return the number of sessions abandoned.
+	 */
+	@JvmStatic
+	@JvmOverloads
+	fun abandonMySessions(
+		context: Context,
+		onBeforeAbandon: (Int) -> Unit = {},
+	): Int {
+		loadPersistedSessions(context)
+		val abandoned = abandonMySessions(context.packageManager.packageInstaller, onBeforeAbandon)
+		persistTrackedSessions(context)
+		return abandoned
+	}
+
+	/**
+	 * Queries [PackageInstaller.getMySessions] on [installer] and abandons each stale Quick Build
+	 * session (or legacy cap-overflow session when the 50-session limit is reached), always
+	 * excluding [inFlightUserSessionIds], after notifying [onBeforeAbandon].
+	 */
+	internal fun abandonMySessions(
+		installer: PackageInstaller,
+		onBeforeAbandon: (Int) -> Unit = {},
+	): Int =
+		synchronized(sessionTrackingLock) {
+			val sessions =
+				runCatching { installer.mySessions }
+					.onFailure { error -> log.warn("Failed to query existing PackageInstaller sessions", error) }
+					.getOrNull()
+					?: return 0
+
+			val activeIds = sessions.mapTo(HashSet(sessions.size)) { it.sessionId }
+			liveInFlightUserSessionIds.retainAll(activeIds)
+			inFlightUserSessionIds.retainAll(activeIds)
+			quickBuildSessionIds.retainAll(activeIds)
+
+			val isAtSessionCap = sessions.size >= MAX_ACTIVE_SESSIONS
+			var abandoned = 0
+			for (info in sessions) {
+				val id = info.sessionId
+				if (id in liveInFlightUserSessionIds) {
+					continue
+				}
+				if (id in inFlightUserSessionIds && !isAtSessionCap) {
+					continue
+				}
+				if (id !in quickBuildSessionIds && !isAtSessionCap) {
+					continue
+				}
+				runCatching { onBeforeAbandon(id) }
+				if (abandonSession(installer, id)) {
+					abandoned++
+				}
+			}
+			if (abandoned > 0) {
+				log.info("Abandoned {} stale PackageInstaller session(s)", abandoned)
+			}
+			abandoned
+		}
+
+	/**
+	 * Launches a fallback `ACTION_INSTALL_PACKAGE` activity intent for devices where
+	 * session-based installation is disabled, returning `true` if the activity started.
+	 */
 	@Suppress("DEPRECATION", "RequestInstallPackagesPolicy")
 	private fun installUsingIntent(
 		context: Context,
 		apk: File,
 		intent: Intent,
-	) {
+	): Boolean {
 		val uri = context.fileProviderUriFor(apk)
 		intent.setAction(Intent.ACTION_INSTALL_PACKAGE)
 		intent.setDataAndType(uri, "application/vnd.android.package-archive")
 		intent.flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
 
-		try {
+		return try {
 			context.startActivity(intent)
+			true
 		} catch (e: Exception) {
 			log.warn("Failed to start installation intent", e)
+			false
 		}
 	}
 
+	/**
+	 * Creates, populates, and commits a [PackageInstaller] session for [apk], returning
+	 * a [SessionLaunchResult] with the committed session ID or failure classification.
+	 */
 	@Suppress("RequestInstallPackagesPolicy")
-	private suspend fun installUsingSession(
+	internal suspend fun installUsingSession(
 		context: Context,
 		apk: File,
 		intent: Intent,
-	): Boolean {
+	): SessionLaunchResult {
 		val installer = context.packageManager.packageInstaller
 		val params = createSessionParams()
+		val isQuickBuildInstall = intent.getBooleanExtra(EXTRA_SUPPRESS_POST_INSTALL_LAUNCH, false)
 
 		return runCatching {
 			withContext(Dispatchers.IO) {
-				val sessionId = installer.createSession(params)
+				val sessionId =
+					synchronized(sessionTrackingLock) {
+						val id = installer.createSession(params)
+						if (isQuickBuildInstall) {
+							recordQuickBuildSession(context, id)
+						} else {
+							recordInFlightUserSession(context, id)
+						}
+						id
+					}
 				var session: PackageInstaller.Session? = null
 
 				try {
@@ -130,17 +490,36 @@ object ApkInstaller {
 						}
 					addToSession(session, apk)
 					session.commit(callback.intentSender)
+					sessionId
 				} catch (t: Throwable) {
-					runCatching { installer.abandonSession(sessionId) }
+					abandonSession(context, sessionId)
 					throw t
 				} finally {
 					session?.close()
 				}
 			}
-		}.onFailure { error ->
-			log.error("Package installation failed", error)
-		}.isSuccess
+		}.fold(
+			onSuccess = { sessionId -> SessionLaunchResult.Started(sessionId) },
+			onFailure = { error ->
+				log.error("Package installation failed", error)
+				if (isTooManyActiveSessions(error)) {
+					SessionLaunchResult.TooManySessions
+				} else {
+					SessionLaunchResult.Failed
+				}
+			},
+		)
 	}
+
+	/**
+	 * Returns `true` when [error] or any cause in its chain is the `IllegalStateException`
+	 * thrown by Android's `PackageInstallerService` when the per-UID session cap is reached.
+	 */
+	internal fun isTooManyActiveSessions(error: Throwable): Boolean =
+		generateSequence(error) { it.cause }.any { cause ->
+			cause is IllegalStateException &&
+				cause.message?.contains("Too many active sessions", ignoreCase = true) == true
+		}
 
 	private fun createSessionParams(appPackageName: String? = null): PackageInstaller.SessionParams =
 		PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
