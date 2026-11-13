@@ -109,7 +109,9 @@ typedef struct sqlitedbg_event_record {
 } sqlitedbg_event_record;       // 56 bytes; the SQL text follows
 
 typedef struct sqlitedbg_read_result {
-    // The seq of the last event copied out, or `after` if none was: pass it as `after` next time.
+    // The seq of the last event copied out, or if none was, `after` moved past any dropped events
+    // (so they are reported once): pass it as `after` next time. A record too big for out is not
+    // passed.
     uint64_t next;
     // Events after `after` that left the buffer before they could be read.
     uint64_t dropped;

@@ -173,9 +173,15 @@ static int trace_cb(unsigned type, void *c, void *p, void *x) {
 			if (is_stmt) sql = (const char *)x;
 			else sql = sqlite3_sql(stmt);
 			if (!sql) sql = "";
-			// A trigger's text starts with "--" and P is the outer statement, whose expansion would
-			// be the wrong text.
-			if (__atomic_load_n(&g_client_connected, __ATOMIC_RELAXED) && !(sql[0] == '-' && sql[1] == '-')) {
+			// For a trigger, X is its own "-- ..." text while P is the outer statement, whose expansion
+			// would be the wrong text. For the statement itself X is its SQL. Not a prefix test: app SQL
+			// may start with a comment.
+			int is_trigger = 0;
+			if (is_stmt) {
+				const char *own = sqlite3_sql(stmt);
+				is_trigger = !own || strcmp(own, sql) != 0;
+			}
+			if (__atomic_load_n(&g_client_connected, __ATOMIC_RELAXED) && !is_trigger) {
 				expanded = sqlite3_expanded_sql(stmt);
 				if (expanded) {
 					sql = expanded;
@@ -218,9 +224,24 @@ static void connection_id_fn(sqlite3_context *ctx, int argc, sqlite3_value **arg
 	sqlite3_result_int64(ctx, (sqlite3_int64)((conn_state *)sqlite3_user_data(ctx))->id);
 }
 
+#ifdef SQLITEDBG_TEST
+// Host tests: 1 fails the allocation, 2 makes registering the function fail.
+int sqlitedbg_test_fail_init;
+#endif
+
+static int init_connection(sqlite3 *db, const sqlite3_api_routines *api);
+
+// An internal failure must never fail the app's own sqlite3_open: log it and leave the connection
+// untracked.
 int sqlitedbg_extension_init(sqlite3 *db, char **err, const sqlite3_api_routines *api) {
 	(void)err;
 	if (tls_opening_server) return SQLITE_OK;
+	int rc = init_connection(db, api);
+	if (rc != SQLITE_OK) sqlite3_log(rc, "sqlitedbg: connection not tracked (%d)", rc);
+	return SQLITE_OK;
+}
+
+static int init_connection(sqlite3 *db, const sqlite3_api_routines *api) {
 
 	pthread_mutex_lock(&g_lock);
 	if (!g_api_ready) {
@@ -230,6 +251,12 @@ int sqlitedbg_extension_init(sqlite3 *db, char **err, const sqlite3_api_routines
 	pthread_mutex_unlock(&g_lock);
 
 	conn_state *cs = (conn_state *)calloc(1, sizeof *cs);
+#ifdef SQLITEDBG_TEST
+	if (sqlitedbg_test_fail_init == 1) {
+		free(cs);
+		cs = NULL;
+	}
+#endif
 	if (!cs) return SQLITE_NOMEM;
 	const char *filename = sqlite3_db_filename(db, "main");
 	cs->path = strdup(filename ? filename : "");
@@ -250,7 +277,11 @@ int sqlitedbg_extension_init(sqlite3 *db, char **err, const sqlite3_api_routines
 	pthread_mutex_unlock(&g_lock);
 
 	// On failure SQLite has already called conn_destroy, so cs is gone.
-	int rc = sqlite3_create_function_v2(db, "sqlitedbg_connection_id", 0, SQLITE_UTF8 | SQLITE_INNOCUOUS, cs,
+	const char *fn_name = "sqlitedbg_connection_id";
+#ifdef SQLITEDBG_TEST
+	if (sqlitedbg_test_fail_init == 2) fn_name = NULL;  // SQLite refuses a NULL name
+#endif
+	int rc = sqlite3_create_function_v2(db, fn_name, 0, SQLITE_UTF8 | SQLITE_INNOCUOUS, cs,
 	                                    connection_id_fn, NULL, NULL, conn_destroy);
 	if (rc != SQLITE_OK) return rc;
 	return sqlite3_trace_v2(db, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_CLOSE, trace_cb, cs);
@@ -322,7 +353,11 @@ void sqlitedbg_read_events(uint64_t after, void *out, size_t out_bytes, sqlitedb
 	pthread_mutex_lock(&g_lock);
 	if (g_ring) {
 		uint64_t oldest = oldest_seq();
-		if (oldest > after && oldest - after > 1) result->dropped = oldest - after - 1;
+		if (oldest > after && oldest - after > 1) {
+			result->dropped = oldest - after - 1;
+			// Past the dropped events, so they are reported once even if nothing is copied below.
+			result->next = oldest - 1;
+		}
 		size_t offset = g_tail, left = g_used;
 		while (left > 0) {
 			const sqlitedbg_event_record *r = record_at(offset);

@@ -181,6 +181,8 @@ static uint64_t conn_id_of(sqlite3 *db) {
 
 // Tests
 
+extern int sqlitedbg_test_fail_init;  // sqlitedbg.c, built with SQLITEDBG_TEST
+
 static sqlitedbg_config g_config = {BUFFER_BYTES, MAX_SQL};
 static sqlite3 *g_main;
 
@@ -295,6 +297,20 @@ static void test_expanded(void) {
 	CHECK(b.events[3].flags & SQLITEDBG_EVENT_EXPANDED);
 	batch_free(&b);
 
+	// app SQL that starts with a comment is not a trigger: it is expanded like any other
+	cur = cursor_now();
+	sqlitedbg_set_client_connected(1);
+	CHECK_EQ(sqlite3_prepare_v2(g_main, "-- note\nINSERT INTO t VALUES(?)", -1, &st, NULL), SQLITE_OK);
+	sqlite3_bind_int(st, 1, 9);
+	CHECK_EQ(sqlite3_step(st), SQLITE_DONE);
+	sqlite3_finalize(st);
+	sqlitedbg_set_client_connected(0);
+	read_all(cur, &b);
+	CHECK(b.count >= 2);
+	CHECK(strstr(b.events[0].sql, "INSERT INTO t VALUES(9)") != NULL);
+	CHECK(b.events[0].flags & SQLITEDBG_EVENT_EXPANDED);
+	batch_free(&b);
+
 	// after the client leaves, the bound value is not written in again
 	cur = cursor_now();
 	CHECK_EQ(sqlite3_prepare_v2(g_main, "INSERT INTO t VALUES(?)", -1, &st, NULL), SQLITE_OK);
@@ -390,7 +406,24 @@ static void test_burst(void) {
 	CHECK_EQ(b.events[0].seq, cur + made - b.count + 1);
 	CHECK_EQ(b.events[b.count - 1].seq, cur + made);
 	for (size_t i = 1; i < b.count; i++) CHECK_EQ(b.events[i].seq, b.events[i - 1].seq + 1);
+	const uint64_t first_seq = b.events[0].seq;
+	const size_t stored = b.count;
 	batch_free(&b);
+
+	// drops are reported once even when nothing is copied: a record too big for out stays
+	// unpassed, and the cursor moves up to it
+	{
+		sqlitedbg_read_result r;
+		char tiny[8];
+		sqlitedbg_read_events(cur, tiny, sizeof tiny, &r);
+		CHECK_EQ(r.count, 0);
+		CHECK_EQ(r.dropped, made - stored);
+		CHECK_EQ(r.next, first_seq - 1);
+		sqlitedbg_read_result again;
+		sqlitedbg_read_events(r.next, tiny, sizeof tiny, &again);
+		CHECK_EQ(again.dropped, 0);
+		CHECK_EQ(again.next, r.next);
+	}
 
 	// nothing is reported twice
 	uint64_t next = cur + made;
@@ -479,6 +512,24 @@ static void test_close_and_list(void) {
 	list_conns(&l);
 	CHECK_EQ(find_conn(&l, conn_id_of(ro))->read_only, 1);
 	CHECK_EQ(sqlite3_close(ro), SQLITE_OK);
+	CHECK_EQ(list_conns(&l), before);
+}
+
+static void test_init_failure(void) {
+	listing l;
+	size_t before = list_conns(&l);
+	for (int mode = 1; mode <= 2; mode++) {
+		sqlitedbg_test_fail_init = mode;
+		sqlite3 *db = NULL;
+		// the app's open must not fail because the debugger could not track the connection
+		CHECK_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+		sqlitedbg_test_fail_init = 0;
+		CHECK(db != NULL);
+		if (!db) continue;
+		CHECK_EQ(list_conns(&l), before);
+		exec_ok(db, "CREATE TABLE u(a)");
+		CHECK_EQ(sqlite3_close(db), SQLITE_OK);
+	}
 	CHECK_EQ(list_conns(&l), before);
 }
 
@@ -825,6 +876,8 @@ int main(int argc, char **argv) {
 		test_burst();
 		printf("# close and list\n");
 		test_close_and_list();
+		printf("# init failure\n");
+		test_init_failure();
 		printf("# server connections\n");
 		test_server();
 		printf("# threads\n");

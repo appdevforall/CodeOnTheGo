@@ -51,7 +51,7 @@ run_with () {
 	mkdir "$WORK/$name"
 	build gcc -O1 -g -w -fsanitize="$sanitize" "${DEFS[@]}" -I"$AMAL" -c "$AMAL/sqlite3.c" -o "$WORK/$name/sqlite3.o"
 	build gcc -O1 -g -Wall -Wextra -Werror -fsanitize="$sanitize" -fno-sanitize-recover=all "${DEFS[@]}" \
-		-I"$AMAL" -I"$CPP" "$CPP/sqlitedbg.c" "$HERE/src/test/c/sqlitedbg_test.c" "$WORK/$name/sqlite3.o" \
+		-DSQLITEDBG_TEST -I"$AMAL" -I"$CPP" "$CPP/sqlitedbg.c" "$HERE/src/test/c/sqlitedbg_test.c" "$WORK/$name/sqlite3.o" \
 		-o "$WORK/$name/test" -lpthread -ldl -lm
 	TSAN_OPTIONS=halt_on_error=1 "$WORK/$name/test" ${3:+"${@:3}"}
 }
