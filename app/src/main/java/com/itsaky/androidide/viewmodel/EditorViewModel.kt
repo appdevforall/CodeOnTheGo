@@ -424,8 +424,10 @@ class EditorViewModel : ViewModel() {
 		index: Int,
 		file: File?,
 	) {
-		displayedFileIndex = index
+		// The current file first: observers of the displayed index run as it is set, and the plugins
+		// they notify may ask for the current file.
 		mCurrentFile.value = index to file
+		displayedFileIndex = index
 	}
 
 	fun updateFile(
@@ -475,9 +477,9 @@ class EditorViewModel : ViewModel() {
 	fun getCurrentFile(): File? = mCurrentFile.value?.second
 
 	/**
-	 * The file at [displayedFileIndex], or null when it is -1 (a plugin tab, or no tab). Observers
-	 * of the displayed index read this, not [getCurrentFile]: [setCurrentFile] and the tab-selected
-	 * callback set the index first, so the current file still names the tab being left.
+	 * The file at [displayedFileIndex], or null when it is -1 (a plugin tab just added, or no file
+	 * open). Observers of the displayed index read this rather than [getCurrentFile], which a new
+	 * plugin tab leaves at the last file.
 	 */
 	fun displayedFile(): File? = files.getOrNull(displayedFileIndex)
 

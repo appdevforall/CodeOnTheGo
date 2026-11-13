@@ -1151,7 +1151,7 @@ open class EditorHandlerActivity :
 			if (fileIndex < 0) return@withContext null
 
 			editorViewModel.startDrawerOpened = false
-			editorViewModel.displayedFileIndex = fileIndex
+			editorViewModel.setCurrentFile(fileIndex, file)
 
 			val tabPosition = getTabPositionForFileIndex(fileIndex)
 			val tab = content.tabs.getTabAt(tabPosition)
