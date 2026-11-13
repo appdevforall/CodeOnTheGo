@@ -73,6 +73,8 @@ typedef struct {
     unsigned            cancel_epoch;   // js_cancel_epoch when the outermost call began
     bool                check_interrupted;  // sqlite3_is_interrupted() is available
     struct rowset       *rowsets;       // result sets not yet freed: see js_end_rowsets()
+    bool                ending_rowsets; // js_end_rowsets() is running
+    bool                cancel_interrupted; // a cancel interrupted the connection: see js_leave()
 } globaljs_context;
 
 typedef struct {
@@ -248,13 +250,23 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
 // one that JavaScript keeps, in a global say, or that is garbage not yet collected, would make every
 // later statement fail with "interrupted" until the connection closed, the statements that could
 // release it included. Only to be called where none of them is being stepped: see js_leave().
+// Finalizing a statement can run JavaScript, the final of a window or aggregate function it was
+// computing, whose js_leave() comes back here and whose garbage collection can free result sets
+// of the list. So each statement is taken from its result set before it is finalized, the list
+// is walked again from its head after each one, and a nested call does nothing.
 static void js_end_rowsets (globaljs_context *js) {
-    for (rowset *rs = js->rowsets; rs; rs = rs->next) {
-        if (!rs->vm) continue;
-        sqlite3_finalize(rs->vm);
+    if (js->ending_rowsets) return;
+    js->ending_rowsets = true;
+    for (;;) {
+        rowset *rs = js->rowsets;
+        while (rs && !rs->vm) rs = rs->next;
+        if (!rs) break;
+        sqlite3_stmt *vm = rs->vm;
         rs->vm = NULL;
         rs->interrupted = true;
+        sqlite3_finalize(vm);
     }
+    js->ending_rowsets = false;
 }
 
 // MARK: - Initializer -
@@ -323,6 +335,7 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
         // The statement is interrupted too: a collation cannot report an error, so the
         // statement would go on calling JavaScript, each call beginning after the cancel.
         if (js->db) sqlite3_interrupt(js->db);
+        js->cancel_interrupted = true;
         return 1;
     }
     return js->check_interrupted && (js->db != NULL) && sqlite3_is_interrupted(js->db);
@@ -512,9 +525,13 @@ static void js_enter (globaljs_context *js) {
 
 // Once the outermost call has returned, no result set is being stepped, so those an interrupt left
 // open are ended here: see js_end_rowsets().
+// A cancel's own interrupt counts even where sqlite3_is_interrupted() is missing (SQLite before 3.41).
 static void js_leave (globaljs_context *js) {
     if (--js->depth > 0) return;
-    if ((sqlite3_libversion_number() >= 3041000) && js->db && sqlite3_is_interrupted(js->db)) js_end_rowsets(js);
+    if (js->cancel_interrupted || (js->check_interrupted && js->db && sqlite3_is_interrupted(js->db))) {
+        js->cancel_interrupted = false;
+        js_end_rowsets(js);
+    }
 }
 
 static globaljs_context *globaljs_init (sqlite3 *db) {

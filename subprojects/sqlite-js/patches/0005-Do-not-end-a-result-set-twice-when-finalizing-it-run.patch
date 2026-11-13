@@ -1,0 +1,89 @@
+From ec5ba2c4092d85931c191df7d56664ee5579d3a3 Mon Sep 17 00:00:00 2001
+From: David Schachter <davidschachter@appdevforall.org>
+Date: Thu, 12 Nov 2026 16:29:13 -0800
+Subject: [PATCH 5/6] Do not end a result set twice when finalizing it runs
+ JavaScript
+
+Finalizing a statement that is computing a window or aggregate function
+runs the function's final, which for a JavaScript function calls
+js_enter() and js_leave(). On an interrupted connection that js_leave()
+ended the result sets again, before the first finalize had returned: the
+same statement was finalized twice, a use after free under ASan, found
+by CodeRabbit. Garbage collection while that JavaScript runs can also
+free result sets of the list being walked.
+
+js_end_rowsets() now takes each statement from its result set before it
+finalizes it, walks the list again from its head after each one, and
+does nothing when called from within itself. The Interrupt test now also
+interrupts code that keeps a result set computing a JavaScript window
+function; without this change it is a use after free under ASan. The
+suite passes 15 of 15, also under ASan and UBSan.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Vh2DAXGyHbMzjSsi2zbrkw
+---
+ src/sqlitejs.c | 17 ++++++++++++++---
+ test/main.c    |  8 ++++++++
+ 2 files changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/src/sqlitejs.c b/src/sqlitejs.c
+index 7f31883..a3d72c6 100644
+--- a/src/sqlitejs.c
++++ b/src/sqlitejs.c
+@@ -73,6 +73,7 @@ typedef struct {
+     unsigned            cancel_epoch;   // js_cancel_epoch when the outermost call began
+     bool                check_interrupted;  // sqlite3_is_interrupted() is available
+     struct rowset       *rowsets;       // result sets not yet freed: see js_end_rowsets()
++    bool                ending_rowsets; // js_end_rowsets() is running
+ } globaljs_context;
+ 
+ typedef struct {
+@@ -248,13 +249,23 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
+ // one that JavaScript keeps, in a global say, or that is garbage not yet collected, would make every
+ // later statement fail with "interrupted" until the connection closed, the statements that could
+ // release it included. Only to be called where none of them is being stepped: see js_leave().
++// Finalizing a statement can run JavaScript, the final of a window or aggregate function it was
++// computing, whose js_leave() comes back here and whose garbage collection can free result sets
++// of the list. So each statement is taken from its result set before it is finalized, the list
++// is walked again from its head after each one, and a nested call does nothing.
+ static void js_end_rowsets (globaljs_context *js) {
+-    for (rowset *rs = js->rowsets; rs; rs = rs->next) {
+-        if (!rs->vm) continue;
+-        sqlite3_finalize(rs->vm);
++    if (js->ending_rowsets) return;
++    js->ending_rowsets = true;
++    for (;;) {
++        rowset *rs = js->rowsets;
++        while (rs && !rs->vm) rs = rs->next;
++        if (!rs) break;
++        sqlite3_stmt *vm = rs->vm;
+         rs->vm = NULL;
+         rs->interrupted = true;
++        sqlite3_finalize(vm);
+     }
++    js->ending_rowsets = false;
+ }
+ 
+ // MARK: - Initializer -
+diff --git a/test/main.c b/test/main.c
+index 63f9dab..d7edb9e 100644
+--- a/test/main.c
++++ b/test/main.c
+@@ -590,6 +590,14 @@ int test_interrupt (void) {
+     if (rc != SQLITE_OK) goto abort_test;
+     rc = check_query(db, "SELECT 1 + 2;", "3");
+     if (rc != SQLITE_OK) goto abort_test;
++    // ending a result set that is computing a window function runs the function's final, which
++    // is JavaScript too: its end must not end the same result set again
++    rc = db_exec(db, "SELECT js_create_window('running_sum', 'total = 0;', '(function (args) { total += args[0]; })', '(function () { return total; })', '(function () { return total; })', '(function (args) { total -= args[0]; })');");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = test_interrupt_sql(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT running_sum(column1) OVER (ORDER BY column1) FROM (VALUES (1), (2), (3))\"); held.next(); while (true) {}');");
++    if (rc != SQLITE_OK) goto abort_test;
++    rc = check_error(db, "SELECT js_eval('held.next()');", "interrupted");
++    if (rc != SQLITE_OK) goto abort_test;
+     
+ abort_test:
+     test_watchdog_stop = 1;
+-- 
+2.53.0
+

@@ -12,6 +12,7 @@ An AAR that lets apps built with Code on the Go define and call JavaScript funct
   - 0002 keeps QuickJS's stack check within the thread's stack in two cases where code that called itself without end crashed the process: a thread with less than 64 KB of stack left, and a main thread first measured deep in its stack.
   - 0003 collects garbage after any "out of memory" error and whenever a memory limit is set. Before, garbage could leave an allocation that fits in the limit failing on every try.
   - 0004 ends the `db.exec` result sets that an interrupted call leaves open. SQLite keeps an interrupt in effect while any statement of the connection runs, so after `cancelAll()` stopped JavaScript that kept one open, every later statement on that connection failed.
+  - 0005 and 0006 complete 0004. Finalizing a result set can run JavaScript, the final of a window or aggregate function, which must not end the same result set again. And on SQLite before 3.41, which cannot report an interrupt, a cancel's own interrupt counts.
 - `src/main/cpp/`: the CMake build of `libsqlitejs.so`, and `sqlitejs_android.c`, which is ours: JNI for `SqliteJs`, and the two entry points it names. The version script exports only the entry points (and upstream's `sqlite3_js_init`) and `JNI_OnLoad`.
 - `src/test/c/glue_test.c` and `test.sh`: the tests the Android build cannot run. See Testing.
 - `src/main/java/`: `SqliteJs`.
