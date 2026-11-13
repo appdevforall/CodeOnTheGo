@@ -10,6 +10,11 @@ import com.itsaky.androidide.treesitter.TSQuery
 import com.itsaky.androidide.treesitter.TSQueryError
 import com.itsaky.androidide.treesitter.TreeSitter
 import com.itsaky.androidide.treesitter.javascript.TSLanguageJavascript
+import io.github.rosemoe.sora.lang.styling.MappedSpans
+import io.github.rosemoe.sora.lang.styling.SpanFactory
+import io.github.rosemoe.sora.lang.styling.Styles
+import io.github.rosemoe.sora.lang.styling.TextStyle
+import io.github.rosemoe.sora.text.Content
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,6 +67,37 @@ class JavaScriptLanguageTest {
 				assertThat(spec.spec.tsQuery.patternCount).isGreaterThan(0)
 				assertThat(spec.indentsQuery).isNotNull()
 			}
+	}
+
+	// The editor gives Enter to the first newline handler that accepts the cursor's position. One
+	// must accept a cursor between each pair of brackets, [ ] included, or the closing bracket
+	// stays on the new line and is dedented.
+	@Test
+	fun enterBetweenBracketsIsHandled() {
+		val context = InstrumentationRegistry.getInstrumentation().targetContext
+		LanguageSpecProvider
+			.getLanguageSpec(context, JavaScriptLanguage.TS_TYPE, TSLanguageJavascript.getInstance())
+			.use { spec ->
+				// JavaScriptLanguage's own constructor reads the app's preferences, which a test lacks.
+				val handlers = JavaScriptLanguage.newlineHandlers(object : TreeSitterLanguage(JavaScriptLanguage.TS_TYPE, spec) {})
+				for (pair in listOf("{}", "()", "[]")) {
+					val content = Content("const a = $pair")
+					val betweenPair = content.indexer.getCharPosition(0, content.getColumnCount(0) - 1)
+					val styles = plainStyles()
+					assertWithMessage(pair)
+						.that(handlers.any { it.matchesRequirement(content, betweenPair, styles) })
+						.isTrue()
+				}
+			}
+	}
+
+	// A handler accepts only a position with a style span that allows completion, as every
+	// position in an analysed file has.
+	private fun plainStyles(): Styles {
+		val spans = MappedSpans.Builder()
+		spans.add(0, SpanFactory.obtain(0, TextStyle.makeStyle(0)))
+		spans.determine(0)
+		return Styles(spans.build())
 	}
 
 	private fun hasErrors(source: String): Boolean =
