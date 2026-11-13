@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AbstractKtModule
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisScheduler
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
@@ -485,8 +486,14 @@ internal abstract class AbstractCompilationEnvironment(
 		val deadline = System.nanoTime() + DISPOSE_WAIT.inWholeNanoseconds
 		while (true) {
 			val disposed =
-				AnalysisScheduler.withLock(AnalysisPriority.INTERACTIVE, ICancelChecker.NOOP, onPreempt = {}) {
-					project.tryWrite { Disposer.dispose(disposable) }
+				try {
+					AnalysisScheduler.withLock(AnalysisPriority.INTERACTIVE, ICancelChecker.NOOP, onPreempt = {}) {
+						project.tryWrite { Disposer.dispose(disposable) }
+					}
+				} catch (_: AnalysisPreemptedException) {
+					// An edit's barrier (any environment's: the scheduler is process-wide) turns every requester
+					// away; it is brief, so treat it as a miss rather than abandon disposal.
+					false
 				}
 			if (disposed) return
 

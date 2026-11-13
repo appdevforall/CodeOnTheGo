@@ -299,16 +299,18 @@ internal object AnalysisScheduler {
 	 * The caller must not hold `project.read` or the analysis slot: [block] would then wait on itself.
 	 */
 	fun <R> preemptingAnalysis(block: () -> R): R {
-		mutex.withLock {
-			barriers++
-			if (holderThread != null && !holderPreempted) {
-				holderPreempted = true
-				holderPreempt?.invoke()
-			}
-			// Waiters park on a timed await; wake them so they leave now rather than at the next poll.
-			available.signalAll()
-		}
+		// The raise sits inside the try: a throwing onPreempt must not leave the count up, or every later
+		// analysis in the process is turned away.
 		try {
+			mutex.withLock {
+				barriers++
+				// Waiters park on a timed await; wake them so they leave now rather than at the next poll.
+				available.signalAll()
+				if (holderThread != null && !holderPreempted) {
+					holderPreempted = true
+					holderPreempt?.invoke()
+				}
+			}
 			return block()
 		} finally {
 			mutex.withLock {

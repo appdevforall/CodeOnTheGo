@@ -88,4 +88,41 @@ class AnalysisPreemptionBarrierTest {
 
 		assertThat(result).isEqualTo(42)
 	}
+
+	@Test(timeout = 10_000)
+	fun `the barrier is lowered when preempting the holder throws`() {
+		val held = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val holder =
+			thread {
+				AnalysisScheduler.withLock(
+					AnalysisPriority.INDEXING,
+					checker(),
+					onPreempt = { throw IllegalStateException("onPreempt failed") },
+				) {
+					held.countDown()
+					release.await(5, SECONDS)
+				}
+			}
+		try {
+			assertThat(held.await(5, SECONDS)).isTrue()
+			runCatching { AnalysisScheduler.preemptingAnalysis { } }
+		} finally {
+			release.countDown()
+			holder.join()
+		}
+
+		val result = AnalysisScheduler.withLock(AnalysisPriority.INTERACTIVE, checker(), onPreempt = {}) { 42 }
+
+		assertThat(result).isEqualTo(42)
+	}
+
+	@Test(timeout = 10_000)
+	fun `the barrier is lowered when the block throws`() {
+		runCatching { AnalysisScheduler.preemptingAnalysis { throw IllegalStateException("block failed") } }
+
+		val result = AnalysisScheduler.withLock(AnalysisPriority.INTERACTIVE, checker(), onPreempt = {}) { 42 }
+
+		assertThat(result).isEqualTo(42)
+	}
 }
