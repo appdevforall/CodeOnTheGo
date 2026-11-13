@@ -1,5 +1,6 @@
 package org.appdevforall.codeonthego.indexing.util
 
+import com.itsaky.androidide.memprof.Memprof
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -164,12 +165,18 @@ class BackgroundIndexer<T : Indexable>(
 								progressListener?.onProgress(sourceId, IndexingEvent.Progress(count))
 							}
 						}
-					withContext(Dispatchers.IO) {
-						if (fingerprint != null) {
-							index.insertSource(sourceId, fingerprint, entries)
-						} else {
-							insertInBatches(entries)
+					// The section's allocatedBytes counts the whole process, and sources index concurrently,
+					// so each source's figure also holds its neighbours' allocations: an upper bound, not
+					// this source's share. Duration and entry count are this source's own.
+					Memprof.section("Index library source", sourceId) { span ->
+						withContext(Dispatchers.IO) {
+							if (fingerprint != null) {
+								index.insertSource(sourceId, fingerprint, entries)
+							} else {
+								insertInBatches(entries)
+							}
 						}
+						span.put("entries", count.toLong())
 					}
 
 					progressListener?.onProgress(sourceId, IndexingEvent.Completed(count))
