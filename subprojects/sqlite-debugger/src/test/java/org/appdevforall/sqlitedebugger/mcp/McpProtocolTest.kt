@@ -23,9 +23,10 @@ class McpProtocolTest {
 			throw McpToolError("A person is needed: tap Allow on the sharing phone.", JSONObject().put("person_needed", true))
 		}
 	private val crashes = McpTool("crashes", "Crashes", "Throws an unexpected exception.") { _ -> throw IllegalStateException("boom") }
+	private val linkFails = McpTool("link_fails", "Link fails", "Throws an Error.") { _ -> throw UnsatisfiedLinkError("no library") }
 
 	private fun protocol(maxSessions: Int = 16) =
-		McpProtocol(listOf(echo, needsPerson, crashes), "test", { "s${++sessionNumber}" }, maxSessions)
+		McpProtocol(listOf(echo, needsPerson, crashes, linkFails), "test", { "s${++sessionNumber}" }, maxSessions)
 
 	private fun initBody(version: String = "2025-06-18") =
 		JSONObject()
@@ -123,7 +124,7 @@ class McpProtocolTest {
 		val s = session(p)
 		val tools = JSONObject(p.post(request(2, "tools/list").toString(), s, null).body!!).getJSONObject("result").getJSONArray("tools")
 		val names = (0 until tools.length()).map { tools.getJSONObject(it).getString("name") }
-		assertEquals(listOf("echo", "needs_person", "crashes"), names)
+		assertEquals(listOf("echo", "needs_person", "crashes", "link_fails"), names)
 		val first = tools.getJSONObject(0)
 		assertEquals("object", first.getJSONObject("inputSchema").getString("type"))
 		assertTrue(first.getJSONObject("annotations").getBoolean("readOnlyHint"))
@@ -414,6 +415,38 @@ class McpProtocolTest {
 			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
 			assertTrue(text.startsWith("HTTP/1.1 415"))
 		}
+	}
+
+	@Test fun httpAnErrorInAToolIsA500AndTheServerKeepsServing() {
+		val port = startServer()
+		val s = http(port, "POST", headers = auth, body = initBody()).headers["mcp-session-id"]!!
+		val params = JSONObject().put("name", "link_fails")
+		val r = http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = request(3, "tools/call", params).toString())
+		assertEquals(500, r.status)
+		assertTrue(r.body, r.body.contains("no library"))
+		assertEquals(200, http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = request(4, "ping").toString()).status)
+	}
+
+	@Test fun httpAcceptBacksOffAfterFailuresAndKeepsServing() {
+		val attempts = java.util.Collections.synchronizedList(mutableListOf<Long>())
+		val failures = 4
+		val flaky =
+			object : java.net.ServerSocket() {
+				override fun accept(): Socket {
+					attempts += System.nanoTime()
+					if (attempts.size <= failures) throw java.io.IOException("Too many open files")
+					return super.accept()
+				}
+			}
+		val s = McpHttp(protocol(), { token }, port = 0, socketFactory = { flaky })
+		s.start()
+		server = s
+		Thread.sleep(1_200) // 100 + 200 + 400 ms of sleeps, then the fourth failure sleeps 800 ms
+		// a spinning loop would have made thousands of attempts by now
+		assertTrue("attempts so far: ${attempts.size}", attempts.size in 4..6)
+		val gaps = attempts.zipWithNext { a, b -> (b - a) / 1_000_000 }
+		assertTrue("gaps $gaps", gaps[0] >= 90 && gaps[1] >= 190 && gaps[2] >= 390)
+		assertEquals(200, http(s.boundPort, "POST", headers = auth, body = initBody()).status)
 	}
 
 	@Test fun httpSessionThenDelete() {

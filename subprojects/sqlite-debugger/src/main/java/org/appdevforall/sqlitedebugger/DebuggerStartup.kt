@@ -26,23 +26,38 @@ class DebuggerStartup : ContentProvider() {
 			"The SQLite debugger is in a build that is not debuggable. Remove it from release builds."
 		}
 		val databaseDir = File(context.applicationInfo.dataDir, "databases")
-		thread(name = "sqlite-debugger-start", isDaemon = true) {
-			try {
-				val engine = NativeDebugEngine()
-				engine.install()
-				val tools = DatabaseTools(engine, databaseDir)
-				val token = McpHttp.newToken()
-				val protocol = McpProtocol(tools.tools(), "1", { UUID.randomUUID().toString() })
-				val http = McpHttp(protocol, { token }, log = { Log.w(TAG, it) })
-				http.start()
-				port = http.boundPort
-				endpointToken = token
-				Log.i(TAG, "listening on 127.0.0.1:${http.boundPort}")
-			} catch (e: Exception) {
-				Log.e(TAG, "could not start", e)
+		// Throwable, not Exception: a missing library is an UnsatisfiedLinkError, and an Error that
+		// escapes here kills the host app. A debugger that cannot start is disabled, never a crash.
+		try {
+			// Synchronous: an app that opens its database in Application.onCreate or another
+			// provider would otherwise be missed.
+			val engine = NativeDebugEngine()
+			engine.install()
+			thread(name = "sqlite-debugger-start", isDaemon = true) {
+				try {
+					startServer(engine, databaseDir)
+				} catch (t: Throwable) {
+					Log.e(TAG, "could not start the server", t)
+				}
 			}
+		} catch (t: Throwable) {
+			Log.e(TAG, "the SQLite debugger is disabled", t)
 		}
 		return true
+	}
+
+	private fun startServer(
+		engine: NativeDebugEngine,
+		databaseDir: File,
+	) {
+		val tools = DatabaseTools(engine, databaseDir)
+		val token = McpHttp.newToken()
+		val protocol = McpProtocol(tools.tools(), "1", { UUID.randomUUID().toString() })
+		val http = McpHttp(protocol, { token }, log = { Log.w(TAG, it) })
+		http.start()
+		port = http.boundPort
+		endpointToken = token
+		Log.i(TAG, "listening on 127.0.0.1:${http.boundPort}")
 	}
 
 	override fun query(

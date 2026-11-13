@@ -39,6 +39,8 @@ class McpHttp(
 	private val port: Int = 0,
 	/** Problems worth a line in the log. Never given the token. */
 	private val log: (String) -> Unit = {},
+	/** Creates the listening socket; tests pass one whose accept fails. */
+	private val socketFactory: () -> ServerSocket = { ServerSocket() },
 ) {
 	companion object {
 		private const val B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -83,6 +85,10 @@ class McpHttp(
 
 		/** A connection with no request for this long is closed. */
 		const val IDLE_TIMEOUT_MS = 30_000
+
+		/** After a failed accept the loop sleeps this long, doubling up to the maximum while failures continue. */
+		const val ACCEPT_BACKOFF_MIN_MS = 100L
+		const val ACCEPT_BACKOFF_MAX_MS = 2_000L
 		private val STATUS =
 			mapOf(
 				200 to "OK",
@@ -127,7 +133,7 @@ class McpHttp(
 
 	/** Binds 127.0.0.1:[port]. Throws IOException with a readable message if the port is taken. */
 	fun start() {
-		val s = ServerSocket()
+		val s = socketFactory()
 		try {
 			s.reuseAddress = true
 			s.bind(InetSocketAddress(InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1)), port), 16)
@@ -156,12 +162,23 @@ class McpHttp(
 	}
 
 	private fun acceptLoop(s: ServerSocket) {
+		var backoffMs = 0L
 		while (running && !s.isClosed) {
 			val c =
 				try {
-					s.accept()
+					s.accept().also { backoffMs = 0 }
 				} catch (e: IOException) {
-					if (running && !s.isClosed) log("couldn't accept a connection: ${e.message}")
+					if (running && !s.isClosed) {
+						log("couldn't accept a connection: ${e.message}")
+						// A persistent failure (EMFILE) would otherwise spin; keep trying, slowly.
+						backoffMs = if (backoffMs == 0L) ACCEPT_BACKOFF_MIN_MS else minOf(backoffMs * 2, ACCEPT_BACKOFF_MAX_MS)
+						sleepQuietly(backoffMs)
+					}
+					continue
+				} catch (t: Throwable) {
+					log("accept failed: ${t.javaClass.simpleName}: ${t.message}")
+					backoffMs = if (backoffMs == 0L) ACCEPT_BACKOFF_MIN_MS else minOf(backoffMs * 2, ACCEPT_BACKOFF_MAX_MS)
+					sleepQuietly(backoffMs)
 					continue
 				}
 			if (!c.inetAddress.isLoopbackAddress) {
@@ -184,8 +201,9 @@ class McpHttp(
 					serve(c)
 				} catch (ignored: IOException) {
 					// The client went away.
-				} catch (e: Exception) {
-					log("a connection failed: ${e.javaClass.simpleName}: ${e.message}")
+				} catch (t: Throwable) {
+					// An Error here would kill the host app: log it and drop the connection.
+					log("a connection failed: ${t.javaClass.simpleName}: ${t.message}")
 				} finally {
 					clients -= c
 					close(c)
@@ -255,9 +273,9 @@ class McpHttp(
 					if (type != null && type != "application/json") return send(415, rpcError("Send the request as application/json."))
 					try {
 						protocol.post(String(r.body, Charsets.UTF_8), session, r.headers["mcp-protocol-version"])
-					} catch (e: Exception) {
-						log("a request failed: ${e.javaClass.simpleName}: ${e.message}")
-						McpProtocol.Reply(500, rpcError("The server failed: ${e.message ?: e.javaClass.simpleName}"))
+					} catch (t: Throwable) {
+						log("a request failed: ${t.javaClass.simpleName}: ${t.message}")
+						McpProtocol.Reply(500, rpcError("The server failed: ${t.message ?: t.javaClass.simpleName}"))
 					}
 				}
 
@@ -444,6 +462,14 @@ class McpHttp(
 			.put("id", JSONObject.NULL)
 			.put("error", JSONObject().put("code", McpProtocol.INVALID_REQUEST).put("message", message))
 			.toString()
+
+	private fun sleepQuietly(ms: Long) {
+		try {
+			Thread.sleep(ms)
+		} catch (e: InterruptedException) {
+			Thread.currentThread().interrupt()
+		}
+	}
 
 	private fun close(s: Socket) {
 		try {
