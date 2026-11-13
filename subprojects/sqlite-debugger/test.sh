@@ -6,6 +6,8 @@
 #   --update-fixture  rewrites src/test/resources/.../events.bin and events.tsv, which the JVM test
 #                     of EventDecoder reads; without it the committed pair is checked against the
 #                     current record layout instead.
+# Then, if a JDK is on PATH (javac, java, jni.h), the JNI layer is built as on a device (no SQLITE_CORE,
+# against a requery-like libsqlite3x.so) and src/test/jni/JniQueryTest.java runs the real query path.
 # Needs gcc, curl, tar and sha256sum.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -65,3 +67,37 @@ else
 	"$WORK/asan-ubsan/test" --check-fixture "$RES/events.bin" "$RES/events.tsv"
 fi
 run_with tsan thread
+
+# The JNI query path on a host JVM. The Java stubs of NativeBridge and DebugEngineException under
+# src/test/jni stand in for the Kotlin classes (no Kotlin compiler needed); the native names are
+# checked against NativeBridge.kt below.
+run_jni () {
+	local jdk
+	jdk=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")
+	[ -f "$jdk/include/jni.h" ] || { echo "# jni: skipped, no jni.h under $jdk"; return 0; }
+	echo "# jni"
+	local jni=$HERE/src/test/jni out=$WORK/jni
+	mkdir -p "$out/lib" "$out/classes"
+	local kotlin_names java_names
+	kotlin_names=$(sed -n 's/.*external fun \([A-Za-z]*\)(.*/\1/p' "$HERE/src/main/java/org/appdevforall/sqlitedebugger/engine/NativeBridge.kt" | sort | tr '\n' ' ')
+	java_names=$(sed -n 's/.*static native .* \([A-Za-z]*\)(.*/\1/p' "$jni/org/appdevforall/sqlitedebugger/engine/NativeBridge.java" | sort | tr '\n' ' ')
+	[ "$kotlin_names" = "$java_names" ] || { echo "NativeBridge.kt has ($kotlin_names) but the test stub has ($java_names)"; exit 1; }
+	local jinc=(-I"$jdk/include" -I"$jdk/include/linux")
+	# as requery builds it: everything exported, so dlsym finds sqlite3_auto_extension
+	build gcc -O1 -w -shared -fPIC -DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -I"$AMAL" \
+		"$AMAL/sqlite3.c" -o "$out/lib/libsqlite3x.so" -lpthread -ldl -lm
+	build gcc -O1 -Wall -Wextra -Werror -shared -fPIC -fvisibility=hidden -I"$AMAL" -I"$CPP" "${jinc[@]}" \
+		"$CPP/sqlitedbg.c" "$CPP/sqlitedbg_jni.c" -Wl,--version-script="$CPP/sqlitedbg.map" \
+		-o "$out/lib/libsqlitedbg.so" -lpthread -ldl
+	build gcc -O1 -Wall -Wextra -Werror -shared -fPIC -I"$AMAL" "${jinc[@]}" "$jni/helper.c" \
+		-L"$out/lib" -lsqlite3x -Wl,-rpath,"$out/lib" -o "$out/lib/libhosthelper.so"
+	build javac -d "$out/classes" "$jni/org/appdevforall/sqlitedebugger/engine/NativeBridge.java" \
+		"$jni/org/appdevforall/sqlitedebugger/engine/DebugEngineException.java" "$jni/Helper.java" "$jni/JniQueryTest.java"
+	LD_LIBRARY_PATH="$out/lib" java -Djava.library.path="$out/lib" -cp "$out/classes" JniQueryTest
+}
+
+if command -v javac >/dev/null && command -v java >/dev/null; then
+	run_jni
+else
+	echo "# jni: skipped, no JDK (javac and java) on PATH"
+fi
