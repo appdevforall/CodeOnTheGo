@@ -510,12 +510,15 @@ internal class KtSymbolIndex(
 	 * therefore check [LiveKtFile.isStale] and degrade rather than compute against frozen text.
 	 *
 	 * Known gap: the instance is resolved *before* the pin is installed, so a request arriving in that
-	 * window sees no pin and can launch a refresh that completes inside this scope, firing
-	 * `registerInMemoryFile` and a FIR modification event underneath it. Instance identity still holds -
-	 * every door answers with the pinned instance for the whole scope - and the pin is stamped with the
-	 * resolved instance's own version, so the bump is not lost. Closing the window entirely would mean
-	 * publishing a pin before its file exists, making joiners wait on an unresolved entry inside the one
-	 * path every caller depends on; that deadlock risk is worse than the window.
+	 * window sees no pin and can launch a refresh. An in-place refresh cannot land inside this scope:
+	 * the pin holds the document's edit read stamp, so the edit is deferred to the release; so is the
+	 * full-parse fallback of a failed in-place reparse, which runs under the write stamp. Only a full
+	 * parse with no document to stamp (the path's first parse) can complete inside the scope, firing
+	 * `registerInMemoryFile` and a FIR modification event underneath it. Instance identity still holds - every door answers with the pinned instance for the whole
+	 * scope - and the pin is stamped with the locked document's `appliedVersion`, so the bump is not
+	 * lost. Closing the window entirely would mean publishing a pin before its file exists, making
+	 * joiners wait on an unresolved entry inside the one path every caller depends on; that deadlock
+	 * risk is worse than the window.
 	 */
 	fun <R> withLiveKtFile(
 		path: Path,
@@ -529,7 +532,12 @@ internal class KtSymbolIndex(
 		}
 	}
 
-	/** Suspending [withLiveKtFile], for callers that must not block a dispatcher thread. */
+	/**
+	 * Suspending [withLiveKtFile], for callers that must not block a dispatcher thread on a refresh.
+	 *
+	 * It still blocks briefly once the refresh is done: installing the pin waits in the document's edit
+	 * read lock while an in-place edit is being applied.
+	 */
 	suspend fun <R> withLiveKtFileAsync(
 		path: Path,
 		block: (LiveKtFile) -> R,

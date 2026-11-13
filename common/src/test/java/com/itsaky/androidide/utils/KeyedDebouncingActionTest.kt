@@ -14,7 +14,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class KeyedDebouncingActionTest {
 	@Test
-	fun `scheduling a newer key cancels the running action's checker`() =
+	fun `rescheduling the same key cancels the running action's checker`() =
 		runBlocking {
 			val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 			val started = CompletableDeferred<Unit>()
