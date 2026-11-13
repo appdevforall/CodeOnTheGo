@@ -58,6 +58,34 @@ internal class RefreshPreemptsAnalysisTest : KtLspTest() {
 	@Test(timeout = 30_000)
 	fun `a refresh does not wait for a running indexing analysis`() {
 		val path = openDocument()
+		assertRefreshPreemptsIndexing(path, content, 2)
+	}
+
+	@Test(timeout = 30_000)
+	fun `an in-place edit does not wait for a running indexing analysis`() {
+		val path = openDocument()
+		runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+		val document = env.ktSymbolIndex.incrementalDocument(path)!!
+
+		val edited =
+			"""
+			package p
+
+			class Widget {
+				fun size(): Int = 1
+			}
+			""".trimIndent()
+		assertRefreshPreemptsIndexing(path, edited, 2)
+
+		assertThat(env.ktSymbolIndex.incrementalDocument(path)).isSameInstanceAs(document)
+		assertThat(document.appliedVersion).isEqualTo(2)
+	}
+
+	private fun assertRefreshPreemptsIndexing(
+		path: Path,
+		newContent: String,
+		version: Int,
+	) {
 		val started = CountDownLatch(1)
 		val analysisError = AtomicReference<Throwable?>()
 		// Cancelled in finally so a regression (refresh timed out) still stops the analysis and frees the lock.
@@ -82,7 +110,7 @@ internal class RefreshPreemptsAnalysisTest : KtLspTest() {
 		try {
 			assertThat(started.await(5, SECONDS)).isTrue()
 			FileManager.onDocumentContentChange(
-				DocumentChangeEvent(path, content, content, 2, ChangeType.NEW_TEXT, 0, Range.NONE),
+				DocumentChangeEvent(path, newContent, newContent, version, ChangeType.NEW_TEXT, 0, Range.NONE),
 			)
 
 			runBlocking { withTimeout(3_000) { env.ktSymbolIndex.refreshCurrentKtFile(path) } }
