@@ -69,17 +69,16 @@ class JavaScriptLanguageTest {
 			}
 	}
 
-	// The editor gives Enter to the first newline handler that accepts the cursor's position. One
-	// must accept a cursor between each pair of brackets, [ ] included, or the closing bracket
-	// stays on the new line and is dedented.
+	// The editor gives Enter to the first newline handler that accepts the cursor's position, and
+	// that handler puts the closing bracket on a line of its own. Without one, [ ] included, the
+	// closing bracket stays at the start of the new line and is dedented.
 	@Test
 	fun enterBetweenBracketsIsHandled() {
 		val context = InstrumentationRegistry.getInstrumentation().targetContext
 		LanguageSpecProvider
 			.getLanguageSpec(context, JavaScriptLanguage.TS_TYPE, TSLanguageJavascript.getInstance())
 			.use { spec ->
-				// JavaScriptLanguage's own constructor reads the app's preferences, which a test lacks.
-				val handlers = JavaScriptLanguage.newlineHandlers(object : TreeSitterLanguage(JavaScriptLanguage.TS_TYPE, spec) {})
+				val handlers = JavaScriptLanguage(spec).newlineHandlers
 				for (pair in listOf("{}", "()", "[]")) {
 					val content = Content("const a = $pair")
 					val betweenPair = content.indexer.getCharPosition(0, content.getColumnCount(0) - 1)
@@ -91,8 +90,8 @@ class JavaScriptLanguageTest {
 			}
 	}
 
-	// A handler accepts only a position with a style span that allows completion, as every
-	// position in an analysed file has.
+	// A handler accepts only a position whose style span allows completion, as code outside
+	// strings, template text and regexes has.
 	private fun plainStyles(): Styles {
 		val spans = MappedSpans.Builder()
 		spans.add(0, SpanFactory.obtain(0, TextStyle.makeStyle(0)))

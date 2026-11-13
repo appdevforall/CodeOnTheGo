@@ -2,16 +2,24 @@ package com.itsaky.androidide.editor.language.treesitter
 
 import android.content.Context
 import com.itsaky.androidide.editor.language.newline.TSBracketsHandler
+import com.itsaky.androidide.editor.schemes.LanguageSpecProvider.getLanguageSpec
+import com.itsaky.androidide.editor.schemes.LocalCaptureSpecProvider.newLocalCaptureSpec
 import com.itsaky.androidide.treesitter.javascript.TSLanguageJavascript
 
 /**
  * [TreeSitterLanguage] for JavaScript: highlighting, brackets, blocks and indentation. There is
  * no JavaScript language server.
  */
-class JavaScriptLanguage(
-	context: Context,
-) : TreeSitterLanguage(context, TSLanguageJavascript.getInstance(), TS_TYPE) {
-	override fun createNewlineHandlers(): Array<TSBracketsHandler> = newlineHandlers(this)
+class JavaScriptLanguage internal constructor(
+	spec: TreeSitterLanguageSpec,
+) : TreeSitterLanguage(TS_TYPE, spec) {
+	// The spec's local captures take their colors from the app's color scheme preference, so a
+	// test, which has no preferences, passes its own spec to the constructor above.
+	constructor(context: Context) : this(
+		getLanguageSpec(context, TS_TYPE, TSLanguageJavascript.getInstance(), newLocalCaptureSpec(TS_TYPE)),
+	)
+
+	override fun createNewlineHandlers(): Array<TSBracketsHandler> = arrayOf(BracketsHandler(this))
 
 	/**
 	 * Enter between a pair of brackets puts the closing one on a line of its own, as
@@ -36,8 +44,5 @@ class JavaScriptLanguage(
 
 		@JvmField
 		val FACTORY = Factory { JavaScriptLanguage(it) }
-
-		// Outside the constructor, which reads the app's preferences, so a test can check them.
-		internal fun newlineHandlers(language: TreeSitterLanguage): Array<TSBracketsHandler> = arrayOf(BracketsHandler(language))
 	}
 }
