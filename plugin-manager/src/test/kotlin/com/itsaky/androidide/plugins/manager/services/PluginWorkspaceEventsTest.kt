@@ -1,11 +1,11 @@
 package com.itsaky.androidide.plugins.manager.services
 
+import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.IProject
 import com.itsaky.androidide.plugins.services.FileSaveListener
 import com.itsaky.androidide.plugins.services.ProjectLifecycleListener
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -67,7 +67,7 @@ class PluginWorkspaceEventsTest {
 
 		events.projectOpened(File(projectA, "../a"))
 
-		assertEquals(listOf(projectA), dirs)
+		assertThat(dirs).containsExactly(projectA)
 	}
 
 	@Test
@@ -78,7 +78,7 @@ class PluginWorkspaceEventsTest {
 		events.projectOpened(projectA)
 		events.projectOpened(projectA)
 
-		assertEquals(listOf("opened a"), listener.calls)
+		assertThat(listener.calls).containsExactly("opened a")
 	}
 
 	@Test
@@ -89,7 +89,7 @@ class PluginWorkspaceEventsTest {
 		events.projectOpened(projectA)
 		events.projectOpened(projectB)
 
-		assertEquals(listOf("opened a", "closed a", "opened b"), listener.calls)
+		assertThat(listener.calls).containsExactly("opened a", "closed a", "opened b").inOrder()
 	}
 
 	@Test
@@ -102,7 +102,7 @@ class PluginWorkspaceEventsTest {
 		events.projectClosed(projectA)
 		events.projectClosed(projectA)
 
-		assertEquals(listOf("opened a", "closed a"), listener.calls)
+		assertThat(listener.calls).containsExactly("opened a", "closed a").inOrder()
 	}
 
 	@Test
@@ -114,7 +114,7 @@ class PluginWorkspaceEventsTest {
 		events.projectClosed(projectA)
 		events.projectOpened(projectA)
 
-		assertEquals(listOf("opened a", "closed a", "opened a"), listener.calls)
+		assertThat(listener.calls).containsExactly("opened a", "closed a", "opened a").inOrder()
 	}
 
 	@Test
@@ -126,7 +126,7 @@ class PluginWorkspaceEventsTest {
 		val file = File(projectA, "Main.kt")
 		events.fileSaved(file)
 
-		assertEquals(listOf(file), saved)
+		assertThat(saved).containsExactly(file)
 	}
 
 	@Test
@@ -140,7 +140,7 @@ class PluginWorkspaceEventsTest {
 
 		events.fileSaved(File(projectA, "Main.kt"))
 
-		assertEquals(listOf("Main.kt"), heard)
+		assertThat(heard).containsExactly("Main.kt")
 	}
 
 	@Test
@@ -153,7 +153,7 @@ class PluginWorkspaceEventsTest {
 
 		events.fileSaved(File(projectA, "Main.kt"))
 
-		assertEquals(1, calls)
+		assertThat(calls).isEqualTo(1)
 	}
 
 	@Test
@@ -170,8 +170,8 @@ class PluginWorkspaceEventsTest {
 		events.projectOpened(projectA)
 		events.fileSaved(File(projectA, "Main.kt"))
 
-		assertEquals(emptyList<String>(), listener.calls)
-		assertEquals(0, saves)
+		assertThat(listener.calls).isEmpty()
+		assertThat(saves).isEqualTo(0)
 	}
 
 	@Test
@@ -186,9 +186,9 @@ class PluginWorkspaceEventsTest {
 		events.projectOpened(projectA)
 		events.fileSaved(File(projectA, "Main.kt"))
 
-		assertEquals(emptyList<String>(), gone.calls)
-		assertEquals(0, goneSaves)
-		assertEquals(listOf("opened a"), kept.calls)
+		assertThat(gone.calls).isEmpty()
+		assertThat(goneSaves).isEqualTo(0)
+		assertThat(kept.calls).containsExactly("opened a")
 	}
 
 	@Test
@@ -200,7 +200,7 @@ class PluginWorkspaceEventsTest {
 		events.removeAll("p")
 		while (queued.isNotEmpty()) queued.removeFirst().run()
 
-		assertEquals(emptyList<String>(), listener.calls)
+		assertThat(listener.calls).isEmpty()
 	}
 
 	@Test
@@ -226,7 +226,7 @@ class PluginWorkspaceEventsTest {
 		events.projectClosed(projectA)
 		while (queued.isNotEmpty()) queued.removeFirst().run()
 
-		assertEquals(listOf("opened", "saved", "closed"), order)
+		assertThat(order).containsExactly("opened", "saved", "closed").inOrder()
 	}
 
 	@Test
@@ -237,7 +237,7 @@ class PluginWorkspaceEventsTest {
 		val late = RecordingListener().also { events.addProjectLifecycleListener("late", it) }
 		events.projectClosed(projectA)
 
-		assertEquals(listOf("opened a", "closed a"), late.calls)
+		assertThat(late.calls).containsExactly("opened a", "closed a").inOrder()
 	}
 
 	@Test
@@ -249,7 +249,7 @@ class PluginWorkspaceEventsTest {
 		val late = RecordingListener().also { events.addProjectLifecycleListener("late", it) }
 		while (queued.isNotEmpty()) queued.removeFirst().run()
 
-		assertEquals(listOf("opened a"), late.calls)
+		assertThat(late.calls).containsExactly("opened a")
 	}
 
 	@Test
@@ -260,7 +260,7 @@ class PluginWorkspaceEventsTest {
 		events.projectOpened(projectA)
 		events.projectClosed(projectB)
 
-		assertEquals(listOf("opened a"), listener.calls)
+		assertThat(listener.calls).containsExactly("opened a")
 	}
 
 	@Test
@@ -273,7 +273,7 @@ class PluginWorkspaceEventsTest {
 
 		events.fileSaved(File(projectA, "Main.kt"))
 
-		assertEquals(0, removedHeard)
+		assertThat(removedHeard).isEqualTo(0)
 	}
 
 	@Test
@@ -298,7 +298,7 @@ class PluginWorkspaceEventsTest {
 		events.projectOpened(link.toFile())
 		events.fileSaved(File(link.toFile(), "Main.kt"))
 
-		assertEquals(true, saved.single().startsWith(opened.single()))
+		assertThat(saved.single().startsWith(opened.single())).isTrue()
 	}
 
 	@Test
@@ -311,7 +311,7 @@ class PluginWorkspaceEventsTest {
 		events.removeFileSaveListener("other", listener)
 		events.fileSaved(File(projectA, "Main.kt"))
 
-		assertEquals(1, heard)
+		assertThat(heard).isEqualTo(1)
 	}
 
 	@Test
@@ -325,7 +325,7 @@ class PluginWorkspaceEventsTest {
 		events.removeAll("a")
 		events.fileSaved(File(projectA, "Main.kt"))
 
-		assertEquals(1, heard)
+		assertThat(heard).isEqualTo(1)
 	}
 
 	@Test
@@ -337,7 +337,7 @@ class PluginWorkspaceEventsTest {
 		events.projectOpened(projectA)
 		events.projectClosed(projectA)
 
-		assertEquals(0, queuedTasks)
+		assertThat(queuedTasks).isEqualTo(0)
 	}
 
 	@Test(expected = SecurityException::class)
@@ -353,7 +353,7 @@ class PluginWorkspaceEventsTest {
 
 		events.projectOpened(projectA)
 
-		assertEquals(listOf("opened a"), listener.calls)
+		assertThat(listener.calls).containsExactly("opened a")
 	}
 
 	@Test(expected = SecurityException::class)
@@ -370,7 +370,7 @@ class PluginWorkspaceEventsTest {
 		val file = File(projectA, "Main.kt")
 		events.fileSaved(file)
 
-		assertEquals(listOf(file), saved)
+		assertThat(saved).containsExactly(file)
 	}
 
 	private fun projectService(

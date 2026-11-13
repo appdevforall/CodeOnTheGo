@@ -1,5 +1,6 @@
 package com.itsaky.androidide.plugins.manager.core
 
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.plugins.PluginLogger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -8,7 +9,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -40,7 +40,7 @@ class PluginManagerLoadLockTest {
 			val load = async(Dispatchers.Default) { manager.loadPlugins() }
 			// With no plugin files, an unguarded load finishes in milliseconds.
 			delay(500)
-			assertFalse("loadPlugins() ran while a file swap held the lock", load.isCompleted)
+			assertWithMessage("loadPlugins() ran while a file swap held the lock").that(load.isCompleted).isFalse()
 
 			swapDone.complete(Unit)
 			withTimeout(10_000) {
