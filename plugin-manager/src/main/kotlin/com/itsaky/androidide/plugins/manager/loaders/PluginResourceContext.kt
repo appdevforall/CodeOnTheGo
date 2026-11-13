@@ -21,6 +21,7 @@ import com.itsaky.androidide.plugins.manager.core.PluginManager
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
+import java.lang.ref.WeakReference
 
 class PluginResourceContext(
 	baseContext: Context,
@@ -130,6 +131,42 @@ class PluginResourceContext(
 		}
 	}
 
+	private var hostResourcesOwner: WeakReference<Context>? = null
+	private var hostResourcesConfig: Configuration? = null
+	private var hostResources: Resources? = null
+
+	/**
+	 * [actCtx]'s resources with this plugin's APK added. On Android 11+ that goes on a copy pinned to
+	 * the activity's current configuration: adding a loader to the activity's own Resources rebuilds
+	 * them and rebases its themes during the tab's first inflation, and the views built then drew sp
+	 * text at about half size (ADFA-7142). Before R there are no loaders and the activity's assets are
+	 * patched in place.
+	 */
+	private fun pluginResourcesFor(actCtx: Context): Resources {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+			ensurePluginResourcesAdded(actCtx.resources)
+			return actCtx.resources
+		}
+		val config = actCtx.resources.configuration
+		val cached = hostResources
+		if (cached != null && hostResourcesOwner?.get() === actCtx && hostResourcesConfig == config) return cached
+
+		val pinned = Configuration(config)
+		val res = actCtx.createConfigurationContext(pinned).resources
+		ensurePluginResourcesAdded(res)
+		hostResourcesOwner = WeakReference(actCtx)
+		hostResourcesConfig = pinned
+		hostResources = res
+		val metrics = res.displayMetrics
+		@Suppress("DEPRECATION")
+		Log.d(
+			TAG,
+			"Resources for $pluginId: fontScale=${res.configuration.fontScale} " +
+				"density=${metrics.density} scaledDensity=${metrics.scaledDensity}",
+		)
+		return res
+	}
+
 	private fun resolveActivityContextAndTheme(): Pair<Context, Theme>? {
 		val fragmentCtx = PluginFragmentHelper.getCurrentActivityContext(pluginId)
 		val fragmentTheme = PluginFragmentHelper.getCurrentActivityTheme(pluginId)
@@ -144,12 +181,11 @@ class PluginResourceContext(
 		if (!usesCustomPackageId) return pluginResources
 
 		val (actCtx, _) = resolveActivityContextAndTheme() ?: return pluginResources
-		ensurePluginResourcesAdded(actCtx.resources)
-		return actCtx.resources
+		return pluginResourcesFor(actCtx)
 	}
 
-	// Never the activity's: every plugin with its own package id adds its APK to those, and asset
-	// paths carry no package id, so a path two plugins both ship opens whichever was added last.
+	// Never the resources': those also hold the host APK (and before Android 11 every other such
+	// plugin's), and asset paths carry no package id, so a path shipped twice can open the wrong one.
 	override fun getAssets(): AssetManager = pluginResources.assets
 
 	override fun getTheme(): Theme {
@@ -184,14 +220,14 @@ class PluginResourceContext(
 		}
 
 		val (actCtx, actTheme) = resolveActivityContextAndTheme() ?: return pluginTheme ?: baseContext.theme
-		ensurePluginResourcesAdded(actCtx.resources)
-		if (pluginTheme == null || lastActivityTheme !== actTheme) {
+		val res = pluginResourcesFor(actCtx)
+		if (pluginTheme?.resources !== res || lastActivityTheme !== actTheme) {
 			lastActivityTheme = actTheme
 			inflater = null
 
 			if (!pluginThemeResIdResolved) {
 				pluginThemeResId =
-					actCtx.resources.getIdentifier(
+					res.getIdentifier(
 						PLUGIN_THEME_NAME,
 						"style",
 						pluginPackageInfo?.packageName,
@@ -200,7 +236,7 @@ class PluginResourceContext(
 			}
 
 			pluginTheme =
-				actCtx.resources.newTheme().apply {
+				res.newTheme().apply {
 					setTo(actTheme)
 
 					if (appThemeResId != 0) {

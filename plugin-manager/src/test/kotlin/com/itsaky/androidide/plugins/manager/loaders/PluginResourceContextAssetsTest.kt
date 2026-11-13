@@ -17,9 +17,9 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * A plugin with its own resource package id resolves its resources through the activity's, which
- * every such plugin adds its APK to. Asset paths carry no package id, so a path two plugins both
- * ship must still open the reading plugin's own copy.
+ * A plugin with its own resource package id resolves its resources through the activity's, or a
+ * copy of them, which also hold the host APK. Asset paths carry no package id, so a path shipped
+ * twice must still open the reading plugin's own copy.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -61,7 +61,7 @@ class PluginResourceContextAssetsTest {
 
 	@Test
 	fun assetsComeFromThePluginsOwnApkWhileResourcesComeFromTheActivity() {
-		assertThat(pluginContext.resources).isSameInstanceAs(app.resources)
+		assertThat(pluginContext.resources.configuration).isEqualTo(app.resources.configuration)
 		assertThat(pluginContext.assets).isSameInstanceAs(ownResources.assets)
 	}
 

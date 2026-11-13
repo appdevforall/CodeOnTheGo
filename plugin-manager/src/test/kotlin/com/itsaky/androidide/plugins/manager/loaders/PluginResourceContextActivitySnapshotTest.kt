@@ -49,7 +49,7 @@ class PluginResourceContextActivitySnapshotTest {
 		PluginFragmentHelper.getPluginInflater(PLUGIN_ID, LayoutInflater.from(pluginContext))
 
 		assertThat(PluginFragmentHelper.getCurrentActivityContext(PLUGIN_ID)).isSameInstanceAs(app)
-		assertThat(pluginContext.resources).isSameInstanceAs(app.resources)
+		assertThat(pluginContext.resources.configuration).isEqualTo(app.resources.configuration)
 	}
 
 	@Test
@@ -58,7 +58,7 @@ class PluginResourceContextActivitySnapshotTest {
 		PluginFragmentHelper.getPluginInflater(PLUGIN_ID, wrapped)
 
 		assertThat(PluginFragmentHelper.getCurrentActivityContext(PLUGIN_ID)).isSameInstanceAs(app)
-		assertThat(pluginContext.resources).isSameInstanceAs(app.resources)
+		assertThat(pluginContext.resources.configuration).isEqualTo(app.resources.configuration)
 	}
 
 	private companion object {
