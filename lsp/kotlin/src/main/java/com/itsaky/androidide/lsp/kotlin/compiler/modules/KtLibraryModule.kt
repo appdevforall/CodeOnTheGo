@@ -10,7 +10,6 @@ import org.jetbrains.kotlin.analysis.api.projectStructure.KaLibraryModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaLibrarySourceModule
 import org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem
 import org.jetbrains.kotlin.com.intellij.core.CoreApplicationEnvironment
-import org.jetbrains.kotlin.com.intellij.openapi.module.Module
 import org.jetbrains.kotlin.com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.StandardFileSystems.JAR_PROTOCOL
 import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
@@ -100,17 +99,7 @@ internal class KtLibraryModule(
 			.flatMap { LibraryUtils.getAllVirtualFilesFromRoot(it, includeRoot = true) }
 	}
 
-	@OptIn(KaExperimentalApi::class)
-	override val baseContentScope: GlobalSearchScope by lazy {
-		val virtualFileUrls = computeFiles(extended = true).map { it.url }.toSet()
-		object : GlobalSearchScope(project) {
-			override fun contains(vf: VirtualFile): Boolean = vf.url in virtualFileUrls
-
-			override fun isSearchInModuleContent(module: Module): Boolean = false
-
-			override fun isSearchInLibraries(): Boolean = true
-		}
-	}
+	override fun computeBaseContentScope(): GlobalSearchScope = LibraryRootsScope(project, computeFiles(extended = false).toSet())
 
 	override val libraryName: String
 		get() = id
