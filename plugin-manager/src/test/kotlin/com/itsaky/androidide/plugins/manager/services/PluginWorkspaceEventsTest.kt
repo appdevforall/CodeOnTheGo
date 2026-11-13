@@ -423,9 +423,9 @@ class PluginWorkspaceEventsTest {
 		val start = CyclicBarrier(2)
 		var wrong = 0
 		try {
-			repeat(20_000) {
+			repeat(ROUNDS) {
 				val events = direct()
-				repeat(8) { i -> events.addFileSaveListener("other", FileSaveListener { _ -> i.hashCode() }) }
+				repeat(OTHERS) { i -> events.addFileSaveListener("other", FileSaveListener { _ -> i.hashCode() }) }
 				val heard = AtomicInteger()
 				val listener = FileSaveListener { heard.incrementAndGet() }
 				val drop =
@@ -447,5 +447,12 @@ class PluginWorkspaceEventsTest {
 			pool.shutdownNow()
 		}
 		assertThat(wrong).isEqualTo(0)
+	}
+
+	private companion object {
+		// Enough rounds, with enough of another plugin's listeners to drop, that the old unlocked
+		// in-place removal loses a registration in almost every run.
+		const val ROUNDS = 20_000
+		const val OTHERS = 64
 	}
 }

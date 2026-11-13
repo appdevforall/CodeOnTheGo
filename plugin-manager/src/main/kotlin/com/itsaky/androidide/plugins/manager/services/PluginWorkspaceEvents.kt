@@ -109,8 +109,8 @@ class PluginWorkspaceEvents internal constructor(
 	/** Drops every listener [pluginId] registered. */
 	internal fun removeAll(pluginId: String) {
 		synchronized(lock) {
-			// removeIf, not Kotlin's removeAll {}: on a RandomAccess list that edits the list index by
-			// index, and invoke() reads it without the lock while it is half done.
+			// removeIf replaces the array in one step, so invoke(), which reads without the lock, sees
+			// the list before or after the removal, never part-way through Kotlin's removeAll {}.
 			projectListeners.removeIf { it.pluginId == pluginId }
 			saveListeners.removeIf { it.pluginId == pluginId }
 		}
@@ -159,8 +159,9 @@ class PluginWorkspaceEvents internal constructor(
 		executor.execute { invoke(registrations, registration, event, call) }
 	}
 
-	// Checked when the call runs: a plugin removed after the event was queued, or while an earlier
-	// listener of the same event was running, is not called.
+	// Checked when the call runs, without the lock: a plugin removed after the event was queued, or
+	// while an earlier listener of the same event was running, is not called. One removed just after
+	// this check can still be called once, while it tears down; unload does not wait for plugin code.
 	private fun <L> invoke(
 		registrations: CopyOnWriteArrayList<Registration<L>>,
 		registration: Registration<L>,
