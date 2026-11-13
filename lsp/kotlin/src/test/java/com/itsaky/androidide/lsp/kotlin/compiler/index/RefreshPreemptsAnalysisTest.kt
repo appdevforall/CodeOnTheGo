@@ -81,6 +81,56 @@ internal class RefreshPreemptsAnalysisTest : KtLspTest() {
 		assertThat(document.appliedVersion).isEqualTo(2)
 	}
 
+	@Test(timeout = 30_000)
+	fun `a version bump with unchanged content does not preempt a running analysis`() {
+		val path = openDocument()
+		runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+		val document = env.ktSymbolIndex.incrementalDocument(path)!!
+
+		val started = CountDownLatch(1)
+		val analysisError = AtomicReference<Throwable?>()
+		val cleanup = ICancelChecker.Default()
+		val checker = ScheduledCancelChecker(cleanup)
+		val analysis = runIndexingAnalysis(checker, started, analysisError)
+		try {
+			assertThat(started.await(5, SECONDS)).isTrue()
+			FileManager.onDocumentContentChange(
+				DocumentChangeEvent(path, content, content, 2, ChangeType.NEW_TEXT, 0, Range.NONE),
+			)
+
+			runBlocking { withTimeout(3_000) { env.ktSymbolIndex.refreshCurrentKtFile(path) } }
+
+			analysis.join(500)
+			assertThat(analysisError.get()).isNull()
+			assertThat(analysis.isAlive).isTrue()
+			assertThat(document.appliedVersion).isEqualTo(2)
+		} finally {
+			cleanup.cancel()
+			analysis.join()
+		}
+	}
+
+	private fun runIndexingAnalysis(
+		checker: ScheduledCancelChecker,
+		started: CountDownLatch,
+		analysisError: AtomicReference<Throwable?>,
+	): Thread =
+		thread {
+			try {
+				env.project.read {
+					withAnalysisLock(AnalysisPriority.INDEXING, checker) {
+						started.countDown()
+						while (true) {
+							checker.abortIfCancelled()
+							Thread.sleep(10)
+						}
+					}
+				}
+			} catch (e: Throwable) {
+				analysisError.set(e)
+			}
+		}
+
 	private fun assertRefreshPreemptsIndexing(
 		path: Path,
 		newContent: String,
@@ -91,22 +141,7 @@ internal class RefreshPreemptsAnalysisTest : KtLspTest() {
 		// Cancelled in finally so a regression (refresh timed out) still stops the analysis and frees the lock.
 		val cleanup = ICancelChecker.Default()
 		val checker = ScheduledCancelChecker(cleanup)
-		val analysis =
-			thread {
-				try {
-					env.project.read {
-						withAnalysisLock(AnalysisPriority.INDEXING, checker) {
-							started.countDown()
-							while (true) {
-								checker.abortIfCancelled()
-								Thread.sleep(10)
-							}
-						}
-					}
-				} catch (e: Throwable) {
-					analysisError.set(e)
-				}
-			}
+		val analysis = runIndexingAnalysis(checker, started, analysisError)
 		try {
 			assertThat(started.await(5, SECONDS)).isTrue()
 			FileManager.onDocumentContentChange(

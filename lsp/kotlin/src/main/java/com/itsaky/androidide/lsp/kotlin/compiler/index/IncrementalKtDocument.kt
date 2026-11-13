@@ -44,6 +44,22 @@ internal class IncrementalKtDocument(
 	internal var reparseOverride: ((CharSequence) -> ReparseOutcome)? = null
 
 	/**
+	 * Advances [appliedVersion] to [version] if [text] is already [ktFile]'s text, and returns whether
+	 * it did.
+	 *
+	 * Caller holds the [editLock] write stamp, which excludes every other edit, so this needs neither
+	 * project.write nor the analysis barrier: a version bump that changes nothing preempts nothing.
+	 */
+	fun advanceIfUnchanged(
+		text: CharSequence,
+		version: Int,
+	): Boolean {
+		if (!(ktFile.node as FileElement).textMatches(text)) return false
+		appliedVersion = version
+		return true
+	}
+
+	/**
 	 * Applies [text], the document at [version], to [ktFile] in place.
 	 *
 	 * Caller holds project.write and runs inside runWriteAction. On any outcome but

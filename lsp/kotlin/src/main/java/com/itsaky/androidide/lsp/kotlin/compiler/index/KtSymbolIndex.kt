@@ -359,6 +359,9 @@ internal class KtSymbolIndex(
 		}
 		try {
 			val content = FileManager.getDocumentContents(path)
+			if (doc.advanceIfUnchanged(content, version)) {
+				return VersionedKtFile(version, doc.ktFile)
+			}
 			val outcome = applyInPlace(doc, content, version)
 			if (outcome is ReparseOutcome.Failed) {
 				logger.warn("in-place reparse of {} failed, parsing in full: {}", path, outcome.reason, outcome.cause)
