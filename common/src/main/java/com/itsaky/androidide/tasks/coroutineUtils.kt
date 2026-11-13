@@ -21,6 +21,7 @@ import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.utils.flashProgress
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -49,10 +50,12 @@ class JobCancelChecker @JvmOverloads constructor(
 	var job: Job? = null
 		set(value) {
 			field = value
-			value?.invokeOnCompletion { cause ->
-				if (cause is CancellationException) {
-					cancel()
-				}
+			// onCancelling: the analysis to abort runs synchronously inside the job body,
+			// so waiting for completion would signal only after that work finished.
+			// Also fires on failure, which is intended: a failed job's work is over.
+			@OptIn(InternalCoroutinesApi::class)
+			value?.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { cause ->
+				if (cause != null) cancel()
 			}
 		}
 
