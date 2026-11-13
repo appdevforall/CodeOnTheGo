@@ -92,13 +92,13 @@ SELECT big_next(CAST(9223372036854775807 AS TEXT));
 
 The global object `db` runs SQL on the same database. `db.exec(sql, ...parameters)` takes a statement, with `?` for each parameter, and returns a result set. The statement runs when you call `next()` or `toArray()`. One exception: some `PRAGMA` statements, such as `PRAGMA foreign_keys = ON`, take effect already in `db.exec`. Which ones do depends on the `PRAGMA`. `PRAGMA foreign_keys` has no effect inside a transaction or savepoint, so set it before you run `BEGIN` or `SAVEPOINT`.
 
-| Result set | What it does |
-|------------|--------------|
-| `next()` | Runs the statement to its next row. It returns `true`, or `false` when there are no more rows. If the statement fails, it throws an error. |
-| `get(i)` | Returns column `i` of the current row, counting from 0. |
-| `name(i)` | Returns the name of column `i`. |
-| `columnCount` | The number of columns. |
-| `toArray()` | Returns all the remaining rows, each as an array. If the statement fails partway, it throws an error. |
+A result set has these methods and property:
+
+- `next()` runs the statement to its next row. It returns `true`, or `false` when there are no more rows. If the statement fails, it throws an error.
+- `get(i)` returns column `i` of the current row, counting from 0.
+- `name(i)` returns the name of column `i`.
+- `columnCount` is the number of columns.
+- `toArray()` returns all the remaining rows, each as an array. If the statement fails partway, it throws an error.
 
 ```sql
 SELECT js_eval('(function () {

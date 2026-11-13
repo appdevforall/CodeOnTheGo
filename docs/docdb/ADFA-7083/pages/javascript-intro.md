@@ -122,4 +122,4 @@ SELECT js_eval('"order 66 shipped on 2026-11-11".match(/\d{4}-\d{2}-\d{2}/)[0]')
 
 ## Keep learning
 
-The [MDN JavaScript Guide](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide) teaches the whole language. In sqlite-js, ignore the parts about web pages, such as the DOM, `fetch` and timers: see [JavaScript in sqlite-js](sqlite-js-javascript.html) for what is available.
+The JavaScript Guide on MDN, at developer.mozilla.org, teaches the whole language. In sqlite-js, ignore the parts about web pages, such as the DOM, `fetch` and timers: see [JavaScript in sqlite-js](sqlite-js-javascript.html) for what is available.

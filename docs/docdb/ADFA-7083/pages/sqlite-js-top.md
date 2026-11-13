@@ -78,4 +78,4 @@ A function you create lasts until you close `sqlite3`. To keep your functions in
 - [JavaScript in sqlite-js](sqlite-js-javascript.html): how SQL values and JavaScript values convert, what the engine supports, and the limits.
 - [JavaScript basics](javascript-intro.html): a short introduction for new JavaScript users.
 
-sqlite-js is developed at github.com/sqliteai/sqlite-js under the Apache License 2.0. Version 1.4.0 and later include fixes from App Dev For All, described in the reference.
+sqlite-js is developed on GitHub, in the project sqliteai/sqlite-js, under the Apache License 2.0. Version 1.4.0 and later include fixes from App Dev For All, described in the reference.

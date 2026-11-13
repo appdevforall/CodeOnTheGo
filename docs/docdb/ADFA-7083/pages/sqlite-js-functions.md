@@ -200,6 +200,6 @@ sqlite-js 1.4.0 includes fixes that App Dev For All sent to the upstream project
 
 ## Credits
 
-This page adapts the README of [sqlite-js](https://github.com/sqliteai/sqlite-js), which is licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0). It has been rewritten and changed for Code on the Go. The software is provided "as is", without warranties or conditions of any kind.
+This page adapts the README of sqlite-js (the project sqliteai/sqlite-js on GitHub), which is licensed under the Apache License, Version 2.0. It has been rewritten and changed for Code on the Go. The software is provided "as is", without warranties or conditions of any kind.
 
 The JavaScript engine, quickjs-ng, is built into sqlite-js and is licensed under the MIT License. The license texts are installed with the package, in `$PREFIX/share/doc/sqlite-js/`: `LICENSE` for sqlite-js and `LICENSE.quickjs` for the engine.
