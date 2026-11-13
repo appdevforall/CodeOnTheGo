@@ -57,6 +57,8 @@ object ApkInstaller {
 	private val liveInFlightUserSessionIds: MutableSet<Int> =
 		Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
 
+	private val sessionTrackingLock = Any()
+
 	/**
 	 * Boolean extra riding the install callback intent: on STATUS_SUCCESS, do not run the
 	 * launch-after-install behavior for this package.
@@ -188,16 +190,17 @@ object ApkInstaller {
 	internal fun abandonSession(
 		installer: PackageInstaller,
 		sessionId: Int,
-	): Boolean {
-		liveInFlightUserSessionIds.remove(sessionId)
-		inFlightUserSessionIds.remove(sessionId)
-		quickBuildSessionIds.remove(sessionId)
-		return runCatching {
-			installer.abandonSession(sessionId)
-		}.onFailure { error ->
-			log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
-		}.isSuccess
-	}
+	): Boolean =
+		synchronized(sessionTrackingLock) {
+			liveInFlightUserSessionIds.remove(sessionId)
+			inFlightUserSessionIds.remove(sessionId)
+			quickBuildSessionIds.remove(sessionId)
+			runCatching {
+				installer.abandonSession(sessionId)
+			}.onFailure { error ->
+				log.debug("Session {} already finalized or could not be abandoned", sessionId, error)
+			}.isSuccess
+		}
 
 	/**
 	 * Records a status broadcast from [InstallationResultReceiver] so any session that reaches
@@ -251,7 +254,7 @@ object ApkInstaller {
 	private fun recordQuickBuildSession(
 		context: Context,
 		sessionId: Int,
-	) {
+	) = synchronized(sessionTrackingLock) {
 		loadPersistedSessions(context)
 		liveInFlightUserSessionIds.remove(sessionId)
 		inFlightUserSessionIds.remove(sessionId)
@@ -262,7 +265,7 @@ object ApkInstaller {
 	private fun recordInFlightUserSession(
 		context: Context,
 		sessionId: Int,
-	) {
+	) = synchronized(sessionTrackingLock) {
 		loadPersistedSessions(context)
 		quickBuildSessionIds.remove(sessionId)
 		liveInFlightUserSessionIds.add(sessionId)
@@ -273,7 +276,7 @@ object ApkInstaller {
 	private fun removeTrackedSession(
 		context: Context?,
 		sessionId: Int,
-	) {
+	) = synchronized(sessionTrackingLock) {
 		if (context != null) {
 			loadPersistedSessions(context)
 		}
@@ -314,7 +317,7 @@ object ApkInstaller {
 				.edit()
 				.putStringSet(KEY_IN_FLIGHT_USER_SESSIONS, userSnapshot)
 				.putStringSet(KEY_QUICK_BUILD_SESSIONS, qbSnapshot)
-				.commit()
+				.apply()
 		}.onFailure { error ->
 			log.debug("Unable to persist installer session IDs", error)
 		}
@@ -356,41 +359,42 @@ object ApkInstaller {
 	internal fun abandonMySessions(
 		installer: PackageInstaller,
 		onBeforeAbandon: (Int) -> Unit = {},
-	): Int {
-		val sessions =
-			runCatching { installer.mySessions }
-				.onFailure { error -> log.warn("Failed to query existing PackageInstaller sessions", error) }
-				.getOrNull()
-				?: return 0
+	): Int =
+		synchronized(sessionTrackingLock) {
+			val sessions =
+				runCatching { installer.mySessions }
+					.onFailure { error -> log.warn("Failed to query existing PackageInstaller sessions", error) }
+					.getOrNull()
+					?: return 0
 
-		val activeIds = sessions.mapTo(HashSet(sessions.size)) { it.sessionId }
-		liveInFlightUserSessionIds.retainAll(activeIds)
-		inFlightUserSessionIds.retainAll(activeIds)
-		quickBuildSessionIds.retainAll(activeIds)
+			val activeIds = sessions.mapTo(HashSet(sessions.size)) { it.sessionId }
+			liveInFlightUserSessionIds.retainAll(activeIds)
+			inFlightUserSessionIds.retainAll(activeIds)
+			quickBuildSessionIds.retainAll(activeIds)
 
-		val isAtSessionCap = sessions.size >= MAX_ACTIVE_SESSIONS
-		var abandoned = 0
-		for (info in sessions) {
-			val id = info.sessionId
-			if (id in liveInFlightUserSessionIds) {
-				continue
+			val isAtSessionCap = sessions.size >= MAX_ACTIVE_SESSIONS
+			var abandoned = 0
+			for (info in sessions) {
+				val id = info.sessionId
+				if (id in liveInFlightUserSessionIds) {
+					continue
+				}
+				if (id in inFlightUserSessionIds && !isAtSessionCap) {
+					continue
+				}
+				if (id !in quickBuildSessionIds && !isAtSessionCap) {
+					continue
+				}
+				runCatching { onBeforeAbandon(id) }
+				if (abandonSession(installer, id)) {
+					abandoned++
+				}
 			}
-			if (id in inFlightUserSessionIds && !isAtSessionCap) {
-				continue
+			if (abandoned > 0) {
+				log.info("Abandoned {} stale PackageInstaller session(s)", abandoned)
 			}
-			if (id !in quickBuildSessionIds && !isAtSessionCap) {
-				continue
-			}
-			runCatching { onBeforeAbandon(id) }
-			if (abandonSession(installer, id)) {
-				abandoned++
-			}
+			abandoned
 		}
-		if (abandoned > 0) {
-			log.info("Abandoned {} stale PackageInstaller session(s)", abandoned)
-		}
-		return abandoned
-	}
 
 	/**
 	 * Launches a fallback `ACTION_INSTALL_PACKAGE` activity intent for devices where
@@ -432,12 +436,16 @@ object ApkInstaller {
 
 		return runCatching {
 			withContext(Dispatchers.IO) {
-				val sessionId = installer.createSession(params)
-				if (isQuickBuildInstall) {
-					recordQuickBuildSession(context, sessionId)
-				} else {
-					recordInFlightUserSession(context, sessionId)
-				}
+				val sessionId =
+					synchronized(sessionTrackingLock) {
+						val id = installer.createSession(params)
+						if (isQuickBuildInstall) {
+							recordQuickBuildSession(context, id)
+						} else {
+							recordInFlightUserSession(context, id)
+						}
+						id
+					}
 				var session: PackageInstaller.Session? = null
 
 				try {

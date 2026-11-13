@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.service.provision
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +10,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -289,49 +290,110 @@ class ProxyAppInstaller(
 			val pendingUserActionSeen = AtomicBoolean(false)
 			val activeSessionId = AtomicReference<Int?>(null)
 			val launchedSessionIds = Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
+			val stateLock = Any()
+			var expectedSession: ExpectedSession = ExpectedSession.AwaitingLaunch
+			val earlyBroadcasts = mutableListOf<InstallBroadcast>()
+			val verdictDeferred = CompletableDeferred<Verdict>()
 
-			try {
-				// Subscribe before committing the install so a fast broadcast cannot slip
-				// past us. PENDING_USER_ACTION is decisive too when no confirm dialog can be
-				// launched, since nobody will ever tap.
-				val verdict =
-					async(start = CoroutineStart.UNDISPATCHED) {
-						try {
-							Result.success(
-								broadcasts.first { broadcast ->
-									val currentSessionId = activeSessionId.get()
-									val sessionMatches =
-										broadcast.sessionId?.let { it in abandonedSessionIds } != true &&
-											(
-												currentSessionId == null ||
-													broadcast.sessionId == null ||
-													broadcast.sessionId == currentSessionId
-											)
-									val packageMatches =
-										broadcast.packageName == null || broadcast.packageName == packageName
-									val ours = sessionMatches && packageMatches
-									if (ours && broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION) {
-										pendingUserActionSeen.set(true)
-									}
-									ours &&
-										(
-											broadcast.isTerminal ||
-												(
-													broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION &&
-														!canShowConfirmDialog()
-												)
-										)
-								},
-							)
-						} catch (e: CancellationException) {
-							throw e
-						} catch (e: Exception) {
-							// If the flow completes without a match, first() throws and no
-							// verdict can arrive this way. Captured as a failure so that
-							// ensureInstalled still never throws.
-							Result.failure(e)
+			fun isBroadcastDecisive(broadcast: InstallBroadcast): Boolean =
+				broadcast.isTerminal ||
+					(
+						broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION &&
+							!canShowConfirmDialog()
+					)
+
+			fun matchesExpectedSession(
+				broadcast: InstallBroadcast,
+				state: ExpectedSession,
+			): Boolean {
+				val packageMatches = broadcast.packageName == null || broadcast.packageName == packageName
+				if (!packageMatches) return false
+				return when (state) {
+					is ExpectedSession.AwaitingLaunch -> {
+						false
+					}
+
+					is ExpectedSession.Session -> {
+						broadcast.sessionId == state.id && state.id !in abandonedSessionIds
+					}
+
+					is ExpectedSession.FallbackWithoutSession -> {
+						broadcast.sessionId == null
+					}
+				}
+			}
+
+			fun handleMatchingBroadcast(broadcast: InstallBroadcast) {
+				if (broadcast.status == InstallBroadcast.Status.PENDING_USER_ACTION) {
+					pendingUserActionSeen.set(true)
+				}
+				if (isBroadcastDecisive(broadcast)) {
+					verdictDeferred.complete(classify(broadcast))
+				}
+			}
+
+			fun onLaunchStarted(launchResult: InstallLaunchResult.Started) {
+				synchronized(stateLock) {
+					val sessionId = launchResult.sessionId
+					val state =
+						if (sessionId != null) {
+							abandonedSessionIds.remove(sessionId)
+							activeSessionId.set(sessionId)
+							launchedSessionIds.add(sessionId)
+							ExpectedSession.Session(sessionId)
+						} else {
+							activeSessionId.set(null)
+							ExpectedSession.FallbackWithoutSession
+						}
+					expectedSession = state
+					val iterator = earlyBroadcasts.iterator()
+					while (iterator.hasNext()) {
+						val broadcast = iterator.next()
+						iterator.remove()
+						if (matchesExpectedSession(broadcast, state)) {
+							handleMatchingBroadcast(broadcast)
+							if (verdictDeferred.isCompleted) {
+								break
+							}
 						}
 					}
+				}
+			}
+
+			val collector =
+				launch(start = CoroutineStart.UNDISPATCHED) {
+					try {
+						broadcasts.collect { broadcast ->
+							synchronized(stateLock) {
+								if (verdictDeferred.isCompleted) return@collect
+								val state = expectedSession
+								if (state is ExpectedSession.AwaitingLaunch) {
+									earlyBroadcasts.add(broadcast)
+								} else if (matchesExpectedSession(broadcast, state)) {
+									handleMatchingBroadcast(broadcast)
+								}
+							}
+						}
+						// If the flow completes without a match, complete as Failed so that
+						// ensureInstalled still never throws or hangs indefinitely.
+						synchronized(stateLock) {
+							if (!verdictDeferred.isCompleted) {
+								verdictDeferred.complete(
+									Verdict.Settled(InstallOutcome.Failed(QuickBuildMessage.InstallFailed)),
+								)
+							}
+						}
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						log.warn("broadcast collector failed", e)
+						verdictDeferred.complete(
+							Verdict.Settled(InstallOutcome.Failed(QuickBuildMessage.InstallFailed)),
+						)
+					}
+				}
+
+			try {
 				val stampChanged = async { awaitStampChange(packageName, initialStamp) }
 
 				val launchResult =
@@ -345,11 +407,7 @@ class ProxyAppInstaller(
 					}
 				when (launchResult) {
 					is InstallLaunchResult.Started -> {
-						launchResult.sessionId?.let { sessionId ->
-							abandonedSessionIds.remove(sessionId)
-							activeSessionId.set(sessionId)
-							launchedSessionIds.add(sessionId)
-						}
+						onLaunchStarted(launchResult)
 					}
 
 					InstallLaunchResult.TooManySessions -> {
@@ -358,14 +416,16 @@ class ProxyAppInstaller(
 							packageName,
 							apk,
 						)
-						verdict.cancel()
+						collector.cancel()
+						verdictDeferred.cancel()
 						stampChanged.cancel()
 						return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.TooManyInstallSessions)
 					}
 
 					InstallLaunchResult.Failed -> {
 						log.warn("install of {} from {} did not start; reporting InstallCouldNotStart", packageName, apk)
-						verdict.cancel()
+						collector.cancel()
+						verdictDeferred.cancel()
 						stampChanged.cancel()
 						return@coroutineScope InstallOutcome.Failed(QuickBuildMessage.InstallCouldNotStart)
 					}
@@ -373,12 +433,7 @@ class ProxyAppInstaller(
 
 				val awaitVerdict: suspend () -> Verdict = {
 					select<Verdict> {
-						verdict.onAwait { result ->
-							result.fold(
-								onSuccess = { broadcast -> classify(broadcast) },
-								onFailure = { Verdict.Settled(InstallOutcome.Failed(QuickBuildMessage.InstallFailed)) },
-							)
-						}
+						verdictDeferred.onAwait { it }
 						stampChanged.onAwait { Verdict.InstalledPendingUid }
 					}
 				}
@@ -410,6 +465,10 @@ class ProxyAppInstaller(
 										}
 										launchedSessionIds.remove(staleSessionId)
 									}
+									synchronized(stateLock) {
+										expectedSession = ExpectedSession.AwaitingLaunch
+										earlyBroadcasts.clear()
+									}
 									val reissued =
 										try {
 											launchInstallSession(apk)
@@ -421,11 +480,7 @@ class ProxyAppInstaller(
 										}
 									when (reissued) {
 										is InstallLaunchResult.Started -> {
-											reissued.sessionId?.let { sessionId ->
-												abandonedSessionIds.remove(sessionId)
-												activeSessionId.set(sessionId)
-												launchedSessionIds.add(sessionId)
-											}
+											onLaunchStarted(reissued)
 										}
 
 										InstallLaunchResult.TooManySessions -> {
@@ -454,7 +509,8 @@ class ProxyAppInstaller(
 								awaitVerdict()
 							}
 					}
-				verdict.cancel()
+				collector.cancel()
+				verdictDeferred.cancel()
 				stampChanged.cancel()
 				// The uid is resolved here, OUTSIDE both timeout windows. It retries over
 				// PackageManager's post-install lag, and inside the prompt budget a plain SUCCESS
@@ -485,6 +541,16 @@ class ProxyAppInstaller(
 		abandonedSessionIds.add(sessionId)
 		runCatching { abandonSession(sessionId) }
 			.onFailure { log.warn("failed to abandon install session {}", sessionId, it) }
+	}
+
+	private sealed interface ExpectedSession {
+		data object AwaitingLaunch : ExpectedSession
+
+		data class Session(
+			val id: Int,
+		) : ExpectedSession
+
+		data object FallbackWithoutSession : ExpectedSession
 	}
 
 	/**

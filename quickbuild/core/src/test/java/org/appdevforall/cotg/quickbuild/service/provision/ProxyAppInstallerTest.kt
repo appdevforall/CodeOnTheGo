@@ -1157,4 +1157,60 @@ class ProxyAppInstallerTest {
 			assertThat(abandonedSessionIds).containsExactly(601, 602).inOrder()
 			assertThat(abandonedOnIoDispatcher).containsExactly(true, true)
 		}
+
+	@Test
+	fun `broadcasts from unrelated sessions while launchInstallSession is running are not matched`() =
+		runTest {
+			val result =
+				async {
+					sessionInstaller(
+						launchSession = {
+							// While launchInstallSession is running for session 302, an unrelated session 301
+							// emits ABORTED. This must not match session 302 or fail the install as DECLINED.
+							broadcasts.emit(
+								InstallBroadcast(PKG, InstallBroadcast.Status.ABORTED, sessionId = 301),
+							)
+							InstallLaunchResult.Started(302)
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			// Session 302 succeeds.
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 302))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(302)
+		}
+
+	@Test
+	fun `early broadcast for the launched session emitted during launch is buffered and matched`() =
+		runTest {
+			val result =
+				async {
+					sessionInstaller(
+						launchSession = {
+							// Early PENDING_USER_ACTION arrives for session 303 before launchInstallSession returns.
+							broadcasts.emit(
+								InstallBroadcast(PKG, InstallBroadcast.Status.PENDING_USER_ACTION, sessionId = 303),
+							)
+							InstallLaunchResult.Started(303)
+						},
+					).ensureInstalled(apk, PKG)
+				}
+
+			runCurrent()
+			assertThat(result.isCompleted).isFalse()
+
+			packages.uid = 10123
+			broadcasts.emit(InstallBroadcast(PKG, InstallBroadcast.Status.SUCCESS, sessionId = 303))
+			advanceUntilIdle()
+
+			assertThat(result.await()).isEqualTo(InstallOutcome.Installed(10123))
+			assertThat(abandonedSessionIds).containsExactly(303)
+		}
 }
