@@ -83,6 +83,14 @@ class TestScopeSourcesTest {
 	}
 
 	@Test
+	fun `a test fixture that depends back on the module does not list the module`() {
+		val app = app(withTests = true, unitTestProject = ":lib")
+		install(app, lib(dependsOn = ":app"))
+
+		assertThat(app.getTestCompileModuleProjects(TestScope.UNIT).map { it.path }).containsExactly(":lib")
+	}
+
+	@Test
 	fun `the selected variant's generated test sources are test source directories`() {
 		val app = app(withTests = true)
 		install(app)
@@ -168,22 +176,24 @@ class TestScopeSourcesTest {
 		)
 	}
 
-	private fun lib(): AndroidModule =
-		AndroidModule(
+	private fun lib(dependsOn: String? = null): AndroidModule {
+		val deps =
+			AndroidModels.VariantDependencies
+				.newBuilder()
+				.setName("debug")
+				.setMainArtifact(artifact(*listOfNotNull("lib", dependsOn).toTypedArray()))
+				.putLibraries("lib", jar("lib"))
+		dependsOn?.let { deps.putLibraries(it, projectLibrary(it)) }
+		return AndroidModule(
 			gradleProject(":lib")
 				.setAndroidProject(
 					AndroidModels.AndroidProject
 						.newBuilder()
 						.setProjectType(AndroidModels.ProjectType.LibraryProject)
-						.setVariantDependencies(
-							AndroidModels.VariantDependencies
-								.newBuilder()
-								.setName("debug")
-								.setMainArtifact(artifact("lib"))
-								.putLibraries("lib", jar("lib")),
-						),
+						.setVariantDependencies(deps),
 				).build(),
 		)
+	}
 
 	private fun provider(vararg dirs: File): AndroidModels.SourceProvider {
 		val builder = AndroidModels.SourceProvider.newBuilder()
