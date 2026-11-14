@@ -238,6 +238,8 @@ fun ViewBindingOptions.asProtoModel() =
 		isEnabled = this.isEnabled,
 	)
 
+// See VariantDependencies.asProtoModel for why the deprecated test getters are used.
+@Suppress("DEPRECATION")
 fun Variant.asProtoModel(
 	basicAndroidProject: BasicAndroidProject,
 	androidProject: AndroidProject,
@@ -256,6 +258,16 @@ fun Variant.asProtoModel(
 		),
 	variantSourceProvidersList =
 		basicAndroidProject.variantSourceProviders(this.name).map { provider -> provider.asProtoModel() },
+	unitTestGeneratedSourceFolderPathsList =
+		this.unitTestArtifact
+			?.generatedSourceFolders
+			?.map { it.absolutePath }
+			.orEmpty(),
+	androidTestGeneratedSourceFolderPathsList =
+		this.androidTestArtifact
+			?.generatedSourceFolders
+			?.map { it.absolutePath }
+			.orEmpty(),
 )
 
 /**

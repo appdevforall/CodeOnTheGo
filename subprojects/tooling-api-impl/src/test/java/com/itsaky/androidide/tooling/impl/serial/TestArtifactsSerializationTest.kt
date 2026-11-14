@@ -1,10 +1,13 @@
 package com.itsaky.androidide.tooling.impl.serial
 
+import com.android.builder.model.v2.ide.AbstractArtifact
 import com.android.builder.model.v2.ide.ArtifactDependencies
 import com.android.builder.model.v2.ide.GraphItem
 import com.android.builder.model.v2.ide.SourceProvider
 import com.android.builder.model.v2.ide.SourceSetContainer
+import com.android.builder.model.v2.ide.Variant
 import com.android.builder.model.v2.models.VariantDependencies
+import com.android.builder.model.v2.models.Versions
 import com.google.common.truth.Truth.assertThat
 import io.mockk.every
 import io.mockk.mockk
@@ -85,6 +88,26 @@ class TestArtifactsSerializationTest {
 		assertThat(proto.hasUnitTestArtifact()).isFalse()
 		assertThat(proto.hasAndroidTestArtifact()).isFalse()
 	}
+
+	@Test
+	fun `serializes each test artifact's generated source folders`() {
+		val variant: Variant =
+			mockk(relaxed = true) {
+				every { name } returns "debug"
+				every { unitTestArtifact } returns generating("/p/build/generated/ksp/debugUnitTest")
+				every { androidTestArtifact } returns generating("/p/build/generated/ksp/debugAndroidTest")
+			}
+		val versions: Versions = mockk { every { agp } returns "8.8.2" }
+
+		val proto = variant.asProtoModel(mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), versions)
+
+		assertThat(proto.unitTestGeneratedSourceFolderPathsList).containsExactly("/p/build/generated/ksp/debugUnitTest")
+		assertThat(proto.androidTestGeneratedSourceFolderPathsList).containsExactly("/p/build/generated/ksp/debugAndroidTest")
+	}
+
+	/** A test artifact whose only generated source folder is [dir]. */
+	private inline fun <reified T : AbstractArtifact> generating(dir: String): T =
+		mockk(relaxed = true) { every { generatedSourceFolders } returns listOf(File(dir)) }
 
 	private fun provider(javaDir: String): SourceProvider =
 		mockk {
