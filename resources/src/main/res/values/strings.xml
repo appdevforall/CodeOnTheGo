@@ -1316,6 +1316,7 @@
 	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
 	<string name="btn_restart_now">Restart now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_install_still_loaded">Failed to install plugin: the installed version of %1$s could not be unloaded. Restart Code on the Go and try again.</string>
 	<string name="msg_plugin_signature_mismatch">\'%1$s\' was installed from a different build variant. Uninstall it before installing this version.</string>
 	<string name="msg_plugin_error_clip_label">Plugin error</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>

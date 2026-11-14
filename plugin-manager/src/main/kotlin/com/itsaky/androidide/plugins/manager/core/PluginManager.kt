@@ -60,6 +60,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.PluginBuildService
+import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.services.IdeArchiveService
@@ -90,6 +91,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -342,6 +344,13 @@ class PluginManager private constructor(
 	private val statePersistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 	private val statePersistMutex = Mutex()
 
+	// One plugin load at a time. Startup and an install can both load plugins, and two loads that
+	// overlap could each find a plugin not loaded yet and load it twice.
+	private val loadMutex = Mutex()
+
+	// How long a load, install or uninstall waits for the load lock. Internal so tests can shorten it.
+	internal var loadLockWaitMs = 30_000L
+
 	fun setTemplateReloadListener(listener: (() -> Unit)?) {
 		this.templateReloadListener = listener
 		PluginProjectManager.getInstance().setTemplateReloadListener(listener)
@@ -395,7 +404,40 @@ class PluginManager private constructor(
 		}
 	}
 
-	suspend fun loadPlugins() =
+	/** Loads every plugin file not loaded yet. Waits for a load already under way: see [withLoadLock]. */
+	suspend fun loadPlugins() = withLoadLock("load plugins") { loadAllPlugins() }
+
+	/**
+	 * Runs [block] while no plugin load is under way. Install swaps a plugin's file in it, so a load
+	 * that started first can't load the old file after the old version was unloaded. See [withLoadLock].
+	 */
+	suspend fun <T> whileNotLoading(block: suspend () -> T): T = withLoadLock("change a plugin file", block)
+
+	/**
+	 * Runs [block] holding the load lock, waiting at most [loadLockWaitMs] for it, then without it.
+	 * A load holds the lock while plugins' initialize() and activate() run, so a plugin that never
+	 * returns would otherwise block every later install and uninstall for good, including installing
+	 * its fixed version. Going on without the lock is how loads behaved before it existed, with the
+	 * same risks, now only behind a plugin stuck past the wait: if that stuck load later finishes,
+	 * it can register a second instance of its plugin beside one loaded meanwhile, or, failing,
+	 * drop by plugin id the listeners and sidebar slots of the instance installed meanwhile.
+	 */
+	private suspend fun <T> withLoadLock(
+		action: String,
+		block: suspend () -> T,
+	): T {
+		val locked = loadMutex.lockWithin(loadLockWaitMs)
+		if (!locked) {
+			logger.warn("A plugin load has held the load lock for over ${loadLockWaitMs / 1000} s; going on to $action without it")
+		}
+		return try {
+			block()
+		} finally {
+			if (locked) loadMutex.unlock()
+		}
+	}
+
+	private suspend fun loadAllPlugins() =
 		withContext(Dispatchers.IO) {
 			logger.info("Loading plugins from directory: ${pluginsDir.absolutePath}")
 
@@ -540,6 +582,8 @@ class PluginManager private constructor(
 	 */
 	fun loadPlugin(file: File): Result<IPlugin> {
 		var reservedSlotsPluginId: String? = null
+		// Set once initialize() may have registered workspace listeners, so a later failure drops them.
+		var listenersPluginId: String? = null
 		return try {
 			logger.debug("Loading plugin from: ${file.absolutePath}")
 
@@ -564,6 +608,14 @@ class PluginManager private constructor(
 			}
 
 			logger.debug("Parsed manifest for plugin: ${manifest.name} (${manifest.id})")
+
+			// loadPlugins() runs on every install. Loading a plugin that is already loaded again would
+			// leave the old instance active, its listeners still registered, beside the new one.
+			// Installing over a plugin unloads it first, so its new file still loads.
+			loadedPlugins[manifest.id]?.let { loaded ->
+				logger.debug("Plugin already loaded, keeping its instance: ${manifest.id}")
+				return Result.success(loaded.plugin)
+			}
 
 			if (!securityManager.validatePlugin(file, manifest)) {
 				return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
@@ -651,9 +703,11 @@ class PluginManager private constructor(
 			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
+			listenersPluginId = manifest.id
 			val initResult =
 				initializePlugin(plugin, pluginContext).getOrElse { e ->
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
+					PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
 					}
@@ -662,6 +716,7 @@ class PluginManager private constructor(
 
 			if (!initResult) {
 				logger.warn(" plugin initialization returned false for: ${manifest.id}")
+				PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -689,6 +744,8 @@ class PluginManager private constructor(
 			loadedPlugins[manifest.id] = loadedPlugin
 
 			if (!isEnabled) {
+				// A disabled plugin hears no workspace events, as after disablePlugin().
+				PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 				logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
 				return Result.success(plugin)
 			}
@@ -698,6 +755,9 @@ class PluginManager private constructor(
 		} catch (e: Throwable) {
 			reservedSlotsPluginId?.let { pluginId ->
 				SidebarSlotManager.releasePluginSlots(pluginId)
+			}
+			listenersPluginId?.let { pluginId ->
+				runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
 			}
 			logger.error("Failed to load plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
 			val prefix = if (e is RuntimeException) "" else "[${e.javaClass.simpleName}] "
@@ -732,6 +792,8 @@ class PluginManager private constructor(
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
 			loadedPlugin.isEnabled = false
 			savePluginState(manifest.id, false)
+			// activate() may have registered workspace listeners before it failed.
+			PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 		}
 	}
 
@@ -769,6 +831,11 @@ class PluginManager private constructor(
 
 	fun unloadPlugin(pluginId: String): Boolean {
 		val loadedPlugin = loadedPlugins.remove(pluginId) ?: return false
+
+		// First and on its own: the plugin is already out of loadedPlugins, so if a later cleanup step
+		// throws, nothing could drop its listeners afterwards, and none may reach it while it tears down.
+		runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
+			.onFailure { logger.error("Failed to drop workspace listeners for: $pluginId", it) }
 
 		try {
 			// Remove documentation if plugin implements DocumentationExtension
@@ -1196,6 +1263,9 @@ class PluginManager private constructor(
 		}.onFailure { logger.error("Failed to clean snippets for: $pluginId", it) }
 		runCatching { PluginBuildActionManager.getInstance().cleanupPlugin(pluginId) }
 			.onFailure { logger.error("Failed to clean build actions for: $pluginId", it) }
+		// A disabled plugin must stop hearing workspace events; activate() registers again on enable.
+		runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
+			.onFailure { logger.error("Failed to drop workspace listeners for: $pluginId", it) }
 		runCatching {
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
@@ -2002,3 +2072,17 @@ internal fun initializePlugin(
 	plugin: IPlugin,
 	context: PluginContext,
 ): Result<Boolean> = runCatching { plugin.initialize(context) }
+
+/**
+ * Waits at most [timeoutMs] for this mutex. True when the caller now holds it, and must unlock it.
+ * The flag is set inside the wait, not taken from its result: the timeout can fire just after
+ * lock() returned, and withTimeoutOrNull then reports null for a lock the caller holds.
+ */
+internal suspend fun Mutex.lockWithin(timeoutMs: Long): Boolean {
+	var locked = false
+	withTimeoutOrNull(timeoutMs) {
+		lock()
+		locked = true
+	}
+	return locked
+}

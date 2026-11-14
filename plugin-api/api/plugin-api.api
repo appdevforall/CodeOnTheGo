@@ -1686,6 +1686,10 @@ public abstract interface class com/itsaky/androidide/plugins/services/FileChang
 	public abstract fun onFileChanged (Ljava/io/File;)V
 }
 
+public abstract interface class com/itsaky/androidide/plugins/services/FileSaveListener {
+	public abstract fun onFileSaved (Ljava/io/File;)V
+}
+
 public abstract interface class com/itsaky/androidide/plugins/services/GradleSyncCallback {
 	public abstract fun onComplete (ZLjava/lang/String;)V
 }
@@ -1806,6 +1810,7 @@ public final class com/itsaky/androidide/plugins/services/IdeCommandService$Defa
 public abstract interface class com/itsaky/androidide/plugins/services/IdeEditorService {
 	public fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun addFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
+	public fun addFileSaveListener (Lcom/itsaky/androidide/plugins/services/FileSaveListener;)V
 	public abstract fun appendToLine (Ljava/io/File;ILjava/lang/String;)Z
 	public fun clearPeerCursors (Ljava/io/File;)V
 	public abstract fun deleteLine (Ljava/io/File;I)Z
@@ -1834,6 +1839,7 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 	public abstract fun prependToLine (Ljava/io/File;ILjava/lang/String;)Z
 	public fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
 	public abstract fun removeFileChangeListener (Lcom/itsaky/androidide/plugins/services/FileChangeListener;)V
+	public fun removeFileSaveListener (Lcom/itsaky/androidide/plugins/services/FileSaveListener;)V
 	public abstract fun replaceLine (Ljava/io/File;ILjava/lang/String;)Z
 	public abstract fun replaceRange (Ljava/io/File;Lcom/itsaky/androidide/plugins/services/SelectionRange;Ljava/lang/String;)Z
 	public abstract fun replaceSelection (Ljava/lang/String;)Z
@@ -1845,10 +1851,12 @@ public abstract interface class com/itsaky/androidide/plugins/services/IdeEditor
 
 public final class com/itsaky/androidide/plugins/services/IdeEditorService$DefaultImpls {
 	public static fun addContentChangeListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public static fun addFileSaveListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/FileSaveListener;)V
 	public static fun clearPeerCursors (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;)V
 	public static fun dismissInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;)V
 	public static fun hidePeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;Ljava/lang/String;)Z
 	public static fun removeContentChangeListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/EditorContentChangeListener;)V
+	public static fun removeFileSaveListener (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Lcom/itsaky/androidide/plugins/services/FileSaveListener;)V
 	public static fun saveFile (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static fun showInlineSuggestion (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/lang/String;)V
 	public static fun showPeerCursor (Lcom/itsaky/androidide/plugins/services/IdeEditorService;Ljava/io/File;IILjava/lang/String;Ljava/lang/String;I)Z
@@ -1907,16 +1915,20 @@ public final class com/itsaky/androidide/plugins/services/IdeProjectManipulation
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeProjectService {
+	public fun addProjectLifecycleListener (Lcom/itsaky/androidide/plugins/services/ProjectLifecycleListener;)V
 	public abstract fun getAllProjects ()Ljava/util/List;
 	public abstract fun getCurrentProject ()Lcom/itsaky/androidide/plugins/extensions/IProject;
 	public fun getModuleContext (Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
 	public abstract fun getProjectByPath (Ljava/io/File;)Lcom/itsaky/androidide/plugins/extensions/IProject;
 	public fun openProject (Ljava/io/File;)Z
+	public fun removeProjectLifecycleListener (Lcom/itsaky/androidide/plugins/services/ProjectLifecycleListener;)V
 }
 
 public final class com/itsaky/androidide/plugins/services/IdeProjectService$DefaultImpls {
+	public static fun addProjectLifecycleListener (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Lcom/itsaky/androidide/plugins/services/ProjectLifecycleListener;)V
 	public static fun getModuleContext (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Ljava/lang/String;)Lcom/itsaky/androidide/plugins/services/ModuleContext;
 	public static fun openProject (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Ljava/io/File;)Z
+	public static fun removeProjectLifecycleListener (Lcom/itsaky/androidide/plugins/services/IdeProjectService;Lcom/itsaky/androidide/plugins/services/ProjectLifecycleListener;)V
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/IdeSidebarService {
@@ -2265,6 +2277,11 @@ public final class com/itsaky/androidide/plugins/services/ModuleContext {
 	public final fun getVariantName ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/ProjectLifecycleListener {
+	public abstract fun onProjectClosed (Ljava/io/File;)V
+	public abstract fun onProjectOpened (Ljava/io/File;)V
 }
 
 public abstract class com/itsaky/androidide/plugins/services/QuickBuildAvailability {

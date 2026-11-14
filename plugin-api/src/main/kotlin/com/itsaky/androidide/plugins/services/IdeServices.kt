@@ -63,6 +63,52 @@ interface IdeProjectService {
 	 * @return The module context, or null if no module can be resolved
 	 */
 	fun getModuleContext(filePath: String): ModuleContext? = null
+
+	/**
+	 * Registers [listener] to hear when the editor opens and closes a project. A listener added
+	 * while a project is open hears [ProjectLifecycleListener.onProjectOpened] for it first, since
+	 * plugins often load after the editor reopened the last project. Registering the same listener
+	 * twice has no effect. The IDE drops
+	 * the listener when the plugin is disabled or unloads, so register it from
+	 * [com.itsaky.androidide.plugins.IPlugin.activate]. Available since 26.47.
+	 *
+	 * Requires the FILESYSTEM_READ permission.
+	 *
+	 * @throws SecurityException if the plugin lacks FILESYSTEM_READ.
+	 */
+	fun addProjectLifecycleListener(listener: ProjectLifecycleListener) {}
+
+	/** Unregisters a listener added with [addProjectLifecycleListener]. Available since 26.47. */
+	fun removeProjectLifecycleListener(listener: ProjectLifecycleListener) {}
+}
+
+/**
+ * Hears the editor open and close a project. Calls arrive in order on one background thread
+ * shared by every plugin, so return quickly and hand slow work to your own thread.
+ * Available since 26.47.
+ */
+interface ProjectLifecycleListener {
+	/**
+	 * The editor started opening the project rooted at [projectDir], or the project was already open
+	 * when this listener was added. The IDE does not wait for this call: the project's sync may
+	 * already be running, so do not rely on finishing work before it starts. A later sync or build
+	 * of the same project does not call this again. [projectDir] is canonical.
+	 */
+	fun onProjectOpened(projectDir: File)
+
+	/** The editor closed the project rooted at [projectDir], as given to [onProjectOpened]. */
+	fun onProjectClosed(projectDir: File)
+}
+
+/**
+ * Hears the editor write a file to disk: the user saving, the IDE saving before a build, or a
+ * plugin calling [IdeEditorService.saveFile]. Typing alone, without a save, is never reported.
+ * Calls arrive in order on one background thread shared by every plugin, so return quickly.
+ * Available since 26.47.
+ */
+fun interface FileSaveListener {
+	/** [file] is canonical, the same form as a project directory, so `file.startsWith(dir)` works. */
+	fun onFileSaved(file: File)
 }
 
 /**
@@ -286,6 +332,20 @@ interface IdeEditorService {
 	 * @param listener The listener to unregister
 	 */
 	fun removeContentChangeListener(listener: EditorContentChangeListener) {}
+
+	/**
+	 * Registers [listener] to hear each file the editor saves. Registering the same listener twice
+	 * has no effect. The IDE drops the listener when the plugin is disabled or unloads, so register
+	 * it from [com.itsaky.androidide.plugins.IPlugin.activate]. Available since 26.47.
+	 *
+	 * Requires the FILESYSTEM_READ permission.
+	 *
+	 * @throws SecurityException if the plugin lacks FILESYSTEM_READ.
+	 */
+	fun addFileSaveListener(listener: FileSaveListener) {}
+
+	/** Unregisters a listener added with [addFileSaveListener]. Available since 26.47. */
+	fun removeFileSaveListener(listener: FileSaveListener) {}
 
 	/**
 	 * Shows an inline suggestion (ghost text) at the cursor position.

@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.repositories.PluginStillLoadedException
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.ui.models.PluginInstallSource
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
@@ -421,10 +422,14 @@ class PluginManagerViewModel(
 					}.onFailure { exception ->
 						Log.e(TAG, "Failed to install plugin", exception)
 						_uiEffect.send(
-							PluginManagerUiEffect.ShowError(
-								R.string.msg_plugin_install_failed,
-								listOf(exception.message ?: ""),
-							),
+							if (exception is PluginStillLoadedException) {
+								PluginManagerUiEffect.ShowError(R.string.msg_plugin_install_still_loaded, listOf(exception.pluginId))
+							} else {
+								PluginManagerUiEffect.ShowError(
+									R.string.msg_plugin_install_failed,
+									listOf(exception.message ?: ""),
+								)
+							},
 						)
 						// A failed install deletes nothing but our own disposable temp copy - a
 						// user-picked PickedUri is preserved so they can retry, matching
