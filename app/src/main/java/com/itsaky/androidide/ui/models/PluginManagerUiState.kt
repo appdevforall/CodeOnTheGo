@@ -13,7 +13,19 @@ data class PluginManagerUiState(
 	val plugins: List<PluginInfo> = emptyList(),
 	val isPluginManagerAvailable: Boolean = false,
 	val isInstalling: Boolean = false,
+	/**
+	 * Defaults `true` (optimistic) rather than `false`: the common case is a connected device, and
+	 * defaulting offline would flash-hide the discover-plugins action on every cold start until
+	 * [com.itsaky.androidide.utils.ConnectivityObserver] delivers its first (synchronous) value.
+	 */
+	val isOnline: Boolean = true,
+	/** Gradle's offline mode is on: the user chose to work offline. */
+	val isOfflineModeEnabled: Boolean = false,
 ) {
+	/** The discover-plugins action opens a website, so it needs a connection and online mode. */
+	val showDiscoverPlugins: Boolean
+		get() = isOnline && !isOfflineModeEnabled
+
 	val isEmpty: Boolean
 		get() = plugins.isEmpty() && !isLoading
 
