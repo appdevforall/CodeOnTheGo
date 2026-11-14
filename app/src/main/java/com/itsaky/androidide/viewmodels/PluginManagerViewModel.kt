@@ -15,6 +15,7 @@ import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
 import com.itsaky.androidide.ui.models.PluginManagerUiState
 import com.itsaky.androidide.ui.models.PluginOperation
+import com.itsaky.androidide.utils.ConnectivityObserver
 import com.itsaky.androidide.utils.EditorDecorationBridge
 import com.itsaky.androidide.utils.InstallTempFiles
 import com.itsaky.androidide.utils.LastValueGate
@@ -43,6 +44,9 @@ class PluginManagerViewModel(
 	private val pluginRepository: PluginRepository,
 	private val contentResolver: ContentResolver,
 	private val filesDir: File,
+	private val connectivityObserver: ConnectivityObserver,
+	// Gradle's offline mode (Build & Run preferences). A function so tests need no preferences.
+	private val isOfflineModeEnabled: () -> Boolean,
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "PluginManagerViewModel"
@@ -114,6 +118,17 @@ class PluginManagerViewModel(
 
 	init {
 		loadPlugins()
+
+		// The discover-plugins action opens a URL and has no offline fallback (ADFA-5646) - drive
+		// its visibility from live connectivity rather than a one-time check, so it hides the
+		// moment the device goes offline instead of only failing the next time it's tapped.
+		// The preference is read with each value. It is set in Preferences, which is reached only by
+		// leaving this screen, so a change always meets a new ViewModel.
+		viewModelScope.launch {
+			connectivityObserver.observe().collect { online ->
+				_uiState.update { it.copy(isOnline = online, isOfflineModeEnabled = isOfflineModeEnabled()) }
+			}
+		}
 	}
 
 	/**
