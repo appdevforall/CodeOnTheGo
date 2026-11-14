@@ -143,6 +143,28 @@ class CollectKtModulesTest : KtLspTest() {
 		assertThat(unit.directFriendDependencies.map { it.id }).containsExactly(":app")
 	}
 
+	@Test
+	fun `a test-only project dependency is a source module of that test scope only`() {
+		val sourceModules =
+			collect(
+				listOf(
+					AndroidModule(gradleProject(":lib", bootClassPath = tempJar("android.jar"))),
+					AndroidModule(
+						gradleProject(
+							":app",
+							unitTests = TestSources(listOf(tempDir("app/src/test/java")), projects = listOf(":lib")),
+							androidTests = TestSources(listOf(tempDir("app/src/androidTest/java"))),
+						),
+					),
+				),
+			)
+
+		val lib = sourceModules.single { it.id == ":lib" }
+		assertThat(sourceModules.single { it.id == ":app[unitTest]" }.directRegularDependencies).contains(lib)
+		assertThat(sourceModules.single { it.id == ":app[androidTest]" }.directRegularDependencies).doesNotContain(lib)
+		assertThat(sourceModules.single { it.id == ":app" }.directRegularDependencies).doesNotContain(lib)
+	}
+
 	private fun tempDir(name: String): Path =
 		lspTestRule.tempDir.root
 			.toPath()
