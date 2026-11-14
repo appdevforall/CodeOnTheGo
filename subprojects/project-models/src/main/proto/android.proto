@@ -192,6 +192,12 @@ message VariantDependencies {
   // The key for the map entries is the keys found via [com.android.builder.model.v2.ide.GraphItem.key]
   // and [Library.key]
   map<string, Library> libraries = 3;
+
+  // The dependencies for the variant's unit test artifact, if it has one.
+  ArtifactDependencies unitTestArtifact = 4;
+
+  // The dependencies for the variant's android test artifact, if it has one.
+  ArtifactDependencies androidTestArtifact = 5;
 }
 
 // A custom source directory.
@@ -222,6 +228,12 @@ message SourceSetContainer {
 
   // The default source provider.
   SourceProvider sourceProvider = 1;
+
+  // The unit test source provider (src/test), if the module has one.
+  SourceProvider unitTestSourceProvider = 2;
+
+  // The android test source provider (src/androidTest), if the module has one.
+  SourceProvider androidTestSourceProvider = 3;
 }
 
 // View binding options for Android projects.

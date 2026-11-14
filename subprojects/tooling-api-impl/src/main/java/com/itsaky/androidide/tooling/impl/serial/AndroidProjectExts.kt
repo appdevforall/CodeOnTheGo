@@ -79,11 +79,16 @@ fun createAndroidProjectProtoModel(
 	variantDependencies = variantDependencies.asProtoModel(),
 )
 
+// The single-artifact test getters are deprecated but present from AGP 7.3 (our minimum) onwards;
+// newer AGP implements them over the host/device test maps.
+@Suppress("DEPRECATION")
 fun VariantDependencies.asProtoModel() =
 	VariantDependencies(
 		name = this.name,
 		mainArtifact = this.mainArtifact.asProtoModel(),
 		librariesMap = this.libraries.mapValues { entry -> entry.value.asProtoModel() },
+		unitTestArtifact = this.unitTestArtifact?.asProtoModel(),
+		androidTestArtifact = this.androidTestArtifact?.asProtoModel(),
 	)
 
 fun Library.asProtoModel() =
@@ -206,7 +211,14 @@ fun UnresolvedDependency.asProtoModel() =
 		cause = this.cause,
 	)
 
-fun SourceSetContainer.asProtoModel() = SourceSetContainer(sourceProvider = this.sourceProvider?.asProtoModel())
+// See VariantDependencies.asProtoModel for why the deprecated test getters are used.
+@Suppress("DEPRECATION")
+fun SourceSetContainer.asProtoModel() =
+	SourceSetContainer(
+		sourceProvider = this.sourceProvider?.asProtoModel(),
+		unitTestSourceProvider = this.unitTestSourceProvider?.asProtoModel(),
+		androidTestSourceProvider = this.androidTestSourceProvider?.asProtoModel(),
+	)
 
 fun SourceProvider.asProtoModel() =
 	SourceProvider(

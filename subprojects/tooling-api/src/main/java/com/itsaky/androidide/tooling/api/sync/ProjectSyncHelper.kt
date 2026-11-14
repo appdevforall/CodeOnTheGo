@@ -51,7 +51,7 @@ object ProjectSyncHelper {
 	 * differs from this one discards the sync files and forces a full sync. The models are
 	 * produced and consumed only by the IDE and hold no user data, so discarding them is safe.
 	 */
-	const val SYNC_META_VERSION = "2"
+	const val SYNC_META_VERSION = "3"
 
 	private val logger = LoggerFactory.getLogger(ProjectSyncHelper::class.java)
 
