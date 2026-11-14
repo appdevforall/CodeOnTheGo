@@ -77,10 +77,11 @@ internal fun gradleProject(
 		}.build()
 }
 
-/** A test source set: its source [dirs] and the [jars] only its tests compile against. */
+/** A test source set: its source [dirs], and the [jars] and [projects] only its tests compile against. */
 internal data class TestSources(
 	val dirs: List<Path>,
 	val jars: List<Path> = emptyList(),
+	val projects: List<String> = emptyList(),
 )
 
 private fun TestSources.sourceProvider(): AndroidModels.SourceProvider =
@@ -105,6 +106,25 @@ private fun TestSources.addJarsTo(variantDeps: AndroidModels.VariantDependencies
 				.setType(AndroidModels.LibraryType.ExternalJavaLibrary)
 				.setArtifactPath(jar.pathString)
 				.build(),
+		)
+	}
+	for (projectPath in projects) {
+		val key = "project$projectPath"
+		graph.addRoot(graph.nodeCount)
+		graph.addNode(AndroidModels.GraphNode.newBuilder().setKeyId(graph.keyCount))
+		graph.addKey(key)
+		variantDeps.putLibraries(
+			key,
+			AndroidModels.Library
+				.newBuilder()
+				.setKey(key)
+				.setType(AndroidModels.LibraryType.Project)
+				.setProjectInfo(
+					AndroidModels.ProjectInfo
+						.newBuilder()
+						.setBuildId(":")
+						.setProjectPath(projectPath),
+				).build(),
 		)
 	}
 	return AndroidModels.ArtifactDependencies

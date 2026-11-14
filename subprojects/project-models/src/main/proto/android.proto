@@ -299,6 +299,12 @@ message AndroidVariant {
   // The source providers AGP layers over the main source set for this variant: its build
   // type, each product flavor, the multi-flavor provider and the variant's own provider.
   repeated SourceProvider variantSourceProviders = 3;
+
+  // The generated source folders of the variant's unit test artifact (kapt, KSP and the like).
+  repeated string unitTestGeneratedSourceFolderPaths = 4;
+
+  // The generated source folders of the variant's android test artifact.
+  repeated string androidTestGeneratedSourceFolderPaths = 5;
 }
 
 // The Android project model.

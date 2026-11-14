@@ -114,7 +114,7 @@ private fun ModuleProject.sourceModuleLayout(): SourceModuleLayout {
 
 /**
  * The [scope] test module layered over [main], or null when this module has no such tests. It
- * compiles against main and everything main does, and is main's friend so it may use `internal`
+ * compiles against main, everything main does and its own test-only modules, and is main's friend so it may use `internal`
  * declarations. Neither test module depends on the other.
  */
 private fun ModuleProject.testModuleLayout(
@@ -134,7 +134,8 @@ private fun ModuleProject.testModuleLayout(
 			getTestCompileClasspaths(scope, excludeSourceGeneratedClassPath = true).mapTo(LinkedHashSet()) {
 				it.toPath()
 			},
-		moduleDependencies = listOf(path) + main.moduleDependencies,
+		// Test-only project dependencies must be source modules: the test classpath leaves out their jars.
+		moduleDependencies = (listOf(path) + main.moduleDependencies + getTestCompileModuleProjects(scope).map { it.path }).distinct(),
 		friends = listOf(path),
 	)
 }

@@ -146,18 +146,54 @@ open class AndroidModule(
 				TestScope.UNIT -> mainSourceSet?.takeIf { it.hasUnitTestSourceProvider() }?.unitTestSourceProvider
 				TestScope.ANDROID -> mainSourceSet?.takeIf { it.hasAndroidTestSourceProvider() }?.androidTestSourceProvider
 			} ?: return emptySet()
-		return (provider.javaDirs + provider.kotlinDirs).toSet()
+
+		// build/generated/** for the selected variant's tests: kapt, KSP and the like
+		val generated =
+			getSelectedVariant()
+				?.let { variant ->
+					when (scope) {
+						TestScope.UNIT -> variant.unitTestGeneratedSourceFolderPathsList
+						TestScope.ANDROID -> variant.androidTestGeneratedSourceFolderPathsList
+					}
+				}.orEmpty()
+		return (provider.javaDirs + provider.kotlinDirs + generated.map(::File)).toSet()
+	}
+
+	private fun testArtifact(scope: TestScope): AndroidModels.ArtifactDependencies? =
+		when (scope) {
+			TestScope.UNIT -> variantDependencies.takeIf { it.hasUnitTestArtifact() }?.unitTestArtifact
+			TestScope.ANDROID -> variantDependencies.takeIf { it.hasAndroidTestArtifact() }?.androidTestArtifact
+		}
+
+	override fun getTestCompileModuleProjects(scope: TestScope): List<ModuleProject> {
+		val graph = testArtifact(scope)?.compileGraph ?: return emptyList()
+		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+
+		// Seeded with this module, so a test graph that reaches back to it does not list it.
+		val visited = hashSetOf(path)
+		val recursionPath = ArrayDeque(listOf(path))
+		val result = mutableListOf<ModuleProject>()
+		for (nodeId in graph.rootList) {
+			val key = graph.nodeList.getOrNull(nodeId)?.let { graph.keyList.getOrNull(it.keyId) } ?: continue
+			val lib = variantDependencies.librariesMap[key] ?: continue
+			if (lib.type != AndroidModels.LibraryType.Project) {
+				continue
+			}
+			val module = root.findByPath(lib.projectInfo!!.projectPath) as? ModuleProject ?: continue
+			if (module.path == path) {
+				continue
+			}
+			result.add(module)
+			result.addAll(module.getCompileModuleProjects(visited, recursionPath))
+		}
+		return result.distinctBy { it.path }
 	}
 
 	override fun getTestCompileClasspaths(
 		scope: TestScope,
 		excludeSourceGeneratedClassPath: Boolean,
 	): Set<File> {
-		val artifact =
-			when (scope) {
-				TestScope.UNIT -> variantDependencies.takeIf { it.hasUnitTestArtifact() }?.unitTestArtifact
-				TestScope.ANDROID -> variantDependencies.takeIf { it.hasAndroidTestArtifact() }?.androidTestArtifact
-			} ?: return emptySet()
+		val artifact = testArtifact(scope) ?: return emptySet()
 		val project = IProjectManager.getInstance().workspace ?: return emptySet()
 
 		val result = getCompileClasspaths(excludeSourceGeneratedClassPath).toMutableSet()
