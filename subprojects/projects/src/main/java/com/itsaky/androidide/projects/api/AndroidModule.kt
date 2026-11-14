@@ -140,6 +140,78 @@ open class AndroidModule(
 		return dirs
 	}
 
+	override fun getTestSourceDirectories(scope: TestScope): Set<File> {
+		val provider =
+			when (scope) {
+				TestScope.UNIT -> mainSourceSet?.takeIf { it.hasUnitTestSourceProvider() }?.unitTestSourceProvider
+				TestScope.ANDROID -> mainSourceSet?.takeIf { it.hasAndroidTestSourceProvider() }?.androidTestSourceProvider
+			} ?: return emptySet()
+
+		// build/generated/** for the selected variant's tests: kapt, KSP and the like
+		val generated =
+			getSelectedVariant()
+				?.let { variant ->
+					when (scope) {
+						TestScope.UNIT -> variant.unitTestGeneratedSourceFolderPathsList
+						TestScope.ANDROID -> variant.androidTestGeneratedSourceFolderPathsList
+					}
+				}.orEmpty()
+		return (provider.javaDirs + provider.kotlinDirs + generated.map(::File)).toSet()
+	}
+
+	private fun testArtifact(scope: TestScope): AndroidModels.ArtifactDependencies? =
+		when (scope) {
+			TestScope.UNIT -> variantDependencies.takeIf { it.hasUnitTestArtifact() }?.unitTestArtifact
+			TestScope.ANDROID -> variantDependencies.takeIf { it.hasAndroidTestArtifact() }?.androidTestArtifact
+		}
+
+	override fun getTestCompileModuleProjects(scope: TestScope): List<ModuleProject> {
+		val graph = testArtifact(scope)?.compileGraph ?: return emptyList()
+		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+
+		// Seeded with this module so a test fixture that depends back on it (`:testutils` ->
+		// `:app`) is not re-expanded. Not on the recursion path: that back-edge is legal, not a cycle.
+		val visited = hashSetOf(path)
+		val recursionPath = ArrayDeque<String>()
+		val result = mutableListOf<ModuleProject>()
+		for (nodeId in graph.rootList) {
+			val key = graph.nodeList.getOrNull(nodeId)?.let { graph.keyList.getOrNull(it.keyId) } ?: continue
+			val lib = variantDependencies.librariesMap[key] ?: continue
+			if (lib.type != AndroidModels.LibraryType.Project) {
+				continue
+			}
+			val module = root.findByPath(lib.projectInfo!!.projectPath) as? ModuleProject ?: continue
+			if (module.path == path) {
+				continue
+			}
+			result.add(module)
+			result.addAll(module.getCompileModuleProjects(visited, recursionPath))
+		}
+		return result.filter { it.path != path }.distinctBy { it.path }
+	}
+
+	override fun getTestCompileClasspaths(
+		scope: TestScope,
+		excludeSourceGeneratedClassPath: Boolean,
+	): Set<File> {
+		val artifact = testArtifact(scope) ?: return emptySet()
+		val project = IProjectManager.getInstance().workspace ?: return emptySet()
+
+		val result = getCompileClasspaths(excludeSourceGeneratedClassPath).toMutableSet()
+		val graph = artifact.compileGraph
+		collectLibraries(
+			root = project,
+			graph = graph,
+			nodeIds = graph.rootList,
+			result = result,
+			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+			visited = HashSet(),
+			// A test graph that reaches back to this module must not re-expand it.
+			moduleVisited = hashSetOf(path),
+		)
+		return result
+	}
+
 	override fun getModuleClasspaths(): Set<File> =
 		mutableSetOf<File>().apply {
 			add(getGeneratedJar())

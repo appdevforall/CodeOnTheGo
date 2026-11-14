@@ -38,6 +38,7 @@ class JavaModule(
 	companion object {
 		const val SCOPE_COMPILE = "COMPILE"
 		const val SCOPE_RUNTIME = "RUNTIME"
+		const val SCOPE_TEST = "TEST"
 	}
 
 	init {
@@ -88,6 +89,37 @@ class JavaModule(
 		val dirs = getSourceDirectories().toMutableSet()
 		getCompileModuleProjects().forEach { dirs.addAll(it.getSourceDirectories()) }
 		return dirs
+	}
+
+	override fun getTestSourceDirectories(scope: TestScope): Set<File> =
+		when (scope) {
+			TestScope.UNIT -> contentRootList.flatMap { root -> root.testDirectoryList.map { it.directory } }.toSet()
+			TestScope.ANDROID -> emptySet()
+		}
+
+	// getDependencyClassPaths does not filter by scope, so test dependencies are already on the
+	// compile classpath.
+	override fun getTestCompileClasspaths(
+		scope: TestScope,
+		excludeSourceGeneratedClassPath: Boolean,
+	): Set<File> =
+		when (scope) {
+			TestScope.UNIT -> getCompileClasspaths(excludeSourceGeneratedClassPath)
+			TestScope.ANDROID -> emptySet()
+		}
+
+	// Unit tests see main's module dependencies plus the TEST-scoped ones (testImplementation).
+	override fun getTestCompileModuleProjects(scope: TestScope): List<ModuleProject> {
+		if (scope == TestScope.ANDROID) {
+			return emptyList()
+		}
+		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+		val testOnly =
+			dependencyList
+				.filter { it.hasModule() && it.scope == SCOPE_TEST }
+				.mapNotNull { root.findByPath(it.module.projectPath) as? ModuleProject }
+				.filter { it.path != path }
+		return (getCompileModuleProjects() + testOnly).distinctBy { it.path }
 	}
 
 	override fun getModuleClasspaths(): Set<File> = mutableSetOf(getClassesJar())
