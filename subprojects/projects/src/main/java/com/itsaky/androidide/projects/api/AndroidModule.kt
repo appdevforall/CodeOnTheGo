@@ -140,6 +140,41 @@ open class AndroidModule(
 		return dirs
 	}
 
+	override fun getTestSourceDirectories(scope: TestScope): Set<File> {
+		val provider =
+			when (scope) {
+				TestScope.UNIT -> mainSourceSet?.takeIf { it.hasUnitTestSourceProvider() }?.unitTestSourceProvider
+				TestScope.ANDROID -> mainSourceSet?.takeIf { it.hasAndroidTestSourceProvider() }?.androidTestSourceProvider
+			} ?: return emptySet()
+		return (provider.javaDirs + provider.kotlinDirs).toSet()
+	}
+
+	override fun getTestCompileClasspaths(
+		scope: TestScope,
+		excludeSourceGeneratedClassPath: Boolean,
+	): Set<File> {
+		val artifact =
+			when (scope) {
+				TestScope.UNIT -> variantDependencies.takeIf { it.hasUnitTestArtifact() }?.unitTestArtifact
+				TestScope.ANDROID -> variantDependencies.takeIf { it.hasAndroidTestArtifact() }?.androidTestArtifact
+			} ?: return emptySet()
+		val project = IProjectManager.getInstance().workspace ?: return emptySet()
+
+		val result = getCompileClasspaths(excludeSourceGeneratedClassPath).toMutableSet()
+		val graph = artifact.compileGraph
+		collectLibraries(
+			root = project,
+			graph = graph,
+			nodeIds = graph.rootList,
+			result = result,
+			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+			visited = HashSet(),
+			// A test graph that reaches back to this module must not re-expand it.
+			moduleVisited = hashSetOf(path),
+		)
+		return result
+	}
+
 	override fun getModuleClasspaths(): Set<File> =
 		mutableSetOf<File>().apply {
 			add(getGeneratedJar())

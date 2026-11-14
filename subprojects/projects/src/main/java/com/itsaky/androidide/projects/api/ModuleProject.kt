@@ -35,6 +35,15 @@ import java.io.File
 import java.nio.file.Path
 import kotlin.io.path.pathString
 
+/** A test source set kind. Each one is its own scope: neither sees the other. */
+enum class TestScope {
+	/** Host (JVM) tests, `src/test`. */
+	UNIT,
+
+	/** Device tests, `src/androidTest`. Android modules only. */
+	ANDROID,
+}
+
 /**
  * A module project. Base class for [AndroidModule] and [JavaModule].
  *
@@ -86,6 +95,27 @@ abstract class ModuleProject(
 	 * @return The source directories.
 	 */
 	abstract fun getCompileSourceDirectories(): Set<File>
+
+	/**
+	 * Get the source directories of this module's [scope] tests (non-transitive). These are kept out
+	 * of [getSourceDirectories] and [getCompileSourceDirectories], so neither main code nor dependent
+	 * modules see test code.
+	 *
+	 * @return The test source directories, or an empty set if the module has no such tests.
+	 */
+	abstract fun getTestSourceDirectories(scope: TestScope): Set<File>
+
+	/**
+	 * Get the classpaths that [scope] test sources compile against: everything in
+	 * [getCompileClasspaths] plus the test-only dependencies of that scope.
+	 *
+	 * @param excludeSourceGeneratedClassPath See [getCompileClasspaths].
+	 * @return The test compile classpaths, or an empty set if the module has no such tests.
+	 */
+	abstract fun getTestCompileClasspaths(
+		scope: TestScope,
+		excludeSourceGeneratedClassPath: Boolean = false,
+	): Set<File>
 
 	/**
 	 * Get the classpaths for this module project. The returned list always included the

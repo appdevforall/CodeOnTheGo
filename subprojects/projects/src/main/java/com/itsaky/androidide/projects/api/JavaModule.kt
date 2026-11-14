@@ -90,6 +90,23 @@ class JavaModule(
 		return dirs
 	}
 
+	override fun getTestSourceDirectories(scope: TestScope): Set<File> =
+		when (scope) {
+			TestScope.UNIT -> contentRootList.flatMap { root -> root.testDirectoryList.map { it.directory } }.toSet()
+			TestScope.ANDROID -> emptySet()
+		}
+
+	// getDependencyClassPaths does not filter by scope, so test dependencies are already on the
+	// compile classpath.
+	override fun getTestCompileClasspaths(
+		scope: TestScope,
+		excludeSourceGeneratedClassPath: Boolean,
+	): Set<File> =
+		when (scope) {
+			TestScope.UNIT -> getCompileClasspaths(excludeSourceGeneratedClassPath)
+			TestScope.ANDROID -> emptySet()
+		}
+
 	override fun getModuleClasspaths(): Set<File> = mutableSetOf(getClassesJar())
 
 	override fun getCompileClasspaths(
