@@ -208,6 +208,7 @@ internal class KtLspTestEnvironment(
 					name = spec.name,
 					roots = setOf(checkNotNull(rootByModule[name])),
 					dependencies = libraryDeps + spec.dependsOn.map { checkNotNull(built[it]) },
+					directFriendDependencies = spec.friends.map { checkNotNull(built[it]) { "Friend '$it' must be in dependsOn" } },
 					languageVersion = languageVersion,
 				)
 		}

@@ -23,6 +23,7 @@ internal class TestKtSourceModule(
 	override val name: String,
 	roots: Set<Path>,
 	dependencies: List<KtModule> = emptyList(),
+	override val directFriendDependencies: List<KtModule> = emptyList(),
 	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
 	jvmTarget: JvmTarget = DEFAULT_JVM_TARGET,
 ) : AbstractSourceModule(project, dependencies),

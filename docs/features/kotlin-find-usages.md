@@ -52,7 +52,7 @@ The **target** may be a Java-source declaration. A caret on a Kotlin reference t
 - **`.java` files as search targets.** Kotlin declarations *are* visible to Java PSI as light classes here (`symbol-light-classes.xml` registers `KotlinAsJavaSupport`, and `JavaElementFinder` is registered), but nothing in the repo exercises Java PSI *resolution*, and the Java server has its own find-references. Kotlin call sites of a Java declaration work; Java call sites of a Kotlin declaration are not searched.
 - **Usages reachable only through a subclass.** See R3 and Non-goals.
 - **Binary symbols.** As with go-to-definition: no decompiler, and `showLocations` can only open a real file. A search from a reference to `listOf` finds nothing.
-- **Test sources.** Not a choice made here - `AndroidModule.getSourceDirectories()` returns `mainSourceSet` only, so `src/test/**` and `src/androidTest/**` are not content roots for *any* Kotlin LSP feature.
+- **Test sources.** Covered since ADFA-7115: `src/test/**` and `src/androidTest/**` are their own source modules, each a dependent and friend of its main module, so a search from main reaches them like any other dependent.
 
 ## Requirements
 
@@ -88,16 +88,16 @@ The walk goes **up** only. Usages reachable solely through a subclass (`Base.foo
 | local val/var, parameter, local fun, local class, loop variable | containing file |
 | `private` top-level declaration | containing file (Kotlin private top-level is file-private) |
 | `private` class/object member | containing file |
-| `internal` | the target's module |
+| `internal` | every match-set member's module + its friends (the test modules over it) |
 | `protected`, `public`, default | every match-set member's module + its transitive dependents (`KotlinModuleDependentsProvider.getTransitiveDependents`) |
 
 The ticket's three resolution scopes fall out of this one code path rather than being three implementations. Cheap cases stay cheap: a search on a local variable never leaves the open file.
 
-The last row unions **every match-set member's** module, not just the target's, because R3's up-walk and R4's dependents pull in opposite directions. With `Base` in `lib` and `Derived` in `app`, a `base.paint()` call written in `lib` is a usage of `Derived.paint` - but `lib` is a *dependency* of `app`, not a dependent, so the target's own module and dependents would never look at it. Library supers are already out of the match set, so the union cannot escape the workspace. The first three rows need no union: `private` cannot override, and this project model has no friend modules, so `internal` cannot be overridden across one.
+The last row unions **every match-set member's** module, not just the target's, because R3's up-walk and R4's dependents pull in opposite directions. With `Base` in `lib` and `Derived` in `app`, a `base.paint()` call written in `lib` is a usage of `Derived.paint` - but `lib` is a *dependency* of `app`, not a dependent, so the target's own module and dependents would never look at it. Library supers are already out of the match set, so the union cannot escape the workspace. The `internal` row unions for the same reason: a test module may override main's `internal open` member, and calls written against main's declaration are usages of that override. The first three rows need no union: `private` cannot override.
 
 The first three rows need the declaration's path. The file the user is editing is a live `KtFile` built from the editor buffer, whose `virtualFile` is a non-physical `LightVirtualFile`, so the path comes from `backingFilePath` first and the VFS only as a fallback - go-to-definition's derivation. A target that still has no path cannot be confined to one file, but it is still unreferenceable outside its own module, so it falls back to the `internal` row rather than to the last one.
 
-`internal` needs no widening for test sources. There is no test module to widen to - `KotlinModuleLayout.toKtModules` builds one `KtSourceModule` per Gradle module from `mainSourceSet` only, and `directFriendDependencies` is empty everywhere.
+`internal` widens to friends only. `KotlinModuleLayout` gives each Gradle module a main `KtSourceModule` plus one per test source set (`:app[unitTest]`, `:app[androidTest]`), each listing main in `directFriendDependencies`. Main is nobody's friend, so an `internal` declaration in a test module stays in that module.
 
 **R5 - Candidate discovery.** Two tiers, because find usages is run *while* editing and unsaved text must not be invisible:
 
@@ -172,12 +172,11 @@ Preemption is not cancellation, and the two must not share a handler. Both unwin
 - **Rename / safe-delete**, or anything that edits the usages found.
 - **Usages via subclasses** (the down-walk). Blocked on `DirectInheritorsProvider.computeIndex()` being cached; filed separately.
 - **Searching `.java` files** for usages of a Kotlin declaration. Filed separately.
-- **Usages in test source sets.** Filed separately, as an LSP-wide content-root gap.
 - **Implicit call sites as results** (see Scope).
 - **KDoc `[link]`s as results.** Only `KtSimpleNameExpression`s are examined (R5). Go-to-definition navigates *from* a KDoc link, so this is an asymmetry, but a bounded one.
 - **Library-source usages**, via decompilation or `-sources.jar`.
 - **Categorising results** (imports vs calls vs type references) - the panel has no grouping beyond file.
-- **A partiality signal.** `ReferenceResult` is shared with the Java and XML servers and has no field for it, and `showLocations` has no header slot; the same caveat already applies silently to test sources.
+- **A partiality signal.** `ReferenceResult` is shared with the Java and XML servers and has no field for it, and `showLocations` has no header slot.
 - **A gesture trigger.** Editor-wide UX change that would apply to Java too.
 
 ## Acceptance criteria
@@ -188,7 +187,7 @@ Preemption is not cancellation, and the two must not share a handler. Both unwin
 4. Inter-module: usages in a dependent module are listed.
 5. Invoked from a **reference** rather than a declaration, the result is the same set.
 6. A `private` top-level declaration reports no usages from another file, even when that file contains a same-named unrelated declaration.
-7. An `internal` declaration reports usages within its module only.
+7. An `internal` declaration reports usages within its module and that module's test sources only.
 8. A local variable's usages are confined to its file.
 9. `Foo()` is reported as a usage of `class Foo`.
 10. An `import` of the target is reported as a usage.

@@ -91,7 +91,7 @@ internal class SymbolVisibilityChecker(
 		return when (symbol.visibility) {
 			JvmVisibility.PUBLIC -> true
 			JvmVisibility.PRIVATE -> false
-			JvmVisibility.INTERNAL -> useSiteModule == declaringModule
+			JvmVisibility.INTERNAL -> useSiteModule == declaringModule || declaringModule in useSiteModule.directFriendDependencies
 			JvmVisibility.PROTECTED -> isSamePackage || isDescendant
 			JvmVisibility.PACKAGE_PRIVATE -> isSamePackage
 		}
