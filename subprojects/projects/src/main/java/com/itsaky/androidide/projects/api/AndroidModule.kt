@@ -169,9 +169,10 @@ open class AndroidModule(
 		val graph = testArtifact(scope)?.compileGraph ?: return emptyList()
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
 
-		// Seeded with this module, so a test graph that reaches back to it does not list it.
+		// Seeded with this module so a test fixture that depends back on it (`:testutils` ->
+		// `:app`) is not re-expanded. Not on the recursion path: that back-edge is legal, not a cycle.
 		val visited = hashSetOf(path)
-		val recursionPath = ArrayDeque(listOf(path))
+		val recursionPath = ArrayDeque<String>()
 		val result = mutableListOf<ModuleProject>()
 		for (nodeId in graph.rootList) {
 			val key = graph.nodeList.getOrNull(nodeId)?.let { graph.keyList.getOrNull(it.keyId) } ?: continue
@@ -186,7 +187,7 @@ open class AndroidModule(
 			result.add(module)
 			result.addAll(module.getCompileModuleProjects(visited, recursionPath))
 		}
-		return result.distinctBy { it.path }
+		return result.filter { it.path != path }.distinctBy { it.path }
 	}
 
 	override fun getTestCompileClasspaths(
