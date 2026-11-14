@@ -5,6 +5,7 @@ import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.project.JavaModels
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,10 +24,12 @@ class TestScopeSourcesTest {
 	private val unitJava = File("/p/app/src/test/java")
 	private val unitKotlin = File("/p/app/src/test/kotlin")
 	private val deviceJava = File("/p/app/src/androidTest/java")
+	private val unitGenerated = File("/p/app/build/generated/ksp/debugUnitTest/java")
 
 	@After
 	fun tearDown() {
 		runCatching { ProjectManagerImpl.getInstance().workspace = null }
+		ProjectManagerImpl.getInstance().androidBuildVariants = emptyMap()
 	}
 
 	@Test
@@ -67,6 +70,28 @@ class TestScopeSourcesTest {
 
 		assertThat(app.getTestCompileClasspaths(TestScope.UNIT, true)).contains(File("/jars/lib.jar"))
 		assertThat(app.getTestCompileClasspaths(TestScope.ANDROID, true)).doesNotContain(File("/jars/lib.jar"))
+	}
+
+	@Test
+	fun `a test-only project dependency is a module the test scope compiles against`() {
+		val app = app(withTests = true, unitTestProject = ":lib")
+		install(app, lib())
+
+		assertThat(app.getTestCompileModuleProjects(TestScope.UNIT).map { it.path }).containsExactly(":lib")
+		assertThat(app.getTestCompileModuleProjects(TestScope.ANDROID)).isEmpty()
+		assertThat(app.getCompileModuleProjects()).isEmpty()
+	}
+
+	@Test
+	fun `the selected variant's generated test sources are test source directories`() {
+		val app = app(withTests = true)
+		install(app)
+		ProjectManagerImpl.getInstance().androidBuildVariants =
+			mapOf(":app" to BuildVariantInfo(":app", listOf("debug"), "debug"))
+
+		assertThat(app.getTestSourceDirectories(TestScope.UNIT)).contains(unitGenerated)
+		assertThat(app.getTestSourceDirectories(TestScope.ANDROID)).doesNotContain(unitGenerated)
+		assertThat(app.getSourceDirectories()).doesNotContain(unitGenerated)
 	}
 
 	@Test
@@ -131,7 +156,14 @@ class TestScopeSourcesTest {
 						.newBuilder()
 						.setProjectType(AndroidModels.ProjectType.ApplicationProject)
 						.setMainSourceSet(sourceSet)
-						.setVariantDependencies(deps),
+						.setVariantDependencies(deps)
+						.addVariant(
+							AndroidModels.AndroidVariant
+								.newBuilder()
+								.setName("debug")
+								.setMainArtifact(AndroidModels.AndroidArtifact.newBuilder().setName("main"))
+								.addUnitTestGeneratedSourceFolderPaths(unitGenerated.path),
+						),
 				).build(),
 		)
 	}

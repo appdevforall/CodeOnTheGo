@@ -118,6 +118,12 @@ abstract class ModuleProject(
 	): Set<File>
 
 	/**
+	 * Get the module projects [scope] tests compile against, transitively: main's, plus those only
+	 * the tests depend on, such as `testImplementation(project(":lib"))`. Never this module.
+	 */
+	abstract fun getTestCompileModuleProjects(scope: TestScope): List<ModuleProject>
+
+	/**
 	 * Get the classpaths for this module project. The returned list always included the
 	 * `classes.jar`.
 	 */
