@@ -21,11 +21,13 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import com.itsaky.androidide.javac.services.fs.AndroidFsProviderImpl;
 import com.itsaky.androidide.javac.services.fs.JarPackageProviderImpl;
 import com.itsaky.androidide.projects.api.AndroidModule;
 import com.itsaky.androidide.projects.api.ModuleProject;
+import com.itsaky.androidide.projects.api.TestScope;
 import com.itsaky.androidide.projects.models.AndroidProjectExtsKt;
 import com.itsaky.androidide.projects.util.StringSearch;
 import com.itsaky.androidide.utils.ClassTrie;
@@ -63,12 +65,13 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 
 	public static final SourceFileManager NO_MODULE;
 	private static final Logger LOG;
-	private static final Map<ModuleProject, SourceFileManager> cachedFileManagers = new ConcurrentHashMap<>();
+	// Keyed by scope as well as module: a shared entry would give main code the test classpath, or tests main's.
+	private static final Map<Key, SourceFileManager> cachedFileManagers = new ConcurrentHashMap<>();
 
 	static {
 		// Initialize LOG first to prevent NPE
 		LOG = LoggerFactory.getLogger(SourceFileManager.class);
-		NO_MODULE = new SourceFileManager(null);
+		NO_MODULE = new SourceFileManager(null, null);
 	}
 
 	public static void clearCache() {
@@ -84,8 +87,13 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 	}
 
 	public static SourceFileManager forModule(@NonNull ModuleProject project) {
+		return forModule(project, null);
+	}
+
+	/** The file manager for {@code scope}'s tests of {@code project}, or for its main sources when {@code scope} is null. */
+	public static SourceFileManager forModule(@NonNull ModuleProject project, @Nullable TestScope scope) {
 		Objects.requireNonNull(project);
-		return cachedFileManagers.computeIfAbsent(project, SourceFileManager::createForModule);
+		return cachedFileManagers.computeIfAbsent(new Key(project, scope), SourceFileManager::createForModule);
 	}
 
 	/* Mirrors JavacTool.getStandardFileManager, plus the shared jar package provider. It must be in the context before the file manager is built, because the classpath archive containers are created in the constructor and read the provider only once. */
@@ -99,16 +107,20 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 		return new JavacFileManager(context, true, StandardCharsets.UTF_8);
 	}
 
-	private static SourceFileManager createForModule(@NonNull ModuleProject project) {
-		LOG.info("Creating source file manager instance for module: {}", project);
-		return new SourceFileManager(project);
+	private static SourceFileManager createForModule(@NonNull Key key) {
+		LOG.info("Creating source file manager instance for module: {}, test scope: {}", key.module(), key.scope());
+		return new SourceFileManager(key.module(), key.scope());
 	}
 
 	private final ModuleProject module;
 
-	private SourceFileManager(final ModuleProject module) {
+	@Nullable
+	private final TestScope scope;
+
+	private SourceFileManager(final ModuleProject module, @Nullable final TestScope scope) {
 		super(createDelegateFileManager());
 		this.module = module;
+		this.scope = scope;
 
 		AndroidFsProviderImpl.INSTANCE.init();
 
@@ -120,7 +132,10 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 		System.setProperty(JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME,
 				Environment.JAVA_HOME.getAbsolutePath());
 
-		setLocationLogError(StandardLocation.SOURCE_PATH, module.getCompileSourceDirectories());
+		final Set<File> sourcePath = scope == null
+				? module.getCompileSourceDirectories()
+				: module.getTestCompileSourceDirectories(scope);
+		setLocationLogError(StandardLocation.SOURCE_PATH, sourcePath);
 		setLocationLogError(StandardLocation.CLASS_PATH, configureClasspaths(module));
 		listLocations(EnumSet.of(StandardLocation.CLASS_PATH, StandardLocation.PLATFORM_CLASS_PATH));
 	}
@@ -129,7 +144,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 	public boolean contains(Location location, FileObject file) throws IOException {
 		if (location == StandardLocation.SOURCE_PATH) {
 			SourceFileObject source = (SourceFileObject) file;
-			return module.compileJavaSourceClasses.findSource(source.path) != null;
+			return module.javaSourceClasses(scope).findSource(source.path) != null;
 		} else {
 			return super.contains(location, file);
 		}
@@ -150,7 +165,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 		if (location == StandardLocation.SOURCE_PATH) {
 			String packageName = StringSearch.mostName(className);
 			String simpleClassName = StringSearch.lastName(className);
-			List<SourceClassTrie.SourceNode> classes = module != null ? module.listClassesFromSourceDirs(packageName) : emptyList();
+			List<SourceClassTrie.SourceNode> classes = module != null ? module.listClassesFromSourceDirs(packageName, scope) : emptyList();
 			for (SourceClassTrie.SourceNode node : classes) {
 				final Path path = node.getFile();
 				if (path.getFileName().toString().equals(simpleClassName + kind.extension)) {
@@ -194,7 +209,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 				return emptyList();
 			}
 
-			final ClassTrie.Node node = module.compileJavaSourceClasses.findNode(packageName);
+			final ClassTrie.Node node = module.javaSourceClasses(scope).findNode(packageName);
 			if (node == null || node.isClass()) {
 				return emptyList();
 			}
@@ -248,7 +263,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 			setLocationLogError(StandardLocation.PLATFORM_CLASS_PATH, AndroidProjectExtsKt.getBootClassPaths(androidModule));
 		}
 
-		return module.getCompileClasspaths();
+		return scope == null ? module.getCompileClasspaths() : module.getTestCompileClasspaths(scope, false);
 	}
 
 	private void listLocations(final EnumSet<StandardLocation> locations) {
@@ -263,11 +278,13 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 	}
 
 	private String packageNameOrEmpty(Path file) {
-		return this.module != null ? module.packageNameOrEmpty(file) : "";
+		return this.module != null ? module.packageNameOrEmpty(file, scope) : "";
 	}
 
 	private String removeExtension(String fileName) {
 		int lastDot = fileName.lastIndexOf(".");
 		return (lastDot == -1 ? fileName : fileName.substring(0, lastDot));
 	}
+
+	private record Key(ModuleProject module, @Nullable TestScope scope) {}
 }

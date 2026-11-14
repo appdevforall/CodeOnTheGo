@@ -78,8 +78,46 @@ abstract class ModuleProject(
 		val COMPLETION_MODULE_KEY = Lookup.Key<ModuleProject>()
 	}
 
+	/** The Java classes main code compiles against: this module's and its compile dependencies' sources. */
 	@JvmField
 	val compileJavaSourceClasses = SourceClassTrie()
+
+	// Each scope's trie holds the main sources too, so a test compilation reads one trie, as main does.
+	private val testJavaSourceClasses = TestScope.entries.associateWith { SourceClassTrie() }
+
+	/** The Java classes [scope] tests compile against, or main's when [scope] is null. */
+	fun javaSourceClasses(scope: TestScope?): SourceClassTrie =
+		if (scope == null) compileJavaSourceClasses else testJavaSourceClasses.getValue(scope)
+
+	/** The test scope whose source directories hold [file], or null for main sources and anything else. */
+	fun testScopeOf(file: Path): TestScope? =
+		TestScope.entries.firstOrNull { scope -> getTestSourceDirectories(scope).any { file.startsWith(it.toPath()) } }
+
+	fun testScopeOf(file: File): TestScope? = testScopeOf(file.toPath())
+
+	/**
+	 * The tries a Java [file] belongs in, each with the source root to index it under: a main source
+	 * goes in main's trie and every test scope's, a test source in each scope that holds its dir. Empty when
+	 * the file is in no source directory.
+	 */
+	fun javaSourceClassesFor(file: File): List<Pair<SourceClassTrie, Path>> {
+		findSourceRoot(file)?.let { root ->
+			return listOf(compileJavaSourceClasses to root) +
+				TestScope.entries
+					.filter { getTestSourceDirectories(it).isNotEmpty() }
+					.map { testJavaSourceClasses.getValue(it) to root }
+		}
+		val path = file.toPath()
+		// Every matching scope, not the first: a dir such as src/sharedTest can be in both.
+		return TestScope.entries.mapNotNull { scope ->
+			getTestSourceDirectories(scope)
+				.firstOrNull { path.startsWith(it.toPath()) }
+				?.let { testJavaSourceClasses.getValue(scope) to it.toPath() }
+		}
+	}
+
+	/** Every Java source trie of this module, for removing a file that may be in any of them. */
+	fun allJavaSourceClasses(): List<SourceClassTrie> = listOf(compileJavaSourceClasses) + testJavaSourceClasses.values
 
 	/**
 	 * Get the source directories of this module (non-transitive i.e for this module only).
@@ -122,6 +160,16 @@ abstract class ModuleProject(
 	 * the tests depend on, such as `testImplementation(project(":lib"))`. Never this module.
 	 */
 	abstract fun getTestCompileModuleProjects(scope: TestScope): List<ModuleProject>
+
+	/**
+	 * The source directories [scope] tests compile against, the test counterpart of
+	 * [getCompileSourceDirectories]: main's, this module's [scope] tests, and the sources of the
+	 * modules only those tests depend on.
+	 */
+	fun getTestCompileSourceDirectories(scope: TestScope): Set<File> =
+		getCompileSourceDirectories() +
+			getTestSourceDirectories(scope) +
+			getTestCompileModuleProjects(scope).flatMap { it.getSourceDirectories() }
 
 	/**
 	 * Get the classpaths for this module project. The returned list always included the
@@ -246,7 +294,11 @@ abstract class ModuleProject(
 	 * @param file The file to find the source root for.
 	 * @return The source root (directory) of the given file, or `null` if not found.
 	 */
-	fun findSourceRoot(file: File): Path? = getCompileSourceDirectories().find { file.path.startsWith(it.path) }?.toPath()
+	fun findSourceRoot(file: File): Path? {
+		// Path.startsWith matches whole directories: src/main/javaTest is not under src/main/java.
+		val path = file.toPath()
+		return getCompileSourceDirectories().map(File::toPath).find { path.startsWith(it) }
+	}
 
 	/** Indexes the source files' classes and prepares the classpaths for the compiler. */
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -273,34 +325,51 @@ abstract class ModuleProject(
 
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexSources() {
-		this.compileJavaSourceClasses.clear()
+		allJavaSourceClasses().forEach { it.clear() }
 
 		val watch = StopWatch("Indexing sources")
-		var count = 0
-		getCompileSourceDirectories().forEach {
-			val sourceDir = it.toPath()
-			it
-				.walk()
-				.filter { file -> file.isFile && file.exists() && DocumentUtils.isJavaFile(file.toPath()) }
-				.map { file -> file.toPath() }
-				.forEach { file ->
-					this.compileJavaSourceClasses.append(file, sourceDir)
-					count++
-				}
+		val mainSources = javaSourcesIn(getCompileSourceDirectories())
+		mainSources.forEach { (file, root) -> compileJavaSourceClasses.append(file, root) }
+
+		var count = mainSources.size
+		for (scope in TestScope.entries) {
+			if (getTestSourceDirectories(scope).isEmpty()) {
+				continue
+			}
+			val trie = testJavaSourceClasses.getValue(scope)
+			val testSources = javaSourcesIn(getTestCompileSourceDirectories(scope) - getCompileSourceDirectories())
+			(mainSources + testSources).forEach { (file, root) -> trie.append(file, root) }
+			count += testSources.size
 		}
 
 		watch.log()
 		log.debug("Found {} source files.", count)
 	}
 
+	/** Every Java file under [dirs], paired with the directory it was found under. */
+	private fun javaSourcesIn(dirs: Collection<File>): List<Pair<Path, Path>> =
+		dirs.flatMap { dir ->
+			val root = dir.toPath()
+			dir
+				.walk()
+				.filter { file -> file.isFile && file.exists() && DocumentUtils.isJavaFile(file.toPath()) }
+				.map { file -> file.toPath() to root }
+				.toList()
+		}
+
 	fun getSourceFilesInDir(dir: Path): List<SourceNode> = this.compileJavaSourceClasses.getSourceFilesInDir(dir)
 
-	fun packageNameOrEmpty(file: Path?): String {
+	/** The package of [file] as [scope]'s compilation sees it; main's when [scope] is null. */
+	@JvmOverloads
+	fun packageNameOrEmpty(
+		file: Path?,
+		scope: TestScope? = null,
+	): String {
 		if (file == null) {
 			return ""
 		}
 
-		val sourceNode = searchSourceFileRelatively(file)
+		val sourceNode = searchSourceFileRelatively(file, scope)
 		if (sourceNode != null) {
 			return sourceNode.packageName
 		}
@@ -308,8 +377,12 @@ abstract class ModuleProject(
 		return ""
 	}
 
-	private fun searchSourceFileRelatively(file: Path?): SourceNode? {
-		for (source in getCompileSourceDirectories().map(File::toPath)) {
+	private fun searchSourceFileRelatively(
+		file: Path?,
+		scope: TestScope?,
+	): SourceNode? {
+		val roots = scope?.let(::getTestCompileSourceDirectories) ?: getCompileSourceDirectories()
+		for (source in roots.map(File::toPath)) {
 			val relative = source.relativize(file)
 			if (relative.pathString.contains("..")) {
 				// This is most probably not the one we're expecting
@@ -319,7 +392,7 @@ abstract class ModuleProject(
 			var name = relative.pathString.substringBeforeLast(".java")
 			name = name.replace('/', '.')
 
-			val node = this.compileJavaSourceClasses.findNode(name)
+			val node = javaSourceClasses(scope).findNode(name)
 			if (node != null && node is SourceNode) {
 				return node
 			}
@@ -351,8 +424,12 @@ abstract class ModuleProject(
 		return ""
 	}
 
-	fun listClassesFromSourceDirs(packageName: String): List<SourceNode> =
-		compileJavaSourceClasses
+	@JvmOverloads
+	fun listClassesFromSourceDirs(
+		packageName: String,
+		scope: TestScope? = null,
+	): List<SourceNode> =
+		javaSourceClasses(scope)
 			.findInPackage(packageName)
 			.filterIsInstance<SourceNode>()
 
