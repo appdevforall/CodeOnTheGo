@@ -133,6 +133,7 @@ import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.capHeightToSpaceBelow
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfoLong
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.forEachViewRecursively
 import com.itsaky.androidide.utils.hasVisibleDialog
@@ -798,7 +799,13 @@ open class EditorHandlerActivity :
 				// path's tint and disabled dim here.
 				icon = toolbarIcon(action.icon, action.createColorFilter(data), action.enabled),
 				hint = getToolbarContentDescription(action, data),
-				onClick = { if (action.enabled) registry.executeAction(action, data) },
+				onClick = {
+					if (action.enabled) {
+						registry.executeAction(action, data)
+					} else if (action.id == QuickBuildAction.ID) {
+						QuickBuildAction.disabledReason(this)?.let(::flashInfoLong)
+					}
+				},
 				onLongClick = {
 					// Quick Build is a split button: long-press opens the
 					// Quick Build / Restart session / Help dropdown instead of the
@@ -925,6 +932,9 @@ open class EditorHandlerActivity :
 			}
 		if (action.id == QuickRunAction.ID && buildInProgress) {
 			return getString(string.cd_toolbar_cancel_build)
+		}
+		if (action.id == QuickBuildAction.ID && !QuickBuildAction.isBlockedByStandardBuild()) {
+			QuickBuildAction.unsupportedProjectReason(this)?.let { return it }
 		}
 		val resId =
 			when (action.id) {
