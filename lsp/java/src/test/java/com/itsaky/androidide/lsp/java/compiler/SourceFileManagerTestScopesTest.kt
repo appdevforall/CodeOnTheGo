@@ -39,6 +39,7 @@ class SourceFileManagerTestScopesTest {
 	private lateinit var mainDir: File
 	private lateinit var unitDir: File
 	private lateinit var deviceDir: File
+	private lateinit var sharedDir: File
 	private lateinit var junit: File
 	private lateinit var module: AndroidModule
 	private var previousJavaHome: File? = null
@@ -51,6 +52,7 @@ class SourceFileManagerTestScopesTest {
 		mainDir = temp.newFolder("app", "src", "main", "java")
 		unitDir = temp.newFolder("app", "src", "test", "java")
 		deviceDir = temp.newFolder("app", "src", "androidTest", "java")
+		sharedDir = temp.newFolder("app", "src", "sharedTest", "java")
 		source(mainDir, "Main")
 		source(unitDir, "MainTest")
 		source(deviceDir, "DeviceHelper")
@@ -145,6 +147,15 @@ class SourceFileManagerTestScopesTest {
 		manager.onFileDeleted(FileDeletionEvent(newMain))
 
 		assertThat(indexedIn("NewMain")).isEmpty()
+	}
+
+	@Test
+	fun `a file created in a dir shared by both test scopes is indexed in both`() {
+		val shared = source(sharedDir, "SharedHelper")
+
+		ProjectManagerImpl.getInstance().onFileCreated(FileCreationEvent(shared))
+
+		assertThat(indexedIn("SharedHelper")).containsExactly(TestScope.UNIT, TestScope.ANDROID)
 	}
 
 	@Test
@@ -273,8 +284,8 @@ class SourceFileManagerTestScopesTest {
 							AndroidModels.SourceSetContainer
 								.newBuilder()
 								.setSourceProvider(provider(mainDir))
-								.setUnitTestSourceProvider(provider(unitDir))
-								.setAndroidTestSourceProvider(provider(deviceDir)),
+								.setUnitTestSourceProvider(provider(unitDir, sharedDir))
+								.setAndroidTestSourceProvider(provider(deviceDir, sharedDir)),
 						).setVariantDependencies(
 							AndroidModels.VariantDependencies
 								.newBuilder()
@@ -308,5 +319,5 @@ class SourceFileManagerTestScopesTest {
 		)
 	}
 
-	private fun provider(dir: File) = AndroidModels.SourceProvider.newBuilder().addJavaDirs(dir.path)
+	private fun provider(vararg dirs: File) = AndroidModels.SourceProvider.newBuilder().addAllJavaDirs(dirs.map { it.path })
 }

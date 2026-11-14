@@ -97,7 +97,7 @@ abstract class ModuleProject(
 
 	/**
 	 * The tries a Java [file] belongs in, each with the source root to index it under: a main source
-	 * goes in main's trie and every test scope's, a test source in its own scope's only. Empty when
+	 * goes in main's trie and every test scope's, a test source in each scope that holds its dir. Empty when
 	 * the file is in no source directory.
 	 */
 	fun javaSourceClassesFor(file: File): List<Pair<SourceClassTrie, Path>> {
@@ -108,9 +108,12 @@ abstract class ModuleProject(
 					.map { testJavaSourceClasses.getValue(it) to root }
 		}
 		val path = file.toPath()
-		val scope = testScopeOf(path) ?: return emptyList()
-		val root = getTestSourceDirectories(scope).first { path.startsWith(it.toPath()) }.toPath()
-		return listOf(testJavaSourceClasses.getValue(scope) to root)
+		// Every matching scope, not the first: a dir such as src/sharedTest can be in both.
+		return TestScope.entries.mapNotNull { scope ->
+			getTestSourceDirectories(scope)
+				.firstOrNull { path.startsWith(it.toPath()) }
+				?.let { testJavaSourceClasses.getValue(scope) to it.toPath() }
+		}
 	}
 
 	/** Every Java source trie of this module, for removing a file that may be in any of them. */
