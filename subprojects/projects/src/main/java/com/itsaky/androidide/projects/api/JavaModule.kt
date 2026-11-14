@@ -38,6 +38,7 @@ class JavaModule(
 	companion object {
 		const val SCOPE_COMPILE = "COMPILE"
 		const val SCOPE_RUNTIME = "RUNTIME"
+		const val SCOPE_TEST = "TEST"
 	}
 
 	init {
@@ -106,6 +107,20 @@ class JavaModule(
 			TestScope.UNIT -> getCompileClasspaths(excludeSourceGeneratedClassPath)
 			TestScope.ANDROID -> emptySet()
 		}
+
+	// Unit tests see main's module dependencies plus the TEST-scoped ones (testImplementation).
+	override fun getTestCompileModuleProjects(scope: TestScope): List<ModuleProject> {
+		if (scope == TestScope.ANDROID) {
+			return emptyList()
+		}
+		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+		val testOnly =
+			dependencyList
+				.filter { it.hasModule() && it.scope == SCOPE_TEST }
+				.mapNotNull { root.findByPath(it.module.projectPath) as? ModuleProject }
+				.filter { it.path != path }
+		return (getCompileModuleProjects() + testOnly).distinctBy { it.path }
+	}
 
 	override fun getModuleClasspaths(): Set<File> = mutableSetOf(getClassesJar())
 
