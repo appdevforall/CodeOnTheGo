@@ -110,7 +110,7 @@ abstract class BaseJavaCodeAction : EditorActionItem {
 		requireNotNull(module) {
 			"Cannot get compiler instance. Unable to find module for file: ${requireFile().name}"
 		}
-		return JavaCompilerProvider.get(module)
+		return JavaCompilerProvider.get(module, requireFile())
 	}
 }
 

@@ -37,6 +37,7 @@ import com.itsaky.androidide.models.Range;
 import com.itsaky.androidide.projects.FileManager;
 import com.itsaky.androidide.projects.api.AndroidModule;
 import com.itsaky.androidide.projects.api.ModuleProject;
+import com.itsaky.androidide.projects.api.TestScope;
 import com.itsaky.androidide.projects.util.BootClasspathProvider;
 import com.itsaky.androidide.projects.util.StringSearch;
 import com.itsaky.androidide.utils.Cache;
@@ -83,6 +84,8 @@ public class JavaCompilerService implements CompilerProvider {
 	protected final SynchronizedTask synchronizedTask = new SynchronizedTask();
 	protected final SourceFileManager fileManager;
 	protected final ModuleProject module;
+	@Nullable
+	protected final TestScope scope;
 	private final ClasspathTypeLookup types;
 	public ReusableCompiler compiler = new JCReusableCompiler();
 	protected Set<String> bootClasspathClasses = BootClasspathProvider.getTopLevelClasses(
@@ -96,14 +99,20 @@ public class JavaCompilerService implements CompilerProvider {
 	// The module project must not be null
 	// It is marked as nullable just for some special cases like tests
 	public JavaCompilerService(@Nullable ModuleProject module) {
+		this(module, (TestScope) null);
+	}
+
+	/** A compiler for {@code scope}'s tests of {@code module}, or for its main sources when {@code scope} is null. */
+	public JavaCompilerService(@Nullable ModuleProject module, @Nullable TestScope scope) {
 		this.module = module;
+		this.scope = scope;
 		if (module == null) {
 			this.fileManager = SourceFileManager.NO_MODULE;
 		} else {
-			this.fileManager = SourceFileManager.forModule(module);
+			this.fileManager = SourceFileManager.forModule(module, scope);
 			this.bootClasspathClasses = Collections.unmodifiableSet(getBootclasspathClasses());
 		}
-		this.types = ClasspathTypeLookup.forModule(module, () -> this.bootClasspathClasses);
+		this.types = ClasspathTypeLookup.forModule(module, scope, () -> this.bootClasspathClasses);
 	}
 
 	@VisibleForTesting
@@ -112,7 +121,17 @@ public class JavaCompilerService implements CompilerProvider {
 			SourceFileManager fileManager,
 			Set<String> bootClasspathClasses,
 			ClasspathTypeLookup types) {
+		this(module, null, fileManager, bootClasspathClasses, types);
+	}
+
+	private JavaCompilerService(
+			@Nullable ModuleProject module,
+			@Nullable TestScope scope,
+			SourceFileManager fileManager,
+			Set<String> bootClasspathClasses,
+			ClasspathTypeLookup types) {
 		this.module = module;
+		this.scope = scope;
 		this.fileManager = fileManager;
 		this.bootClasspathClasses = bootClasspathClasses;
 		this.types = types;
@@ -143,7 +162,7 @@ public class JavaCompilerService implements CompilerProvider {
 
 	public JavaCompilerService copy() {
 		final JavaCompilerService compiler = new JavaCompilerService(
-				this.module, this.fileManager, this.bootClasspathClasses, this.types);
+				this.module, this.scope, this.fileManager, this.bootClasspathClasses, this.types);
 		compiler.cachedCompile = null;
 		compiler.newCursorPosition = Position.NONE;
 		compiler.lastReparsePosition = Position.NONE;
@@ -186,7 +205,7 @@ public class JavaCompilerService implements CompilerProvider {
 	@Override
 	public Path[] findMemberReferences(String className, String memberName) {
 		List<Path> candidates = new ArrayList<>();
-		List<SourceClassTrie.SourceNode> sourceNodes = module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
+		List<SourceClassTrie.SourceNode> sourceNodes = module != null ? getSourceClasses().allSources() : Collections.emptyList();
 		for (SourceClassTrie.SourceNode node : sourceNodes) {
 			final Path path = node.getFile();
 			if (containsWord(path, memberName)) {
@@ -207,7 +226,7 @@ public class JavaCompilerService implements CompilerProvider {
 		// optimization.
 		String packageName = Extractors.packageName(className);
 		String simpleName = Extractors.simpleName(className);
-		List<SourceClassTrie.SourceNode> classes = module != null ? module.listClassesFromSourceDirs(packageName) : Collections.emptyList();
+		List<SourceClassTrie.SourceNode> classes = module != null ? module.listClassesFromSourceDirs(packageName, scope) : Collections.emptyList();
 		for (SourceClassTrie.SourceNode node : classes) {
 			final Path path = node.getFile();
 			if (containsWord(path, simpleName) && containsType(path, className)) {
@@ -232,7 +251,7 @@ public class JavaCompilerService implements CompilerProvider {
 		String packageName = Extractors.packageName(className);
 		String simpleName = Extractors.simpleName(className);
 		List<Path> candidates = new ArrayList<>();
-		List<SourceClassTrie.SourceNode> sourceNodes = module != null ? module.compileJavaSourceClasses.allSources() : Collections.emptyList();
+		List<SourceClassTrie.SourceNode> sourceNodes = module != null ? getSourceClasses().allSources() : Collections.emptyList();
 		for (SourceClassTrie.SourceNode node : sourceNodes) {
 			final Path path = node.getFile();
 			if (containsWord(path, packageName)
@@ -247,6 +266,17 @@ public class JavaCompilerService implements CompilerProvider {
 
 	public ModuleProject getModule() {
 		return module;
+	}
+
+	/** The test scope this compiler compiles, or null for main sources. */
+	@Nullable
+	public TestScope getScope() {
+		return scope;
+	}
+
+	/** The Java source classes this compiler sees: main's, or main's plus its test scope's. Requires a module. */
+	public SourceClassTrie getSourceClasses() {
+		return module.javaSourceClasses(scope);
 	}
 
 	public SynchronizedTask getSynchronizedTask() {
@@ -435,7 +465,7 @@ public class JavaCompilerService implements CompilerProvider {
 	}
 
 	private String packageNameOrEmpty(Path file) {
-		return module != null ? module.packageNameOrEmpty(file) : "";
+		return module != null ? module.packageNameOrEmpty(file, scope) : "";
 	}
 
 	private CompileBatch performCompilation(CompilationRequest request) {

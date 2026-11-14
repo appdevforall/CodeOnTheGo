@@ -446,11 +446,11 @@ class ProjectManagerImpl :
 		generateSourcesIfNecessary(event)
 
 		if (DocumentUtils.isJavaFile(event.file.toPath())) {
-			IProjectManager.getInstance().findModuleForFile(event.file, false)?.let {
-				val sourceRoot = it.findSourceRoot(event.file) ?: return@let
-
-				// add the source node entry
-				it.compileJavaSourceClasses.append(event.file.toPath(), sourceRoot)
+			IProjectManager.getInstance().findModuleForFile(event.file, false)?.let { module ->
+				// add the source node entry to main's trie and/or the test scopes' that see this file
+				module.javaSourceClassesFor(event.file).forEach { (trie, sourceRoot) ->
+					trie.append(event.file.toPath(), sourceRoot)
+				}
 			}
 		}
 	}
@@ -464,15 +464,17 @@ class ProjectManagerImpl :
 		// Do not check for Java file DocumentUtils.isJavaFile(...) as it checks for file existence as
 		// well. As the file is already deleted, it will always return false
 		if (event.file.extension == "java") {
-			IProjectManager
-				.getInstance()
-				.findModuleForFile(
-					event.file,
-					false,
-				)?.compileJavaSourceClasses
-				?.findSource(event.file.toPath())
-				?.let { it.parent?.removeChild(it) }
+			removeJavaSource(event.file)
 		}
+	}
+
+	/** Removes [file] from every Java source trie of its module. */
+	private fun removeJavaSource(file: File) {
+		IProjectManager
+			.getInstance()
+			.findModuleForFile(file, false)
+			?.allJavaSourceClasses()
+			?.forEach { trie -> trie.findSource(file.toPath())?.let { it.parent?.removeChild(it) } }
 	}
 
 	@Suppress("unused")
@@ -483,22 +485,14 @@ class ProjectManagerImpl :
 		// Do not check for Java file DocumentUtils.isJavaFile(...) as it checks for file existence as
 		// well. As the file is already renamed to another filename, it will always return false
 		if (event.file.extension == "java") {
-			// remove the source node entry
-			IProjectManager
-				.getInstance()
-				.findModuleForFile(
-					event.file,
-					false,
-				)?.compileJavaSourceClasses
-				?.findSource(event.file.toPath())
-				?.let { it.parent?.removeChild(it) }
+			removeJavaSource(event.file)
 		}
 
 		if (DocumentUtils.isJavaFile(event.newFile.toPath())) {
-			IProjectManager.getInstance().findModuleForFile(event.newFile, false)?.let {
-				val sourceRoot = it.findSourceRoot(event.newFile) ?: return@let
-				// add the new source node entry
-				it.compileJavaSourceClasses.append(event.newFile.toPath(), sourceRoot)
+			IProjectManager.getInstance().findModuleForFile(event.newFile, false)?.let { module ->
+				module.javaSourceClassesFor(event.newFile).forEach { (trie, sourceRoot) ->
+					trie.append(event.newFile.toPath(), sourceRoot)
+				}
 			}
 		}
 	}

@@ -85,7 +85,7 @@ abstract class FieldBasedAction : BaseJavaCodeAction() {
 		val file = data.requirePath()
 		val module = IProjectManager.getInstance().findModuleForFile(file, false) ?: return Any()
 
-		return JavaCompilerProvider.get(module).compile(file).get { task ->
+		return JavaCompilerProvider.get(module, file).compile(file).get { task ->
 			val triple = findFields(task, file, range)
 			val type = triple?.second
 			val fields = triple?.third

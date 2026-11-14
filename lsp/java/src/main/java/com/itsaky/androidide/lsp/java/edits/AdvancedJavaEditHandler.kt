@@ -41,10 +41,7 @@ abstract class AdvancedJavaEditHandler(
 		column: Int,
 		index: Int,
 	) {
-		val compiler =
-			JavaCompilerProvider.get(
-				IProjectManager.getInstance().findModuleForFile(file, false) ?: return,
-			)
+		val compiler = JavaCompilerProvider.forFile(file) ?: return
 		performEdits(compiler, editor, item)
 
 		executeCommand(editor, item.command)

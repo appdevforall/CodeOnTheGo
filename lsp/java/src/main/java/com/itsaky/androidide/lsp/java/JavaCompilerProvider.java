@@ -20,7 +20,11 @@ package com.itsaky.androidide.lsp.java;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService;
+import com.itsaky.androidide.projects.IProjectManager;
 import com.itsaky.androidide.projects.api.ModuleProject;
+import com.itsaky.androidide.projects.api.TestScope;
+import java.io.File;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -36,9 +40,35 @@ public class JavaCompilerProvider {
 	private static final Logger logger = LoggerFactory.getLogger(JavaCompilerProvider.class);
 	private static JavaCompilerProvider sInstance;
 
+	/** The compiler for {@code file}, per {@link #get(ModuleProject, Path)}, or null when no module holds it. */
+	@Nullable
+	public static JavaCompilerService forFile(@NonNull File file) {
+		return forFile(file.toPath());
+	}
+
+	/** See {@link #forFile(File)}. */
+	@Nullable
+	public static JavaCompilerService forFile(@NonNull Path file) {
+		final ModuleProject module = IProjectManager.getInstance().findModuleForFile(file, false);
+		return module == null ? null : get(module, file);
+	}
+
+	/** The compiler for {@code module}'s main sources. Use {@link #get(ModuleProject, Path)} for a file that may be a test. */
 	@NonNull
 	public static JavaCompilerService get(ModuleProject module) {
-		return JavaCompilerProvider.getInstance().forModule(module);
+		return JavaCompilerProvider.getInstance().forModule(module, null);
+	}
+
+	/** See {@link #get(ModuleProject, Path)}. */
+	@NonNull
+	public static JavaCompilerService get(@NonNull ModuleProject module, @NonNull File file) {
+		return get(module, file.toPath());
+	}
+
+	/** The compiler for {@code file}: its test scope's if {@code file} is a test source of {@code module}, main's otherwise. */
+	@NonNull
+	public static JavaCompilerService get(@NonNull ModuleProject module, @NonNull Path file) {
+		return JavaCompilerProvider.getInstance().forModule(module, module.testScopeOf(file));
 	}
 
 	public static JavaCompilerProvider getInstance() {
@@ -49,7 +79,8 @@ public class JavaCompilerProvider {
 		return sInstance;
 	}
 
-	private final Map<ModuleProject, JavaCompilerService> mCompilers = new ConcurrentHashMap<>();
+	// One compiler per module and test scope: each compiles against its own source path and classpath.
+	private final Map<Key, JavaCompilerService> mCompilers = new ConcurrentHashMap<>();
 
 	private JavaCompilerProvider() {}
 
@@ -86,16 +117,25 @@ public class JavaCompilerProvider {
 
 	@NonNull
 	public synchronized JavaCompilerService forModule(ModuleProject module) {
+		return forModule(module, null);
+	}
+
+	/** The compiler for {@code scope}'s tests of {@code module}, or for its main sources when {@code scope} is null. */
+	@NonNull
+	public synchronized JavaCompilerService forModule(ModuleProject module, @Nullable TestScope scope) {
 		// A module instance is set to the compiler only in case the project is initialized or
 		// this method was called with other module instance.
-		final JavaCompilerService cached = mCompilers.get(module);
+		final Key key = new Key(module, scope);
+		final JavaCompilerService cached = mCompilers.get(key);
 		if (cached != null && cached.getModule() != null) {
 			return cached;
 		}
 
-		final JavaCompilerService newInstance = new JavaCompilerService(module);
-		mCompilers.put(module, newInstance);
+		final JavaCompilerService newInstance = new JavaCompilerService(module, scope);
+		mCompilers.put(key, newInstance);
 
 		return newInstance;
 	}
+
+	private record Key(ModuleProject module, @Nullable TestScope scope) {}
 }

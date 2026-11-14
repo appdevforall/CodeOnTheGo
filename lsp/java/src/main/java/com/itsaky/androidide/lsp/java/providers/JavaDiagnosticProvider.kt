@@ -49,7 +49,7 @@ class JavaDiagnosticProvider {
 		val module =
 			IProjectManager.getInstance().findModuleForFile(file, false)
 				?: return DiagnosticResult.NO_UPDATE
-		val compiler = JavaCompilerService(module)
+		val compiler = JavaCompilerService(module, module.testScopeOf(file))
 
 		abortIfCancelled()
 
