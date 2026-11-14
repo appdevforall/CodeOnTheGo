@@ -36,21 +36,19 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @author Akash Yadav
  */
 class JavaDiagnosticProvider {
-
 	private val analyzeTimestamps = mutableMapOf<Path, Instant>()
 	private var cachedDiagnostics = DiagnosticResult.NO_UPDATE
 	private var analyzing = AtomicBoolean(false)
 	private var analyzingThread: AnalyzingThread? = null
 
 	companion object {
-
 		private val log = LoggerFactory.getLogger(JavaDiagnosticProvider::class.java)
 	}
 
 	fun analyze(file: Path): DiagnosticResult {
-
-		val module = IProjectManager.getInstance().findModuleForFile(file, false)
-			?: return DiagnosticResult.NO_UPDATE
+		val module =
+			IProjectManager.getInstance().findModuleForFile(file, false)
+				?: return DiagnosticResult.NO_UPDATE
 		val compiler = JavaCompilerService(module)
 
 		abortIfCancelled()
@@ -75,20 +73,19 @@ class JavaDiagnosticProvider {
 
 		analyzing.set(true)
 
-		val analyzingThread = AnalyzingThread(compiler, file).also {
-			analyzingThread = it
-			it.start()
-			it.join()
-		}
+		val analyzingThread =
+			AnalyzingThread(compiler, file).also {
+				analyzingThread = it
+				it.start()
+				it.join()
+			}
 
 		return analyzingThread.result.also {
 			this.analyzingThread = null
 		}
 	}
 
-	fun isAnalyzing(): Boolean {
-		return this.analyzing.get()
-	}
+	fun isAnalyzing(): Boolean = this.analyzing.get()
 
 	fun cancel() {
 		this.analyzingThread?.cancel()
@@ -98,7 +95,10 @@ class JavaDiagnosticProvider {
 		analyzeTimestamps.remove(file)
 	}
 
-	private fun doAnalyze(file: Path, task: CompileTask): DiagnosticResult {
+	private fun doAnalyze(
+		file: Path,
+		task: CompileTask,
+	): DiagnosticResult {
 		val result =
 			if (!isTaskValid(task)) {
 				// Do not use Collections.emptyList ()
@@ -106,13 +106,14 @@ class JavaDiagnosticProvider {
 				// throws exception when trying to access.
 				log.info("Using cached diagnostics")
 				cachedDiagnostics
-			} else
+			} else {
 				DiagnosticResult(
 					file,
 					findDiagnostics(task, file).sortedBy {
 						it.range
-					}
+					},
 				)
+			}
 		return result.also {
 			log.info("Analyze file completed. Found {} diagnostic items", result.diagnostics.size)
 		}
@@ -123,9 +124,10 @@ class JavaDiagnosticProvider {
 		return task?.task != null && task.roots != null && task.roots.size > 0
 	}
 
-	inner class AnalyzingThread(val compiler: JavaCompilerService, val file: Path) :
-		Thread("JavaAnalyzerThread") {
-
+	inner class AnalyzingThread(
+		val compiler: JavaCompilerService,
+		val file: Path,
+	) : Thread("JavaAnalyzerThread") {
 		var result: DiagnosticResult = DiagnosticResult.NO_UPDATE
 
 		fun cancel() {
@@ -146,11 +148,10 @@ class JavaDiagnosticProvider {
 				} finally {
 					compiler.destroy()
 					analyzing.set(false)
+				}.also {
+					cachedDiagnostics = it
+					analyzeTimestamps[file] = Instant.now()
 				}
-					.also {
-						cachedDiagnostics = it
-						analyzeTimestamps[file] = Instant.now()
-					}
 		}
 	}
 }

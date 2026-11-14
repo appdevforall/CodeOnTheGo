@@ -32,61 +32,61 @@ import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class RemoveUnusedThrowsAction : BaseJavaCodeAction() {
+	override val id: String = "ide.editor.lsp.java.diagnostics.removeUnusedThrows"
+	override var label: String = ""
+	private val diagnosticCode = DiagnosticCode.UNUSED_THROWS.id
 
-  override val id: String = "ide.editor.lsp.java.diagnostics.removeUnusedThrows"
-  override var label: String = ""
-  private val diagnosticCode = DiagnosticCode.UNUSED_THROWS.id
+	override val titleTextRes: Int = R.string.action_remove_unused_throws
 
-  override val titleTextRes: Int = R.string.action_remove_unused_throws
+	companion object {
+		private val log = LoggerFactory.getLogger(RemoveUnusedThrowsAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    private val log = LoggerFactory.getLogger(RemoveUnusedThrowsAction::class.java)
-  }
+		if (
+			!visible ||
+			!data.hasRequiredData(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)
+		) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
+		if (diagnosticCode != diagnostic.code) {
+			markInvisible()
+			return
+		}
+	}
 
-    if (
-      !visible ||
-      !data.hasRequiredData(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)
-    ) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val d = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
+		val compiler =
+			JavaCompilerProvider.get(IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
+		val file = data.requirePath()
+		return compiler.compile(file).get { task ->
+			val notThrown = CodeActionUtils.extractNotThrownExceptionName(d.message)
+			val methodWithExtraThrow = CodeActionUtils.findMethod(task, d.range)
 
-    val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
-    if (diagnosticCode != diagnostic.code) {
-      markInvisible()
-      return
-    }
-  }
+			return@get RemoveException(
+				methodWithExtraThrow.className,
+				methodWithExtraThrow.methodName,
+				methodWithExtraThrow.erasedParameterTypes,
+				notThrown,
+			)
+		}
+	}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val d = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
-    val compiler =
-      JavaCompilerProvider.get(
-        IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
-    val file = data.requirePath()
-    return compiler.compile(file).get { task ->
-      val notThrown = CodeActionUtils.extractNotThrownExceptionName(d.message)
-      val methodWithExtraThrow = CodeActionUtils.findMethod(task, d.range)
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is RemoveException) {
+			log.warn("Unable to remove unused throws")
+			return
+		}
 
-      return@get RemoveException(
-        methodWithExtraThrow.className,
-        methodWithExtraThrow.methodName,
-        methodWithExtraThrow.erasedParameterTypes,
-        notThrown
-      )
-    }
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is RemoveException) {
-      log.warn("Unable to remove unused throws")
-      return
-    }
-
-    performCodeAction(data, result)
-  }
+		performCodeAction(data, result)
+	}
 }
