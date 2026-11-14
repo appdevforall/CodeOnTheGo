@@ -42,7 +42,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -133,10 +132,9 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 		System.setProperty(JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME,
 				Environment.JAVA_HOME.getAbsolutePath());
 
-		final Set<File> sourcePath = new LinkedHashSet<>(module.getCompileSourceDirectories());
-		if (scope != null) {
-			sourcePath.addAll(module.getTestSourceDirectories(scope));
-		}
+		final Set<File> sourcePath = scope == null
+				? module.getCompileSourceDirectories()
+				: module.getTestCompileSourceDirectories(scope);
 		setLocationLogError(StandardLocation.SOURCE_PATH, sourcePath);
 		setLocationLogError(StandardLocation.CLASS_PATH, configureClasspaths(module));
 		listLocations(EnumSet.of(StandardLocation.CLASS_PATH, StandardLocation.PLATFORM_CLASS_PATH));

@@ -92,6 +92,7 @@ public class JavaCompilerService implements CompilerProvider {
 			Collections.singleton(Environment.ANDROID_JAR.getAbsolutePath()));
 	private CompileBatch cachedCompile;
 	private int changeDelta = 0;
+	private volatile boolean stale = false;
 
 	private Position lastReparsePosition = Position.NONE;
 	private Position newCursorPosition = Position.NONE;
@@ -283,6 +284,13 @@ public class JavaCompilerService implements CompilerProvider {
 		return synchronizedTask;
 	}
 
+	/**
+	 * Makes the next request recompile. The cache only checks the requested files' timestamps, so it cannot see an edit to a source it merely reads, such as a main source a test reads. Only sets a flag: callers run per keystroke and must not wait on a compile in progress.
+	 */
+	public void invalidateCompile() {
+		stale = true;
+	}
+
 	public void onDocumentChange(@NonNull DocumentChangeEvent event) {
 		this.changeDelta += event.getChangeDelta();
 		this.newCursorPosition = event.getChangeRange().getEnd();
@@ -303,6 +311,12 @@ public class JavaCompilerService implements CompilerProvider {
 	public ParseTask parse(Path file) {
 		Parser parser = Parser.parseFile(file);
 		return new ParseTask(parser.task, parser.root);
+	}
+
+	/** Whether the next request recompiles regardless of the cache. */
+	@VisibleForTesting
+	boolean isStale() {
+		return stale;
 	}
 
 	@Nullable
@@ -331,7 +345,11 @@ public class JavaCompilerService implements CompilerProvider {
 	private SynchronizedTask compileBatch(CompilationRequest request) {
 		synchronizedTask.post(
 				() -> {
-					if (needsCompilation(request.sources)) {
+					if (stale) {
+						// Cleared first, so an invalidation during this compile marks it stale again.
+						stale = false;
+						recompile(request);
+					} else if (needsCompilation(request.sources)) {
 						reparseOrRecompile(request);
 					} else {
 						LOG.info("...using cached compile");

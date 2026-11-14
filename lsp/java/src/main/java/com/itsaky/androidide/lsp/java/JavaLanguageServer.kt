@@ -371,6 +371,10 @@ class JavaLanguageServer : ILanguageServer {
 		if (module != null) {
 			val compiler = JavaCompilerProvider.get(module, event.changedFile)
 			compiler.onDocumentChange(event)
+			if (compiler.scope == null) {
+				// The test scopes compile against main, so their cached compiles are stale now.
+				JavaCompilerProvider.getInstance().invalidateTestScopes(module)
+			}
 		}
 		startOrRestartAnalyzeTimer()
 	}

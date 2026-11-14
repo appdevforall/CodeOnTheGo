@@ -159,6 +159,16 @@ abstract class ModuleProject(
 	abstract fun getTestCompileModuleProjects(scope: TestScope): List<ModuleProject>
 
 	/**
+	 * The source directories [scope] tests compile against, the test counterpart of
+	 * [getCompileSourceDirectories]: main's, this module's [scope] tests, and the sources of the
+	 * modules only those tests depend on.
+	 */
+	fun getTestCompileSourceDirectories(scope: TestScope): Set<File> =
+		getCompileSourceDirectories() +
+			getTestSourceDirectories(scope) +
+			getTestCompileModuleProjects(scope).flatMap { it.getSourceDirectories() }
+
+	/**
 	 * Get the classpaths for this module project. The returned list always included the
 	 * `classes.jar`.
 	 */
@@ -281,7 +291,11 @@ abstract class ModuleProject(
 	 * @param file The file to find the source root for.
 	 * @return The source root (directory) of the given file, or `null` if not found.
 	 */
-	fun findSourceRoot(file: File): Path? = getCompileSourceDirectories().find { file.path.startsWith(it.path) }?.toPath()
+	fun findSourceRoot(file: File): Path? {
+		// Path.startsWith matches whole directories: src/main/javaTest is not under src/main/java.
+		val path = file.toPath()
+		return getCompileSourceDirectories().map(File::toPath).find { path.startsWith(it) }
+	}
 
 	/** Indexes the source files' classes and prepares the classpaths for the compiler. */
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -316,12 +330,11 @@ abstract class ModuleProject(
 
 		var count = mainSources.size
 		for (scope in TestScope.entries) {
-			val testDirs = getTestSourceDirectories(scope)
-			if (testDirs.isEmpty()) {
+			if (getTestSourceDirectories(scope).isEmpty()) {
 				continue
 			}
 			val trie = testJavaSourceClasses.getValue(scope)
-			val testSources = javaSourcesIn(testDirs)
+			val testSources = javaSourcesIn(getTestCompileSourceDirectories(scope) - getCompileSourceDirectories())
 			(mainSources + testSources).forEach { (file, root) -> trie.append(file, root) }
 			count += testSources.size
 		}
@@ -365,7 +378,7 @@ abstract class ModuleProject(
 		file: Path?,
 		scope: TestScope?,
 	): SourceNode? {
-		val roots = getCompileSourceDirectories() + (scope?.let(::getTestSourceDirectories) ?: emptySet())
+		val roots = scope?.let(::getTestCompileSourceDirectories) ?: getCompileSourceDirectories()
 		for (source in roots.map(File::toPath)) {
 			val relative = source.relativize(file)
 			if (relative.pathString.contains("..")) {

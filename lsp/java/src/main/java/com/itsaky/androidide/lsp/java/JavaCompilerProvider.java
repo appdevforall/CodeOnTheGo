@@ -137,5 +137,14 @@ public class JavaCompilerProvider {
 		return newInstance;
 	}
 
+	/** Invalidates the cached compiles of {@code module}'s test scopes, which read its main sources. */
+	public void invalidateTestScopes(@NonNull ModuleProject module) {
+		mCompilers.forEach((key, compiler) -> {
+			if (key.module() == module && key.scope() != null) {
+				compiler.invalidateCompile();
+			}
+		});
+	}
+
 	private record Key(ModuleProject module, @Nullable TestScope scope) {}
 }

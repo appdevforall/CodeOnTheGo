@@ -3,6 +3,7 @@ package com.itsaky.androidide.lsp.java.compiler
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.eventbus.events.file.FileCreationEvent
 import com.itsaky.androidide.eventbus.events.file.FileDeletionEvent
+import com.itsaky.androidide.lsp.java.JavaCompilerProvider
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.ProjectManagerImpl
@@ -54,8 +55,11 @@ class SourceFileManagerTestScopesTest {
 		source(unitDir, "MainTest")
 		source(deviceDir, "DeviceHelper")
 		junit = jar("junit.jar", "org/junit/Test.class")
+		val libDir = temp.newFolder("lib", "src", "main", "java")
+		source(libDir, "Lib")
 
 		module = androidModule()
+		val lib = libraryModule(libDir)
 		val root =
 			GradleProject(
 				GradleModels.GradleProject
@@ -64,7 +68,8 @@ class SourceFileManagerTestScopesTest {
 					.setPath(":")
 					.build(),
 			)
-		ProjectManagerImpl.getInstance().workspace = Workspace(rootProject = root, subProjects = listOf(module), syncIssues = emptyList())
+		ProjectManagerImpl.getInstance().workspace =
+			Workspace(rootProject = root, subProjects = listOf(module, lib), syncIssues = emptyList())
 		module.indexSources()
 	}
 
@@ -142,6 +147,42 @@ class SourceFileManagerTestScopesTest {
 		assertThat(indexedIn("NewMain")).isEmpty()
 	}
 
+	@Test
+	fun `a test-only project dependency's sources are visible to that test scope only`() {
+		assertThat(sourceFor(SourceFileManager.forModule(module, TestScope.UNIT), "Lib")).isNotNull()
+		assertThat(sourceFor(SourceFileManager.forModule(module, TestScope.ANDROID), "Lib")).isNull()
+		assertThat(sourceFor(SourceFileManager.forModule(module), "Lib")).isNull()
+		// The trie feeds completion and import lookup, which do not fall back to the source path.
+		assertThat(indexedIn("Lib")).containsExactly(TestScope.UNIT)
+	}
+
+	@Test
+	fun `a directory that only shares a main source root's prefix is not under it`() {
+		val sibling = File(mainDir.path + "Test", "com/app/Sibling.java")
+
+		assertThat(module.findSourceRoot(sibling)).isNull()
+		assertThat(module.findSourceRoot(File(mainDir, "com/app/Main.java"))).isEqualTo(mainDir.toPath())
+	}
+
+	@Test
+	fun `a main edit invalidates the test scopes' compiles, not main's`() {
+		val previousAndroidJar = Environment.ANDROID_JAR
+		Environment.ANDROID_JAR = previousAndroidJar ?: File("android.jar")
+		try {
+			val provider = JavaCompilerProvider.getInstance()
+			val main = provider.forModule(module, null)
+			val unit = provider.forModule(module, TestScope.UNIT)
+
+			provider.invalidateTestScopes(module)
+
+			assertThat(unit.isStale).isTrue()
+			assertThat(main.isStale).isFalse()
+		} finally {
+			JavaCompilerProvider.getInstance().destroy()
+			Environment.ANDROID_JAR = previousAndroidJar
+		}
+	}
+
 	/** The scopes (null for main) whose trie holds `com.app.[name]`. */
 	private fun indexedIn(name: String): List<TestScope?> =
 		(listOf(null) + TestScope.entries).filter { module.javaSourceClasses(it).findNode("com.app.$name") != null }
@@ -177,14 +218,44 @@ class SourceFileManagerTestScopesTest {
 		return jar
 	}
 
+	/** `:lib`, which only the app's unit tests depend on. */
+	private fun libraryModule(dir: File): AndroidModule {
+		val projectDir = dir.parentFile.parentFile.parentFile
+		return AndroidModule(
+			GradleModels.GradleProject
+				.newBuilder()
+				.setName("lib")
+				.setPath(":lib")
+				.setProjectDirPath(projectDir.path)
+				.setBuildDirPath(File(projectDir, "build").path)
+				.setBuildScriptPath(File(projectDir, "build.gradle").path)
+				.setAndroidProject(
+					AndroidModels.AndroidProject
+						.newBuilder()
+						.setProjectType(AndroidModels.ProjectType.LibraryProject)
+						.setMainSourceSet(AndroidModels.SourceSetContainer.newBuilder().setSourceProvider(provider(dir)))
+						.setVariantDependencies(
+							AndroidModels.VariantDependencies
+								.newBuilder()
+								.setName("debug")
+								.setMainArtifact(AndroidModels.ArtifactDependencies.getDefaultInstance()),
+						),
+				).build(),
+		)
+	}
+
 	private fun androidModule(): AndroidModule {
 		val junitKey = "junit"
+		val libKey = "project:lib"
 		val unitGraph =
 			AndroidModels.DependencyGraph
 				.newBuilder()
 				.addKey(junitKey)
 				.addNode(AndroidModels.GraphNode.newBuilder().setKeyId(0))
 				.addRoot(0)
+				.addKey(libKey)
+				.addNode(AndroidModels.GraphNode.newBuilder().setKeyId(1))
+				.addRoot(1)
 		val projectDir = mainDir.parentFile.parentFile.parentFile
 		return AndroidModule(
 			GradleModels.GradleProject
@@ -219,6 +290,18 @@ class SourceFileManagerTestScopesTest {
 										.setType(AndroidModels.LibraryType.ExternalJavaLibrary)
 										.setArtifactPath(junit.path)
 										.build(),
+								).putLibraries(
+									libKey,
+									AndroidModels.Library
+										.newBuilder()
+										.setKey(libKey)
+										.setType(AndroidModels.LibraryType.Project)
+										.setProjectInfo(
+											AndroidModels.ProjectInfo
+												.newBuilder()
+												.setBuildId(":")
+												.setProjectPath(":lib"),
+										).build(),
 								),
 						),
 				).build(),
