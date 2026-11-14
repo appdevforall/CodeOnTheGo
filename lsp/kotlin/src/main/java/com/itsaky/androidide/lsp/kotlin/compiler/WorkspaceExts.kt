@@ -13,7 +13,7 @@ import kotlin.io.path.pathString
 
 private val logger = LoggerFactory.getLogger("WorkspaceExts")
 
-/** Builds the analysis modules this layout describes, one per source module. */
+/** Builds the analysis modules this layout describes, one per source module, test modules included. */
 internal fun KotlinModuleLayout.toKtModules(
 	project: Project,
 	appEnv: CoreApplicationEnvironment,
@@ -66,6 +66,11 @@ internal fun KotlinModuleLayout.toKtModules(
 						.filterNot { it in modulesInProgress }
 						.mapNotNull { layoutsByPath[it] }
 						.forEach { dep -> addDependency(getOrCreateModule(dep)) }
+
+					// A friend is always a module dependency too, so it is built by now.
+					moduleLayout.friends
+						.mapNotNull { sourceModules[it] }
+						.forEach { addFriend(it) }
 				}
 
 			modulesInProgress -= moduleLayout.path

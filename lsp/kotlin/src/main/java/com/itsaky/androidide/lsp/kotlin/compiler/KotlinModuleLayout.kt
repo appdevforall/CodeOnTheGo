@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.ModuleProject
+import com.itsaky.androidide.projects.api.TestScope
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.bootClassPaths
 import java.nio.file.Path
@@ -14,8 +15,9 @@ import java.nio.file.Path
  * classpaths are sets because the project model does not keep their order.
  *
  * @property bootClassPaths Boot classpath jars of every Android module, existing ones only, in order.
- * @property libraries Every module's compile classpath, existing jars only.
- * @property modules One entry per source module, in workspace order.
+ * @property libraries Every module's compile and test compile classpaths, existing jars only.
+ * @property modules One entry per source module, in workspace order, each Gradle module's main
+ *   sources followed by its test sources.
  */
 internal data class KotlinModuleLayout(
 	val bootClassPaths: List<Path>,
@@ -26,12 +28,15 @@ internal data class KotlinModuleLayout(
 /**
  * One source module of a [KotlinModuleLayout].
  *
- * @property path The Gradle project path, which identifies the module.
+ * @property path Identifies the module: the Gradle project path for main sources, with a
+ *   [TestScope] suffix for test sources (see [testModulePath]).
  * @property sourceRoots The module's source directories.
  * @property classpath The compile classpath without generated sources.
- * @property moduleDependencies Gradle paths of the modules this one compiles against.
+ * @property moduleDependencies Paths of the modules this one compiles against.
  * @property apiVersion The Kotlin API version, or null when the module has no Java or Android project.
  * @property jvmTarget The Kotlin JVM target, or null when the module has no Java or Android project.
+ * @property friends Paths of the modules whose `internal` declarations this one may use: a test
+ *   module's main module.
  */
 internal data class SourceModuleLayout(
 	val path: String,
@@ -41,7 +46,14 @@ internal data class SourceModuleLayout(
 	val moduleDependencies: List<String>,
 	val apiVersion: String?,
 	val jvmTarget: String?,
+	val friends: List<String> = emptyList(),
 )
+
+/** The [SourceModuleLayout.path] of the [scope] test module of the Gradle module at [path]. */
+internal fun testModulePath(
+	path: String,
+	scope: TestScope,
+): String = "$path[${scope.name.lowercase()}Test]"
 
 /**
  * Returns the [KotlinModuleLayout] of this workspace. Reads the file system, so not on the main thread.
@@ -65,14 +77,19 @@ internal fun Workspace.kotlinModuleLayout(): KotlinModuleLayout {
 
 	val libraries =
 		moduleProjects
-			.flatMap { it.getCompileClasspaths() }
-			.filter { it.exists() }
+			.flatMap { module ->
+				module.getCompileClasspaths() + TestScope.entries.flatMap { module.getTestCompileClasspaths(it) }
+			}.filter { it.exists() }
 			.mapTo(LinkedHashSet()) { it.toPath() }
 
 	return KotlinModuleLayout(
 		bootClassPaths = bootClassPaths,
 		libraries = libraries,
-		modules = moduleProjects.map { it.sourceModuleLayout() },
+		modules =
+			moduleProjects.flatMap { module ->
+				val main = module.sourceModuleLayout()
+				listOf(main) + TestScope.entries.mapNotNull { module.testModuleLayout(main, it) }
+			},
 	)
 }
 
@@ -92,5 +109,33 @@ private fun ModuleProject.sourceModuleLayout(): SourceModuleLayout {
 		moduleDependencies = getCompileModuleProjects().map { it.path },
 		apiVersion = kotlinSettings?.apiVersion,
 		jvmTarget = kotlinSettings?.jvmTarget,
+	)
+}
+
+/**
+ * The [scope] test module layered over [main], or null when this module has no such tests. It
+ * compiles against main, everything main does and its own test-only modules, and is main's friend so it may use `internal`
+ * declarations. Neither test module depends on the other.
+ */
+private fun ModuleProject.testModuleLayout(
+	main: SourceModuleLayout,
+	scope: TestScope,
+): SourceModuleLayout? {
+	val sourceRoots = getTestSourceDirectories(scope).mapTo(LinkedHashSet()) { it.toPath() }
+	if (sourceRoots.isEmpty()) {
+		return null
+	}
+
+	return main.copy(
+		path = testModulePath(path, scope),
+		name = "$name (${scope.name.lowercase()} test)",
+		sourceRoots = sourceRoots,
+		classpath =
+			getTestCompileClasspaths(scope, excludeSourceGeneratedClassPath = true).mapTo(LinkedHashSet()) {
+				it.toPath()
+			},
+		// Test-only project dependencies must be source modules: the test classpath leaves out their jars.
+		moduleDependencies = (listOf(path) + main.moduleDependencies + getTestCompileModuleProjects(scope).map { it.path }).distinct(),
+		friends = listOf(path),
 	)
 }

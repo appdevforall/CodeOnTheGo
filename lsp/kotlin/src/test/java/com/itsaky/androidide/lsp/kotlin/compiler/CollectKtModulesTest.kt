@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtLibraryModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtSourceModule
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
+import com.itsaky.androidide.lsp.kotlin.fixtures.TestSources
 import com.itsaky.androidide.lsp.kotlin.fixtures.gradleProject
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.api.AndroidModule
@@ -80,6 +81,95 @@ class CollectKtModulesTest : KtLspTest() {
 
 		assertThat(sourceModules.single { it.id == ":j" }.libraryDeps(androidJar)).hasSize(1)
 	}
+
+	@Test
+	fun `each test source set is its own module over main`() {
+		val junit = tempJar("junit.jar")
+		val espresso = tempJar("espresso.jar")
+		val sourceModules =
+			collect(
+				listOf(
+					AndroidModule(
+						gradleProject(
+							":app",
+							unitTests = TestSources(listOf(tempDir("app/src/test/java")), listOf(junit)),
+							androidTests = TestSources(listOf(tempDir("app/src/androidTest/java")), listOf(espresso)),
+						),
+					),
+				),
+			)
+
+		val main = sourceModules.single { it.id == ":app" }
+		val unit = sourceModules.single { it.id == ":app[unitTest]" }
+		val device = sourceModules.single { it.id == ":app[androidTest]" }
+
+		assertThat(main.contentRoots).containsNoneIn(unit.contentRoots + device.contentRoots)
+		for (test in listOf(unit, device)) {
+			assertThat(test.directRegularDependencies).contains(main)
+			assertThat(test.directFriendDependencies).containsExactly(main)
+		}
+		assertThat(main.directFriendDependencies).isEmpty()
+
+		// The scopes are isolated: neither test module, nor main, sees the other's sources or jars.
+		assertThat(unit.directRegularDependencies).doesNotContain(device)
+		assertThat(device.directRegularDependencies).doesNotContain(unit)
+		assertThat(unit.libraryDeps(junit)).hasSize(1)
+		assertThat(unit.libraryDeps(espresso)).isEmpty()
+		assertThat(device.libraryDeps(espresso)).hasSize(1)
+		assertThat(device.libraryDeps(junit)).isEmpty()
+		assertThat(main.libraryDeps(junit) + main.libraryDeps(espresso)).isEmpty()
+	}
+
+	@Test
+	fun `a test module also depends on what main depends on`() {
+		val sourceModules =
+			collect(
+				listOf(
+					AndroidModule(gradleProject(":lib", bootClassPath = tempJar("android.jar"))),
+					AndroidModule(
+						gradleProject(
+							":app",
+							projectDeps = listOf(":lib"),
+							unitTests = TestSources(listOf(tempDir("app/src/test/java"))),
+						),
+					),
+				),
+			)
+
+		val lib = sourceModules.single { it.id == ":lib" }
+		val unit = sourceModules.single { it.id == ":app[unitTest]" }
+		assertThat(unit.directRegularDependencies).contains(lib)
+		// lib's internals stay hidden: only the test module's own main module is a friend.
+		assertThat(unit.directFriendDependencies.map { it.id }).containsExactly(":app")
+	}
+
+	@Test
+	fun `a test-only project dependency is a source module of that test scope only`() {
+		val sourceModules =
+			collect(
+				listOf(
+					AndroidModule(gradleProject(":lib", bootClassPath = tempJar("android.jar"))),
+					AndroidModule(
+						gradleProject(
+							":app",
+							unitTests = TestSources(listOf(tempDir("app/src/test/java")), projects = listOf(":lib")),
+							androidTests = TestSources(listOf(tempDir("app/src/androidTest/java"))),
+						),
+					),
+				),
+			)
+
+		val lib = sourceModules.single { it.id == ":lib" }
+		assertThat(sourceModules.single { it.id == ":app[unitTest]" }.directRegularDependencies).contains(lib)
+		assertThat(sourceModules.single { it.id == ":app[androidTest]" }.directRegularDependencies).doesNotContain(lib)
+		assertThat(sourceModules.single { it.id == ":app" }.directRegularDependencies).doesNotContain(lib)
+	}
+
+	private fun tempDir(name: String): Path =
+		lspTestRule.tempDir.root
+			.toPath()
+			.resolve(name)
+			.also { it.toFile().mkdirs() }
 
 	private fun tempJar(name: String): Path =
 		lspTestRule.tempDir.root
