@@ -25,7 +25,6 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
-import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
@@ -134,7 +133,6 @@ import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.capHeightToSpaceBelow
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.forEachViewRecursively
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
@@ -153,7 +151,6 @@ import org.greenrobot.eventbus.ThreadMode
 import org.koin.android.ext.android.inject
 import org.koin.core.qualifier.named
 import java.io.File
-import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
@@ -182,8 +179,8 @@ open class EditorHandlerActivity :
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
-	private var lastAppliedPluginFontScale = EditorPreferences.editorFontScale
-	private val pluginTextBaseSizes = WeakHashMap<TextView, Float>()
+	private val pluginTextScaler = PluginTextScaler { EditorPreferences.editorFontScale }
+	private var lastAppliedPluginTextScale = pluginTextScaler.scale()
 
 	private val pluginFontScalingListener =
 		object : FragmentManager.FragmentLifecycleCallbacks() {
@@ -193,9 +190,8 @@ open class EditorHandlerActivity :
 				view: View,
 				savedInstanceState: Bundle?,
 			) {
-				val scale = EditorPreferences.editorFontScale
-				if (scale != 1f && isPluginFragment(mFragment)) {
-					applyPluginFontScale(view, scale)
+				if (isPluginFragment(mFragment)) {
+					pluginTextScaler.track(view)
 				}
 			}
 		}
@@ -2022,32 +2018,20 @@ open class EditorHandlerActivity :
 	}
 
 	private fun syncPluginUiFontSize() {
-		val scale = EditorPreferences.editorFontScale
-		if (scale == lastAppliedPluginFontScale) {
+		val scale = pluginTextScaler.scale()
+		if (scale == lastAppliedPluginTextScale) {
 			return
 		}
-		lastAppliedPluginFontScale = scale
+		lastAppliedPluginTextScale = scale
 
 		val pluginFragments = mutableListOf<Fragment>()
 		collectPluginFragments(supportFragmentManager, pluginFragments)
 		pluginFragments.forEach { fragment ->
-			fragment.view?.let { applyPluginFontScale(it, scale) }
+			fragment.view?.let(pluginTextScaler::rescale)
 		}
 	}
 
 	private fun isPluginFragment(fragment: Fragment): Boolean = fragment.javaClass.classLoader !== javaClass.classLoader
-
-	private fun applyPluginFontScale(
-		root: View,
-		scale: Float,
-	) {
-		root.forEachViewRecursively { view ->
-			if (view is TextView) {
-				val baseSize = pluginTextBaseSizes.getOrPut(view) { view.textSize }
-				view.setTextSize(TypedValue.COMPLEX_UNIT_PX, baseSize * scale)
-			}
-		}
-	}
 
 	private fun collectPluginFragments(
 		manager: FragmentManager,
