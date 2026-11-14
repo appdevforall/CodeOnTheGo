@@ -88,6 +88,14 @@ static void *cancel_when_started (void *arg) {
     return NULL;
 }
 
+// Cancels from inside the statement: the cancel lands before the call returns, but after the
+// JavaScript last checked for one
+static void cancel_now (sqlite3_context *context, int argc, sqlite3_value **argv) {
+    (void)argc; (void)argv;
+    sqlitejs_cancel_all();
+    sqlite3_result_null(context);
+}
+
 // a statement whose JavaScript a cancel must stop: one that never ends would hang the test
 static void on_alarm (int sig) {
     (void)sig;
@@ -307,15 +315,43 @@ int main (void) {
     check(answers(db, "SELECT js_eval('try { held.next(); \"open\" } catch (e) { \"ended: \" + e.message }')", "ended: interrupted"),
           "the kept result set was ended");
 
-    // Ending a result set that is computing a window function runs the function's final, which
-    // begins after the cancel: the cancel must still stop it, also before SQLite 3.41 (patch 0002).
+    // Ending a result set that is computing a window function runs the function's final. The finals
+    // belong to the call that kept the result sets, so its cancel must stop every one of them, also
+    // before SQLite 3.41 (patch 0002).
     check(exec(db, "SELECT js_create_window('loop_final', 'total = 0;', '(function (args) { total += args[0]; })', "
                    "'(function () { while (true) {} })', '(function () { return total; })', "
                    "'(function (args) { total -= args[0]; })')") == SQLITE_OK,
           "a window function whose final never ends");
     check(exec_cancelled(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT loop_final(column1) OVER (ORDER BY column1) "
-                             "FROM (VALUES (1), (2), (3))\"); held.next(); db.exec(\"SELECT started()\").next(); for (;;) {}')") != SQLITE_OK,
-          "a cancel ends a kept result set whose window function's final never ends");
+                             "FROM (VALUES (1), (2), (3))\"); held.next(); "
+                             "globalThis.held2 = db.exec(\"SELECT loop_final(column1) OVER (ORDER BY column1) "
+                             "FROM (VALUES (1), (2), (3))\"); held2.next(); db.exec(\"SELECT started()\").next(); for (;;) {}')") != SQLITE_OK,
+          "a cancel ends two kept result sets whose window functions' finals never end");
+    check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
+    // A call that returns normally, and the cancel lands while its result sets are ended: the
+    // newer one's final calls started() and never ends, then the older one's final never ends.
+    check(exec(db, "SELECT js_create_window('start_final', 'total = 0;', '(function (args) { total += args[0]; })', "
+                   "'(function () { db.exec(\"SELECT started()\").next(); while (true) {} })', '(function () { return total; })', "
+                   "'(function (args) { total -= args[0]; })')") == SQLITE_OK,
+          "a window function whose final starts the cancel and never ends");
+    check(exec_cancelled(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT loop_final(column1) OVER (ORDER BY column1) "
+                             "FROM (VALUES (1), (2), (3))\"); held.next(); "
+                             "globalThis.held2 = db.exec(\"SELECT start_final(column1) OVER (ORDER BY column1) "
+                             "FROM (VALUES (1), (2), (3))\"); held2.next(); 0')") != SQLITE_OK,
+          "a cancel while a call's result sets are ended stops every final");
+    check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
+    // A cancel that lands as the call returns, after its JavaScript last checked for one: the call
+    // fails, rather than returning with its result set's final skipped.
+    sqlite3_create_function(db, "cancel_now", 0, SQLITE_UTF8, NULL, cancel_now, NULL, NULL);
+    check(exec(db, "CREATE TABLE ran(x)") == SQLITE_OK
+              && exec(db, "SELECT js_create_window('long_final', 'total = 0;', '(function (args) { total += args[0]; })', "
+                          "'(function () { let s = 0; for (let i = 0; i < 20000000; i++) s += i; "
+                          "db.exec(\"INSERT INTO ran VALUES (1)\").next(); return total; })', '(function () { return total; })', "
+                          "'(function (args) { total -= args[0]; })')") == SQLITE_OK,
+          "a window function whose final takes a while and records that it ran");
+    check(exec(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT long_final(column1) OVER (ORDER BY column1) "
+                   "FROM (VALUES (1), (2), (3))\"); held.next(); db.exec(\"SELECT cancel_now()\").next(); 0')") != SQLITE_OK,
+          "a cancel that lands as a call returns fails the call");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
 
     // A direct sqlite3_interrupt() that reaches the SQL of a db.exec, while another result set is
@@ -338,11 +374,14 @@ int main (void) {
     // A progress handler that stops a statement, as Android's cancelling does, interrupts nothing
     // else: the call's other result sets read on, on any SQLite.
     sqlite3_progress_handler(db, 1000, stop_statement, NULL);
-    check(answers(db, "SELECT js_eval('const kept = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); kept.next(); "
+    check(answers(db, "SELECT js_eval('globalThis.kept = db.exec(\"SELECT 1 UNION ALL SELECT 2\"); kept.next(); "
                       "try { db.exec(\"WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 100000000) "
                       "SELECT count(*) FROM c\").next(); } catch (e) {} kept.next() && kept.get(0)')", "2"),
           "a statement a progress handler stopped leaves the call's other result set readable");
     sqlite3_progress_handler(db, 0, NULL, NULL);
+    check(answers(db, "SELECT js_eval('try { kept.next(); \"open\" } catch (e) { \"ended: \" + e.message }')",
+                  "ended: The result set was closed when the call into JavaScript that created it returned"),
+          "that stop was not an interrupt: the call's kept result set reads as outliving the call");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after a progress handler stopped a statement");
     exec(db, "SELECT js_eval('held = null; 0')");
     sqlite3_close_v2(db);

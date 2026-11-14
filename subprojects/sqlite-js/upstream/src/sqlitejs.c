@@ -75,7 +75,6 @@ typedef struct {
     struct rowset       *rowsets;       // result sets not yet freed: see js_end_rowsets()
     int                 orphans;        // of those, the ones whose JavaScript object is gone
     bool                ending_rowsets; // js_end_rowsets() is running
-    bool                ending_cancelled;   // and a cancel stopped the call: see js_leave()
 } globaljs_context;
 
 typedef struct {
@@ -367,10 +366,6 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
         if (js->db) sqlite3_interrupt(js->db);
         return 1;
     }
-    // Ending a cancelled call's result sets runs the finals of the window and aggregate functions
-    // they were computing, each a call that begins after the cancel: stopped too, since before
-    // SQLite 3.41 nothing else would stop one that never ends.
-    if (js->ending_cancelled) return 1;
     return js->check_interrupted && (js->db != NULL) && sqlite3_is_interrupted(js->db);
 }
 
@@ -581,7 +576,10 @@ static bool js_stack_room (size_t *room) {
 // runs JavaScript) is on the same thread and keeps the outer call's limit.
 static void js_enter (globaljs_context *js) {
     if (js->depth++ > 0) return;
-    js->cancel_epoch = js_cancel_epoch_load();
+    // The finals that ending a call's result sets runs (see js_leave) belong to that call: they keep
+    // its epoch, so a cancel during the call or during the ending stops them, as it would have
+    // stopped the call. Before SQLite 3.41 nothing else would stop one that never ends.
+    if (!js->ending_rowsets) js->cancel_epoch = js_cancel_epoch_load();
     JS_UpdateStackTop(js->runtime);
     // A thread with less room than SQLITE_JS_STACK_MIN keeps it too: JavaScript there then fails
     // with "Maximum call stack size exceeded" rather than running past the end of the stack. A
@@ -595,15 +593,12 @@ static void js_enter (globaljs_context *js) {
 // ended here: see js_end_rowsets().
 static void js_leave (globaljs_context *js) {
     if (--js->depth > 0) return;
-    // a final that ending them runs returns here: the call that is ending them goes on
-    if (!js->rowsets || js->ending_rowsets) return;
+    if (!js->rowsets) return;
     // A cancel (sqlitejs_cancel_all) during the call interrupted it, and before SQLite 3.41 is
     // the only interrupt that shows: its result sets read on as interrupted.
     bool cancelled = (js->cancel_epoch != js_cancel_epoch_load());
     bool interrupted = cancelled || ((sqlite3_libversion_number() >= 3041000) && js->db && sqlite3_is_interrupted(js->db));
-    js->ending_cancelled = cancelled;
     js_end_rowsets(js, true, interrupted);
-    js->ending_cancelled = false;
 }
 
 static globaljs_context *globaljs_init (sqlite3 *db) {
