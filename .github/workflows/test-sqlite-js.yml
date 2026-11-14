@@ -1,0 +1,34 @@
+name: Test sqlite-js
+
+# The tests the Android build cannot run (ADFA-7082): that upstream/ is sqlite-js with patches/
+# applied, upstream's test suite with the patches, and the test of sqlitejs_android.c's entry
+# points. See subprojects/sqlite-js/test.sh.
+
+on:
+  pull_request:
+    paths:
+      - 'subprojects/sqlite-js/**'
+      - '.github/workflows/test-sqlite-js.yml'
+
+permissions:
+  contents: read
+
+jobs:
+
+  test-sqlite-js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download sqlite-js
+        run: |
+          eval "$(grep -E '^(VERSION|URL)=' subprojects/sqlite-js/vendor.sh)"
+          curl -fsSL -o "$RUNNER_TEMP/sqlite-js.tar.gz" "$URL"
+
+      - name: Check the vendored sqlite-js
+        run: subprojects/sqlite-js/vendor.sh --check "$RUNNER_TEMP/sqlite-js.tar.gz"
+
+      - name: Run the sqlite-js tests
+        run: subprojects/sqlite-js/test.sh "$RUNNER_TEMP/sqlite-js.tar.gz"

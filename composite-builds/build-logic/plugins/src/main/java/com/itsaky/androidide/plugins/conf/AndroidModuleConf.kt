@@ -51,7 +51,15 @@ private val disableCoreLibDesugaringForModules =
 		// Like :logsender, the AAR is injected into apps built with CoGo and must
 		// not force desugaring onto user projects (ADFA-4128).
 		":quickbuild:runtime",
+		// The AAR is a dependency of apps built with CoGo (ADFA-7082).
+		":subprojects:sqlite-js",
 	)
+
+/**
+ * Modules without the v7/v8 flavors: libraries for other projects, which need one artifact.
+ * :subprojects:sqlite-js is an AAR for apps built with CoGo, with all the ABIs they run on.
+ */
+private val modulesWithoutAbiFlavors = setOf(":plugin-api", ":subprojects:sqlite-js")
 
 /**
  * The name of the build type used for automated testing.
@@ -238,7 +246,7 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 				}
 			}
 		}
-		if (project.path != ":plugin-api") {
+		if (project.path !in modulesWithoutAbiFlavors) {
 			flavorDimensions("abi")
 			productFlavors {
 				create("v7") {
