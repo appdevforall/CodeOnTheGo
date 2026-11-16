@@ -33,57 +33,57 @@ import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class AddThrowsAction : BaseJavaCodeAction() {
+	override val id = "ide.editor.lsp.java.diagnostics.addThrows"
+	override var label: String = ""
+	private val diagnosticCode = DiagnosticCode.NOT_THROWN.id
 
-  override val id = "ide.editor.lsp.java.diagnostics.addThrows"
-  override var label: String = ""
-  private val diagnosticCode = DiagnosticCode.NOT_THROWN.id
+	override val titleTextRes: Int = R.string.action_add_throws
 
-  override val titleTextRes: Int = R.string.action_add_throws
+	companion object {
+		private val log = LoggerFactory.getLogger(AddThrowsAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    private val log = LoggerFactory.getLogger(AddThrowsAction::class.java)
-  }
+		if (!visible || !data.hasRequiredData(DiagnosticItem::class.java)) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		val diagnostic = data[DiagnosticItem::class.java]!!
+		if (diagnosticCode != diagnostic.code) {
+			markInvisible()
+			return
+		}
+	}
 
-    if (!visible || !data.hasRequiredData(DiagnosticItem::class.java)) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val diagnostic = data[DiagnosticItem::class.java]!!
+		val compiler =
+			JavaCompilerProvider.get(IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
+		val file = data.requirePath()
+		return compiler.compile(file).get { task ->
+			val needsThrow = CodeActionUtils.findMethod(task, diagnostic.range)
+			val exceptionName = CodeActionUtils.extractExceptionName(diagnostic.message)
+			return@get AddException(
+				needsThrow.className,
+				needsThrow.methodName,
+				needsThrow.erasedParameterTypes,
+				exceptionName,
+			)
+		}
+	}
 
-    val diagnostic = data[DiagnosticItem::class.java]!!
-    if (diagnosticCode != diagnostic.code) {
-      markInvisible()
-      return
-    }
-  }
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is AddException) {
+			log.warn("Unable to add 'throws' expression")
+			return
+		}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val diagnostic = data[DiagnosticItem::class.java]!!
-    val compiler =
-      JavaCompilerProvider.get(
-        IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
-    val file = data.requirePath()
-    return compiler.compile(file).get { task ->
-      val needsThrow = CodeActionUtils.findMethod(task, diagnostic.range)
-      val exceptionName = CodeActionUtils.extractExceptionName(diagnostic.message)
-      return@get AddException(
-        needsThrow.className,
-        needsThrow.methodName,
-        needsThrow.erasedParameterTypes,
-        exceptionName
-      )
-    }
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is AddException) {
-      log.warn("Unable to add 'throws' expression")
-      return
-    }
-
-    performCodeAction(data, result)
-  }
+		performCodeAction(data, result)
+	}
 }

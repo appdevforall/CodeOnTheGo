@@ -32,53 +32,53 @@ import org.slf4j.LoggerFactory
 
 /** @author Akash Yadav */
 class RemoveClassAction : BaseJavaCodeAction() {
+	override val id: String = "ide.editor.lsp.java.diagnostics.removeClass"
+	override var label: String = ""
+	private val diagnosticCode = DiagnosticCode.UNUSED_CLASS.id
 
-  override val id: String = "ide.editor.lsp.java.diagnostics.removeClass"
-  override var label: String = ""
-  private val diagnosticCode = DiagnosticCode.UNUSED_CLASS.id
+	override val titleTextRes: Int = R.string.action_remove_class
 
-  override val titleTextRes: Int = R.string.action_remove_class
+	companion object {
+		private val log = LoggerFactory.getLogger(RemoveClassAction::class.java)
+	}
 
-  companion object {
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    private val log = LoggerFactory.getLogger(RemoveClassAction::class.java)
-  }
+		if (!visible ||
+			!data.hasRequiredData(com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)
+		) {
+			markInvisible()
+			return
+		}
 
-  override fun prepare(data: ActionData) {
-    super.prepare(data)
+		val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
+		if (diagnosticCode != diagnostic.code) {
+			markInvisible()
+			return
+		}
+	}
 
-    if (!visible || !data.hasRequiredData(
-        com.itsaky.androidide.lsp.models.DiagnosticItem::class.java)
-    ) {
-      markInvisible()
-      return
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
+		val compiler =
+			JavaCompilerProvider.get(IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
+		val file = data.requirePath()
 
-    val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
-    if (diagnosticCode != diagnostic.code) {
-      markInvisible()
-      return
-    }
-  }
+		return compiler.compile(file).get {
+			RemoveClass(file, findPosition(it, diagnostic.range.start))
+		}
+	}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val diagnostic = data[com.itsaky.androidide.lsp.models.DiagnosticItem::class.java]!!
-    val compiler =
-      JavaCompilerProvider.get(
-        IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return Any())
-    val file = data.requirePath()
+	override fun postExec(
+		data: ActionData,
+		result: Any,
+	) {
+		if (result !is RemoveClass) {
+			log.warn("Unable to remove class")
+			return
+		}
 
-    return compiler.compile(file).get {
-      RemoveClass(file, findPosition(it, diagnostic.range.start))
-    }
-  }
-
-  override fun postExec(data: ActionData, result: Any) {
-    if (result !is RemoveClass) {
-      log.warn("Unable to remove class")
-      return
-    }
-
-    performCodeAction(data, result)
-  }
+		performCodeAction(data, result)
+	}
 }
