@@ -16,9 +16,9 @@
  */
 
 plugins {
-  kotlin("jvm")
+	kotlin("jvm")
 }
 
 dependencies {
-  api(projects.buildDeps.javaCompiler)
+	api(projects.buildDeps.javaCompiler)
 }
