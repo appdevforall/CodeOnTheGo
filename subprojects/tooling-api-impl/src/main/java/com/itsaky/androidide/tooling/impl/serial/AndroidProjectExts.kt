@@ -61,6 +61,7 @@ fun createAndroidProjectProtoModel(
 			ProjectType.FUSED_LIBRARY -> AndroidModels.ProjectType.FusedLibrary
 		},
 	mainSourceSet = basicAndroidProject.mainSourceSet?.asProtoModel(),
+	sourceSetDirPathsList = basicAndroidProject.allSourceSetDirs(),
 	javaCompilerSettings = androidProject.javaCompileOptions?.asProtoModel(),
 	kotlinCompilerSettings = null, // TODO: Read kotlin compiler settings
 	viewBindingOptions = androidProject.viewBindingOptions?.asProtoModel(),

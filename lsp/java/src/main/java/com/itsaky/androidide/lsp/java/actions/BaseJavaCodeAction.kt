@@ -69,7 +69,7 @@ abstract class BaseJavaCodeAction : EditorActionItem {
 		val module = IProjectManager.getInstance().findModuleForFile(file, false)
 
 		visible = isJava
-		enabled = isJava && module != null
+		enabled = isJava && module != null && module.artifactScopeOf(file) != null
 	}
 
 	fun performCodeAction(

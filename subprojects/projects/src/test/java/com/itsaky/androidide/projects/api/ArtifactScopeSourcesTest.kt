@@ -201,6 +201,36 @@ class ArtifactScopeSourcesTest {
 	}
 
 	@Test
+	fun `req 7 - a file in another variant's source set has no scope`() {
+		val app = variantApp()
+		install(app)
+		select("myStupidVariant")
+
+		assertThat(app.artifactScopeOf(File("/p/app/src/release/java/a/Only.java"))).isNull()
+		assertThat(app.artifactScopeOf(File("/p/app/src/myStupidVariant/java/a/Mine.java"))).isEqualTo(ArtifactScope.Main)
+	}
+
+	@Test
+	fun `req 7 - a file in no source set AGP knows keeps main's analysis`() {
+		val app = variantApp()
+		install(app)
+		select("myStupidVariant")
+
+		assertThat(app.artifactScopeOf(File("/p/app/src/docs/Foo.kt"))).isEqualTo(ArtifactScope.Main)
+		assertThat(app.artifactScopeOf(File("/p/app/src/main/resources/actions/Fixture.java"))).isEqualTo(ArtifactScope.Main)
+	}
+
+	@Test
+	fun `req 9 - an unresolved variant still yields main from src main`() {
+		val app = variantApp()
+		install(app)
+		ProjectManagerImpl.getInstance().androidBuildVariants = emptyMap()
+
+		assertThat(app.getSourceDirectories()).containsExactly(mainJava)
+		assertThat(app.artifactScopeOf(File(mainJava, "a/Main.java"))).isEqualTo(ArtifactScope.Main)
+	}
+
+	@Test
 	fun `a new test fixtures file is indexed for every scope that sees fixtures`() {
 		val app = app(withTests = true, extraScopes = mapOf(ArtifactScope.TestFixtures to fixturesJava))
 		install(app)
@@ -225,9 +255,16 @@ class ArtifactScopeSourcesTest {
 	 */
 	private fun variantApp(): AndroidModule {
 		val base = app(withTests = true)
+		val knownDirs =
+			listOf(mainJava, unitJava, unitKotlin, deviceJava) +
+				listOf("myStupidVariant", "release").flatMap { variant ->
+					val capitalized = variant.replaceFirstChar(Char::uppercaseChar)
+					listOf(File("/p/app/src/$variant/java"), File("/p/app/src/$variant/kotlin"), File("/p/app/src/test$capitalized/java"))
+				}
 		val project =
 			base.delegate.androidProject
 				.toBuilder()
+				.addAllSourceSetDirPaths(knownDirs.map { it.path })
 				.clearVariant()
 				.addVariant(layeredVariant("myStupidVariant"))
 				.addVariant(layeredVariant("release"))

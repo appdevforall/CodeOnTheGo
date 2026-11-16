@@ -1,22 +1,25 @@
 package com.itsaky.androidide.lsp.java
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.models.DefinitionParams
 import com.itsaky.androidide.lsp.models.DiagnosticSeverity
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.projects.util.findAppModule
+import com.itsaky.androidide.utils.FileProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import kotlin.io.path.readText
 
 /**
  * The test project's app has `VariantConfig` in both `src/debug` and `src/release`, each with its own
  * field. Synced with `debug` selected, every Java feature must see the debug copy and never the
- * release one.
+ * release one, and a release-only source gets no analysis.
  */
 @RunWith(RobolectricTestRunner::class)
 class VariantSourceSetsTest {
@@ -66,5 +69,16 @@ class VariantSourceSetsTest {
 			assertThat(files).isNotEmpty()
 			assertThat(files.filterNot { "/src/debug/java/" in it }).isEmpty()
 		}
+	}
+
+	@Test
+	fun `a source of a variant that is not selected gets no diagnostics`() {
+		val releaseUser =
+			FileProvider
+				.testProjectRoot()
+				.resolve("app/src/release/java/com/itsaky/test/app/variant/ReleaseUser.java")
+		JavaLSPTest.dispatchEvent(DocumentOpenEvent(releaseUser, releaseUser.readText(), 0))
+
+		assertThat(runBlocking { JavaLSPTest.server.analyze(releaseUser) }.diagnostics).isEmpty()
 	}
 }

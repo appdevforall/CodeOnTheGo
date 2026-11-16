@@ -121,6 +121,8 @@ open class AndroidModule(
 
 	// The components the selected variant has: one AGP does not report for it is no scope, even if
 	// the module has its source set (src/androidTest while a non-tested build type is selected).
+	override fun getKnownSourceSetDirectories(): Set<File> = sourceSetDirPathsList.mapTo(LinkedHashSet(), ::File)
+
 	override fun getArtifactScopes(): List<ArtifactScope> =
 		(listOf(ArtifactScope.Main) + variantDependencies.artifactsMap.keys.mapNotNull(ArtifactScope::fromKey))
 			.distinct()

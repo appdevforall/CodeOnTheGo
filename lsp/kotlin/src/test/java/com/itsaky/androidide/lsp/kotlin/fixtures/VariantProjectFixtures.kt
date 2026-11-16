@@ -41,7 +41,8 @@ internal fun variantLayout(
 						AndroidModels.SourceSetContainer
 							.newBuilder()
 							.putSourceProviders(ArtifactScope.Main.key, kotlinProvider(mainKotlin)),
-					).addAllVariant(variantKotlin.map { (name, kotlinDir) -> variant(name, kotlinDir) })
+					).addAllSourceSetDirPaths((listOf(mainKotlin) + variantKotlin.values).map { it.pathString })
+					.addAllVariant(variantKotlin.map { (name, kotlinDir) -> variant(name, kotlinDir) })
 					.setConfiguredVariantName(selected)
 					.setVariantDependencies(dependingOn(stdlib)),
 			).build()
