@@ -34,15 +34,14 @@ dependencies {
 	implementation(libs.androidx.annotation)
 	implementation(libs.common.javapoet)
 
-	implementation("de.greenrobot:java-common:2.3.1")
+	implementation(libs.common.greenrobot.java.common)
 
 	implementation(libs.google.auto.service.annotations)
 	annotationProcessor(libs.google.auto.service)
 
 	// Generates the required META-INF descriptor to make the processor incremental.
-	val incap = "1.0.0"
-	compileOnly("net.ltgt.gradle.incap:incap:$incap")
-	annotationProcessor("net.ltgt.gradle.incap:incap-processor:$incap")
+	compileOnly(libs.common.incap)
+	annotationProcessor(libs.common.incap.processor)
 }
 
 tasks.withType<KotlinCompile> {

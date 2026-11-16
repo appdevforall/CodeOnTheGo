@@ -16,6 +16,7 @@ desugar_jdk_libs = "2.1.5"
 fragment = "1.8.8"
 gradle-tooling = "8.6"
 gson = "2.10.1"
+incap = "1.0.0"
 junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
 koinAndroid = "4.1.1"
@@ -299,6 +300,16 @@ tests-junit-platformLauncher = { module = "org.junit.platform:junit-platform-lau
 tests-junit-vintageEngine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit-jupiter" }
 core-tests-anroidx-arch = { module = "androidx.arch.core:core-testing", version.ref = "anroidx-test-core" }
 tests-google-truth = { module = "com.google.truth:truth", version = "1.4.1" }
+
+# plugin-api compiles against the oldest versions plugins may run with; never bump these with the app's.
+plugin-api-appcompat = { module = "androidx.appcompat:appcompat", version = "1.6.1" }
+plugin-api-fragment-ktx = { module = "androidx.fragment:fragment-ktx", version = "1.6.2" }
+plugin-api-material = { module = "com.google.android.material:material", version = "1.11.0" }
+plugin-api-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.9.0" }
+
+common-greenrobot-java-common = { module = "de.greenrobot:java-common", version = "2.3.1" }
+common-incap = { module = "net.ltgt.gradle.incap:incap", version.ref = "incap" }
+common-incap-processor = { module = "net.ltgt.gradle.incap:incap-processor", version.ref = "incap" }
 tests-robolectric = { module = "org.robolectric:robolectric", version = "4.11.1" }
 tests-androidx-test-core = { module = "androidx.test:core", version = "1.5.0" }
 tests-androidx-test-monitor = { module = "androidx.test:monitor", version = "1.8.0" }

@@ -15,9 +15,9 @@ dependencies {
 	compileOnly(libs.tooling.agp)
 
 	// Test-only, so it never reaches the published POM the on-device build resolves.
-	testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-	testImplementation("com.google.truth:truth:1.4.1")
-	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	testImplementation(libs.tests.junit.jupiter)
+	testImplementation(libs.tests.google.truth)
+	testRuntimeOnly(libs.tests.junit.platformLauncher)
 }
 
 tasks.withType<Test>().configureEach {

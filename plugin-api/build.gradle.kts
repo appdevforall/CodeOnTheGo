@@ -38,11 +38,11 @@ apiValidation {
 
 dependencies {
 	// Only include Android context for basic Android functionality
-	compileOnly("androidx.appcompat:appcompat:1.6.1")
-	compileOnly("androidx.fragment:fragment-ktx:1.6.2")
-	compileOnly("com.google.android.material:material:1.11.0")
+	compileOnly(libs.plugin.api.appcompat)
+	compileOnly(libs.plugin.api.fragment.ktx)
+	compileOnly(libs.plugin.api.material)
 
-	api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+	api(libs.plugin.api.coroutines.core)
 
 	// Logging goes through SLF4J, not android.util.Log. Not `compileOnly` like the Android artifacts
 	// above: these classes run in the host's process, which already resolves slf4j-api and the IDE's
@@ -54,13 +54,13 @@ dependencies {
 	implementation(libs.snakeyaml.engine)
 
 	// Test dependencies
-	testImplementation("junit:junit:4.13.2")
+	testImplementation(libs.tests.junit)
 
 	// KeystoreSecretStore reaches for android.util.Base64 and a real SharedPreferences, so its tests
 	// need the framework on the JVM.
 	testImplementation(libs.tests.robolectric)
 	testImplementation(libs.tests.google.truth)
-	testRuntimeOnly("androidx.fragment:fragment-ktx:1.6.2")
+	testRuntimeOnly(libs.plugin.api.fragment.ktx)
 }
 
 tasks.register<Copy>("createPluginApiJar") {
