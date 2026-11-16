@@ -95,15 +95,18 @@ internal class PluginTextScaler(
 	 * Catches views added under [root] before the frame that would draw them. A pre-draw listener,
 	 * not a layout one: a scrolling RecyclerView or ListView adds rows without any layout pass. A
 	 * frame in which something was resized is skipped, so its text is never drawn at the old size;
-	 * the next one is laid out for the new size. The listener lives on the window's observer only
-	 * while [root] is attached: once detached, [View.getViewTreeObserver] returns a different
-	 * observer, which could no longer remove it.
+	 * the next one is laid out for the new size. Never two in a row, though: a plugin that sets its
+	 * own size on every layout would otherwise have every frame skipped, and the window would stop
+	 * drawing. The listener lives on the window's observer only while [root] is attached: once
+	 * detached, [View.getViewTreeObserver] returns a different observer, which could no longer
+	 * remove it.
 	 */
 	private inner class AddedViewWatcher(
 		private val root: View,
 	) : View.OnAttachStateChangeListener,
 		ViewTreeObserver.OnPreDrawListener {
 		private var observer: ViewTreeObserver? = null
+		private var skippedLast = false
 
 		init {
 			if (root.isAttachedToWindow) onViewAttachedToWindow(root)
@@ -119,6 +122,10 @@ internal class PluginTextScaler(
 		}
 
 		// Hidden text is caught on the frame that first shows it.
-		override fun onPreDraw(): Boolean = !root.isShown || !scaleNewText(root)
+		override fun onPreDraw(): Boolean {
+			val skip = root.isShown && scaleNewText(root) && !skippedLast
+			skippedLast = skip
+			return !skip
+		}
 	}
 }

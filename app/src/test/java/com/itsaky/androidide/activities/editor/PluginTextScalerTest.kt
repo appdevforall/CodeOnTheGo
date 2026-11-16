@@ -281,4 +281,37 @@ class PluginTextScalerTest {
 
 		assertThat(preDrawListeners()).isEqualTo(before + 1)
 	}
+
+	@Test
+	fun aPluginThatResizesItsTextEveryFrameNeverStopsTheWindowDrawing() {
+		// Say a fit-to-width routine that sets the size again on every layout.
+		editorScale = 2f
+		scaler.track(root)
+		attach()
+		val fitted = text(25f).also(root::addView)
+
+		val skipped =
+			(1..6).map {
+				fitted.setTextSize(TypedValue.COMPLEX_UNIT_PX, 25f)
+				drawFrame()
+			}
+
+		assertThat(skipped.zipWithNext().none { (first, second) -> first && second }).isTrue()
+		assertThat(skipped).contains(true)
+	}
+
+	@Test
+	fun aRootAttachedAgainCatchesTextAddedAfterward() {
+		// A tab whose view is taken off the window and put back, as a pager does.
+		editorScale = 1.5f
+		scaler.track(root)
+		attach()
+		(root.parent as ViewGroup).removeView(root)
+		attach()
+
+		val row = text(20f).also(root::addView)
+		drawFrame()
+
+		assertThat(row.textSize).isEqualTo(30f)
+	}
 }
