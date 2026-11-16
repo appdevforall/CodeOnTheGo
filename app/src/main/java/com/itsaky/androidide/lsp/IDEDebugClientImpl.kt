@@ -24,6 +24,7 @@ import com.itsaky.androidide.viewmodel.DebuggerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -50,6 +51,7 @@ class IDEDebugClientImpl(
 	private val clientScope = CoroutineScope(clientContext + SupervisorJob())
 	private val clients = CopyOnWriteArraySet<RemoteClient>()
 	val breakpoints = BreakpointHandler()
+	private var threadInfoJob: Job? = null
 
 	companion object {
 		@JvmStatic
@@ -114,7 +116,7 @@ class IDEDebugClientImpl(
 			clientScope.launch {
 				if (client.adapter.suspendClient(client)) {
 					connectionState = DebuggerConnectionState.SUSPENDED
-					updateThreadInfo(client)
+					launchUpdateThreadInfo(client)
 				}
 			}
 		}
@@ -132,10 +134,12 @@ class IDEDebugClientImpl(
 			}
 
 			logger.debug("resuming client: {}", client.name)
+			cancelThreadInfoJob()
+			breakpoints.unhighlightHighlightedLocation()
 			clientScope.launch {
 				if (client.adapter.resumeClient(client)) {
 					connectionState = DebuggerConnectionState.ATTACHED
-					updateThreadInfo(client)
+					launchUpdateThreadInfo(client)
 				}
 			}
 		}
@@ -173,6 +177,10 @@ class IDEDebugClientImpl(
 			logger.error("Remote client does not support stepping")
 			return@withClient
 		}
+
+		cancelThreadInfoJob()
+		connectionState = DebuggerConnectionState.ATTACHED
+		breakpoints.unhighlightHighlightedLocation()
 
 		clientScope.launch {
 			val params =
@@ -234,23 +242,25 @@ class IDEDebugClientImpl(
 	override fun onBreakpointHit(event: BreakpointHitEvent) {
 		logger.debug("onBreakpointHit: {}", event)
 
-		clientScope.launch {
-			connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
-			updateThreadInfo(event.remoteClient, event.threadId)
-
-			openLocation(event)
-		}
+		connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
+		cancelThreadInfoJob()
+		threadInfoJob =
+			clientScope.launch {
+				updateThreadInfo(event.remoteClient, event.threadId)
+				openLocation(event)
+			}
 	}
 
 	override fun onStep(event: StepEvent) {
 		logger.debug("onStep: {}", event)
 
-		clientScope.launch {
-			updateThreadInfo(event.remoteClient, event.threadId)
-			connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
-
-			openLocation(event)
-		}
+		connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
+		cancelThreadInfoJob()
+		threadInfoJob =
+			clientScope.launch {
+				updateThreadInfo(event.remoteClient, event.threadId)
+				openLocation(event)
+			}
 	}
 
 	override fun onAttach(client: RemoteClient) {
@@ -263,10 +273,9 @@ class IDEDebugClientImpl(
 		clients += client
 		connectionState = DebuggerConnectionState.ATTACHED
 		breakpoints.unhighlightHighlightedLocation()
+		launchUpdateThreadInfo(client)
 
 		clientScope.launch {
-			updateThreadInfo(client)
-
 			val breakpoints = breakpoints.allBreakpoints
 			client.adapter.setBreakpoints(
 				BreakpointRequest(
@@ -282,7 +291,26 @@ class IDEDebugClientImpl(
 		breakpoints.unhighlightHighlightedLocation()
 		clients -= client
 		connectionState = DebuggerConnectionState.DETACHED
-		clientScope.launch { updateThreadInfo(client) }
+		cancelThreadInfoJob()
+		launchUpdateThreadInfo(client)
+	}
+
+	private fun launchUpdateThreadInfo(
+		client: RemoteClient,
+		selectedThreadId: String? = null,
+	): Job {
+		cancelThreadInfoJob()
+		val job =
+			clientScope.launch {
+				updateThreadInfo(client, selectedThreadId)
+			}
+		threadInfoJob = job
+		return job
+	}
+
+	private fun cancelThreadInfoJob() {
+		threadInfoJob?.cancel()
+		threadInfoJob = null
 	}
 
 	suspend fun updateThreadInfo(
@@ -336,6 +364,19 @@ class IDEDebugClientImpl(
 		val file = location.source.path
 		val position = Position(location.line, 0)
 
+		if (file.isBlank()) {
+			logger.debug("Skipping openLocation: source path is blank")
+			breakpoints.unhighlightHighlightedLocation()
+			return
+		}
+
+		val targetFile = File(file)
+		if (!targetFile.isFile) {
+			logger.debug("Skipping openLocation for non-existent source file: {}", file)
+			breakpoints.unhighlightHighlightedLocation()
+			return
+		}
+
 		if (!IDELanguageClientImpl.isInitialized()) {
 			logger.error("Cannot open {}:{} because language client is not initialized", file, position.line)
 			return
@@ -352,7 +393,7 @@ class IDEDebugClientImpl(
 
 		withContext(Dispatchers.Main.immediate) {
 			activity.openFileAndSelect(
-				file = File(file),
+				file = targetFile,
 				selection =
 					Range(
 						start = position,
