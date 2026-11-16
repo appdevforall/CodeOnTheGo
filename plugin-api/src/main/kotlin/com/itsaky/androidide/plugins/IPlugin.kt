@@ -54,6 +54,7 @@ enum class PluginPermission(
 	PROJECT_STRUCTURE("project.structure", "Modify project structure"),
 	NATIVE_CODE("native.code", "Execute native machine code"),
 	IDE_ENVIRONMENT_WRITE("ide.environment.write", "Write to IDE-managed directories such as the Android SDK, NDK, and cache"),
+	DEBUGGER_ENDPOINTS("debugger.endpoints", "Read the port and token of the open project's SQLite debugger servers"),
 }
 
 data class PluginInfo(

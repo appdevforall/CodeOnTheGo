@@ -343,6 +343,7 @@ Defined by `PluginPermission` in `plugin-api/src/main/kotlin/com/itsaky/androidi
 | `project.structure`      | Modify project structure                                                        |
 | `native.code`            | Execute native machine code                                                     |
 | `ide.environment.write`  | Write to IDE-managed directories (Android SDK, NDK, cache)                      |
+| `debugger.endpoints`     | Read the port and token of the open project's SQLite debugger servers           |
 
 ## Contributing a language
 

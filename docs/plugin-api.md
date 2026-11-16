@@ -22,7 +22,7 @@ The surface a plugin binds to is broader than one module. All of the following a
 - **Wire/format contracts outside the module:**
   - Manifest `<meta-data>` keys — `plugin.id`, `plugin.name`, `plugin.version`, `plugin.description`, `plugin.author`, `plugin.main_class`, `plugin.min_ide_version`, `plugin.max_ide_version`, `plugin.permissions`, `plugin.sidebar_items`, `plugin.icon_day`, `plugin.icon_night`, `plugin.vcs_revision`, `plugin.build_timestamp`. Matched **by string** — a rename silently breaks every plugin.
   - Plugin language assets: `lib/<abi>/libtree-sitter-<name>.so` exporting `tree_sitter_<name>`, the query file names under `TreeSitterGrammar.queriesAssetPath`, and the standard capture names mapped by each colour scheme's `generic.json`.
-  - Permission **key strings** (`filesystem.read`, `filesystem.write`, `network.access`, `system.commands`, `ide.settings`, `project.structure`, `native.code`, `ide.environment.write`) — also matched by string.
+  - Permission **key strings** (`filesystem.read`, `filesystem.write`, `network.access`, `system.commands`, `ide.settings`, `project.structure`, `native.code`, `ide.environment.write`, `debugger.endpoints`) — also matched by string.
   - The path allowlist and per-plugin data directories enforced by `IdeFileService` / `IdeArchiveService`.
   - File/format contracts: the `.cgp` package format (including `assets/cgp-build.properties`, the provenance record the builder writes into every artifact — see [PLUGIN_AUTHORING.md](PLUGIN_AUTHORING.md#provenance)), the `.cgt` template format, the `plugin_documentation.db` schema, `.codeonthego/scripts.json`, the TextMate snippet syntax, and the `http://localhost:6174/` help-server URL scheme with the `plugin/<pluginId>/` namespace.
 

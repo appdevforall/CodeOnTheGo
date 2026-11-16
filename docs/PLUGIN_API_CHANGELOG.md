@@ -36,6 +36,17 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.43 — unreleased
+- **added — Find the SQLite debugger of the open project's apps** _(ADFA-7139)_ **[verified]**
+  `DebuggerEndpointService.getEndpoints()` returns a `List<DebuggerEndpoint>`, one per app of the open
+  project that has reported to the IDE: `applicationId`, `port` (on `127.0.0.1`), `token` (the bearer
+  token the server requires) and `updatedAtMillis`. The list is empty, never null, when no project is
+  open or no app has reported. Port and token change every time the app starts, so call again after a
+  refused connection or a 401/403. The call reads the IDE's database: use a background thread. It needs
+  the new `debugger.endpoints` permission (`PluginPermission.DEBUGGER_ENDPOINTS`) and throws
+  `SecurityException` without it, and `IllegalStateException` on the main thread or when the database
+  cannot be read (an unreadable database is not reported as an empty list). Floor `plugin.min_ide_version`
+  at `26.43`: an IDE of 26.42 or older rejects the unknown `debugger.endpoints` permission when it
+  validates the manifest, so it refuses to install a plugin that declares it.
 - **tooling — Interface bodies are Java default methods again** _(ADFA-6560)_ **[verified]**
   Since ADFA-4058 (May 2026) pinned `languageVersion`, `plugin-api` compiled each Kotlin interface
   body as an abstract method plus a `DefaultImpls` static. Plugins built against an earlier
