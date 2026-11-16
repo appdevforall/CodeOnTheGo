@@ -737,6 +737,10 @@ abstract class ProjectHandlerActivity :
 		debuggerEndpointRepository.confirmInstall(packageName)
 	}
 
+	override fun onInstallEndedWithoutLaunch(packageName: String) {
+		debuggerEndpointRepository.discardPendingInstall(packageName)
+	}
+
 	private fun doInstallApk(state: BuildState.AwaitingInstall) {
 		val projectDirPath = IProjectManager.getInstance().projectDirPath
 		if (projectDirPath.isNotBlank()) {

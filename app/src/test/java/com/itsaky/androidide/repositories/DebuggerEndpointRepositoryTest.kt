@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 /** The database path DebuggerEndpointReceiver and the install/launch hooks call. */
 @RunWith(RobolectricTestRunner::class)
@@ -156,6 +157,87 @@ class DebuggerEndpointRepositoryTest {
 				Thread.sleep(500)
 
 				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
+			} finally {
+				dir.delete()
+			}
+		}
+
+	private suspend fun awaitNoted(
+		repo: DebuggerEndpointRepository,
+		id: String,
+		dir: File,
+		discard: Boolean,
+		advanceMillis: Long,
+		now: AtomicLong,
+	): Boolean {
+		repo.expectInstallAsync(dir) { id }
+		Thread.sleep(300)
+		if (discard) repo.discardPendingInstall(id)
+		now.addAndGet(advanceMillis)
+		return repo.confirmInstall(id)
+	}
+
+	private fun clockedRepository(now: AtomicLong) =
+		DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { now.get() })
+
+	@Test
+	fun `a failed install does not pair a later install of the same app`() =
+		runBlocking<Unit> {
+			val dir =
+				File.createTempFile("proj", "").apply {
+					delete()
+					mkdirs()
+				}
+			try {
+				addProject(dir.canonicalPath)
+				val now = AtomicLong(1_000L)
+
+				val paired = awaitNoted(clockedRepository(now), "com.example", dir, discard = true, advanceMillis = 0, now = now)
+
+				assertThat(paired).isFalse()
+				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `a note older than the expiry is not used`() =
+		runBlocking<Unit> {
+			val dir =
+				File.createTempFile("proj", "").apply {
+					delete()
+					mkdirs()
+				}
+			try {
+				addProject(dir.canonicalPath)
+				val now = AtomicLong(1_000L)
+
+				val sixMinutes = 6 * 60 * 1000L
+				val paired = awaitNoted(clockedRepository(now), "com.example", dir, discard = false, advanceMillis = sixMinutes, now = now)
+
+				assertThat(paired).isFalse()
+				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `a recent note still pairs on success`() =
+		runBlocking<Unit> {
+			val dir =
+				File.createTempFile("proj", "").apply {
+					delete()
+					mkdirs()
+				}
+			try {
+				addProject(dir.canonicalPath)
+				val now = AtomicLong(1_000L)
+
+				val paired = awaitNoted(clockedRepository(now), "com.example", dir, discard = false, advanceMillis = 60_000L, now = now)
+
+				assertThat(paired).isTrue()
 			} finally {
 				dir.delete()
 			}

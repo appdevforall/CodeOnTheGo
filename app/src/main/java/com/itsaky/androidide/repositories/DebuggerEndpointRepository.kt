@@ -23,8 +23,13 @@ class DebuggerEndpointRepository(
 	private val scope: CoroutineScope,
 	private val clock: () -> Long = System::currentTimeMillis,
 ) {
+	private class PendingInstall(
+		val location: String,
+		val noteTimeMillis: Long,
+	)
+
 	/** Installs expected to finish, by applicationId, with the project location that built them. */
-	private val pendingInstalls = ConcurrentHashMap<String, String>()
+	private val pendingInstalls = ConcurrentHashMap<String, PendingInstall>()
 
 	/**
 	 * Notes, off the main thread, that [projectDir] is installing the app [applicationId] returns
@@ -37,7 +42,7 @@ class DebuggerEndpointRepository(
 		scope.launch {
 			try {
 				val id = runCatching(applicationId).getOrNull()?.takeIf { it.isNotBlank() } ?: return@launch
-				pendingInstalls[id] = projectDir.canonicalProjectLocation()
+				pendingInstalls[id] = PendingInstall(projectDir.canonicalProjectLocation(), clock())
 			} catch (e: CancellationException) {
 				throw e
 			} catch (e: Exception) {
@@ -52,8 +57,19 @@ class DebuggerEndpointRepository(
 	 * some other way, such as opening an APK file, is not paired.
 	 */
 	suspend fun confirmInstall(applicationId: String): Boolean {
-		val location = pendingInstalls.remove(applicationId) ?: return false
-		return recordInstalled(applicationId, location)
+		val pending = pendingInstalls.remove(applicationId) ?: return false
+		// A note this old belongs to an install that never reported a result.
+		if (clock() - pending.noteTimeMillis > PENDING_INSTALL_MAX_AGE_MILLIS) return false
+		return recordInstalled(applicationId, pending.location)
+	}
+
+	/**
+	 * Call when the install of [applicationId] ended without success (failed, cancelled, blocked), so
+	 * a later install of the same app from elsewhere, such as an APK file, is not paired with the
+	 * project that started this one.
+	 */
+	fun discardPendingInstall(applicationId: String) {
+		pendingInstalls.remove(applicationId)
 	}
 
 	/**
@@ -117,6 +133,7 @@ class DebuggerEndpointRepository(
 		}
 
 	private companion object {
+		private const val PENDING_INSTALL_MAX_AGE_MILLIS = 5 * 60 * 1000L
 		private val log = LoggerFactory.getLogger(DebuggerEndpointRepository::class.java)
 	}
 }

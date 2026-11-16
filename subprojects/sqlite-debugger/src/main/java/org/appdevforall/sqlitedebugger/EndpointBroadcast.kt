@@ -9,8 +9,14 @@ import android.util.Log
 /** Tells Code on the Go which port and token this process's server uses (ADFA-7137). */
 internal object EndpointBroadcast {
 	private const val TAG = "SqliteDebugger"
+
+	// ACTION, EXTRA_TOKEN, EXTRA_PORT and EXTRA_SENDER repeat the constants of the same names in Code on the
+	// Go's DebuggerEndpointValidation (:app), which this library cannot depend on. EndpointBroadcastTest here
+	// and DebuggerEndpointContractTest there pin the same values.
 	const val ACTION = "com.itsaky.androidide.SQLITE_DEBUGGER_ENDPOINT"
 	const val COGO_PACKAGE = "com.itsaky.androidide"
+	const val EXTRA_TOKEN = "token"
+	const val EXTRA_PORT = "port"
 	const val EXTRA_SENDER = "sender"
 	private const val IDENTITY_ACTION = "org.appdevforall.sqlitedebugger.IDENTITY"
 
@@ -35,8 +41,8 @@ internal object EndpointBroadcast {
 				Intent(ACTION)
 					.setPackage(COGO_PACKAGE)
 					.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES or Intent.FLAG_RECEIVER_FOREGROUND)
-					.putExtra("token", token)
-					.putExtra("port", port)
+					.putExtra(EXTRA_TOKEN, token)
+					.putExtra(EXTRA_PORT, port)
 					.putExtra(EXTRA_SENDER, sender)
 			context.sendBroadcast(intent)
 		} catch (e: Exception) {
