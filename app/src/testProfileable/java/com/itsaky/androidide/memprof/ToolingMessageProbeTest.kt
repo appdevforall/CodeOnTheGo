@@ -42,6 +42,7 @@ import java.util.concurrent.CompletableFuture
 @Config(application = Application::class)
 class ToolingMessageProbeTest {
 	private val events = mutableListOf<String>()
+	private val phaseEvents = mutableListOf<String>()
 	private val probe = ToolingMessageProbe()
 
 	@After
@@ -98,6 +99,20 @@ class ToolingMessageProbeTest {
 		assertThat(events).containsExactly("begin section Tooling message bytes=${content.size}", "abandon section").inOrder()
 	}
 
+	@Test
+	fun `a build abandoned when the server stops still reports its message counts`() {
+		Memprof.sink = RecordingSink(events, phaseEvents)
+		val prepare = notification("p", method = PREPARE_BUILD)
+		val log = notification("log")
+
+		deliver(frame(prepare) + frame(log))
+		probe.onServerStopped()
+
+		assertThat(phaseEvents)
+			.containsAtLeast("put messages=2", "put bytes=${prepare.size + log.size}", "abandon phase")
+			.inOrder()
+	}
+
 	private fun deliver(bytes: ByteArray) {
 		val handler =
 			object : MessageJsonHandler(mapOf(METHOD to JsonRpcMethod.notification(METHOD, String::class.java))) {
@@ -141,11 +156,30 @@ class ToolingMessageProbeTest {
 
 	private class RecordingSink(
 		private val events: MutableList<String>,
+		private val phaseEvents: MutableList<String> = mutableListOf(),
 	) : MemprofSink {
 		override fun beginPhase(
 			title: String,
 			marker: String,
-		): MemprofSpan = MemprofSpan.None
+		): MemprofSpan =
+			object : MemprofSpan {
+				override val isRecording = true
+
+				override fun put(
+					key: String,
+					value: Long,
+				) {
+					phaseEvents += "put $key=$value"
+				}
+
+				override fun end() {
+					phaseEvents += "end phase"
+				}
+
+				override fun abandon() {
+					phaseEvents += "abandon phase"
+				}
+			}
 
 		override fun beginSection(
 			name: String,
@@ -180,8 +214,12 @@ class ToolingMessageProbeTest {
 
 	private companion object {
 		const val METHOD = "client/logOutput"
+		const val PREPARE_BUILD = "client/prepareBuild"
 
-		fun notification(param: String) = """{"jsonrpc":"2.0","method":"$METHOD","params":"$param"}""".toByteArray()
+		fun notification(
+			param: String,
+			method: String = METHOD,
+		) = """{"jsonrpc":"2.0","method":"$method","params":"$param"}""".toByteArray()
 
 		fun frame(content: ByteArray) = "Content-Length: ${content.size}\r\n\r\n".toByteArray() + content
 	}

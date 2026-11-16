@@ -72,7 +72,7 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 	private fun abandonBuild() {
 		val open = build
 		build = null
-		open?.span?.abandon()
+		open?.abandon()
 	}
 
 	/*
@@ -129,7 +129,7 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 		}
 
 	private class BuildStats(
-		val span: MemprofSpan,
+		private val span: MemprofSpan,
 	) {
 		private val perMethod = LinkedHashMap<String, LongArray>()
 		private var messages = 0L
@@ -163,6 +163,17 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 		}
 
 		fun finish() {
+			putTotals()
+			span.end()
+		}
+
+		/** A build the server dies in still reports what arrived, as that is the case this probe exists for. */
+		fun abandon() {
+			putTotals()
+			span.abandon()
+		}
+
+		private fun putTotals() {
 			span.put("messages", messages)
 			span.put("bytes", bytes)
 			span.put("maxMessageBytes", maxBytes)
@@ -171,7 +182,6 @@ internal class ToolingMessageProbe : ToolingMessageTap {
 				span.put("$name.count", counts[0])
 				span.put("$name.bytes", counts[1])
 			}
-			span.end()
 		}
 	}
 
