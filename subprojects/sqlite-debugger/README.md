@@ -22,6 +22,7 @@ MCP client --HTTP, 127.0.0.1--> McpHttp -> McpProtocol -> DatabaseTools -> Debug
 - `engine/`: `DebugEngine` is what the server needs from the extension, `NativeDebugEngine` implements it over JNI, and `EventDecoder` turns the event buffer's bytes into `Event`s.
 - `mcp/`: `McpHttp` is the HTTP/1.1 listener, `McpProtocol` is JSON-RPC and the MCP session handling, `DatabaseTools` is the tools: `list_databases`, `list_connections`, `get_schema`, `query`, `explain_query_plan`, `get_stats`, `integrity_check`, `get_events`.
 - `DebuggerStartup` is a `ContentProvider` with the highest `initOrder`, declared in the AAR's manifest. It runs before the app's own providers and `Application.onCreate`, so the extension is registered before the app opens a database. It installs the extension synchronously in `onCreate` (so an app that opens its database in `Application.onCreate` is still seen) and starts the server on a background thread. Everything after the debuggable check is wrapped in `catch (Throwable)`: a missing requery library (`UnsatisfiedLinkError`) means the debugger is disabled and logged, never a crash of the host app.
+- **Gradle plugin wiring (ADFA-7138).** An app opts in with `cogo.sqliteDebugger=true` in its `gradle.properties`; commenting the line out turns everything off. With it, Code on the Go's Gradle plugin (`AndroidIDEGradlePlugin`) applies two plugins. `SqliteRewritePlugin` registers a class transform on every variant that moves the app's and its libraries' classes from `android.database.sqlite` to requery (see `gradle-plugin/docs/sqlite-rewrite.md`) and adds the rewrite's helper AAR (`:subprojects:sqlite-rewrite-runtime`) to every variant. `SqliteDebuggerPlugin` adds the debugger AAR and kotlin-stdlib to debuggable variants only. Code on the Go passes both AAR paths to Gradle as properties. Quick Build is not applied to an opted-in project, because its payload would compile the project's source without the rewrite. The apps' minSdk must be at least 21, the floor of requery, the helper AAR and the debugger.
 
 ### The event record
 
@@ -49,6 +50,5 @@ No workflow in `.github/workflows` runs either yet.
 ## Not done yet
 
 - Broadcasting the port and token to Code on the Go (ADFA-7137). `DebuggerStartup` only keeps them in `DebuggerStartup.port` and `endpointToken` and logs the port, never the token.
-- Gradle plugin wiring and the build-time rewrite that adds the library to debug builds (ADFA-7138).
 - The AI-Agent-MCP side that connects to the server (ADFA-7139).
 - Verification on a device. The C tests run on the host and the Kotlin tests on the JVM; nothing has run in an app on a device or emulator.
