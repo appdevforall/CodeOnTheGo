@@ -172,6 +172,7 @@ include(
 	":subprojects:shizuku-starter",
 	":subprojects:sqlite-debugger",
 	":subprojects:sqlite-js",
+	":subprojects:sqlite-rewrite-runtime",
 	":subprojects:tooling-api",
 	":subprojects:tooling-api-events",
 	":subprojects:tooling-api-impl",
