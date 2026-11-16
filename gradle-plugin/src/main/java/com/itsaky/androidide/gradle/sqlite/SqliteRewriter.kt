@@ -75,6 +75,11 @@ enum class RewritePolicy(
 }
 
 object SqliteRewriter {
+	/** The transform cannot tell an app class from a library class, so the message covers both. */
+	private const val WAY_OUT =
+		"If this class is the app's, change the code above. If it is in a library, the library cannot run on " +
+			"requery: comment out cogo.sqliteDebugger=true in gradle.properties to build without the SQLite debugger."
+
 	private val remapper =
 		object : Remapper() {
 			override fun map(internalName: String): String = Rules.RENAMES[internalName] ?: internalName
@@ -158,7 +163,8 @@ object SqliteRewriter {
 			if (violations.isNotEmpty()) {
 				throw SqliteRewriteException(
 					"Code on the Go cannot move '${cn.name.replace('/', '.')}' from android.database.sqlite to " +
-						"requery (cogo.sqliteDebugger=true):\n" + violations.joinToString("\n") { "  - $it" },
+						"requery (cogo.sqliteDebugger=true):\n" + violations.joinToString("\n") { "  - $it" } +
+						"\n" + WAY_OUT,
 				)
 			}
 		}

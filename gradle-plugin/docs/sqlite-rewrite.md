@@ -69,7 +69,8 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported. `COLLATE LOCALIZED` only logs a warning: it works, but
-  compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together. A platform method outside the renamed set whose
+  compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together, with
+  the way out for a library class, which the user cannot change: comment out `cogo.sqliteDebugger=true`. A platform method outside the renamed set whose
   descriptor mentions a renamed class (found with javap over android.jar: the other `DatabaseUtils` methods
   `blobFileDescriptorForQuery` and `bindObjectToProgram`, `DatabaseUtils$InsertHelper`, `OpenParams`
   accessors) cannot link once the descriptor is renamed, so a call to one that is not redirected above fails

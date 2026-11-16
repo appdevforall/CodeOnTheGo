@@ -416,6 +416,30 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `the failure says how to build when the class is in a library`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Lib",
+						"""
+						package p;
+						public class Lib {
+							void one(android.database.sqlite.SQLiteDatabase db) {
+								db.execPerConnectionSQL("x", null);
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Lib"]!!, hierarchy) }
+		val lastLine = e.message!!.lines().last()
+		assertThat(lastLine).contains("in a library")
+		assertThat(lastLine).contains("comment out cogo.sqliteDebugger=true in gradle.properties")
+	}
+
+	@Test
 	fun `a missing member is found through every renamed ancestor of the owner`() {
 		val classes =
 			Compiler.compile(

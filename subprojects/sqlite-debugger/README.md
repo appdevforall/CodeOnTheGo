@@ -15,7 +15,7 @@ A project made from the JavaScript in SQLite template has it on already. For any
 
 The app's code does not change: the build moves the app and its libraries from Android's SQLite to requery in every variant, release included, so debug and release run the same SQLite. Release builds never contain the debugger. While the line is on, Quick Build is off for the project. Commenting the line out turns all of this off.
 
-Not covered: Room's `BundledSQLiteDriver`, which brings its own SQLite. When the app or one of its libraries uses something requery lacks, the build fails and names the class, method and line; the list is under [Rules](../../gradle-plugin/docs/sqlite-rewrite.md#rules).
+Not covered: Room's `BundledSQLiteDriver`, which brings its own SQLite. When the app or one of its libraries uses something requery lacks, the build fails, names the class, method and line, and says how to build without the debugger; the list is under [Rules](../../gradle-plugin/docs/sqlite-rewrite.md#rules).
 
 ## How it fits together
 
