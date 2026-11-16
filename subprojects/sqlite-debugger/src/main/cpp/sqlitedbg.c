@@ -454,6 +454,9 @@ int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db) {
 		rc = sqlite3_exec(*db, "PRAGMA query_only=1", NULL, NULL, NULL);
 		if (rc == SQLITE_OK) rc = sqlite3_set_authorizer(*db, server_authorizer, NULL);
 	}
+	// In rollback-journal mode a reader fails at once while the app holds a write lock. Wait a little,
+	// well under the tools' 50 s deadline; the client cannot change it (PRAGMA busy_timeout is refused).
+	if (rc == SQLITE_OK) rc = sqlite3_busy_timeout(*db, SQLITEDBG_SERVER_BUSY_MS);
 	if (rc != SQLITE_OK && *db) {
 		sqlite3_close_v2(*db);
 		*db = NULL;

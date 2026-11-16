@@ -653,6 +653,78 @@ static void test_server_holds_no_locks(void) {
 	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
 }
 
+typedef struct locker {
+	char path[320];
+	atomic_int locked, release;
+} locker;
+
+// An app connection that holds an exclusive lock (rollback-journal mode) until told to release it.
+static void *locker_main(void *arg) {
+	locker *l = arg;
+	sqlite3 *db = open_app(l->path);
+	exec_ok(db, "BEGIN EXCLUSIVE");
+	atomic_store(&l->locked, 1);
+	while (!atomic_load(&l->release)) usleep(1000);
+	exec_ok(db, "COMMIT");
+	sqlite3_close(db);
+	return NULL;
+}
+
+static double since_ms(const struct timespec *t0) {
+	struct timespec t1;
+	clock_gettime(CLOCK_MONOTONIC, &t1);
+	return (t1.tv_sec - t0->tv_sec) * 1e3 + (t1.tv_nsec - t0->tv_nsec) / 1e6;
+}
+
+static void *release_later(void *arg) {
+	usleep(500 * 1000);
+	atomic_store(&((locker *)arg)->release, 1);
+	return NULL;
+}
+
+// A server read waits for the app's lock (rollback-journal mode) instead of failing at once.
+static void test_server_waits_for_locks(void) {
+	locker l = {0};
+	snprintf(l.path, sizeof l.path, "%s/journal.db", g_dir);
+	sqlite3 *app = open_app(l.path);
+	exec_ok(app, "PRAGMA journal_mode=DELETE");
+	exec_ok(app, "CREATE TABLE j(a); INSERT INTO j VALUES(1)");
+	sqlite3_close(app);
+
+	// the lock is released after 500 ms: the read waits, then succeeds
+	pthread_t holder, releaser;
+	pthread_create(&holder, NULL, locker_main, &l);
+	while (!atomic_load(&l.locked)) usleep(1000);
+	sqlite3 *srv = NULL;
+	CHECK_EQ(sqlitedbg_open_server(l.path, 0, &srv), SQLITE_OK);
+	struct timespec t0;
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	pthread_create(&releaser, NULL, release_later, &l);
+	CHECK_EQ(step_all(srv, "SELECT * FROM j"), SQLITE_DONE);
+	double waited = since_ms(&t0);
+	CHECK(waited >= 300);
+	CHECK(waited < SQLITEDBG_SERVER_BUSY_MS);
+	pthread_join(releaser, NULL);
+	pthread_join(holder, NULL);
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+
+	// a lock held past the timeout gives SQLITE_BUSY after about that long, not at once
+	atomic_store(&l.locked, 0);
+	atomic_store(&l.release, 0);
+	pthread_create(&holder, NULL, locker_main, &l);
+	while (!atomic_load(&l.locked)) usleep(1000);
+	CHECK_EQ(sqlitedbg_open_server(l.path, 0, &srv), SQLITE_OK);
+	clock_gettime(CLOCK_MONOTONIC, &t0);
+	CHECK_EQ(step_all(srv, "SELECT * FROM j"), SQLITE_BUSY);
+	waited = since_ms(&t0);
+	CHECK(waited >= SQLITEDBG_SERVER_BUSY_MS - 500);
+	CHECK(waited < SQLITEDBG_SERVER_BUSY_MS + 2000);
+	atomic_store(&l.release, 1);
+	pthread_join(holder, NULL);
+	CHECK_EQ(step_all(srv, "SELECT * FROM j"), SQLITE_DONE);
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+}
+
 typedef struct worker {
 	int index;
 	atomic_int *stop;
@@ -927,6 +999,8 @@ int main(int argc, char **argv) {
 		test_server();
 		printf("# server holds no locks\n");
 		test_server_holds_no_locks();
+		printf("# server waits for locks\n");
+		test_server_waits_for_locks();
 		printf("# threads\n");
 		test_threads();
 		if (argc == 4 && strcmp(argv[1], "--write-fixture") == 0) write_fixture(argv[2], argv[3]);

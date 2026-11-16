@@ -133,6 +133,8 @@ void sqlitedbg_set_client_connected(int connected);
 
 // Server connections
 
+#define SQLITEDBG_SERVER_BUSY_MS 3000
+
 // Opens path for the server with the same SQLite the app uses: SQLITE_OPEN_READONLY unless
 // writable, PRAGMA query_only when read-only, and an authorizer that refuses ordinary writes when
 // read-only, and also BEGIN, SAVEPOINT, PRAGMA locking_mode and PRAGMA busy_timeout: a client must not
@@ -140,6 +142,8 @@ void sqlitedbg_set_client_connected(int connected);
 // temp_store_directory are refused too: they would change the app's own connections. Read-only mode guards against accidents; it is not a security boundary (ADFA-7131,
 // D11). Never traced and never listed. The caller owns *db and closes it with sqlite3_close_v2.
 // A server connection, unlike an app connection, may use a progress handler (for time limits).
+// The connection waits up to SQLITEDBG_SERVER_BUSY_MS for a lock the app holds (rollback-journal mode)
+// and then reports SQLITE_BUSY.
 // Returns SQLITE_MISUSE before any app connection has opened (the extension then has no SQLite
 // API to call), or what sqlite3_open_v2 returns.
 int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db);
