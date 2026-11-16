@@ -95,12 +95,10 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		}
 
 	extensions.getByType(CommonExtension::class.java).run {
-		lint {
-			checkDependencies = true
-		}
+		lint.checkDependencies = true
 
-		packaging {
-			resources {
+		packaging.run {
+			resources.run {
 				excludes.addAll(
 					arrayOf(
 						"META-INF/CHANGES",

@@ -17,74 +17,67 @@
 
 package com.itsaky.androidide.plugins.tasks
 
-import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
-import org.gradle.api.tasks.wrapper.Wrapper
-import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Generates the `gradle-wrapper.zip` file.
+ * Generates the `gradle-wrapper.zip` file from the files a Gradle `Wrapper` task wrote to
+ * [wrapperDirectory], leaving out `gradlew.bat`.
  *
  * @author Akash Yadav
  */
 abstract class GradleWrapperGeneratorTask : DefaultTask() {
+	/**
+	 * The directory holding `gradlew` and `gradle/wrapper/`.
+	 */
+	@get:InputDirectory
+	@get:PathSensitive(PathSensitivity.RELATIVE)
+	abstract val wrapperDirectory: DirectoryProperty
 
-  /**
-   * The output directory.
-   */
-  @get:OutputDirectory
-  abstract val outputDirectory: DirectoryProperty
+	/**
+	 * The output directory.
+	 */
+	@get:OutputDirectory
+	abstract val outputDirectory: DirectoryProperty
 
-  //TODO change gradle version to constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
-  @TaskAction
-  fun generateGradleWrapperZip() {
-    val outputDirectory = this.outputDirectory.get().file("data/common").asFile
-    outputDirectory.mkdirs()
+	@TaskAction
+	fun generateGradleWrapperZip() {
+		val wrapperDirectory = this.wrapperDirectory.get().asFile
+		val outputDirectory =
+			this.outputDirectory
+				.get()
+				.file("data/common")
+				.asFile
+		outputDirectory.mkdirs()
 
-    val destFile = outputDirectory.resolve("gradle-wrapper.zip")
+		val destFile = outputDirectory.resolve("gradle-wrapper.zip")
 
-    if (destFile.exists()) {
-      destFile.delete()
-    }
+		if (destFile.exists()) {
+			destFile.delete()
+		}
 
-    val stagingDir = File(outputDirectory, "staging")
-    if (stagingDir.exists()) {
-      stagingDir.deleteRecursively()
-    }
-    stagingDir.mkdirs()
+		ZipOutputStream(destFile.outputStream().buffered()).use { zipOut ->
+			wrapperDirectory
+				.walk(direction = FileWalkDirection.TOP_DOWN)
+				.filter { it.isFile }
+				.forEach { file ->
+					if (file.name != "gradlew.bat") {
+						val entry = ZipEntry(file.relativeTo(wrapperDirectory).path)
+						zipOut.putNextEntry(entry)
+						file.inputStream().buffered().use { fileInStream ->
+							fileInStream.transferTo(zipOut)
+						}
+					}
+				}
 
-    // Generate the files
-    val generator = IDEWrapperGenerator()
-    generator.jarFile = File(stagingDir, "gradle/wrapper/gradle-wrapper.jar")
-    generator.scriptFile = File(stagingDir, "gradlew")
-    generator.gradleVersion = GRADLE_DISTRIBUTION_VERSION
-    generator.distributionType = Wrapper.DistributionType.BIN
-
-    generator.generate(project)
-
-    // Archive all generated files
-    ZipOutputStream(destFile.outputStream().buffered()).use { zipOut ->
-      stagingDir.walk(direction = FileWalkDirection.TOP_DOWN)
-        .filter { it.isFile }
-        .forEach { file ->
-          if (file.name != "gradlew.bat") {
-            val entry = ZipEntry(file.relativeTo(stagingDir).path)
-            zipOut.putNextEntry(entry)
-            file.inputStream().buffered().use { fileInStream ->
-              fileInStream.transferTo(zipOut)
-            }
-          }
-        }
-
-      zipOut.flush()
-    }
-
-    // finally, delete the staging directory
-    stagingDir.deleteRecursively()
-  }
+			zipOut.flush()
+		}
+	}
 }

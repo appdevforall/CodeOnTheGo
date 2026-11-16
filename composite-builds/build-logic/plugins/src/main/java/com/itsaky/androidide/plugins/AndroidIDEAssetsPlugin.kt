@@ -27,12 +27,14 @@ import com.itsaky.androidide.plugins.tasks.AddFileToAssetsTask
 import com.itsaky.androidide.plugins.tasks.GenerateInitScriptTask
 import com.itsaky.androidide.plugins.tasks.GradleWrapperGeneratorTask
 import com.itsaky.androidide.plugins.util.capitalized
+import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.bundling.Jar
+import org.gradle.api.tasks.wrapper.Wrapper
 import org.gradle.kotlin.dsl.register
 
 /**
@@ -43,11 +45,25 @@ import org.gradle.kotlin.dsl.register
 class AndroidIDEAssetsPlugin : Plugin<Project> {
 	override fun apply(target: Project) {
 		target.run {
+			val wrapperFilesDirectory = layout.buildDirectory.dir("intermediates/gradle-wrapper")
+			val wrapperFilesTaskProvider =
+				tasks.register("generateGradleWrapperFiles", Wrapper::class.java) {
+					val directory = wrapperFilesDirectory.get().asFile
+					setScriptFile(directory.resolve("gradlew"))
+					setJarFile(directory.resolve("gradle/wrapper/gradle-wrapper.jar"))
+					gradleVersion = GRADLE_DISTRIBUTION_VERSION
+					distributionType = Wrapper.DistributionType.BIN
+					networkTimeout.set(10_000)
+					validateDistributionUrl.set(false)
+				}
+
 			val wrapperGeneratorTaskProvider =
 				tasks.register(
 					"generateGradleWrapper",
 					GradleWrapperGeneratorTask::class.java,
-				)
+				) {
+					wrapperDirectory.fileProvider(wrapperFilesTaskProvider.map { it.scriptFile.parentFile })
+				}
 
 			val androidComponentsExtension =
 				extensions.getByType(ApplicationAndroidComponentsExtension::class.java)

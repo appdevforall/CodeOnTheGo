@@ -59,7 +59,7 @@ object SigningKeyUtils {
 
 		logger.info("Downloading signing key...")
 		val result =
-			exec {
+			providers.exec {
 				var rootGradle: Gradle? = gradle
 				while (rootGradle?.parent != null) {
 					rootGradle = rootGradle.parent
@@ -76,7 +76,7 @@ object SigningKeyUtils {
 				)
 			}
 
-		result.assertNormalExitValue()
+		result.result.get().assertNormalExitValue()
 	}
 
 	internal fun Project.getEnvOrProp(
