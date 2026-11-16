@@ -27,10 +27,13 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
 import kotlinx.coroutines.launch
+import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  * An action to launch the already installed application on the device.
@@ -88,8 +91,17 @@ class LaunchAppAction(
 
 			log.info("Launching application: {}", applicationId)
 
+			val projectDirPath = IProjectManager.getInstance().projectDirPath
+
 			val activity = data.requireActivity()
 			activity.activityScope.launch {
+				// Awaited so the app's first report cannot arrive before its row exists.
+				if (projectDirPath.isNotBlank()) {
+					GlobalContext
+						.get()
+						.get<DebuggerEndpointRepository>()
+						.recordLaunched(applicationId, File(projectDirPath))
+				}
 				IntentUtils.launchApp(
 					context = activity,
 					packageName = applicationId,

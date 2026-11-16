@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.system.ErrnoException
 import android.system.OsConstants
@@ -93,6 +94,7 @@ import com.itsaky.androidide.quickbuild.QuickBuildStatusTracker
 import com.itsaky.androidide.quickbuild.QuickBuildWontStayUpRestart
 import com.itsaky.androidide.quickbuild.quickBuildStatusBarUpdate
 import com.itsaky.androidide.quickbuild.resolve
+import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.search.replace.ReplaceCoordinator
@@ -183,6 +185,7 @@ abstract class ProjectHandlerActivity :
 	ReplaceHost {
 	protected val buildVariantsViewModel by viewModels<BuildVariantsViewModel>()
 	private val pluginRepository: PluginRepository by inject()
+	private val debuggerEndpointRepository: DebuggerEndpointRepository by inject()
 
 	protected var mSearchingProgress: ProgressSheet? = null
 	protected var mFindInProjectDialog: AlertDialog? = null
@@ -719,13 +722,31 @@ abstract class ProjectHandlerActivity :
 	 *
 	 * @param apk the built APK; parsed with the package manager, so it must exist on disk.
 	 */
-	private fun apkApplicationId(apk: File): String? =
+	private fun apkApplicationId(apk: File): String? = apkApplicationId(packageManager, apk)
+
+	private fun apkApplicationId(
+		packageManager: PackageManager,
+		apk: File,
+	): String? =
 		runCatching { packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName }
 			.onFailure { logger.warn("Could not read the applicationId of {}", apk, it) }
 			.getOrNull()
 			?.takeIf { it.isNotBlank() }
 
+	override suspend fun beforePostInstallLaunch(packageName: String) {
+		debuggerEndpointRepository.confirmInstall(packageName)
+	}
+
 	private fun doInstallApk(state: BuildState.AwaitingInstall) {
+		val projectDirPath = IProjectManager.getInstance().projectDirPath
+		if (projectDirPath.isNotBlank()) {
+			val apk = state.apkFile
+			// The lambda outlives this Activity in the application scope. The pairing itself is written
+			// by beforePostInstallLaunch, once the install has succeeded.
+			val packageManager = applicationContext.packageManager
+			debuggerEndpointRepository.expectInstallAsync(File(projectDirPath)) { apkApplicationId(packageManager, apk) }
+		}
+
 		apkInstallationViewModel.installApk(
 			context = this,
 			apk = state.apkFile,

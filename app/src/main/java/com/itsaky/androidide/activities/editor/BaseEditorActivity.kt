@@ -756,6 +756,21 @@ abstract class BaseEditorActivity :
 		}
 
 		val packageName = onResult(this, intent) ?: return
+		// Runs before the launch so the app's first report finds its pairing row.
+		activityScope.launch(Dispatchers.Main.immediate) {
+			beforePostInstallLaunch(packageName)
+			launchAfterInstall(event, packageName)
+		}
+	}
+
+	/** Called on the main thread after an install succeeded, before the app is launched. Must not throw. */
+	protected open suspend fun beforePostInstallLaunch(packageName: String) {}
+
+	private fun launchAfterInstall(
+		event: InstallationEvent.InstallationResultEvent,
+		packageName: String,
+	) {
+		if (isDestroying) return
 		val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
 		if (!isDebugging) {
 			doLaunchApp(packageName)
