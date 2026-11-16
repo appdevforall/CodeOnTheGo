@@ -19,24 +19,24 @@ import java.nio.file.Path
 
 @OptIn(KaPlatformInterface::class, KaExperimentalApi::class)
 internal class TestKtSourceModule(
-    project: Project,
-    override val name: String,
-    roots: Set<Path>,
-    dependencies: List<KtModule> = emptyList(),
-    languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
-    jvmTarget: JvmTarget = DEFAULT_JVM_TARGET,
-) : KaSourceModule, AbstractSourceModule(project, dependencies) {
+	project: Project,
+	override val name: String,
+	roots: Set<Path>,
+	dependencies: List<KtModule> = emptyList(),
+	languageVersion: LanguageVersion = DEFAULT_LANGUAGE_VERSION,
+	jvmTarget: JvmTarget = DEFAULT_JVM_TARGET,
+) : AbstractSourceModule(project, dependencies),
+	KaSourceModule {
+	override val id: String = name
+	override val contentRoots: Set<Path> = roots
+	override val moduleDescription: String = "test:$name"
 
-    override val id: String = name
-    override val contentRoots: Set<Path> = roots
-    override val moduleDescription: String = "test:$name"
+	override val languageVersionSettings: LanguageVersionSettings =
+		LanguageVersionSettingsImpl(
+			languageVersion = languageVersion,
+			apiVersion = ApiVersion.createByLanguageVersion(languageVersion),
+		)
 
-    override val languageVersionSettings: LanguageVersionSettings =
-        LanguageVersionSettingsImpl(
-            languageVersion = languageVersion,
-            apiVersion = ApiVersion.createByLanguageVersion(languageVersion),
-        )
-
-    override val targetPlatform: TargetPlatform =
-        JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
+	override val targetPlatform: TargetPlatform =
+		JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget)
 }
