@@ -3,10 +3,10 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.library")
-	id("org.jetbrains.kotlin.android")
-	id("dev.rikka.tools.refine")
-	id("dev.rikka.tools.materialthemebuilder")
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.rikka.refine)
+	alias(libs.plugins.rikka.materialthemebuilder)
 }
 
 android {

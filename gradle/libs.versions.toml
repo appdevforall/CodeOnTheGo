@@ -351,6 +351,11 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+androidx-navigation-safeargs = { id = "androidx.navigation.safeargs.kotlin", version.ref = "androidx-navigation" }
+shadow = { id = "com.github.johnrengelman.shadow", version = "8.1.1" }
 maven-publish = { id = "com.vanniktech.maven.publish.base", version.ref = "maven-publish-plugin" }
 gradle-publish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

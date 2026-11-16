@@ -20,10 +20,10 @@ import com.itsaky.androidide.build.config.BuildConfig
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-	id("com.github.johnrengelman.shadow") version "8.1.1"
+	alias(libs.plugins.shadow)
 	id("java-library")
-	id("kotlin-kapt")
-	id("org.jetbrains.kotlin.jvm")
+	alias(libs.plugins.kotlin.kapt)
+	alias(libs.plugins.kotlin.jvm)
 }
 
 tasks.withType<Jar> {

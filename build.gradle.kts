@@ -45,6 +45,9 @@ plugins {
 	alias(libs.plugins.android.library) apply false
 	alias(libs.plugins.kotlin.android) apply false
 	alias(libs.plugins.kotlin.jvm) apply false
+	alias(libs.plugins.kotlin.kapt) apply false
+	alias(libs.plugins.kotlin.parcelize) apply false
+	alias(libs.plugins.androidx.navigation.safeargs) apply false
 	alias(libs.plugins.maven.publish) apply false
 	alias(libs.plugins.gradle.publish) apply false
 	alias(libs.plugins.rikka.autoresconfig) apply false
@@ -64,8 +67,6 @@ buildscript {
 	dependencies {
 		// Must stay first: pins a D8/R8 that understands the Kotlin metadata version (ADFA-6822).
 		classpath(libs.android.r8)
-		classpath(libs.kotlin.gradle.plugin)
-		classpath(libs.nav.safe.args.gradle.plugin)
 	}
 }
 

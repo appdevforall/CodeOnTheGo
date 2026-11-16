@@ -1,7 +1,7 @@
 plugins {
-	id("com.android.library")
-	id("org.jetbrains.kotlin.android")
-	id("dev.rikka.tools.refine")
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.rikka.refine)
 }
 
 android {

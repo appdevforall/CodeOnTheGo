@@ -1,7 +1,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.library")
+	alias(libs.plugins.android.library)
 }
 
 description =

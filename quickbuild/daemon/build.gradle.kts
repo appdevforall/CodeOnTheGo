@@ -2,7 +2,7 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_KOTLIN_VERSION
 
 plugins {
 	id("java-library")
-	id("org.jetbrains.kotlin.jvm")
+	alias(libs.plugins.kotlin.jvm)
 }
 
 description =

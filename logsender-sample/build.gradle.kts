@@ -18,7 +18,7 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.application")
+	alias(libs.plugins.android.application)
 }
 
 android {

@@ -20,7 +20,7 @@ import com.itsaky.androidide.plugins.LexerGeneratorPlugin
 
 plugins {
 	id("java-library")
-	kotlin("jvm")
+	alias(libs.plugins.kotlin.jvm)
 }
 
 apply {

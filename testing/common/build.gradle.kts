@@ -18,8 +18,8 @@
 @Suppress("JavaPluginLanguageLevel")
 plugins {
 	id("java-library")
-	id("kotlin-kapt")
-	id("org.jetbrains.kotlin.jvm")
+	alias(libs.plugins.kotlin.kapt)
+	alias(libs.plugins.kotlin.jvm)
 }
 
 dependencies {

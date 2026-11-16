@@ -4,7 +4,7 @@ plugins {
 	alias(libs.plugins.android.library)
 	alias(libs.plugins.kotlin.android)
 	// Bundled with the Kotlin Gradle plugin already on the classpath, so apply without a version.
-	id("org.jetbrains.kotlin.plugin.parcelize")
+	alias(libs.plugins.kotlin.parcelize)
 }
 
 android {

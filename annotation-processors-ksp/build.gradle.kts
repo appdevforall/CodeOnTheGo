@@ -19,7 +19,7 @@ import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
 	id("java-library")
-	kotlin("jvm")
+	alias(libs.plugins.kotlin.jvm)
 }
 
 group = "${BuildConfig.PACKAGE_NAME}.annotations"

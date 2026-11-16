@@ -36,11 +36,11 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 plugins {
-	id("com.android.application")
-	id("kotlin-android")
-	id("kotlin-kapt")
-	id("kotlin-parcelize")
-	id("androidx.navigation.safeargs.kotlin")
+	alias(libs.plugins.android.application)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.kapt)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.androidx.navigation.safeargs)
 	id("com.itsaky.androidide.desugaring")
 	// Sentry gradle plugin; the SDK it wires up reports to our GlitchTip backend.
 	alias(libs.plugins.sentry)

@@ -18,8 +18,8 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.library")
-	id("com.vanniktech.maven.publish.base")
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.maven.publish)
 }
 
 description = "LogSender is used to read logs from applications built with AndroidIDE"

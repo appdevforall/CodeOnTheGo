@@ -3,7 +3,7 @@ import com.itsaky.androidide.plugins.conf.configureProtoc
 
 plugins {
 	id("java-library")
-	id("org.jetbrains.kotlin.jvm")
+	alias(libs.plugins.kotlin.jvm)
 	alias(libs.plugins.google.protobuf)
 }
 

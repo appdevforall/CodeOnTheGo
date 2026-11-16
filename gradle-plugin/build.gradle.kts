@@ -23,7 +23,7 @@ import com.itsaky.androidide.build.config.ProjectConfig
 import org.gradle.api.file.SourceDirectorySet
 
 plugins {
-	id("org.jetbrains.kotlin.jvm")
+	alias(libs.plugins.kotlin.jvm)
 	id("java-gradle-plugin")
 }
 

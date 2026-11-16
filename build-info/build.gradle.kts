@@ -31,7 +31,7 @@ import org.adfa.constants.GRADLE_DISTRIBUTION_VERSION
 plugins {
 //noinspection JavaPluginLanguageLevel
 	id("java-library")
-	id("com.vanniktech.maven.publish.base")
+	alias(libs.plugins.maven.publish)
 }
 
 description = "Information about the AndroidIDE build"

@@ -1,10 +1,10 @@
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
-	id("com.android.library")
-	id("kotlin-android")
-	id("kotlin-parcelize")
-	id("androidx.navigation.safeargs.kotlin")
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	alias(libs.plugins.kotlin.parcelize)
+	alias(libs.plugins.androidx.navigation.safeargs)
 }
 
 android {

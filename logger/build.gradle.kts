@@ -18,9 +18,9 @@
 @Suppress("JavaPluginLanguageLevel")
 plugins {
 	id("java-library")
-	id("org.jetbrains.kotlin.jvm")
-	id("com.vanniktech.maven.publish.base")
-	id("kotlin-kapt")
+	alias(libs.plugins.kotlin.jvm)
+	alias(libs.plugins.maven.publish)
+	alias(libs.plugins.kotlin.kapt)
 }
 
 description = "AndroidIDE Logging Framework"
