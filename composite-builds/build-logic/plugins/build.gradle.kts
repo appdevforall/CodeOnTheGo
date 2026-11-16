@@ -51,25 +51,33 @@ dependencies {
 	val brotli4jNatives =
 		DefaultNativePlatform.getCurrentOperatingSystem().let { os ->
 			when {
-				os.isMacOsX ->
+				os.isMacOsX -> {
 					when {
 						arch.isArm64 -> libs.brotli4j.osx.aarch64
 						arch.isAmd64 -> libs.brotli4j.osx.x64
 						else -> throw IllegalStateException("Unsupported OSX architecture: $arch")
 					}
-				os.isWindows ->
+				}
+
+				os.isWindows -> {
 					when {
 						arch.isArm64 -> libs.brotli4j.windows.aarch64
 						arch.isAmd64 -> libs.brotli4j.windows.x64
 						else -> throw IllegalStateException("Unsupported Windows architecture: $arch")
 					}
-				os.isLinux ->
+				}
+
+				os.isLinux -> {
 					when {
 						arch.isArm64 -> libs.brotli4j.linux.aarch64
 						arch.isAmd64 -> libs.brotli4j.linux.x64
 						else -> throw IllegalStateException("Unsupported Linux architecture: $arch")
 					}
-				else -> throw IllegalStateException("Unsupported OS: $os")
+				}
+
+				else -> {
+					throw IllegalStateException("Unsupported OS: $os")
+				}
 			}
 		}
 
