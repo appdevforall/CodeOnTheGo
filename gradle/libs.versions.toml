@@ -291,6 +291,9 @@ composeRuntimeDaemonTests = { module = "androidx.compose.runtime:runtime-android
 # Only :quickbuild:daemon uses this, and it takes the jar from the on-device Gradle
 # distribution rather than the APK - so the version is the distribution's, not ours.
 ow2-asm = { module = "org.ow2.asm:asm", version = "9.9" }
+ow2-asmAnalysis = { module = "org.ow2.asm:asm-analysis", version = "9.9" }
+ow2-asmCommons = { module = "org.ow2.asm:asm-commons", version = "9.9" }
+ow2-asmTree = { module = "org.ow2.asm:asm-tree", version = "9.9" }
 
 # Tests
 tests-junit = { module = "junit:junit", version = "4.13.2" }
