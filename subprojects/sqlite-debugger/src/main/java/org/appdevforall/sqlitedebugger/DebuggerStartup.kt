@@ -2,6 +2,7 @@ package org.appdevforall.sqlitedebugger
 
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.database.Cursor
 import android.net.Uri
@@ -35,7 +36,7 @@ class DebuggerStartup : ContentProvider() {
 			engine.install()
 			thread(name = "sqlite-debugger-start", isDaemon = true) {
 				try {
-					startServer(engine, databaseDir)
+					startServer(context, engine, databaseDir)
 				} catch (t: Throwable) {
 					Log.e(TAG, "could not start the server", t)
 				}
@@ -47,6 +48,7 @@ class DebuggerStartup : ContentProvider() {
 	}
 
 	private fun startServer(
+		context: Context,
 		engine: NativeDebugEngine,
 		databaseDir: File,
 	) {
@@ -58,6 +60,7 @@ class DebuggerStartup : ContentProvider() {
 		port = http.boundPort
 		endpointToken = token
 		Log.i(TAG, "listening on 127.0.0.1:${http.boundPort}")
+		EndpointBroadcast.send(context, token, http.boundPort)
 	}
 
 	override fun query(
@@ -91,7 +94,7 @@ class DebuggerStartup : ContentProvider() {
 	companion object {
 		private const val TAG = "SqliteDebugger"
 
-		/** Set once the server listens; the broadcast to Code on the Go (ADFA-7137) reads them. */
+		/** Set once the server listens. */
 		@Volatile var port: Int = 0
 			private set
 
