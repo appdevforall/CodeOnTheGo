@@ -4,6 +4,7 @@ package com.itsaky.androidide.plugins.manager.core
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
@@ -331,6 +332,10 @@ class PluginManager private constructor(
 	private val lifecycleDispatcher = PluginLifecycleDispatcher()
 
 	private val pluginsDir = File(context.filesDir, "plugins")
+	private val buildFiles =
+		PluginBuildFiles(pluginsDir, context.getDir("plugin_native_libs", Context.MODE_PRIVATE)) { file ->
+			PluginLoader(context, file).getPluginMetadata()?.id
+		}
 	private val documentationManager = PluginDocumentationManager(context)
 	private var templateReloadListener: (() -> Unit)? = null
 	private var snippetRefreshListener: ((String) -> Unit)? = null
@@ -588,7 +593,7 @@ class PluginManager private constructor(
 
 			var nativeLibPath: String? =
 				try {
-					pluginLoader.extractNativeLibs(manifest.id)?.absolutePath
+					buildFiles.extractNativeLibs(manifest.id, file, Build.SUPPORTED_ABIS[0])?.absolutePath
 				} catch (e: Exception) {
 					logger.warn("Failed to extract native libs for plugin: ${manifest.id}", e)
 					null
@@ -685,6 +690,7 @@ class PluginManager private constructor(
 					isEnabled,
 					iconDayPath = iconDayPath,
 					iconNightPath = iconNightPath,
+					nativeLibraryDir = nativeLibPath?.let(::File),
 				)
 			loadedPlugins[manifest.id] = loadedPlugin
 
@@ -842,10 +848,6 @@ class PluginManager private constructor(
 			// Drop lifecycle listeners this plugin registered; its classloader is going away.
 			lifecycleDispatcher.removeAllFrom(pluginId)
 
-			File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
-				if (dir.exists()) dir.deleteRecursively()
-			}
-
 			notifyLanguageContributionsChanged(loadedPlugin.plugin)
 			logger.info("Unloaded plugin: $pluginId")
 			return true
@@ -859,7 +861,13 @@ class PluginManager private constructor(
 		incomingFile: File,
 		existingPluginId: String,
 	): Boolean {
-		val existingFile = File(pluginsDir, "$existingPluginId.$PLUGIN_ARCHIVE_EXTENSION")
+		val existingFile =
+			loadedPlugins[existingPluginId]?.apkPath?.let(::File)?.takeIf(File::isFile)
+				?: buildFiles.filesOf(existingPluginId).firstOrNull()
+		if (existingFile == null) {
+			logger.warn("No installed file found for $existingPluginId; treating as mismatch")
+			return false
+		}
 		val incomingSig = PluginLoader(context, incomingFile).getSignatureHash()
 		val existingSig = PluginLoader(context, existingFile).getSignatureHash()
 		if (incomingSig == null || existingSig == null) {
@@ -886,41 +894,7 @@ class PluginManager private constructor(
 			logger.info("Successfully unloaded plugin from memory: $pluginId")
 		}
 
-		// Find and delete the plugin file (CGP)
-		val pluginFiles =
-			pluginsDir.listFiles { file ->
-				file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
-			}
-
-		if (pluginFiles == null || pluginFiles.isEmpty()) {
-			logger.error("No plugin files found in plugins directory")
-			return false
-		}
-
-		logger.info("Found ${pluginFiles.size} plugin files to check")
-		var deleted = false
-		for (pluginFile in pluginFiles) {
-			try {
-				// Check if this  contains the plugin we want to delete
-				val loader = PluginLoader(context, pluginFile)
-				val manifest = loader.getPluginMetadata()
-
-				if (manifest != null) {
-					if (manifest.id == pluginId) {
-						if (pluginFile.delete()) {
-							deleted = true
-							break // Found and deleted the right file
-						} else {
-							logger.error("File exists: ${pluginFile.exists()}, Can write: ${pluginFile.canWrite()}")
-						}
-					}
-				} else {
-					logger.warn("Could not read manifest from ${pluginFile.name}")
-				}
-			} catch (e: Exception) {
-				logger.error("Error checking plugin file ${pluginFile.name}: ${e.message}", e)
-			}
-		}
+		val deleted = buildFiles.delete(pluginId)
 
 		// Remove plugin state and cleanup contributions
 		if (deleted) {
@@ -1032,8 +1006,7 @@ class PluginManager private constructor(
 					logger.error("No resource context registered for plugin $pluginId; ignoring its languages")
 					return@flatMap emptyList()
 				}
-				val nativeLibraryDir =
-					File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).takeIf { it.isDirectory }
+				val nativeLibraryDir = loaded.nativeLibraryDir?.takeIf { it.isDirectory }
 				definitions
 					.filter { definition -> isLanguageAllowed(pluginId, loaded.manifest, definition, nativeLibraryDir) }
 					.map { definition -> PluginLanguageContribution(pluginId, definition, assets, nativeLibraryDir) }
@@ -1902,10 +1875,6 @@ class PluginManager private constructor(
 				logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
 			}
 
-			File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
-				if (dir.exists()) dir.deleteRecursively()
-			}
-
 			File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
 				if (dir.exists()) dir.deleteRecursively()
 			}
@@ -1985,6 +1954,7 @@ data class LoadedPlugin(
 	var isEnabled: Boolean = true,
 	val iconDayPath: String? = null,
 	val iconNightPath: String? = null,
+	val nativeLibraryDir: File? = null,
 )
 
 fun LoadedPlugin.toPluginMetadata(): PluginMetadata =
