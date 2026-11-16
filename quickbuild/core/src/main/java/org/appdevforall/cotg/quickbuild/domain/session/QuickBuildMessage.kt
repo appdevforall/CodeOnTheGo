@@ -47,6 +47,12 @@ sealed interface QuickBuildMessage {
 	/** The installer could not even launch the install. */
 	data object InstallCouldNotStart : QuickBuildMessage
 
+	/**
+	 * Android's PackageInstaller rejected session creation because this app UID has reached the
+	 * per-UID active-session cap (`MAX_ACTIVE_SESSIONS = 50`).
+	 */
+	data object TooManyInstallSessions : QuickBuildMessage
+
 	/** The install ran and the OS reported a failure with nothing more specific to say. */
 	data object InstallFailed : QuickBuildMessage
 
