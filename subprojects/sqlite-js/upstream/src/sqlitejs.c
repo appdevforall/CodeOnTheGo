@@ -75,6 +75,7 @@ typedef struct {
     struct rowset       *rowsets;       // result sets not yet freed: see js_end_rowsets()
     int                 orphans;        // of those, the ones whose JavaScript object is gone
     bool                ending_rowsets; // js_end_rowsets() is running
+    unsigned            end_pass;       // js_end_rowsets() passes that ended every result set
 } globaljs_context;
 
 typedef struct {
@@ -117,6 +118,7 @@ typedef struct rowset {
     bool            ended;          // ended by js_end_rowsets(): reading on throws
     bool            interrupted;    // and an interrupt is why: reading on throws "interrupted"
     bool            orphaned;       // its JavaScript object is gone: see js_rowset_finalizer()
+    unsigned        end_pass;       // the js_end_rowsets() pass that ended it
     struct rowset   *prev, *next;   // in the connection's list: see js_end_rowsets()
 } rowset;
 
@@ -272,9 +274,12 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
 // computing, whose js_leave() comes back here and whose garbage collection can free result sets
 // of the list. So each statement is taken from its result set before it is finalized, the list
 // is walked again from its head after each one, and a nested call does nothing.
+static unsigned js_cancel_epoch_load (void);
+
 static void js_end_rowsets (globaljs_context *js, bool all, bool interrupted) {
     if (js->ending_rowsets) return;
     js->ending_rowsets = true;
+    unsigned pass = all ? ++js->end_pass : 0;
     for (;;) {
         rowset *rs = js->rowsets;
         while (rs && !(rs->orphaned || (all && rs->vm))) rs = rs->next;
@@ -291,9 +296,16 @@ static void js_end_rowsets (globaljs_context *js, bool all, bool interrupted) {
         } else {
             rs->vm = NULL;
             rs->ended = true;
+            rs->end_pass = pass;
             if (interrupted) rs->interrupted = true;
         }
         if (vm) sqlite3_finalize(vm);
+    }
+    // A cancel that landed while the finals ran stopped them, as one before the call returned
+    // would have: the result sets this pass ended read on as interrupted too. Nothing runs
+    // JavaScript here, so the list holds only result sets that are still allocated.
+    if (all && !interrupted && (js->cancel_epoch != js_cancel_epoch_load())) {
+        for (rowset *r = js->rowsets; r; r = r->next) if (r->ended && (r->end_pass == pass)) r->interrupted = true;
     }
     js->ending_rowsets = false;
 }

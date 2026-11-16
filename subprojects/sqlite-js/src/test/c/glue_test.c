@@ -340,6 +340,9 @@ int main (void) {
                              "FROM (VALUES (1), (2), (3))\"); held2.next(); 0')") != SQLITE_OK,
           "a cancel while a call's result sets are ended stops every final");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
+    check(answers(db, "SELECT js_eval('[held, held2].map((r) => { try { r.next(); return \"open\"; } catch (e) { return e.message; } }).join()')",
+                  "interrupted,interrupted"),
+          "the result sets ended when that cancel landed read on as interrupted");
     // A cancel that lands as the call returns, after its JavaScript last checked for one: the call
     // fails, rather than returning with its result set's final skipped.
     sqlite3_create_function(db, "cancel_now", 0, SQLITE_UTF8, NULL, cancel_now, NULL, NULL);
