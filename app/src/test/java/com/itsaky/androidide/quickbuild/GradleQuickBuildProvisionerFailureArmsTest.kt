@@ -70,6 +70,26 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 		}
 
 	@Test
+	fun `a project that opted into the SQLite debugger is refused before staging, with its own message`() =
+		runTest {
+			File(projectRoot, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			var staged = 0
+			val gradle = FakeBuildService()
+
+			val outcome =
+				testProvisioner(
+					context = context,
+					projectRoot = projectRoot,
+					buildService = gradle,
+					stage = { _, _ -> staged++ },
+				).provision()
+
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(staged).isEqualTo(0)
+			assertThat(gradle.executedTasks).isNull()
+		}
+
+	@Test
 	fun `a slot that goes busy between the staging and the build still reads as a busy slot`() =
 		runTest {
 			// Free on the early read, taken on the late one: CoGo's own project sync fires on

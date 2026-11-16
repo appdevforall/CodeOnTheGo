@@ -76,4 +76,38 @@ class QuickBuildProjectSupportTest {
 		assertThat(QuickBuildProjectSupport.nonDebuggableVariantMessage("staging")).isNull()
 		assertThat(QuickBuildProjectSupport.nonDebuggableVariantMessage("demoStaging")).isNull()
 	}
+
+	@Test
+	fun `an opted-in SQLite debugger project is refused with its own message`() {
+		assertThat(QuickBuildProjectSupport.sqliteDebuggerMessage(sqliteDebuggerEnabled = true))
+			.isEqualTo(R.string.quick_build_disabled_sqlite_debugger)
+		assertThat(QuickBuildProjectSupport.sqliteDebuggerMessage(sqliteDebuggerEnabled = false)).isNull()
+	}
+
+	@Test
+	fun `gradle properties decide the opt-in as the Gradle plugin does`() {
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("org.gradle.jvmargs=-Xmx2g\ncogo.sqliteDebugger=true\n")).isTrue()
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebugger = true")).isTrue()
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("#cogo.sqliteDebugger=true")).isFalse()
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebugger=false")).isFalse()
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebugger=TRUE")).isFalse()
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebuggerX=true")).isFalse()
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("")).isFalse()
+		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(null as String?)).isFalse()
+	}
+
+	@Test
+	fun `the root gradle properties file is read, a missing one is not an opt-in`() {
+		val dir =
+			java.nio.file.Files
+				.createTempDirectory("qb-sqlite")
+				.toFile()
+		try {
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(dir)).isFalse()
+			java.io.File(dir, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(dir)).isTrue()
+		} finally {
+			dir.deleteRecursively()
+		}
+	}
 }

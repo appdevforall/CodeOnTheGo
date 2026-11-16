@@ -340,10 +340,22 @@ class GradleQuickBuildProvisioner(
 				log.info("A Gradle build is already in progress; not staging for the Quick Build proxy app build")
 				return ProxyAppBuildResult.SlotBusy
 			}
-			stage(context, paths)
-
 			val projectManager = lookupProjectManager()
 			val projectRoot = File(projectManager.projectDirPath)
+
+			// Before staging, which writes into the project: the Gradle plugin never applies Quick Build
+			// to an opted-in project, so building would only end in "variant setup missing".
+			QuickBuildProjectSupport
+				.sqliteDebuggerMessage(QuickBuildProjectSupport.isSqliteDebuggerEnabled(projectRoot))
+				?.let { refusal ->
+					log.info(
+						"Quick Build is not provisioned: {} is true in {}/gradle.properties",
+						GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
+						projectRoot,
+					)
+					return ProxyAppBuildResult.Failed(context.getString(refusal))
+				}
+			stage(context, paths)
 
 			// The project model only exists once CoGo's Gradle sync has populated it, and a tap
 			// during sync is common (the user opens a project and reaches straight for Quick
