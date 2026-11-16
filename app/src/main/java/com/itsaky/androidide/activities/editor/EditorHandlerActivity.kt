@@ -1885,13 +1885,20 @@ open class EditorHandlerActivity :
 			Log.e("EditorHandlerActivity", "Error cleaning up plugin tab $pluginId", e)
 		}
 
-		content.tabs.removeTabAt(tabPosition)
-		content.editorContainer.removeViewAt(tabPosition)
+		isRemovingTab = true
+		try {
+			content.editorContainer.removeViewAt(tabPosition)
 
-		pluginTabIndices.remove(pluginId)
-		tabIndexToPluginId.remove(tabPosition)
+			pluginTabIndices.remove(pluginId)
+			tabIndexToPluginId.remove(tabPosition)
 
-		shiftPluginIndices(tabPosition + 1, -1)
+			shiftPluginIndices(tabPosition + 1, -1)
+			content.tabs.removeTabAt(tabPosition)
+		} finally {
+			isRemovingTab = false
+		}
+
+		syncSelectedTab()
 		updateTabVisibility()
 
 		invalidateOptionsMenu()
