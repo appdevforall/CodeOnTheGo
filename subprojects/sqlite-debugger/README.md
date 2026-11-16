@@ -24,6 +24,7 @@ MCP client --HTTP, 127.0.0.1--> McpHttp -> McpProtocol -> DatabaseTools -> Debug
 - `DebuggerStartup` is a `ContentProvider` with the highest `initOrder`, declared in the AAR's manifest. It runs before the app's own providers and `Application.onCreate`, so the extension is registered before the app opens a database. It installs the extension synchronously in `onCreate` (so an app that opens its database in `Application.onCreate` is still seen) and starts the server on a background thread. Everything after the debuggable check is wrapped in `catch (Throwable)`: a missing requery library (`UnsatisfiedLinkError`) means the debugger is disabled and logged, never a crash of the host app.
 - `EndpointBroadcast` runs once the server listens, on every process start (the port changes). It sends an explicit broadcast, action `com.itsaky.androidide.SQLITE_DEBUGGER_ENDPOINT`, to `com.itsaky.androidide` with `FLAG_INCLUDE_STOPPED_PACKAGES`, carrying the token, the port and a `PendingIntent` that identifies the app. The `PendingIntent` is immutable (on API 23 and later; the flag does not exist before) and wraps an intent that is never sent: Code on the Go reads its `creatorPackage`, which the framework sets and another app cannot forge, as the app's package name. The library manifest declares `<queries>` for Code on the Go. A failure to send is logged and never thrown.
 - On the Code on the Go side, `DebuggerEndpointReceiver` (exported) validates the token and port and resolves the sender, then `DebuggerEndpointRepository` stores them in `debugger_endpoint_table` of the Recent Projects database, keyed by application ID. A row exists only for an app Code on the Go installed or launched (`LaunchAppAction` and `ProjectHandlerActivity` record the pairing); a broadcast from any other app stores nothing. The row is deleted with its project (foreign key, ON DELETE CASCADE).
+- Plugins get the stored endpoints through `DebuggerEndpointService` (plugin API), which needs the `debugger.endpoints` permission. `getEndpoints()` returns one entry per app of the open project that has reported (application ID, port, token, last update), read fresh on every call and not on the main thread, so a plugin asks again after a refused connection. The AI-Agent-MCP plugin (addons repository) is the first client.
 
 ### The event record
 
@@ -51,5 +52,4 @@ No workflow in `.github/workflows` runs either yet.
 ## Not done yet
 
 - Gradle plugin wiring and the build-time rewrite that adds the library to debug builds (ADFA-7138).
-- The AI-Agent-MCP side that connects to the server (ADFA-7139).
 - Verification on a device. The C tests run on the host and the Kotlin tests on the JVM; nothing has run in an app on a device or emulator.
