@@ -1893,7 +1893,7 @@ class PluginManager private constructor(
 				val oatDir = File(pluginsDir, "oat")
 				if (oatDir.exists() && oatDir.isDirectory) {
 					oatDir.walkTopDown().forEach { file ->
-						if (file.name.contains(pluginId)) {
+						if (PluginBuildFiles.isCompiledCodeOf(pluginId, file)) {
 							val deleted = file.deleteRecursively()
 							logger.debug("Deleted ART cache: ${file.absolutePath} (success: $deleted)")
 						}
@@ -1903,20 +1903,8 @@ class PluginManager private constructor(
 				logger.warn("Failed to cleanup ART cache files for: $pluginId", e)
 			}
 
-			// Clean up any other directories or files that contain the plugin ID. Plugin files are
-			// left to buildFiles.delete(), which reads their IDs: another plugin's file name can
-			// contain this ID, in a longer ID or in its content hash.
-			try {
-				pluginsDir.walkTopDown().forEach { file ->
-					if (file != pluginsDir && file.name.contains(pluginId) && !buildFiles.isPluginFile(file)) {
-						val deleted = file.deleteRecursively()
-						logger.debug("Deleted plugin-related item: ${file.absolutePath} (success: $deleted)")
-					}
-				}
-			} catch (e: Exception) {
-				logger.warn("Failed to cleanup plugin-related files for: $pluginId", e)
-			}
-
+			// Nothing is swept by a name containing the ID: another plugin's ID, content hash or data
+			// can contain it. The plugin's files went by manifest ID in buildFiles.delete().
 			logger.debug("Complete plugin cleanup finished for: $pluginId")
 		}
 	}

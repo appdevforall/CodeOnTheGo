@@ -97,6 +97,36 @@ class PluginBuildFilesTest {
 	}
 
 	@Test
+	fun aFileUnderTheOldNameRewrittenInPlaceGetsItsOwnLibraries() {
+		val legacy = build("x.cgp", "libfoo.so" to "X").copyTo(File(pluginsDir, "$ID.cgp"))
+		legacy.setLastModified(1_000_000_000_000)
+		files.extractNativeLibs(ID, legacy, ABI)
+		// An older CoGo build updates the plugin under the same name.
+		build("y.cgp", "libfoo.so" to "Y").copyTo(legacy, overwrite = true)
+		legacy.setLastModified(1_000_000_001_000)
+
+		val dir = newFiles().extractNativeLibs(ID, legacy, ABI)
+
+		assertWithMessage("the rewritten file ran against the previous content's libraries")
+			.that(File(dir, "libfoo.so").readText())
+			.isEqualTo("Y")
+	}
+
+	@Test
+	fun anInstalledBuildUnderTheOldNameOfAnIdWithATildeKeepsItsFolder() {
+		val id = "org.example~plugin"
+		val legacy = build("old.cgp", "libfoo.so" to "old").copyTo(File(pluginsDir, "$id.cgp"))
+		val legacyDir = files.extractNativeLibs(id, legacy, ABI)
+		val hashed = build("new.cgp", "libfoo.so" to "new")
+
+		files.extractNativeLibs(id, hashed.copyTo(File(pluginsDir, "${PluginBuildFiles.fileStem(id, hashed)}.cgp")), ABI)
+
+		assertWithMessage("loading one build deleted the folder of another installed build")
+			.that(File(legacyDir, "libfoo.so").exists())
+			.isTrue()
+	}
+
+	@Test
 	fun aLeftoverScratchFolderIsNotReused() {
 		val build = installed(build("a.cgp", "libfoo.so" to "A"))
 		val scratch = File(nativeLibsDir, "$ID/.${PluginBuildFiles.buildKey(ID, build)}.partial")

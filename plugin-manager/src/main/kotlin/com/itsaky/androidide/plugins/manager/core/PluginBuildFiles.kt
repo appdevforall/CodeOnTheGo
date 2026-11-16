@@ -17,7 +17,8 @@ import java.util.zip.ZipFile
  * and refuses to open a native library at a path another class loader already opened, so a build
  * installed at the previous build's paths runs against the previous build's files until the app
  * restarts. Plugin files are named `<pluginId>-<hash>.cgp`, after their content. A file installed
- * before that, `<pluginId>.cgp`, keeps loading until its plugin is next updated.
+ * before that, `<pluginId>.cgp`, keeps loading until its plugin is next updated. An older CoGo
+ * build updates that file in place, so its libraries' folder is named after its size and time.
  *
  * [legacyNativeLibsDir] is where CoGo builds before per-build folders extracted libraries. It is
  * deleted, never read.
@@ -40,7 +41,7 @@ class PluginBuildFiles internal constructor(
 	private val handedOut: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
 	/** Whether [file] is a plugin file, which only its manifest ties to a plugin. */
-	fun isPluginFile(file: File): Boolean =
+	private fun isPluginFile(file: File): Boolean =
 		file.isFile && file.parentFile == pluginsDir && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 
 	/** Every plugin file whose manifest has [pluginId]. Its name can't tell: it names the build. */
@@ -212,11 +213,33 @@ class PluginBuildFiles internal constructor(
 			build: File,
 		): String = "$pluginId-${sha256Hex(build).take(HASH_CHARS)}"
 
-		/** The hash in [installed]'s name, or its whole name for a `<pluginId>.cgp` installed before hashes. */
+		/**
+		 * The name of [installed]'s library folder: the hash in its name. A `<pluginId>.cgp` installed
+		 * before hashes gets `legacy-<size>-<modified time>`, since an older CoGo build rewrites it in
+		 * place. Its name alone would keep the previous content's libraries.
+		 */
 		internal fun buildKey(
 			pluginId: String,
 			installed: File,
-		): String = installed.nameWithoutExtension.removePrefix("$pluginId-")
+		): String =
+			if (installed.nameWithoutExtension == pluginId) {
+				"legacy-${installed.length()}-${installed.lastModified()}"
+			} else {
+				installed.nameWithoutExtension.removePrefix("$pluginId-")
+			}
+
+		/**
+		 * Whether [file] is ART's compiled code for a file of [pluginId]: `<stem>.odex`, `.vdex` or
+		 * `.art`, or `<stem>.cgp.prof` or `.cgp.cur.prof`. Matched exactly, since another plugin's ID
+		 * or content hash can contain this ID.
+		 */
+		internal fun isCompiledCodeOf(
+			pluginId: String,
+			file: File,
+		): Boolean =
+			file.isFile &&
+				Regex("${Regex.escape(pluginId)}(-[0-9a-f]{$HASH_CHARS})?\\.(odex|vdex|art|$PLUGIN_ARCHIVE_EXTENSION\\.(cur\\.)?prof)")
+					.matches(file.name)
 
 		private fun sha256Hex(file: File): String {
 			val digest = MessageDigest.getInstance("SHA-256")
