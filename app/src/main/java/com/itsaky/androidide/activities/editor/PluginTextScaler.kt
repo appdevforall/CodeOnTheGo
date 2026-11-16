@@ -31,6 +31,9 @@ internal class PluginTextScaler(
 	private val sizings = WeakHashMap<TextView, Sizing>()
 	private val trackedRoots: MutableSet<View> = Collections.newSetFromMap(WeakHashMap())
 
+	// Keyed by the window's observer; an entry lasts while some tracked root is in that window.
+	private val windowWatchers = HashMap<ViewTreeObserver, WindowWatcher>()
+
 	// Until some view is scaled, none can be stale, so the default skips the walk.
 	private var scaledAny = false
 
@@ -38,11 +41,14 @@ internal class PluginTextScaler(
 
 	/**
 	 * Scales the text under [root] now, and in the views added under it later. A root tracked
-	 * again, as a fragment that reuses its view causes, keeps its one watcher.
+	 * again, as a fragment that reuses its view causes, is still watched once.
 	 */
 	fun track(root: View) {
 		scaleNewText(root)
-		if (trackedRoots.add(root)) root.addOnAttachStateChangeListener(AddedViewWatcher(root))
+		if (trackedRoots.add(root)) {
+			root.addOnAttachStateChangeListener(attachListener)
+			if (root.isAttachedToWindow) startWatching(root)
+		}
 	}
 
 	/** Applies the current [scale] to all the text under [root], once the preference has changed. */
@@ -91,39 +97,57 @@ internal class PluginTextScaler(
 
 	private fun TextView.isAutoSized() = autoSizeTextType != TextView.AUTO_SIZE_TEXT_TYPE_NONE
 
+	private val attachListener =
+		object : View.OnAttachStateChangeListener {
+			override fun onViewAttachedToWindow(v: View) = startWatching(v)
+
+			override fun onViewDetachedFromWindow(v: View) = stopWatching(v)
+		}
+
+	private fun startWatching(root: View) {
+		val observer = root.viewTreeObserver
+		val watcher =
+			windowWatchers.getOrPut(observer) {
+				WindowWatcher().also { observer.addOnPreDrawListener(it) }
+			}
+		watcher.roots.add(root)
+	}
+
+	// Found by its roots: once a view has left its window, root.viewTreeObserver is a different
+	// observer, which could not remove the listener.
+	private fun stopWatching(root: View) {
+		val entry = windowWatchers.entries.firstOrNull { root in it.value.roots } ?: return
+		val (observer, watcher) = entry
+		watcher.roots.remove(root)
+		if (watcher.roots.isEmpty()) {
+			if (observer.isAlive) observer.removeOnPreDrawListener(watcher)
+			windowWatchers.remove(observer)
+		}
+	}
+
 	/**
-	 * Catches views added under [root] before the frame that would draw them. A pre-draw listener,
-	 * not a layout one: a scrolling RecyclerView or ListView adds rows without any layout pass. A
-	 * frame in which something was resized is skipped, so its text is never drawn at the old size;
-	 * the next one is laid out for the new size. Never two in a row, though: a plugin that sets its
-	 * own size on every layout would otherwise have every frame skipped, and the window would stop
-	 * drawing. The listener lives on the window's observer only while [root] is attached: once
-	 * detached, [View.getViewTreeObserver] returns a different observer, which could no longer
-	 * remove it.
+	 * Catches views added under the tracked roots in one window before the frame that would draw
+	 * them. A pre-draw listener, not a layout one: a scrolling RecyclerView or ListView adds rows
+	 * without any layout pass. A frame in which something was resized is skipped, so its text is
+	 * never drawn at the old size; the next one is laid out for the new size. Never two in a row,
+	 * though: a plugin that sets its own size on every layout would otherwise have every frame
+	 * skipped, and the window would stop drawing.
+	 *
+	 * One per window, not one per root: the window skips a frame if any of its listeners asks it
+	 * to, so two roots each skipping every other frame, a frame apart, would skip them all. Plugin
+	 * dialogs and bottom sheets are windows of their own, so each window decides for itself.
 	 */
-	private inner class AddedViewWatcher(
-		private val root: View,
-	) : View.OnAttachStateChangeListener,
-		ViewTreeObserver.OnPreDrawListener {
-		private var observer: ViewTreeObserver? = null
+	private inner class WindowWatcher : ViewTreeObserver.OnPreDrawListener {
+		val roots = LinkedHashSet<View>()
 		private var skippedLast = false
-
-		init {
-			if (root.isAttachedToWindow) onViewAttachedToWindow(root)
-		}
-
-		override fun onViewAttachedToWindow(v: View) {
-			observer = v.viewTreeObserver.also { it.addOnPreDrawListener(this) }
-		}
-
-		override fun onViewDetachedFromWindow(v: View) {
-			observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(this)
-			observer = null
-		}
 
 		// Hidden text is caught on the frame that first shows it.
 		override fun onPreDraw(): Boolean {
-			val skip = root.isShown && scaleNewText(root) && !skippedLast
+			var changed = false
+			for (root in roots) {
+				if (root.isShown && scaleNewText(root)) changed = true
+			}
+			val skip = changed && !skippedLast
 			skippedLast = skip
 			return !skip
 		}

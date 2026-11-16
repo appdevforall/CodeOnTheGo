@@ -2,6 +2,8 @@ package com.itsaky.androidide.activities.editor
 
 import android.app.Activity
 import android.app.Application
+import android.app.Dialog
+import android.os.Looper
 import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
@@ -14,6 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -39,9 +42,7 @@ class PluginTextScalerTest {
 	private fun attach() = activity.setContentView(root)
 
 	// The window's step before it draws a frame. Returns whether that frame was skipped.
-	private fun drawFrame() =
-		activity.window.decorView.viewTreeObserver
-			.dispatchOnPreDraw()
+	private fun drawFrame(window: View = activity.window.decorView) = window.viewTreeObserver.dispatchOnPreDraw()
 
 	// How many pre-draw listeners the window has, read where ViewTreeObserver keeps them.
 	private fun preDrawListeners(): Int {
@@ -148,14 +149,33 @@ class PluginTextScalerTest {
 	@Test
 	fun aDetachedViewStopsWatchingTheWindow() {
 		editorScale = 1.5f
-		scaler.track(root)
 		attach()
+		val before = preDrawListeners()
+		scaler.track(root)
 		(root.parent as ViewGroup).removeView(root)
 
 		val row = text(20f).also(root::addView)
 		drawFrame()
 
 		assertThat(row.textSize).isEqualTo(20f)
+		assertThat(preDrawListeners()).isEqualTo(before)
+	}
+
+	@Test
+	fun aRootLeavingTheWindowLeavesTheOtherRootsWatched() {
+		// Two plugin tabs: one is closed, the other stays.
+		editorScale = 1.5f
+		val closed = LinearLayout(activity).also(root::addView)
+		val open = LinearLayout(activity).also(root::addView)
+		scaler.track(closed)
+		scaler.track(open)
+		attach()
+
+		root.removeView(closed)
+		val row = text(20f).also(open::addView)
+		drawFrame()
+
+		assertThat(row.textSize).isEqualTo(30f)
 	}
 
 	@Test
@@ -313,5 +333,57 @@ class PluginTextScalerTest {
 		drawFrame()
 
 		assertThat(row.textSize).isEqualTo(30f)
+	}
+
+	@Test
+	fun twoPluginsResizingTheirTextEveryFrameStillLetEveryOtherFrameDraw() {
+		// The window skips a frame if any listener asks. Two plugin tabs, each rescaled on every
+		// frame and starting a frame apart, must not take turns skipping every one of them.
+		editorScale = 2f
+		val first = LinearLayout(activity).also(root::addView)
+		val second = LinearLayout(activity).also(root::addView)
+		val fittedFirst = text(25f).also(first::addView)
+		val fittedSecond = text(25f).also(second::addView)
+		scaler.track(first)
+		scaler.track(second)
+		attach()
+
+		val skipped =
+			(1..6).map { frame ->
+				fittedFirst.setTextSize(TypedValue.COMPLEX_UNIT_PX, 25f)
+				if (frame > 1) fittedSecond.setTextSize(TypedValue.COMPLEX_UNIT_PX, 25f)
+				drawFrame()
+			}
+
+		assertThat(skipped.zipWithNext().none { (first, second) -> first && second }).isTrue()
+		assertThat(skipped).contains(true)
+	}
+
+	@Test
+	fun aPluginDialogSkipsFramesApartFromTheEditorWindow() {
+		// A plugin's dialog or bottom sheet is a window of its own, drawn in turn with the editor's.
+		// What one window skipped must not decide whether the other may skip.
+		editorScale = 2f
+		val sheet = LinearLayout(activity)
+		val dialog = Dialog(activity).apply { setContentView(sheet) }
+		dialog.show()
+		attach()
+		shadowOf(Looper.getMainLooper()).idle()
+		assertThat(sheet.isAttachedToWindow).isTrue()
+		assertThat(sheet.viewTreeObserver).isNotSameInstanceAs(root.viewTreeObserver)
+		val inEditor = text(25f).also(root::addView)
+		val inSheet = text(25f).also(sheet::addView)
+		scaler.track(root)
+		scaler.track(sheet)
+
+		val editorSkipped =
+			(1..6).map {
+				inEditor.setTextSize(TypedValue.COMPLEX_UNIT_PX, 25f)
+				inSheet.setTextSize(TypedValue.COMPLEX_UNIT_PX, 25f)
+				drawFrame().also { drawFrame(dialog.window!!.decorView) }
+			}
+
+		assertThat(editorSkipped.zipWithNext().none { (first, second) -> first && second }).isTrue()
+		assertThat(editorSkipped).contains(true)
 	}
 }
