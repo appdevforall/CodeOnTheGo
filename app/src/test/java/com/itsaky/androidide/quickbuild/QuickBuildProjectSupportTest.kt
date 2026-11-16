@@ -96,18 +96,67 @@ class QuickBuildProjectSupportTest {
 		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(null as String?)).isFalse()
 	}
 
-	@Test
-	fun `the root gradle properties file is read, a missing one is not an opt-in`() {
-		val dir =
+	private fun withDirs(block: (root: java.io.File, home: java.io.File, module: java.io.File) -> Unit) {
+		val base =
 			java.nio.file.Files
 				.createTempDirectory("qb-sqlite")
 				.toFile()
 		try {
-			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(dir)).isFalse()
-			java.io.File(dir, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
-			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(dir)).isTrue()
+			block(
+				java.io.File(base, "root").apply { mkdirs() },
+				java.io.File(base, "home").apply { mkdirs() },
+				java.io.File(base, "root/app").apply { mkdirs() },
+			)
 		} finally {
-			dir.deleteRecursively()
+			base.deleteRecursively()
 		}
 	}
+
+	private fun java.io.File.props(text: String) = java.io.File(this, "gradle.properties").writeText(text)
+
+	@Test
+	fun `the root gradle properties file is read, a missing one is not an opt-in`() =
+		withDirs { root, home, _ ->
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home)).isFalse()
+			root.props("cogo.sqliteDebugger=true\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home)).isTrue()
+		}
+
+	@Test
+	fun `the Gradle user home gradle properties opts in`() =
+		withDirs { root, home, module ->
+			home.props("cogo.sqliteDebugger=true\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home, listOf(module))).isTrue()
+		}
+
+	@Test
+	fun `the app module gradle properties opts in`() =
+		withDirs { root, home, module ->
+			module.props("cogo.sqliteDebugger=true\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home, listOf(module))).isTrue()
+		}
+
+	@Test
+	fun `false in a higher-priority file overrides true in the root`() =
+		withDirs { root, home, module ->
+			root.props("cogo.sqliteDebugger=true\n")
+			home.props("cogo.sqliteDebugger=false\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home, listOf(module))).isFalse()
+		}
+
+	@Test
+	fun `an unreadable file is logged and treated as not set`() =
+		withDirs { root, home, _ ->
+			home.props("cogo.sqliteDebugger=true\n")
+			val failures = mutableListOf<java.io.File>()
+			val enabled =
+				QuickBuildProjectSupport.isSqliteDebuggerEnabled(
+					root,
+					home,
+					onReadFailure = { file, _ -> failures += file },
+					readText = { throw java.io.IOException("denied") },
+				)
+			assertThat(enabled).isFalse()
+			assertThat(failures).containsExactly(java.io.File(home, "gradle.properties"))
+		}
 }

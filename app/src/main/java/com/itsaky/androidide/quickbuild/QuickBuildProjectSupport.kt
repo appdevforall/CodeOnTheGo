@@ -3,7 +3,9 @@ package com.itsaky.androidide.quickbuild
 import androidx.annotation.StringRes
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.tooling.api.GradlePluginConfig
+import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 import java.io.StringReader
 import java.util.Properties
 
@@ -84,25 +86,59 @@ object QuickBuildProjectSupport {
 		}
 
 	/**
-	 * Whether the root `gradle.properties` text opts in, decided as the Gradle plugin does: the
-	 * value is exactly `true`.
+	 * Whether one `gradle.properties` text opts in, decided as the Gradle plugin does: the value is
+	 * exactly `true`.
 	 *
-	 * @param gradleProperties the file's text, or null when the project has none.
+	 * @param gradleProperties the file's text, or null when there is none.
 	 */
-	fun isSqliteDebuggerEnabled(gradleProperties: String?): Boolean {
-		if (gradleProperties == null) return false
-		val properties = Properties()
-		return try {
-			properties.load(StringReader(gradleProperties))
-			properties.getProperty(GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED) == "true"
-		} catch (e: IllegalArgumentException) {
-			false
+	fun isSqliteDebuggerEnabled(gradleProperties: String?): Boolean = gradleProperties != null && propertyValue(gradleProperties) == "true"
+
+	/**
+	 * Whether the project opts in, from the same files the Gradle plugin's `findProperty` sees in
+	 * Code on the Go's builds: the Gradle user home `gradle.properties` (`GRADLE_USER_HOME`, which
+	 * overrides the project files), the app module's, and the root's. Gradle loads a
+	 * `gradle.properties` from every project directory into that project, and a subproject also
+	 * inherits its parent's properties, so the first of these that defines the property wins.
+	 * `-P` arguments are not read: Code on the Go passes none for this property.
+	 *
+	 * A file that cannot be read is reported to [onReadFailure] and counts as not defining it.
+	 *
+	 * @param moduleDirs the directories of the app modules the plugin is applied to.
+	 */
+	fun isSqliteDebuggerEnabled(
+		projectRoot: File,
+		gradleUserHome: File?,
+		moduleDirs: List<File> = emptyList(),
+		onReadFailure: (File, Throwable) -> Unit = { file, error ->
+			log.warn("Cannot read {}; treating it as not defining the SQLite debugger opt-in", file, error)
+		},
+		readText: (File) -> String = File::readText,
+	): Boolean {
+		val files =
+			listOfNotNull(gradleUserHome) + moduleDirs + projectRoot
+		for (entry in files) {
+			val file = File(entry, "gradle.properties")
+			val text =
+				try {
+					file.takeIf { it.isFile }?.let(readText)
+				} catch (e: IOException) {
+					onReadFailure(file, e)
+					null
+				} ?: continue
+			val value = propertyValue(text) ?: continue
+			return value == "true"
 		}
+		return false
 	}
 
-	/** [isSqliteDebuggerEnabled] for the `gradle.properties` in [projectRoot]; false when it cannot be read. */
-	fun isSqliteDebuggerEnabled(projectRoot: File): Boolean =
-		isSqliteDebuggerEnabled(
-			runCatching { File(projectRoot, "gradle.properties").takeIf { it.isFile }?.readText() }.getOrNull(),
-		)
+	private fun propertyValue(gradleProperties: String): String? =
+		try {
+			Properties()
+				.apply { load(StringReader(gradleProperties)) }
+				.getProperty(GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED)
+		} catch (e: IllegalArgumentException) {
+			null
+		}
+
+	private val log = LoggerFactory.getLogger("QB-Support")
 }

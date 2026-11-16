@@ -15,6 +15,7 @@ import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -346,12 +347,16 @@ class GradleQuickBuildProvisioner(
 			// Before staging, which writes into the project: the Gradle plugin never applies Quick Build
 			// to an opted-in project, so building would only end in "variant setup missing".
 			QuickBuildProjectSupport
-				.sqliteDebuggerMessage(QuickBuildProjectSupport.isSqliteDebuggerEnabled(projectRoot))
-				?.let { refusal ->
-					log.info(
-						"Quick Build is not provisioned: {} is true in {}/gradle.properties",
-						GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
+				.sqliteDebuggerMessage(
+					QuickBuildProjectSupport.isSqliteDebuggerEnabled(
 						projectRoot,
+						Environment.GRADLE_USER_HOME,
+						projectManager.getAndroidAppModules().map { File(it.projectDirPath) },
+					),
+				)?.let { refusal ->
+					log.info(
+						"Quick Build is not provisioned: {} is true in the project's or the Gradle user home's gradle.properties",
+						GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
 					)
 					return ProxyAppBuildResult.Failed(context.getString(refusal))
 				}

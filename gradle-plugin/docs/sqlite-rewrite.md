@@ -9,7 +9,11 @@ run the same SQLite. User source does not change.
 
 An existing project needs:
 
-1. `cogo.sqliteDebugger=true` in `gradle.properties`.
+1. `cogo.sqliteDebugger=true` in `gradle.properties`. The plugin reads it with Gradle's `findProperty`, so the
+   project's root file, the app module's own `gradle.properties` and the Gradle user home's
+   (`GRADLE_USER_HOME`, `~/.gradle` under Code on the Go's home) all work, the user home first. The IDE's Quick
+   Build check (`QuickBuildProjectSupport.isSqliteDebuggerEnabled`) reads those same three files, in that order,
+   and logs a file it cannot read; it does not see `-P` arguments, which Code on the Go does not pass for this.
 2. requery's AAR (`sqlite-android.aar`) in the app's `libs/`, as a file dependency
    (`implementation(files("libs/sqlite-android.aar"))`), as the ADFA-7082 template does.
 3. androidx.sqlite on the runtime classpath (`androidx.sqlite:sqlite`, which Room, WorkManager and most androidx
