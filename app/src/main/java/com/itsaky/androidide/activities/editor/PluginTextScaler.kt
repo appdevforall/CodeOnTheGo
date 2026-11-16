@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.TextView
 import com.itsaky.androidide.utils.forEachViewRecursively
+import java.util.Collections
 import java.util.WeakHashMap
 import kotlin.math.max
 
@@ -15,9 +16,9 @@ import kotlin.math.max
  * the code, and plugin tabs followed it to under half their size. Views a plugin adds after its
  * view was built (list rows, chips) are scaled too; without that, one panel mixed two sizes.
  *
- * Sizes are px, scaled from the size each [TextView] had when first seen, so applying the same
- * scale twice changes nothing. A plugin that resets a size it already set (say, on rebinding a
- * recycled row) gets its own size back until the preference next changes.
+ * Sizes are px, scaled from the size each [TextView] was given by its plugin, so applying the same
+ * scale twice changes nothing. A size the plugin sets again later becomes that view's new base.
+ * Auto-sized text is left alone: [TextView.setTextSize] does nothing to it.
  */
 internal class PluginTextScaler(
 	private val editorFontScale: () -> Float,
@@ -28,39 +29,54 @@ internal class PluginTextScaler(
 	)
 
 	private val sizings = WeakHashMap<TextView, Sizing>()
+	private val trackedRoots: MutableSet<View> = Collections.newSetFromMap(WeakHashMap())
 
 	// Until some view is scaled, none can be stale, so the default skips the walk.
 	private var scaledAny = false
 
 	fun scale(): Float = max(1f, editorFontScale())
 
-	/** Scales the text under [root] now, and in the views added under it later. */
+	/**
+	 * Scales the text under [root] now, and in the views added under it later. A root tracked
+	 * again, as a fragment that reuses its view causes, keeps its one watcher.
+	 */
 	fun track(root: View) {
 		scaleNewText(root)
-		root.addOnAttachStateChangeListener(AddedViewWatcher(root))
+		if (trackedRoots.add(root)) root.addOnAttachStateChangeListener(AddedViewWatcher(root))
 	}
 
 	/** Applies the current [scale] to all the text under [root], once the preference has changed. */
 	fun rescale(root: View) {
 		val scale = scale()
 		root.forEachViewRecursively { view ->
-			if (view is TextView) apply(view, sizings.getOrPut(view) { Sizing(view.textSize, 1f) }, scale)
+			if (view is TextView && !view.isAutoSized()) apply(view, sizingFor(view), scale)
 		}
 	}
 
-	// A view detached while the preference changed, a pooled row say, is stale when it returns.
-	private fun scaleNewText(root: View) {
+	/**
+	 * Brings every text view under [root] to the current scale: new ones, ones the plugin resized,
+	 * and ones detached while the preference changed (a pooled row, say). Returns whether any changed.
+	 */
+	private fun scaleNewText(root: View): Boolean {
 		val scale = scale()
-		if (scale == 1f && !scaledAny) return
+		if (scale == 1f && !scaledAny) return false
+		var changed = false
 		root.forEachViewRecursively { view ->
-			if (view !is TextView) return@forEachViewRecursively
-			val sizing = sizings[view]
-			if (sizing == null) {
-				apply(view, Sizing(view.textSize, 1f).also { sizings[view] = it }, scale)
-			} else if (sizing.applied != scale) {
+			if (view !is TextView || view.isAutoSized()) return@forEachViewRecursively
+			val sizing = sizingFor(view)
+			if (sizing.applied != scale) {
 				apply(view, sizing, scale)
+				changed = true
 			}
 		}
+		return changed
+	}
+
+	// Re-recorded when the size is no longer the one this class set: the plugin has set its own.
+	private fun sizingFor(view: TextView): Sizing {
+		val known = sizings[view]
+		if (known != null && view.textSize == known.base * known.applied) return known
+		return Sizing(view.textSize, 1f).also { sizings[view] = it }
 	}
 
 	private fun apply(
@@ -73,15 +89,20 @@ internal class PluginTextScaler(
 		sizing.applied = scale
 	}
 
+	private fun TextView.isAutoSized() = autoSizeTextType != TextView.AUTO_SIZE_TEXT_TYPE_NONE
+
 	/**
-	 * Catches views added under [root] at the layout pass that follows. The listener lives on the
-	 * window's observer only while [root] is attached: once detached, [View.getViewTreeObserver]
-	 * returns a different observer, which could no longer remove it.
+	 * Catches views added under [root] before the frame that would draw them. A pre-draw listener,
+	 * not a layout one: a scrolling RecyclerView or ListView adds rows without any layout pass. A
+	 * frame in which something was resized is skipped, so its text is never drawn at the old size;
+	 * the next one is laid out for the new size. The listener lives on the window's observer only
+	 * while [root] is attached: once detached, [View.getViewTreeObserver] returns a different
+	 * observer, which could no longer remove it.
 	 */
 	private inner class AddedViewWatcher(
 		private val root: View,
 	) : View.OnAttachStateChangeListener,
-		ViewTreeObserver.OnGlobalLayoutListener {
+		ViewTreeObserver.OnPreDrawListener {
 		private var observer: ViewTreeObserver? = null
 
 		init {
@@ -89,14 +110,15 @@ internal class PluginTextScaler(
 		}
 
 		override fun onViewAttachedToWindow(v: View) {
-			observer = v.viewTreeObserver.also { it.addOnGlobalLayoutListener(this) }
+			observer = v.viewTreeObserver.also { it.addOnPreDrawListener(this) }
 		}
 
 		override fun onViewDetachedFromWindow(v: View) {
-			observer?.takeIf { it.isAlive }?.removeOnGlobalLayoutListener(this)
+			observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(this)
 			observer = null
 		}
 
-		override fun onGlobalLayout() = scaleNewText(root)
+		// Hidden text is caught on the frame that first shows it.
+		override fun onPreDraw(): Boolean = !root.isShown || !scaleNewText(root)
 	}
 }

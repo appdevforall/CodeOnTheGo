@@ -3,7 +3,9 @@ package com.itsaky.androidide.activities.editor
 import android.app.Activity
 import android.app.Application
 import android.util.TypedValue
+import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.google.common.truth.Truth.assertThat
@@ -36,10 +38,20 @@ class PluginTextScalerTest {
 
 	private fun attach() = activity.setContentView(root)
 
-	// The layout pass that follows adding a view, as the window runs it.
-	private fun layOut() =
+	// The window's step before it draws a frame. Returns whether that frame was skipped.
+	private fun drawFrame() =
 		activity.window.decorView.viewTreeObserver
-			.dispatchOnGlobalLayout()
+			.dispatchOnPreDraw()
+
+	// How many pre-draw listeners the window has, read where ViewTreeObserver keeps them.
+	private fun preDrawListeners(): Int {
+		val field = ViewTreeObserver::class.java.getDeclaredField("mOnPreDrawListeners").apply { isAccessible = true }
+		val listeners = field.get(activity.window.decorView.viewTreeObserver) ?: return 0
+		return listeners.javaClass
+			.getDeclaredMethod("size")
+			.apply { isAccessible = true }
+			.invoke(listeners) as Int
+	}
 
 	@Test
 	fun textIsScaledWhenTheViewIsTracked() {
@@ -59,7 +71,7 @@ class PluginTextScalerTest {
 		attach()
 
 		val row = text(20f).also(root::addView)
-		layOut()
+		drawFrame()
 
 		assertThat(row.textSize).isEqualTo(30f)
 	}
@@ -71,20 +83,20 @@ class PluginTextScalerTest {
 		scaler.track(root)
 
 		val row = text(20f).also(root::addView)
-		layOut()
+		drawFrame()
 
 		assertThat(row.textSize).isEqualTo(30f)
 	}
 
 	@Test
-	fun laterLayoutsDoNotScaleTextAgain() {
+	fun laterFramesDoNotScaleTextAgain() {
 		editorScale = 1.5f
 		scaler.track(root)
 		attach()
 		val row = text(20f).also(root::addView)
 
-		layOut()
-		layOut()
+		assertThat(drawFrame()).isTrue()
+		assertThat(drawFrame()).isFalse()
 
 		assertThat(row.textSize).isEqualTo(30f)
 	}
@@ -98,7 +110,7 @@ class PluginTextScalerTest {
 		attach()
 		val row = text(28f).also(root::addView)
 
-		layOut()
+		drawFrame()
 
 		assertThat(label.textSize).isEqualTo(28f)
 		assertThat(row.textSize).isEqualTo(28f)
@@ -124,7 +136,7 @@ class PluginTextScalerTest {
 		scaler.track(root)
 		attach()
 		val row = text(20f).also(root::addView)
-		layOut()
+		drawFrame()
 		assertThat(row.textSize).isEqualTo(20f)
 
 		editorScale = 2f
@@ -141,7 +153,7 @@ class PluginTextScalerTest {
 		(root.parent as ViewGroup).removeView(root)
 
 		val row = text(20f).also(root::addView)
-		layOut()
+		drawFrame()
 
 		assertThat(row.textSize).isEqualTo(20f)
 	}
@@ -152,7 +164,7 @@ class PluginTextScalerTest {
 		attach()
 		scaler.track(root)
 		val pooled = text(20f).also(root::addView)
-		layOut()
+		drawFrame()
 		assertThat(pooled.textSize).isEqualTo(30f)
 		root.removeView(pooled)
 
@@ -160,7 +172,7 @@ class PluginTextScalerTest {
 		scaler.rescale(root)
 		root.addView(pooled)
 		val fresh = text(20f).also(root::addView)
-		layOut()
+		drawFrame()
 
 		assertThat(pooled.textSize).isEqualTo(40f)
 		assertThat(fresh.textSize).isEqualTo(40f)
@@ -172,14 +184,101 @@ class PluginTextScalerTest {
 		attach()
 		scaler.track(root)
 		val pooled = text(20f).also(root::addView)
-		layOut()
+		drawFrame()
 		root.removeView(pooled)
 
 		editorScale = 1f
 		scaler.rescale(root)
 		root.addView(pooled)
-		layOut()
+		drawFrame()
 
 		assertThat(pooled.textSize).isEqualTo(20f)
+	}
+
+	@Test
+	fun textAddedWithNoLayoutPassIsScaledBeforeItIsDrawn() {
+		// A scrolling RecyclerView or ListView adds rows and draws them with no layout pass in
+		// between, so only the step before drawing sees them.
+		editorScale = 1.5f
+		scaler.track(root)
+		attach()
+		val row = text(20f).also(root::addView)
+
+		val skipped = drawFrame()
+
+		assertThat(row.textSize).isEqualTo(30f)
+		// The frame that found it is skipped, so the row is never drawn at its old size.
+		assertThat(skipped).isTrue()
+	}
+
+	@Test
+	fun hiddenTextIsScaledOnTheFrameThatShowsIt() {
+		editorScale = 1.5f
+		scaler.track(root)
+		attach()
+		root.visibility = View.GONE
+		val row = text(20f).also(root::addView)
+
+		assertThat(drawFrame()).isFalse()
+		assertThat(row.textSize).isEqualTo(20f)
+
+		root.visibility = View.VISIBLE
+		drawFrame()
+		assertThat(row.textSize).isEqualTo(30f)
+	}
+
+	@Test
+	fun aSizeThePluginSetsLaterIsScaledFromThere() {
+		// Say a recycled row whose binding sets its text size again.
+		editorScale = 2f
+		scaler.track(root)
+		attach()
+		val row = text(20f).also(root::addView)
+		drawFrame()
+		assertThat(row.textSize).isEqualTo(40f)
+
+		row.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30f)
+		drawFrame()
+
+		assertThat(row.textSize).isEqualTo(60f)
+	}
+
+	@Test
+	fun aPreferenceChangeKeepsASizeThePluginSetLater() {
+		editorScale = 2f
+		val row = text(20f).also(root::addView)
+		scaler.track(root)
+		row.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30f)
+
+		editorScale = 1.5f
+		scaler.rescale(root)
+
+		assertThat(row.textSize).isEqualTo(45f)
+	}
+
+	@Test
+	fun autoSizedTextIsLeftAloneAndNeverHoldsUpAFrame() {
+		// setTextSize does nothing to auto-sized text, so it would look resized on every frame.
+		editorScale = 2f
+		val fitted = text(20f).apply { setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM) }
+		root.addView(fitted)
+		scaler.track(root)
+		attach()
+		val size = fitted.textSize
+
+		assertThat(listOf(drawFrame(), drawFrame())).containsExactly(false, false)
+		assertThat(fitted.textSize).isEqualTo(size)
+	}
+
+	@Test
+	fun aRootTrackedAgainKeepsOneWatcher() {
+		// A fragment that hands back the same view each time its view is recreated.
+		attach()
+		val before = preDrawListeners()
+
+		scaler.track(root)
+		scaler.track(root)
+
+		assertThat(preDrawListeners()).isEqualTo(before + 1)
 	}
 }
