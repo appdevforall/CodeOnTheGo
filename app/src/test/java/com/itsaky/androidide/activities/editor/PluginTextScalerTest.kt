@@ -145,4 +145,41 @@ class PluginTextScalerTest {
 
 		assertThat(row.textSize).isEqualTo(20f)
 	}
+
+	@Test
+	fun aViewReinsertedAfterThePreferenceChangedMatchesAFreshOne() {
+		editorScale = 1.5f
+		attach()
+		scaler.track(root)
+		val pooled = text(20f).also(root::addView)
+		layOut()
+		assertThat(pooled.textSize).isEqualTo(30f)
+		root.removeView(pooled)
+
+		editorScale = 2f
+		scaler.rescale(root)
+		root.addView(pooled)
+		val fresh = text(20f).also(root::addView)
+		layOut()
+
+		assertThat(pooled.textSize).isEqualTo(40f)
+		assertThat(fresh.textSize).isEqualTo(40f)
+	}
+
+	@Test
+	fun aViewReinsertedAfterThePreferenceFellToTheDefaultGoesBackToItsOwnSize() {
+		editorScale = 1.5f
+		attach()
+		scaler.track(root)
+		val pooled = text(20f).also(root::addView)
+		layOut()
+		root.removeView(pooled)
+
+		editorScale = 1f
+		scaler.rescale(root)
+		root.addView(pooled)
+		layOut()
+
+		assertThat(pooled.textSize).isEqualTo(20f)
+	}
 }

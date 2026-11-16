@@ -22,7 +22,15 @@ import kotlin.math.max
 internal class PluginTextScaler(
 	private val editorFontScale: () -> Float,
 ) {
-	private val baseSizes = WeakHashMap<TextView, Float>()
+	private class Sizing(
+		val base: Float,
+		var applied: Float,
+	)
+
+	private val sizings = WeakHashMap<TextView, Sizing>()
+
+	// Until some view is scaled, none can be stale, so the default skips the walk.
+	private var scaledAny = false
 
 	fun scale(): Float = max(1f, editorFontScale())
 
@@ -36,23 +44,33 @@ internal class PluginTextScaler(
 	fun rescale(root: View) {
 		val scale = scale()
 		root.forEachViewRecursively { view ->
-			if (view is TextView) {
-				val base = baseSizes.getOrPut(view) { view.textSize }
-				view.setTextSize(TypedValue.COMPLEX_UNIT_PX, base * scale)
+			if (view is TextView) apply(view, sizings.getOrPut(view) { Sizing(view.textSize, 1f) }, scale)
+		}
+	}
+
+	// A view detached while the preference changed, a pooled row say, is stale when it returns.
+	private fun scaleNewText(root: View) {
+		val scale = scale()
+		if (scale == 1f && !scaledAny) return
+		root.forEachViewRecursively { view ->
+			if (view !is TextView) return@forEachViewRecursively
+			val sizing = sizings[view]
+			if (sizing == null) {
+				apply(view, Sizing(view.textSize, 1f).also { sizings[view] = it }, scale)
+			} else if (sizing.applied != scale) {
+				apply(view, sizing, scale)
 			}
 		}
 	}
 
-	private fun scaleNewText(root: View) {
-		val scale = scale()
-		// At 1 nothing needs scaling, and a view left unrecorded still has its own size for rescale().
-		if (scale == 1f) return
-		root.forEachViewRecursively { view ->
-			if (view is TextView && view !in baseSizes) {
-				baseSizes[view] = view.textSize
-				view.setTextSize(TypedValue.COMPLEX_UNIT_PX, view.textSize * scale)
-			}
-		}
+	private fun apply(
+		view: TextView,
+		sizing: Sizing,
+		scale: Float,
+	) {
+		if (scale != 1f) scaledAny = true
+		view.setTextSize(TypedValue.COMPLEX_UNIT_PX, sizing.base * scale)
+		sizing.applied = scale
 	}
 
 	/**
