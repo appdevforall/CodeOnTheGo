@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.utils
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
+import io.mockk.every
 import io.mockk.mockk
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSourceLanguage
@@ -111,6 +112,22 @@ class SymbolVisibilityCheckerTest {
 				declaringModule = moduleB,
 			),
 		).isFalse()
+	}
+
+	@Test
+	fun `INTERNAL symbol is visible from a friend module`() {
+		// A test module is its main module's friend (ADFA-7115).
+		val testModule: KaModule =
+			mockk(relaxed = true) {
+				every { directFriendDependencies } returns listOf(moduleA)
+			}
+		assertThat(
+			checker.isDeclarationVisible(
+				symbol(JvmVisibility.INTERNAL),
+				useSiteModule = testModule,
+				declaringModule = moduleA,
+			),
+		).isTrue()
 	}
 
 	@Test
