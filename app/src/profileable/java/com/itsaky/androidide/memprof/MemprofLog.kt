@@ -18,17 +18,18 @@
 package com.itsaky.androidide.memprof
 
 import android.util.Log
+import org.slf4j.helpers.MessageFormatter
 
 /**
- * Writes memprof lines straight to logcat under [tag], bypassing slf4j.
+ * Writes memprof lines straight to logcat under [tag], bypassing the slf4j logger.
  *
  * The IDE's slf4j provider also hands every line to the IDE Logs pane. The allocation sampler alone
  * writes a line every 250 ms, so routed through slf4j the measurement lines flood the pane the user
  * reads, and the pane's buffering adds heap and CPU work to the very process being measured. The
  * harness scripts read logcat, which is the only place these lines are meant for.
  *
- * Messages use slf4j's `{}` placeholders, and a trailing [Throwable] argument is printed as a stack
- * trace, so call sites read the same as the slf4j calls they replaced.
+ * Messages are formatted by slf4j's [MessageFormatter], placeholders and trailing [Throwable] alike,
+ * so call sites read the same as the slf4j calls they replaced.
  */
 class MemprofLog(
 	private val tag: String,
@@ -62,29 +63,9 @@ class MemprofLog(
 		format: String,
 		args: Array<out Any?>,
 	) {
-		val throwable = args.lastOrNull() as? Throwable
-		val values = if (throwable == null) args.asList() else args.asList().dropLast(1)
-		val message = format(format, values)
+		val formatted = MessageFormatter.arrayFormat(format, args)
+		val throwable = formatted.throwable
+		val message = formatted.message
 		Log.println(priority, tag, if (throwable == null) message else message + '\n' + Log.getStackTraceString(throwable))
-	}
-
-	companion object {
-		/** Replaces each `{}` in [format] with the next of [values], in order; extra values are ignored. */
-		internal fun format(
-			format: String,
-			values: List<Any?>,
-		): String {
-			if (values.isEmpty()) return format
-			val out = StringBuilder(format.length + 16 * values.size)
-			var next = 0
-			var start = 0
-			while (true) {
-				val at = format.indexOf("{}", start)
-				if (at < 0 || next == values.size) break
-				out.append(format, start, at).append(values[next++])
-				start = at + 2
-			}
-			return out.append(format, start, format.length).toString()
-		}
 	}
 }
