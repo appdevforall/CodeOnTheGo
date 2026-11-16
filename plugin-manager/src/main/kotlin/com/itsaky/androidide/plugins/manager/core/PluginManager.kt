@@ -42,6 +42,7 @@ import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
@@ -62,6 +63,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.PluginBuildService
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.plugins.services.DebuggerEndpointService
 import com.itsaky.androidide.plugins.services.IdeArchiveService
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.services.IdeCommandService
@@ -1579,6 +1581,19 @@ class PluginManager private constructor(
 
 		registerServiceWithErrorHandling(
 			pluginServiceRegistry,
+			DebuggerEndpointService::class.java,
+			pluginId,
+			"debugger_endpoint",
+		) {
+			DebuggerEndpointServiceImpl(
+				pluginId = pluginId,
+				permissions = permissions,
+				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+			)
+		}
+
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
 			IdeTemplateService::class.java,
 			pluginId,
 			"template",
@@ -1844,6 +1859,19 @@ class PluginManager private constructor(
 			"feature_flag",
 		) {
 			IdeFeatureFlagServiceImpl()
+		}
+
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
+			DebuggerEndpointService::class.java,
+			pluginId,
+			"debugger_endpoint",
+		) {
+			DebuggerEndpointServiceImpl(
+				pluginId = pluginId,
+				permissions = permissions,
+				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+			)
 		}
 
 		registerServiceWithErrorHandling(
