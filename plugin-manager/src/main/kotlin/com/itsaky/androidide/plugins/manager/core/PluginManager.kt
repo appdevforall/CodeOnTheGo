@@ -484,17 +484,25 @@ class PluginManager private constructor(
 		return Result.success(manifest to loader)
 	}
 
+	/**
+	 * The manifest, its ID unchecked: the Add-ons Manager reports this failing as an unreadable file,
+	 * so a bad ID is left for [getPluginValidation] to report. Don't build a path from it.
+	 */
 	fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> = loadAndValidate(pluginFile).map { it.first }
 
-	fun getPluginValidation(pluginFile: File): Result<PluginValidation> =
-		loadAndValidate(pluginFile).map { (manifest, loader) ->
+	/** Fails for a plugin ID that is a path: install deletes and creates folders named after it. */
+	fun getPluginValidation(pluginFile: File): Result<PluginValidation> {
+		val (manifest, loader) = loadAndValidate(pluginFile).getOrElse { return Result.failure(it) }
+		checkPluginId(manifest.id).onFailure { return Result.failure(it) }
+		return Result.success(
 			PluginValidation(
 				manifest = manifest,
 				isDebug = loader.isDebuggable(),
 				iconDayEntryExists = manifest.iconDay?.let(loader::hasEntry) ?: false,
 				iconNightEntryExists = manifest.iconNight?.let(loader::hasEntry) ?: false,
-			)
-		}
+			),
+		)
+	}
 
 	/**
 	 * Load plugin and return both the plugin instance and its metadata
@@ -567,6 +575,7 @@ class PluginManager private constructor(
 			if (manifest == null) {
 				return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${file.name}"))
 			}
+			checkPluginId(manifest.id).onFailure { return Result.failure(it) }
 
 			logger.debug("Parsed manifest for plugin: ${manifest.name} (${manifest.id})")
 

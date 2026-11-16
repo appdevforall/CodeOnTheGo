@@ -51,7 +51,7 @@ class PluginBuildFiles internal constructor(
 	 */
 	fun delete(pluginId: String): Boolean =
 		synchronized(lockFor(pluginId)) {
-			File(nativeLibsDir, pluginId).deleteRecursively()
+			pluginDirOf(pluginId).deleteRecursively()
 			val files = filesOf(pluginId)
 			val undeleted = files.filterNot(File::delete)
 			undeleted.forEach { log.error("Could not delete plugin file {}", it.absolutePath) }
@@ -68,7 +68,7 @@ class PluginBuildFiles internal constructor(
 		abi: String,
 	): File? =
 		synchronized(lockFor(pluginId)) {
-			val pluginDir = File(nativeLibsDir, pluginId)
+			val pluginDir = pluginDirOf(pluginId)
 			val key = buildKey(pluginId, build)
 			val buildDir = folderFor(pluginDir, key)
 			val extracted = buildDir.isDirectory || extractNativeLibs(build, "lib/$abi/", buildDir)
@@ -82,6 +82,19 @@ class PluginBuildFiles internal constructor(
 		}
 
 	private fun lockFor(pluginId: String): Any = locks.computeIfAbsent(pluginId) { Any() }
+
+	/**
+	 * [pluginId]'s folder of native libraries. Throws unless that is a folder of [nativeLibsDir]
+	 * named [pluginId]: an ID that is a path, or a link, would have it delete a folder elsewhere.
+	 */
+	private fun pluginDirOf(pluginId: String): File {
+		val dir = File(nativeLibsDir, pluginId)
+		val canonical = dir.canonicalFile
+		require(canonical.parentFile == nativeLibsDir.canonicalFile && canonical.name == pluginId) {
+			"Plugin ID \"$pluginId\" names no folder of ${nativeLibsDir.absolutePath}"
+		}
+		return dir
+	}
 
 	/**
 	 * The build's folder: `<key>`, or `<key>~<n>` when an uninstall in this process deleted the

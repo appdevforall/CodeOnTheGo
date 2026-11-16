@@ -6,6 +6,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -162,6 +163,32 @@ class PluginBuildFilesTest {
 		assertThat(files.filesOf(ID)).containsExactly(legacy, hashed)
 		assertThat(files.delete(ID)).isTrue()
 		assertWithMessage("a second file of the plugin survived").that(pluginsDir.listFiles()!!.toList()).containsExactly(other)
+	}
+
+	@Test
+	fun aPluginIdThatIsAPathDeletesNothingOutsideTheLibrariesFolder() {
+		val victim = File(nativeLibsDir.parentFile, "victim").apply { mkdirs() }
+		File(victim, "keep.txt").writeText("not a plugin's")
+		val build = installed(build("a.cgp", "libfoo.so" to "A"))
+
+		val deleted = runCatching { files.delete("../victim") }
+		val extracted = runCatching { files.extractNativeLibs("../victim", build, ABI) }
+
+		assertWithMessage("a folder outside the libraries folder lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertThat(deleted.exceptionOrNull()).isInstanceOf(IllegalArgumentException::class.java)
+		assertThat(extracted.exceptionOrNull()).isInstanceOf(IllegalArgumentException::class.java)
+	}
+
+	@Test
+	fun aPluginFolderThatLinksElsewhereIsNotFollowed() {
+		val victim = File(nativeLibsDir.parentFile, "victim").apply { mkdirs() }
+		File(victim, "keep.txt").writeText("not a plugin's")
+		Files.createSymbolicLink(File(nativeLibsDir, ID).toPath(), victim.toPath())
+
+		val deleted = runCatching { files.delete(ID) }
+
+		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertThat(deleted.exceptionOrNull()).isInstanceOf(IllegalArgumentException::class.java)
 	}
 
 	// As PluginRepositoryImpl.installPluginFromFile names and copies it.

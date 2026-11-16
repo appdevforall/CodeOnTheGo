@@ -112,7 +112,7 @@ these in `PluginLoader.getPluginMetadata()`
 
 | Key                       | Type                    | Required | Notes                                                                 |
 |---------------------------|-------------------------|----------|-----------------------------------------------------------------------|
-| `plugin.id`               | string                  | yes\*    | Unique plugin identifier. Falls back to the APK's package name.       |
+| `plugin.id`               | string                  | yes\*    | Unique plugin identifier. Falls back to the APK's package name. It names files, so it can't be empty, `.` or `..`, or contain `/`, `\` or NUL; CoGo refuses such a plugin. |
 | `plugin.name`             | string                  | yes\*    | Display name.                                                         |
 | `plugin.version`          | string                  | yes\*    | Defaults to `"1.0.0"`. Prefer `${pluginVersion}` from `pluginBuilder`. |
 | `plugin.description`      | string                  | no       | Shown in the plugin list.                                             |
