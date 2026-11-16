@@ -38,3 +38,4 @@ dependencies {
     implementation(libs.androidx.annotation)
     testImplementation(projects.testing.unit)
 }
+

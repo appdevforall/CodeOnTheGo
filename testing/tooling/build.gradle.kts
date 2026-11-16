@@ -17,24 +17,24 @@
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-    id("java-library")
-    id("org.jetbrains.kotlin.jvm")
+	id("java-library")
+	id("org.jetbrains.kotlin.jvm")
 }
 
 dependencies {
-    api(libs.common.jkotlin)
-    api(libs.tests.robolectric)
-    api(libs.tests.junit)
-    api(libs.tests.google.truth)
-    api(libs.tests.mockk)
+	api(libs.common.jkotlin)
+	api(libs.tests.robolectric)
+	api(libs.tests.junit)
+	api(libs.tests.google.truth)
+	api(libs.tests.mockk)
 
-    api(projects.buildInfo)
-    api(projects.logger)
-    api(projects.shared)
-    api(projects.subprojects.toolingApi)
+	api(projects.buildInfo)
+	api(projects.logger)
+	api(projects.shared)
+	api(projects.subprojects.toolingApi)
 
-    api(projects.testing.common)
+	api(projects.testing.common)
 
-    // build tooling API before tests
-    compileOnly(projects.subprojects.toolingApiImpl)
+	// build tooling API before tests
+	compileOnly(projects.subprojects.toolingApiImpl)
 }

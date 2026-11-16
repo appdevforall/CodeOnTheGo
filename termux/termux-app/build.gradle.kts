@@ -57,3 +57,4 @@ tasks.register("versionName") {
         print(project.rootProject.version)
     }
 }
+

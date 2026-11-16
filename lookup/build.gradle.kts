@@ -17,22 +17,22 @@
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-    id("java-library")
-    id("org.jetbrains.kotlin.jvm")
-    id("kotlin-kapt")
+	id("java-library")
+	id("org.jetbrains.kotlin.jvm")
+	id("kotlin-kapt")
 }
 
 dependencies {
-    kapt(libs.google.auto.service)
+	kapt(libs.google.auto.service)
 
-    implementation(projects.logger)
-    implementation(projects.shared)
+	implementation(projects.logger)
+	implementation(projects.shared)
 
-    implementation(libs.androidx.annotation)
-    implementation(libs.common.jkotlin)
-    implementation(libs.google.auto.service.annotations)
-    implementation(libs.google.guava)
+	implementation(libs.androidx.annotation)
+	implementation(libs.common.jkotlin)
+	implementation(libs.google.auto.service.annotations)
+	implementation(libs.google.guava)
 
-    testImplementation(libs.tests.junit)
-    testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }

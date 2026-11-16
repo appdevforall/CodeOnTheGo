@@ -17,13 +17,13 @@
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-    id("java-library")
-    id("org.jetbrains.kotlin.jvm")
+	id("java-library")
+	id("org.jetbrains.kotlin.jvm")
 }
 
 dependencies {
-    implementation(libs.androidx.annotation)
-    implementation(libs.common.jkotlin)
-    compileOnly(projects.shared)
-    compileOnly(projects.subprojects.frameworkStubs)
+	implementation(libs.androidx.annotation)
+	implementation(libs.common.jkotlin)
+	compileOnly(projects.shared)
+	compileOnly(projects.subprojects.frameworkStubs)
 }

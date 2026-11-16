@@ -17,16 +17,16 @@
 
 @Suppress("JavaPluginLanguageLevel")
 plugins {
-    id("java-library")
-    id("org.jetbrains.kotlin.jvm")
+	id("java-library")
+	id("org.jetbrains.kotlin.jvm")
 }
 
 dependencies {
-    implementation(libs.androidx.annotation)
-    implementation(libs.aapt2.annotations)
-    implementation(libs.aapt2.jb.annotations)
-    implementation(libs.google.guava)
-    
-    testImplementation(libs.tests.junit)
-    testImplementation(libs.tests.google.truth)
+	implementation(libs.androidx.annotation)
+	implementation(libs.aapt2.annotations)
+	implementation(libs.aapt2.jb.annotations)
+	implementation(libs.google.guava)
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }

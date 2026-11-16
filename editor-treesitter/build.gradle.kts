@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  *    sora-editor - the awesome code editor for Android
  *    https://github.com/Rosemoe/sora-editor
  *    Copyright (C) 2020-2023  Rosemoe
@@ -23,24 +23,24 @@
  ******************************************************************************/
 
 plugins {
-    id("com.android.library")
-    id("kotlin-android")
+	id("com.android.library")
+	id("kotlin-android")
 }
 
 android {
-    namespace = "io.github.rosemoe.sora.ts"
+	namespace = "io.github.rosemoe.sora.ts"
 }
 
 dependencies {
-    api(platform(libs.sora.bom))
-    api(libs.common.editor)
-    api(libs.common.kotlin.coroutines.android)
-    api(libs.androidide.ts) {
-        isChanging = true
-    }
-    api(libs.androidx.collection)
+	api(platform(libs.sora.bom))
+	api(libs.common.editor)
+	api(libs.common.kotlin.coroutines.android)
+	api(libs.androidide.ts) {
+		isChanging = true
+	}
+	api(libs.androidx.collection)
 
-    api(projects.common)
-    api(projects.editorApi)
-    api(projects.logger)
+	api(projects.common)
+	api(projects.editorApi)
+	api(projects.logger)
 }
