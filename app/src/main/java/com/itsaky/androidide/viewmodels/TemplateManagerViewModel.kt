@@ -11,6 +11,7 @@ import com.itsaky.androidide.ui.models.TemplateManagerUiEffect
 import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.ui.models.TemplateManagerUiState
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
  */
 class TemplateManagerViewModel(
 	private val templateRepository: TemplateRepository,
+	collectionInstalls: Flow<Unit>,
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "TemplateManagerViewModel"
@@ -36,6 +38,10 @@ class TemplateManagerViewModel(
 
 	init {
 		loadTemplates()
+		// A .cgt opened from outside the app installs in ExternalFileInstallActivity, which then
+		// finishes back to this screen without telling it (ADFA-6967). Reload on every install
+		// instead, whichever screen ran it.
+		viewModelScope.launch { collectionInstalls.collect { loadTemplates() } }
 	}
 
 	fun onEvent(event: TemplateManagerUiEvent) {
