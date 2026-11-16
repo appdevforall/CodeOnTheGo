@@ -140,7 +140,7 @@ SELECT js_eval('(function () {
 -- not added: UNIQUE constraint failed: colors.name
 ```
 
-A result set lasts only until the call into JavaScript that created it returns: the `js_eval`, or the call of your function. Read what you need before then. In a later call, `next()`, `toArray()`, `get()` and `name()` throw `The result set was closed when the call into JavaScript that created it returned`. A result set that was read to its end still reports that it has no more rows.
+A result set lasts only until the call into JavaScript that created it returns: the `js_eval`, or the call of your function from SQL. When that call was made inside another one, by SQL that the other call ran with `db.exec`, the result set lasts until the outer call returns. Read what you need before then. In a later call, `next()`, `toArray()`, `get()` and `name()` throw `The result set was closed when the call into JavaScript that created it returned`, or `interrupted` after Ctrl-C stopped the call. A result set whose `next()` returned `false`, or whose `toArray()` ran, still reports that it has no more rows.
 
 ```sql
 SELECT js_eval('globalThis.kept = db.exec("SELECT 1 UNION ALL SELECT 2"); kept.next(); kept.get(0)');
@@ -160,7 +160,7 @@ SELECT js_eval('(function () {
 - Variables that you create with `js_eval`, such as `globalThis.rate = 0.2`, are shared by `js_eval`, your scalar functions and your collations. Aggregate and window functions cannot see them: define what they need in their `init` code.
 - A name declared with `const`, `let` or `class` at the top level of `js_eval` code also lasts for the session, so running the same code again fails with `redeclaration of`. Put the code in braces, `{ ... }`, to keep its names to one run. `js_eval` still returns the value of the last expression.
 - Each running aggregate or window function has variables of its own, which its `init` code sets up. That is why two groups never mix their state.
-- A variable can keep a result set from `db.exec`, but not keep it open: the result set closes when the call that created it returns, as described in Run SQL from JavaScript.
+- A variable can keep a result set from `db.exec`, but not keep it open: the result set closes when the outermost call into JavaScript returns, as described in Run SQL from JavaScript.
 
 ## Limits
 
