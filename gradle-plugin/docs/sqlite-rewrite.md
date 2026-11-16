@@ -24,7 +24,10 @@ An existing project needs:
 The helper classes the rewrite redirects to (`SqliteRewriteRuntime`) are not in `libs/`: Code on the Go bundles
 `subprojects/sqlite-rewrite-runtime`'s release AAR, extracts it with the other tools and passes its path as
 `androidide.sqliteRewriteRuntime.aar`, as it does for the debugger AAR. `SqliteRewritePlugin` adds it to the
-runtime classpath of every variant of a project that opted in, and fails the build when the file is missing.
+runtime classpath of every variant of a project that opted in, and fails the build when the file is missing or
+when a variant's runtime classpath cannot be reached (a variant type the plugin does not know, named in the message):
+the rewrite is already registered for it, so going on would give an app that throws `NoClassDefFoundError`.
+`SqliteDebuggerPlugin` fails the same way for the variants it adds the debugger to.
 
 A task `check<Variant>SqliteRewriteClasspath` runs before the compile and the transform of each variant. It fails
 with an actionable message when the variant's runtime classpath has no

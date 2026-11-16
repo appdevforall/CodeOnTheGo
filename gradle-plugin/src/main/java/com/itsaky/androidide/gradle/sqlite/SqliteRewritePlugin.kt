@@ -5,7 +5,7 @@ package com.itsaky.androidide.gradle.sqlite
 import com.android.build.api.instrumentation.InstrumentationScope
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.gradle.APP_PLUGIN
-import com.itsaky.androidide.gradle.withRuntimeConfiguration
+import com.itsaky.androidide.gradle.requireRuntimeConfiguration
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_REWRITE_RUNTIME_AAR
 import org.gradle.api.GradleException
@@ -61,7 +61,7 @@ class SqliteRewritePlugin : Plugin<Project> {
 			variant.instrumentation.setAsmFramesComputationMode(SqliteRewriter.FRAMES_MODE)
 
 			val capitalized = variant.name.replaceFirstChar { it.uppercase() }
-			variant.withRuntimeConfiguration {
+			variant.requireRuntimeConfiguration {
 				logger.lifecycle("Adding SQLite rewrite runtime dependency to variant '{}' of project '{}'", variant.name, target.path)
 				dependencies.add(target.dependencies.create(target.fileTree(runtimeAar)))
 

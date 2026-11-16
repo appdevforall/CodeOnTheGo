@@ -70,7 +70,7 @@ class SqliteDebuggerPlugin : Plugin<Project> {
 
 		target.extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
 			val addDebugger = { variant: ApplicationVariant ->
-				variant.withRuntimeConfiguration {
+				variant.requireRuntimeConfiguration {
 					logger.lifecycle(
 						"Adding SQLite debugger dependency to variant '{}' of project '{}'",
 						variant.name,
