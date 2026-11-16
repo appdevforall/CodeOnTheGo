@@ -138,10 +138,15 @@ open class AndroidModule(
 			return emptySet()
 		}
 		val provider = defaultSources(scope) ?: return emptySet()
+		val variant = variantSources(scope)
+
+		// src/<buildType>, src/<flavor>, src/<variant> and their test counterparts are compiled
+		// with the default source set whenever this variant is selected.
+		val layers = variant?.variantSourceProvidersList.orEmpty().flatMap { it.javaDirs + it.kotlinDirs }
 
 		// build/generated/**: AIDL, BuildConfig, kapt, KSP and every other generated source
-		val generated = variantSources(scope)?.generatedSourceFolderPathsList.orEmpty().map(::File)
-		return (provider.javaDirs + provider.kotlinDirs + generated).toSet()
+		val generated = variant?.generatedSourceFolderPathsList.orEmpty().map(::File)
+		return (provider.javaDirs + provider.kotlinDirs + layers + generated).toSet()
 	}
 
 	override fun getCompileSourceDirectories(): Set<File> {

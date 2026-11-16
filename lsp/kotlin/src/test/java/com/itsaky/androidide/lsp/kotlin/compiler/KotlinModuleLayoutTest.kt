@@ -55,6 +55,16 @@ class KotlinModuleLayoutTest {
 		assertThat(layoutOf(jvmTarget = "17")).isNotEqualTo(layoutOf(jvmTarget = "11"))
 	}
 
+	@Test
+	fun `a source dir that appears changes the layout`() {
+		val dir = tempDir.root.toPath().resolve("app/src/test/java")
+		val before = layoutWithUnitTests(dir)
+
+		dir.toFile().mkdirs()
+
+		assertThat(layoutWithUnitTests(dir)).isNotEqualTo(before)
+	}
+
 	private fun layoutWithUnitTests(dir: Path): KotlinModuleLayout =
 		Workspace(
 			rootProject = GradleProject(gradleProject(":")),
