@@ -890,7 +890,7 @@
 	<string name="export_kind_bundle">App Bundle (.aab)</string>
 	<string name="export_kind_plugin">Plugin (.cgp)</string>
 	<string name="export_share">Share</string>
-	<string name="export_copy_to_download">Copy to Download</string>
+	<string name="export_copy_to_download">Copy to Download folder</string>
 	<string name="msg_export_not_built">Nothing built yet. Run the app once to build it.</string>
 	<string name="msg_export_plugin_not_built">No plugin yet. Run the plugin project once to build it.</string>
 	<string name="msg_export_saved">Saved to Download as %1$s</string>
