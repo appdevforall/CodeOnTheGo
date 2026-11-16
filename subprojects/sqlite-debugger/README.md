@@ -47,9 +47,9 @@ The layout of `sqlitedbg_event_record` lives in `sqlitedbg.h`. The JNI layer han
 - **JNI test:** when a JDK is on PATH, `test.sh` also builds `libsqlitedbg.so` as it ships (no `SQLITE_CORE`) against a requery-like `libsqlite3x.so` and runs `src/test/jni/JniQueryTest.java` through `NativeBridge`: paging, the total-bytes budget, per-cell truncation, bound types, the deadline, refused writes and transactions. It uses Java stubs of `NativeBridge` and `DebugEngineException` instead of the Kotlin, so a JDK is all it needs; `test.sh` checks the native names match `NativeBridge.kt`. Otherwise it is skipped with a message. CI runs `test.sh` in `.github/workflows/test-sqlite-debugger.yml` for changes under this module.
 - **JVM tests:** `flox activate -d flox/local -- ./gradlew :subprojects:sqlite-debugger:testDebugUnitTest`. They cover `EventDecoder`, `McpProtocol`, `McpHttp` and `DatabaseTools` (with `FakeDebugEngine`).
 
-No workflow in `.github/workflows` runs either yet.
+`.github/workflows/test-sqlite-debugger.yml` runs `test.sh` (the C and JNI tests) on pull requests that touch the module or the SQLite headers. No workflow runs the JVM tests.
 
 ## Not done yet
 
 - Gradle plugin wiring and the build-time rewrite that adds the library to debug builds (ADFA-7138).
-- Verification on a device. The C tests run on the host and the Kotlin tests on the JVM; nothing has run in an app on a device or emulator.
+- A device run of the current code. The device results on ADFA-7135 (statements captured on both ABIs, the overhead) predate the review fixes.
