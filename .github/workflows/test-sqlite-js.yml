@@ -1,7 +1,7 @@
 name: Test sqlite-js
 
-# The tests the Android build cannot run (ADFA-7082): that upstream/ is sqlite-js with patches/
-# applied, upstream's test suite with the patches, and the test of sqlitejs_android.c's entry
+# The tests the Android build cannot run (ADFA-7082): that upstream/ is the sqlite-js release with
+# any patches/ applied, upstream's test suite on it, and the test of sqlitejs_android.c's entry
 # points. See subprojects/sqlite-js/test.sh.
 
 on:

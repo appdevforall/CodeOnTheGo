@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Rebuilds upstream/ from the sqlite-js release VERSION and patches/, or checks that it matches.
+# Rebuilds upstream/ from the sqlite-js release VERSION and any patches/, or checks that it matches.
 # Usage: vendor.sh [--check] [TARBALL]   (without TARBALL, downloads it)
 set -euo pipefail
-VERSION=1.4.1
-SHA256=d45d394fc7cb37070a64fa248994c7fef7c10cff31541eb57608405753fc3078
+VERSION=1.4.3
+SHA256=a2ed16f353757767188134f74fc9f0b07feefa96abfa56bcc211758b4105ad0a
 URL=https://github.com/sqliteai/sqlite-js/archive/refs/tags/$VERSION.tar.gz
 HERE=$(cd "$(dirname "$0")" && pwd)
 CHECK=false
@@ -17,6 +17,7 @@ echo "$SHA256  $TARBALL" | sha256sum -c --quiet -
 SRC=$WORK/src
 mkdir "$SRC"
 tar -xzf "$TARBALL" -C "$SRC" --strip-components=1
+shopt -s nullglob  # patches/ holds our changes not yet upstream, and may be empty or missing
 for p in "$HERE"/patches/*.patch; do
 	patch -d "$SRC" -p1 --quiet --no-backup-if-mismatch <"$p"
 done
@@ -38,15 +39,15 @@ NOTICES="LICENSE:META-INF/LICENSE-sqlite-js.txt LICENSE.quickjs:META-INF/LICENSE
 RES=$HERE/src/main/resources
 if $CHECK; then
 	for f in $FILES; do
-		cmp -s "$SRC/$f" "$HERE/upstream/$f" || { echo "upstream/$f is not sqlite-js $VERSION with patches/ applied" >&2; exit 1; }
+		cmp -s "$SRC/$f" "$HERE/upstream/$f" || { echo "upstream/$f is not sqlite-js $VERSION with any patches/ applied" >&2; exit 1; }
 	done
 	for n in $NOTICES; do
 		cmp -s "$SRC/${n%%:*}" "$RES/${n#*:}" || { echo "src/main/resources/${n#*:} is not ${n%%:*}" >&2; exit 1; }
 	done
-	echo "upstream/ is sqlite-js $VERSION with patches/ applied"
+	echo "upstream/ is sqlite-js $VERSION with any patches/ applied"
 else
 	rm -rf "$HERE/upstream"
 	for f in $FILES; do install -D -m 644 "$SRC/$f" "$HERE/upstream/$f"; done
 	for n in $NOTICES; do install -D -m 644 "$SRC/${n%%:*}" "$RES/${n#*:}"; done
-	echo "upstream/ rebuilt from sqlite-js $VERSION and patches/"
+	echo "upstream/ rebuilt from sqlite-js $VERSION and any patches/"
 fi
