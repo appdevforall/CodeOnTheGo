@@ -6,6 +6,7 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.ZipFile
 
 /**
@@ -17,12 +18,18 @@ import java.util.zip.ZipFile
  * installed at the previous build's paths runs against the previous build's files until the app
  * restarts. Plugin files are named `<pluginId>-<hash>.cgp`, after their content. A file installed
  * before that, `<pluginId>.cgp`, keeps loading until its plugin is next updated.
+ *
+ * [legacyNativeLibsDir] is where CoGo builds before per-build folders extracted libraries. It is
+ * deleted, never read.
  */
 class PluginBuildFiles internal constructor(
 	private val pluginsDir: File,
 	private val nativeLibsDir: File,
+	private val legacyNativeLibsDir: File? = null,
 	private val readPluginId: (File) -> String?,
 ) {
+	private val legacyDeleted = AtomicBoolean(legacyNativeLibsDir == null)
+
 	// One extraction or deletion per plugin at a time: loads can overlap, and two extractions of a
 	// build would share its scratch folder.
 	private val locks = ConcurrentHashMap<String, Any>()
@@ -47,11 +54,15 @@ class PluginBuildFiles internal constructor(
 	 * Deletes every file of [pluginId], not just the first, since two would both load. True when
 	 * there was one and all were deleted: a file left behind loads again on the next start. The
 	 * plugin's native libraries go even when it has no file left: an install whose load failed
-	 * deletes its file but not the libraries it extracted.
+	 * deletes its file but not the libraries it extracted. They don't count toward the result: with
+	 * its files gone the plugin is gone, and its next install deletes the folders of other builds.
 	 */
 	fun delete(pluginId: String): Boolean =
 		synchronized(lockFor(pluginId)) {
-			pluginDirOf(pluginId).deleteRecursively()
+			deleteLegacyNativeLibs()
+			if (!pluginDirOf(pluginId).deleteRecursively()) {
+				log.error("Could not delete all native libraries of {}", pluginId)
+			}
 			val files = filesOf(pluginId)
 			val undeleted = files.filterNot(File::delete)
 			undeleted.forEach { log.error("Could not delete plugin file {}", it.absolutePath) }
@@ -68,6 +79,7 @@ class PluginBuildFiles internal constructor(
 		abi: String,
 	): File? =
 		synchronized(lockFor(pluginId)) {
+			deleteLegacyNativeLibs()
 			val pluginDir = pluginDirOf(pluginId)
 			val key = buildKey(pluginId, build)
 			val buildDir = folderFor(pluginDir, key)
@@ -82,6 +94,12 @@ class PluginBuildFiles internal constructor(
 		}
 
 	private fun lockFor(pluginId: String): Any = locks.computeIfAbsent(pluginId) { Any() }
+
+	private fun deleteLegacyNativeLibs() {
+		if (legacyDeleted.compareAndSet(false, true) && legacyNativeLibsDir?.deleteRecursively() == false) {
+			log.warn("Could not delete {}", legacyNativeLibsDir)
+		}
+	}
 
 	/**
 	 * [pluginId]'s folder of native libraries. Throws unless that is a folder of [nativeLibsDir]
@@ -170,6 +188,19 @@ class PluginBuildFiles internal constructor(
 		private val log = LoggerFactory.getLogger(PluginBuildFiles::class.java)
 
 		private const val HASH_CHARS = 16
+
+		// Not app_plugin_native_libs: an older CoGo build reuses its plugin's folder there whatever it
+		// holds, so it would find these per-build folders and no libraries. Folder names as getDir()
+		// makes them.
+		private const val NATIVE_LIBS_DIR = "app_plugin_build_libs"
+		private const val LEGACY_NATIVE_LIBS_DIR = "app_plugin_native_libs"
+
+		/** The plugin build files of the app whose data folder is [dataDir]. */
+		internal fun inDataDir(
+			pluginsDir: File,
+			dataDir: File,
+			readPluginId: (File) -> String?,
+		) = PluginBuildFiles(pluginsDir, File(dataDir, NATIVE_LIBS_DIR), File(dataDir, LEGACY_NATIVE_LIBS_DIR), readPluginId)
 
 		/** The name, without extension, to install [build] under: `<pluginId>-<hash of its content>`. */
 		fun fileStem(

@@ -67,16 +67,33 @@ class PluginBuildFilesTest {
 	}
 
 	@Test
-	fun librariesExtractedFromAnotherFileAreNotReused() {
-		// The layout before per-build folders: the libraries straight in the plugin's folder.
-		File(nativeLibsDir, ID).mkdirs()
-		File(nativeLibsDir, "$ID/libfoo.so").writeText("old")
+	fun anOlderCoGoBuildFindsNoFolderToReuse() {
+		val dataDir = temp.newFolder("data")
+		val build = installed(build("a.cgp", "libfoo.so" to "A"))
+
+		val dir = PluginBuildFiles.inDataDir(pluginsDir, dataDir) { ID }.extractNativeLibs(ID, build, ABI)
+
+		assertThat(File(dir, "libfoo.so").readText()).isEqualTo("A")
+		// Before per-build folders, CoGo loaded a plugin's libraries from getDir("plugin_native_libs")/<id>
+		// whenever that folder existed, whatever it held.
+		assertWithMessage("an older CoGo build would find this build's folder and no libraries in it")
+			.that(File(dataDir, "app_plugin_native_libs/$ID").exists())
+			.isFalse()
+	}
+
+	@Test
+	fun librariesAnOlderCoGoBuildExtractedAreDeleted() {
+		val dataDir = temp.newFolder("data")
+		File(dataDir, "app_plugin_native_libs/$ID").mkdirs()
+		File(dataDir, "app_plugin_native_libs/$ID/libfoo.so").writeText("old")
 		val legacy = build("$ID.cgp", "libfoo.so" to "new").copyTo(File(pluginsDir, "$ID.cgp"))
 
-		val dir = files.extractNativeLibs(ID, legacy, ABI)
+		val dir = PluginBuildFiles.inDataDir(pluginsDir, dataDir) { ID }.extractNativeLibs(ID, legacy, ABI)
 
 		assertThat(File(dir, "libfoo.so").readText()).isEqualTo("new")
-		assertThat(File(nativeLibsDir, "$ID/libfoo.so").exists()).isFalse()
+		assertWithMessage("an older CoGo build's libraries are left behind")
+			.that(File(dataDir, "app_plugin_native_libs").exists())
+			.isFalse()
 	}
 
 	@Test

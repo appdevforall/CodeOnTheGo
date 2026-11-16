@@ -333,7 +333,7 @@ class PluginManager private constructor(
 
 	private val pluginsDir = File(context.filesDir, "plugins")
 	private val buildFiles =
-		PluginBuildFiles(pluginsDir, context.getDir("plugin_native_libs", Context.MODE_PRIVATE)) { file ->
+		PluginBuildFiles.inDataDir(pluginsDir, context.dataDir) { file ->
 			PluginLoader(context, file).getPluginMetadata()?.id
 		}
 	private val documentationManager = PluginDocumentationManager(context)
