@@ -6,8 +6,12 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.random.Random
 
 /**
  * Each installed plugin build has paths of its own. Android caches resources, assets and native
@@ -22,7 +26,9 @@ class PluginBuildFilesTest {
 	private val nativeLibsDir by lazy { temp.newFolder("plugin_native_libs") }
 
 	// Uninstall tests write the plugin ID as the file's text; a real file has it in its manifest.
-	private val files by lazy { PluginBuildFiles(pluginsDir, nativeLibsDir) { it.readText() } }
+	private val files by lazy { newFiles() }
+
+	private fun newFiles() = PluginBuildFiles(pluginsDir, nativeLibsDir) { it.readText() }
 
 	@Test
 	fun eachBuildIsNamedAfterItsContent() {
@@ -39,12 +45,24 @@ class PluginBuildFilesTest {
 
 	@Test
 	fun aNewBuildLoadsItsLibrariesFromANewFolder() {
-		val dirA = files.extractNativeLibs(ID, installed(build("a.cgp", "libfoo.so" to "A")), ABI)
+		val a = installed(build("a.cgp", "libfoo.so" to "A"))
+		val dirA = files.extractNativeLibs(ID, a, ABI)
+		a.delete()
+
 		val dirB = files.extractNativeLibs(ID, installed(build("b.cgp", "libfoo.so" to "B")), ABI)
 
 		assertWithMessage("the new build reuses the old build's library path").that(dirB).isNotEqualTo(dirA)
 		assertThat(File(dirB, "libfoo.so").readText()).isEqualTo("B")
-		assertWithMessage("the old build's folder is left behind").that(dirA!!.exists()).isFalse()
+		assertWithMessage("the replaced build's folder is left behind").that(dirA!!.exists()).isFalse()
+	}
+
+	@Test
+	fun anotherInstalledBuildKeepsItsFolder() {
+		// Two files with one ID both load, in parallel: neither may delete the other's libraries.
+		val dirA = files.extractNativeLibs(ID, installed(build("a.cgp", "libfoo.so" to "A")), ABI)
+		files.extractNativeLibs(ID, installed(build("b.cgp", "libfoo.so" to "B")), ABI)
+
+		assertThat(File(dirA, "libfoo.so").readText()).isEqualTo("A")
 	}
 
 	@Test
@@ -58,6 +76,62 @@ class PluginBuildFilesTest {
 
 		assertThat(File(dir, "libfoo.so").readText()).isEqualTo("new")
 		assertThat(File(nativeLibsDir, "$ID/libfoo.so").exists()).isFalse()
+	}
+
+	@Test
+	fun aLeftoverScratchFolderIsNotReused() {
+		val build = installed(build("a.cgp", "libfoo.so" to "A"))
+		val scratch = File(nativeLibsDir, "$ID/.${PluginBuildFiles.buildKey(ID, build)}.partial")
+		scratch.mkdirs()
+		File(scratch, "libstale.so").writeText("from an interrupted extraction")
+
+		val dir = files.extractNativeLibs(ID, build, ABI)
+
+		assertThat(dir!!.list()!!.toList()).containsExactly("libfoo.so")
+		assertThat(scratch.exists()).isFalse()
+	}
+
+	@Test
+	fun aBuildReinstalledInTheSameProcessGetsANewFolder() {
+		val build = build("a.cgp", "libfoo.so" to "A")
+		val first = files.extractNativeLibs(ID, installed(build), ABI)
+		files.delete(ID)
+
+		val second = files.extractNativeLibs(ID, installed(build), ABI)
+
+		// The old class loader may still hold the first path, and the runtime refuses to open it again.
+		assertWithMessage("the reinstalled build got the path the old class loader opened").that(second).isNotEqualTo(first)
+		assertThat(File(second, "libfoo.so").readText()).isEqualTo("A")
+		assertWithMessage("the next start extracts again instead of reusing the folder")
+			.that(newFiles().extractNativeLibs(ID, File(pluginsDir, "${PluginBuildFiles.fileStem(ID, build)}.cgp"), ABI))
+			.isEqualTo(second)
+	}
+
+	@Test
+	fun overlappingExtractionsOfABuildAllGetItsLibraries() {
+		val content = Random(7).nextBytes(4 shl 20)
+		repeat(ROUNDS) { round ->
+			val id = "$ID.r$round"
+			val build = build("r$round.cgp", "libbig.so" to content)
+			val installed = build.copyTo(File(pluginsDir, "${PluginBuildFiles.fileStem(id, build)}.cgp"))
+			val start = CountDownLatch(1)
+			val pool = Executors.newFixedThreadPool(THREADS)
+			val results =
+				(1..THREADS).map {
+					pool.submit<File?> {
+						start.await()
+						files.extractNativeLibs(id, installed, ABI)
+					}
+				}
+			start.countDown()
+			val dirs = results.map { it.get(60, TimeUnit.SECONDS) }
+			pool.shutdown()
+
+			assertWithMessage("round $round: loads got different folders").that(dirs.toSet()).hasSize(1)
+			assertWithMessage("round $round: a library is incomplete")
+				.that(File(dirs.first(), "libbig.so").readBytes().contentEquals(content))
+				.isTrue()
+		}
 	}
 
 	@Test
@@ -98,14 +172,14 @@ class PluginBuildFilesTest {
 
 	private fun build(
 		name: String,
-		vararg libs: Pair<String, String>,
+		vararg libs: Pair<String, Any>,
 		abi: String = ABI,
 	): File =
 		File(temp.newFolder(), name).also { file ->
 			ZipOutputStream(file.outputStream()).use { zip ->
 				for ((lib, content) in libs) {
 					zip.putNextEntry(ZipEntry("lib/$abi/$lib"))
-					zip.write(content.toByteArray())
+					zip.write(if (content is ByteArray) content else content.toString().toByteArray())
 					zip.closeEntry()
 				}
 			}
@@ -114,5 +188,7 @@ class PluginBuildFilesTest {
 	private companion object {
 		const val ID = "org.example.plugin"
 		const val ABI = "arm64-v8a"
+		const val ROUNDS = 10
+		const val THREADS = 6
 	}
 }

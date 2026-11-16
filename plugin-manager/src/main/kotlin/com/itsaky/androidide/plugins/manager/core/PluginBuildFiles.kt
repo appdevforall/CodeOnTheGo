@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
 /**
@@ -22,6 +23,15 @@ class PluginBuildFiles internal constructor(
 	private val nativeLibsDir: File,
 	private val readPluginId: (File) -> String?,
 ) {
+	// One extraction or deletion per plugin at a time: loads can overlap, and two extractions of a
+	// build would share its scratch folder.
+	private val locks = ConcurrentHashMap<String, Any>()
+
+	// Native-library folders handed to a class loader in this process. A folder deleted by an
+	// uninstall is never handed out again under the same path: the runtime would refuse to open a
+	// library there for the reinstalled build's class loader while the old one still holds it.
+	private val handedOut: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
 	/** Every plugin file whose manifest has [pluginId]. Its name can't tell: it names the build. */
 	fun filesOf(pluginId: String): List<File> =
 		pluginsDir
@@ -35,35 +45,71 @@ class PluginBuildFiles internal constructor(
 
 	/**
 	 * Deletes every file of [pluginId], not just the first, since two would both load. True when
-	 * one was deleted. The plugin's native libraries go even when it has no file left: an install
-	 * whose load failed deletes its file but not the libraries it extracted.
+	 * there was one and all were deleted: a file left behind loads again on the next start. The
+	 * plugin's native libraries go even when it has no file left: an install whose load failed
+	 * deletes its file but not the libraries it extracted.
 	 */
-	fun delete(pluginId: String): Boolean {
-		File(nativeLibsDir, pluginId).deleteRecursively()
-		val files = filesOf(pluginId)
-		val undeleted = files.filterNot(File::delete)
-		undeleted.forEach { log.error("Could not delete plugin file {}", it.absolutePath) }
-		return undeleted.size < files.size
-	}
+	fun delete(pluginId: String): Boolean =
+		synchronized(lockFor(pluginId)) {
+			File(nativeLibsDir, pluginId).deleteRecursively()
+			val files = filesOf(pluginId)
+			val undeleted = files.filterNot(File::delete)
+			undeleted.forEach { log.error("Could not delete plugin file {}", it.absolutePath) }
+			files.isNotEmpty() && undeleted.isEmpty()
+		}
 
 	/**
 	 * Extracts [build]'s native libraries for [abi] into a folder of that build's own, and deletes
-	 * the folders of [pluginId]'s other builds. Null when [build] has none for [abi].
+	 * [pluginId]'s folders that belong to no installed build. Null when [build] has none for [abi].
 	 */
 	fun extractNativeLibs(
 		pluginId: String,
 		build: File,
 		abi: String,
-	): File? {
-		val pluginDir = File(nativeLibsDir, pluginId)
-		val buildDir = File(pluginDir, buildKey(pluginId, build))
-		if (!buildDir.isDirectory && !extractNativeLibs(build, "lib/$abi/", buildDir)) {
-			pluginDir.deleteRecursively()
-			return null
+	): File? =
+		synchronized(lockFor(pluginId)) {
+			val pluginDir = File(nativeLibsDir, pluginId)
+			val key = buildKey(pluginId, build)
+			val buildDir = folderFor(pluginDir, key)
+			val extracted = buildDir.isDirectory || extractNativeLibs(build, "lib/$abi/", buildDir)
+			// Another installed build of this plugin keeps its folder: it may be loading from it.
+			val otherBuilds = installedKeys(pluginId) - key
+			pluginDir
+				.listFiles { file -> file != buildDir && !(file.isDirectory && file.name.substringBefore('~') in otherBuilds) }
+				?.forEach(File::deleteRecursively)
+			pluginDir.delete() // only when empty
+			if (extracted) buildDir.also { handedOut += it.absolutePath } else null
 		}
-		pluginDir.listFiles { file -> file != buildDir }?.forEach(File::deleteRecursively)
-		return buildDir
+
+	private fun lockFor(pluginId: String): Any = locks.computeIfAbsent(pluginId) { Any() }
+
+	/**
+	 * The build's folder: `<key>`, or `<key>~<n>` when an uninstall in this process deleted the
+	 * folders it handed out before. An existing one is reused.
+	 */
+	private fun folderFor(
+		pluginDir: File,
+		key: String,
+	): File {
+		val existing = pluginDir.listFiles { file -> file.isDirectory && (file.name == key || file.name.startsWith("$key~")) }
+		existing?.minByOrNull { it.name.length }?.let { return it }
+		return generateSequence(0) { it + 1 }
+			.map { n -> File(pluginDir, if (n == 0) key else "$key~$n") }
+			.first { it.absolutePath !in handedOut }
 	}
+
+	/**
+	 * The build keys of [pluginId]'s files, by name, which is cheap enough for every load. A file of
+	 * another plugin whose ID starts with `<pluginId>-` can match too; that only keeps a folder.
+	 */
+	private fun installedKeys(pluginId: String): Set<String> =
+		pluginsDir
+			.listFiles { file ->
+				file.isFile &&
+					file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) &&
+					(file.nameWithoutExtension == pluginId || file.nameWithoutExtension.startsWith("$pluginId-"))
+			}.orEmpty()
+			.mapTo(HashSet()) { buildKey(pluginId, it) }
 
 	/** Extracts into a scratch folder renamed when complete, so an interrupted extraction is never reused. */
 	private fun extractNativeLibs(
