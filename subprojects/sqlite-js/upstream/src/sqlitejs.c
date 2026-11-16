@@ -71,10 +71,12 @@ typedef struct {
     size_t              stack_size;     // in bytes, 0 for no check: see js_set_max_stack_size()
     int                 depth;          // calls into JavaScript in progress: see js_enter()
     unsigned            cancel_epoch;   // js_cancel_epoch when the outermost call began
+    int                 setup_depth;    // depth of a call that sets the connection up, 0 for none: see js_interrupt_handler()
     bool                check_interrupted;  // sqlite3_is_interrupted() is available
     struct rowset       *rowsets;       // result sets not yet freed: see js_end_rowsets()
+    int                 orphans;        // of those, the ones whose JavaScript object is gone
     bool                ending_rowsets; // js_end_rowsets() is running
-    bool                cancel_interrupted; // the connection is known to be interrupted: see js_leave()
+    unsigned            end_pass;       // js_end_rowsets() passes that ended every result set
 } globaljs_context;
 
 typedef struct {
@@ -114,9 +116,18 @@ static JSValue sqlite_value_to_js (JSContext *ctx, sqlite3_value *value);
 typedef struct rowset {
     int             ncols;
     sqlite3_stmt    *vm;
-    bool            interrupted;    // ended by js_end_rowsets(): reading on throws
+    bool            ended;          // ended by js_end_rowsets(): reading on throws
+    bool            interrupted;    // and an interrupt is why: reading on throws "interrupted"
+    bool            orphaned;       // its JavaScript object is gone: see js_rowset_finalizer()
+    unsigned        end_pass;       // the js_end_rowsets() pass that ended it
     struct rowset   *prev, *next;   // in the connection's list: see js_end_rowsets()
 } rowset;
+
+// The error for reading a result set that js_end_rowsets() ended, which is not the end of its rows.
+static JSValue js_rowset_ended (JSContext *ctx, const rowset *rs) {
+    if (rs->interrupted) return JS_ThrowInternalError(ctx, "interrupted");
+    return JS_ThrowInternalError(ctx, "The result set was closed when the call into JavaScript that created it returned");
+}
 
 static void js_rowset_finalizer(JSRuntime *rt, JSValue val);
 static JSValue js_rowset_next(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv);
@@ -144,13 +155,9 @@ static JSValue js_rowset_next(JSContext *ctx, JSValueConst this_val, int argc, J
     rowset *rs = JS_GetOpaque(this_val, js->rowSetClassID);
     if (!rs) return JS_ThrowTypeError(ctx, "Not a Rowset object");
     
-    if (!rs->vm) return rs->interrupted ? JS_ThrowInternalError(ctx, "interrupted") : JS_FALSE;
+    if (!rs->vm) return rs->ended ? js_rowset_ended(ctx, rs) : JS_FALSE;
     int rc = sqlite3_step(rs->vm);
     if (rc == SQLITE_ROW) return JS_TRUE;
-    // Before SQLite 3.41, the only sign of an interrupt that js_leave() can see. Not from 3.41,
-    // where sqlite3_is_interrupted() tells, since SQLITE_INTERRUPT is also what a progress handler
-    // that stops a statement gives (Android's cancelling), which leaves nothing interrupted.
-    if ((rc == SQLITE_INTERRUPT) && !js->check_interrupted) js->cancel_interrupted = true;
 
     // an error while the statement runs (a constraint, an overflow, an interrupt) is an
     // exception, as an error while it is prepared is in js_sqlite_exec; only the end of the
@@ -169,7 +176,7 @@ static JSValue js_rowset_get(JSContext *ctx, JSValueConst this_val, int argc, JS
     
     // never return JS_EXCEPTION without throwing something: QuickJS would propagate a
     // null exception and the caller would only get a generic error message
-    if (!rs->vm) return JS_ThrowInternalError(ctx, "No row available, call next() first");
+    if (!rs->vm) return rs->ended ? js_rowset_ended(ctx, rs) : JS_ThrowInternalError(ctx, "No row available, call next() first");
     uint32_t index = 0;
     if (JS_ToUint32(ctx, &index, argv[0])) return JS_EXCEPTION;
     if (index >= (uint32_t)rs->ncols) return JS_ThrowRangeError(ctx, "Column index %u out of range, column count is %d", index, rs->ncols);
@@ -184,7 +191,7 @@ static JSValue js_rowset_name(JSContext *ctx, JSValueConst this_val, int argc, J
     rowset *rs = JS_GetOpaque(this_val, js->rowSetClassID);
     if (!rs) return JS_ThrowTypeError(ctx, "Not a Rowset object");
 
-    if (!rs->vm) return JS_ThrowInternalError(ctx, "Rowset statement is no longer available");
+    if (!rs->vm) return rs->ended ? js_rowset_ended(ctx, rs) : JS_ThrowInternalError(ctx, "Rowset statement is no longer available");
     uint32_t index = 0;
     if (JS_ToUint32(ctx, &index, argv[0])) return JS_EXCEPTION;
     if (index >= (uint32_t)rs->ncols) return JS_ThrowRangeError(ctx, "Column index %u out of range, column count is %d", index, rs->ncols);
@@ -200,7 +207,7 @@ static JSValue js_rowset_to_array(JSContext *ctx, JSValueConst this_val, int arg
     globaljs_context *js = JS_GetContextOpaque(ctx);
     rowset *rs = JS_GetOpaque(this_val, js->rowSetClassID);
     if (!rs) return JS_ThrowTypeError(ctx, "Not a Rowset object");
-    if (!rs->vm) return rs->interrupted ? JS_ThrowInternalError(ctx, "interrupted") : JS_NewArray(ctx);
+    if (!rs->vm) return rs->ended ? js_rowset_ended(ctx, rs) : JS_NewArray(ctx);
 
     JSValue result = JS_NewArray(ctx);
     if (JS_IsException(result)) return JS_EXCEPTION;
@@ -228,7 +235,6 @@ static JSValue js_rowset_to_array(JSContext *ctx, JSValueConst this_val, int arg
     }
 
     // as in js_rowset_next: an error is an exception, not a shorter array
-    if ((rc == SQLITE_INTERRUPT) && !js->check_interrupted) js->cancel_interrupted = true;
     if (rc != SQLITE_DONE) {
         JS_FreeValue(ctx, result);
         result = JS_ThrowInternalError(ctx, "%s", sqlite3_errmsg(sqlite3_db_handle(rs->vm)));
@@ -243,6 +249,15 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
     rowset *rs = (rowset *)JS_GetOpaque(val, js->rowSetClassID);
     if (!rs) return;
     
+    // A statement that is mid-query holds the state of every aggregate and window function it is
+    // computing, and sqlite3_finalize() runs each one's final as it finalizes it. For a JavaScript
+    // function that runs JavaScript, which a QuickJS class finalizer must not do: this one runs
+    // inside free_object() or inside the cycle collector, and a collection that the JavaScript
+    // starts can free the very object being freed. So such a statement is left listed and ended
+    // from js_end_rowsets(), where JavaScript may run. One that is not busy holds no such state,
+    // so finalizing it here cannot come back into JavaScript.
+    if (rs->vm && sqlite3_stmt_busy(rs->vm)) { rs->orphaned = true; js->orphans++; return; }
+
     if (rs->prev) rs->prev->next = rs->next;
     else if (js->rowsets == rs) js->rowsets = rs->next;
     if (rs->next) rs->next->prev = rs->prev;
@@ -250,26 +265,48 @@ static void js_rowset_finalizer(JSRuntime *rt, JSValue val) {
     sqlite3_free(rs);
 }
 
-// Ends every result set of the connection that is still open. SQLite keeps an interrupt in effect
-// until no statement of the connection is running, and an open result set is a running statement:
-// one that JavaScript keeps, in a global say, or that is garbage not yet collected, would make every
-// later statement fail with "interrupted" until the connection closed, the statements that could
-// release it included. Only to be called where none of them is being stepped: see js_leave().
+// Ends the result sets of the connection: with all, every one still open, and otherwise only the
+// ones whose JavaScript object is gone (see js_rowset_finalizer). An open result set is a statement
+// still running, which keeps a read transaction open, keeps an interrupt in effect until it ends,
+// and stops sqlite3_close() from closing the connection at all, so none outlives the call into
+// JavaScript that created it: see js_leave(). Only to be called where none of them is being
+// stepped, which holds wherever JavaScript is not running inside one.
 // Finalizing a statement can run JavaScript, the final of a window or aggregate function it was
 // computing, whose js_leave() comes back here and whose garbage collection can free result sets
 // of the list. So each statement is taken from its result set before it is finalized, the list
 // is walked again from its head after each one, and a nested call does nothing.
-static void js_end_rowsets (globaljs_context *js) {
+static unsigned js_cancel_epoch_load (void);
+
+static void js_end_rowsets (globaljs_context *js, bool all, bool interrupted) {
     if (js->ending_rowsets) return;
     js->ending_rowsets = true;
+    unsigned pass = all ? ++js->end_pass : 0;
     for (;;) {
         rowset *rs = js->rowsets;
-        while (rs && !rs->vm) rs = rs->next;
+        while (rs && !(rs->orphaned || (all && rs->vm))) rs = rs->next;
         if (!rs) break;
         sqlite3_stmt *vm = rs->vm;
-        rs->vm = NULL;
-        rs->interrupted = true;
-        sqlite3_finalize(vm);
+        if (rs->orphaned) {
+            // nothing in JavaScript can reach it any more, so it is unlisted and freed here
+            // rather than left for another pass to find
+            if (rs->prev) rs->prev->next = rs->next;
+            else if (js->rowsets == rs) js->rowsets = rs->next;
+            if (rs->next) rs->next->prev = rs->prev;
+            sqlite3_free(rs);
+            js->orphans--;
+        } else {
+            rs->vm = NULL;
+            rs->ended = true;
+            rs->end_pass = pass;
+            if (interrupted) rs->interrupted = true;
+        }
+        if (vm) sqlite3_finalize(vm);
+    }
+    // A cancel that landed while the finals ran stopped them, as one before the call returned
+    // would have: the result sets this pass ended read on as interrupted too. Nothing runs
+    // JavaScript here, so the list holds only result sets that are still allocated.
+    if (all && !interrupted && (js->cancel_epoch != js_cancel_epoch_load())) {
+        for (rowset *r = js->rowsets; r; r = r->next) if (r->ended && (r->end_pass == pass)) r->interrupted = true;
     }
     js->ending_rowsets = false;
 }
@@ -315,8 +352,10 @@ static unsigned js_cancel_epoch_load (void) {
 }
 
 // Stops all JavaScript that is running now, in every connection: each call fails with an
-// "interrupted" error, and the statement that called it is interrupted. JavaScript that begins
-// afterwards runs normally. Safe from any thread.
+// "interrupted" error, and the connection it was running on is interrupted, so every statement
+// that connection has in progress fails with SQLITE_INTERRUPT too (see js_interrupt_handler).
+// JavaScript that begins afterwards runs normally, and the JavaScript the extension itself runs
+// to set a connection up is never stopped. Safe from any thread.
 // For hosts whose own cancelling cannot reach JavaScript: Android cancels a query with a
 // progress handler, which SQLite never calls while a JavaScript function runs.
 void sqlitejs_cancel_all (void) {
@@ -334,17 +373,19 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
     UNUSED(rt);
     globaljs_context *js = (globaljs_context *)opaque;
     js_keep_gc_below_limit(js);
-    // JavaScript that ending result sets runs, the final of a window or aggregate function as its
-    // statement is finalized, belongs to a call already stopped. Before SQLite 3.41 nothing else
-    // would stop it: it begins after the cancel, and sqlite3_is_interrupted() is missing.
-    if (js->ending_rowsets) return 1;
-    // Only a call (see js_enter) is cancelled: the JavaScript a connection runs while it is set
-    // up is not one, and stopping it would make the connection fail to load the extension.
-    if ((js->depth > 0) && (js->cancel_epoch != js_cancel_epoch_load())) {
+    // Only a call (see js_enter) is cancelled, and never the JavaScript the extension itself runs
+    // to set a connection up: while it loads the extension (globaljs_init, depth 0), and while
+    // js_init_table(1) restores the functions of the js_functions table (js_create_common, which
+    // records its depth in setup_depth). Stopping either leaves the connection short of what an
+    // app expects of it: a cancel during the first made it fail to load, and one during the second
+    // left it without its stored functions, each reported only by a statement an app need not look
+    // at. Like the depth 0 exemption, this one covers that call alone: JavaScript the loading code
+    // runs through SQL is a call of its own, at a greater depth, and is cancelled. And on SQLite
+    // 3.41 and later sqlite3_interrupt() still stops setup JavaScript that never ends, as always.
+    if ((js->depth > 0) && (js->depth != js->setup_depth) && (js->cancel_epoch != js_cancel_epoch_load())) {
         // The statement is interrupted too: a collation cannot report an error, so the
         // statement would go on calling JavaScript, each call beginning after the cancel.
         if (js->db) sqlite3_interrupt(js->db);
-        js->cancel_interrupted = true;
         return 1;
     }
     return js->check_interrupted && (js->db != NULL) && sqlite3_is_interrupted(js->db);
@@ -439,6 +480,30 @@ static void js_mem_reset_peak (globaljs_context *js) {
 #define SQLITE_JS_STACK_MIN     (32 * 1024)
 #endif
 
+#if defined(__linux__)
+// The high address of the initial thread's stack, as the kernel sees it, read from
+// /proc/self/maps, or 0 where it cannot be read. pthread_attr_getstack() reaches only to the top
+// of what the program may use, which is below the block of argv, environment and auxiliary vector
+// that the kernel puts at the top of the stack; RLIMIT_STACK is counted from above that block. A
+// bound counted from pthread's top therefore lands below the real one by the size of the block,
+// which Linux lets grow to a quarter of RLIMIT_STACK: 2 MB of an 8 MB stack.
+static uintptr_t js_stack_kernel_top (void) {
+    FILE *maps = fopen("/proc/self/maps", "r");
+    if (!maps) return 0;
+    char line[512];
+    uintptr_t high = 0;
+    while (fgets(line, sizeof(line), maps)) {
+        if (strstr(line, "[stack]")) {
+            unsigned long long low = 0, hi = 0;
+            if (sscanf(line, "%llx-%llx", &low, &hi) == 2) high = (uintptr_t)hi;
+            break;
+        }
+    }
+    fclose(maps);
+    return high;
+}
+#endif
+
 // The lowest address of the calling thread's stack, found once per thread: on Linux, finding the
 // main thread's stack reads /proc/self/maps. Returns false where the stack cannot be found.
 static bool js_stack_low (uintptr_t sp, uintptr_t *low) {
@@ -471,13 +536,24 @@ static bool js_stack_low (uintptr_t sp, uintptr_t *low) {
     // RLIMIT_STACK is how far it may grow, so for that thread it is the bound that counts.
     if (syscall(SYS_gettid) == (long)getpid()) {
         struct rlimit limit;
-        if ((getrlimit(RLIMIT_STACK, &limit) == 0) && (limit.rlim_cur != RLIM_INFINITY)) {
-            // counted from the top of the stack, as the kernel counts it: counted from sp, a first
-            // measurement deep in the stack would put the bound below the real one
-            uintptr_t high = (uintptr_t)addr + size;
-            uintptr_t grows_to = (high > (uintptr_t)limit.rlim_cur) ? high - (uintptr_t)limit.rlim_cur : 0;
-            if (grows_to < thread_low) thread_low = grows_to;
+        if ((getrlimit(RLIMIT_STACK, &limit) != 0) || (limit.rlim_cur == RLIM_INFINITY)) {
+            // Without a finite RLIMIT_STACK there is no bound to measure, and glibc then reports
+            // a stack of nearly the whole address space: about 85 TB, which
+            // js_set_max_stack_size() would offer and accept, and code that calls itself without
+            // end would take the memory of the machine until it was killed. So the stack counts
+            // as unmeasurable, which allows up to the default the thread certainly has.
+            thread_low = 0;
+            thread_unknown = true;
+            return false;
         }
+        // counted from the top of the stack, as the kernel counts it: counted from sp, a first
+        // measurement deep in the stack would put the bound below the real one. The kernel's own
+        // top is above the argv and environment block, which pthread's does not reach, so that
+        // one is only the fallback: see js_stack_kernel_top().
+        uintptr_t high = js_stack_kernel_top();
+        if (high == 0) high = (uintptr_t)addr + size;
+        uintptr_t grows_to = (high > (uintptr_t)limit.rlim_cur) ? high - (uintptr_t)limit.rlim_cur : 0;
+        if (grows_to < thread_low) thread_low = grows_to;
     }
 #else
     UNUSED(sp);
@@ -522,7 +598,10 @@ static bool js_stack_room (size_t *room) {
 // runs JavaScript) is on the same thread and keeps the outer call's limit.
 static void js_enter (globaljs_context *js) {
     if (js->depth++ > 0) return;
-    js->cancel_epoch = js_cancel_epoch_load();
+    // The finals that ending a call's result sets runs (see js_leave) belong to that call: they keep
+    // its epoch, so a cancel during the call or during the ending stops them, as it would have
+    // stopped the call. Before SQLite 3.41 nothing else would stop one that never ends.
+    if (!js->ending_rowsets) js->cancel_epoch = js_cancel_epoch_load();
     JS_UpdateStackTop(js->runtime);
     // A thread with less room than SQLITE_JS_STACK_MIN keeps it too: JavaScript there then fails
     // with "Maximum call stack size exceeded" rather than running past the end of the stack. A
@@ -532,15 +611,15 @@ static void js_enter (globaljs_context *js) {
     JS_SetMaxStackSize(js->runtime, size);
 }
 
-// Once the outermost call has returned, no result set is being stepped, so those an interrupt left
-// open are ended here: see js_end_rowsets().
-// A cancel's own interrupt counts even where sqlite3_is_interrupted() is missing (SQLite before 3.41).
+// Once the outermost call has returned, no result set is being stepped, so every one still open is
+// ended here: see js_end_rowsets().
 static void js_leave (globaljs_context *js) {
     if (--js->depth > 0) return;
-    if (js->cancel_interrupted || (js->check_interrupted && js->db && sqlite3_is_interrupted(js->db))) {
-        js->cancel_interrupted = false;
-        js_end_rowsets(js);
-    }
+    if (!js->rowsets) return;
+    // A cancel (sqlitejs_cancel_all) is not seen here: js_end_rowsets() marks its result sets
+    // interrupted itself, which is the only way they read so before SQLite 3.41.
+    bool interrupted = (sqlite3_libversion_number() >= 3041000) && js->db && sqlite3_is_interrupted(js->db);
+    js_end_rowsets(js, true, interrupted);
 }
 
 static globaljs_context *globaljs_init (sqlite3 *db) {
@@ -848,6 +927,13 @@ static int js_bind_value (JSContext *ctx, sqlite3_stmt *vm, int index, JSValueCo
 }
 
 static JSValue js_sqlite_exec (JSContext *ctx, sqlite3 *db, const char *sql, int argc, JSValueConst *argv) {
+    // A result set dropped while its statement was mid-query waits for a point where JavaScript may
+    // run (see js_rowset_finalizer). Waiting for the call to return is too long for a loop that
+    // drops one on every turn: the statements would pile up until the loop ran out of memory. Here
+    // is such a point, and the one a loop like that passes through.
+    globaljs_context *waiting = JS_GetContextOpaque(ctx);
+    if (waiting && (waiting->orphans > 0)) js_end_rowsets(waiting, false, false);
+
     sqlite3_stmt *vm = NULL;
     rowset *rs = NULL;
 
@@ -876,7 +962,10 @@ static JSValue js_sqlite_exec (JSContext *ctx, sqlite3 *db, const char *sql, int
     if (!rs) goto abort_with_dberror;
     rs->vm = vm;
     rs->ncols = sqlite3_column_count(vm);
+    rs->ended = false;
+    rs->end_pass = 0;
     rs->interrupted = false;
+    rs->orphaned = false;
     rs->prev = rs->next = NULL;
     
     // create Rowset JS object
@@ -1587,7 +1676,15 @@ static bool js_create_function (sqlite3_context *context, const char *type, cons
 bool js_create_common (sqlite3_context *context, const char *type, const char *name, const char *init_code, const char *step_code, const char *final_code, const char *value_code, const char *inverse_code, bool is_load) {
     globaljs_context *js = (globaljs_context *)sqlite3_user_data(context);
     js_enter(js);
+    // Restoring a function of the js_functions table (is_load) sets the connection up, as loading
+    // the extension does, so sqlitejs_cancel_all() does not stop it: see js_interrupt_handler().
+    // Only this call is exempt, not JavaScript it runs through SQL, which is a call of its own at
+    // a greater depth. The previous value is kept for an is_load that a stored function's own code
+    // reaches through js_init_table().
+    int setup_depth = js->setup_depth;
+    if (is_load) js->setup_depth = js->depth;
     bool ok = js_create_function(context, type, name, init_code, step_code, final_code, value_code, inverse_code, is_load);
+    js->setup_depth = setup_depth;
     js_leave(js);
     return ok;
 }

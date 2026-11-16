@@ -23,9 +23,9 @@ int sqlite3_sqlitejs_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routi
 // this row: an unqualified name finds the TEMP table first, and js_init_table's
 // CREATE TABLE IF NOT EXISTS still sees the main one.
 // A cancel (SqliteJs.cancelAll(), for a query on any connection) that lands while a function
-// loads stops its code as it stops any JavaScript then running, and only loading it again puts the
-// function on this connection. So such a load is tried again, up to STORED_FUNCTION_TRIES times
-// in all, and its stored code runs again each time.
+// loads does not stop its code, but stops any JavaScript that code runs through SQL, which fails
+// the load, and only loading it again puts the function on this connection. So such a load is
+// tried again, up to STORED_FUNCTION_TRIES times in all, and its stored code runs again each time.
 #define STORED_FUNCTION_TRIES   3
 
 static void load_stored_function (sqlite3 *db, sqlite3_int64 rowid) {
