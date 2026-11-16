@@ -17,7 +17,10 @@
 
 package com.itsaky.androidide.plugins
 
-import com.android.build.gradle.BaseExtension
+import com.android.build.api.dsl.ApkSigningConfig
+import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.dsl.CommonExtension
+import com.android.build.api.dsl.LibraryExtension
 import com.itsaky.androidide.build.config.KEY_ALIAS
 import com.itsaky.androidide.build.config.KEY_PASS
 import com.itsaky.androidide.build.config.KEY_STORE_PASS
@@ -48,37 +51,40 @@ class SigningConfigPlugin : Plugin<Project> {
 			// Download the signing key
 			downloadSigningKey()
 
-			// Create and apply the signing config
-			extensions.getByType(BaseExtension::class.java).let { extension ->
-				// Keystore credentials
-				val alias = getEnvOrProp(KEY_ALIAS)
-				val storePass = getEnvOrProp(KEY_STORE_PASS)
-				val keyPass = getEnvOrProp(KEY_PASS)
+			// Keystore credentials
+			val alias = getEnvOrProp(KEY_ALIAS)
+			val storePass = getEnvOrProp(KEY_STORE_PASS)
+			val keyPass = getEnvOrProp(KEY_PASS)
 
-				val signingKey = signingKey.get().asFile
+			val signingKey = signingKey.get().asFile
 
-				if (alias != null && storePass != null && keyPass != null && signingKey.exists()) {
-					val config =
-						extension.signingConfigs.create("common") {
-							storeFile = signingKey
-							keyAlias = alias
-							storePassword = storePass
-							keyPassword = keyPass
-						}
+			if (alias == null || storePass == null || keyPass == null || !signingKey.exists()) {
+				if (!warned) {
+					warned = true
+					logger.warn(
+						"Signing info not configured. " +
+							"keystoreFile=$signingKey[exists=${signingKey.exists()}]",
+					)
+				}
+				return
+			}
 
-					extension.buildTypes.forEach { buildType ->
-						buildType.signingConfig = config
-					}
-				} else {
-					if (!warned) {
-						warned = true
-						logger.warn(
-							"Signing info not configured. " +
-								"keystoreFile=$signingKey[exists=${signingKey.exists()}]",
-						)
-					}
+			val configureKey: ApkSigningConfig.() -> Unit = {
+				storeFile = signingKey
+				keyAlias = alias
+				storePassword = storePass
+				keyPassword = keyPass
+			}
 
-					null
+			when (val android = extensions.getByType(CommonExtension::class.java)) {
+				is ApplicationExtension -> {
+					val config = android.signingConfigs.create("common", configureKey)
+					android.buildTypes.forEach { it.signingConfig = config }
+				}
+
+				is LibraryExtension -> {
+					val config = android.signingConfigs.create("common", configureKey)
+					android.buildTypes.forEach { it.signingConfig = config }
 				}
 			}
 		}

@@ -17,12 +17,13 @@
 
 package com.itsaky.androidide.plugins.conf
 
+import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.dsl.CommonExtension
+import com.android.build.api.dsl.LibraryExtension
 import com.android.build.api.variant.AndroidComponentsExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.Variant
-import com.android.build.gradle.AppExtension
-import com.android.build.gradle.BaseExtension
+import com.android.build.api.variant.impl.VariantOutputImpl
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.projectVersionCode
 import com.itsaky.androidide.build.config.simpleVersionName
@@ -129,168 +130,180 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		}
 	}
 
-	extensions.getByType(BaseExtension::class.java).run {
-		compileSdkVersion(BuildConfig.COMPILE_SDK)
+	val android = extensions.getByType(CommonExtension::class.java)
+	android.compileSdk = BuildConfig.COMPILE_SDK
 
-		defaultConfig {
-			minSdk = BuildConfig.MIN_SDK
-			targetSdk = BuildConfig.TARGET_SDK
-			versionCode = projectVersionCode
-			versionName = rootProject.simpleVersionName
+	android.defaultConfig {
+		minSdk = BuildConfig.MIN_SDK
 
-			// required
-			multiDexEnabled = true
+		testInstrumentationRunner = "com.itsaky.androidide.testing.android.TestInstrumentationRunner"
+		testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
+		testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+	}
 
-			testInstrumentationRunner = "com.itsaky.androidide.testing.android.TestInstrumentationRunner"
-			testInstrumentationRunnerArguments["androidx.test.orchestrator.ENABLE"] = "true"
-			testInstrumentationRunnerArguments["androidide.test.mode"] = "true"
+	when (android) {
+		is ApplicationExtension -> configureApplicationDefaults(android)
+		is LibraryExtension -> configureLibraryDefaults(android)
+	}
+
+	android.compileOptions {
+		sourceCompatibility = BuildConfig.JAVA_VERSION
+		targetCompatibility = BuildConfig.JAVA_VERSION
+	}
+
+	configureCoreLibDesugaring(android, coreLibDesugDep)
+
+	if (":app" == project.path) {
+		configureAppModule(android)
+	} else {
+		android.defaultConfig {
+			ndk {
+				abiFilters.clear()
+				abiFilters += flavorsAbis.keys
+			}
 		}
+	}
 
-		compileOptions {
-			sourceCompatibility = BuildConfig.JAVA_VERSION
-			targetCompatibility = BuildConfig.JAVA_VERSION
+	if (project.path != ":plugin-api") {
+		android.flavorDimensions += "abi"
+		android.productFlavors {
+			create("v7") {
+				dimension = "abi"
+
+				ndk.abiFilters.clear()
+				ndk.abiFilters += "armeabi-v7a"
+			}
+
+			create("v8") {
+				dimension = "abi"
+
+				ndk.abiFilters.clear()
+				ndk.abiFilters += "arm64-v8a"
+			}
 		}
+	}
 
-		configureCoreLibDesugaring(this, coreLibDesugDep)
+	android.buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
+		initWith(android.buildTypes.getByName("debug"))
+		matchingFallbacks += "debug"
+	}
 
-		// we need to migrate :subprojects:aaptcompiler to use protobuf-lite
-		// to be able to remove dependency on protobuf-java
-// 		configurations.all {
-// 			// protobuf-java and protobuf-lite have conflicts
-// 			// since protobuf-lite is optimized for Android, we
-// 			// drop protobuf-java in favor of protobuf-lite
-// 			exclude(group = "com.google.protobuf", module = "protobuf-java")
-// 		}
+	android.buildTypes.getByName("debug") {
+		isMinifyEnabled = false
+	}
 
-		if (":app" == project.path) {
-			flavorsAbis.forEach { (abi, _) ->
-				// the common defaultConfig, not the flavor-specific
-				defaultConfig.buildConfigField(
-					"String",
-					"ABI_${abi.replace('-', '_').uppercase()}",
-					"\"${abi}\"",
+	android.buildTypes.getByName("release") {
+		isMinifyEnabled = isAppModule
+
+		proguardFiles(
+			android.getDefaultProguardFile("proguard-android-optimize.txt"),
+			"proguard-rules.pro",
+		)
+	}
+
+	android.testOptions { unitTests.isIncludeAndroidResources = true }
+
+	android.buildFeatures.viewBinding = true
+	android.buildFeatures.buildConfig = true
+}
+
+private fun Project.configureApplicationDefaults(android: ApplicationExtension) {
+	android.defaultConfig {
+		targetSdk = BuildConfig.TARGET_SDK
+		versionCode = projectVersionCode
+		versionName = rootProject.simpleVersionName
+		multiDexEnabled = true
+	}
+
+	android.buildTypes.getByName("release") {
+		isShrinkResources = true
+	}
+}
+
+private fun configureLibraryDefaults(android: LibraryExtension) {
+	android.defaultConfig {
+		@Suppress("DEPRECATION")
+		targetSdk = BuildConfig.TARGET_SDK
+		multiDexEnabled = true
+	}
+
+	android.buildTypes.getByName("release") {
+		consumerProguardFiles("consumer-rules.pro")
+	}
+}
+
+private fun Project.configureAppModule(android: CommonExtension<*, *, *, *, *, *>) {
+	flavorsAbis.forEach { (abi, _) ->
+		// the common defaultConfig, not the flavor-specific
+		android.defaultConfig.buildConfigField(
+			"String",
+			"ABI_${abi.replace('-', '_').uppercase()}",
+			"\"${abi}\"",
+		)
+	}
+
+	extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
+		onVariants { variant ->
+			variant.outputs.forEach { output ->
+				// version code increment
+				// NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
+				// val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
+				// val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 1
+				val verCodeIncrement =
+					when {
+						variant.name.contains("v8", ignoreCase = true) -> flavorsAbis["arm64-v8a"]
+						variant.name.contains("v7", ignoreCase = true) -> flavorsAbis["armeabi-v7a"]
+						else -> 1
+					} ?: 1
+
+				output.versionCode.set(10 * projectVersionCode + verCodeIncrement)
+
+				// The public variant API cannot rename an APK; VariantOutputImpl is the only
+				// way short of copying it, and CI globs this name (instrumentation-test.yml).
+				val flavorName = variant.productFlavors.firstOrNull()?.second ?: "default"
+				val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
+				(output as VariantOutputImpl).outputFileName.set(
+					"CodeOnTheGo-$flavorName-${variant.buildType}$date.apk",
 				)
 			}
 
-			extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
-				onVariants { variant ->
-					variant.outputs.forEach { output ->
-						// version code increment
-						// NOTE: use the following lines when using split abis instead of flavor abis - jm 250916
-						// val filter = output.getFilter(FilterConfiguration.FilterType.ABI)
-						// val verCodeIncrement = flavorsAbis[filter?.identifier] ?: 1
-						val verCodeIncrement =
-							when {
-								variant.name.contains("v8", ignoreCase = true) -> flavorsAbis["arm64-v8a"]
-								variant.name.contains("v7", ignoreCase = true) -> flavorsAbis["armeabi-v7a"]
-								else -> 1
-							} ?: 1
+			if (hasBundledAssets(variant)) {
+				// Ship native libs deflate-compressed; the installer extracts them to
+				// nativeLibraryDir at install time. Saves ~5.9 MB per APK (ADFA-2306).
+				// Debug builds keep modern packaging (uncompressed, loaded from the APK)
+				// via the useLegacyPackaging = false default in app/build.gradle.kts.
+				variant.packaging.jniLibs.useLegacyPackaging
+					.set(true)
 
-						output.versionCode.set(10 * projectVersionCode + verCodeIncrement)
+				// include bundled assets in the APK
+				val assetsDir = rootProject.file("assets/release")
+				variant.sources.assets?.apply {
+					val commonAssets = assetsDir.resolve("common")
+					val flavorAssets = assetsDir.resolve(variant.flavorName!!)
+
+					if (!commonAssets.isDirectory) {
+						throw GradleException("${commonAssets.absolutePath} does not exist or is not a directory")
 					}
 
-					if (hasBundledAssets(variant)) {
-						// Ship native libs deflate-compressed; the installer extracts them to
-						// nativeLibraryDir at install time. Saves ~5.9 MB per APK (ADFA-2306).
-						// Debug builds keep modern packaging (uncompressed, loaded from the APK)
-						// via the useLegacyPackaging = false default in app/build.gradle.kts.
-						variant.packaging.jniLibs.useLegacyPackaging
-							.set(true)
-
-						// include bundled assets in the APK
-						val assetsDir = rootProject.file("assets/release")
-						variant.sources.assets?.apply {
-							val commonAssets = assetsDir.resolve("common")
-							val flavorAssets = assetsDir.resolve(variant.flavorName!!)
-
-							if (!commonAssets.isDirectory) {
-								throw GradleException("${commonAssets.absolutePath} does not exist or is not a directory")
-							}
-
-							if (!flavorAssets.isDirectory) {
-								throw GradleException("${flavorAssets.absolutePath} does not exist or is not a directory")
-							}
-
-							addStaticSourceDirectory(commonAssets.absolutePath)
-							addStaticSourceDirectory(flavorAssets.absolutePath)
-						}
+					if (!flavorAssets.isDirectory) {
+						throw GradleException("${flavorAssets.absolutePath} does not exist or is not a directory")
 					}
-				}
-			}
 
-			extensions.getByType(AppExtension::class.java).apply {
-				applicationVariants.all {
-					outputs.all {
-						val flavorName = productFlavors.firstOrNull()?.name ?: "default"
-						val date = SimpleDateFormat("-MMdd-HHmm").format(Date())
-						val buildTypeName = buildType.name
-						val newApkName = "CodeOnTheGo-$flavorName-${buildTypeName}$date.apk"
-
-						(this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
-					}
-				}
-			}
-		} else {
-			defaultConfig {
-				ndk {
-					abiFilters.clear()
-					abiFilters += flavorsAbis.keys
+					addStaticSourceDirectory(commonAssets.absolutePath)
+					addStaticSourceDirectory(flavorAssets.absolutePath)
 				}
 			}
 		}
-		if (project.path != ":plugin-api") {
-			flavorDimensions("abi")
-			productFlavors {
-				create("v7") {
-					dimension = "abi"
-
-					ndk.abiFilters.clear()
-					ndk.abiFilters += "armeabi-v7a"
-				}
-
-				create("v8") {
-					dimension = "abi"
-
-					ndk.abiFilters.clear()
-					ndk.abiFilters += "arm64-v8a"
-				}
-			}
-		}
-
-		buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
-			initWith(buildTypes.getByName("debug"))
-			matchingFallbacks += "debug"
-		}
-
-		buildTypes.getByName("debug") {
-			isMinifyEnabled = false
-		}
-
-		buildTypes.getByName("release") {
-			isMinifyEnabled = isAppModule
-			isShrinkResources = isAppModule
-
-			proguardFiles(
-				getDefaultProguardFile("proguard-android-optimize.txt"),
-				"proguard-rules.pro",
-			)
-			consumerProguardFiles("consumer-rules.pro")
-		}
-
-		testOptions { unitTests.isIncludeAndroidResources = true }
-
-		buildFeatures.viewBinding = true
-		buildFeatures.buildConfig = true
 	}
 }
 
 private fun Project.configureCoreLibDesugaring(
-	baseExtension: BaseExtension,
+	android: CommonExtension<*, *, *, *, *, *>,
 	coreLibDesugDep: Provider<MinimalExternalModuleDependency>,
 ) {
 	val coreLibDesugaringEnabled = project.path !in disableCoreLibDesugaringForModules
 
-	baseExtension.compileOptions.isCoreLibraryDesugaringEnabled = coreLibDesugaringEnabled
+	android.compileOptions.isCoreLibraryDesugaringEnabled = coreLibDesugaringEnabled
 
 	if (coreLibDesugaringEnabled) {
 		project.dependencies.add("coreLibraryDesugaring", coreLibDesugDep)
