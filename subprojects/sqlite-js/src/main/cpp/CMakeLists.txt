@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project(sqlitejs C)
 
-# sqlite-js with our patches applied; see ../../../README.md and ../../../vendor.sh
+# sqlite-js, with any patches of ours applied; see ../../../README.md and ../../../vendor.sh
 set(UPSTREAM ${CMAKE_CURRENT_SOURCE_DIR}/../../../upstream)
 
 add_library(sqlitejs SHARED

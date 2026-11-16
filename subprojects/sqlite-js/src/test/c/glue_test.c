@@ -258,17 +258,38 @@ int main (void) {
     unlink(upper);
 
     // A cancel that lands while a stored function loads, from cancelAll() for a query on another
-    // connection, stops its code as it stops any JavaScript then running. The function is loaded
-    // again, rather than left out of this connection for good.
+    // connection, does not stop the function's own code: since 1.4.3 loading it sets the
+    // connection up, as loading the extension does, so it loads on the first try.
+    char loading[512];
+    snprintf(loading, sizeof(loading), "%s/loading.db", dir);
+    db = open_with(loading, sqlite3_sqlitejs_init);
+    check(exec(db, "SELECT js_init_table()") == SQLITE_OK
+          && exec(db, "INSERT INTO js_functions (name, kind, step_code) VALUES ('v', 'scalar', "
+                      "'(db.exec(\"SELECT cancel_once()\").next(), (function () { for (let i = 0; i < 1000000; i++); })(), "
+                      "function (args) { return 6; })')") == SQLITE_OK,
+          "a database with a function v whose code cancels the first time it loads");
+    sqlite3_close(db);
+    logged[0] = 0;
+    db = open_trusted_with_cancel_once(loading);
+    check(cancel_calls == 1, "the cancel does not stop v's code while it loads");
+    check(answers(db, "SELECT v()", "6"), "v is loaded");
+    check(strstr(logged, "stored function v did not load") == NULL, "it does not log that v did not load");
+    sqlite3_close(db);
+    unlink(loading);
+
+    // But it stops JavaScript that the code runs through SQL, which is a call of its own, and that
+    // fails the load. The function is loaded again, rather than left out of this connection.
     char cancelled[512];
     snprintf(cancelled, sizeof(cancelled), "%s/cancelled.db", dir);
     db = open_with(cancelled, sqlite3_sqlitejs_init);
     check(exec(db, "SELECT js_init_table()") == SQLITE_OK
           && exec(db, "INSERT INTO js_functions (name, kind, step_code) VALUES ('w', 'scalar', "
-                      "'(db.exec(\"SELECT cancel_once()\").next(), (function () { for (let i = 0; i < 1000000; i++); })(), "
+                      "'(db.exec(\"SELECT cancel_once()\").next(), "
+                      "db.exec(\"SELECT js_eval(''for (let i = 0; i < 1000000; i++); 1'')\").next(), "
                       "function (args) { return 8; })')") == SQLITE_OK,
-          "a database with a function w whose code cancels the first time it loads");
+          "a database with a function w whose code cancels the first time it loads, then runs JavaScript through SQL");
     sqlite3_close(db);
+    cancel_calls = 0;
     logged[0] = 0;
     db = open_trusted_with_cancel_once(cancelled);
     check(cancel_calls == 2, "the trusted entry point loads w again after the cancel stops it");
@@ -286,9 +307,11 @@ int main (void) {
     check(exec(db, "SELECT js_init_table()") == SQLITE_OK
           && exec(db, "INSERT INTO js_functions (name, kind, step_code) VALUES ('h', 'scalar', "
                       "'(globalThis.held = db.exec(\"SELECT 1 UNION ALL SELECT 2\"), held.next(), "
-                      "db.exec(\"SELECT cancel_once()\").next(), (function () { for (let i = 0; i < 1000000; i++); })(), "
+                      "db.exec(\"SELECT cancel_once()\").next(), "
+                      "db.exec(\"SELECT js_eval(''for (let i = 0; i < 1000000; i++); 1'')\").next(), "
                       "function (args) { return 9; })')") == SQLITE_OK,
-          "a database with a function h whose code keeps a result set open and cancels the first time it loads");
+          "a database with a function h whose code keeps a result set open, cancels the first time it loads, "
+          "then runs JavaScript through SQL");
     sqlite3_close(db);
     cancel_calls = 0;
     logged[0] = 0;

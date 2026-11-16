@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests sqlite-js on this host: upstream's suite (test/main.c, not vendored) on its source with
-# patches/ applied, then src/test/c/glue_test.c, the test of the Android entry points, on the
+# any patches/ applied, then src/test/c/glue_test.c, the test of the Android entry points, on the
 # vendored upstream/. Run vendor.sh --check first: it shows the two are the same.
 # Usage: test.sh [TARBALL]   (without TARBALL, downloads it)
 # Needs gcc, make, curl and a JDK (JAVA_HOME, or javac on the PATH) for jni.h.
@@ -15,6 +15,7 @@ echo "$SHA256  $TARBALL" | sha256sum -c --quiet -
 SRC=$WORK/src
 mkdir "$SRC"
 tar -xzf "$TARBALL" -C "$SRC" --strip-components=1
+shopt -s nullglob  # patches/ holds our changes not yet upstream, and may be empty or missing
 for p in "$HERE"/patches/*.patch; do
 	patch -d "$SRC" -p1 --quiet --no-backup-if-mismatch <"$p"
 done
@@ -22,7 +23,7 @@ done
 # upstream's own build prints many warnings in QuickJS and SQLite: shown only if it fails
 build () { "$@" >"$WORK/build.log" 2>&1 || { cat "$WORK/build.log"; exit 1; }; }
 
-echo "# upstream test suite with patches/"
+echo "# upstream test suite"
 build make -C "$SRC" dist/js.so dist/main
 ( cd "$SRC" && ./dist/main )
 
@@ -39,7 +40,7 @@ build gcc -O1 -g -Wall -Wextra -Werror "${DEFS[@]}" "${INC[@]}" \
 	"$WORK/sqlitejs.o" "$WORK/quickjs.o" "$WORK/sqlite3.o" -o "$WORK/glue_test" -lm -lpthread -ldl
 "$WORK/glue_test"
 
-# again with sqlite-js working as on SQLite before 3.41, which patch 0002 is for
+# again with sqlite-js working as on SQLite before 3.41, where only a cancel stops a final that never ends
 echo "# sqlitejs_android.c, as on SQLite 3.40"
 build gcc -O1 -g -w "${DEFS[@]}" "${INC[@]}" -Dsqlite3_libversion_number=glue_sqlite3_libversion_number \
 	-c "$U/src/sqlitejs.c" -o "$WORK/sqlitejs-3.40.o"
