@@ -1320,7 +1320,13 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	protected var isRemovingTab: Boolean = false
+
 	override fun onTabSelected(tab: Tab) {
+		if (isRemovingTab) {
+			return
+		}
+
 		val position = tab.position
 
 		content.editorContainer.displayedChild = position
@@ -1403,6 +1409,33 @@ abstract class BaseEditorActivity :
 			anchorView = tab.view,
 			pluginMenuItems = pluginMenuItems,
 		)
+	}
+
+	protected open fun syncSelectedTab() {
+		val safeContent = contentOrNull ?: return
+		if (safeContent.tabs.tabCount > 0) {
+			val selectedTab = safeContent.tabs.getTabAt(safeContent.tabs.selectedTabPosition)
+			if (selectedTab != null) {
+				onTabSelected(selectedTab)
+			}
+		} else {
+			editorViewModel.setCurrentFile(-1, null)
+			updateTabVisibility()
+		}
+	}
+
+	protected open fun updateTabVisibility() {
+		val safeContent = contentOrNull ?: return
+		val hasFiles = editorViewModel.getOpenedFileCount() > 0
+		safeContent.apply {
+			if (!hasFiles) {
+				tabs.visibility = View.GONE
+				viewContainer.displayedChild = 1
+			} else {
+				tabs.visibility = View.VISIBLE
+				viewContainer.displayedChild = 0
+			}
+		}
 	}
 
 	override fun onGroupClick(group: DiagnosticGroup?) {
@@ -1720,21 +1753,8 @@ abstract class BaseEditorActivity :
 			)
 		}
 
-		editorViewModel.observeFiles(this) { files ->
-			if (this is EditorHandlerActivity) {
-				this.updateTabVisibility()
-			} else {
-				content.apply {
-					if (files.isNullOrEmpty()) {
-						tabs.visibility = View.GONE
-						viewContainer.displayedChild = 1
-					} else {
-						tabs.visibility = View.VISIBLE
-						viewContainer.displayedChild = 0
-					}
-				}
-			}
-
+		editorViewModel.observeFiles(this) {
+			updateTabVisibility()
 			invalidateOptionsMenu()
 		}
 	}

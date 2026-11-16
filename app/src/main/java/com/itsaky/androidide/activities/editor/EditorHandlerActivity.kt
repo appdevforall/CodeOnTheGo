@@ -1760,13 +1760,20 @@ open class EditorHandlerActivity :
 		}
 
 		val tabPosition = getTabPositionForFileIndex(index)
-		editorViewModel.removeFile(index)
+		isRemovingTab = true
+		try {
+			editorViewModel.removeFile(index)
 
-		if (tabPosition >= 0) {
-			content.tabs.removeTabAt(tabPosition)
-			content.editorContainer.removeViewAt(tabPosition)
-			shiftPluginIndices(tabPosition + 1, -1)
+			if (tabPosition >= 0) {
+				content.editorContainer.removeViewAt(tabPosition)
+				shiftPluginIndices(tabPosition + 1, -1)
+				content.tabs.removeTabAt(tabPosition)
+			}
+		} finally {
+			isRemovingTab = false
 		}
+
+		syncSelectedTab()
 
 		editorViewModel.areFilesModified = hasUnsavedFiles()
 		updateTabs()
@@ -2383,7 +2390,7 @@ open class EditorHandlerActivity :
 		return tabManager.canCloseTab(pluginId)
 	}
 
-	fun updateTabVisibility() {
+	override fun updateTabVisibility() {
 		val safeContent = contentOrNull ?: return
 		val hasFiles = editorViewModel.getOpenedFileCount() > 0
 		val hasPluginTabs = pluginTabIndices.isNotEmpty()
