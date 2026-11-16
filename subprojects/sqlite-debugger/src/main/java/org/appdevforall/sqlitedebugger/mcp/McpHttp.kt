@@ -41,6 +41,8 @@ class McpHttp(
 	private val log: (String) -> Unit = {},
 	/** Creates the listening socket; tests pass one whose accept fails. */
 	private val socketFactory: () -> ServerSocket = { ServerSocket() },
+	/** How long a request's head may take to arrive; see [HEAD_DEADLINE_MS]. Tests shorten it. */
+	private val headDeadlineMs: Int = HEAD_DEADLINE_MS,
 ) {
 	companion object {
 		private const val B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -86,6 +88,13 @@ class McpHttp(
 		/** A connection with no request for this long is closed. */
 		const val IDLE_TIMEOUT_MS = 30_000
 
+		/**
+		 * The whole head of a request (request line and headers) must arrive within this, counted from
+		 * the connection for its first request and from the first byte for later ones, so a client
+		 * that trickles bytes or never authenticates frees its slot.
+		 */
+		const val HEAD_DEADLINE_MS = 5_000
+
 		/** After a failed accept the loop sleeps this long, doubling up to the maximum while failures continue. */
 		const val ACCEPT_BACKOFF_MIN_MS = 100L
 		const val ACCEPT_BACKOFF_MAX_MS = 2_000L
@@ -114,7 +123,7 @@ class McpHttp(
 		val target: String,
 		val version: String,
 		val headers: Map<String, String>,
-		val body: ByteArray,
+		var body: ByteArray = ByteArray(0),
 	)
 
 	private class HttpError(
@@ -218,10 +227,26 @@ class McpHttp(
 		c.tcpNoDelay = true
 		val input = BufferedInputStream(c.getInputStream())
 		val out = c.getOutputStream()
+		var headStart = System.currentTimeMillis()
+		var first = true
 		while (running) {
 			val req =
 				try {
-					readRequest(input) ?: return
+					if (!first) {
+						// Between requests the client may idle; the head's clock starts at its first byte.
+						c.soTimeout = IDLE_TIMEOUT_MS
+						input.mark(1)
+						if (input.read() < 0) return
+						input.reset()
+						headStart = System.currentTimeMillis()
+					}
+					first = false
+					val head = readHead(input, c, headStart + headDeadlineMs) ?: return
+					// Refuse before reading a body, so an unauthenticated client never gets that far.
+					if (!allowed(head, out)) return
+					c.soTimeout = IDLE_TIMEOUT_MS
+					head.body = readBody(input, head.headers)
+					head
 				} catch (e: SocketTimeoutException) {
 					return
 				} catch (e: HttpError) {
@@ -230,6 +255,34 @@ class McpHttp(
 				}
 			if (!handle(req, out)) return
 		}
+	}
+
+	/** Host, Origin, path and token. Answers and returns false when the request is refused; the connection then closes. */
+	private fun allowed(
+		r: Request,
+		out: OutputStream,
+	): Boolean {
+		fun refuse(
+			status: Int,
+			message: String,
+			headers: Map<String, String> = emptyMap(),
+		): Boolean {
+			respond(out, status, rpcError(message), headers, close = true)
+			return false
+		}
+		if (!hostAllowed(r.headers["host"])) return refuse(403, "The Host header must be 127.0.0.1 or localhost.")
+		val origin = r.headers["origin"]
+		if (origin != null && !originAllowed(origin)) return refuse(403, "Requests from web pages aren't accepted.")
+		if (r.target.substringBefore('?') != PATH) return refuse(404, "Not found: the MCP endpoint is $PATH.")
+		if (!authorized(r.headers["authorization"])) {
+			return refuse(
+				401,
+				"Missing or wrong token. Code on the Go gives it to its Agent; " +
+					"send it as Authorization: Bearer <token>.",
+				mapOf("WWW-Authenticate" to "Bearer realm=\"SQLite debugger\""),
+			)
+		}
+		return true
 	}
 
 	/** Answers one request. Returns whether the connection stays open for another. */
@@ -246,20 +299,6 @@ class McpHttp(
 		): Boolean {
 			respond(out, status, body, headers, close)
 			return !close
-		}
-		if (!hostAllowed(r.headers["host"])) return send(403, rpcError("The Host header must be 127.0.0.1 or localhost."))
-		val origin = r.headers["origin"]
-		if (origin != null && !originAllowed(origin)) return send(403, rpcError("Requests from web pages aren't accepted."))
-		if (r.target.substringBefore('?') != PATH) return send(404, rpcError("Not found: the MCP endpoint is $PATH."))
-		if (!authorized(r.headers["authorization"])) {
-			return send(
-				401,
-				rpcError(
-					"Missing or wrong token. Code on the Go gives it to its Agent; " +
-						"send it as Authorization: Bearer <token>.",
-				),
-				mapOf("WWW-Authenticate" to "Bearer realm=\"SQLite debugger\""),
-			)
 		}
 		val session = r.headers["mcp-session-id"]
 		val reply =
@@ -322,14 +361,28 @@ class McpHttp(
 
 	// ---------------------------------------------------------------- reading and writing HTTP
 
-	/** One request, or null if the connection closed before one began. */
-	private fun readRequest(input: InputStream): Request? {
+	/** The head of one request (no body yet), or null if the connection closed before one began. */
+	private fun readHead(
+		input: InputStream,
+		c: Socket,
+		deadlineAt: Long,
+	): Request? {
 		var budget = MAX_HEADER_BYTES
+
+		fun read(): Int {
+			// Each blocking read may wait only as long as the head has left, however slowly bytes come.
+			if (input.available() == 0) {
+				val left = deadlineAt - System.currentTimeMillis()
+				if (left <= 0) throw SocketTimeoutException("the request's head took too long")
+				c.soTimeout = minOf(left, IDLE_TIMEOUT_MS.toLong()).toInt()
+			}
+			return input.read()
+		}
 
 		fun line(): String? {
 			val b = ByteArrayOutputStream()
 			while (true) {
-				val ch = input.read()
+				val ch = read()
 				if (ch < 0) {
 					if (b.size() == 0) return null else throw HttpError(400, "The request ended early.")
 				}
@@ -354,7 +407,7 @@ class McpHttp(
 			// A repeated header is joined, so two Host headers fail the Host check.
 			headers[name] = headers[name]?.let { "$it, $value" } ?: value
 		}
-		return Request(parts[0], parts[1], parts[2], headers, readBody(input, headers))
+		return Request(parts[0], parts[1], parts[2], headers)
 	}
 
 	private fun readBody(

@@ -66,7 +66,7 @@ class McpProtocol(
 		const val INVALID_PARAMS = -32602
 		const val INSTRUCTIONS =
 			"Inspects and queries the SQLite databases of the app this server runs in, a debug " +
-				"build made with Code on the Go. Read-only unless the app's developer turned on read-write mode."
+				"build made with Code on the Go. Every tool is read-only."
 	}
 
 	/** What to send back: an HTTP status, a JSON body (or none), and extra headers. */

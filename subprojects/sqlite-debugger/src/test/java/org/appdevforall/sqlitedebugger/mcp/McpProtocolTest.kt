@@ -80,6 +80,8 @@ class McpProtocolTest {
 		assertEquals("2025-03-26", result.getString("protocolVersion"))
 		assertEquals(McpProtocol.SERVER_NAME, result.getJSONObject("serverInfo").getString("name"))
 		assertTrue(result.getJSONObject("capabilities").has("tools"))
+		// no read-write mode exists, so the agent must not be told one may be on
+		assertFalse(result.getString("instructions").contains("read-write", ignoreCase = true))
 		assertEquals(1, p.sessionCount())
 	}
 
@@ -465,5 +467,66 @@ class McpProtocolTest {
 		assertEquals(200, http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = ping).status)
 		assertEquals(204, http(port, "DELETE", headers = auth + ("Mcp-Session-Id" to s)).status)
 		assertEquals(404, http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = ping).status)
+	}
+
+	@Test fun clientsThatTrickleOrNeverAuthenticateAreDroppedAndDoNotBlockTheRealOne() {
+		val s = McpHttp(protocol(), { token }, port = 0, headDeadlineMs = 600)
+		s.start()
+		server = s
+		val port = s.boundPort
+		val started = System.nanoTime()
+		val held = mutableListOf<Socket>()
+		try {
+			repeat(McpHttp.MAX_CONNECTIONS) { i ->
+				val c = Socket("127.0.0.1", port)
+				c.soTimeout = 5000
+				held += c
+				// half of them send a byte now and then, which resets a per-read timeout but not the deadline
+				if (i % 2 == 0) {
+					c.getOutputStream().apply {
+						write("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\n".toByteArray())
+						flush()
+					}
+				}
+			}
+			// the slots are full: a real client is refused with 503
+			assertEquals(503, http(port, "POST", headers = auth, body = initBody()).status)
+			val trickler =
+				Thread {
+					try {
+						repeat(20) {
+							Thread.sleep(200)
+							held[0].getOutputStream().apply {
+								write("X-Slow: 1\r\n".toByteArray())
+								flush()
+							}
+						}
+					} catch (ignored: Exception) {
+					}
+				}
+			trickler.isDaemon = true
+			trickler.start()
+			// every held connection is closed by the server within the deadline plus slack
+			for (c in held) assertEquals(-1, c.getInputStream().read())
+			val elapsedMs = (System.nanoTime() - started) / 1_000_000
+			assertTrue("took $elapsedMs ms", elapsedMs < 3_000)
+			assertEquals(200, http(port, "POST", headers = auth, body = initBody()).status)
+		} finally {
+			held.forEach { it.close() }
+		}
+	}
+
+	@Test fun anUnauthenticatedRequestIsRefusedBeforeItsBodyIsRead() {
+		val port = startServer()
+		Socket("127.0.0.1", port).use { c ->
+			c.soTimeout = 3000
+			c.getOutputStream().apply {
+				write("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1000\r\n\r\n".toByteArray())
+				flush()
+			}
+			// the body never comes, yet the answer does
+			val line = c.getInputStream().bufferedReader().readLine()
+			assertTrue(line, line.startsWith("HTTP/1.1 401"))
+		}
 	}
 }
