@@ -1242,6 +1242,7 @@
 	<string name="quick_build_reinstall_timed_out">Your app needs a reinstall - the install prompt went unanswered for %1$d seconds. Tap Quick Build to try again.</string>
 	<string name="quick_build_reinstall_waiting_for_gradle">Waiting for the current Gradle build to finish - your app still needs a reinstall. Tap Quick Build to retry.</string>
 	<string name="quick_build_install_could_not_start">Quick Build could not start installing your app.</string>
+	<string name="quick_build_too_many_install_sessions">Quick Build could not start installing your app because too many previous install prompts are still open. Tap Quick Build to try again.</string>
 	<string name="quick_build_install_failed">Quick Build could not install your app.</string>
 	<string name="quick_build_installed_but_unresolvable">Quick Build installed %1$s, but Android will not open it. Restarting the session reinstalls it.</string>
 	<string name="quick_build_foreign_app_installed">%1$s is already installed on this device and was not built here, so Quick Build cannot replace it without deleting its data. Back it up and uninstall it yourself first.</string>
