@@ -255,17 +255,21 @@ class DatabaseTools(
 			.put("required", JSONArray(listOf("database") + required))
 	}
 
+	private fun canonical(path: String): String = runCatching { File(path).canonicalPath }.getOrDefault(path)
+
 	private fun listDatabases(): JSONObject {
 		val connections = engine.connections()
 		val byPath = LinkedHashMap<String, MutableList<Long>>()
 		for (c in connections) if (c.path.isNotEmpty()) byPath.getOrPut(c.path) { mutableListOf() } += c.id
+		// The folder may be reached through a link (/data/user/0/<pkg> and /data/data/<pkg>), so match resolved paths.
+		val openCanonical = byPath.keys.map { canonical(it) }.toSet()
 		val list = JSONArray()
 		for ((path, ids) in byPath) {
 			list.put(JSONObject().put("path", path).put("available", true).put("connections", ids.size))
 		}
 		databaseDir?.listFiles()?.sortedBy { it.name }?.forEach { f ->
 			if (!f.isFile || SIDE_FILE_SUFFIXES.any { f.name.endsWith(it) }) return@forEach
-			if (f.absolutePath in byPath || f.path in byPath) return@forEach
+			if (canonical(f.absolutePath) in openCanonical) return@forEach
 			list.put(JSONObject().put("path", f.absolutePath).put("available", false).put("connections", 0))
 		}
 		return JSONObject().put("databases", list)

@@ -116,6 +116,41 @@ class DatabaseToolsTest {
 		}
 	}
 
+	@Test fun listDatabasesMatchesOpenFilesThroughASymlinkedFolder() {
+		val root =
+			kotlin.io.path
+				.createTempDirectory("dbs")
+		try {
+			val real =
+				java.nio.file.Files
+					.createDirectory(root.resolve("real"))
+					.toFile()
+			val link = root.resolve("link")
+			java.nio.file.Files
+				.createSymbolicLink(link, real.toPath())
+			listOf("open.db", "closed.db").forEach { File(real, it).writeText("x") }
+			// the folder is listed through the link, the connection reports the real path
+			dir = link.toFile()
+			engine.appConnections += conn(1, File(real, "open.db").absolutePath)
+			var dbs = ok("list_databases").getJSONArray("databases")
+			assertEquals(dbs.toString(), 2, dbs.length())
+			assertEquals(File(real, "open.db").absolutePath, dbs.getJSONObject(0).getString("path"))
+			assertTrue(dbs.getJSONObject(0).getBoolean("available"))
+			assertFalse(dbs.getJSONObject(1).getBoolean("available"))
+			assertTrue(dbs.getJSONObject(1).getString("path").endsWith("closed.db"))
+
+			// and the other way round: the connection reports the link, the folder is the real one
+			engine.appConnections.clear()
+			dir = real
+			engine.appConnections += conn(2, File(link.toFile(), "open.db").absolutePath)
+			dbs = ok("list_databases").getJSONArray("databases")
+			assertEquals(dbs.toString(), 2, dbs.length())
+			assertEquals(File(link.toFile(), "open.db").absolutePath, dbs.getJSONObject(0).getString("path"))
+		} finally {
+			root.toFile().deleteRecursively()
+		}
+	}
+
 	@Test fun listConnectionsEncodesBigIntegersAsStrings() {
 		engine.appConnections += conn(1, "/data/a.db", closing = true)
 		val c = ok("list_connections").getJSONArray("connections").getJSONObject(0)
