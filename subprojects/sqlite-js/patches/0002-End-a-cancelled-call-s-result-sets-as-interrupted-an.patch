@@ -14,12 +14,13 @@ does; before 3.41 nothing did, and a final that never ends hung the
 statement for good.
 
 The finals that ending a call's result sets runs now keep that call's
-epoch. A cancel during the call, or during the ending, stops every one
-of them, and a cancel that lands just before the call returns fails the
-statement with an interrupt, rather than letting the call succeed with
-its finals skipped. Reading on from those result sets throws
-"interrupted", as after sqlite3_interrupt() on 3.41 and later, rather
-than the message for a result set that outlived its call.
+epoch, so a cancel during the call, or during the ending, stops each of
+them at QuickJS's next interrupt check: one that never ends is stopped
+and the statement fails with an interrupt, though a short final can
+still run to its end. When the cancel came before the call returned,
+reading on from its result sets throws "interrupted", as after
+sqlite3_interrupt() on 3.41 and later, rather than the message for a
+result set that outlived its call.
 
 Before 3.41, an sqlite3_interrupt() that no cancel came with still reads
 as the result set outliving its call: nothing shows it.

@@ -351,7 +351,8 @@ int main (void) {
           "a window function whose final takes a while and records that it ran");
     check(exec(db, "SELECT js_eval('globalThis.held = db.exec(\"SELECT long_final(column1) OVER (ORDER BY column1) "
                    "FROM (VALUES (1), (2), (3))\"); held.next(); db.exec(\"SELECT cancel_now()\").next(); 0')") != SQLITE_OK,
-          "a cancel that lands as a call returns fails the call");
+          "a cancel that lands as a call returns stops its long final and fails the call");
+    check(answers(db, "SELECT count(*) FROM ran", "0"), "that final did not finish");
     check(answers(db, "SELECT 1 + 2", "3"), "the connection runs SQL after that cancel");
 
     // A direct sqlite3_interrupt() that reaches the SQL of a db.exec, while another result set is
