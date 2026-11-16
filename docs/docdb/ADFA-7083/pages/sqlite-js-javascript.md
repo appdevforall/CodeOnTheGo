@@ -140,7 +140,7 @@ SELECT js_eval('(function () {
 -- not added: UNIQUE constraint failed: colors.name
 ```
 
-A result set lasts only until the call into JavaScript that created it returns: the `js_eval`, or the call of your function from SQL. When that call was made inside another one, by SQL that the other call ran with `db.exec`, the result set lasts until the outer call returns. Read what you need before then. In a later call, `next()`, `toArray()`, `get()` and `name()` throw `The result set was closed when the call into JavaScript that created it returned`, or `interrupted` after Ctrl-C stopped the call. A result set whose `next()` returned `false`, or whose `toArray()` ran, still reports that it has no more rows.
+A result set lasts only until the call into JavaScript that created it returns: the `js_eval`, or the call of your function from SQL. When that call was made inside another one, by SQL that the other call ran with `db.exec`, the result set lasts until the outer call returns. Read what you need before then. In a later call, `next()`, `toArray()`, `get()` and `name()` throw `The result set was closed when the call into JavaScript that created it returned`, or `interrupted` after Ctrl-C stopped the call. A result set whose `next()` returned `false`, or whose `toArray()` ran, still reports that it has no more rows. A result set whose `next()` or `toArray()` threw an error, such as a failed constraint, also reports no more rows afterward: `next()` returns `false` and `toArray()` returns `[]`, with no error. Catch the error where it happens, and do not read that as success.
 
 ```sql
 SELECT js_eval('globalThis.kept = db.exec("SELECT 1 UNION ALL SELECT 2"); kept.next(); kept.get(0)');

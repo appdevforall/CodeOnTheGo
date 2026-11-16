@@ -200,7 +200,7 @@ sqlite-js 1.4.0 includes fixes that App Dev For All sent to the upstream project
 
 sqlite-js 1.4.2 has more fixes, several of them sent or reported by App Dev For All. Compared with 1.4.1:
 
-- A result set from `db.exec` lasts only until the outermost call into JavaScript returns. Reading it in a later call throws an error, where before it went on with its rows.
+- A result set from `db.exec` lasts only until the outermost call into JavaScript returns. Reading it in a later call throws an error, where before it went on with its rows. A result set already read to its end still reports that it has no more rows.
 - Ctrl-C no longer leaves `sqlite3` failing every later query with `interrupted` when JavaScript kept a result set.
 - Code that calls itself without end fails instead of crashing `sqlite3` in more cases. If the stack has no limit, `js_set_max_stack_size` allows at most 1 MB.
 - JavaScript that runs out of memory while much of its memory is garbage no longer fails again on every try.
