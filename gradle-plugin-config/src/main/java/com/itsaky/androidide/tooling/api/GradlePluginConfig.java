@@ -70,6 +70,11 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_SQLITE_DEBUGGER_ENABLED = "cogo.sqliteDebugger";
 
 	/**
+	 * The path to the SQLite debugger AAR file, passed by Code on the Go like {@link #PROPERTY_LOG_SENDER_AAR}.
+	 */
+	public static final String PROPERTY_SQLITE_DEBUGGER_AAR = "androidide.sqliteDebugger.aar";
+
+	/**
 	 * The path to the AAR with the helpers the SQLite rewrite redirects to (ADFA-7138), passed by Code on the Go like {@link #PROPERTY_SQLITE_DEBUGGER_AAR}.
 	 */
 	public static final String PROPERTY_SQLITE_REWRITE_RUNTIME_AAR = "androidide.sqliteRewriteRuntime.aar";

@@ -176,6 +176,14 @@ gradlePlugin {
 			tags.set(setOf("androidide", "logsender"))
 		}
 
+		create("sqliteDebuggerPlugin") {
+			id = "${BuildConfig.PACKAGE_NAME}.sqlitedebugger"
+			implementationClass = "${BuildConfig.PACKAGE_NAME}.gradle.SqliteDebuggerPlugin"
+			displayName = "AndroidIDE SQLite Debugger Gradle Plugin"
+			description =
+				"Gradle plugin for adding the SQLite debugger to debuggable variants of projects that are built with AndroidIDE"
+			tags.set(setOf("androidide", "sqlite"))
+		}
 	}
 }
 

@@ -129,6 +129,7 @@ public class ToolsManager {
 
 			ensureToolingJar(app);
 			extractLogSender(app);
+			extractSqliteDebugger();
 			extractSqliteRewriteRuntime();
 
 			writeNoMediaFile();
@@ -260,6 +261,19 @@ public class ToolsManager {
 		final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
 		ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
 				Environment.LOGSENDER_AAR.getAbsolutePath());
+	}
+
+	@WorkerThread
+	private static void extractSqliteDebugger() {
+		if (Environment.SQLITE_DEBUGGER_AAR.exists()) {
+			FileUtils.delete(Environment.SQLITE_DEBUGGER_AAR);
+		}
+
+		Environment.mkdirIfNotExists(Environment.SQLITE_DEBUGGER_DIR);
+
+		// One AAR with both ABIs, unlike logsender's per-flavor AARs
+		ResourceUtils.copyFileFromAssets(getCommonAsset("sqlite-debugger-release.aar"),
+				Environment.SQLITE_DEBUGGER_AAR.getAbsolutePath());
 	}
 
 	@WorkerThread
