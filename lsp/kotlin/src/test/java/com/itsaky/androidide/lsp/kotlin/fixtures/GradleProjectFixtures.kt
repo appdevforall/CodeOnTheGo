@@ -5,6 +5,7 @@ import com.itsaky.androidide.project.Common
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.project.JavaModels
 import com.itsaky.androidide.projects.api.JavaModule
+import com.itsaky.androidide.projects.models.ArtifactScope
 import java.nio.file.Path
 import kotlin.io.path.pathString
 
@@ -86,6 +87,11 @@ private fun projectDependencies(projectPaths: List<String>): AndroidModels.Varia
 		)
 	}
 	return variantDeps
-		.setMainArtifact(AndroidModels.ArtifactDependencies.newBuilder().setCompileGraph(graph))
-		.build()
+		.putArtifacts(
+			ArtifactScope.Main.key,
+			AndroidModels.ArtifactDependencies
+				.newBuilder()
+				.setCompileGraph(graph)
+				.build(),
+		).build()
 }
