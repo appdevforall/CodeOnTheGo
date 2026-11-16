@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import com.itsaky.androidide.plugins.services.DebuggerEndpoint as PluginDebuggerEndpoint
 
 /**
  * Which app each project builds, and the SQLite debugger endpoint the app last reported (ADFA-7137).
@@ -130,6 +131,19 @@ class DebuggerEndpointRepository(
 		} catch (e: Exception) {
 			log.warn("Could not {}", what, e)
 			false
+		}
+
+	/**
+	 * The endpoints the apps of [projectDir] have reported, for the plugin API (ADFA-7139). Looked
+	 * up by the canonical path, as the pairing stores it; apps that have not reported yet are left
+	 * out. Unlike the writes, a read failure is thrown: the plugin API reports it rather than
+	 * answering "no apps".
+	 */
+	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
+		dao.getByProjectLocation(projectDir.canonicalProjectLocation()).mapNotNull { row ->
+			val token = row.token ?: return@mapNotNull null
+			val port = row.port ?: return@mapNotNull null
+			PluginDebuggerEndpoint(row.applicationId, port, token, row.updatedAt ?: 0L)
 		}
 
 	private companion object {

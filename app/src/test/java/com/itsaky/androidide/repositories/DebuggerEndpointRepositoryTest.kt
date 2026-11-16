@@ -337,4 +337,29 @@ class DebuggerEndpointRepositoryTest {
 
 		assertThat(result.exceptionOrNull()).isInstanceOf(kotlinx.coroutines.CancellationException::class.java)
 	}
+
+	@Test
+	fun `reported endpoints are found through a non-canonical path and unreported apps are left out`() =
+		runBlocking<Unit> {
+			val dir =
+				java.nio.file.Files
+					.createTempDirectory("proj")
+					.toFile()
+			try {
+				addProject(dir.canonicalPath)
+				assertThat(repository.recordInstalled("com.example.reported", dir.canonicalPath)).isTrue()
+				assertThat(repository.recordInstalled("com.example.silent", dir.canonicalPath)).isTrue()
+				assertThat(repository.storeEndpoint("com.example.reported", endpoint)).isTrue()
+
+				val endpoints = repository.reportedEndpoints(File(dir, "../" + dir.name))
+
+				assertThat(endpoints.map { it.applicationId }).containsExactly("com.example.reported")
+				val e = endpoints.single()
+				assertThat(e.port).isEqualTo(5555)
+				assertThat(e.token).isEqualTo("tok-en_1")
+				assertThat(e.updatedAtMillis).isEqualTo(1234L)
+			} finally {
+				dir.delete()
+			}
+		}
 }
