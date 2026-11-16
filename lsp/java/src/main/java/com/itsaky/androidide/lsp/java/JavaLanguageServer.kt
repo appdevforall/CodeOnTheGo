@@ -342,7 +342,7 @@ class JavaLanguageServer : ILanguageServer {
 		val module =
 			ProjectManagerImpl.getInstance().findModuleForFile(file!!)
 				?: return JavaCompilerService.NO_MODULE_COMPILER
-		return JavaCompilerProvider.get(module)
+		return JavaCompilerProvider.get(module, file)
 	}
 
 	private fun startOrRestartAnalyzeTimer() {
@@ -369,8 +369,10 @@ class JavaLanguageServer : ILanguageServer {
 			getInstance()
 				.findModuleForFile(event.changedFile)
 		if (module != null) {
-			val compiler = JavaCompilerProvider.get(module)
-			compiler.onDocumentChange(event)
+			val changedScope = module.artifactScopeOf(event.changedFile)
+			JavaCompilerProvider.getInstance().forModule(module, changedScope).onDocumentChange(event)
+			// Scopes that compile against the changed one (tests against main or fixtures) are stale now.
+			JavaCompilerProvider.getInstance().invalidateScopesSeeing(module, changedScope)
 		}
 		startOrRestartAnalyzeTimer()
 	}

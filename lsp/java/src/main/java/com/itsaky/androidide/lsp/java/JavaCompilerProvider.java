@@ -20,7 +20,11 @@ package com.itsaky.androidide.lsp.java;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService;
+import com.itsaky.androidide.projects.IProjectManager;
 import com.itsaky.androidide.projects.api.ModuleProject;
+import com.itsaky.androidide.projects.models.ArtifactScope;
+import java.io.File;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -36,9 +40,37 @@ public class JavaCompilerProvider {
 	private static final Logger logger = LoggerFactory.getLogger(JavaCompilerProvider.class);
 	private static JavaCompilerProvider sInstance;
 
+	/**
+	 * The compiler for {@code file}, per {@link #get(ModuleProject, Path)}, or null when no module holds it or it is outside every source directory of its module's selected variant.
+	 */
+	@Nullable
+	public static JavaCompilerService forFile(@NonNull File file) {
+		return forFile(file.toPath());
+	}
+
+	/** See {@link #forFile(File)}. */
+	@Nullable
+	public static JavaCompilerService forFile(@NonNull Path file) {
+		final ModuleProject module = IProjectManager.getInstance().findModuleForFile(file, false);
+		return module == null ? null : get(module, file);
+	}
+
+	/** The compiler for {@code module}'s main sources. Use {@link #get(ModuleProject, Path)} for a file that may be a test. */
 	@NonNull
 	public static JavaCompilerService get(ModuleProject module) {
-		return JavaCompilerProvider.getInstance().forModule(module);
+		return JavaCompilerProvider.getInstance().forModule(module, ArtifactScope.Main.INSTANCE);
+	}
+
+	/** See {@link #get(ModuleProject, Path)}. */
+	@NonNull
+	public static JavaCompilerService get(@NonNull ModuleProject module, @NonNull File file) {
+		return get(module, file.toPath());
+	}
+
+	/** The compiler for the scope of {@code module} that holds {@code file}. */
+	@NonNull
+	public static JavaCompilerService get(@NonNull ModuleProject module, @NonNull Path file) {
+		return JavaCompilerProvider.getInstance().forModule(module, module.artifactScopeOf(file));
 	}
 
 	public static JavaCompilerProvider getInstance() {
@@ -49,7 +81,8 @@ public class JavaCompilerProvider {
 		return sInstance;
 	}
 
-	private final Map<ModuleProject, JavaCompilerService> mCompilers = new ConcurrentHashMap<>();
+	// One compiler per module and test scope: each compiles against its own source path and classpath.
+	private final Map<Key, JavaCompilerService> mCompilers = new ConcurrentHashMap<>();
 
 	private JavaCompilerProvider() {}
 
@@ -84,18 +117,31 @@ public class JavaCompilerProvider {
 		return null;
 	}
 
+	/** The compiler for {@code module}'s {@code scope} sources. */
 	@NonNull
-	public synchronized JavaCompilerService forModule(ModuleProject module) {
+	public synchronized JavaCompilerService forModule(ModuleProject module, @NonNull ArtifactScope scope) {
 		// A module instance is set to the compiler only in case the project is initialized or
 		// this method was called with other module instance.
-		final JavaCompilerService cached = mCompilers.get(module);
+		final Key key = new Key(module, scope);
+		final JavaCompilerService cached = mCompilers.get(key);
 		if (cached != null && cached.getModule() != null) {
 			return cached;
 		}
 
-		final JavaCompilerService newInstance = new JavaCompilerService(module);
-		mCompilers.put(module, newInstance);
+		final JavaCompilerService newInstance = new JavaCompilerService(module, scope);
+		mCompilers.put(key, newInstance);
 
 		return newInstance;
 	}
+
+	/** Invalidates the cached compiles of {@code module}'s other scopes that read {@code changed}'s sources. */
+	public void invalidateScopesSeeing(@NonNull ModuleProject module, @NonNull ArtifactScope changed) {
+		mCompilers.forEach((key, compiler) -> {
+			if (key.module() == module && !key.scope().equals(changed) && key.scope().sees(changed)) {
+				compiler.invalidateCompile();
+			}
+		});
+	}
+
+	private record Key(ModuleProject module, @NonNull ArtifactScope scope) {}
 }

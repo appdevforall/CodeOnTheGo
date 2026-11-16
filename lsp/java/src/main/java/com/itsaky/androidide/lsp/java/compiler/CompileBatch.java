@@ -141,7 +141,7 @@ public class CompileBatch implements AutoCloseable {
 				continue;
 			}
 			String packageName = packageName(err);
-			ClassTrie.Node node = parent.getModule().compileJavaSourceClasses.findNode(packageName);
+			ClassTrie.Node node = parent.getSourceClasses().findNode(packageName);
 			if (node != null && node.isClass() && node instanceof SourceClassTrie.SourceNode) {
 				addFiles.add(((SourceClassTrie.SourceNode) node).getFile());
 			}
