@@ -401,7 +401,10 @@ open class EditorHandlerActivity :
 			TSLanguageRegistry.instance.registerIfNeeded(LogLanguage.TS_TYPE, LogLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(JsonLanguage.TS_TYPE, JsonLanguage.FACTORY)
 			TSLanguageRegistry.instance.registerIfNeeded(XMLLanguage.TS_TYPE, XMLLanguage.FACTORY)
-			JavaScriptLanguage.FILE_TYPES.forEach { TSLanguageRegistry.instance.registerIfNeeded(it, JavaScriptLanguage.FACTORY) }
+			JavaScriptLanguage.FILE_TYPES.forEach { type ->
+				val factory = JavaScriptLanguage.factory { PluginLanguageSupport.serverIdForType(type) }
+				TSLanguageRegistry.instance.registerIfNeeded(type, factory)
+			}
 			PluginLanguageSupport.registerGrammars()
 			IDEColorSchemeProvider.initIfNeeded()
 		}
