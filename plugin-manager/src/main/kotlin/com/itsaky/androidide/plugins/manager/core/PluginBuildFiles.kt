@@ -39,10 +39,14 @@ class PluginBuildFiles internal constructor(
 	// library there for the reinstalled build's class loader while the old one still holds it.
 	private val handedOut: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+	/** Whether [file] is a plugin file, which only its manifest ties to a plugin. */
+	fun isPluginFile(file: File): Boolean =
+		file.isFile && file.parentFile == pluginsDir && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
+
 	/** Every plugin file whose manifest has [pluginId]. Its name can't tell: it names the build. */
 	fun filesOf(pluginId: String): List<File> =
 		pluginsDir
-			.listFiles { file -> file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) }
+			.listFiles(::isPluginFile)
 			.orEmpty()
 			.filter { file ->
 				runCatching { readPluginId(file) }
