@@ -1,6 +1,6 @@
-From 2aa939e18a7adc8826318500038fda83cdbc85fc Mon Sep 17 00:00:00 2001
+From 09aa66a1ed410a588afb8233ecc574d908087231 Mon Sep 17 00:00:00 2001
 From: David Schachter <davidschachter@appdevforall.org>
-Date: Sun, 15 Nov 2026 21:24:53 -0800
+Date: Sun, 15 Nov 2026 22:10:52 -0800
 Subject: [PATCH] End a cancelled call's result sets as interrupted, and stop
  their finals
 
@@ -21,17 +21,26 @@ still run to its end. Reading on from those result sets throws
 "interrupted", as after sqlite3_interrupt() on 3.41 and later, rather
 than the message for a result set that outlived its call, whether the
 cancel came before the call returned or while its result sets were
-ended. js_end_rowsets() marks the latter after its loop, by the pass
-that ended them, since a final it runs can free result sets of the list.
+ended. js_end_rowsets() marks both after its loop, by the pass that
+ended them, since a final it runs can free result sets of the list;
+js_leave() no longer needs to mark a cancelled call's result sets
+itself.
 
 Before 3.41, an sqlite3_interrupt() that no cancel came with still reads
 as the result set outliving its call: nothing shows it.
+
+The comment at the interrupt handler now says that only the JavaScript
+the extension runs while it initialises a connection is exempt from a
+cancel, not stored functions loaded by js_init_table. A rowset's
+end_pass is initialised where it is created, and sqlitejs_cancel_all is
+documented in sqlitejs.h.
 ---
- src/sqlitejs.c | 22 ++++++++++++++++++++--
- 1 file changed, 20 insertions(+), 2 deletions(-)
+ src/sqlitejs.c | 26 +++++++++++++++++++++++---
+ src/sqlitejs.h |  2 ++
+ 2 files changed, 25 insertions(+), 3 deletions(-)
 
 diff --git a/src/sqlitejs.c b/src/sqlitejs.c
-index e5fea55..4872407 100644
+index e5fea55..0a32d36 100644
 --- a/src/sqlitejs.c
 +++ b/src/sqlitejs.c
 @@ -75,6 +75,7 @@ typedef struct {
@@ -81,7 +90,20 @@ index e5fea55..4872407 100644
      js->ending_rowsets = false;
  }
  
-@@ -576,7 +588,10 @@ static bool js_stack_room (size_t *room) {
+@@ -358,8 +370,10 @@ static int js_interrupt_handler (JSRuntime *rt, void *opaque) {
+     UNUSED(rt);
+     globaljs_context *js = (globaljs_context *)opaque;
+     js_keep_gc_below_limit(js);
+-    // Only a call (see js_enter) is cancelled: the JavaScript a connection runs while it is set
+-    // up is not one, and stopping it would make the connection fail to load the extension.
++    // Only a call (see js_enter) is cancelled. The one exception is the JavaScript the extension
++    // itself runs while it initialises a connection (globaljs_init, depth 0): stopping it would
++    // make the connection fail to load. Stored functions loaded by js_init_table run as a call,
++    // so they can be cancelled.
+     if ((js->depth > 0) && (js->cancel_epoch != js_cancel_epoch_load())) {
+         // The statement is interrupted too: a collation cannot report an error, so the
+         // statement would go on calling JavaScript, each call beginning after the cancel.
+@@ -576,7 +590,10 @@ static bool js_stack_room (size_t *room) {
  // runs JavaScript) is on the same thread and keeps the outer call's limit.
  static void js_enter (globaljs_context *js) {
      if (js->depth++ > 0) return;
@@ -93,18 +115,36 @@ index e5fea55..4872407 100644
      JS_UpdateStackTop(js->runtime);
      // A thread with less room than SQLITE_JS_STACK_MIN keeps it too: JavaScript there then fails
      // with "Maximum call stack size exceeded" rather than running past the end of the stack. A
-@@ -591,7 +606,10 @@ static void js_enter (globaljs_context *js) {
+@@ -591,6 +608,8 @@ static void js_enter (globaljs_context *js) {
  static void js_leave (globaljs_context *js) {
      if (--js->depth > 0) return;
      if (!js->rowsets) return;
--    bool interrupted = (sqlite3_libversion_number() >= 3041000) && js->db && sqlite3_is_interrupted(js->db);
-+    // A cancel (sqlitejs_cancel_all) during the call interrupted it, and before SQLite 3.41 is
-+    // the only interrupt that shows: its result sets read on as interrupted.
-+    bool cancelled = (js->cancel_epoch != js_cancel_epoch_load());
-+    bool interrupted = cancelled || ((sqlite3_libversion_number() >= 3041000) && js->db && sqlite3_is_interrupted(js->db));
++    // A cancel (sqlitejs_cancel_all) is not seen here: js_end_rowsets() marks its result sets
++    // interrupted itself, which is the only way they read so before SQLite 3.41.
+     bool interrupted = (sqlite3_libversion_number() >= 3041000) && js->db && sqlite3_is_interrupted(js->db);
      js_end_rowsets(js, true, interrupted);
  }
+@@ -936,6 +955,7 @@ static JSValue js_sqlite_exec (JSContext *ctx, sqlite3 *db, const char *sql, int
+     rs->vm = vm;
+     rs->ncols = sqlite3_column_count(vm);
+     rs->ended = false;
++    rs->end_pass = 0;
+     rs->interrupted = false;
+     rs->orphaned = false;
+     rs->prev = rs->next = NULL;
+diff --git a/src/sqlitejs.h b/src/sqlitejs.h
+index ed6ce4e..7cf1ce3 100644
+--- a/src/sqlitejs.h
++++ b/src/sqlitejs.h
+@@ -21,6 +21,8 @@
+ int sqlite3_js_init (sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
+ const char *sqlitejs_version (void);
+ const char *quickjs_version (void);
++// Stops all JavaScript now running, in every connection. Safe to call from any thread. It
++// stops only JavaScript already running: calls that begin afterwards are not affected.
+ void sqlitejs_cancel_all (void);
  
+ #endif
 -- 
 2.53.0
 
