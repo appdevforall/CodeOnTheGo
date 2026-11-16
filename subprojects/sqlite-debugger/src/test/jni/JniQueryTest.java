@@ -196,7 +196,14 @@ public class JniQueryTest {
 		eq(row[2], "a😀b", "arg text");
 		check(Arrays.equals((byte[]) row[3], new byte[] {9, 8, 7}), "arg blob");
 		eq(row[4], null, "arg null");
-		eq(q(srv, "SELECT ?").rows.get(0)[0], null, "an unbound parameter is NULL");
+		eq(codeOf(srv, "SELECT ?", new Object[0], FAR), 25, "too few args: SQLITE_RANGE, not a NULL parameter");
+		eq(codeOf(srv, "SELECT ?, ?", new Object[] {1L}, FAR), 25, "one arg of two: SQLITE_RANGE");
+		eq(codeOf(srv, "SELECT 1", new Object[] {1L}, FAR), 25, "an arg for no parameter: SQLITE_RANGE");
+		try {
+			query(srv, "SELECT ?, ?", new Object[] {1L}, 0, 100, 4096, 1024, MAX, FAR);
+		} catch (DebugEngineException e) {
+			check(e.getMessage().contains("2 parameter") && e.getMessage().contains("1 argument"), "the message names both counts: " + e.getMessage());
+		}
 		eq(codeOf(srv, "SELECT ?", new Object[] {1L, 2L}, FAR), 25, "too many args: SQLITE_RANGE");
 		eq(codeOf(srv, "SELECT ?", new Object[] {new Object()}, FAR), 21, "unsupported arg type: SQLITE_MISUSE");
 		eq(codeOf(srv, "SELEKT 1", new Object[0], FAR), 1, "syntax error: SQLITE_ERROR");

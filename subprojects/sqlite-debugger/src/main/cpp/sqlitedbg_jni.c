@@ -8,6 +8,7 @@
 
 #include <dlfcn.h>
 #include <jni.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -333,6 +334,15 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
 	handler_set = 1;
 
+	// A missing argument would be bound as NULL and the query would run, returning a plausible empty result.
+	int wanted = st ? sqlite3_bind_parameter_count(st) : 0;
+	jsize given = (*env)->GetArrayLength(env, args);
+	if (given != wanted) {
+		char msg[96];
+		snprintf(msg, sizeof msg, "the statement has %d parameter(s) but %d argument(s) were given", wanted, (int)given);
+		throw_engine(env, SQLITE_RANGE, msg);
+		goto done;
+	}
 	rc = st ? bind_args(env, db, st, args, &message) : SQLITE_OK;
 	if (rc != SQLITE_OK) {
 		if (!(*env)->ExceptionCheck(env)) throw_engine(env, rc, message ? message : "cannot bind");
