@@ -85,12 +85,16 @@ class LogSenderPlugin : Plugin<Project> {
 			}
 		}
 	}
+}
 
-	private fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
-		if (this is ApplicationVariantImpl) {
-			variantDependencies.runtimeClasspath.action()
-		} else if (this is AnalyticsEnabledApplicationVariant) {
-			delegate.withRuntimeConfiguration(action)
-		}
+/**
+ * Runs [action] on the variant's runtime classpath configuration. Shared with
+ * [SqliteDebuggerPlugin]; does nothing for a variant type it does not recognize.
+ */
+internal fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
+	if (this is ApplicationVariantImpl) {
+		variantDependencies.runtimeClasspath.action()
+	} else if (this is AnalyticsEnabledApplicationVariant) {
+		delegate.withRuntimeConfiguration(action)
 	}
 }

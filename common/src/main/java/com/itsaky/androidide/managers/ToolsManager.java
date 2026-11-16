@@ -129,6 +129,7 @@ public class ToolsManager {
 
 			ensureToolingJar(app);
 			extractLogSender(app);
+			extractSqliteRewriteRuntime();
 
 			writeNoMediaFile();
 			extractCogoPlugin();
@@ -259,6 +260,19 @@ public class ToolsManager {
 		final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
 		ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
 				Environment.LOGSENDER_AAR.getAbsolutePath());
+	}
+
+	@WorkerThread
+	private static void extractSqliteRewriteRuntime() {
+		if (Environment.SQLITE_REWRITE_RUNTIME_AAR.exists()) {
+			FileUtils.delete(Environment.SQLITE_REWRITE_RUNTIME_AAR);
+		}
+
+		Environment.mkdirIfNotExists(Environment.SQLITE_REWRITE_RUNTIME_DIR);
+
+		// Java only, so one AAR for both ABIs
+		ResourceUtils.copyFileFromAssets(getCommonAsset("sqlite-rewrite-runtime-release.aar"),
+				Environment.SQLITE_REWRITE_RUNTIME_AAR.getAbsolutePath());
 	}
 
 	private static void generateKeystore() {
