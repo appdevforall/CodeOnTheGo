@@ -1,17 +1,17 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
-    id("com.itsaky.androidide.build")
+	alias(libs.plugins.android.library)
+	alias(libs.plugins.kotlin.android)
+	id("com.itsaky.androidide.build")
 }
 
 android {
-    namespace = "com.github.appintro"
+	namespace = "com.github.appintro"
 }
 
 dependencies {
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.annotation)
-    implementation(libs.androidx.constraintlayout)
-    implementation(libs.androidx.viewpager2)
-    implementation(libs.androidx.fragment.ktx)
+	implementation(libs.androidx.appcompat)
+	implementation(libs.androidx.annotation)
+	implementation(libs.androidx.constraintlayout)
+	implementation(libs.androidx.viewpager2)
+	implementation(libs.androidx.fragment.ktx)
 }
