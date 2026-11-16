@@ -49,70 +49,71 @@ import org.gradle.util.GradleVersion;
 
 class GradleVersionResolver {
 
-  private TextResource latest;
-  private TextResource releaseCandidate;
-  private TextResource nightly;
-  private TextResource releaseNightly;
+	static String getVersion(String json, String placeHolder) {
+		Type type = new TypeToken<Map<String, String>>() {}.getType();
+		Map<String, String> map = new Gson().fromJson(json, type);
+		String version = map.get("version");
+		if (version == null) {
+			throw new GradleException(
+					"There is currently no version information available for '" + placeHolder + "'.");
+		}
+		return version;
+	}
 
-  private GradleVersion gradleVersion;
-  private String gradleVersionString = GradleVersion.current().getVersion();
+	static boolean isPlaceHolder(String version) {
+		return DefaultWrapperVersionsResources.PLACE_HOLDERS.contains(version);
+	}
 
-  void setTextResources(TextResource latest, TextResource releaseCandidate, TextResource nightly,
-      TextResource releaseNightly) {
-    this.latest = latest;
-    this.releaseCandidate = releaseCandidate;
-    this.nightly = nightly;
-    this.releaseNightly = releaseNightly;
-  }
+	private TextResource latest;
+	private TextResource releaseCandidate;
 
-  String resolve(String version) {
-    if (version == null) {
-      return GradleVersion.current().getVersion();
-    }
-    switch (version) {
-      case LATEST:
-        return getVersion(latest.asString(), version);
-      case NIGHTLY:
-        return getVersion(nightly.asString(), version);
-      case RELEASE_NIGHTLY:
-        return getVersion(releaseNightly.asString(), version);
-      case RELEASE_CANDIDATE:
-        return getVersion(releaseCandidate.asString(), version);
-      default:
-        return version;
-    }
-  }
+	private TextResource nightly;
+	private TextResource releaseNightly;
 
-  static String getVersion(String json, String placeHolder) {
-    Type type = new TypeToken<Map<String, String>>() {
-    }.getType();
-    Map<String, String> map = new Gson().fromJson(json, type);
-    String version = map.get("version");
-    if (version == null) {
-      throw new GradleException(
-          "There is currently no version information available for '" + placeHolder + "'.");
-    }
-    return version;
-  }
+	private GradleVersion gradleVersion;
 
-  static boolean isPlaceHolder(String version) {
-    return DefaultWrapperVersionsResources.PLACE_HOLDERS.contains(version);
-  }
+	private String gradleVersionString = GradleVersion.current().getVersion();
 
-  GradleVersion getGradleVersion() {
-    if (gradleVersion == null) {
-      gradleVersion = GradleVersion.version(resolve(gradleVersionString));
-    }
-    return gradleVersion;
-  }
+	GradleVersion getGradleVersion() {
+		if (gradleVersion == null) {
+			gradleVersion = GradleVersion.version(resolve(gradleVersionString));
+		}
+		return gradleVersion;
+	}
 
-  void setGradleVersionString(String gradleVersionString) {
-    if (!isPlaceHolder(gradleVersionString)) {
-      this.gradleVersion = GradleVersion.version(gradleVersionString);
-    }
-    if (this.gradleVersionString != gradleVersionString) {
-      this.gradleVersionString = gradleVersionString;
-      this.gradleVersion = null;
-    }
-  }
+	String resolve(String version) {
+		if (version == null) {
+			return GradleVersion.current().getVersion();
+		}
+		switch (version) {
+		case LATEST:
+			return getVersion(latest.asString(), version);
+		case NIGHTLY:
+			return getVersion(nightly.asString(), version);
+		case RELEASE_NIGHTLY:
+			return getVersion(releaseNightly.asString(), version);
+		case RELEASE_CANDIDATE:
+			return getVersion(releaseCandidate.asString(), version);
+		default:
+			return version;
+		}
+	}
+
+	void setGradleVersionString(String gradleVersionString) {
+		if (!isPlaceHolder(gradleVersionString)) {
+			this.gradleVersion = GradleVersion.version(gradleVersionString);
+		}
+		if (this.gradleVersionString != gradleVersionString) {
+			this.gradleVersionString = gradleVersionString;
+			this.gradleVersion = null;
+		}
+	}
+
+	void setTextResources(TextResource latest, TextResource releaseCandidate, TextResource nightly,
+			TextResource releaseNightly) {
+		this.latest = latest;
+		this.releaseCandidate = releaseCandidate;
+		this.nightly = nightly;
+		this.releaseNightly = releaseNightly;
+	}
 }
