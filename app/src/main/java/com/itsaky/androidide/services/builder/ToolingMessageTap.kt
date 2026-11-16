@@ -33,7 +33,7 @@ interface ToolingMessageTap {
 	/** Wraps the JSON-RPC consumer of messages the server sends. */
 	fun wrapMessages(consumer: MessageConsumer): MessageConsumer
 
-	/** Called once the server's listener and process have both finished. */
+	/** Called once the server's message reader has stopped, so no further message reaches [wrapMessages]. */
 	fun onServerStopped()
 
 	companion object {
