@@ -80,6 +80,15 @@ class PluginLanguageSupportTest {
 	}
 
 	@Test
+	fun `givenClosedAndJsxClaimWithServer_whenInstalling_thenOnlyJsxIsInstalled`() {
+		val installed = PluginLanguageSupport.install(contribution("p", setOf("java", "JSX"), true), mutableSetOf())
+
+		assertThat(installed).isNotNull()
+		assertThat(installed!!.fileTypes).containsExactly("jsx")
+		assertThat(installed.grammarFactories).isEmpty()
+	}
+
+	@Test
 	fun `givenJsAlreadyClaimed_whenAnotherPluginClaimsIt_thenItIsRefused`() {
 		val claimed = mutableSetOf<String>()
 		assertThat(PluginLanguageSupport.install(contribution("first", setOf("js"), true), claimed)).isNotNull()
