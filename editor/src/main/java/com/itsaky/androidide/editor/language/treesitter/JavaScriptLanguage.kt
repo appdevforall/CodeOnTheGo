@@ -2,22 +2,18 @@ package com.itsaky.androidide.editor.language.treesitter
 
 import android.content.Context
 import com.itsaky.androidide.editor.language.newline.TSBracketsHandler
-import com.itsaky.androidide.editor.schemes.LanguageSpecProvider.getLanguageSpec
-import com.itsaky.androidide.editor.schemes.LocalCaptureSpecProvider.newLocalCaptureSpec
 import com.itsaky.androidide.treesitter.javascript.TSLanguageJavascript
 
 /**
  * [TreeSitterLanguage] for JavaScript: highlighting, brackets, blocks and indentation. There is
  * no JavaScript language server.
  */
-class JavaScriptLanguage internal constructor(
-	spec: TreeSitterLanguageSpec,
-) : TreeSitterLanguage(TS_TYPE, spec) {
-	// The spec's local captures take their colors from the app's color scheme preference, so a
-	// test, which has no preferences, passes its own spec to the constructor above.
-	constructor(context: Context) : this(
-		getLanguageSpec(context, TS_TYPE, TSLanguageJavascript.getInstance(), newLocalCaptureSpec(TS_TYPE)),
-	)
+class JavaScriptLanguage : TreeSitterLanguage {
+	constructor(context: Context) : super(context, TSLanguageJavascript.getInstance(), TS_TYPE)
+
+	// For a test: building the spec from a Context reads the color scheme that the app's
+	// preferences name (newLocalCaptureSpec), and a test has no preferences.
+	internal constructor(spec: TreeSitterLanguageSpec) : super(TS_TYPE, spec)
 
 	override fun createNewlineHandlers(): Array<TSBracketsHandler> = arrayOf(BracketsHandler(this))
 

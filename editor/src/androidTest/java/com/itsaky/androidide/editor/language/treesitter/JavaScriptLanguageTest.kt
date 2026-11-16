@@ -70,8 +70,9 @@ class JavaScriptLanguageTest {
 	}
 
 	// The editor gives Enter to the first newline handler that accepts the cursor's position, and
-	// that handler puts the closing bracket on a line of its own. Without one, [ ] included, the
-	// closing bracket stays at the start of the new line and is dedented.
+	// TSBracketsHandler then puts the closing bracket on a line of its own. This checks that one
+	// accepts a cursor between each pair, [ ] included: without one, the closing bracket stays at
+	// the start of the new line and is dedented.
 	@Test
 	fun enterBetweenBracketsIsHandled() {
 		val context = InstrumentationRegistry.getInstrumentation().targetContext
