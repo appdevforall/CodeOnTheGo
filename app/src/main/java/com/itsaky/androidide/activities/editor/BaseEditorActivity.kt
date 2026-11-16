@@ -1411,32 +1411,7 @@ abstract class BaseEditorActivity :
 		)
 	}
 
-	protected open fun syncSelectedTab() {
-		val safeContent = contentOrNull ?: return
-		if (safeContent.tabs.tabCount > 0) {
-			val selectedTab = safeContent.tabs.getTabAt(safeContent.tabs.selectedTabPosition)
-			if (selectedTab != null) {
-				onTabSelected(selectedTab)
-			}
-		} else {
-			editorViewModel.setCurrentFile(-1, null)
-			updateTabVisibility()
-		}
-	}
-
-	protected open fun updateTabVisibility() {
-		val safeContent = contentOrNull ?: return
-		val hasFiles = editorViewModel.getOpenedFileCount() > 0
-		safeContent.apply {
-			if (!hasFiles) {
-				tabs.visibility = View.GONE
-				viewContainer.displayedChild = 1
-			} else {
-				tabs.visibility = View.VISIBLE
-				viewContainer.displayedChild = 0
-			}
-		}
-	}
+	protected abstract fun updateTabVisibility()
 
 	override fun onGroupClick(group: DiagnosticGroup?) {
 		if (group?.file?.exists() == true && FileUtils.isUtf8(group.file)) {

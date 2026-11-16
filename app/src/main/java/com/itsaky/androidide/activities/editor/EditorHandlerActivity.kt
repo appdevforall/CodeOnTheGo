@@ -1760,8 +1760,7 @@ open class EditorHandlerActivity :
 		}
 
 		val tabPosition = getTabPositionForFileIndex(index)
-		isRemovingTab = true
-		try {
+		removingTab {
 			editorViewModel.removeFile(index)
 
 			if (tabPosition >= 0) {
@@ -1769,8 +1768,6 @@ open class EditorHandlerActivity :
 				shiftPluginIndices(tabPosition + 1, -1)
 				content.tabs.removeTabAt(tabPosition)
 			}
-		} finally {
-			isRemovingTab = false
 		}
 
 		syncSelectedTab()
@@ -1867,6 +1864,26 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	// Suppresses onTabSelected while tab, view and index state are mid-update.
+	private inline fun removingTab(block: () -> Unit) {
+		isRemovingTab = true
+		try {
+			block()
+		} finally {
+			isRemovingTab = false
+		}
+	}
+
+	private fun syncSelectedTab() {
+		val safeContent = contentOrNull ?: return
+		if (safeContent.tabs.tabCount > 0) {
+			safeContent.tabs.getTabAt(safeContent.tabs.selectedTabPosition)?.let(::onTabSelected)
+		} else {
+			editorViewModel.setCurrentFile(-1, null)
+			updateTabVisibility()
+		}
+	}
+
 	private fun closePluginTab(tabPosition: Int) {
 		val pluginId = tabIndexToPluginId[tabPosition] ?: return
 
@@ -1885,8 +1902,7 @@ open class EditorHandlerActivity :
 			Log.e("EditorHandlerActivity", "Error cleaning up plugin tab $pluginId", e)
 		}
 
-		isRemovingTab = true
-		try {
+		removingTab {
 			content.editorContainer.removeViewAt(tabPosition)
 
 			pluginTabIndices.remove(pluginId)
@@ -1894,8 +1910,6 @@ open class EditorHandlerActivity :
 
 			shiftPluginIndices(tabPosition + 1, -1)
 			content.tabs.removeTabAt(tabPosition)
-		} finally {
-			isRemovingTab = false
 		}
 
 		syncSelectedTab()
