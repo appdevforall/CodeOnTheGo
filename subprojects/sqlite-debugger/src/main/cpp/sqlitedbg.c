@@ -422,10 +422,12 @@ static int server_authorizer(void *unused, int action, const char *a1, const cha
 			// PRAGMA query_only=0 would lift the guard, and a PRAGMA that stores a value writes.
 			// PRAGMA table_info(t) also has a second argument, so only these names are checked.
 			// locking_mode=EXCLUSIVE keeps the lock after a read, and busy_timeout (any form) lets a
-			// statement wait on the app's lock for as long as the client likes.
+			// statement wait on the app's lock for as long as the client likes. The heap limits and
+			// temp_store_directory are process-wide: they would change the app's own connections.
 			if (a1 && (sqlite3_stricmp(a1, "query_only") == 0 || sqlite3_stricmp(a1, "writable_schema") == 0 ||
 			           sqlite3_stricmp(a1, "locking_mode") == 0 || sqlite3_stricmp(a1, "busy_timeout") == 0 ||
-			           sqlite3_stricmp(a1, "wal_checkpoint") == 0 ||
+			           sqlite3_stricmp(a1, "hard_heap_limit") == 0 || sqlite3_stricmp(a1, "soft_heap_limit") == 0 ||
+			           sqlite3_stricmp(a1, "temp_store_directory") == 0 || sqlite3_stricmp(a1, "wal_checkpoint") == 0 ||
 			           sqlite3_stricmp(a1, "incremental_vacuum") == 0 || sqlite3_stricmp(a1, "optimize") == 0))
 				return SQLITE_DENY;
 			if (a1 && a2 &&

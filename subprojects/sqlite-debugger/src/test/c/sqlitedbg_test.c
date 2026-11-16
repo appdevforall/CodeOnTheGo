@@ -619,6 +619,12 @@ static void test_server_holds_no_locks(void) {
 		"PRAGMA locking_mode",
 		"PRAGMA busy_timeout=60000",
 		"PRAGMA busy_timeout",
+		// process-wide settings that would reach the app's own connections
+		"PRAGMA hard_heap_limit=1000000000",
+		"PRAGMA hard_heap_limit",
+		"PRAGMA soft_heap_limit=1000000000",
+		"PRAGMA soft_heap_limit",
+		"PRAGMA temp_store_directory='/tmp'",
 	};
 	for (size_t i = 0; i < sizeof denied / sizeof denied[0]; i++) {
 		sqlite3 *srv = NULL;
