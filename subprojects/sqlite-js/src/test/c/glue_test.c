@@ -269,6 +269,7 @@ int main (void) {
                       "function (args) { return 6; })')") == SQLITE_OK,
           "a database with a function v whose code cancels the first time it loads");
     sqlite3_close(db);
+    cancel_calls = 0;
     logged[0] = 0;
     db = open_trusted_with_cancel_once(loading);
     check(cancel_calls == 1, "the cancel does not stop v's code while it loads");
@@ -325,7 +326,7 @@ int main (void) {
     // A result set JavaScript keeps is ended when the call that made it returns (sqlite-js 1.4.2),
     // or the interrupt would stay in effect and every later statement on the connection fail.
     // After a cancel, reading on throws "interrupted", also as on SQLite before 3.41
-    // (GLUE_AS_SQLITE_3_40), where only the cancel itself shows it (patch 0002).
+    // (GLUE_AS_SQLITE_3_40), where only the cancel itself shows it (sqlite-js 1.4.3).
     signal(SIGALRM, on_alarm);
     char kept[512];
     snprintf(kept, sizeof(kept), "%s/kept.db", dir);
@@ -340,7 +341,7 @@ int main (void) {
 
     // Ending a result set that is computing a window function runs the function's final. The finals
     // belong to the call that kept the result sets, so its cancel must stop every one of them, also
-    // before SQLite 3.41 (patch 0002).
+    // before SQLite 3.41 (sqlite-js 1.4.3).
     check(exec(db, "SELECT js_create_window('loop_final', 'total = 0;', '(function (args) { total += args[0]; })', "
                    "'(function () { while (true) {} })', '(function () { return total; })', "
                    "'(function (args) { total -= args[0]; })')") == SQLITE_OK,
