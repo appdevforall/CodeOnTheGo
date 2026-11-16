@@ -1,5 +1,6 @@
 package com.itsaky.androidide.repositories
 
+import android.content.pm.PackageManager
 import com.itsaky.androidide.roomData.recentproject.DebuggerEndpointDao
 import com.itsaky.androidide.sqlitedebugger.DebuggerEndpointValidation
 import com.itsaky.androidide.utils.canonicalProjectLocation
@@ -23,6 +24,7 @@ class DebuggerEndpointRepository(
 	private val dao: DebuggerEndpointDao,
 	private val scope: CoroutineScope,
 	private val clock: () -> Long = System::currentTimeMillis,
+	private val isInstalled: (String) -> Boolean = { true },
 ) {
 	private class PendingInstall(
 		val location: String,
@@ -136,17 +138,35 @@ class DebuggerEndpointRepository(
 	/**
 	 * The endpoints the apps of [projectDir] have reported, for the plugin API (ADFA-7139). Looked
 	 * up by the canonical path, as the pairing stores it; apps that have not reported yet are left
-	 * out. Unlike the writes, a read failure is thrown: the plugin API reports it rather than
+	 * out, and so are apps that are no longer installed: their stored port and token would otherwise
+	 * come back as live. An endpoint can still be stale when the app's process has died. Unlike the writes, a read failure is thrown: the plugin API reports it rather than
 	 * answering "no apps".
 	 */
 	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
 		dao.getByProjectLocation(projectDir.canonicalProjectLocation()).mapNotNull { row ->
+			if (!isInstalled(row.applicationId)) return@mapNotNull null
 			val token = row.token ?: return@mapNotNull null
 			val port = row.port ?: return@mapNotNull null
 			PluginDebuggerEndpoint(row.applicationId, port, token, row.updatedAt ?: 0L)
 		}
 
-	private companion object {
+	companion object {
+		/**
+		 * Whether [applicationId] is installed. Every package is visible because Code on the Go targets SDK 28; at a
+		 * target of 30 or later, package visibility filtering would make every endpoint look uninstalled unless the
+		 * manifest declares a matching `<queries>`.
+		 */
+		fun isPackageInstalled(
+			packageManager: PackageManager,
+			applicationId: String,
+		): Boolean =
+			try {
+				packageManager.getPackageInfo(applicationId, 0)
+				true
+			} catch (e: PackageManager.NameNotFoundException) {
+				false
+			}
+
 		private const val PENDING_INSTALL_MAX_AGE_MILLIS = 5 * 60 * 1000L
 		private val log = LoggerFactory.getLogger(DebuggerEndpointRepository::class.java)
 	}

@@ -59,6 +59,27 @@ class DebuggerEndpointServiceImplTest {
 	}
 
 	@Test
+	fun `an interrupt from the source is rethrown unchanged and keeps the flag`() {
+		val interrupted = service(source = { throw InterruptedException("stop") })
+
+		try {
+			val thrown = assertThrows(InterruptedException::class.java) { interrupted.getEndpoints() }
+			assertThat(thrown).hasMessageThat().isEqualTo("stop")
+			assertThat(Thread.currentThread().isInterrupted).isTrue()
+		} finally {
+			Thread.interrupted()
+		}
+	}
+
+	@Test
+	fun `a cancellation from the source is rethrown unchanged`() {
+		val cancelled = service(source = { throw java.util.concurrent.CancellationException("cancelled") })
+
+		val thrown = assertThrows(java.util.concurrent.CancellationException::class.java) { cancelled.getEndpoints() }
+		assertThat(thrown).hasMessageThat().isEqualTo("cancelled")
+	}
+
+	@Test
 	fun `refuses to read on the main thread`() {
 		val onMain = service(mainThread = true)
 

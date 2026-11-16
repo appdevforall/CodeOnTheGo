@@ -8,6 +8,9 @@ import java.util.Objects;
  *
  * <p>
  * The port and the token are chosen by the app on every start, so a value read here goes stale when the app dies or is relaunched; a client that is refused (or answered 401/403) asks {@link DebuggerEndpointService#getEndpoints} again instead of retrying the same values. The token is a credential for the debugger server: do not log it or persist it. {@link #toString} leaves it out.
+ *
+ * <p>
+ * An endpoint whose app has been uninstalled is not returned, but one whose process has died is: nothing removes it until the app reports again. {@link #getUpdatedAtMillis} is when the app last reported, not a sign that it is still running.
  */
 public final class DebuggerEndpoint {
 

@@ -362,4 +362,43 @@ class DebuggerEndpointRepositoryTest {
 				dir.delete()
 			}
 		}
+
+	@Test
+	fun `an app that is no longer installed is left out and installed ones are returned`() =
+		runBlocking<Unit> {
+			val dir =
+				java.nio.file.Files
+					.createTempDirectory("proj")
+					.toFile()
+			try {
+				addProject(dir.canonicalPath)
+				val installed = setOf("com.example.alive")
+				val pruning =
+					DebuggerEndpointRepository(
+						room.debuggerEndpointDao(),
+						CoroutineScope(Dispatchers.IO),
+						clock = { 1234L },
+						isInstalled = { it in installed },
+					)
+				for (id in listOf("com.example.alive", "com.example.gone")) {
+					assertThat(pruning.recordInstalled(id, dir.canonicalPath)).isTrue()
+					assertThat(pruning.storeEndpoint(id, endpoint)).isTrue()
+				}
+
+				val endpoints = pruning.reportedEndpoints(dir)
+
+				assertThat(endpoints.map { it.applicationId }).containsExactly("com.example.alive")
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `the package manager check tells installed from missing apps`() {
+		val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+		val packageManager = app.packageManager
+
+		assertThat(DebuggerEndpointRepository.isPackageInstalled(packageManager, app.packageName)).isTrue()
+		assertThat(DebuggerEndpointRepository.isPackageInstalled(packageManager, "com.example.not.installed")).isFalse()
+	}
 }

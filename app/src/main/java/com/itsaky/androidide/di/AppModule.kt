@@ -63,7 +63,12 @@ val coreModule =
 		}
 
 		single {
-			DebuggerEndpointRepository(get(), get(named(APPLICATION_SCOPE)))
+			val packageManager = androidContext().packageManager
+			DebuggerEndpointRepository(
+				get(),
+				get(named(APPLICATION_SCOPE)),
+				isInstalled = { DebuggerEndpointRepository.isPackageInstalled(packageManager, it) },
+			)
 		}
 
 		single<RecentProjectRepository> {

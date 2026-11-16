@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.services.DebuggerEndpoint
 import com.itsaky.androidide.plugins.services.DebuggerEndpointService
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.CancellationException
 
 /**
  * Where the host keeps what apps reported: the app module's `debugger_endpoint_table`. The app
@@ -47,6 +48,11 @@ class DebuggerEndpointServiceImpl(
 		val root = projectRootProvider() ?: return emptyList()
 		return try {
 			sourceProvider().endpointsFor(root.absolutePath)
+		} catch (e: InterruptedException) {
+			Thread.currentThread().interrupt()
+			throw e
+		} catch (e: CancellationException) {
+			throw e
 		} catch (e: Exception) {
 			log.warn("getEndpoints failed for plugin {}", pluginId, e)
 			throw IllegalStateException("Could not read the debugger endpoints: ${e.message}", e)
