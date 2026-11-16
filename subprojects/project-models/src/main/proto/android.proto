@@ -152,6 +152,10 @@ message ProjectInfo {
 
   // The project path.
   string projectPath = 2;
+
+  // Whether the dependency is on the project's test fixtures (testFixtures(project(":lib")))
+  // rather than on the project itself.
+  bool isTestFixtures = 3;
 }
 
 // An Android library.

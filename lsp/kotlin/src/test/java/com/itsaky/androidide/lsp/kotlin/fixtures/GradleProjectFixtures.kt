@@ -81,11 +81,15 @@ internal fun gradleProject(
 		}.build()
 }
 
-/** A test source set: its source [dirs], and the [jars] and [projects] only its tests compile against. */
+/**
+ * A test source set: its source [dirs], and the [jars] and [projects] only its tests compile
+ * against; [fixtureProjects] are projects whose test fixtures they compile against.
+ */
 internal data class TestSources(
 	val dirs: List<Path>,
 	val jars: List<Path> = emptyList(),
 	val projects: List<String> = emptyList(),
+	val fixtureProjects: List<String> = emptyList(),
 )
 
 private fun TestSources.sourceProvider(): AndroidModels.SourceProvider =
@@ -112,8 +116,8 @@ private fun TestSources.addJarsTo(variantDeps: AndroidModels.VariantDependencies
 				.build(),
 		)
 	}
-	for (projectPath in projects) {
-		val key = "project$projectPath"
+	for ((projectPath, fixtures) in projects.map { it to false } + fixtureProjects.map { it to true }) {
+		val key = if (fixtures) "project$projectPath:testFixtures" else "project$projectPath"
 		graph.addRoot(graph.nodeCount)
 		graph.addNode(AndroidModels.GraphNode.newBuilder().setKeyId(graph.keyCount))
 		graph.addKey(key)
@@ -127,7 +131,8 @@ private fun TestSources.addJarsTo(variantDeps: AndroidModels.VariantDependencies
 					AndroidModels.ProjectInfo
 						.newBuilder()
 						.setBuildId(":")
-						.setProjectPath(projectPath),
+						.setProjectPath(projectPath)
+						.setIsTestFixtures(fixtures),
 				).build(),
 		)
 	}

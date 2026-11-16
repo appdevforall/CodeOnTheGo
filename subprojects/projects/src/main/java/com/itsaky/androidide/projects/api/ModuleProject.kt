@@ -193,8 +193,16 @@ abstract class ModuleProject(
 		} else {
 			getCompileSourceDirectories() +
 				nonMainScopes().filter(scope::sees).flatMap(::getSourceDirectories) +
-				getCompileModuleProjects(scope).flatMap { it.getSourceDirectories() }
+				getCompileModuleProjects(scope).flatMap { it.getSourceDirectories() } +
+				getTestFixturesModuleProjects(scope).flatMap { it.getSourceDirectories(ArtifactScope.TestFixtures) }
 		}
+
+	/**
+	 * The other modules whose test fixtures [scope] compiles against, such as `:lib` for
+	 * `testImplementation(testFixtures(project(":lib")))`. Their main sources come through
+	 * [getCompileModuleProjects].
+	 */
+	open fun getTestFixturesModuleProjects(scope: ArtifactScope): List<ModuleProject> = emptyList()
 
 	/**
 	 * Get the classpaths for this module project. The returned list always included the

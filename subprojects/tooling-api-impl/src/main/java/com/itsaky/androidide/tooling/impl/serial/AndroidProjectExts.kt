@@ -115,6 +115,7 @@ fun ProjectInfo.asProtoModel() =
 	ProjectInfo(
 		buildId = this.buildId,
 		projectPath = projectPath,
+		isTestFixtures = isTestFixtures,
 	)
 
 fun LibraryInfo.asProtoModel() =

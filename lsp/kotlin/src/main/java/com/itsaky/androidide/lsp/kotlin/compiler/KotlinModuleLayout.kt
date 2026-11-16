@@ -133,6 +133,10 @@ private fun ModuleProject.testModuleLayout(
 		nonMainScopes()
 			.filter { it != scope && scope.sees(it) && hasScopeModule(it) }
 			.map { testModulePath(path, it) }
+	val otherModulesFixtures =
+		getTestFixturesModuleProjects(scope)
+			.filter { it.hasScopeModule(ArtifactScope.TestFixtures) }
+			.map { testModulePath(it.path, ArtifactScope.TestFixtures) }
 	// Scope-only project dependencies must be source modules: the scope's classpath leaves out their jars.
 	val scopeOnlyModules = getCompileModuleProjects(scope).map { it.path }
 
@@ -141,7 +145,7 @@ private fun ModuleProject.testModuleLayout(
 		name = "$name (${scope.displayName()})",
 		sourceRoots = sourceRoots,
 		classpath = getCompileClasspaths(scope, excludeSourceGeneratedClassPath = true).mapTo(LinkedHashSet()) { it.toPath() },
-		moduleDependencies = (listOf(path) + ownSeenScopes + main.moduleDependencies + scopeOnlyModules).distinct(),
+		moduleDependencies = (listOf(path) + ownSeenScopes + otherModulesFixtures + main.moduleDependencies + scopeOnlyModules).distinct(),
 		friends = listOf(path),
 	)
 }

@@ -28,6 +28,8 @@ class ArtifactScopeSourcesTest {
 	private val unitGenerated = File("/p/app/build/generated/ksp/debugUnitTest/java")
 	private val screenshotJava = File("/p/app/src/screenshotTest/java")
 	private val fixturesJava = File("/p/app/src/testFixtures/java")
+	private val libMainJava = File("/p/lib/src/main/java")
+	private val libFixturesJava = File("/p/lib/src/testFixtures/java")
 
 	@After
 	fun tearDown() {
@@ -231,6 +233,25 @@ class ArtifactScopeSourcesTest {
 	}
 
 	@Test
+	fun `req 10 - unit tests see another module's fixture sources and its main`() {
+		val app = appUsingFixturesOf(":lib")
+		install(app, lib(withFixtures = true))
+
+		assertThat(app.getCompileSourceDirectories(ArtifactScope.UNIT_TEST)).containsAtLeast(libFixturesJava, libMainJava)
+		assertThat(app.getCompileSourceDirectories(ArtifactScope.Main)).doesNotContain(libFixturesJava)
+	}
+
+	/** An app whose unit tests depend on the test fixtures of the module at [path]. */
+	private fun appUsingFixturesOf(path: String): AndroidModule {
+		val base = app(withTests = true, unitTestProject = path).delegate
+		val deps =
+			base.androidProject.variantDependencies
+				.toBuilder()
+				.putLibraries(path, projectLibrary(path, testFixtures = true))
+		return AndroidModule(base.toBuilder().setAndroidProject(base.androidProject.toBuilder().setVariantDependencies(deps)).build())
+	}
+
+	@Test
 	fun `a new test fixtures file is indexed for every scope that sees fixtures`() {
 		val app = app(withTests = true, extraScopes = mapOf(ArtifactScope.TestFixtures to fixturesJava))
 		install(app)
@@ -351,7 +372,11 @@ class ArtifactScopeSourcesTest {
 		)
 	}
 
-	private fun lib(dependsOn: String? = null): AndroidModule {
+	/** A library module; [withFixtures] gives it `src/main/java` and `src/testFixtures/java`. */
+	private fun lib(
+		dependsOn: String? = null,
+		withFixtures: Boolean = false,
+	): AndroidModule {
 		val deps =
 			AndroidModels.VariantDependencies
 				.newBuilder()
@@ -363,6 +388,15 @@ class ArtifactScopeSourcesTest {
 			AndroidModels.AndroidProject
 				.newBuilder()
 				.setProjectType(AndroidModels.ProjectType.LibraryProject)
+		if (withFixtures) {
+			deps.putArtifacts(ArtifactScope.TestFixtures.key, artifact("lib"))
+			project.setMainSourceSet(
+				AndroidModels.SourceSetContainer
+					.newBuilder()
+					.putSourceProviders(ArtifactScope.Main.key, provider(libMainJava))
+					.putSourceProviders(ArtifactScope.TestFixtures.key, provider(libFixturesJava)),
+			)
+		}
 		return AndroidModule(gradleProject(":lib").setAndroidProject(project.setVariantDependencies(deps)).build())
 	}
 
@@ -395,7 +429,10 @@ class ArtifactScopeSourcesTest {
 			.setArtifactPath("/jars/$key.jar")
 			.build()
 
-	private fun projectLibrary(path: String): AndroidModels.Library =
+	private fun projectLibrary(
+		path: String,
+		testFixtures: Boolean = false,
+	): AndroidModels.Library =
 		AndroidModels.Library
 			.newBuilder()
 			.setKey(path)
@@ -403,7 +440,8 @@ class ArtifactScopeSourcesTest {
 			.setProjectInfo(
 				AndroidModels.ProjectInfo
 					.newBuilder()
-					.setProjectPath(path),
+					.setProjectPath(path)
+					.setIsTestFixtures(testFixtures),
 			).build()
 
 	private fun gradleProject(path: String): GradleModels.GradleProject.Builder {
