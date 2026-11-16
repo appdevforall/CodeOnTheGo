@@ -16,10 +16,12 @@
  */
 package com.itsaky.androidide.gradle
 
+import com.itsaky.androidide.gradle.sqlite.SqliteRewritePlugin
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -53,6 +55,14 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 			val isLogSenderEnabled = findProperty(PROPERTY_LOG_SENDER_ENABLED) == "true"
 			if (isLogSenderEnabled) {
 				pluginManager.apply(LogSenderPlugin::class.java)
+			}
+
+			// One opt-in for both (D13): the rewrite moves the app to requery in every variant, the
+			// debugger needs requery and goes into the debuggable variants only.
+			val isSqliteDebuggerEnabled = findProperty(PROPERTY_SQLITE_DEBUGGER_ENABLED) == "true"
+			if (isSqliteDebuggerEnabled) {
+				pluginManager.apply(SqliteRewritePlugin::class.java)
+				pluginManager.apply(SqliteDebuggerPlugin::class.java)
 			}
 
 			val isJdwpEnabled = findProperty(PROPERTY_JDWP_ENABLED) == "true"
