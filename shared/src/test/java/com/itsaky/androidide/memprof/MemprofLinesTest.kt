@@ -59,6 +59,7 @@ class MemprofLinesTest {
 				path = "/proj/Foo.kt",
 				name = "Index Kotlin file",
 				completed = true,
+				details = emptyMap(),
 			)
 
 		val match = FILE_REGEX.find(line)
@@ -67,6 +68,23 @@ class MemprofLinesTest {
 		assertThat(match!!.groupValues[1]).isEqualTo("1700000000456")
 		assertThat(match.groupValues[2])
 			.isEqualTo("procAllocBytes=2048|durationMs=12|path=/proj/Foo.kt|name=Index Kotlin file|completed=true")
+	}
+
+	@Test
+	fun `fileLine appends the details a section put, after the fixed fields`() {
+		val line =
+			MemprofLines.fileLine(
+				nowMs = 1_700_000_000_456,
+				allocBytes = 2048,
+				durationMs = 12,
+				path = "jar:/lib.jar",
+				name = "Index library source",
+				completed = true,
+				details = mapOf("entries" to 300L, "bytes" to 9L),
+			)
+
+		assertThat(FILE_REGEX.find(line)!!.groupValues[2])
+			.isEqualTo("procAllocBytes=2048|durationMs=12|path=jar:/lib.jar|name=Index library source|completed=true|entries=300|bytes=9")
 	}
 
 	@Test

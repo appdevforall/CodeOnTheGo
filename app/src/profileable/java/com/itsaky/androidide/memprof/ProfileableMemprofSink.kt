@@ -184,7 +184,7 @@ internal class ProfileableMemprofSink(
 				report.sectionEnded(name, detail, durationMs, allocatedBytes)
 			}
 			// DEBUG, not INFO: an INFO line becomes a Sentry breadcrumb, and this fires once per file.
-			logger.d(MemprofLines.fileLine(nowMs, allocatedBytes, durationMs, detail, name, completed))
+			logger.d(MemprofLines.fileLine(nowMs, allocatedBytes, durationMs, detail, name, completed, detailsSnapshot()))
 			writer.markDirty()
 		}
 	}
