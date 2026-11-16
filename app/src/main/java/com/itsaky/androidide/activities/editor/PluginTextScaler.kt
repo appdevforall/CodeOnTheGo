@@ -21,7 +21,7 @@ import kotlin.math.max
  * Auto-sized text is left alone: [TextView.setTextSize] does nothing to it.
  */
 internal class PluginTextScaler(
-	private val editorFontScale: () -> Float,
+	editorFontScale: Float,
 ) {
 	private class Sizing(
 		val base: Float,
@@ -34,10 +34,7 @@ internal class PluginTextScaler(
 	// Keyed by the window's observer; an entry lasts while some tracked root is in that window.
 	private val windowWatchers = HashMap<ViewTreeObserver, WindowWatcher>()
 
-	// Until some view is scaled, none can be stale, so the default skips the walk.
-	private var scaledAny = false
-
-	fun scale(): Float = max(1f, editorFontScale())
+	private var scale = max(1f, editorFontScale)
 
 	/**
 	 * Scales the text under [root] now, and in the views added under it later. A root tracked
@@ -51,21 +48,35 @@ internal class PluginTextScaler(
 		}
 	}
 
-	/** Applies the current [scale] to all the text under [root], once the preference has changed. */
-	fun rescale(root: View) {
-		val scale = scale()
-		root.forEachViewRecursively { view ->
-			if (view is TextView && !view.isAutoSized()) apply(view, sizingFor(view), scale)
+	/**
+	 * Follows a change to the editor's font scale. Unless the plugin text scale stays the same (any
+	 * size below the editor's default leaves it at 1), the text under every tracked root is rescaled,
+	 * and so is every text view seen before that is now off the window, such as a pooled list row.
+	 * After that no text is left at an old scale, so at scale 1 no frame needs a walk.
+	 */
+	fun onEditorFontScaleChanged(editorFontScale: Float) {
+		val newScale = max(1f, editorFontScale)
+		if (newScale == scale) return
+		scale = newScale
+		for (root in trackedRoots.toList()) {
+			root.forEachViewRecursively { view ->
+				if (view is TextView && !view.isAutoSized()) apply(view, sizingFor(view), scale)
+			}
+		}
+		for (view in sizings.keys.toList()) {
+			if (view.isAutoSized()) continue
+			val sizing = sizingFor(view)
+			if (sizing.applied != scale) apply(view, sizing, scale)
 		}
 	}
 
 	/**
-	 * Brings every text view under [root] to the current scale: new ones, ones the plugin resized,
-	 * and ones detached while the preference changed (a pooled row, say). Returns whether any changed.
+	 * Brings every text view under [root] to the current scale: new ones, and ones the plugin
+	 * resized. At scale 1 there is nothing to do: plugin text is drawn at its own size, and a scale
+	 * change leaves no view at an old one. Returns whether any changed.
 	 */
 	private fun scaleNewText(root: View): Boolean {
-		val scale = scale()
-		if (scale == 1f && !scaledAny) return false
+		if (scale == 1f) return false
 		var changed = false
 		root.forEachViewRecursively { view ->
 			if (view !is TextView || view.isAutoSized()) return@forEachViewRecursively
@@ -90,7 +101,6 @@ internal class PluginTextScaler(
 		sizing: Sizing,
 		scale: Float,
 	) {
-		if (scale != 1f) scaledAny = true
 		view.setTextSize(TypedValue.COMPLEX_UNIT_PX, sizing.base * scale)
 		sizing.applied = scale
 	}
@@ -145,11 +155,21 @@ internal class PluginTextScaler(
 		override fun onPreDraw(): Boolean {
 			var changed = false
 			for (root in roots) {
-				if (root.isShown && scaleNewText(root)) changed = true
+				if (root.isShown && !isInsideAnotherRoot(root) && scaleNewText(root)) changed = true
 			}
 			val skip = changed && !skippedLast
 			skippedLast = skip
 			return !skip
+		}
+
+		// A plugin fragment nested in another's view is tracked too; the outer walk covers it.
+		private fun isInsideAnotherRoot(root: View): Boolean {
+			var parent = root.parent
+			while (parent is View) {
+				if (parent in roots) return true
+				parent = parent.parent
+			}
+			return false
 		}
 	}
 }

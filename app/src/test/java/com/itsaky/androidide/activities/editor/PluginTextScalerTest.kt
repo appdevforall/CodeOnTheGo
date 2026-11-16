@@ -3,6 +3,7 @@ package com.itsaky.androidide.activities.editor
 import android.app.Activity
 import android.app.Application
 import android.app.Dialog
+import android.content.Context
 import android.os.Looper
 import android.util.TypedValue
 import android.view.View
@@ -26,8 +27,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class, sdk = [33])
 class PluginTextScalerTest {
-	private var editorScale = 1f
-	private val scaler = PluginTextScaler { editorScale }
+	private val scaler = PluginTextScaler(1f)
 	private lateinit var activity: Activity
 	private lateinit var root: LinearLayout
 
@@ -38,6 +38,20 @@ class PluginTextScalerTest {
 	}
 
 	private fun text(px: Float) = TextView(activity).apply { setTextSize(TypedValue.COMPLEX_UNIT_PX, px) }
+
+	// Counts how often its size is read: each walk over it reads the size once.
+	private class CountingTextView(
+		context: Context,
+	) : TextView(context) {
+		var sizeReads = 0
+
+		override fun getTextSize(): Float {
+			sizeReads++
+			return super.getTextSize()
+		}
+	}
+
+	private fun countingText(px: Float) = CountingTextView(activity).apply { setTextSize(TypedValue.COMPLEX_UNIT_PX, px) }
 
 	private fun attach() = activity.setContentView(root)
 
@@ -56,7 +70,7 @@ class PluginTextScalerTest {
 
 	@Test
 	fun textIsScaledWhenTheViewIsTracked() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		val label = text(20f).also(root::addView)
 
 		scaler.track(root)
@@ -66,7 +80,7 @@ class PluginTextScalerTest {
 
 	@Test
 	fun textAddedAfterTheViewWasBuiltIsScaledToo() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		// As a fragment's view: tracked when created, attached to the window after.
 		scaler.track(root)
 		attach()
@@ -79,7 +93,7 @@ class PluginTextScalerTest {
 
 	@Test
 	fun aViewAlreadyAttachedWhenTrackedStillCatchesLaterText() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		attach()
 		scaler.track(root)
 
@@ -91,7 +105,7 @@ class PluginTextScalerTest {
 
 	@Test
 	fun laterFramesDoNotScaleTextAgain() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		scaler.track(root)
 		attach()
 		val row = text(20f).also(root::addView)
@@ -105,7 +119,7 @@ class PluginTextScalerTest {
 	@Test
 	fun theEditorsSmallestSizeLeavesPluginTextAtItsOwnSize() {
 		// The phone ADFA-7142 was found on: the code pinched down to 6.38sp, against a default of 14.
-		editorScale = 6.3809667f / 14f
+		scaler.onEditorFontScaleChanged(6.3809667f / 14f)
 		val label = text(28f).also(root::addView)
 		scaler.track(root)
 		attach()
@@ -119,16 +133,14 @@ class PluginTextScalerTest {
 
 	@Test
 	fun aPreferenceChangeScalesFromEachViewsOwnSize() {
-		editorScale = 2f
+		scaler.onEditorFontScaleChanged(2f)
 		val label = text(20f).also(root::addView)
 		scaler.track(root)
 
-		editorScale = 1.5f
-		scaler.rescale(root)
+		scaler.onEditorFontScaleChanged(1.5f)
 		assertThat(label.textSize).isEqualTo(30f)
 
-		editorScale = 0.5f
-		scaler.rescale(root)
+		scaler.onEditorFontScaleChanged(0.5f)
 		assertThat(label.textSize).isEqualTo(20f)
 	}
 
@@ -140,15 +152,14 @@ class PluginTextScalerTest {
 		drawFrame()
 		assertThat(row.textSize).isEqualTo(20f)
 
-		editorScale = 2f
-		scaler.rescale(root)
+		scaler.onEditorFontScaleChanged(2f)
 
 		assertThat(row.textSize).isEqualTo(40f)
 	}
 
 	@Test
 	fun aDetachedViewStopsWatchingTheWindow() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		attach()
 		val before = preDrawListeners()
 		scaler.track(root)
@@ -164,7 +175,7 @@ class PluginTextScalerTest {
 	@Test
 	fun aRootLeavingTheWindowLeavesTheOtherRootsWatched() {
 		// Two plugin tabs: one is closed, the other stays.
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		val closed = LinearLayout(activity).also(root::addView)
 		val open = LinearLayout(activity).also(root::addView)
 		scaler.track(closed)
@@ -180,7 +191,7 @@ class PluginTextScalerTest {
 
 	@Test
 	fun aViewReinsertedAfterThePreferenceChangedMatchesAFreshOne() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		attach()
 		scaler.track(root)
 		val pooled = text(20f).also(root::addView)
@@ -188,8 +199,7 @@ class PluginTextScalerTest {
 		assertThat(pooled.textSize).isEqualTo(30f)
 		root.removeView(pooled)
 
-		editorScale = 2f
-		scaler.rescale(root)
+		scaler.onEditorFontScaleChanged(2f)
 		root.addView(pooled)
 		val fresh = text(20f).also(root::addView)
 		drawFrame()
@@ -200,15 +210,14 @@ class PluginTextScalerTest {
 
 	@Test
 	fun aViewReinsertedAfterThePreferenceFellToTheDefaultGoesBackToItsOwnSize() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		attach()
 		scaler.track(root)
 		val pooled = text(20f).also(root::addView)
 		drawFrame()
 		root.removeView(pooled)
 
-		editorScale = 1f
-		scaler.rescale(root)
+		scaler.onEditorFontScaleChanged(1f)
 		root.addView(pooled)
 		drawFrame()
 
@@ -219,7 +228,7 @@ class PluginTextScalerTest {
 	fun textAddedWithNoLayoutPassIsScaledBeforeItIsDrawn() {
 		// A scrolling RecyclerView or ListView adds rows and draws them with no layout pass in
 		// between, so only the step before drawing sees them.
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		scaler.track(root)
 		attach()
 		val row = text(20f).also(root::addView)
@@ -233,7 +242,7 @@ class PluginTextScalerTest {
 
 	@Test
 	fun hiddenTextIsScaledOnTheFrameThatShowsIt() {
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		scaler.track(root)
 		attach()
 		root.visibility = View.GONE
@@ -250,7 +259,7 @@ class PluginTextScalerTest {
 	@Test
 	fun aSizeThePluginSetsLaterIsScaledFromThere() {
 		// Say a recycled row whose binding sets its text size again.
-		editorScale = 2f
+		scaler.onEditorFontScaleChanged(2f)
 		scaler.track(root)
 		attach()
 		val row = text(20f).also(root::addView)
@@ -265,13 +274,12 @@ class PluginTextScalerTest {
 
 	@Test
 	fun aPreferenceChangeKeepsASizeThePluginSetLater() {
-		editorScale = 2f
+		scaler.onEditorFontScaleChanged(2f)
 		val row = text(20f).also(root::addView)
 		scaler.track(root)
 		row.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30f)
 
-		editorScale = 1.5f
-		scaler.rescale(root)
+		scaler.onEditorFontScaleChanged(1.5f)
 
 		assertThat(row.textSize).isEqualTo(45f)
 	}
@@ -279,7 +287,7 @@ class PluginTextScalerTest {
 	@Test
 	fun autoSizedTextIsLeftAloneAndNeverHoldsUpAFrame() {
 		// setTextSize does nothing to auto-sized text, so it would look resized on every frame.
-		editorScale = 2f
+		scaler.onEditorFontScaleChanged(2f)
 		val fitted = text(20f).apply { setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM) }
 		root.addView(fitted)
 		scaler.track(root)
@@ -305,7 +313,7 @@ class PluginTextScalerTest {
 	@Test
 	fun aPluginThatResizesItsTextEveryFrameNeverStopsTheWindowDrawing() {
 		// Say a fit-to-width routine that sets the size again on every layout.
-		editorScale = 2f
+		scaler.onEditorFontScaleChanged(2f)
 		scaler.track(root)
 		attach()
 		val fitted = text(25f).also(root::addView)
@@ -323,7 +331,7 @@ class PluginTextScalerTest {
 	@Test
 	fun aRootAttachedAgainCatchesTextAddedAfterward() {
 		// A tab whose view is taken off the window and put back, as a pager does.
-		editorScale = 1.5f
+		scaler.onEditorFontScaleChanged(1.5f)
 		scaler.track(root)
 		attach()
 		(root.parent as ViewGroup).removeView(root)
@@ -339,7 +347,7 @@ class PluginTextScalerTest {
 	fun twoPluginsResizingTheirTextEveryFrameStillLetEveryOtherFrameDraw() {
 		// The window skips a frame if any listener asks. Two plugin tabs, each rescaled on every
 		// frame and starting a frame apart, must not take turns skipping every one of them.
-		editorScale = 2f
+		scaler.onEditorFontScaleChanged(2f)
 		val first = LinearLayout(activity).also(root::addView)
 		val second = LinearLayout(activity).also(root::addView)
 		val fittedFirst = text(25f).also(first::addView)
@@ -363,7 +371,7 @@ class PluginTextScalerTest {
 	fun aPluginDialogSkipsFramesApartFromTheEditorWindow() {
 		// A plugin's dialog or bottom sheet is a window of its own, drawn in turn with the editor's.
 		// What one window skipped must not decide whether the other may skip.
-		editorScale = 2f
+		scaler.onEditorFontScaleChanged(2f)
 		val sheet = LinearLayout(activity)
 		val dialog = Dialog(activity).apply { setContentView(sheet) }
 		dialog.show()
@@ -385,5 +393,52 @@ class PluginTextScalerTest {
 
 		assertThat(editorSkipped.zipWithNext().none { (first, second) -> first && second }).isTrue()
 		assertThat(editorSkipped).contains(true)
+	}
+
+	@Test
+	fun aPluginViewNestedInAnotherIsWalkedOncePerFrame() {
+		// A plugin fragment inside another plugin fragment's view: both views are tracked, the inner
+		// one first, as its view is created first.
+		scaler.onEditorFontScaleChanged(2f)
+		val inner = LinearLayout(activity).also(root::addView)
+		val label = countingText(20f).also(inner::addView)
+		scaler.track(inner)
+		scaler.track(root)
+		attach()
+		drawFrame()
+		label.sizeReads = 0
+
+		drawFrame()
+
+		assertThat(label.sizeReads).isEqualTo(1)
+	}
+
+	@Test
+	fun onceTheScaleIsBackTo1FramesNoLongerWalkThePluginViews() {
+		scaler.onEditorFontScaleChanged(2f)
+		val label = countingText(20f).also(root::addView)
+		scaler.track(root)
+		attach()
+		drawFrame()
+
+		scaler.onEditorFontScaleChanged(1f)
+		label.sizeReads = 0
+		drawFrame()
+
+		assertThat(label.sizeReads).isEqualTo(0)
+		assertThat(label.textSize).isEqualTo(20f)
+	}
+
+	@Test
+	fun aScaleChangeThatStaysAt1LeavesThePluginTextAlone() {
+		// Pinching the code from 10 to 8: both below the editor's default.
+		scaler.onEditorFontScaleChanged(10f / 14f)
+		val label = countingText(20f).also(root::addView)
+		scaler.track(root)
+		label.sizeReads = 0
+
+		scaler.onEditorFontScaleChanged(8f / 14f)
+
+		assertThat(label.sizeReads).isEqualTo(0)
 	}
 }

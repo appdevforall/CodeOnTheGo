@@ -179,8 +179,7 @@ open class EditorHandlerActivity :
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
-	private val pluginTextScaler = PluginTextScaler { EditorPreferences.editorFontScale }
-	private var lastAppliedPluginTextScale = pluginTextScaler.scale()
+	private val pluginTextScaler = PluginTextScaler(EditorPreferences.editorFontScale)
 
 	private val pluginFontScalingListener =
 		object : FragmentManager.FragmentLifecycleCallbacks() {
@@ -2017,34 +2016,12 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	// Also run from onStart: the event is missed while another activity, such as Preferences, is in front.
 	private fun syncPluginUiFontSize() {
-		val scale = pluginTextScaler.scale()
-		if (scale == lastAppliedPluginTextScale) {
-			return
-		}
-		lastAppliedPluginTextScale = scale
-
-		val pluginFragments = mutableListOf<Fragment>()
-		collectPluginFragments(supportFragmentManager, pluginFragments)
-		pluginFragments.forEach { fragment ->
-			fragment.view?.let(pluginTextScaler::rescale)
-		}
+		pluginTextScaler.onEditorFontScaleChanged(EditorPreferences.editorFontScale)
 	}
 
 	private fun isPluginFragment(fragment: Fragment): Boolean = fragment.javaClass.classLoader !== javaClass.classLoader
-
-	private fun collectPluginFragments(
-		manager: FragmentManager,
-		into: MutableList<Fragment>,
-	) {
-		manager.fragments.forEach { fragment ->
-			if (isPluginFragment(fragment)) {
-				into.add(fragment)
-			} else {
-				collectPluginFragments(fragment.childFragmentManager, into)
-			}
-		}
-	}
 
 	/**
 	 * Shows [dialog] above any floating windows, tracking it when it was actually raised.
