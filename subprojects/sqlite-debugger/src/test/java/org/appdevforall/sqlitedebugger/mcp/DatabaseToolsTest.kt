@@ -210,6 +210,21 @@ class DatabaseToolsTest {
 		)
 	}
 
+	@Test fun toolDescriptionsStateTheLimitsAnAgentMustPlanAround() {
+		val descriptions = tools.tools().associate { it.name to it.description }
+		// The server's own connection lacks what the app registers per connection (sqlite-js, requery custom functions).
+		for (name in listOf("query", "explain_query_plan")) {
+			assertTrue(name, descriptions.getValue(name).contains("Functions the app adds to its own connections"))
+			assertTrue(name, descriptions.getValue(name).contains("no such function"))
+		}
+		assertTrue(descriptions.getValue("query").contains("compute in plain SQL"))
+		// get_schema has no offset, and either limit can leave entries out.
+		val schema = descriptions.getValue("get_schema")
+		assertTrue(schema, schema.contains("past the first ${DatabaseTools.MAX_ROWS}"))
+		assertTrue(schema, schema.contains("past about 4 MiB of cell bytes"))
+		assertTrue(schema, schema.contains("page through sqlite_master with query"))
+	}
+
 	@Test fun queryChecksItsArguments() {
 		engine.appConnections += conn(1, "/data/a.db")
 
@@ -518,6 +533,19 @@ class DatabaseToolsTest {
 		answerWith("SELECT type" to QueryResult(listOf("type", "name", "tbl_name", "sql"), rows, 0, false))
 		val r = ok("get_schema", db())
 		assertEquals(DatabaseTools.MAX_ROWS, r.getJSONArray("tables").length())
+		assertTrue(r.getBoolean("truncated"))
+		assertEquals(0, r.getInt("truncated_cells"))
+	}
+
+	@Test fun getSchemaIsTruncatedWhenTheResultBudgetIsSpent() {
+		engine.appConnections += conn(1, "/data/a.db")
+		// statements at the per-cell limit: the 4 MiB budget ends the result long before MAX_ROWS entries
+		val big = "CREATE VIEW v AS SELECT '" + "x".repeat(DatabaseTools.MAX_SCHEMA_SQL_BYTES - 27) + "'"
+		val rows = (0 until 70).map { listOf("view", "v$it", "v$it", big) }
+		answerWith("SELECT type" to QueryResult(listOf("type", "name", "tbl_name", "sql"), rows, 0, false))
+		val r = ok("get_schema", db())
+		val views = r.getJSONArray("views").length()
+		assertTrue("$views views", views in 1 until DatabaseTools.MAX_TOTAL_BYTES / DatabaseTools.MAX_SCHEMA_SQL_BYTES)
 		assertTrue(r.getBoolean("truncated"))
 		assertEquals(0, r.getInt("truncated_cells"))
 	}
