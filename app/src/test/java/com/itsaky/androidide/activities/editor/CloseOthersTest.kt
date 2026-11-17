@@ -51,19 +51,44 @@ class CloseOthersTest {
 		assertThat(activity.editorViewModel.getOpenedFiles()).containsExactly(shown)
 	}
 
+	// A's editor has unsaved changes but no file yet, so the check before the loop misses it, and
+	// closing it stops at the unsaved-changes dialog without closing anything.
+	@Test
+	fun closeOthersStopsWhenACloseAsksAboutUnsavedChanges() {
+		var checks = 0
+		val activity =
+			activityWithTabs(listOf(shown to shown, a to null, b to b), modifiedAt = 1) {
+				check(++checks <= 20) { "closeOthers kept trying to close the same tab" }
+			}
+		activity.editorViewModel.selectFile(0, shown)
+
+		activity.closeOthers()
+
+		assertThat(checks).isEqualTo(1)
+		assertThat(activity.editorViewModel.getOpenedFiles()).containsExactly(shown, a, b).inOrder()
+	}
+
 	/**
 	 * An editor activity, built but not created as in the other activity tests here, whose tab
 	 * strip and editor container follow its opened files. Each pair is an opened file and the file
-	 * its editor reports: null while the editor loads.
+	 * its editor reports: null while the editor loads. The editor at [modifiedAt], if any, has
+	 * unsaved changes, and [onModifiedCheck] runs each time that is asked.
 	 */
-	private fun activityWithTabs(tabs: List<Pair<File, File?>>): EditorHandlerActivity {
+	private fun activityWithTabs(
+		tabs: List<Pair<File, File?>>,
+		modifiedAt: Int = -1,
+		onModifiedCheck: () -> Unit = {},
+	): EditorHandlerActivity {
 		val activity = Robolectric.buildActivity(EditorHandlerActivity::class.java, Intent()).get()
 		val editors =
 			tabs
-				.map { (_, editorFile) ->
+				.mapIndexed { i, (_, editorFile) ->
 					mockk<CodeEditorView>(relaxed = true) {
 						every { file } returns editorFile
-						every { isModified } returns false
+						every { isModified } answers {
+							if (i == modifiedAt) onModifiedCheck()
+							i == modifiedAt
+						}
 					}
 				}.toMutableList()
 		val tabStrip = mockk<TabLayout>(relaxed = true) { every { tabCount } answers { editors.size } }

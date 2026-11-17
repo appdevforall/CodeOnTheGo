@@ -1800,7 +1800,11 @@ open class EditorHandlerActivity :
 			// editor's file is null until its text has loaded, or for good if the read failed,
 			// while the current file is set from the opened file as soon as its tab is shown.
 			if (file != editorViewModel.getOpenedFile(index)) {
+				val openedBefore = editorViewModel.getOpenedFileCount()
 				closeFile(index)
+				// closeFile can return without closing, as when it asks about unsaved changes; trying
+				// again would spin on the main thread.
+				if (editorViewModel.getOpenedFileCount() == openedBefore) break
 			} else {
 				index = 1
 			}
