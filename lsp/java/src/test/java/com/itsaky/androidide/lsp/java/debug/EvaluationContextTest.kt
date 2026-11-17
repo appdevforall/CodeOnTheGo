@@ -26,6 +26,7 @@ import com.sun.jdi.VMDisconnectedException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Before
@@ -186,6 +187,24 @@ class EvaluationContextTest {
 
 			assertThat(first.await()).isNull()
 			assertThat(second.await()).isNull()
+		}
+
+	@Test
+	fun `cancelPendingForThread does not strand batches of other threads`() =
+		runBlocking {
+			val other = fakeThread(isSuspended = true, name = "other-thread")
+			val stepped = fakeThread(isSuspended = true, name = "stepped-thread")
+
+			val pending =
+				async(Dispatchers.Unconfined) {
+					context.evaluate(other) { "other-val" }
+				}
+
+			// Lands in the channel during the batching delay for `other`.
+			context.cancelPendingForThread(stepped)
+
+			val result = withTimeout(2_000) { pending.await() }
+			assertThat(result).isEqualTo("other-val")
 		}
 
 	@Test

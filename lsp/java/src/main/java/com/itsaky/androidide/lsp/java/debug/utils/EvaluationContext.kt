@@ -73,16 +73,16 @@ class EvaluationContext : AutoCloseable {
 						delay(10) // Small delay to allow batching
 
 						if (channel.isEmpty) {
-							try {
-								processBatches(threadBatches)
-							} catch (e: Throwable) {
-								logger.error("Failed to process evaluator batches", e)
-							}
+							processBatches(threadBatches)
 						}
 					}
 
 					is EvaluationMessage.CancelPending -> {
 						dropPendingRequests(threadBatches, message.thread)
+						// Other threads' batches may have been deferred behind this message.
+						if (channel.isEmpty) {
+							processBatches(threadBatches)
+						}
 					}
 
 					is EvaluationMessage.Shutdown -> {
@@ -108,11 +108,15 @@ class EvaluationContext : AutoCloseable {
 	}
 
 	private suspend fun processBatches(threadBatches: MutableMap<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>) {
-		threadBatches.forEach { (thread, requests) ->
-			if (requests.isNotEmpty()) {
-				processBatchForThread(thread, requests)
-				requests.clear()
+		try {
+			threadBatches.forEach { (thread, requests) ->
+				if (requests.isNotEmpty()) {
+					processBatchForThread(thread, requests)
+					requests.clear()
+				}
 			}
+		} catch (e: Throwable) {
+			logger.error("Failed to process evaluator batches", e)
 		}
 	}
 

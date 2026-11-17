@@ -21,7 +21,9 @@ import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.viewmodel.DebuggerConnectionState
 import com.itsaky.androidide.viewmodel.DebuggerViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,6 +37,7 @@ import org.greenrobot.eventbus.ThreadMode
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * @author Akash Yadav
@@ -51,7 +54,7 @@ class IDEDebugClientImpl(
 	private val clientScope = CoroutineScope(clientContext + SupervisorJob())
 	private val clients = CopyOnWriteArraySet<RemoteClient>()
 	val breakpoints = BreakpointHandler()
-	private var threadInfoJob: Job? = null
+	private val threadInfoJob = AtomicReference<Job?>(null)
 
 	companion object {
 		@JvmStatic
@@ -134,14 +137,12 @@ class IDEDebugClientImpl(
 			}
 
 			logger.debug("resuming client: {}", client.name)
-			cancelThreadInfoJob()
+			// Mark running before resuming: a breakpoint hit as soon as the VM resumes
+			// must not be overwritten by this call completing afterwards.
+			connectionState = DebuggerConnectionState.ATTACHED
 			breakpoints.unhighlightHighlightedLocation()
-			clientScope.launch {
-				if (client.adapter.resumeClient(client)) {
-					connectionState = DebuggerConnectionState.ATTACHED
-					launchUpdateThreadInfo(client)
-				}
-			}
+			launchUpdateThreadInfo(client)
+			clientScope.launch { client.adapter.resumeClient(client) }
 		}
 
 	fun killVm() =
@@ -179,6 +180,7 @@ class IDEDebugClientImpl(
 		}
 
 		cancelThreadInfoJob()
+		val previousState = connectionState
 		connectionState = DebuggerConnectionState.ATTACHED
 		breakpoints.unhighlightHighlightedLocation()
 
@@ -190,9 +192,22 @@ class IDEDebugClientImpl(
 					countFilter = countFilter,
 				)
 
-			val response = client.adapter.step(params)
-			if (response.result != StepResult.Success) {
-				logger.error("Failed to perform step action, result={}", response.result)
+			val result =
+				try {
+					client.adapter.step(params).result
+				} catch (e: CancellationException) {
+					throw e
+				} catch (e: Exception) {
+					logger.error("Failed to perform step action", e)
+					null
+				}
+			if (result != StepResult.Success) {
+				logger.error("Failed to perform step action, result={}", result)
+				// VM did not move: undo the optimistic ATTACHED unless a stop event already replaced it.
+				if (connectionState == DebuggerConnectionState.ATTACHED) {
+					connectionState = previousState
+					launchUpdateThreadInfo(client)
+				}
 			}
 		}
 	}
@@ -243,24 +258,14 @@ class IDEDebugClientImpl(
 		logger.debug("onBreakpointHit: {}", event)
 
 		connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
-		cancelThreadInfoJob()
-		threadInfoJob =
-			clientScope.launch {
-				updateThreadInfo(event.remoteClient, event.threadId)
-				openLocation(event)
-			}
+		launchUpdateThreadInfo(event.remoteClient, event.threadId) { openLocation(event) }
 	}
 
 	override fun onStep(event: StepEvent) {
 		logger.debug("onStep: {}", event)
 
 		connectionState = DebuggerConnectionState.AWAITING_BREAKPOINT
-		cancelThreadInfoJob()
-		threadInfoJob =
-			clientScope.launch {
-				updateThreadInfo(event.remoteClient, event.threadId)
-				openLocation(event)
-			}
+		launchUpdateThreadInfo(event.remoteClient, event.threadId) { openLocation(event) }
 	}
 
 	override fun onAttach(client: RemoteClient) {
@@ -291,26 +296,26 @@ class IDEDebugClientImpl(
 		breakpoints.unhighlightHighlightedLocation()
 		clients -= client
 		connectionState = DebuggerConnectionState.DETACHED
-		cancelThreadInfoJob()
 		launchUpdateThreadInfo(client)
 	}
 
 	private fun launchUpdateThreadInfo(
 		client: RemoteClient,
 		selectedThreadId: String? = null,
-	): Job {
-		cancelThreadInfoJob()
+		then: suspend () -> Unit = {},
+	) {
+		// Swap before starting so the previous job is cancelled before the new one runs.
 		val job =
-			clientScope.launch {
+			clientScope.launch(start = CoroutineStart.LAZY) {
 				updateThreadInfo(client, selectedThreadId)
+				then()
 			}
-		threadInfoJob = job
-		return job
+		threadInfoJob.getAndSet(job)?.cancel()
+		job.start()
 	}
 
 	private fun cancelThreadInfoJob() {
-		threadInfoJob?.cancel()
-		threadInfoJob = null
+		threadInfoJob.getAndSet(null)?.cancel()
 	}
 
 	suspend fun updateThreadInfo(
@@ -363,12 +368,6 @@ class IDEDebugClientImpl(
 	private suspend fun openLocation(location: Location) {
 		val file = location.source.path
 		val position = Position(location.line, 0)
-
-		if (file.isBlank()) {
-			logger.debug("Skipping openLocation: source path is blank")
-			breakpoints.unhighlightHighlightedLocation()
-			return
-		}
 
 		val targetFile = File(file)
 		if (!targetFile.isFile) {
