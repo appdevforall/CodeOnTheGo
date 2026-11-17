@@ -13,7 +13,7 @@ A project made from the JavaScript in SQLite template has it on already. For any
 3. Check that the app depends on androidx.sqlite (Room and WorkManager bring it) and androidx.core (AppCompat brings it). requery needs both, and a file dependency brings neither.
 4. Build and run the debug variant. The app starts the server and sends its port and token to Code on the Go (ADFA-7137), and AI-Agent-MCP connects to it with no setup (ADFA-7139). In phase 1 the Agent asks before each call (ADFA-7147).
 
-The app's code does not change: the build moves the app and its libraries from Android's SQLite to requery in every variant, release included, so debug and release run the same SQLite. Release builds never contain the debugger. While the line is on, Quick Build is off for the project. Commenting the line out turns all of this off.
+The app's code does not change: the build moves the app and its libraries from Android's SQLite to requery in every variant, release included, so debug and release run the same SQLite. Release builds never contain the debugger. While the line is on, Quick Build is off for the project. The opt-in is decided per project from all app modules: Code on the Go reads the Gradle user home, every app module and the root, so one module that opts in turns Quick Build off for all of them, even though Quick Build builds only the first app module. Commenting the line out turns all of this off.
 
 Not covered: Room's `BundledSQLiteDriver`, which brings its own SQLite. When the app or one of its libraries uses something requery lacks, the build fails, names the class, method and line, and says how to build without the debugger; the list is under [Rules](../../gradle-plugin/docs/sqlite-rewrite.md#rules).
 
