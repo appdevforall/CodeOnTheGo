@@ -72,11 +72,13 @@ class PluginProjectManager private constructor() {
 			}
 	}
 
-	fun cleanupPluginTemplates(pluginId: String) {
-		val prefix = "${PLUGIN_CGT_PREFIX}${pluginId}_"
+	fun cleanupPluginTemplates(
+		pluginId: String,
+		otherPluginIds: Collection<String>,
+	) {
 		val deleted =
 			Environment.TEMPLATES_DIR
-				.listFiles { file -> file.name.startsWith(prefix) && file.extension == CGT_EXTENSION }
+				.listFiles { file -> isTemplateOf(pluginId, file.name, otherPluginIds) }
 				?.count { file ->
 					file.delete().also { if (it) log.debug("Cleaned up plugin template: {}", file.name) }
 				}
@@ -88,3 +90,19 @@ class PluginProjectManager private constructor() {
 		}
 	}
 }
+
+/**
+ * Whether [fileName] in the templates folder is a template of [pluginId]: `plugin_<id>_<file>.cgt`.
+ * Another plugin whose ID extends this one's (`<id>_tools`) has names that start the same way, so
+ * its names are excluded. Templates exist only for loaded plugins, so [otherPluginIds] is the other
+ * loaded plugins. Undecidable: this plugin's own `tools_x.cgt` while `<id>_tools` is loaded is
+ * kept, which leaves a file behind rather than deleting another plugin's.
+ */
+internal fun isTemplateOf(
+	pluginId: String,
+	fileName: String,
+	otherPluginIds: Collection<String>,
+): Boolean =
+	fileName.startsWith("plugin_${pluginId}_") &&
+		fileName.substringAfterLast('.', "") == "cgt" &&
+		otherPluginIds.none { it.startsWith("${pluginId}_") && fileName.startsWith("plugin_${it}_") }

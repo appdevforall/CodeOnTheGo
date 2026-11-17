@@ -1,6 +1,7 @@
 package com.itsaky.androidide.plugins.manager.services
 
 import com.itsaky.androidide.plugins.PluginPermission
+import com.itsaky.androidide.plugins.manager.project.isTemplateOf
 import com.itsaky.androidide.plugins.services.IdeTemplateService
 import com.itsaky.androidide.plugins.templates.CgtTemplateBuilder
 import com.itsaky.androidide.utils.Environment
@@ -11,6 +12,7 @@ class IdeTemplateServiceImpl(
 	private val pluginId: String,
 	private val permissions: Set<PluginPermission>,
 	private val onTemplatesChanged: () -> Unit,
+	private val loadedPluginIds: () -> Collection<String>,
 ) : IdeTemplateService {
 	companion object {
 		private val log = LoggerFactory.getLogger(IdeTemplateServiceImpl::class.java)
@@ -66,21 +68,24 @@ class IdeTemplateServiceImpl(
 
 	override fun getRegisteredTemplates(): List<String> {
 		val prefix = prefixedName("")
+		val others = otherPluginIds()
 		return Environment.TEMPLATES_DIR
-			.listFiles { file -> file.name.startsWith(prefix) && file.extension == CGT_EXTENSION }
+			.listFiles { file -> isTemplateOf(pluginId, file.name, others) }
 			?.map { it.name.removePrefix(prefix) }
 			?: emptyList()
 	}
+
+	private fun otherPluginIds() = loadedPluginIds() - pluginId
 
 	override fun reloadTemplates() {
 		onTemplatesChanged()
 	}
 
 	fun cleanupAllTemplates() {
-		val prefix = prefixedName("")
+		val others = otherPluginIds()
 		val deleted =
 			Environment.TEMPLATES_DIR
-				.listFiles { file -> file.name.startsWith(prefix) && file.extension == CGT_EXTENSION }
+				.listFiles { file -> isTemplateOf(pluginId, file.name, others) }
 				?.count { it.delete() }
 				?: 0
 

@@ -814,7 +814,7 @@ class PluginManager private constructor(
 				}
 			}
 
-			PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+			PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId, loadedPlugins.keys - pluginId)
 			PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
 			snippetRefreshListener?.invoke(pluginId)
 
@@ -1171,7 +1171,7 @@ class PluginManager private constructor(
 
 	private fun cleanupPluginContributions(loadedPlugin: LoadedPlugin) {
 		val pluginId = loadedPlugin.manifest.id
-		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId) }
+		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId, loadedPlugins.keys - pluginId) }
 			.onFailure { logger.error("Failed to clean project templates for: $pluginId", it) }
 		runCatching {
 			PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
@@ -1570,6 +1570,7 @@ class PluginManager private constructor(
 				pluginId = pluginId,
 				permissions = permissions,
 				onTemplatesChanged = { templateReloadListener?.invoke() },
+				loadedPluginIds = { loadedPlugins.keys },
 			)
 		}
 
@@ -1839,6 +1840,7 @@ class PluginManager private constructor(
 				pluginId = pluginId,
 				permissions = permissions,
 				onTemplatesChanged = { templateReloadListener?.invoke() },
+				loadedPluginIds = { loadedPlugins.keys },
 			)
 		}
 
