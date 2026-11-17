@@ -1,7 +1,9 @@
 package com.itsaky.androidide.plugins.manager.core
 
 import com.google.common.truth.Truth.assertWithMessage
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -10,9 +12,9 @@ import org.junit.Test
 import java.util.concurrent.locks.LockSupport
 
 /**
- * [lockWithin] must never report "not locked" for a lock the caller got. The timeout can fire just
- * after lock() returns; reading the result of withTimeoutOrNull then leaked the lock for good, and
- * every later plugin load waited out the timeout and ran without it.
+ * [lockWithin] must never leave a lock held that the caller doesn't know it got. The timeout can
+ * fire just after lock() returns, and so can the caller's cancellation; either one used to leak the
+ * lock for good, and every later plugin load waited out the timeout and ran without it.
  */
 class LockWithinTest {
 	@Test
@@ -38,6 +40,27 @@ class LockWithinTest {
 				}
 			}
 			assertWithMessage("rounds where the lock was taken but reported free").that(leaked).isEqualTo(0)
+		}
+
+	// withTimeoutOrNull throws when its caller was cancelled, even after lock() returned, so the
+	// caller never sees the flag. Cancelling inside lock() hits that window every time.
+	@Test
+	fun aCallerCancelledJustAfterTakingTheLockLeavesItFree() =
+		runBlocking {
+			val mutex = Mutex()
+			lateinit var caller: Job
+			val cancelsItsTaker =
+				object : Mutex by mutex {
+					override suspend fun lock(owner: Any?) {
+						mutex.lock(owner)
+						caller.cancel()
+					}
+				}
+			caller = launch(start = CoroutineStart.LAZY) { cancelsItsTaker.lockWithin(10_000L) }
+			caller.join()
+
+			assertWithMessage("caller cancelled").that(caller.isCancelled).isTrue()
+			assertWithMessage("lock left held by the cancelled caller").that(mutex.isLocked).isFalse()
 		}
 
 	private companion object {

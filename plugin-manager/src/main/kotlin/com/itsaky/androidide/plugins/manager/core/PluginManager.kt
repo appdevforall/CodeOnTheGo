@@ -2076,13 +2076,20 @@ internal fun initializePlugin(
 /**
  * Waits at most [timeoutMs] for this mutex. True when the caller now holds it, and must unlock it.
  * The flag is set inside the wait, not taken from its result: the timeout can fire just after
- * lock() returned, and withTimeoutOrNull then reports null for a lock the caller holds.
+ * lock() returned, and withTimeoutOrNull then reports null for a lock the caller holds. A caller
+ * cancelled just after lock() returned gets a CancellationException instead of the flag, so the
+ * lock is released here: the caller never learns it held it.
  */
 internal suspend fun Mutex.lockWithin(timeoutMs: Long): Boolean {
 	var locked = false
-	withTimeoutOrNull(timeoutMs) {
-		lock()
-		locked = true
+	try {
+		withTimeoutOrNull(timeoutMs) {
+			lock()
+			locked = true
+		}
+	} catch (e: Throwable) {
+		if (locked) unlock()
+		throw e
 	}
 	return locked
 }
