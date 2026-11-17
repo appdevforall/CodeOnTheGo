@@ -53,10 +53,12 @@ internal class ProcessGroups(
 	) {
 		val pgid = if (grouped) process.pidOrNull() else null
 		if (grouped && pgid == null) log.warn("No process id for a command's group; stopping only its own process")
+		var noGroupYet = false
 		if (pgid != null) {
 			var left = signal(pgid, GroupSignal.TERM)
 			// Expected only for a stop landing before setsid ran; otherwise setsid did not make a group.
-			if (!left && process.isAlive) log.warn("No process group {}; stopping only the command's own process", pgid)
+			noGroupYet = !left && process.isAlive
+			if (noGroupYet) log.warn("No process group {} yet; stopping the command's own process", pgid)
 			val deadline = System.nanoTime() + KILL_AFTER_MS * NANOS_PER_MILLI
 			while (left && System.nanoTime() < deadline) {
 				delay(POLL_MS)
@@ -66,6 +68,8 @@ internal class ProcessGroups(
 		}
 		// Also the whole story where there is no group.
 		process.destroyForcibly()
+		// setsid may have run since the TERM found no group, and the command started children in it.
+		if (noGroupYet && pgid != null) signal(pgid, GroupSignal.KILL)
 	}
 
 	companion object {

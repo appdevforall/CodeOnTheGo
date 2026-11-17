@@ -15,6 +15,8 @@ import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.CountDownLatch
 
@@ -351,6 +353,22 @@ class IdeCommandServiceImplTest {
 	}
 
 	@Test
+	fun `a stop that finds no group yet signals the group again once the command is killed`() {
+		val sent = mutableListOf<String>()
+		val process = FakeProcess { sent += "destroy" }
+		val groups =
+			ProcessGroups("/setsid") { pgid, signal ->
+				sent += "$signal $pgid"
+				// setsid runs, and the command starts a child, just after the TERM finds no group.
+				signal != GroupSignal.TERM
+			}
+
+		runBlocking { groups.stop(process, grouped = true) }
+
+		assertThat(sent).containsExactly("TERM ${FakeProcess.PID}", "destroy", "KILL ${FakeProcess.PID}").inOrder()
+	}
+
+	@Test
 	fun `without setsid a timeout still stops the command itself`() {
 		assumeHostTools()
 		val noGroups = ProcessGroups(null) { _, _ -> throw AssertionError("signalled a group that does not exist") }
@@ -380,6 +398,41 @@ class IdeCommandServiceImplTest {
 		val isolated = ProcessGroups("/setsid") { _, _ -> true }.isolate(command, null)
 
 		assertThat(isolated).isEqualTo(GroupedCommand(command, grouped = false))
+	}
+
+	/** Alive until destroyed, with its process id where [ProcessGroups] reads it on Android. */
+	private class FakeProcess(
+		private val onDestroy: () -> Unit,
+	) : Process() {
+		@JvmField
+		val pid = PID
+		private var alive = true
+
+		override fun getOutputStream() = ByteArrayOutputStream()
+
+		override fun getInputStream() = ByteArrayInputStream(ByteArray(0))
+
+		override fun getErrorStream() = ByteArrayInputStream(ByteArray(0))
+
+		override fun waitFor() = 0
+
+		override fun exitValue() = if (alive) throw IllegalThreadStateException("running") else 0
+
+		override fun isAlive() = alive
+
+		override fun destroy() {
+			alive = false
+			onDestroy()
+		}
+
+		override fun destroyForcibly(): Process {
+			destroy()
+			return this
+		}
+
+		companion object {
+			const val PID = 4242
+		}
 	}
 
 	private companion object {
