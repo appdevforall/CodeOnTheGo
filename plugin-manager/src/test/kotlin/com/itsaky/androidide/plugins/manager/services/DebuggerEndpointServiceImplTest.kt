@@ -88,16 +88,37 @@ class DebuggerEndpointServiceImplTest {
 	}
 
 	@Test
-	fun `the default source is empty until the app installs one`() {
-		DebuggerEndpointSources.install(null)
-		val defaulted = DebuggerEndpointServiceImpl("p", setOf(PluginPermission.DEBUGGER_ENDPOINTS), { project }, isMainThread = { false })
-		assertThat(defaulted.getEndpoints()).isEmpty()
+	fun `is empty until the app installs a source`() {
+		var installed: DebuggerEndpointSource? = null
+		val service = DebuggerEndpointServiceImpl("p", setOf(PluginPermission.DEBUGGER_ENDPOINTS), { project }, { installed }, { false })
+		assertThat(service.getEndpoints()).isEmpty()
 
-		DebuggerEndpointSources.install(source)
-		try {
-			assertThat(defaulted.getEndpoints()).containsExactly(endpoint)
-		} finally {
-			DebuggerEndpointSources.install(null)
-		}
+		installed = source
+
+		assertThat(service.getEndpoints()).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `adding the permission to the set the service was built from grants nothing`() {
+		val granted = linkedSetOf(PluginPermission.FILESYSTEM_READ, PluginPermission.NETWORK_ACCESS)
+		val denied = service(permissions = granted)
+
+		granted += PluginPermission.DEBUGGER_ENDPOINTS
+
+		assertThrows(SecurityException::class.java) { denied.getEndpoints() }
+		assertThat(seen).isEmpty()
+	}
+
+	@Test
+	fun `the service's own permission set cannot be added to, as a plugin would by reflection`() {
+		val denied = service(permissions = linkedSetOf(PluginPermission.FILESYSTEM_READ, PluginPermission.NETWORK_ACCESS))
+		val field = DebuggerEndpointServiceImpl::class.java.getDeclaredField("permissions").apply { isAccessible = true }
+
+		@Suppress("UNCHECKED_CAST")
+		val held = field.get(denied) as MutableSet<PluginPermission>
+		assertThrows(UnsupportedOperationException::class.java) { held.add(PluginPermission.DEBUGGER_ENDPOINTS) }
+
+		assertThrows(SecurityException::class.java) { denied.getEndpoints() }
+		assertThat(seen).isEmpty()
 	}
 }

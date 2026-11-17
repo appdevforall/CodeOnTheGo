@@ -7,7 +7,7 @@ import java.util.List;
  * Tells a plugin where the SQLite debugger servers of the open project's apps are listening, so a plugin such as an MCP client can connect without the user typing a port or token.
  *
  * <p>
- * The host registers this service for every plugin; a call needs the {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws {@link SecurityException} without it, like the other permission-gated services.
+ * The host registers this service for every plugin; a call needs the {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws {@link SecurityException} without it, like the other permission-gated services. Plugins run in Code on the Go's process, so the permission declares what a plugin means to do: it cannot stop a plugin that reaches into the host by reflection.
  *
  * <p>
  * Calls are synchronous, as in {@link IdeLogService} and {@link IdeProjectService}, rather than returning a {@link java.util.concurrent.CompletableFuture} as the services that start long work do: the answer is a small read of the IDE's own database, not an operation with a lifecycle. That read is disk I/O, so call from a background thread: on the main thread the call throws {@link IllegalStateException}.

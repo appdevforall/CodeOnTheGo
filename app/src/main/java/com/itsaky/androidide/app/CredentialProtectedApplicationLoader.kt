@@ -22,7 +22,6 @@ import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
-import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSources
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
@@ -410,7 +409,7 @@ internal object CredentialProtectedApplicationLoader :
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
 			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
-			DebuggerEndpointSources.install(get<DebuggerEndpointSource>())
+			manager.installDebuggerEndpointSource(get<DebuggerEndpointSource>())
 			IdeTerminalServiceImpl.setSessionLauncher(PluginTerminalLauncher { application.foregroundActivity })
 			logger.info("Plugin services configured successfully")
 		}

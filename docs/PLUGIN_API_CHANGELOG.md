@@ -45,7 +45,9 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   listed until it reports again (`updatedAtMillis` is when it last reported). The call reads the IDE's database: use a background thread. It needs
   the new `debugger.endpoints` permission (`PluginPermission.DEBUGGER_ENDPOINTS`) and throws
   `SecurityException` without it, and `IllegalStateException` on the main thread or when the database
-  cannot be read (an unreadable database is not reported as an empty list). Floor `plugin.min_ide_version`
+  cannot be read (an unreadable database is not reported as an empty list). Plugins run in Code on the
+  Go's process, so the permission declares intent and cannot stop reflection, as with `IdeLogService`
+  below. Floor `plugin.min_ide_version`
   at `26.47`: an IDE of 26.46 or older rejects the unknown `debugger.endpoints` permission when it
   validates the manifest, so it refuses to install a plugin that declares it.
 

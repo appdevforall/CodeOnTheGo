@@ -43,6 +43,7 @@ import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
 import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointServiceImpl
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
@@ -96,6 +97,7 @@ import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 class PluginManager private constructor(
 	private val context: Context,
@@ -405,6 +407,21 @@ class PluginManager private constructor(
 			.projectDirPath
 			.takeIf { it.isNotEmpty() }
 			?.let(::File)
+	}
+
+	/** Where [DebuggerEndpointService] reads. Private: short of reflection, a plugin cannot read tokens around the service. */
+	private val debuggerEndpointSource = AtomicReference<DebuggerEndpointSource?>()
+
+	/**
+	 * Installs where every plugin's [DebuggerEndpointService] reads the SQLite debugger endpoints apps
+	 * reported. The app installs it once, before plugins load. Plugins share this class loader, so a
+	 * later call, which can only be a plugin's, fails rather than replacing or blanking the source for
+	 * every plugin.
+	 *
+	 * @throws IllegalStateException if a source is already installed
+	 */
+	fun installDebuggerEndpointSource(source: DebuggerEndpointSource) {
+		check(debuggerEndpointSource.compareAndSet(null, source)) { "The SQLite debugger endpoint source is already installed" }
 	}
 
 	init {
@@ -1605,6 +1622,7 @@ class PluginManager private constructor(
 				pluginId = pluginId,
 				permissions = permissions,
 				projectRootProvider = ::openProjectRoot,
+				sourceProvider = debuggerEndpointSource::get,
 			)
 		}
 
@@ -1887,6 +1905,7 @@ class PluginManager private constructor(
 				pluginId = pluginId,
 				permissions = permissions,
 				projectRootProvider = ::openProjectRoot,
+				sourceProvider = debuggerEndpointSource::get,
 			)
 		}
 

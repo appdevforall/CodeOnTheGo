@@ -9,13 +9,14 @@ import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.PluginLogger
-import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSources
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.services.DebuggerEndpoint
 import com.itsaky.androidide.plugins.services.DebuggerEndpointService
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,7 +47,7 @@ class PluginManagerDebuggerEndpointTest {
 	@Before
 	fun setUp() {
 		project = Files.createTempDirectory("proj").toFile()
-		DebuggerEndpointSources.install { location ->
+		pluginManager().installDebuggerEndpointSource { location ->
 			asked += location
 			if (location == project.absolutePath) listOf(endpoint) else emptyList()
 		}
@@ -54,7 +55,6 @@ class PluginManagerDebuggerEndpointTest {
 
 	@After
 	fun tearDown() {
-		DebuggerEndpointSources.install(null)
 		forgetPluginManager()
 		ProjectManagerImpl.getInstance().projectPath = ""
 		GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
@@ -77,6 +77,26 @@ class PluginManagerDebuggerEndpointTest {
 
 		assertThat(offMainThread { service.getEndpoints() }).isEmpty()
 		assertThat(asked).isEmpty()
+	}
+
+	@Test
+	fun `a second install, as a plugin would try, fails and leaves the app's source in place`() {
+		val service = load("reader", "debugger.endpoints")
+		openInEditor(project)
+
+		assertThrows(IllegalStateException::class.java) { pluginManager().installDebuggerEndpointSource { emptyList() } }
+
+		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `no public member hands out the source, and the public holder plugins could read is gone`() {
+		val types = PluginManager::class.java.methods.map { it.returnType } + PluginManager::class.java.fields.map { it.type }
+
+		assertThat(types.filter { DebuggerEndpointSource::class.java.isAssignableFrom(it) }).isEmpty()
+		assertThrows(ClassNotFoundException::class.java) {
+			Class.forName("com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSources")
+		}
 	}
 
 	/** What opening [dir] leaves behind: the project path and the last opened project, and an editor showing it. */

@@ -345,6 +345,10 @@ Defined by `PluginPermission` in `plugin-api/src/main/kotlin/com/itsaky/androidi
 | `ide.environment.write`  | Write to IDE-managed directories (Android SDK, NDK, cache)                      |
 | `debugger.endpoints`     | Read the port and token of the open project's SQLite debugger servers           |
 
+Plugins run in Code on the Go's process. A permission declares what a plugin means to do, and the
+services check it on every call, but it cannot stop a plugin that reaches into the host by
+reflection.
+
 ## Contributing a language
 
 Implement `LanguageExtension` to give a file type syntax highlighting, a language server, or both:
