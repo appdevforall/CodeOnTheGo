@@ -1882,10 +1882,9 @@ class PluginManager private constructor(
 			logger.debug("Cleaning up ALL files and cache for plugin: $pluginId")
 
 			val pluginDir = File(pluginsDir, pluginId)
-			if (pluginDir.exists()) {
-				val deleted = pluginDir.deleteWithoutFollowingLinks()
-				logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
-			}
+			// No exists() guard: it follows links, so a dangling link would survive.
+			val deleted = pluginDir.deleteWithoutFollowingLinks()
+			logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
 
 			File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
 				dir.deleteWithoutFollowingLinks()

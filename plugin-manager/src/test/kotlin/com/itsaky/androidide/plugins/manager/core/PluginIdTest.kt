@@ -56,6 +56,37 @@ class PluginIdTest {
 	}
 
 	@Test
+	fun theInstallerRefusesTheIdsOfCoGosOwnFiles() {
+		for ((id, message) in refusedCoGoIds) {
+			val result = pluginManager().getPluginValidation(plugin(id))
+
+			assertWithMessage("the installer accepted \"$id\"").that(result.isFailure).isTrue()
+			assertThat(result.exceptionOrNull()).hasMessageThat().isEqualTo("Invalid plugin ID \"$id\": $message")
+		}
+	}
+
+	@Test
+	fun loadingRefusesTheIdsOfCoGosOwnFiles() {
+		for ((id, message) in refusedCoGoIds) {
+			val result = pluginManager().loadPlugin(plugin(id))
+
+			assertThat(result.exceptionOrNull()).hasMessageThat().isEqualTo("Invalid plugin ID \"$id\": $message")
+		}
+	}
+
+	@Test
+	fun idsThatOnlyLookLikeCoGosOwnFilesAreAccepted() {
+		for (id in listOf("oat.tools", "cgp", "my.cgp.tools", "oats", "x.cgpx")) {
+			assertThat(
+				pluginManager()
+					.getPluginValidation(plugin(id))
+					.getOrThrow()
+					.manifest.id,
+			).isEqualTo(id)
+		}
+	}
+
+	@Test
 	fun aManifestWithoutAnIdIsRefused() {
 		assertThat(checkPluginId(null).exceptionOrNull())
 			.hasMessageThat()
@@ -64,6 +95,14 @@ class PluginIdTest {
 
 	@After
 	fun forgetManager() = forgetPluginManager()
+
+	private val refusedCoGoIds =
+		listOf(
+			"oat" to "\"oat\" is the folder of compiled plugin code",
+			"OAT" to "\"oat\" is the folder of compiled plugin code",
+			"x.cgp" to "it must not end in .cgp, which names a plugin file",
+			"x.CGP" to "it must not end in .cgp, which names a plugin file",
+		)
 
 	private fun plugin(id: String): File = fakePlugin(File(temp.newFolder(), "plugin.cgp"), id)
 }

@@ -6,6 +6,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.util.concurrent.CountDownLatch
@@ -249,6 +250,26 @@ class PluginBuildFilesTest {
 		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
 		assertThat(File(dir, "libfoo.so").readText()).isEqualTo("A")
 		assertWithMessage("the libraries went through a link").that(Files.isSymbolicLink(File(nativeLibsDir, ID).toPath())).isFalse()
+	}
+
+	@Test
+	fun aPluginFolderLinkThatCannotBeDeletedFailsExtractionInsteadOfEmptyingItsTarget() {
+		val victim = victim()
+		val link = File(nativeLibsDir, ID).also { Files.createSymbolicLink(it.toPath(), victim.toPath()) }
+		val build = installed(build("a.cgp", "libfoo.so" to "A"))
+
+		// The link can't be unlinked from a read-only folder.
+		nativeLibsDir.setWritable(false)
+		val extracted =
+			try {
+				runCatching { files.extractNativeLibs(ID, build, ABI) }
+			} finally {
+				nativeLibsDir.setWritable(true)
+			}
+
+		assertThat(extracted.exceptionOrNull()).isInstanceOf(IOException::class.java)
+		assertThat(extracted.exceptionOrNull()).hasMessageThat().contains(link.absolutePath)
+		assertWithMessage("extraction went through the link").that(victim.list()?.toList()).containsExactly("keep.txt")
 	}
 
 	@Test

@@ -11,6 +11,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.LinkOption
 
 /**
  * Uninstalling a plugin deletes its own files only. Update uninstalls first, so the same goes for
@@ -111,6 +112,65 @@ class PluginUninstallTest {
 	}
 
 	@Test
+	fun compiledCodeOfAnotherPluginInstalledWithAnUpperCaseExtensionIsKept() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		fakePlugin(File(pluginsDir, "a-0123456789abcdef.CGP"), "a-0123456789abcdef")
+		val other = file(oatDir, "arm64/a-0123456789abcdef.odex")
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("uninstalling \"a\" deleted the compiled code of a .CGP file").that(other.exists()).isTrue()
+	}
+
+	@Test
+	fun aLinkAtThePluginsDataFolderIsDeletedNotFollowed() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		val victim = victim()
+		val link = File(pluginsDir, "a").toPath()
+		Files.createSymbolicLink(link, victim.toPath())
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertWithMessage("the link is still there").that(Files.exists(link, LinkOption.NOFOLLOW_LINKS)).isFalse()
+	}
+
+	@Test
+	fun aDanglingLinkAtThePluginsDataFolderIsDeleted() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		val link = File(pluginsDir, "a").toPath()
+		Files.createSymbolicLink(link, File(RuntimeEnvironment.getApplication().filesDir.parentFile, "gone").toPath())
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("the dangling link survived").that(Files.exists(link, LinkOption.NOFOLLOW_LINKS)).isFalse()
+	}
+
+	@Test
+	fun aLinkAtThePluginsIconsFolderIsDeletedNotFollowed() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		val victim = victim()
+		val link = iconsDir("a").toPath()
+		Files.createSymbolicLink(link, victim.toPath())
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertWithMessage("the link is still there").that(Files.exists(link, LinkOption.NOFOLLOW_LINKS)).isFalse()
+	}
+
+	@Test
+	fun aDanglingLinkAtThePluginsIconsFolderIsDeleted() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		val link = iconsDir("a").toPath()
+		Files.createSymbolicLink(link, File(RuntimeEnvironment.getApplication().filesDir.parentFile, "gone").toPath())
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("the dangling link survived").that(Files.exists(link, LinkOption.NOFOLLOW_LINKS)).isFalse()
+	}
+
+	@Test
 	fun aLinkInThePluginsDataIsNotFollowed() {
 		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
 		val victim = victim()
@@ -149,6 +209,8 @@ class PluginUninstallTest {
 			.that(victim.list()?.toList())
 			.containsExactly("keep.txt", "a-0123456789012345.odex")
 	}
+
+	private fun iconsDir(id: String): File = File(RuntimeEnvironment.getApplication().getDir("plugin_icons", Context.MODE_PRIVATE), id)
 
 	// Outside the folders an uninstall deletes, with a file that must survive.
 	private fun victim(): File =

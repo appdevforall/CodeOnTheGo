@@ -58,7 +58,8 @@ class PluginBuildFiles internal constructor(
 	): Boolean {
 		if (!isCompiledCodeOf(pluginId, file)) return false
 		val stem = file.name.replace(Regex("\\.(odex|vdex|art|$PLUGIN_ARCHIVE_EXTENSION\\.(cur\\.)?prof)$"), "")
-		return !File(pluginsDir, "$stem.$PLUGIN_ARCHIVE_EXTENSION").exists()
+		// loadPlugins loads .CGP too, so any case of the extension keeps the code.
+		return pluginsDir.listFiles { f -> isPluginFile(f) && f.nameWithoutExtension == stem }.isNullOrEmpty()
 	}
 
 	/** Every plugin file whose manifest has [pluginId]. Its name can't tell: it names the build. */
@@ -106,6 +107,8 @@ class PluginBuildFiles internal constructor(
 			if (Files.isSymbolicLink(pluginDir.toPath())) {
 				log.warn("{} is a link; deleting the link and extracting into a folder", pluginDir)
 				pluginDir.deleteWithoutFollowingLinks()
+				// Else the steps below run inside the link's target and empty it.
+				if (Files.isSymbolicLink(pluginDir.toPath())) throw IOException("Could not delete the link ${pluginDir.absolutePath}")
 			}
 			val key = buildKey(pluginId, build)
 			// Before folderFor: a link left at the build's path would block the scratch folder's rename.
