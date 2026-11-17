@@ -3,6 +3,7 @@ package com.itsaky.androidide.plugins.manager.core
 import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.plugins.PluginLogger
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -38,7 +39,9 @@ class PluginManagerLoadLockTest {
 				}
 			swapping.await()
 
-			val load = async(Dispatchers.Default) { manager.loadPlugins() }
+			// Undispatched, so the load has asked for the lock before the wait below starts: a load
+			// that started late can't pass for one the lock held back.
+			val load = async(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) { manager.loadPlugins() }
 			// With no plugin files, an unguarded load finishes in milliseconds.
 			delay(500)
 			assertWithMessage("loadPlugins() ran while a file swap held the lock").that(load.isCompleted).isFalse()
