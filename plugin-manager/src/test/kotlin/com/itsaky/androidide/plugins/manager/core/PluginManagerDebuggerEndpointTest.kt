@@ -80,6 +80,26 @@ class PluginManagerDebuggerEndpointTest {
 	}
 
 	@Test
+	fun `each loaded plugin gets a service bound to its own permissions and the project now open`() {
+		val reader = load("reader", "debugger.endpoints")
+		val other = load("other", "filesystem.read,network.access")
+		val elsewhere = Files.createTempDirectory("other").toFile()
+		try {
+			openInEditor(project)
+
+			assertThat(offMainThread { reader.getEndpoints() }).containsExactly(endpoint)
+			assertThrows(SecurityException::class.java) { offMainThread { other.getEndpoints() } }
+
+			openInEditor(elsewhere)
+
+			assertThat(offMainThread { reader.getEndpoints() }).isEmpty()
+			assertThat(asked).containsExactly(project.absolutePath, elsewhere.absolutePath).inOrder()
+		} finally {
+			elsewhere.deleteRecursively()
+		}
+	}
+
+	@Test
 	fun `a second install, as a plugin would try, fails and leaves the app's source in place`() {
 		val service = load("reader", "debugger.endpoints")
 		openInEditor(project)
