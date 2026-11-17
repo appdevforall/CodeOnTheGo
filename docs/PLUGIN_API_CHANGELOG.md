@@ -37,7 +37,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 
 ### 26.47 — unreleased
 - **added — Find the SQLite debugger of the open project's apps** _(ADFA-7139)_ **[verified]**
-  `DebuggerEndpointService.getEndpoints()` returns a `List<DebuggerEndpoint>`, one per app of the open
+  `DebuggerEndpointService.getEndpoints()` returns an unmodifiable `List<DebuggerEndpoint>`, one per app of the open
   project that has reported to the IDE: `applicationId`, `port` (on `127.0.0.1`), `token` (the bearer
   token the server requires) and `updatedAtMillis`. The list is empty, never null, when no project is
   open in the editor (the home screen, even right after a project was closed) or no app has reported. Port and token change every time the app starts, so call again after a

@@ -70,7 +70,8 @@ internal class DebuggerEndpointServiceImpl(
 			}
 		// Again after the read: a plugin disabled while it ran gets no tokens either.
 		requireOpen()
-		return endpoints
+		// The contract promises an unmodifiable list, whatever list the source built.
+		return Collections.unmodifiableList(ArrayList(endpoints))
 	}
 
 	/**

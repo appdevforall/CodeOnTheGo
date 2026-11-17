@@ -25,7 +25,7 @@ public interface DebuggerEndpointService {
 	 * <p>
 	 * An app the IDE installed or launched but that has not yet reported is not listed, and neither is an app that has since been uninstalled. An endpoint can still be stale: when the app's process has died, its last reported port and token stay here until the app reports again, so treat {@link DebuggerEndpoint#getUpdatedAtMillis} (when it last reported) as a hint, and when a connection is refused, call this again and reconnect.
 	 *
-	 * @return the endpoints (never null; empty when no project is open in the editor, as on the home screen, or no app has reported)
+	 * @return the endpoints, in a list the caller cannot modify (never null; empty when no project is open in the editor, as on the home screen, or no app has reported)
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
