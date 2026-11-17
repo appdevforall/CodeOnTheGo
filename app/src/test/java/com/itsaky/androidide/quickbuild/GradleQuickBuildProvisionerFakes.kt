@@ -134,6 +134,23 @@ internal class FakeProjectManager(
 internal fun unsyncedProjectManager(projectRoot: File): FakeProjectManager = FakeProjectManager(projectRoot, workspace = null)
 
 /**
+ * A project model that has no workspace and no modules until [published] is set, when it answers
+ * as [synced] does: a tap during the sync, and the sync finishing while Quick Build works.
+ */
+internal class SyncingProjectManager(
+	private val synced: FakeProjectManager,
+) : IProjectManager by synced {
+	var published = false
+
+	override val workspace: Workspace?
+		get() = if (published) synced.workspace else null
+
+	override fun getAndroidModules(): List<AndroidModule> = if (published) synced.getAndroidModules() else emptyList()
+
+	override fun getAndroidAppModules(): List<AndroidModule> = if (published) synced.getAndroidAppModules() else emptyList()
+}
+
+/**
  * An Android module as the Build Variants sidebar presents it.
  *
  * Mocked rather than built from a real model: [AndroidModule.getSelectedVariant] reads the

@@ -90,6 +90,35 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 		}
 
 	@Test
+	fun `an opt-in in the app module's gradle properties is refused when the tap comes during the sync`() =
+		runTest {
+			val moduleDir = moduleDir()
+			File(moduleDir, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			val gradle = FakeBuildService()
+			val project =
+				SyncingProjectManager(
+					FakeProjectManager(
+						projectRoot,
+						appModules = listOf(androidModule(buildDir = File(moduleDir, "build"), projectDir = moduleDir)),
+					),
+				)
+
+			val outcome =
+				testProvisioner(
+					context = context,
+					projectRoot = projectRoot,
+					buildService = gradle,
+					projectManager = project,
+					// The sync publishes the modules while Quick Build stages, so only a check made after
+					// the wait for the model can read the module's gradle.properties.
+					stage = { _, _ -> project.published = true },
+				).provision()
+
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(gradle.executedTasks).isNull()
+		}
+
+	@Test
 	fun `a slot that goes busy between the staging and the build still reads as a busy slot`() =
 		runTest {
 			// Free on the early read, taken on the late one: CoGo's own project sync fires on
