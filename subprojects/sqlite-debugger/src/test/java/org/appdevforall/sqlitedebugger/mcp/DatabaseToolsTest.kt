@@ -210,6 +210,16 @@ class DatabaseToolsTest {
 		)
 	}
 
+	@Test fun toolDescriptionsStateTheLimitsAnAgentMustPlanAround() {
+		val descriptions = tools.tools().associate { it.name to it.description }
+		// The server's own connection lacks what the app registers per connection (sqlite-js, requery custom functions).
+		for (name in listOf("query", "explain_query_plan")) {
+			assertTrue(name, descriptions.getValue(name).contains("Functions the app adds to its own connections"))
+			assertTrue(name, descriptions.getValue(name).contains("no such function"))
+		}
+		assertTrue(descriptions.getValue("query").contains("compute in plain SQL"))
+	}
+
 	@Test fun queryChecksItsArguments() {
 		engine.appConnections += conn(1, "/data/a.db")
 
