@@ -308,6 +308,7 @@ class QuickBuildSessionManagerTest {
 		// The layout's tree walks hop off the session dispatcher; keep them on the test
 		// scheduler so they stay inside virtual time rather than on a real IO thread.
 		ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
+		sweepInstallSessions: () -> Unit = {},
 	): QuickBuildSessionManager {
 		val provisioner =
 			object : QuickBuildProvisioner {
@@ -407,6 +408,7 @@ class QuickBuildSessionManagerTest {
 						FakePaths(projectRoot).projectScratchRoot,
 						ioDispatcher = StandardTestDispatcher(testScheduler),
 					),
+			sweepInstallSessions = sweepInstallSessions,
 		).also { manager ->
 			// Same hazard [recordNotices] documents, and the same reason for Unconfined.
 			if (collectUserMessages) {
@@ -5479,5 +5481,27 @@ class QuickBuildSessionManagerTest {
 			// One hop for the check, and the check found the artifacts, so no rebuild.
 			assertThat(io.dispatches).isEqualTo(hopsBefore + 1)
 			assertThat(proxyAppRebuildCount).isEqualTo(0)
+		}
+
+	@Test
+	fun `startup sweeps stale PackageInstaller sessions before provisioning runs`() =
+		runTest {
+			val staleSessions = (1..50).toMutableSet()
+			var sweptBeforeProvision = false
+			provisionOutcome = {
+				sweptBeforeProvision = staleSessions.isEmpty()
+				defaultProvisionOutcome()
+			}
+
+			val manager =
+				createManager(
+					sweepInstallSessions = { staleSessions.clear() },
+				)
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			assertThat(staleSessions).isEmpty()
+			assertThat(sweptBeforeProvision).isTrue()
+			assertThat(manager.state.value).isEqualTo(QuickBuildSessionState.Ready(0))
 		}
 }
