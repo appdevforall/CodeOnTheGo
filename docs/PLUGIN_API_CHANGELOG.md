@@ -41,9 +41,10 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   process, never its children. Each command now runs in a process group of its own, and a
   timeout, `cancel()` or `cancelAllCommands()` stops the whole group: SIGTERM, then SIGKILL
   250 ms later. `await()` returns within a second of the timeout, and a stopped command frees its slot.
-  On Android 11, whose `setsid` always forks, the IDE uses the Terminal's `setsid` instead. If
-  the Terminal isn't installed when the IDE starts, commands there get no group of their own
-  until the next start, and a stop reaches only the command's own process, as before.
+  On Android 11, whose `setsid` always forks, the IDE uses the Terminal's `setsid` instead, but
+  only if that one runs commands in place when the IDE first checks it. Where neither does, for
+  example because the Terminal isn't installed yet, commands get no group of their own until the
+  IDE's next start, and a stop leaves their children running, as before.
   A command that exits on its own is never reported as timed out. If a background child still
   holds its output 500 ms after the command exits, the child is stopped, and `await()` returns
   within about 1.5 s of the exit; a child whose output goes elsewhere (`server >log 2>&1 &`) is left running, as is a process
