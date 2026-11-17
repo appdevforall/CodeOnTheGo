@@ -5,4 +5,6 @@ public class Helper {
 	static native int exec(long db, String sql);
 
 	static native int close(long db);
+
+	static native int denyTransactions(long db, boolean deny);
 }

@@ -467,8 +467,15 @@ done:
 	sqlite3_finalize(st);
 	free(cut_cells);
 	// Backstop: a transaction left open (a writable connection, or a way past the authorizer)
-	// would hold a lock on the app's database until the next query.
-	if (sqlite3_get_autocommit(db) == 0) sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL);
+	// would hold a lock on the app's database until the next query. A failure is the call's error,
+	// unless the query already failed: that error is kept.
+	rc = sqlitedbg_end_transaction(db);
+	if (rc != SQLITE_OK) {
+		char msg[256];
+		snprintf(msg, sizeof msg, "a transaction was left open and rolling it back failed: %s", sqlite3_errmsg(db));
+		throw_engine(env, rc, msg);
+		result = NULL;
+	}
 	return result;
 }
 
