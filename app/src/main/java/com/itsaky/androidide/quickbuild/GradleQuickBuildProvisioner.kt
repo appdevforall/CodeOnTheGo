@@ -563,7 +563,9 @@ class GradleQuickBuildProvisioner(
 		projectRoot: File,
 	): ProxyAppBuildResult.Refused? {
 		// Every app module's gradle.properties is read, although Quick Build builds only the first
-		// app module: the opt-in is decided per project, so two modules that disagree refuse here.
+		// app module: the opt-in is decided per project, and the first file that defines the
+		// property decides it (the Gradle user home, then the modules in order, then the root), so
+		// a module's `false` overrides a root `true` as it does in Gradle.
 		val enabled =
 			QuickBuildProjectSupport.isSqliteDebuggerEnabled(
 				projectRoot,
