@@ -2,10 +2,12 @@ package com.itsaky.androidide.plugins.manager.services
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.plugins.PluginPermission
+import com.itsaky.androidide.plugins.extensions.CommandOutput
 import com.itsaky.androidide.plugins.extensions.CommandResult
 import com.itsaky.androidide.plugins.extensions.CommandSpec
 import com.itsaky.androidide.plugins.services.CommandExecution
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -18,6 +20,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
 import java.util.concurrent.CountDownLatch
 
 class IdeCommandServiceImplTest {
@@ -27,6 +30,9 @@ class IdeCommandServiceImplTest {
 	private val projectRoot by lazy { tmp.newFolder("project") }
 	private val filesDir by lazy { tmp.newFolder("files") }
 	private val pidFile by lazy { File(tmp.root, "pids") }
+
+	/** Created by [releaseOnceReading] to end a script's [WAIT_FOR_RELEASE]. */
+	private val releaseFile by lazy { File(tmp.root, "release") }
 
 	/** `setsid` and `kill` from util-linux and procps, standing in for Android's toybox and [android.system.Os]. */
 	private val hostGroups = ProcessGroups(SETSID, ::hostSignal)
@@ -77,8 +83,25 @@ class IdeCommandServiceImplTest {
 		return runBlocking { execution.await() }
 	}
 
-	/** `sh -c [script]`, where `$1` is [pidFile] for the script to write the ids of its processes to. */
-	private fun shell(script: String) = CommandSpec.ShellCommand("sh", listOf("-c", script, "sh", pidFile.path))
+	/**
+	 * `sh -c [script]`, where `$1` is [pidFile] for the script to write the ids of its processes to,
+	 * and `$2` is [releaseFile].
+	 */
+	private fun shell(script: String) = CommandSpec.ShellCommand("sh", listOf("-c", script, "sh", pidFile.path, releaseFile.path))
+
+	/**
+	 * Lets a script that echoed `done` and ends in [WAIT_FOR_RELEASE] exit, once `done` has been read
+	 * and both output readers are blocked in read() again, where they hold the output open.
+	 */
+	private fun CommandExecution.releaseOnceReading() {
+		runBlocking { withTimeout(5_000) { output.first { it == CommandOutput.StdOut("done") } } }
+		val deadline = System.currentTimeMillis() + 5_000
+		while (Thread.getAllStackTraces().values.count { it.inReader() && it.inRead() } < 2) {
+			check(System.currentTimeMillis() < deadline) { "the output readers are not in read()" }
+			Thread.sleep(5)
+		}
+		releaseFile.createNewFile()
+	}
 
 	private fun CommandExecution.awaitWithin(ms: Long): CommandResult = runBlocking { withTimeout(ms) { await() } }
 
@@ -123,14 +146,20 @@ class IdeCommandServiceImplTest {
 	}
 
 	/** Threads still in a command's output reader. */
-	private fun readerThreads(): List<String> {
-		val reader = "${CommandExecutionImpl::class.java.name}\$readLines"
-		return Thread
+	private fun readerThreads(): List<String> =
+		Thread
 			.getAllStackTraces()
-			.filterValues { frames -> frames.any { it.className.startsWith(reader) } }
+			.filterValues { it.inReader() }
 			.keys
 			.map { it.name }
+
+	private fun Array<StackTraceElement>.inReader(): Boolean {
+		val reader = "${CommandExecutionImpl::class.java.name}\$readLines"
+		return any { it.className.startsWith(reader) }
 	}
+
+	/** Blocked reading a pipe, inside the process stream's lock that its exit has to take to close it. */
+	private fun Array<StackTraceElement>.inRead(): Boolean = any { it.className == FileInputStream::class.java.name }
 
 	private fun assumeHostTools() =
 		assumeTrue(
@@ -234,18 +263,19 @@ class IdeCommandServiceImplTest {
 	@Test
 	fun `a command that exits before its timeout is not timed out while a child holds its output`() {
 		assumeHostTools()
-		val script = "echo done; sleep 600 & echo \$! >> \"\$1\"; $LET_READERS_START"
-		// The output stays open past the 1 s limit, until the grace ends and the child is stopped.
+		val script = "echo done; sleep 600 & echo \$! >> \"\$1\"; $WAIT_FOR_RELEASE"
+		// The output stays open past the 2 s limit, until the grace ends and the child is stopped.
 		val execution =
 			CommandExecutionImpl(
 				"test",
-				ProcessBuilder(SETSID, "sh", "-c", script, "sh", pidFile.path)::start,
+				ProcessBuilder(SETSID, "sh", "-c", script, "sh", pidFile.path, releaseFile.path)::start,
 				grouped = true,
 				processGroups = hostGroups,
-				timeoutMs = 1_000,
-				outputGraceMs = 2_000,
+				timeoutMs = 2_000,
+				outputGraceMs = 3_000,
 			)
 		execution.start {}
+		execution.releaseOnceReading()
 
 		val result = execution.awaitWithin(10_000)
 
@@ -253,7 +283,7 @@ class IdeCommandServiceImplTest {
 		result as CommandResult.Success
 		assertThat(result.stdout).isEqualTo("done\n")
 		assertThat(result.stderr).isEmpty()
-		assertThat(result.durationMs).isAtLeast(2_000)
+		assertThat(result.durationMs).isAtLeast(3_000)
 		assertThat(pids(1).filter(::alive)).isEmpty()
 	}
 
@@ -272,14 +302,14 @@ class IdeCommandServiceImplTest {
 	@Test
 	fun `a command returns soon after it exits though a child holds its output`() {
 		assumeHostTools()
-		val started = System.currentTimeMillis()
+		val execution = service().executeCommand(shell("echo done; sleep 600 & echo \$! >> \"\$1\"; $WAIT_FOR_RELEASE"), 60_000)
+		execution.releaseOnceReading()
+		val released = System.currentTimeMillis()
 
-		val script = "echo done; sleep 600 & echo \$! >> \"\$1\"; $LET_READERS_START"
-
-		val result = service().executeCommand(shell(script), 60_000).awaitWithin(10_000)
+		val result = execution.awaitWithin(10_000)
 
 		// What the changelog promises: within about 1.5 s of the exit.
-		assertThat(System.currentTimeMillis() - started).isLessThan(LET_READERS_START_MS + 1_500)
+		assertThat(System.currentTimeMillis() - released).isLessThan(1_500)
 		assertThat(result).isInstanceOf(CommandResult.Success::class.java)
 		assertThat((result as CommandResult.Success).stdout).isEqualTo("done\n")
 		assertThat(readerThreads()).isEmpty()
@@ -474,12 +504,13 @@ class IdeCommandServiceImplTest {
 		const val SH = "/bin/sh"
 
 		/**
-		 * Ends a script that leaves a child holding its output, so that the readers are in read()
-		 * before the shell exits. A shell that exits first has its output drained and closed by
-		 * [Process], which hides the child.
+		 * Ends a script that leaves a child holding its output: the shell waits for `$2` to exist,
+		 * which [releaseOnceReading] creates once the readers are in read(). A shell that exits first
+		 * has its output drained and closed by [Process], which hides the child. Also ends once `$1`,
+		 * which the script has written to, is deleted with the test's folder, so that a test failing
+		 * first leaves no shell behind.
 		 */
-		const val LET_READERS_START_MS = 200L
-		const val LET_READERS_START = "sleep 0.2"
+		const val WAIT_FOR_RELEASE = "until [ -e \"\$2\" ] || [ ! -e \"\$1\" ]; do sleep 0.01; done"
 		val DEV_NULL = File("/dev/null")
 
 		/** A child, a double-forked grandchild, the shell itself, and a child it waits for. */
