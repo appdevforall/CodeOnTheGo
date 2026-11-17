@@ -570,10 +570,11 @@ class DatabaseTools(
 				val conn =
 					serverConnections
 						.getOrPut(path) {
-							// checkedPath looked at an earlier snapshot: the app may have closed its last connection
-							// to this path since, and the server never opens a database the app doesn't have open.
-							if (path !in knownPaths(live)) throw unknownDatabase(path, knownPaths(live))
+							// checkedPath looked at an earlier snapshot: the app may have closed, or begun closing, its
+							// last connection to this path since, and the server never opens a database the app doesn't
+							// have open. A closing connection is still listed, so knownPaths alone would let it through.
 							val ids = live.filter { it.path == path && !it.closing }.map { it.id }.toSet()
+							if (ids.isEmpty()) throw unknownDatabase(path, knownPaths(live))
 							CachedConnection(engine.openServerConnection(path, writable = false), ids)
 						}.connection
 				conn.query(sql, bind, offset, limits, call.deadline)
