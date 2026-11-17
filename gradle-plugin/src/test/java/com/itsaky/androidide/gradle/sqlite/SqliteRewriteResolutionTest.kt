@@ -178,8 +178,7 @@ class SqliteRewriteResolutionTest {
 			}
 		val unexpected =
 			failed.filterNot { f ->
-				expected.contains(f) || expected.any { it.endsWith(":") && f.startsWith(it) } ||
-					f.contains("OpenParams") || f.contains("android/database/CursorWindow")
+				expected.contains(f) || f.contains("OpenParams") || f.contains("android/database/CursorWindow")
 			}
 		assertThat(unexpected).isEmpty()
 	}

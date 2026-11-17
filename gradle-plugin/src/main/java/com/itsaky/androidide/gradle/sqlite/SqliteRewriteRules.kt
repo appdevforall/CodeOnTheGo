@@ -83,15 +83,15 @@ internal object SqliteRewriteRules {
 		)
 
 	/**
-	 * Members requery lacks, or has with another meaning. Key: "owner.name" -> descriptors, or an
-	 * empty set for every descriptor (fields and the like).
+	 * Members requery lacks, or has with another meaning. Key: "owner.name" -> the descriptors it lacks;
+	 * other overloads are not matched, so every entry names its descriptors.
 	 */
 	val MISSING_MEMBERS: Map<String, Set<String>> =
 		buildMap<String, MutableSet<String>> {
 			fun no(
 				owner: String,
 				name: String,
-				desc: String = "",
+				desc: String,
 			) {
 				getOrPut("$SQLITE_PKG$owner.$name") { mutableSetOf() }.add(desc)
 			}
@@ -174,7 +174,7 @@ internal object SqliteRewriteRules {
 			.filter { it != "<init>" }
 			.toSet()
 
-	/** Names of the fields the missing-member rule can match: entries for every descriptor, or with a field descriptor. */
+	/** Names of the fields the missing-member rule can match: entries with a field descriptor. */
 	val MISSING_FIELD_NAMES: Set<String> =
 		MISSING_MEMBERS
 			.filterValues { descs -> descs.any { !it.startsWith("(") } }

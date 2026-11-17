@@ -383,7 +383,7 @@ object SqliteRewriter {
 			// only SQLiteCursor.mWindow is listed today; skip the hierarchy lookup for every other field
 			if (name !in Rules.MISSING_FIELD_NAMES) return null
 			return renamedAncestors(owner)
-				.firstOrNull { Rules.MISSING_MEMBERS["$it.$name"]?.let { descs -> "" in descs || desc in descs } == true }
+				.firstOrNull { Rules.MISSING_MEMBERS["$it.$name"]?.contains(desc) == true }
 				?.let { "${simple(it)}.$name does not exist in requery" }
 		}
 
@@ -483,7 +483,7 @@ object SqliteRewriter {
 				return Action.None
 			}
 			for (c in ancestors) {
-				if (Rules.MISSING_MEMBERS["$c.$name"]?.let { it.isEmpty() || desc in it } == true) {
+				if (Rules.MISSING_MEMBERS["$c.$name"]?.contains(desc) == true) {
 					return Action.Fail("${simple(c)}.$name$desc does not exist in requery")
 				}
 			}
