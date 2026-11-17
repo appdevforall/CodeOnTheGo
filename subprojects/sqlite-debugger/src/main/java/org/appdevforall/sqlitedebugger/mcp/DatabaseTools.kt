@@ -202,8 +202,9 @@ class DatabaseTools(
 					"truncated_cells counts the cut values. The top-level truncated is true when anything was cut or entries were left " +
 					"out: past the first $MAX_ROWS, or past about ${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (about " +
 					"${MAX_TOTAL_BYTES / MAX_SCHEMA_SQL_BYTES} statements of ${MAX_SCHEMA_SQL_BYTES / 1024} KiB). There is no offset: " +
-					"to read the rest, page through sqlite_master with query (ORDER BY name), and read a statement longer than its " +
-					"$MAX_TEXT_BYTES-byte TEXT limit in parts with substr (it counts characters, not bytes).",
+					"to read the rest, page through sqlite_master with query (ORDER BY type, name, the order get_schema uses), " +
+					"and read a statement longer than its $MAX_TEXT_BYTES-byte TEXT limit in parts with substr " +
+					"(it counts characters, not bytes).",
 				databaseSchema(),
 			) { call, args -> getSchema(call, args) },
 			tool(
