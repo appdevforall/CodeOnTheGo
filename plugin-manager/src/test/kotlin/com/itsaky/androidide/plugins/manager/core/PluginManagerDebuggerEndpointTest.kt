@@ -185,7 +185,13 @@ class PluginManagerDebuggerEndpointTest {
 		for (mode in listOf(FailingInitializePlugin.Mode.RETURN_FALSE, FailingInitializePlugin.Mode.THROW)) {
 			FailingInitializePlugin.mode = mode
 			FailingInitializePlugin.service = null
-			val file = fakePlugin(File(RuntimeEnvironment.getApplication().filesDir, "plugins/failing.cgp"), "failing", "debugger.endpoints", FailingInitializePlugin::class.java)
+			val file =
+				fakePlugin(
+					File(RuntimeEnvironment.getApplication().filesDir, "plugins/failing.cgp"),
+					"failing",
+					"debugger.endpoints",
+					FailingInitializePlugin::class.java,
+				)
 
 			assertThat(pluginManager().loadPlugin(file).isFailure).isTrue()
 
