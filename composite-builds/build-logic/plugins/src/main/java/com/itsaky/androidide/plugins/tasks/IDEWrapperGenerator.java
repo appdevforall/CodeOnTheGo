@@ -56,8 +56,6 @@ import org.gradle.api.tasks.options.Option;
 import org.gradle.api.tasks.options.OptionValues;
 import org.gradle.api.tasks.wrapper.Wrapper.DistributionType;
 import org.gradle.api.tasks.wrapper.Wrapper.PathBase;
-import org.gradle.api.tasks.wrapper.WrapperVersionsResources;
-import org.gradle.api.tasks.wrapper.internal.DefaultWrapperVersionsResources;
 import org.gradle.util.GradleVersion;
 import org.gradle.util.internal.GUtil;
 import org.gradle.util.internal.WrapperDistributionUrlConverter;
@@ -207,8 +205,6 @@ public class IDEWrapperGenerator {
 	/**
 	 * Returns the gradle version for the wrapper.
 	 *
-	 * @throws GradleException
-	 *             if the label that can be provided via {@link #setGradleVersion(String)} can not be resolved at the moment. For example, there is not a `release-candidate` available at all times.
 	 * @see #setGradleVersion(String)
 	 */
 
@@ -344,13 +340,12 @@ public class IDEWrapperGenerator {
 	}
 
 	/**
-	 * The version of the gradle distribution required by the wrapper. This is usually the same version of Gradle you use for building your project. The following labels are allowed to specify a version: {@code latest}, {@code release-candidate}, {@code nightly}, and {@code release-nightly}
+	 * The version of the gradle distribution required by the wrapper. This is usually the same version of Gradle you use for building your project. Only concrete versions are accepted.
 	 *
 	 * <p>
 	 * The resulting distribution url is validated before it is written to the gradle-wrapper.properties file.
 	 */
-	@Option(option = "gradle-version", description = "The version of the Gradle distribution required by the wrapper. "
-			+ "The following labels are allowed: latest, release-candidate, nightly, and release-nightly.")
+	@Option(option = "gradle-version", description = "The version of the Gradle distribution required by the wrapper.")
 	public void setGradleVersion(String gradleVersion) {
 		distributionUrlConfigured = true;
 		this.gradleVersionResolver.setGradleVersionString(gradleVersion);
@@ -372,20 +367,6 @@ public class IDEWrapperGenerator {
 	 */
 	public void setScriptFile(File scriptFile) {
 		this.scriptFile = scriptFile;
-	}
-
-	/**
-	 * Set Wrapper versions resources.
-	 *
-	 * @since 8.1
-	 */
-	@Incubating
-	public void setWrapperVersionsResources(WrapperVersionsResources wrapperVersionsResources) {
-		DefaultWrapperVersionsResources defaultWrapperVersionsResources = (DefaultWrapperVersionsResources) wrapperVersionsResources;
-		gradleVersionResolver.setTextResources(defaultWrapperVersionsResources.getLatest(),
-				defaultWrapperVersionsResources.getReleaseCandidate(),
-				defaultWrapperVersionsResources.getNightly(),
-				defaultWrapperVersionsResources.getReleaseNightly());
 	}
 
 	@Inject

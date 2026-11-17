@@ -15,6 +15,8 @@
  *   along with AndroidIDE.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import com.android.build.api.variant.DeviceTestBuilder
+import com.android.build.api.variant.HostTestBuilder
 import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
@@ -52,8 +54,8 @@ android {
 // than paper over the merger.
 androidComponents {
 	beforeVariants { variant ->
-		variant.enableUnitTest = false
-		variant.enableAndroidTest = false
+		variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+		variant.deviceTests[DeviceTestBuilder.ANDROID_TEST_TYPE]?.enable = false
 	}
 }
 

@@ -121,5 +121,4 @@ class WhitelistBuilder {
  *
  * @param block The builder block.
  */
-@WhitelistBuilderDsl
 fun buildStrictModeWhitelist(block: WhitelistBuilder.() -> Unit): List<WhitelistEngine.Rule> = WhitelistBuilder().apply(block).build()

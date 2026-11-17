@@ -83,7 +83,10 @@
 -keep class org.xml.** { *; }
 
 # Services
+# ServiceLoader instantiates providers reflectively. AGP 9's strict full mode no longer keeps the
+# default constructor of a class kept without member rules, so name it explicitly.
 -keep @com.google.auto.service.AutoService class ** {
+    <init>();
 }
 -keepclassmembers class ** {
     @com.google.auto.service.AutoService <methods>;

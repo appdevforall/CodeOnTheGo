@@ -3,7 +3,6 @@ import com.itsaky.androidide.plugins.conf.configureProtoc
 
 plugins {
 	alias(libs.plugins.android.library)
-	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.compose)
 	alias(libs.plugins.google.protobuf)
 }

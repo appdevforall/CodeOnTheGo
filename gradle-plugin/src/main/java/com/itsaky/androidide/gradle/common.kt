@@ -87,16 +87,8 @@ fun DependencyHandler.ideDependency(artifact: String, testEnv: Boolean): Depende
  * Perform the given [action] on debuggable variants in this [ApplicationAndroidComponentsExtension].
  */
 fun ApplicationAndroidComponentsExtension.onDebuggableVariants(action: (ApplicationVariant) -> Unit) {
-	val debuggableBuilds = hashSetOf<String>()
-
-	beforeVariants { variantBuilder ->
-		if (variantBuilder.debuggable) {
-			debuggableBuilds.add(variantBuilder.name)
-		}
-	}
-
 	onVariants { variant ->
-		if (variant.name !in debuggableBuilds) {
+		if (!variant.debuggable) {
 			return@onVariants
 		}
 

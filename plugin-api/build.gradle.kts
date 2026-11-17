@@ -1,8 +1,8 @@
+import com.itsaky.androidide.plugins.conf.configureApiDump
+
 plugins {
 	alias(libs.plugins.android.library)
-	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.kotlin.parcelize)
-	alias(libs.plugins.binary.compatibility.validator)
 }
 
 android {
@@ -31,7 +31,7 @@ kotlin {
 	}
 }
 
-apiValidation {
+configureApiDump("release") {
 	ignoredClasses.add("com.itsaky.androidide.plugins.api.BuildConfig")
 	nonPublicMarkers.add("com.itsaky.androidide.plugins.base.InternalPluginApi")
 }

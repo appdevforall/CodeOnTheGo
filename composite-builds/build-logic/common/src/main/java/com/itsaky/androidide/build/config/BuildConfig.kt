@@ -43,6 +43,9 @@ object BuildConfig {
 	/** The target SDK version. */
 	const val TARGET_SDK = 28
 
+	/** The Android SDK build-tools version, matching the one CoGo ships to users. */
+	const val BUILD_TOOLS_VERSION = "36.0.0"
+
 	/** The NDK version. */
 	const val NDK_VERSION = "29.0.14206865"
 

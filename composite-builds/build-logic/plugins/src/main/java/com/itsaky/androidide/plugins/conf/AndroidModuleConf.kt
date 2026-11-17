@@ -32,6 +32,7 @@ import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.artifacts.MinimalExternalModuleDependency
 import org.gradle.api.provider.Provider
+import org.gradle.api.tasks.testing.Test
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -95,45 +96,40 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 			}
 		}
 
-	extensions.getByType(CommonExtension::class.java).run {
-		lint {
-			checkDependencies = true
-		}
+	val android = extensions.getByType(CommonExtension::class.java)
+	android.lint.checkDependencies = true
 
-		packaging {
-			resources {
-				excludes.addAll(
-					arrayOf(
-						"META-INF/CHANGES",
-						"META-INF/README.md",
-						"META-INF/LICENSE-notice.md",
-					),
-				)
-				pickFirsts.addAll(
-					arrayOf(
-						"META-INF/eclipse.inf",
-						"META-INF/LICENSE.md",
-						"META-INF/AL2.0",
-						"META-INF/LGPL2.1",
-						"META-INF/INDEX.LIST",
-						"META-INF/versions/9/OSGI-INF/MANIFEST.MF",
-						"about_files/LICENSE-2.0.txt",
-						"plugin.xml",
-						"plugin.properties",
-						"about.mappings",
-						"about.properties",
-						"about.ini",
-						"modeling32.png",
-					),
-				)
-			}
-		}
+	android.packaging.resources.apply {
+		excludes.addAll(
+			arrayOf(
+				"META-INF/CHANGES",
+				"META-INF/README.md",
+				"META-INF/LICENSE-notice.md",
+			),
+		)
+		pickFirsts.addAll(
+			arrayOf(
+				"META-INF/eclipse.inf",
+				"META-INF/LICENSE.md",
+				"META-INF/AL2.0",
+				"META-INF/LGPL2.1",
+				"META-INF/INDEX.LIST",
+				"META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+				"about_files/LICENSE-2.0.txt",
+				"plugin.xml",
+				"plugin.properties",
+				"about.mappings",
+				"about.properties",
+				"about.ini",
+				"modeling32.png",
+			),
+		)
 	}
 
-	val android = extensions.getByType(CommonExtension::class.java)
 	android.compileSdk = BuildConfig.COMPILE_SDK
+	android.buildToolsVersion = BuildConfig.BUILD_TOOLS_VERSION
 
-	android.defaultConfig {
+	android.defaultConfig.apply {
 		minSdk = BuildConfig.MIN_SDK
 
 		testInstrumentationRunner = "com.itsaky.androidide.testing.android.TestInstrumentationRunner"
@@ -146,17 +142,18 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		is LibraryExtension -> configureLibraryDefaults(android)
 	}
 
-	android.compileOptions {
+	android.compileOptions.apply {
 		sourceCompatibility = BuildConfig.JAVA_VERSION
 		targetCompatibility = BuildConfig.JAVA_VERSION
 	}
 
 	configureCoreLibDesugaring(android, coreLibDesugDep)
+	packageKaptGeneratedResources()
 
 	if (":app" == project.path) {
 		configureAppModule(android)
 	} else {
-		android.defaultConfig {
+		android.defaultConfig.apply {
 			ndk {
 				abiFilters.clear()
 				abiFilters += flavorsAbis.keys
@@ -166,15 +163,15 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 
 	if (project.path != ":plugin-api") {
 		android.flavorDimensions += "abi"
-		android.productFlavors {
-			create("v7") {
+		android.productFlavors.apply {
+			create("v7").apply {
 				dimension = "abi"
 
 				ndk.abiFilters.clear()
 				ndk.abiFilters += "armeabi-v7a"
 			}
 
-			create("v8") {
+			create("v8").apply {
 				dimension = "abi"
 
 				ndk.abiFilters.clear()
@@ -183,16 +180,16 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		}
 	}
 
-	android.buildTypes.create(INSTRUMENTATION_BUILD_TYPE) {
+	android.buildTypes.create(INSTRUMENTATION_BUILD_TYPE).apply {
 		initWith(android.buildTypes.getByName("debug"))
 		matchingFallbacks += "debug"
 	}
 
-	android.buildTypes.getByName("debug") {
+	android.buildTypes.getByName("debug").apply {
 		isMinifyEnabled = false
 	}
 
-	android.buildTypes.getByName("release") {
+	android.buildTypes.getByName("release").apply {
 		isMinifyEnabled = isAppModule
 
 		proguardFiles(
@@ -201,38 +198,45 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		)
 	}
 
-	android.testOptions { unitTests.isIncludeAndroidResources = true }
+	android.testOptions.unitTests.isIncludeAndroidResources = true
+
+	if (!project.file("src/test").isDirectory) {
+		// Gradle 9 fails a test task that discovers no tests, but AGP still creates one here and
+		// bytecode-instrumenting plugins (rikka refine) leave classes in its input.
+		tasks.withType(Test::class.java).configureEach { failOnNoDiscoveredTests.set(false) }
+	}
 
 	android.buildFeatures.viewBinding = true
 	android.buildFeatures.buildConfig = true
 }
 
 private fun Project.configureApplicationDefaults(android: ApplicationExtension) {
-	android.defaultConfig {
+	android.defaultConfig.apply {
 		targetSdk = BuildConfig.TARGET_SDK
 		versionCode = projectVersionCode
 		versionName = rootProject.simpleVersionName
 		multiDexEnabled = true
 	}
 
-	android.buildTypes.getByName("release") {
+	android.buildTypes.getByName("release").apply {
 		isShrinkResources = true
 	}
 }
 
-private fun configureLibraryDefaults(android: LibraryExtension) {
-	android.defaultConfig {
-		@Suppress("DEPRECATION")
-		targetSdk = BuildConfig.TARGET_SDK
-		multiDexEnabled = true
-	}
+private fun Project.configureLibraryDefaults(android: LibraryExtension) {
+	android.defaultConfig.multiDexEnabled = true
+	android.testOptions.targetSdk = BuildConfig.TARGET_SDK
+	android.lint.targetSdk = BuildConfig.TARGET_SDK
 
-	android.buildTypes.getByName("release") {
-		consumerProguardFiles("consumer-rules.pro")
+	// AGP 9 fails on a missing consumer rules file; AGP 8 silently ignored it.
+	if (project.file("consumer-rules.pro").isFile) {
+		android.buildTypes.getByName("release").apply {
+			consumerProguardFiles("consumer-rules.pro")
+		}
 	}
 }
 
-private fun Project.configureAppModule(android: CommonExtension<*, *, *, *, *, *>) {
+private fun Project.configureAppModule(android: CommonExtension) {
 	flavorsAbis.forEach { (abi, _) ->
 		// the common defaultConfig, not the flavor-specific
 		android.defaultConfig.buildConfigField(
@@ -268,13 +272,6 @@ private fun Project.configureAppModule(android: CommonExtension<*, *, *, *, *, *
 			}
 
 			if (hasBundledAssets(variant)) {
-				// Ship native libs deflate-compressed; the installer extracts them to
-				// nativeLibraryDir at install time. Saves ~5.9 MB per APK (ADFA-2306).
-				// Debug builds keep modern packaging (uncompressed, loaded from the APK)
-				// via the useLegacyPackaging = false default in app/build.gradle.kts.
-				variant.packaging.jniLibs.useLegacyPackaging
-					.set(true)
-
 				// include bundled assets in the APK
 				val assetsDir = rootProject.file("assets/release")
 				variant.sources.assets?.apply {
@@ -298,7 +295,7 @@ private fun Project.configureAppModule(android: CommonExtension<*, *, *, *, *, *
 }
 
 private fun Project.configureCoreLibDesugaring(
-	android: CommonExtension<*, *, *, *, *, *>,
+	android: CommonExtension,
 	coreLibDesugDep: Provider<MinimalExternalModuleDependency>,
 ) {
 	val coreLibDesugaringEnabled = project.path !in disableCoreLibDesugaringForModules

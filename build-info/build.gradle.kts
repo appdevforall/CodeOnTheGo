@@ -74,7 +74,7 @@ tasks.create("generateBuildInfo") {
 					"PROJECT_SITE" to ProjectConfig.PROJECT_SITE,
 					"AGP_VERSION_MININUM" to AGP_VERSION_MINIMUM,
 					"AGP_VERSION_LATEST" to
-						libs.versions.agp.tooling
+						libs.versions.agp
 							.get(),
 					// Read from the constant rather than repeated: AGP refuses to configure on a Gradle
 					// distribution older than it expects, so a stale copy here fails every TestKit test.

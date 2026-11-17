@@ -4,9 +4,7 @@ import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
 	alias(libs.plugins.android.library)
-	alias(libs.plugins.kotlin.android)
 	alias(libs.plugins.rikka.refine)
-	alias(libs.plugins.rikka.materialthemebuilder)
 }
 
 android {

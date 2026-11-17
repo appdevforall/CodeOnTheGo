@@ -37,8 +37,7 @@ import java.util.zip.ZipOutputStream
 
 plugins {
 	alias(libs.plugins.android.application)
-	alias(libs.plugins.kotlin.android)
-	alias(libs.plugins.kotlin.kapt)
+	alias(libs.plugins.android.legacy.kapt)
 	alias(libs.plugins.kotlin.parcelize)
 	alias(libs.plugins.androidx.navigation.safeargs)
 	id("com.itsaky.androidide.desugaring")
@@ -208,10 +207,10 @@ android {
 		}
 
 		jniLibs {
-			// Debug default: uncompressed libs, loaded straight from the APK. Bundled-assets
-			// variants (release/instrumentation) override this to true in AndroidModuleConf.kt
-			// so their libs ship deflate-compressed and extract at install time (ADFA-2306).
-			useLegacyPackaging = false
+			// Every variant ships libs deflate-compressed and extracted to nativeLibraryDir at
+			// install time: the IDE executes bundled binaries (aapt2) from there, and it saves
+			// ~5.9 MB per APK (ADFA-2306). AGP 9 rejects the manifest's extractNativeLibs for this.
+			useLegacyPackaging = true
 		}
 	}
 
@@ -1133,7 +1132,7 @@ val noCompress =
 // tooling-api-all.jar ships as a brotli-encoded .jar.br.
 //
 // "so" stays DEFLATED in both lists (ADFA-2306 release, ADFA-4729 CI debug): the app
-// manifest hard-codes extractNativeLibs="true", so the installer extracts libs to
+// packages jniLibs with useLegacyPackaging = true, so the installer extracts libs to
 // nativeLibraryDir at install time and AGP already packages them deflate-compressed
 // (~5.9 MB smaller per APK). Re-storing them here would silently undo that, which is
 // exactly what happened to CI debug APKs before ADFA-4729. Local debug builds never
@@ -1581,7 +1580,10 @@ fun signApk(apkFile: File) {
 	val keyAlias = signingConfig.keyAlias ?: error("Key alias missing!")
 	val keyPassword = signingConfig.keyPassword ?: error("Key password missing!")
 
-	val androidSdkDir = android.sdkDirectory.absolutePath
+	val androidSdkDir =
+		androidComponents.sdkComponents.sdkDirectory
+			.get()
+			.asFile.absolutePath
 	val apkSignerPath: File =
 		File(androidSdkDir, "build-tools")
 			.listFiles()

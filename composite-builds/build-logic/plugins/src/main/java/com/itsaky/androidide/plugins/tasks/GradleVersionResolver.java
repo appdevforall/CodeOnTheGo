@@ -33,87 +33,22 @@
 
 package com.itsaky.androidide.plugins.tasks;
 
-import static org.gradle.api.tasks.wrapper.internal.DefaultWrapperVersionsResources.LATEST;
-import static org.gradle.api.tasks.wrapper.internal.DefaultWrapperVersionsResources.NIGHTLY;
-import static org.gradle.api.tasks.wrapper.internal.DefaultWrapperVersionsResources.RELEASE_CANDIDATE;
-import static org.gradle.api.tasks.wrapper.internal.DefaultWrapperVersionsResources.RELEASE_NIGHTLY;
-
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import java.lang.reflect.Type;
-import java.util.Map;
-import org.gradle.api.GradleException;
-import org.gradle.api.resources.TextResource;
-import org.gradle.api.tasks.wrapper.internal.DefaultWrapperVersionsResources;
 import org.gradle.util.GradleVersion;
 
+/**
+ * Accepts concrete versions only: Gradle 9 removed the internal resources behind the {@code latest}/{@code nightly} labels, and the IDE always pins a distribution version.
+ */
 class GradleVersionResolver {
 
-	static String getVersion(String json, String placeHolder) {
-		Type type = new TypeToken<Map<String, String>>() {}.getType();
-		Map<String, String> map = new Gson().fromJson(json, type);
-		String version = map.get("version");
-		if (version == null) {
-			throw new GradleException(
-					"There is currently no version information available for '" + placeHolder + "'.");
-		}
-		return version;
-	}
-
-	static boolean isPlaceHolder(String version) {
-		return DefaultWrapperVersionsResources.PLACE_HOLDERS.contains(version);
-	}
-
-	private TextResource latest;
-	private TextResource releaseCandidate;
-
-	private TextResource nightly;
-	private TextResource releaseNightly;
-
-	private GradleVersion gradleVersion;
-
-	private String gradleVersionString = GradleVersion.current().getVersion();
+	private GradleVersion gradleVersion = GradleVersion.current();
 
 	GradleVersion getGradleVersion() {
-		if (gradleVersion == null) {
-			gradleVersion = GradleVersion.version(resolve(gradleVersionString));
-		}
 		return gradleVersion;
 	}
 
-	String resolve(String version) {
-		if (version == null) {
-			return GradleVersion.current().getVersion();
-		}
-		switch (version) {
-		case LATEST:
-			return getVersion(latest.asString(), version);
-		case NIGHTLY:
-			return getVersion(nightly.asString(), version);
-		case RELEASE_NIGHTLY:
-			return getVersion(releaseNightly.asString(), version);
-		case RELEASE_CANDIDATE:
-			return getVersion(releaseCandidate.asString(), version);
-		default:
-			return version;
-		}
-	}
-
 	void setGradleVersionString(String gradleVersionString) {
-		if (!isPlaceHolder(gradleVersionString)) {
-			this.gradleVersion = GradleVersion.version(gradleVersionString);
-		}
-		if (this.gradleVersionString != gradleVersionString) {
-			this.gradleVersionString = gradleVersionString;
-			this.gradleVersion = null;
-		}
-	}
-
-	void setTextResources(TextResource latest, TextResource releaseCandidate, TextResource nightly,
-			TextResource releaseNightly) {
-		this.latest = latest;
-		this.releaseCandidate = releaseCandidate;
-		this.nightly = nightly;
-		this.releaseNightly = releaseNightly;
+		gradleVersion = gradleVersionString == null
+				? GradleVersion.current()
+				: GradleVersion.version(gradleVersionString);
 	}
 }

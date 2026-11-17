@@ -2,7 +2,6 @@ import com.itsaky.androidide.build.config.BuildConfig
 
 plugins {
 	alias(libs.plugins.android.library)
-	alias(libs.plugins.kotlin.android)
 	// Bundled with the Kotlin Gradle plugin already on the classpath, so apply without a version.
 	alias(libs.plugins.kotlin.parcelize)
 }

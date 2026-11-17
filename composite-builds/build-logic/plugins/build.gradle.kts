@@ -42,6 +42,8 @@ dependencies {
 	implementation(libs.google.gson)
 	implementation(libs.google.java.format)
 	implementation(libs.google.protobuf.gradle)
+	implementation(libs.binary.compatibility.validator)
+	implementation(libs.kotlinx.metadata)
 
 	val arch = DefaultNativePlatform.getCurrentArchitecture()
 	val brotli4jNatives =

@@ -43,15 +43,14 @@ plugins {
 	id("build-logic.root-project")
 	alias(libs.plugins.android.application) apply false
 	alias(libs.plugins.android.library) apply false
-	alias(libs.plugins.kotlin.android) apply false
 	alias(libs.plugins.kotlin.jvm) apply false
+	alias(libs.plugins.android.legacy.kapt) apply false
 	alias(libs.plugins.kotlin.kapt) apply false
 	alias(libs.plugins.kotlin.parcelize) apply false
 	alias(libs.plugins.androidx.navigation.safeargs) apply false
 	alias(libs.plugins.maven.publish) apply false
 	alias(libs.plugins.gradle.publish) apply false
 	alias(libs.plugins.rikka.autoresconfig) apply false
-	alias(libs.plugins.rikka.materialthemebuilder) apply false
 	alias(libs.plugins.rikka.refine) apply false
 	alias(libs.plugins.google.protobuf) apply false
 	alias(libs.plugins.spotless)
@@ -61,13 +60,6 @@ plugins {
 
 jacoco {
 	toolVersion = "0.8.11"
-}
-
-buildscript {
-	dependencies {
-		// Must stay first: pins a D8/R8 that understands the Kotlin metadata version (ADFA-6822).
-		classpath(libs.android.r8)
-	}
 }
 
 // `jacocoAggregateReport` dependsOn every subproject's `testV8DebugUnitTest` and `sonarqube`

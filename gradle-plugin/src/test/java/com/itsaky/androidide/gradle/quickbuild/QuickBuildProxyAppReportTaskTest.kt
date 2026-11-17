@@ -8,6 +8,7 @@ import org.gradle.api.GradleException
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.io.File
+import java.nio.file.Path
 
 /**
  * [QuickBuildProxyAppReportTask.selectUniversalApk] against faked AGP built-artifact metadata:
@@ -22,6 +23,7 @@ class QuickBuildProxyAppReportTaskTest {
 	): BuiltArtifact =
 		object : BuiltArtifact {
 			override val outputFile = outputFile
+			override val path: Path = Path.of(outputFile)
 			override val versionCode: Int? = null
 			override val versionName: String? = null
 			override val outputType =
