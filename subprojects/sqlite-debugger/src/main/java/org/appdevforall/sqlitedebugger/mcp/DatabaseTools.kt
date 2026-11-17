@@ -242,7 +242,9 @@ class DatabaseTools(
 				"integrity_check",
 				"Check integrity",
 				"Runs PRAGMA quick_check, or the slower PRAGMA integrity_check when full is true. " +
-					"ok is true when SQLite reports no problem.",
+					"ok is true when SQLite reports no problem. A full integrity_check fails with \"unknown function\" when one of the " +
+					"app's indexes uses a function the app adds to its own connections (an index on an expression); quick_check " +
+					"does not, so use it then.",
 				databaseSchema("full" to prop("boolean", "Run the full integrity_check. Default false."), required = emptyList()),
 			) { call, args -> integrityCheck(call, args) },
 			tool(
