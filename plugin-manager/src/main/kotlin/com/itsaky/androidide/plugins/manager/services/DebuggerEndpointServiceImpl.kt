@@ -25,9 +25,11 @@ fun interface DebuggerEndpointSource {
  *
  * Plugins run in Code on the Go's process, and their class loader's parent is the host's, so the
  * permission check declares intent: it cannot stop a plugin that reaches host objects by reflection.
- * What it does close is every path short of that. The source is held privately by the plugin manager,
- * which installs it once, and this service keeps its own unmodifiable copy of the permissions, so
- * changing the set it was built from grants nothing.
+ * It does not stop a plugin without the permission from reaching another plugin's service either:
+ * two public entry points hand it out, `PluginManager.getInstance().getLoadedPlugin(id).context.services`
+ * and `PluginFragmentHelper.getServiceRegistry`. Both are tracked in ADFA-7194. What this class does
+ * keep: the source is held privately by the plugin manager, which installs it once, and this service
+ * keeps its own unmodifiable copy of the permissions, so changing the set it was built from grants nothing.
  */
 internal class DebuggerEndpointServiceImpl(
 	private val pluginId: String,
