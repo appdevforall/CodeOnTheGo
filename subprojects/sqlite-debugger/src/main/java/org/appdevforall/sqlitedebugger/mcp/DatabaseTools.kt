@@ -530,21 +530,21 @@ class DatabaseTools(
 		args: JSONObject,
 	): String {
 		val path = stringArg(args, "database")
-		val known =
-			engine
-				.connections()
-				.map { it.path }
-				.filter { it.isNotEmpty() }
-				.distinct()
+		val known = knownPaths(engine.connections())
 		call.locked { dropStaleServerConnections(engine.connections()) }
-		if (path !in known) {
-			throw McpToolError(
-				"Unknown database \"$path\": use a path from list_databases that is available.",
-				JSONObject().put("available", JSONArray(known)),
-			)
-		}
+		if (path !in known) throw unknownDatabase(path, known)
 		return path
 	}
+
+	private fun knownPaths(live: List<AppConnection>) = live.map { it.path }.filter { it.isNotEmpty() }.distinct()
+
+	private fun unknownDatabase(
+		path: String,
+		known: List<String>,
+	) = McpToolError(
+		"Unknown database \"$path\": use a path from list_databases that is available.",
+		JSONObject().put("available", JSONArray(known)),
+	)
 
 	private fun run(
 		call: Call,
@@ -570,6 +570,9 @@ class DatabaseTools(
 				val conn =
 					serverConnections
 						.getOrPut(path) {
+							// checkedPath looked at an earlier snapshot: the app may have closed its last connection
+							// to this path since, and the server never opens a database the app doesn't have open.
+							if (path !in knownPaths(live)) throw unknownDatabase(path, knownPaths(live))
 							val ids = live.filter { it.path == path && !it.closing }.map { it.id }.toSet()
 							CachedConnection(engine.openServerConnection(path, writable = false), ids)
 						}.connection
