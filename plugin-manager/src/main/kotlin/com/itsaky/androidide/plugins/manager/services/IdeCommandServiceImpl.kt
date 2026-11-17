@@ -39,7 +39,7 @@ class IdeCommandServiceImpl internal constructor(
 	private val projectRootProvider: () -> File?,
 	private val appFilesDir: File,
 	private val gradleTaskRunner: GradleTaskRunner = GradleTaskRunner(IdeBuildServiceImpl.getInstance()::startTasks),
-	private val processGroups: ProcessGroups = ProcessGroups.android,
+	private val processGroups: ProcessGroups = ProcessGroups.android(File(appFilesDir, "usr/bin/setsid")),
 ) : IdeCommandService {
 	private val runningCommands = ConcurrentHashMap<String, RunningCommand>()
 

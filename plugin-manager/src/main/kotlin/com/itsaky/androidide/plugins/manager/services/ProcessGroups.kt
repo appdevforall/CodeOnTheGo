@@ -6,6 +6,7 @@ import android.system.OsConstants
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /** A signal [ProcessGroups] sends. [PROBE] delivers nothing; it only asks whether the group exists. */
@@ -83,40 +84,58 @@ internal class ProcessGroups(
 		private const val ANDROID_SH = "/system/bin/sh"
 		private const val CHECK_TIMEOUT_S = 5L
 
-		/** Android's toybox `setsid`, if it runs commands in place, and `kill(2)` through [Os]. */
-		val android: ProcessGroups by lazy {
-			ProcessGroups(usableSetsid(ANDROID_SETSID, ANDROID_SH)) { pgid, signal ->
-				val number =
-					when (signal) {
-						GroupSignal.PROBE -> 0
-						GroupSignal.TERM -> OsConstants.SIGTERM
-						GroupSignal.KILL -> OsConstants.SIGKILL
-					}
-				try {
-					Os.kill(-pgid, number)
-					true
-				} catch (e: ErrnoException) {
-					// ESRCH: the group is empty.
-					false
+		private val android = ConcurrentHashMap<String, ProcessGroups>()
+
+		/**
+		 * Android's toybox `setsid`, or else [terminalSetsid], the util-linux one the Terminal installs,
+		 * whichever first runs commands in place (see [usableSetsid]); and `kill(2)` through [Os].
+		 * Checked once per [terminalSetsid].
+		 */
+		fun android(terminalSetsid: File): ProcessGroups =
+			android.computeIfAbsent(terminalSetsid.path) {
+				ProcessGroups(usableSetsid(listOf(ANDROID_SETSID, terminalSetsid.path), ANDROID_SH), ::osSignal)
+			}
+
+		private fun osSignal(
+			pgid: Int,
+			signal: GroupSignal,
+		): Boolean {
+			val number =
+				when (signal) {
+					GroupSignal.PROBE -> 0
+					GroupSignal.TERM -> OsConstants.SIGTERM
+					GroupSignal.KILL -> OsConstants.SIGKILL
 				}
+			return try {
+				Os.kill(-pgid, number)
+				true
+			} catch (e: ErrnoException) {
+				// ESRCH: the group is empty.
+				false
 			}
 		}
 
 		/**
-		 * [setsid] if it runs its command in place, which it checks by running [shell] under it once;
-		 * otherwise null, with a warning. Toybox's `setsid` forks only when its caller leads a group,
-		 * which a [ProcessBuilder] child never does, except in Android 11: there it makes itself a
-		 * group leader first, so it always forks and exits 0 at once. Every command would then seem to
-		 * end as it started, and its group would not be the one the IDE holds.
+		 * The first of [candidates] that runs its command in place, which is checked by running [shell]
+		 * under it once; null, with a warning, if none does. Toybox's `setsid`, like util-linux's, forks
+		 * only when its caller leads a group, which a [ProcessBuilder] child never does, except in
+		 * Android 11: there it makes itself a group leader first, so it always forks and exits 0 at
+		 * once. Every command would then seem to end as it started, and its group would not be the one
+		 * the IDE holds.
 		 */
 		fun usableSetsid(
-			setsid: String,
+			candidates: List<String>,
 			shell: String,
 		): String? {
-			if (!File(setsid).canExecute()) {
-				log.warn("No {}: a plugin's command can be stopped, but not the processes it starts", setsid)
-				return null
-			}
+			val setsid = candidates.firstOrNull { File(it).canExecute() && runsInPlace(it, shell) }
+			if (setsid == null) log.warn("No setsid runs commands in place: a stop reaches only a command's own process ({})", candidates)
+			return setsid
+		}
+
+		private fun runsInPlace(
+			setsid: String,
+			shell: String,
+		): Boolean {
 			val inPlace =
 				runCatching {
 					val process = ProcessBuilder(setsid, shell, "-c", "echo \$\$").redirectErrorStream(true).start()
@@ -127,8 +146,8 @@ internal class ProcessGroups(
 					val printed = process.inputStream.bufferedReader().use { it.readLine() }
 					printed != null && printed.trim() == process.pidOrNull()?.toString()
 				}.getOrDefault(false)
-			if (!inPlace) log.warn("{} forks: a plugin's command can be stopped, but not the processes it starts", setsid)
-			return setsid.takeIf { inPlace }
+			if (!inPlace) log.warn("{} forks, so it is not used", setsid)
+			return inPlace
 		}
 	}
 }

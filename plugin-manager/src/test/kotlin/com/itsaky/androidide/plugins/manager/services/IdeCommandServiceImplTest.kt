@@ -73,7 +73,7 @@ class IdeCommandServiceImplTest {
 		resultFor(CommandSpec.ShellCommand("true", workingDirectory = workingDirectory))
 
 	private fun resultFor(spec: CommandSpec): CommandResult {
-		val execution = service(ProcessGroups.android).executeCommand(spec, 5_000)
+		val execution = service(ProcessGroups.android(File(filesDir, "usr/bin/setsid"))).executeCommand(spec, 5_000)
 		return runBlocking { execution.await() }
 	}
 
@@ -328,29 +328,46 @@ class IdeCommandServiceImplTest {
 	fun `setsid is used when it runs the command in place`() {
 		assumeHostTools()
 
-		assertThat(ProcessGroups.usableSetsid(SETSID, SH)).isEqualTo(SETSID)
+		assertThat(ProcessGroups.usableSetsid(listOf(SETSID), SH)).isEqualTo(SETSID)
 	}
 
 	@Test
 	fun `a missing setsid is not used`() {
-		assertThat(ProcessGroups.usableSetsid(File(tmp.root, "none").path, SH)).isNull()
+		assertThat(ProcessGroups.usableSetsid(listOf(File(tmp.root, "none").path), SH)).isNull()
 	}
 
 	// As Android 11's toybox setsid does: it forks, and its parent exits 0 at once.
 	@Test
 	fun `a setsid that forks is not used, so a command still runs to its end`() {
 		assumeHostTools()
-		val forking =
-			File(tmp.root, "setsid").apply {
-				writeText("#!/bin/sh\n\"\$@\" &\nexit 0\n")
-				setExecutable(true)
-			}
-		val groups = ProcessGroups(ProcessGroups.usableSetsid(forking.path, SH), ::hostSignal)
+		val groups = ProcessGroups(ProcessGroups.usableSetsid(listOf(forkingSetsid().path), SH), ::hostSignal)
 
 		val result = service(groups).executeCommand(shell("sleep 1; echo late"), 10_000).awaitWithin(10_000)
 
 		assertThat((result as CommandResult.Success).stdout).isEqualTo("late\n")
 	}
+
+	// Android 11 again, with the Terminal's util-linux setsid installed: commands still get a group.
+	@Test
+	fun `where the first setsid forks, the next one that runs commands in place is used`() {
+		assumeHostTools()
+		val setsid = ProcessGroups.usableSetsid(listOf(forkingSetsid().path, File(tmp.root, "none").path, SETSID), SH)
+		val groups = ProcessGroups(setsid, ::hostSignal)
+
+		val execution = service(groups).executeCommand(shell(CHILDREN_SCRIPT), 300)
+		val result = execution.awaitWithin(10_000)
+
+		assertThat(setsid).isEqualTo(SETSID)
+		assertThat((result as CommandResult.Failure).error).isEqualTo("Command timed out after 300ms")
+		assertThat(goneWithin(pids(CHILDREN_SCRIPT_PIDS), 1_000)).isTrue()
+	}
+
+	/** A `setsid` that forks and exits 0 at once, as Android 11's toybox one does. */
+	private fun forkingSetsid() =
+		File(tmp.root, "forking-setsid").apply {
+			writeText("#!/bin/sh\n\"\$@\" &\nexit 0\n")
+			setExecutable(true)
+		}
 
 	@Test
 	fun `a stop that finds no group yet signals the group again once the command is killed`() {
