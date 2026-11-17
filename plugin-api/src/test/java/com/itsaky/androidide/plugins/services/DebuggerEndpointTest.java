@@ -3,7 +3,6 @@ package com.itsaky.androidide.plugins.services;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.itsaky.androidide.plugins.PluginPermission;
@@ -59,7 +58,7 @@ public class DebuggerEndpointTest {
 	@Test
 	public void permissionKeyIsStable() {
 		assertEquals("debugger.endpoints", PluginPermission.DEBUGGER_ENDPOINTS.getKey());
-		assertTrue(DebuggerEndpointService.CONTRACT_VERSION >= 1);
+		assertEquals(1, DebuggerEndpointService.CONTRACT_VERSION);
 	}
 
 	@Test
