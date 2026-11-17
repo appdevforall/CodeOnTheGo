@@ -151,8 +151,13 @@ internal class PluginTextScaler(
 		val roots = LinkedHashSet<View>()
 		private var skippedLast = false
 
-		// Hidden text is caught on the frame that first shows it.
+		// Hidden text is caught on the frame that first shows it. At scale 1 nothing is looked at:
+		// a scale change leaves no text at an old scale (see onEditorFontScaleChanged).
 		override fun onPreDraw(): Boolean {
+			if (scale == 1f) {
+				skippedLast = false
+				return true
+			}
 			var changed = false
 			for (root in roots) {
 				if (root.isShown && !isInsideAnotherRoot(root) && scaleNewText(root)) changed = true

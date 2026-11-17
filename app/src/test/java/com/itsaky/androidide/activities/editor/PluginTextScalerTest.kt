@@ -53,6 +53,18 @@ class PluginTextScalerTest {
 
 	private fun countingText(px: Float) = CountingTextView(activity).apply { setTextSize(TypedValue.COMPLEX_UNIT_PX, px) }
 
+	// Counts how often a frame asks whether it is shown, the first thing a frame checks per root.
+	private class CountingRoot(
+		context: Context,
+	) : LinearLayout(context) {
+		var shownChecks = 0
+
+		override fun isShown(): Boolean {
+			shownChecks++
+			return super.isShown()
+		}
+	}
+
 	private fun attach() = activity.setContentView(root)
 
 	// The window's step before it draws a frame. Returns whether that frame was skipped.
@@ -427,6 +439,34 @@ class PluginTextScalerTest {
 
 		assertThat(label.sizeReads).isEqualTo(0)
 		assertThat(label.textSize).isEqualTo(20f)
+	}
+
+	@Test
+	fun atScale1AFrameLooksAtNoPluginRoot() {
+		val counted = CountingRoot(activity).also { it.addView(text(20f)) }
+		scaler.track(counted)
+		activity.setContentView(counted)
+		counted.shownChecks = 0
+
+		drawFrame()
+
+		assertThat(counted.shownChecks).isEqualTo(0)
+	}
+
+	@Test
+	fun aPooledViewThePluginResizedOffTheWindowIsScaledFromItsNewSize() {
+		scaler.onEditorFontScaleChanged(2f)
+		attach()
+		scaler.track(root)
+		val pooled = text(20f).also(root::addView)
+		drawFrame()
+		root.removeView(pooled)
+		// Bound again while pooled, at a size of the plugin's own.
+		pooled.setTextSize(TypedValue.COMPLEX_UNIT_PX, 30f)
+
+		scaler.onEditorFontScaleChanged(3f)
+
+		assertThat(pooled.textSize).isEqualTo(90f)
 	}
 
 	@Test
