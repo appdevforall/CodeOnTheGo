@@ -7,6 +7,9 @@ import java.util.List;
  * Tells a plugin where the SQLite debugger servers of the open project's apps are listening, so a plugin such as an MCP client can connect without the user typing a port or token.
  *
  * <p>
+ * What a plugin gets: the token is the only credential a SQLite debugger server checks, so a plugin with this service's permission can query the databases of the open project's apps through it. The server opens them read-only in this version; a later version may allow writes. Declare the permission only if the plugin needs that access.
+ *
+ * <p>
  * The host registers this service for every plugin; a call needs the {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws {@link SecurityException} without it, like the other permission-gated services. Plugins run in Code on the Go's process, so the permission declares what a plugin means to do: it cannot stop a plugin that reaches into the host by reflection.
  *
  * <p>
