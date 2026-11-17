@@ -316,13 +316,14 @@ class DatabaseToolsTest {
 		}
 
 	/**
-	 * Runs a query that waits [waitMs] of the fake clock for the lock while another call holds it, then
-	 * is answered by [then]. The other call takes the lock just after the query set its deadline, as a
-	 * third concurrent call can. Returns the query's tool result.
+	 * Runs tool [name] while another call holds the lock: it waits for it [waitMs] of the fake clock
+	 * (in the idle check, its first wait), then its query is answered by [then]. Returns its result.
 	 */
 	private fun queuedBehindAnotherCall(
 		waitMs: Long,
 		then: () -> QueryResult,
+		name: String = "query",
+		args: JSONObject = db().put("sql", "select 1"),
 	): JSONObject {
 		engine.appConnections += conn(1, "/data/a.db")
 		val time = AtomicLong(now)
@@ -337,22 +338,12 @@ class DatabaseToolsTest {
 				then()
 			}
 		}
-		lateinit var slow: Thread
-		lateinit var queued: Thread
-		var hooked = false
-		// the queued call's first clock read sets its deadline (with no get_events call the idle check reads none)
-		val t =
-			DatabaseTools(nativeDeadline(time::get), null, {
-				if (Thread.currentThread() === queued && !hooked) {
-					hooked = true
-					slow.start()
-					holding.await()
-				}
-				time.get()
-			})
-		slow = Thread({ ok("query", db().put("sql", "slow"), t) }, "dbtools-slow")
+		val t = DatabaseTools(nativeDeadline(time::get), null, time::get)
+		val slow = Thread({ ok("query", db().put("sql", "slow"), t) }, "dbtools-slow")
+		slow.start()
+		holding.await()
 		var result: JSONObject? = null
-		queued = Thread({ result = runTool(t, "query", db().put("sql", "select 1")) }, "dbtools-queued")
+		val queued = Thread({ result = runTool(t, name, args) }, "dbtools-queued")
 		queued.start()
 		// BLOCKED is a wait to enter a monitor; the slow call holds the tools' lock, and has already loaded every class on the path
 		while (queued.state != Thread.State.BLOCKED) Thread.sleep(5)
@@ -362,6 +353,8 @@ class DatabaseToolsTest {
 		slow.join()
 		return result!!
 	}
+
+	private val answersEmpty: () -> QueryResult = { QueryResult(emptyList(), emptyList(), 0, false) }
 
 	private val ranPastItsLimit: () -> QueryResult = {
 		throw DebugEngineException(DebugEngineException.SQLITE_INTERRUPT, "the query ran past its time limit")
@@ -374,7 +367,7 @@ class DatabaseToolsTest {
 
 	@Test(timeout = 10_000)
 	fun aCallWhoseTimeRanOutWaitingForAnotherCallSaysSo() {
-		val r = queuedBehindAnotherCall(DatabaseTools.DEADLINE_MS + 1) { QueryResult(emptyList(), emptyList(), 0, false) }
+		val r = queuedBehindAnotherCall(DatabaseTools.DEADLINE_MS + 1, answersEmpty)
 		assertEquals(
 			"the time limit passed before the query started (this call waited 50.001 s of its 50 s for another tool call to finish; " +
 				"tool calls run one at a time, so retry it)",
@@ -387,6 +380,13 @@ class DatabaseToolsTest {
 	fun aCallWhoseTimeRanOutMostlyWaitingSaysSo() {
 		val r = queuedBehindAnotherCall(30_000, ranPastItsLimit)
 		assertTrue(errorText(r), errorText(r).startsWith("the query ran past its time limit (this call waited 30.0 s of its 50 s"))
+	}
+
+	@Test(timeout = 10_000)
+	fun getStatsCountsTheWaitForTheLockInItsTimeLimit() {
+		val r = queuedBehindAnotherCall(DatabaseTools.DEADLINE_MS, answersEmpty, "get_stats", db())
+		val text = errorText(r)
+		assertTrue(text, text.startsWith("the time limit passed before the query started (this call waited 50.0 s of its 50 s"))
 	}
 
 	@Test(timeout = 10_000)
