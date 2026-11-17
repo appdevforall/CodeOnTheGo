@@ -222,12 +222,15 @@ class DatabaseToolsTest {
 		val schema = descriptions.getValue("get_schema")
 		assertTrue(schema, schema.contains("past the first ${DatabaseTools.MAX_ROWS}"))
 		assertTrue(schema, schema.contains("past about 4 MiB of cell bytes"))
-		assertTrue(schema, schema.contains("page through sqlite_master with query (ORDER BY name)"))
+		assertTrue(schema, schema.contains("page through sqlite_master with query (ORDER BY type, name, the order get_schema uses)"))
 		assertTrue(schema, schema.contains("counts characters, not bytes"))
 		// A full integrity_check evaluates the app's index functions; quick_check does not.
 		val integrity = descriptions.getValue("integrity_check")
-		assertTrue(integrity, integrity.contains("full integrity_check fails with \"unknown function\""))
-		assertTrue(integrity, integrity.contains("quick_check does not"))
+		assertTrue(integrity, integrity.contains("Both checks fail with \"unknown function\" when a CHECK constraint"))
+		assertTrue(integrity, integrity.contains("NOT NULL virtual generated column"))
+		assertTrue(integrity, integrity.contains("full integrity_check also fails on an index"))
+		assertTrue(integrity, integrity.contains("partial index"))
+		assertTrue(integrity, integrity.contains("quick_check does not fail on those two"))
 	}
 
 	@Test fun queryChecksItsArguments() {
