@@ -64,6 +64,19 @@ class McpProtocol(
 		const val INVALID_REQUEST = -32600
 		const val METHOD_NOT_FOUND = -32601
 		const val INVALID_PARAMS = -32602
+
+		/** JSON-RPC's range for errors the server defines: a batch ran past its reply budget. */
+		const val BATCH_BUDGET_EXCEEDED = -32000
+
+		/** Most messages in one batch. A client that needs more sends several POSTs. */
+		const val MAX_BATCH_MESSAGES = 32
+
+		/**
+		 * Once the replies of a batch add up to this many characters, its remaining requests are answered with
+		 * [BATCH_BUDGET_EXCEEDED] without running. A tool reply is at most about 8 MiB (4 MiB of cells, sent as
+		 * text and again as structured content), so a batch holds at most this plus one reply, in the host app's heap.
+		 */
+		const val MAX_BATCH_REPLY_CHARS = 8 * 1024 * 1024
 		const val INSTRUCTIONS =
 			"Inspects and queries the SQLite databases of the app this server runs in, a debug " +
 				"build made with Code on the Go. Every tool is read-only."
@@ -113,7 +126,25 @@ class McpProtocol(
 			val detail = "Unsupported MCP-Protocol-Version $versionHeader; this server speaks ${VERSIONS.joinToString()}."
 			return Reply(400, error(null, INVALID_REQUEST, detail).toString())
 		}
-		val replies = messages.mapNotNull { handle(it) }
+		if (messages.size > MAX_BATCH_MESSAGES) {
+			// Nothing has run: refusing the batch whole beats guessing which messages the client meant to keep.
+			val detail = "A batch holds at most $MAX_BATCH_MESSAGES messages; send ${messages.size} in several POSTs."
+			return Reply(400, error(null, INVALID_REQUEST, detail).toString())
+		}
+		val replies = mutableListOf<JSONObject>()
+		var chars = 0L
+		for (message in messages) {
+			val reply =
+				if (chars >= MAX_BATCH_REPLY_CHARS) {
+					skipped(message)
+				} else {
+					handle(message)
+				}
+			if (reply == null) continue
+			// The size is counted as the reply is made, because it all stays in memory until the batch is sent.
+			chars += reply.toString().length
+			replies += reply
+		}
 		if (replies.isEmpty()) return Reply(202, null)
 		return Reply(200, if (parsed is JSONArray) JSONArray(replies).toString() else replies[0].toString())
 	}
@@ -159,6 +190,15 @@ class McpProtocol(
 				.put("serverInfo", JSONObject().put("name", SERVER_NAME).put("title", "SQLite debugger").put("version", serverVersion))
 				.put("instructions", INSTRUCTIONS)
 		return Reply(200, ok(id, result).toString(), mapOf(SESSION_HEADER to session))
+	}
+
+	/** The answer to a message of a batch that is past its reply budget: not run; null for one that needs no answer. */
+	private fun skipped(raw: Any?): JSONObject? {
+		val m = raw as? JSONObject ?: return null
+		if (m.opt("method") !is String || !m.has("id")) return null
+		val id = m.opt("id")
+		val detail = "This batch's replies already reached ${MAX_BATCH_REPLY_CHARS / (1024 * 1024)} MiB: send the rest in another POST."
+		return error(if (validId(id)) id else null, BATCH_BUDGET_EXCEEDED, detail)
 	}
 
 	/** One message of a POST; null when it needs no answer. */

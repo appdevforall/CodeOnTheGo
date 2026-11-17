@@ -185,6 +185,36 @@ class DatabaseToolsTest {
 		assertTrue(engine.openedServerConnections.isEmpty())
 	}
 
+	@Test fun aQueryRefusesAPathWhoseLastAppConnectionClosedAfterTheFirstCheck() {
+		engine.appConnections += conn(1, "/data/a.db")
+		// the app closes its last connection to a.db right after checkedPath's snapshot
+		val racing =
+			object : DebugEngine by engine {
+				private var snapshots = 0
+
+				override fun connections() =
+					engine.connections().also {
+						if (++snapshots ==
+							1
+						) {
+							engine.appConnections.removeAll { c -> c.path == "/data/a.db" }
+						}
+					}
+			}
+		engine.appConnections += conn(2, "/data/b.db")
+		val r = runTool(DatabaseTools(racing, dir, { now }), "query", db().put("sql", "select 1"))
+		assertTrue(r.getBoolean("isError"))
+		assertTrue(
+			r.toString(),
+			r
+				.getJSONArray("content")
+				.getJSONObject(0)
+				.getString("text")
+				.startsWith("Unknown database"),
+		)
+		assertTrue(engine.openedServerConnections.isEmpty())
+	}
+
 	@Test fun emptyPathOfAnInMemoryConnectionIsNotOpenable() {
 		engine.appConnections += conn(1, "")
 		assertTrue(runTool(tools, "get_stats", db("")).getBoolean("isError"))

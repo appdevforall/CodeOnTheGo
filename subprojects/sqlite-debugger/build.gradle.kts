@@ -25,6 +25,8 @@ android {
 				arguments += "-DANDROID_STL=none"
 			}
 		}
+		// The keep rules for the JNI-registered NativeBridge: an app's R8 would otherwise rename or strip them
+		consumerProguardFiles("consumer-rules.pro")
 	}
 
 	compileOptions {
