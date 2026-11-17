@@ -1328,6 +1328,8 @@ abstract class BaseEditorActivity :
 		if (this is EditorHandlerActivity && isPluginTab(position)) {
 			val pluginTabId = getPluginTabId(position)
 			if (pluginTabId != null) {
+				// No file is shown: listeners hear null, as when a plugin tab is first added.
+				editorViewModel.displayedFileIndex = -1
 				val tabManager = PluginEditorTabManager.getInstance()
 				tabManager.onTabSelected(pluginTabId)
 				invalidateOptionsMenu()
