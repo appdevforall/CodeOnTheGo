@@ -73,7 +73,8 @@ declarations belong to the Analysis API. Marking the implementing class instead 
 classifier is ever consulted. Gating the sink catches every such route at the one point they all arrive at.
 `analyzeMaybeDangling` has three production opt-ins: `PinnedKtFile.analyzing` and `analyzingVariant` (the
 sanctioned implementation) and `SourceFileIndexer.indexSourceFile` - the known exception, reached when
-`refreshToCurrent` hands a freshly minted instance to `queueOnFileChangedAsync`, which carries the raw `KtFile`
+`refreshToCurrent` hands the document's `KtFile` (freshly parsed, or since ADFA-6855 the same instance edited in
+place) to `queueOnFileChangedAsync`, which carries the raw `KtFile`
 through `IndexCommand.IndexModifiedFile` and analyses it with no pin (pre-existing, tracked as a follow-up).
 
 What stays convention rather than compiler-enforced is the Analysis API's own `analyze` / `analyzeCopy`: both are
@@ -94,6 +95,13 @@ Nothing compares that instance's text or version against the `Content` being edi
 whatever the current-file cache holds, which lags the buffer by however long the refresh takes - so this site does
 hand offsets from possibly-stale PSI into an edit. The behaviour is unchanged by this ADR's change and the fix is
 tracked separately; widening the hatch to a second caller has to weigh that, not just the analysis argument.
+
+> **Update (2026-11-13, ADFA-6855):** "PSI-only, so no lock needed" no longer holds. An open document now keeps one
+> `KtFile` that every refresh edits in place under `project.write` (`IncrementalKtDocument`), so an unpinned reader
+> without `project.read` can see a half-applied edit - a torn tree, an exception, or a wrong import offset. The
+> handler now computes its edits from the instance inside `project.read` and applies them to the editor after
+> releasing it; the `UnpinnedKtFileAccess` KDoc states the rule for any future caller. The staleness gap above is
+> unchanged.
 
 ## Consequences
 
@@ -137,8 +145,10 @@ tracked separately; widening the hatch to a second caller has to weigh that, not
   the check undetected and is equally unsafe.
 - A narrow window remains between resolving an instance and installing its pin (documented on `withLiveKtFile`):
   a request arriving in that window sees no pin yet and can launch a refresh that completes inside the scope,
-  firing a FIR modification event under it. Instance identity still holds through every door - the pin is stamped
-  with the resolved instance's own version, so the bump is not lost, only deferred. Closing the window fully would
+  firing a FIR modification event under it. Since ADFA-6855 only a full parse with no document yet (the path's
+  first parse) can land there: the pin holds the document's edit read stamp, so in-place edits wait for the
+  release. Instance identity still holds through every door - the pin is stamped with the locked document's
+  applied version, so the bump is not lost, only deferred. Closing the window fully would
   mean publishing a pin before its file exists, making joiners wait on an unresolved entry in the one path every
   caller depends on; that deadlock risk was judged worse than the window.
 
@@ -155,6 +165,11 @@ tracked separately; widening the hatch to a second caller has to weigh that, not
   regression fix. It would also still be a construction property a later refactor could quietly undo, rather than
   something the compiler holds; the team chose the type gate instead and did not schedule in-place reparse as a
   follow-up.
+
+  > **Update (2026-11-13, ADFA-6855):** superseded - in-place reparse was later taken, for performance rather than
+  > as the identity fix, and it works in this environment (`IncrementalKtDocument`, via `BlockSupportImpl.reparse`
+  > and `DiffLog.doActualPsiChange`). It adds to the type gate rather than replacing it: the pin and the three
+  > markers still hold, and a failed in-place reparse still falls back to a fresh instance.
 - **A custom lint/detekt rule banning the raw accessors** - the build has no detekt; Spotless's ktlint integration
   only formats, it does not carry custom semantic rules, so there is no rule seat to put this in.
 
