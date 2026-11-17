@@ -203,7 +203,9 @@ internal class CommandExecutionImpl(
 				exitCode = started?.takeUnless { it.isAlive }?.exitValue()
 				if (exitCode != null) {
 					// Not under the timeout: the command has ended. A background child can hold the
-					// output open long after that, and is then stopped below.
+					// output open long after that, and is then stopped below. Unless no reader was in
+					// read() yet when the command exited: Process then drains the pipe and closes its
+					// end (ProcessPipeInputStream.processExited), so the output looks closed.
 					outputClosed = withTimeoutOrNull(outputGraceMs) { readers.joinAll() } != null
 				}
 			} catch (e: CancellationException) {

@@ -29,10 +29,11 @@ mark C
 printf '$ %s\n' "$shown"
 cd -- "${wd:-$HOME}" || exit 1
 # A syntax error message quotes the command raw, so the syntax is checked first and an error is
-# shown with its control characters replaced. Exits 2, as eval does on a syntax error. The check
-# has extglob on: eval runs a command's lines one at a time, so a "shopt -s extglob" on one line
-# applies to the next, but -n runs nothing. The cost: an extglob pattern in a command that never
-# turns extglob on passes the check, and eval's message rejecting it quotes the line raw.
+# shown with its control characters replaced. Exits 2, as eval does on a syntax error, but before
+# any of the command runs: eval would run the lines ahead of the error. The check has extglob on:
+# eval runs a command's lines one at a time, so a "shopt -s extglob" on one line applies to the
+# next, but -n runs nothing. The cost: an extglob pattern in a command that never turns extglob on
+# passes the check, and eval's message rejecting it quotes the line raw.
 if ! err=$(bash -O extglob -n -c "$cmd" 2>&1); then
 	while IFS= read -r line; do printf '%s\n' "${line//[[:cntrl:]]/?}"; done <<<"$err" >&2
 	exit 2

@@ -112,6 +112,16 @@ class IdeCommandServiceImplTest {
 		return true
 	}
 
+	/** Whether every command's output reader has ended within [ms]. A cancel returns before they do. */
+	private fun readersGoneWithin(ms: Long): Boolean {
+		val deadline = System.currentTimeMillis() + ms
+		while (readerThreads().isNotEmpty()) {
+			if (System.currentTimeMillis() > deadline) return false
+			Thread.sleep(10)
+		}
+		return true
+	}
+
 	/** Threads still in a command's output reader. */
 	private fun readerThreads(): List<String> {
 		val reader = "${CommandExecutionImpl::class.java.name}\$readLines"
@@ -175,6 +185,7 @@ class IdeCommandServiceImplTest {
 		execution.cancel()
 
 		assertThat(execution.awaitWithin(1_000)).isInstanceOf(CommandResult.Cancelled::class.java)
+		assertThat(readersGoneWithin(1_000)).isTrue()
 		assertThat(goneWithin(pids, 1_000)).isTrue()
 	}
 
@@ -215,6 +226,7 @@ class IdeCommandServiceImplTest {
 
 		service.cancelAllCommands()
 
+		assertThat(readersGoneWithin(1_000)).isTrue()
 		assertThat(goneWithin(pids, 1_000)).isTrue()
 		assertThat(service.getRunningCommandCount()).isEqualTo(0)
 	}
@@ -222,7 +234,7 @@ class IdeCommandServiceImplTest {
 	@Test
 	fun `a command that exits before its timeout is not timed out while a child holds its output`() {
 		assumeHostTools()
-		val script = "echo done; sleep 600 & echo \$! >> \"\$1\""
+		val script = "echo done; sleep 600 & echo \$! >> \"\$1\"; $LET_READERS_START"
 		// The output stays open past the 1 s limit, until the grace ends and the child is stopped.
 		val execution =
 			CommandExecutionImpl(
@@ -262,9 +274,12 @@ class IdeCommandServiceImplTest {
 		assumeHostTools()
 		val started = System.currentTimeMillis()
 
-		val result = service().executeCommand(shell("echo done; sleep 600 & echo \$! >> \"\$1\""), 60_000).awaitWithin(10_000)
+		val script = "echo done; sleep 600 & echo \$! >> \"\$1\"; $LET_READERS_START"
 
-		assertThat(System.currentTimeMillis() - started).isLessThan(CommandExecutionImpl.OUTPUT_GRACE_MS + 1_000)
+		val result = service().executeCommand(shell(script), 60_000).awaitWithin(10_000)
+
+		// What the changelog promises: within about 1.5 s of the exit.
+		assertThat(System.currentTimeMillis() - started).isLessThan(LET_READERS_START_MS + 1_500)
 		assertThat(result).isInstanceOf(CommandResult.Success::class.java)
 		assertThat((result as CommandResult.Success).stdout).isEqualTo("done\n")
 		assertThat(readerThreads()).isEmpty()
@@ -285,8 +300,9 @@ class IdeCommandServiceImplTest {
 	fun `stopped commands free their slots`() {
 		assumeHostTools()
 		val service = service()
-		val timedOut = List(3) { service.executeCommand(shell("sleep 600"), 300) }
-		assertThrows(IllegalStateException::class.java) { service.executeCommand(shell("true"), 300) }
+		// Long enough that none has timed out by the fourth call, even on a slow machine.
+		val timedOut = List(3) { service.executeCommand(shell("sleep 600"), 1_000) }
+		assertThrows(IllegalStateException::class.java) { service.executeCommand(shell("true"), 1_000) }
 
 		timedOut.forEach { it.awaitWithin(10_000) }
 		val deadline = System.currentTimeMillis() + 1_000
@@ -456,6 +472,14 @@ class IdeCommandServiceImplTest {
 		const val SETSID = "/usr/bin/setsid"
 		const val KILL = "/usr/bin/kill"
 		const val SH = "/bin/sh"
+
+		/**
+		 * Ends a script that leaves a child holding its output, so that the readers are in read()
+		 * before the shell exits. A shell that exits first has its output drained and closed by
+		 * [Process], which hides the child.
+		 */
+		const val LET_READERS_START_MS = 200L
+		const val LET_READERS_START = "sleep 0.2"
 		val DEV_NULL = File("/dev/null")
 
 		/** A child, a double-forked grandchild, the shell itself, and a child it waits for. */
