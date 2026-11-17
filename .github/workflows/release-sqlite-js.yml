@@ -56,7 +56,23 @@ jobs:
           if [ "$(gh release view sqlite-js-latest --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then
             gh release delete sqlite-js-latest --yes
           fi
-          if ! gh release view sqlite-js-latest >/dev/null 2>&1; then
+          # exists PATH: 0 if GitHub has it, 1 if GitHub answers 404; any other error stops the job, so a
+          # failed lookup is never taken for a missing release or tag
+          exists () {
+            local err
+            if err="$(gh api "$1" 2>&1 >/dev/null)"; then return 0; fi
+            if grep -q 'HTTP 404' <<<"$err"; then return 1; fi
+            echo "::error::$1: $err"
+            exit 1
+          }
+          TAG_REF="repos/${GITHUB_REPOSITORY}/git/refs/tags/sqlite-js-latest"
+          if ! exists "repos/${GITHUB_REPOSITORY}/releases/tags/sqlite-js-latest"; then
+            # A release deleted by hand, or one whose creation failed after it was published, can
+            # leave its tag behind. gh release create reuses an existing tag and ignores --target,
+            # which would publish this AAR under the old commit: move the tag first.
+            if exists "repos/${GITHUB_REPOSITORY}/git/ref/tags/sqlite-js-latest"; then
+              gh api -X PATCH "$TAG_REF" -f sha="$TARGET_SHA" -F force=true >/dev/null
+            fi
             gh release create sqlite-js-latest \
                 --target "$TARGET_SHA" \
                 --latest=false \
@@ -66,7 +82,6 @@ jobs:
                 .release/checksums.txt
             exit 0
           fi
-          TAG_REF="repos/${GITHUB_REPOSITORY}/git/refs/tags/sqlite-js-latest"
           PREVIOUS_SHA="$(gh api "$TAG_REF" --jq .object.sha)"
           mkdir -p .previous
           # A run that stopped during an upload can leave an asset missing. Back up only the assets
