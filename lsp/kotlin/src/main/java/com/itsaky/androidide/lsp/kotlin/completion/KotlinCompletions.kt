@@ -428,22 +428,13 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 		ctx.ktElement.containingKtFile.packageDirective
 			?.fqName
 			?.asString()
-	val useSiteModule = this.useSiteModule
-	val visibilityChecker = env.symbolVisibilityChecker
+	val visibility = env.symbolVisibilityChecker.forUseSite(this.useSiteModule)
 
 	fun addCompletionItem(symbol: JvmSymbol): Boolean {
 		abortIfCancelled()
 
 		if (symbol.packageName == currentPackage) return false
-
-		val isVisible =
-			visibilityChecker.isVisible(
-				symbol = symbol,
-				useSiteModule = useSiteModule,
-				useSitePackage = currentPackage,
-			)
-
-		if (!isVisible) return false
+		if (!visibility.isVisible(symbol, useSitePackage = currentPackage)) return false
 
 		val item = buildUnimportedSymbolItem(symbol) ?: return false
 		to += item
