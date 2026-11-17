@@ -3,6 +3,7 @@ package com.itsaky.androidide.repositories
 import android.util.Log
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.plugins.PluginMetadata
+import com.itsaky.androidide.plugins.manager.core.PluginBuildFiles
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import kotlinx.coroutines.Dispatchers
@@ -144,7 +145,9 @@ class PluginRepositoryImpl(
 
 				val fileExtension =
 					if (pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)) ".$PLUGIN_ARCHIVE_EXTENSION" else ".apk"
-				val finalFileName = "${pluginId}$fileExtension"
+				// A name of its own per build: Android caches a plugin's resources, assets and native
+				// libraries by path, so the new build would otherwise run against the old one's.
+				val finalFileName = "${PluginBuildFiles.fileStem(pluginId, pluginFile)}$fileExtension"
 
 				if (!pluginsDir.exists()) {
 					pluginsDir.mkdirs()
