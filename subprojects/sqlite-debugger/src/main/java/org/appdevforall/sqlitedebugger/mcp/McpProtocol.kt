@@ -73,8 +73,11 @@ class McpProtocol(
 
 		/**
 		 * Once the replies of a batch add up to this many characters, its remaining requests are answered with
-		 * [BATCH_BUDGET_EXCEEDED] without running. A tool reply is at most about 8 MiB (4 MiB of cells, sent as
-		 * text and again as structured content), so a batch holds at most this plus one reply, in the host app's heap.
+		 * [BATCH_BUDGET_EXCEEDED] without running. So a batch holds at most this plus one reply in the host app's
+		 * heap, and that one reply can be several times this size. A tool result holds up to 4 MiB of cell bytes,
+		 * sent as text and again as structured content, but that cap counts cell bytes, not JSON: org.json writes
+		 * most control characters as a six-character escape such as `\u0001`, which the text copy escapes again,
+		 * so a TEXT cell of them takes about 13 characters per byte. A NULL cell counts no bytes but is still sent.
 		 */
 		const val MAX_BATCH_REPLY_CHARS = 8 * 1024 * 1024
 		const val INSTRUCTIONS =
