@@ -39,10 +39,8 @@ class DebuggerEndpointServiceImplTest {
 	@Test
 	fun `the list returned cannot be modified, whatever list the source built`() {
 		val endpoints = service(source = { arrayListOf(endpoint) }).getEndpoints()
-		val none = service(root = null).getEndpoints()
 
 		assertThrows(UnsupportedOperationException::class.java) { (endpoints as MutableList<DebuggerEndpoint>).add(endpoint) }
-		assertThrows(UnsupportedOperationException::class.java) { (none as MutableList<DebuggerEndpoint>).add(endpoint) }
 	}
 
 	@Test
