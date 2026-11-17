@@ -485,6 +485,41 @@ class DatabaseToolsTest {
 		assertEquals(1, r.getJSONArray("triggers").length())
 		assertTrue(seenSql.single().contains("FROM sqlite_master"))
 		assertFalse(seenSql.single().contains("sqlite_schema")) // an alias that needs SQLite 3.33
+		assertFalse(r.getBoolean("truncated"))
+		assertEquals(0, r.getInt("truncated_cells"))
+		assertFalse(r.getJSONArray("tables").getJSONObject(0).getBoolean("truncated"))
+	}
+
+	@Test fun getSchemaSaysWhichCreateStatementWasCut() {
+		engine.appConnections += conn(1, "/data/a.db")
+		// the engine kept MAX_SCHEMA_SQL_BYTES of a longer statement
+		val cut = "CREATE VIEW big AS SELECT " + "1 + ".repeat((DatabaseTools.MAX_SCHEMA_SQL_BYTES - 26) / 4)
+		answerWith(
+			"SELECT type" to
+				QueryResult(
+					listOf("type", "name", "tbl_name", "sql"),
+					listOf(listOf("table", "t", "t", "CREATE TABLE t(a)"), listOf("view", "big", "big", cut)),
+					1,
+					false,
+					setOf(7L), // row 1, column 3
+				),
+		)
+		val r = ok("get_schema", db())
+		assertTrue("a cut CREATE statement makes the result truncated", r.getBoolean("truncated"))
+		assertEquals(1, r.getInt("truncated_cells"))
+		assertTrue(r.getJSONArray("views").getJSONObject(0).getBoolean("truncated"))
+		assertEquals(cut, r.getJSONArray("views").getJSONObject(0).getString("sql"))
+		assertFalse(r.getJSONArray("tables").getJSONObject(0).getBoolean("truncated"))
+	}
+
+	@Test fun getSchemaIsTruncatedPastMaxRowsEntries() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val rows = (0..DatabaseTools.MAX_ROWS).map { listOf("table", "t$it", "t$it", "CREATE TABLE t$it(a)") }
+		answerWith("SELECT type" to QueryResult(listOf("type", "name", "tbl_name", "sql"), rows, 0, false))
+		val r = ok("get_schema", db())
+		assertEquals(DatabaseTools.MAX_ROWS, r.getJSONArray("tables").length())
+		assertTrue(r.getBoolean("truncated"))
+		assertEquals(0, r.getInt("truncated_cells"))
 	}
 
 	@Test fun explainQueryPlanPrefixesTheSql() {

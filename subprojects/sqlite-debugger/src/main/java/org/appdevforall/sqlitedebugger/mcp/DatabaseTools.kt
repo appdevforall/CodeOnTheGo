@@ -37,6 +37,9 @@ class DatabaseTools(
 		const val MAX_TEXT_BYTES = 4096
 		const val MAX_BLOB_BYTES = 1024
 
+		/** get_schema's limit on a CREATE statement, well above [MAX_TEXT_BYTES]. */
+		const val MAX_SCHEMA_SQL_BYTES = 65536
+
 		/** The most cell bytes one tool result holds (the engine's `maxTotalBytes`); the rest is paged. */
 		const val MAX_TOTAL_BYTES = 4 * 1024 * 1024
 
@@ -189,7 +192,10 @@ class DatabaseTools(
 			tool(
 				"get_schema",
 				"Get schema",
-				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_master.",
+				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_master. " +
+					"A CREATE statement is cut at ${MAX_SCHEMA_SQL_BYTES / 1024} KiB: its entry then has truncated true, and " +
+					"truncated_cells counts the cut values. The top-level truncated is true when anything was cut or entries past " +
+					"the first $MAX_ROWS were left out.",
 				databaseSchema(),
 			) { call, args -> getSchema(call, args) },
 			tool(
@@ -322,11 +328,16 @@ class DatabaseTools(
 				"SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name",
 				emptyList(),
 				0,
-				QueryLimits(MAX_ROWS, 65536, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
+				QueryLimits(MAX_ROWS, MAX_SCHEMA_SQL_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
 			)
 		val groups = linkedMapOf("table" to JSONArray(), "index" to JSONArray(), "view" to JSONArray(), "trigger" to JSONArray())
-		for (row in result.rows) {
-			val item = JSONObject().put("name", encodeValue(row[1])).put("table", encodeValue(row[2])).put("sql", encodeValue(row[3]))
+		result.rows.forEachIndexed { r, row ->
+			val item =
+				JSONObject()
+					.put("name", encodeValue(row[1]))
+					.put("table", encodeValue(row[2]))
+					.put("sql", encodeValue(row[3]))
+					.put("truncated", row.indices.any { result.isTruncated(r, it) })
 			groups[row[0] as? String]?.put(item)
 		}
 		return JSONObject()
@@ -334,7 +345,8 @@ class DatabaseTools(
 			.put("indexes", groups["index"])
 			.put("views", groups["view"])
 			.put("triggers", groups["trigger"])
-			.put("truncated", result.hasMore)
+			.put("truncated", result.hasMore || result.truncatedCells > 0)
+			.put("truncated_cells", result.truncatedCells)
 	}
 
 	private fun query(

@@ -614,6 +614,9 @@ static void test_server_holds_no_locks(void) {
 		"BEGIN",
 		"BEGIN IMMEDIATE",
 		"BEGIN EXCLUSIVE",
+		"COMMIT",
+		"END",
+		"ROLLBACK",
 		"SAVEPOINT s",
 		"PRAGMA locking_mode=EXCLUSIVE",
 		"PRAGMA locking_mode",
@@ -650,6 +653,44 @@ static void test_server_holds_no_locks(void) {
 	CHECK_EQ(sqlite3_get_autocommit(srv), 1);
 	exec_ok(g_main, "INSERT INTO t VALUES(4243)");
 	exec_ok(g_main, "DELETE FROM t WHERE a=4243");
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+}
+
+extern int (*const sqlitedbg_test_server_authorizer)(void *, int, const char *, const char *, const char *,
+                                                     const char *);  // sqlitedbg.c, built with SQLITEDBG_TEST
+
+// The backstop for a transaction left open on a server connection (ADFA-7135 review, F37): the
+// authorizer refuses ROLLBACK like any transaction statement, so sqlitedbg_end_transaction's own has
+// to get past it, and only that one.
+static void test_server_ends_transaction(void) {
+	sqlite3 *srv = NULL;
+	CHECK_EQ(sqlitedbg_open_server(g_db_path, 0, &srv), SQLITE_OK);
+	CHECK_EQ(sqlitedbg_end_transaction(srv), SQLITE_OK);  // none open
+	CHECK_EQ(sqlite3_get_autocommit(srv), 1);
+
+	// a transaction opened past the authorizer, as a hole in it would leave one, holding a read lock
+	CHECK_EQ(sqlite3_set_authorizer(srv, NULL, NULL), SQLITE_OK);
+	CHECK_EQ(step_all(srv, "BEGIN"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "SELECT count(*) FROM t"), SQLITE_DONE);
+	CHECK_EQ(sqlite3_set_authorizer(srv, sqlitedbg_test_server_authorizer, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_get_autocommit(srv), 0);
+	CHECK_EQ(sqlite3_exec(g_main, "INSERT INTO t VALUES(4244)", NULL, NULL, NULL), SQLITE_BUSY);
+
+	// the client still cannot end it or open another
+	CHECK_EQ(step_all(srv, "ROLLBACK"), SQLITE_AUTH);
+	CHECK_EQ(step_all(srv, "COMMIT"), SQLITE_AUTH);
+	CHECK_EQ(step_all(srv, "BEGIN"), SQLITE_AUTH);
+	CHECK_EQ(sqlite3_get_autocommit(srv), 0);
+
+	CHECK_EQ(sqlitedbg_end_transaction(srv), SQLITE_OK);
+	CHECK_EQ(sqlite3_get_autocommit(srv), 1);
+	exec_ok(g_main, "INSERT INTO t VALUES(4244)");
+	exec_ok(g_main, "DELETE FROM t WHERE a=4244");
+
+	// the exemption ends with the call
+	CHECK_EQ(step_all(srv, "BEGIN"), SQLITE_AUTH);
+	CHECK_EQ(step_all(srv, "ROLLBACK"), SQLITE_AUTH);
+	CHECK_EQ(step_all(srv, "SELECT count(*) FROM t"), SQLITE_DONE);
 	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
 }
 
@@ -999,6 +1040,7 @@ int main(int argc, char **argv) {
 		test_server();
 		printf("# server holds no locks\n");
 		test_server_holds_no_locks();
+		test_server_ends_transaction();
 		printf("# server waits for locks\n");
 		test_server_waits_for_locks();
 		printf("# threads\n");

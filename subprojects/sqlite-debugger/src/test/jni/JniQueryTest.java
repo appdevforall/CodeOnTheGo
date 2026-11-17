@@ -271,6 +271,16 @@ public class JniQueryTest {
 		q(w, "BEGIN");
 		q(w, "INSERT INTO t(id) VALUES(4245)");
 		eq(q(w, "SELECT count(*) FROM t WHERE id = 4245").rows.get(0)[0], 1L, "an autocommit insert on the writable connection stays");
+		// a rollback the backstop cannot make is the query's error, not a lock held in silence
+		eq(Helper.exec(w, "BEGIN IMMEDIATE"), 0, "a transaction opened outside the query path");
+		eq(Helper.denyTransactions(w, true), 0, "an authorizer that refuses ROLLBACK");
+		eq(refusal(w, "SELECT 1"), "23 a transaction was left open and rolling it back failed: not authorized",
+				"the failed rollback is reported");
+		eq(Helper.exec(app, "INSERT INTO t(id) VALUES(4246)"), 5, "the app is still locked out: SQLITE_BUSY");
+		eq(Helper.denyTransactions(w, false), 0, "the authorizer cleared");
+		eq(refusal(w, "SELECT 1"), null, "the next query rolls it back");
+		eq(Helper.exec(app, "INSERT INTO t(id) VALUES(4246)"), 0, "the app can write again");
+		Helper.exec(app, "DELETE FROM t WHERE id = 4246");
 		NativeBridge.close(w);
 		Helper.exec(app, "DELETE FROM t WHERE id = 4245");
 
