@@ -4,6 +4,8 @@ import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -80,7 +82,7 @@ class PluginBuildFiles internal constructor(
 	fun delete(pluginId: String): Boolean =
 		synchronized(lockFor(pluginId)) {
 			deleteLegacyNativeLibs()
-			if (!pluginDirOf(pluginId).deleteRecursively()) {
+			if (!pluginDirOf(pluginId).deleteWithoutFollowingLinks()) {
 				log.error("Could not delete all native libraries of {}", pluginId)
 			}
 			val files = filesOf(pluginId)
@@ -101,14 +103,20 @@ class PluginBuildFiles internal constructor(
 		synchronized(lockFor(pluginId)) {
 			deleteLegacyNativeLibs()
 			val pluginDir = pluginDirOf(pluginId)
+			if (Files.isSymbolicLink(pluginDir.toPath())) {
+				log.warn("{} is a link; deleting the link and extracting into a folder", pluginDir)
+				pluginDir.deleteWithoutFollowingLinks()
+			}
 			val key = buildKey(pluginId, build)
+			// Before folderFor: a link left at the build's path would block the scratch folder's rename.
+			deleteLinksIn(pluginDir)
 			val buildDir = folderFor(pluginDir, key)
-			val extracted = buildDir.isDirectory || extractNativeLibs(build, "lib/$abi/", buildDir)
+			val extracted = isRealDirectory(buildDir) || extractNativeLibs(build, "lib/$abi/", buildDir)
 			// Another installed build of this plugin keeps its folder: it may be loading from it.
 			val otherBuilds = installedKeys(pluginId) - key
 			pluginDir
-				.listFiles { file -> file != buildDir && !(file.isDirectory && file.name.substringBefore('~') in otherBuilds) }
-				?.forEach(File::deleteRecursively)
+				.listFiles { file -> file != buildDir && !(isRealDirectory(file) && file.name.substringBefore('~') in otherBuilds) }
+				?.forEach(File::deleteWithoutFollowingLinks)
 			pluginDir.delete() // only when empty
 			if (extracted) buildDir.also { handedOut += it.absolutePath } else null
 		}
@@ -116,22 +124,34 @@ class PluginBuildFiles internal constructor(
 	private fun lockFor(pluginId: String): Any = locks.computeIfAbsent(pluginId) { Any() }
 
 	private fun deleteLegacyNativeLibs() {
-		if (legacyDeleted.compareAndSet(false, true) && legacyNativeLibsDir?.deleteRecursively() == false) {
+		if (legacyDeleted.compareAndSet(false, true) && legacyNativeLibsDir?.deleteWithoutFollowingLinks() == false) {
 			log.warn("Could not delete {}", legacyNativeLibsDir)
 		}
 	}
 
 	/**
 	 * [pluginId]'s folder of native libraries. Throws unless that is a folder of [nativeLibsDir]
-	 * named [pluginId]: an ID that is a path, or a link, would have it delete a folder elsewhere.
+	 * named [pluginId]: an ID that is a path would have it delete a folder elsewhere. Compares
+	 * normalized paths and resolves no link, so a link at that path is returned as it is, for the
+	 * caller to delete as a link.
 	 */
 	private fun pluginDirOf(pluginId: String): File {
-		val dir = File(nativeLibsDir, pluginId)
-		val canonical = dir.canonicalFile
-		require(canonical.parentFile == nativeLibsDir.canonicalFile && canonical.name == pluginId) {
+		val root = nativeLibsDir.toPath().toAbsolutePath().normalize()
+		val dir = root.resolve(pluginId).normalize()
+		require("\\" !in pluginId && dir.parent == root && dir.fileName?.toString() == pluginId) {
 			"Plugin ID \"$pluginId\" names no folder of ${nativeLibsDir.absolutePath}"
 		}
-		return dir
+		return dir.toFile()
+	}
+
+	// A link is never a folder of ours: plugin code can plant one, and it would be followed.
+	private fun isRealDirectory(file: File): Boolean = Files.isDirectory(file.toPath(), LinkOption.NOFOLLOW_LINKS)
+
+	private fun deleteLinksIn(pluginDir: File) {
+		pluginDir.listFiles { file -> Files.isSymbolicLink(file.toPath()) }?.forEach {
+			log.warn("{} is a link; deleting the link", it)
+			it.deleteWithoutFollowingLinks()
+		}
 	}
 
 	/**
@@ -142,7 +162,7 @@ class PluginBuildFiles internal constructor(
 		pluginDir: File,
 		key: String,
 	): File {
-		val existing = pluginDir.listFiles { file -> file.isDirectory && (file.name == key || file.name.startsWith("$key~")) }
+		val existing = pluginDir.listFiles { file -> isRealDirectory(file) && (file.name == key || file.name.startsWith("$key~")) }
 		existing?.minByOrNull { it.name.length }?.let { return it }
 		return generateSequence(0) { it + 1 }
 			.map { n -> File(pluginDir, if (n == 0) key else "$key~$n") }
@@ -169,7 +189,7 @@ class PluginBuildFiles internal constructor(
 		buildDir: File,
 	): Boolean {
 		val scratch = File(buildDir.parentFile, ".${buildDir.name}.partial")
-		scratch.deleteRecursively()
+		scratch.deleteWithoutFollowingLinks()
 		scratch.mkdirs()
 		val targetPath = scratch.toPath().toAbsolutePath().normalize()
 
@@ -194,11 +214,11 @@ class PluginBuildFiles internal constructor(
 		}
 
 		if (!found) {
-			scratch.deleteRecursively()
+			scratch.deleteWithoutFollowingLinks()
 			return false
 		}
 		if (!scratch.renameTo(buildDir)) {
-			scratch.deleteRecursively()
+			scratch.deleteWithoutFollowingLinks()
 			throw IOException("Could not move native libraries into ${buildDir.absolutePath}")
 		}
 		return true

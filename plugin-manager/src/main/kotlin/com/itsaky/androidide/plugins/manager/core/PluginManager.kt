@@ -93,6 +93,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
 
 class PluginManager private constructor(
@@ -617,7 +618,7 @@ class PluginManager private constructor(
 				}
 
 			if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
-				File(nativeLibPath).deleteRecursively()
+				File(nativeLibPath).deleteWithoutFollowingLinks()
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -1880,19 +1881,20 @@ class PluginManager private constructor(
 
 			val pluginDir = File(pluginsDir, pluginId)
 			if (pluginDir.exists()) {
-				val deleted = pluginDir.deleteRecursively()
+				val deleted = pluginDir.deleteWithoutFollowingLinks()
 				logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
 			}
 
 			File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
-				if (dir.exists()) dir.deleteRecursively()
+				dir.deleteWithoutFollowingLinks()
 			}
 
 			// Clean up ART cache files in oat directory
 			try {
 				val oatDir = File(pluginsDir, "oat")
 				if (oatDir.exists() && oatDir.isDirectory) {
-					oatDir.walkTopDown().forEach { file ->
+					// Not into a link: a file named like this plugin's code could be anywhere it points.
+					oatDir.walkTopDown().onEnter { !Files.isSymbolicLink(it.toPath()) }.forEach { file ->
 						// Skips code whose plugin file remains: it is another plugin's.
 						if (buildFiles.isLeftoverCompiledCodeOf(pluginId, file)) {
 							val deleted = file.deleteRecursively()

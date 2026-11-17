@@ -1,5 +1,6 @@
 package com.itsaky.androidide.plugins.manager.core
 
+import android.content.Context
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import org.junit.After
@@ -9,6 +10,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.nio.file.Files
 
 /**
  * Uninstalling a plugin deletes its own files only. Update uninstalls first, so the same goes for
@@ -107,6 +109,52 @@ class PluginUninstallTest {
 			.that(others.filterNot(File::exists))
 			.isEmpty()
 	}
+
+	@Test
+	fun aLinkInThePluginsDataIsNotFollowed() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		val victim = victim()
+		File(pluginsDir, "a").mkdirs()
+		Files.createSymbolicLink(File(pluginsDir, "a/link").toPath(), victim.toPath())
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("uninstalling \"a\" emptied a link's target").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertThat(File(pluginsDir, "a").exists()).isFalse()
+	}
+
+	@Test
+	fun aLinkInThePluginsIconsIsNotFollowed() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		val victim = victim()
+		val icons = File(RuntimeEnvironment.getApplication().getDir("plugin_icons", Context.MODE_PRIVATE), "a").apply { mkdirs() }
+		Files.createSymbolicLink(File(icons, "link").toPath(), victim.toPath())
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("uninstalling \"a\" emptied a link's target").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertThat(icons.exists()).isFalse()
+	}
+
+	@Test
+	fun aLinkInTheCompiledCodeFolderIsNotFollowed() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		val victim = victim().also { File(it, "a-0123456789012345.odex").writeText("not a plugin's") }
+		oatDir.mkdirs()
+		Files.createSymbolicLink(File(oatDir, "link").toPath(), victim.toPath())
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("uninstalling \"a\" deleted a file through a link")
+			.that(victim.list()?.toList())
+			.containsExactly("keep.txt", "a-0123456789012345.odex")
+	}
+
+	// Outside the folders an uninstall deletes, with a file that must survive.
+	private fun victim(): File =
+		File(RuntimeEnvironment.getApplication().filesDir.parentFile, "victim").apply { mkdirs() }.also {
+			File(it, "keep.txt").writeText("not a plugin's")
+		}
 
 	private fun file(
 		dir: File,

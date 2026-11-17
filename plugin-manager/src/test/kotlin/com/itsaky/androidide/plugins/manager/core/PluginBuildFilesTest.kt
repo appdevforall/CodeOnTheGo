@@ -7,6 +7,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -228,15 +229,70 @@ class PluginBuildFilesTest {
 
 	@Test
 	fun aPluginFolderThatLinksElsewhereIsNotFollowed() {
-		val victim = File(nativeLibsDir.parentFile, "victim").apply { mkdirs() }
-		File(victim, "keep.txt").writeText("not a plugin's")
-		Files.createSymbolicLink(File(nativeLibsDir, ID).toPath(), victim.toPath())
+		val victim = victim()
+		val link = File(nativeLibsDir, ID).also { Files.createSymbolicLink(it.toPath(), victim.toPath()) }
 
 		val deleted = runCatching { files.delete(ID) }
 
 		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
-		assertThat(deleted.exceptionOrNull()).isInstanceOf(IllegalArgumentException::class.java)
+		assertThat(deleted.exceptionOrNull()).isNull()
+		assertWithMessage("the link is still there").that(Files.exists(link.toPath(), LinkOption.NOFOLLOW_LINKS)).isFalse()
 	}
+
+	@Test
+	fun aPluginFolderThatLinksElsewhereIsReplacedByAFolderOfLibraries() {
+		val victim = victim()
+		Files.createSymbolicLink(File(nativeLibsDir, ID).toPath(), victim.toPath())
+
+		val dir = files.extractNativeLibs(ID, installed(build("a.cgp", "libfoo.so" to "A")), ABI)
+
+		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertThat(File(dir, "libfoo.so").readText()).isEqualTo("A")
+		assertWithMessage("the libraries went through a link").that(Files.isSymbolicLink(File(nativeLibsDir, ID).toPath())).isFalse()
+	}
+
+	@Test
+	fun aLinkInThePluginFolderIsNotFollowedByUninstall() {
+		val victim = victim()
+		File(nativeLibsDir, ID).mkdirs()
+		Files.createSymbolicLink(File(nativeLibsDir, "$ID/some-build").toPath(), victim.toPath())
+
+		files.delete(ID)
+
+		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertThat(File(nativeLibsDir, ID).exists()).isFalse()
+	}
+
+	@Test
+	fun aLinkInThePluginFolderIsNotFollowedByTheCleanupOfOldBuilds() {
+		val victim = victim()
+		File(nativeLibsDir, ID).mkdirs()
+		Files.createSymbolicLink(File(nativeLibsDir, "$ID/stale").toPath(), victim.toPath())
+
+		val dir = files.extractNativeLibs(ID, installed(build("a.cgp", "libfoo.so" to "A")), ABI)
+
+		assertWithMessage("the link's target lost files").that(victim.list()?.toList()).containsExactly("keep.txt")
+		assertThat(File(dir, "libfoo.so").readText()).isEqualTo("A")
+		assertThat(File(nativeLibsDir, "$ID/stale").exists()).isFalse()
+	}
+
+	@Test
+	fun aLinkAtTheBuildsFolderIsNotReused() {
+		val victim = victim()
+		val build = installed(build("a.cgp", "libfoo.so" to "A"))
+		File(nativeLibsDir, ID).mkdirs()
+		Files.createSymbolicLink(File(nativeLibsDir, "$ID/${PluginBuildFiles.buildKey(ID, build)}").toPath(), victim.toPath())
+
+		val dir = files.extractNativeLibs(ID, build, ABI)
+
+		assertThat(File(dir, "libfoo.so").readText()).isEqualTo("A")
+		assertWithMessage("the build's libraries load through a link").that(Files.isSymbolicLink(dir!!.toPath())).isFalse()
+		assertWithMessage("the link's target changed").that(victim.list()?.toList()).containsExactly("keep.txt")
+	}
+
+	// Outside the folders the code under test deletes, with a file that must survive.
+	private fun victim(): File =
+		File(nativeLibsDir.parentFile, "victim").apply { mkdirs() }.also { File(it, "keep.txt").writeText("not a plugin's") }
 
 	// As PluginRepositoryImpl.installPluginFromFile names and copies it.
 	private fun installed(build: File): File {

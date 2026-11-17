@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Resources
 import android.os.Bundle
+import com.itsaky.androidide.plugins.manager.core.deleteWithoutFollowingLinks
 import dalvik.system.DexClassLoader
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -172,7 +173,7 @@ class PluginLoader(
 	): Pair<String?, String?> {
 		if (manifest.iconDay == null && manifest.iconNight == null) return null to null
 		val iconDir = File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId)
-		iconDir.deleteRecursively()
+		iconDir.deleteWithoutFollowingLinks()
 		iconDir.mkdirs()
 		val targetPath = iconDir.toPath().toAbsolutePath().normalize()
 		return try {
