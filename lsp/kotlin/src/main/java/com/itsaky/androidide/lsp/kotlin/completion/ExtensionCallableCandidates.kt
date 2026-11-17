@@ -4,6 +4,8 @@ import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.components.KaScopeContext
 import org.jetbrains.kotlin.analysis.api.components.KaScopeKind
 import org.jetbrains.kotlin.analysis.api.symbols.KaCallableSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaClassSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaSymbolOrigin
 import org.jetbrains.kotlin.analysis.api.symbols.receiverType
 import org.jetbrains.kotlin.analysis.api.types.KaClassType
 import org.jetbrains.kotlin.analysis.api.types.KaFlexibleType
@@ -19,8 +21,12 @@ import org.jetbrains.kotlin.name.Name
  * passes, and enumerating them makes the Analysis API materialize every callable the file can see,
  * parsing Java sources on the way - most of a member completion's time on device. The names come from
  * [indexedExtensionNames], given the JVM symbol index spellings of the receiver type and all its
- * supertypes ([extensionIndexReceiverNames]). Scopes the index never sees - local, type, type
- * parameter, static member and script scopes - are small and are enumerated.
+ * supertypes ([extensionIndexReceiverNames]).
+ *
+ * The implicit receivers' type scopes are looked up by name too, with [memberExtensionNames]: inside
+ * an Android class they hold every member of its whole framework hierarchy, all materialized just to
+ * keep the few member extensions. The remaining scopes - local, type parameter, static member and
+ * script - are small and the index never sees them, so they are enumerated.
  */
 internal fun KaSession.extensionCallableCandidates(
 	receiverType: KaType,
@@ -28,15 +34,11 @@ internal fun KaSession.extensionCallableCandidates(
 	indexedExtensionNames: (receiverTypeNames: Set<String>) -> Set<Name>,
 	nameFilter: (Name) -> Boolean,
 ): Sequence<KaCallableSymbol> {
-	val unindexed = scopeContext.compositeScope { it.isUnindexed() }.callables(nameFilter)
-	val names = indexedExtensionNames(receiverTypeIndexNames(receiverType)).filter(nameFilter)
-	val indexed =
-		if (names.isEmpty()) {
-			emptySequence()
-		} else {
-			scopeContext.compositeScope { !it.isUnindexed() }.callables(names)
-		}
-	return (unindexed + indexed).filter { symbol ->
+	val enumerated = scopeContext.compositeScope { it.isEnumerated() }.callables(nameFilter)
+	val members = callablesNamed(scopeContext, memberExtensionNames(scopeContext).filter(nameFilter)) { it is KaScopeKind.TypeScope }
+	val indexedNames = indexedExtensionNames(receiverTypeIndexNames(receiverType)).filter(nameFilter)
+	val indexed = callablesNamed(scopeContext, indexedNames) { !it.isEnumerated() && it !is KaScopeKind.TypeScope }
+	return (enumerated + members + indexed).filter { symbol ->
 		if (!symbol.isExtension) return@filter false
 
 		val extReceiverType = symbol.receiverType ?: return@filter false
@@ -59,14 +61,43 @@ internal fun extensionIndexReceiverNames(classId: ClassId): Set<String> {
 	return linkedSetOf(qualified(relativeName.replace('.', '$')), qualified(relativeName))
 }
 
-private fun KaScopeKind.isUnindexed(): Boolean =
+/**
+ * Names of the extensions declared as members of the implicit receivers' classes or their
+ * supertypes, read from declared members only. Java classes are skipped: they cannot declare member
+ * extensions, and in an Android class they are nearly the whole hierarchy.
+ */
+internal fun KaSession.memberExtensionNames(scopeContext: KaScopeContext): Set<Name> {
+	val names = mutableSetOf<Name>()
+	val visited = mutableSetOf<KaClassSymbol>()
+	for (receiver in scopeContext.implicitReceivers) {
+		for (type in sequenceOf(receiver.type) + receiver.type.allSupertypes) {
+			val classSymbol = (type.lowerBoundIfFlexible() as? KaClassType)?.symbol as? KaClassSymbol ?: continue
+			if (classSymbol.origin == KaSymbolOrigin.JAVA_SOURCE || classSymbol.origin == KaSymbolOrigin.JAVA_LIBRARY) continue
+			if (!visited.add(classSymbol)) continue
+			classSymbol.declaredMemberScope
+				.callables { true }
+				.filter { it.isExtension }
+				.mapNotNullTo(names) { it.callableId?.callableName }
+		}
+	}
+	return names
+}
+
+private fun KaSession.callablesNamed(
+	scopeContext: KaScopeContext,
+	names: List<Name>,
+	scopeKinds: (KaScopeKind) -> Boolean,
+): Sequence<KaCallableSymbol> = if (names.isEmpty()) emptySequence() else scopeContext.compositeScope(scopeKinds).callables(names)
+
+private fun KaScopeKind.isEnumerated(): Boolean =
 	this is KaScopeKind.LocalScope ||
-		this is KaScopeKind.TypeScope ||
 		this is KaScopeKind.TypeParameterScope ||
 		this is KaScopeKind.StaticMemberScope ||
 		this is KaScopeKind.ScriptMemberScope
 
+private fun KaType.lowerBoundIfFlexible(): KaType = if (this is KaFlexibleType) lowerBound else this
+
 private fun KaSession.receiverTypeIndexNames(receiverType: KaType): Set<String> =
 	(sequenceOf(receiverType) + receiverType.allSupertypes)
-		.mapNotNull { type -> (if (type is KaFlexibleType) type.lowerBound else type) as? KaClassType }
+		.mapNotNull { type -> type.lowerBoundIfFlexible() as? KaClassType }
 		.flatMapTo(LinkedHashSet()) { extensionIndexReceiverNames(it.classId) }
