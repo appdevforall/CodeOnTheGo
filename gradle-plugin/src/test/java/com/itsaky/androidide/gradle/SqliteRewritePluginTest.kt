@@ -15,14 +15,15 @@ import java.nio.file.Path
 
 /**
  * The helpers the rewritten classes call (ADFA-7138) are injected by Code on the Go into every variant of a
- * project that opted in, and a per-variant task checks that requery and androidx.sqlite are on the
- * runtime classpath before anything is compiled.
+ * project that opted in, and a per-variant task checks that requery, androidx.sqlite and androidx.core are on
+ * the runtime classpath before anything is compiled.
  */
 class SqliteRewritePluginTest {
 	private val runtimeAarName = "sqlite-rewrite-runtime-release.aar"
 	private val allVariants = listOf("demoDebug", "fullDebug", "demoRelease", "fullRelease")
 	private val requeryEntry = CheckSqliteRewriteClasspathTask.REQUERY_ENTRY
 	private val androidxSqliteEntry = CheckSqliteRewriteClasspathTask.ANDROIDX_SQLITE_ENTRY
+	private val androidxCoreEntry = CheckSqliteRewriteClasspathTask.ANDROIDX_CORE_ENTRY
 
 	private fun build(
 		dir: File,
@@ -119,7 +120,9 @@ class SqliteRewritePluginTest {
 
 		assertThat(message).contains("variant 'demoDebug'")
 		assertThat(message).contains(requeryEntry)
+		// the sample project's Room and AppCompat bring the real AARs, which the check must find
 		assertThat(message).doesNotContain(androidxSqliteEntry)
+		assertThat(message).doesNotContain(androidxCoreEntry)
 		assertThat(message).contains("file dependency")
 		assertThat(message).contains("brings none of its own dependencies")
 	}
@@ -141,22 +144,49 @@ class SqliteRewritePluginTest {
 
 		assertThat(message).contains(androidxSqliteEntry)
 		assertThat(message).doesNotContain("requery's SQLiteDatabase")
+		assertThat(message).doesNotContain(androidxCoreEntry)
 	}
 
 	@Test
-	fun `the check passes with stand-in jars that contain the two class entries, and is reused from the configuration cache`(
+	fun `the check fails without androidx core, whose CancellationSignal requery's API takes`(
 		@TempDir dir: File,
 	) {
 		val requery = jar(dir, "requery.jar", requeryEntry)
-		val sqlite = jar(dir, "sqlite.jar", androidxSqliteEntry)
 		val project =
 			project(
 				dir,
 				"""
-				configurations.all { exclude(group = "androidx.sqlite") }
+				configurations.all { exclude(group = "androidx.core") }
+				dependencies { implementation(files("${requery.invariantSeparatorsPath}")) }
+				""".trimIndent(),
+			)
+		val message = failureOf { build(dir, ":app:checkDemoDebugSqliteRewriteClasspath", project = project) }
+
+		assertThat(message).contains(androidxCoreEntry)
+		assertThat(message).contains("androidx.core:core")
+		assertThat(message).doesNotContain("requery's SQLiteDatabase")
+		assertThat(message).doesNotContain(androidxSqliteEntry)
+	}
+
+	@Test
+	fun `the check passes with stand-in jars that contain the three class entries, and is reused from the configuration cache`(
+		@TempDir dir: File,
+	) {
+		val requery = jar(dir, "requery.jar", requeryEntry)
+		val sqlite = jar(dir, "sqlite.jar", androidxSqliteEntry)
+		val core = jar(dir, "core.jar", androidxCoreEntry)
+		val project =
+			project(
+				dir,
+				"""
+				configurations.all {
+					exclude(group = "androidx.sqlite")
+					exclude(group = "androidx.core")
+				}
 				dependencies {
 					implementation(files("${requery.invariantSeparatorsPath}"))
 					implementation(files("${sqlite.invariantSeparatorsPath}"))
+					implementation(files("${core.invariantSeparatorsPath}"))
 				}
 				""".trimIndent(),
 			)

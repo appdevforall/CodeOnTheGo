@@ -16,10 +16,12 @@ An existing project needs:
    and logs a file it cannot read; it does not see `-P` arguments, which Code on the Go does not pass for this.
 2. requery's AAR (`sqlite-android.aar`) in the app's `libs/`, as a file dependency
    (`implementation(files("libs/sqlite-android.aar"))`), as the ADFA-7082 template does.
-3. androidx.sqlite on the runtime classpath (`androidx.sqlite:sqlite`, which Room, WorkManager and most androidx
-   libraries bring). A file dependency brings none of the dependencies of the AAR, and requery implements
-   androidx.sqlite's interfaces. It also calls `androidx.core.os.CancellationSignal`, which AppCompat's
-   androidx.core provides.
+3. androidx.sqlite and androidx.core on the runtime classpath (`androidx.sqlite:sqlite`, which Room, WorkManager
+   and most androidx libraries bring, and `androidx.core:core`, which AppCompat brings). A file dependency brings
+   none of the dependencies of the AAR: requery implements androidx.sqlite's interfaces, takes and calls
+   androidx.core's `CancellationSignal` (the rewrite converts android's signal to it) and throws its
+   `OperationCanceledException`, and its statement cache extends androidx.collection's `LruCache`, which
+   androidx.core brings.
 
 The helper classes the rewrite redirects to (`SqliteRewriteRuntime`) are not in `libs/`: Code on the Go bundles
 `subprojects/sqlite-rewrite-runtime`'s release AAR, extracts it with the other tools and passes its path as
@@ -31,7 +33,8 @@ the rewrite is already registered for it, so going on would give an app that thr
 
 A task `check<Variant>SqliteRewriteClasspath` runs before the compile and the transform of each variant. It fails
 with an actionable message when the variant's runtime classpath has no
-`io/requery/android/database/sqlite/SQLiteDatabase.class` or `androidx/sqlite/db/SupportSQLiteDatabase.class`.
+`io/requery/android/database/sqlite/SQLiteDatabase.class`, `androidx/sqlite/db/SupportSQLiteDatabase.class` or
+`androidx/core/os/CancellationSignal.class`.
 
 The property is required because requery reaches apps only through `libs/`. Without it the rewritten classes
 cannot load, so the transform runs only on projects that opted in. Commenting the line out turns it off.
