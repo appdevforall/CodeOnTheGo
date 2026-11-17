@@ -74,6 +74,16 @@ public class JniQueryTest {
 		}
 	}
 
+	/** "code message" of the refusal, or null when the query ran. */
+	static String refusal(long h, String sql) {
+		try {
+			q(h, sql);
+			return null;
+		} catch (DebugEngineException e) {
+			return e.sqliteCode + " " + e.getMessage();
+		}
+	}
+
 	static Set<Long> set(Long... v) {
 		return new HashSet<>(Arrays.asList(v));
 	}
@@ -207,6 +217,23 @@ public class JniQueryTest {
 		eq(codeOf(srv, "SELECT ?", new Object[] {1L, 2L}, FAR), 25, "too many args: SQLITE_RANGE");
 		eq(codeOf(srv, "SELECT ?", new Object[] {new Object()}, FAR), 21, "unsupported arg type: SQLITE_MISUSE");
 		eq(codeOf(srv, "SELEKT 1", new Object[0], FAR), 1, "syntax error: SQLITE_ERROR");
+
+		// one statement per call: SQLite compiles only the first, so a second is refused, not dropped
+		String more = "1 the SQL holds more than one statement; run one statement per call";
+		eq(refusal(srv, "SELECT 1; SELECT 2"), more, "two statements");
+		eq(refusal(srv, "SELECT 1;\n-- why\nSELECT id FROM t"), more, "a statement after a comment");
+		eq(refusal(srv, "SELECT 1; DELETE FROM t"), more, "a write the authorizer refuses at prepare time is a second statement, not SQLITE_AUTH");
+		eq(refusal(srv, "SELECT 1; nonsense"), more, "a second statement that fails to prepare");
+		eq(refusal(srv, "EXPLAIN QUERY PLAN SELECT id FROM t; SELECT 2"), more, "what explain_query_plan sends for two statements");
+		eq(refusal(srv, "-- only a comment"), "1 the SQL holds no statement, only whitespace or comments", "no statement");
+		eq(refusal(srv, " ;\n"), "1 the SQL holds no statement, only whitespace or comments", "only a semicolon");
+		eq(refusal(srv, "SELECT 1\0; DELETE FROM t"), "1 the SQL holds a NUL character, and SQLite reads no further than it", "a NUL");
+		for (String sql : new String[] {"SELECT 41 + 1;", "SELECT 41 + 1 ;  \n\t", "SELECT 41 + 1; -- done", "SELECT 41 + 1 /* c */;;",
+				"SELECT 41 + 1; /* open", "-- why\n;SELECT 41 + 1"}) {
+			eq(refusal(srv, sql), null, "accepted: " + sql);
+			eq(q(srv, sql).rows.get(0)[0], 42L, "and run: " + sql);
+		}
+		eq(q(srv, "SELECT count(*) FROM t WHERE id = 1").rows.get(0)[0], 1L, "nothing deleted");
 
 		// a refused write is SQLITE_AUTH, and the data is untouched
 		eq(codeOf(srv, "INSERT INTO t(id) VALUES(5)", new Object[0], FAR), 23, "write refused: SQLITE_AUTH");

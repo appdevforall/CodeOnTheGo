@@ -21,7 +21,9 @@ import java.util.TimerTask
  *
  * One lock guards the cached server connections and every query, so tool calls run one at a time:
  * a slow query (up to [DEADLINE_MS]) makes the others wait. That is accepted: the debugger serves
- * one agent, and a connection per call would open the app's file many times over.
+ * one agent, and a connection per call would open the app's file many times over. A tool call's
+ * time limit starts when the call begins, so its waits for the lock count and the server gives up
+ * before the client does; a call whose time went mostly to waiting says so in its error.
  */
 class DatabaseTools(
 	private val engine: DebugEngine,
@@ -38,7 +40,10 @@ class DatabaseTools(
 		/** The most cell bytes one tool result holds (the engine's `maxTotalBytes`); the rest is paged. */
 		const val MAX_TOTAL_BYTES = 4 * 1024 * 1024
 
-		/** Below the client's 60 s limit on a tool call. */
+		/**
+		 * A tool call's time limit, from when the call begins, waits for the lock included: below the
+		 * client's 60 s limit, so a query never holds the lock after the client has stopped waiting.
+		 */
 		const val DEADLINE_MS = 50_000L
 		const val EVENT_BATCH_BYTES = 256 * 1024
 		const val MAX_TABLES_FOR_COUNTS = 10
@@ -111,6 +116,20 @@ class DatabaseTools(
 		val appConnectionIds: Set<Long>,
 	)
 
+	/** One tool call: its deadline, set when it begins, and the time it has spent waiting for [lock]. */
+	private inner class Call {
+		val deadline = clock() + DEADLINE_MS
+		var waitedMs = 0L
+
+		fun <T> locked(block: () -> T): T {
+			val before = clock()
+			return synchronized(lock) {
+				waitedMs += clock() - before
+				block()
+			}
+		}
+	}
+
 	/** Closes the server connections and tells the engine no client is watching. Call when the server stops. */
 	fun onServerStopped() {
 		synchronized(lock) {
@@ -130,12 +149,12 @@ class DatabaseTools(
 	 * expanding every statement costs memory, and nobody is reading. Checked on every tool call and
 	 * by a timer, so it also happens when no call comes.
 	 */
-	fun expireIdleClient() {
-		synchronized(lock) {
-			if (clientConnected && clock() - lastEventsCallMs >= EVENTS_IDLE_MS) {
-				clientConnected = false
-				engine.setClientConnected(false)
-			}
+	fun expireIdleClient() = synchronized(lock) { expireIdleClientLocked() }
+
+	private fun expireIdleClientLocked() {
+		if (clientConnected && clock() - lastEventsCallMs >= EVENTS_IDLE_MS) {
+			clientConnected = false
+			engine.setClientConnected(false)
 		}
 	}
 
@@ -161,18 +180,18 @@ class DatabaseTools(
 				"List databases",
 				"Lists the app's databases: each one an app connection has open (available), and the files in the app's database folder " +
 					"that none has opened (not available: not inspectable until the app opens them).",
-			) { listDatabases() },
+			) { _, _ -> listDatabases() },
 			tool(
 				"list_connections",
 				"List connections",
 				"Lists the app's open SQLite connections (not yet freed by SQLite), oldest first.",
-			) { listConnections() },
+			) { _, _ -> listConnections() },
 			tool(
 				"get_schema",
 				"Get schema",
 				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_master.",
 				databaseSchema(),
-			) { getSchema(it) },
+			) { call, args -> getSchema(call, args) },
 			tool(
 				"query",
 				"Run a query",
@@ -187,7 +206,7 @@ class DatabaseTools(
 					"max_rows" to prop("integer", "Rows to return. Default $DEFAULT_MAX_ROWS, at most $MAX_ROWS."),
 					required = listOf("sql"),
 				),
-			) { query(it) },
+			) { call, args -> query(call, args) },
 			tool(
 				"explain_query_plan",
 				"Explain a query plan",
@@ -197,21 +216,21 @@ class DatabaseTools(
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters."),
 					required = listOf("sql"),
 				),
-			) { explain(it) },
+			) { call, args -> explain(call, args) },
 			tool(
 				"get_stats",
 				"Get statistics",
 				"Returns page_count, page_size, freelist_count, and the row count of each table when the database has fewer than " +
 					"$MAX_TABLES_FOR_COUNTS tables.",
 				databaseSchema(),
-			) { getStats(it) },
+			) { call, args -> getStats(call, args) },
 			tool(
 				"integrity_check",
 				"Check integrity",
 				"Runs PRAGMA quick_check, or the slower PRAGMA integrity_check when full is true. " +
 					"ok is true when SQLite reports no problem.",
 				databaseSchema("full" to prop("boolean", "Run the full integrity_check. Default false."), required = emptyList()),
-			) { integrityCheck(it) },
+			) { call, args -> integrityCheck(call, args) },
 			tool(
 				"get_events",
 				"Get SQL events",
@@ -223,7 +242,7 @@ class DatabaseTools(
 					.put("additionalProperties", false)
 					.put("properties", JSONObject().put("after", prop("integer", "Cursor: the next from the last call. Default 0.")))
 					.put("required", JSONArray()),
-			) { getEvents(it) },
+			) { _, args -> getEvents(args) },
 		)
 
 	private fun tool(
@@ -231,10 +250,11 @@ class DatabaseTools(
 		title: String,
 		description: String,
 		inputSchema: JSONObject = JSONObject().put("type", "object").put("properties", JSONObject()).put("additionalProperties", false),
-		run: (JSONObject) -> JSONObject,
+		run: (Call, JSONObject) -> JSONObject,
 	) = McpTool(name, title, description, inputSchema, readOnly = true, run = { args ->
-		expireIdleClient()
-		run(args)
+		val call = Call()
+		call.locked { expireIdleClientLocked() }
+		run(call, args)
 	})
 
 	private fun prop(
@@ -291,9 +311,13 @@ class DatabaseTools(
 		return JSONObject().put("connections", list)
 	}
 
-	private fun getSchema(args: JSONObject): JSONObject {
+	private fun getSchema(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
 		val result =
 			run(
+				call,
 				args,
 				"SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name",
 				emptyList(),
@@ -313,19 +337,26 @@ class DatabaseTools(
 			.put("truncated", result.hasMore)
 	}
 
-	private fun query(args: JSONObject): JSONObject {
+	private fun query(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
 		val sql = stringArg(args, "sql")
 		val offset = intArg(args, "offset", 0, 0, Long.MAX_VALUE)
 		val maxRows = intArg(args, "max_rows", DEFAULT_MAX_ROWS.toLong(), 1, MAX_ROWS.toLong()).toInt()
-		val result = run(args, sql, bindArgs(args), offset, QueryLimits(maxRows, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
+		val result = run(call, args, sql, bindArgs(args), offset, QueryLimits(maxRows, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
 		val out = encodeResult(result, offset)
 		out.put("note", PAGING_NOTE)
 		return out
 	}
 
-	private fun explain(args: JSONObject): JSONObject {
+	private fun explain(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
 		val result =
 			run(
+				call,
 				args,
 				"EXPLAIN QUERY PLAN " + stringArg(args, "sql"),
 				bindArgs(args),
@@ -335,12 +366,14 @@ class DatabaseTools(
 		return JSONObject().put("plan", rowsAsObjects(result))
 	}
 
-	private fun getStats(args: JSONObject): JSONObject {
+	private fun getStats(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
 		val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
-		val deadline = clock() + DEADLINE_MS
-		val path = checkedPath(args)
+		val path = checkedPath(call, args)
 
-		fun pragma(name: String) = runChecked(path, "PRAGMA $name", emptyList(), 0, limits, deadline).rows.firstOrNull()?.firstOrNull()
+		fun pragma(name: String) = runChecked(call, path, "PRAGMA $name", emptyList(), 0, limits).rows.firstOrNull()?.firstOrNull()
 		val pageCount = pragma("page_count") as? Long
 		val pageSize = pragma("page_size") as? Long
 		val out =
@@ -351,12 +384,12 @@ class DatabaseTools(
 		if (pageCount != null && pageSize != null) out.put("size_bytes", encodeLong(pageCount * pageSize))
 		val tables =
 			runChecked(
+				call,
 				path,
 				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
 				emptyList(),
 				0,
 				limits,
-				deadline,
 			).rows
 				.map { it[0] as String }
 		if (tables.size < MAX_TABLES_FOR_COUNTS) {
@@ -365,12 +398,12 @@ class DatabaseTools(
 				val n =
 					try {
 						runChecked(
+							call,
 							path,
 							"SELECT COUNT(*) FROM ${quoteIdentifier(t)}",
 							emptyList(),
 							0,
 							limits,
-							deadline,
 						).rows.firstOrNull()?.firstOrNull()
 					} catch (e: McpToolError) {
 						e.message
@@ -384,7 +417,10 @@ class DatabaseTools(
 		return out
 	}
 
-	private fun integrityCheck(args: JSONObject): JSONObject {
+	private fun integrityCheck(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
 		val full =
 			when (val v = args.opt("full")) {
 				null, JSONObject.NULL -> false
@@ -392,7 +428,7 @@ class DatabaseTools(
 				else -> throw McpToolError("full must be true or false.")
 			}
 		val pragma = if (full) "PRAGMA integrity_check" else "PRAGMA quick_check"
-		val result = run(args, pragma, emptyList(), 0, QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
+		val result = run(call, args, pragma, emptyList(), 0, QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
 		val messages = result.rows.map { it.firstOrNull()?.toString() ?: "" }
 		return JSONObject()
 			.put("check", if (full) "integrity_check" else "quick_check")
@@ -464,7 +500,10 @@ class DatabaseTools(
 		return arr
 	}
 
-	private fun checkedPath(args: JSONObject): String {
+	private fun checkedPath(
+		call: Call,
+		args: JSONObject,
+	): String {
 		val path = stringArg(args, "database")
 		val known =
 			engine
@@ -472,7 +511,7 @@ class DatabaseTools(
 				.map { it.path }
 				.filter { it.isNotEmpty() }
 				.distinct()
-		synchronized(lock) { dropStaleServerConnections(engine.connections()) }
+		call.locked { dropStaleServerConnections(engine.connections()) }
 		if (path !in known) {
 			throw McpToolError(
 				"Unknown database \"$path\": use a path from list_databases that is available.",
@@ -483,22 +522,23 @@ class DatabaseTools(
 	}
 
 	private fun run(
+		call: Call,
 		args: JSONObject,
 		sql: String,
 		bind: List<Any?>,
 		offset: Long,
 		limits: QueryLimits,
-	): QueryResult = runChecked(checkedPath(args), sql, bind, offset, limits, clock() + DEADLINE_MS)
+	): QueryResult = runChecked(call, checkedPath(call, args), sql, bind, offset, limits)
 
 	private fun runChecked(
+		call: Call,
 		path: String,
 		sql: String,
 		bind: List<Any?>,
 		offset: Long,
 		limits: QueryLimits,
-		deadline: Long,
 	): QueryResult =
-		synchronized(lock) {
+		call.locked {
 			try {
 				val live = engine.connections()
 				dropStaleServerConnections(live)
@@ -508,9 +548,20 @@ class DatabaseTools(
 							val ids = live.filter { it.path == path && !it.closing }.map { it.id }.toSet()
 							CachedConnection(engine.openServerConnection(path, writable = false), ids)
 						}.connection
-				conn.query(sql, bind, offset, limits, deadline)
+				conn.query(sql, bind, offset, limits, call.deadline)
 			} catch (e: DebugEngineException) {
-				throw engineError(e)
+				val error = engineError(e)
+				// The time limit counts the call's waits for the lock, so a quick query can run out of time
+				// behind a slow call: say so, for the agent to retry, not simplify it.
+				val waited = call.waitedMs
+				if (e.sqliteCode == DebugEngineException.SQLITE_INTERRUPT && waited * 2 >= DEADLINE_MS) {
+					throw McpToolError(
+						"${error.message} (this call waited ${waited / 1000.0} s of its ${DEADLINE_MS / 1000} s for another tool " +
+							"call to finish; tool calls run one at a time, so retry it)",
+						error.details,
+					)
+				}
+				throw error
 			}
 		}
 
