@@ -82,6 +82,7 @@ import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeUIService
+import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -390,6 +391,21 @@ class PluginManager private constructor(
 
 	// IDE service providers
 	private val projectProvider = CogoProjectProvider()
+
+	/**
+	 * The root of the project open in the editor, or null on the home screen. Not [projectProvider]:
+	 * `GeneralPreferences.lastOpenedProject` still names a project after it is closed, and so does
+	 * [IProjectManager.projectDirPath]. The editor activity registers [editorProvider] while it shows
+	 * a project and clears it when it ends, so that is what says a project is open.
+	 */
+	private fun openProjectRoot(): File? {
+		if (editorProvider == null) return null
+		return IProjectManager
+			.getInstance()
+			.projectDirPath
+			.takeIf { it.isNotEmpty() }
+			?.let(::File)
+	}
 
 	init {
 		if (!pluginsDir.exists()) {
@@ -1588,7 +1604,7 @@ class PluginManager private constructor(
 			DebuggerEndpointServiceImpl(
 				pluginId = pluginId,
 				permissions = permissions,
-				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+				projectRootProvider = ::openProjectRoot,
 			)
 		}
 
@@ -1870,7 +1886,7 @@ class PluginManager private constructor(
 			DebuggerEndpointServiceImpl(
 				pluginId = pluginId,
 				permissions = permissions,
-				projectRootProvider = { projectProvider.getCurrentProject()?.rootDir },
+				projectRootProvider = ::openProjectRoot,
 			)
 		}
 

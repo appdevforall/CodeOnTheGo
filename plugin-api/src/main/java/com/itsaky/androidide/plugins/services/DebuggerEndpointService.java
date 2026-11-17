@@ -20,12 +20,12 @@ public interface DebuggerEndpointService {
 	int CONTRACT_VERSION = 1;
 
 	/**
-	 * Gets the debugger endpoints of the open project, one per app that has reported. Read fresh on every call, so call it again after a connection fails: a relaunched app has a new port and token.
+	 * Gets the SQLite debugger endpoints of the project open in the editor, one per app that has reported. Read fresh on every call, so call it again after a connection fails: a relaunched app has a new port and token.
 	 *
 	 * <p>
 	 * An app the IDE installed or launched but that has not yet reported is not listed, and neither is an app that has since been uninstalled. An endpoint can still be stale: when the app's process has died, its last reported port and token stay here until the app reports again, so treat {@link DebuggerEndpoint#getUpdatedAtMillis} (when it last reported) as a hint, and when a connection is refused, call this again and reconnect.
 	 *
-	 * @return the endpoints (never null; empty when no project is open or no app has reported)
+	 * @return the endpoints (never null; empty when no project is open in the editor, as on the home screen, or no app has reported)
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException

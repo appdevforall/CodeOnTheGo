@@ -40,7 +40,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `DebuggerEndpointService.getEndpoints()` returns a `List<DebuggerEndpoint>`, one per app of the open
   project that has reported to the IDE: `applicationId`, `port` (on `127.0.0.1`), `token` (the bearer
   token the server requires) and `updatedAtMillis`. The list is empty, never null, when no project is
-  open or no app has reported. Port and token change every time the app starts, so call again after a
+  open in the editor (the home screen, even right after a project was closed) or no app has reported. Port and token change every time the app starts, so call again after a
   refused connection or a 401/403. An app that was uninstalled is left out, but one whose process died stays
   listed until it reports again (`updatedAtMillis` is when it last reported). The call reads the IDE's database: use a background thread. It needs
   the new `debugger.endpoints` permission (`PluginPermission.DEBUGGER_ENDPOINTS`) and throws
