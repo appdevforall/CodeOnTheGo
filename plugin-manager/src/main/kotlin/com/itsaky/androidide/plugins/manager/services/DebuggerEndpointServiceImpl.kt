@@ -38,13 +38,15 @@ internal class DebuggerEndpointServiceImpl(
 	/** Null until the app installs one. */
 	private val sourceProvider: () -> DebuggerEndpointSource?,
 	private val isMainThread: () -> Boolean = { Looper.myLooper() == Looper.getMainLooper() },
+	/** False for a plugin saved as disabled: it stays closed through its own initialize() until [reopen]. */
+	startOpen: Boolean = true,
 ) : DebuggerEndpointService {
 	private val permissions: Set<PluginPermission> =
 		Collections.unmodifiableSet(EnumSet.noneOf(PluginPermission::class.java).apply { addAll(permissions) })
 
 	// Set by close, cleared by reopen. A disabled plugin keeps its services, and any thread it left running.
 	@Volatile
-	private var closed = false
+	private var closed = !startOpen
 
 	@Throws(InterruptedException::class)
 	override fun getEndpoints(): List<DebuggerEndpoint> {

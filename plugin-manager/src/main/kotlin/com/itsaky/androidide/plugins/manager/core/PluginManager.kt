@@ -409,7 +409,7 @@ class PluginManager private constructor(
 			?.let(::File)
 	}
 
-	/** Where [DebuggerEndpointService] reads. Private: short of reflection, a plugin cannot read tokens around the service. */
+	/** Where [DebuggerEndpointService] reads. Private, so no member of this class hands it out. This does not seal every path: see [DebuggerEndpointServiceImpl]. */
 	private val debuggerEndpointSource = AtomicReference<DebuggerEndpointSource?>()
 
 	/**
@@ -689,6 +689,8 @@ class PluginManager private constructor(
 			val initResult =
 				initializePlugin(plugin, pluginContext).getOrElse { e ->
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
+					// The plugin may have started threads of its own in initialize().
+					pluginContext.closeDebuggerEndpointService()
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
 					}
@@ -697,6 +699,7 @@ class PluginManager private constructor(
 
 			if (!initResult) {
 				logger.warn(" plugin initialization returned false for: ${manifest.id}")
+				pluginContext.closeDebuggerEndpointService()
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -1253,6 +1256,10 @@ class PluginManager private constructor(
 		}.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
 	}
 
+	private fun PluginContext.closeDebuggerEndpointService() {
+		(services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl)?.close()
+	}
+
 	/** The plugin's [DebuggerEndpointServiceImpl]. Its services outlive a disable, so it is closed instead. */
 	private fun LoadedPlugin.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
 		context.services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
@@ -1635,6 +1642,8 @@ class PluginManager private constructor(
 				permissions = permissions,
 				projectRootProvider = ::openProjectRoot,
 				sourceProvider = debuggerEndpointSource::get,
+				// A plugin saved as disabled gets no tokens from its own initialize(); enablePlugin reopens it.
+				startOpen = getPluginState(pluginId),
 			)
 		}
 

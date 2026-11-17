@@ -156,6 +156,46 @@ class PluginManagerDebuggerEndpointTest {
 	}
 
 	@Test
+	fun `a plugin saved as disabled cannot read endpoints from its own initialize`() {
+		load("reader", "debugger.endpoints")
+		assertThat(pluginManager().disablePlugin("reader")).isTrue()
+		assertThat(pluginManager().unloadPlugin("reader")).isTrue()
+		openInEditor(project)
+		ReadingInInitializePlugin.outcome = null
+
+		load("reader", "debugger.endpoints", ReadingInInitializePlugin::class.java)
+
+		assertThat(ReadingInInitializePlugin.outcome!!.exceptionOrNull()).isInstanceOf(CancellationException::class.java)
+		assertThat(asked).isEmpty()
+	}
+
+	@Test
+	fun `an enabled plugin can read endpoints from its own initialize`() {
+		openInEditor(project)
+		ReadingInInitializePlugin.outcome = null
+
+		load("reader", "debugger.endpoints", ReadingInInitializePlugin::class.java)
+
+		assertThat(ReadingInInitializePlugin.outcome!!.getOrThrow()).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `a plugin whose initialize returns false or throws is left with a service that refuses`() {
+		openInEditor(project)
+		for (mode in listOf(FailingInitializePlugin.Mode.RETURN_FALSE, FailingInitializePlugin.Mode.THROW)) {
+			FailingInitializePlugin.mode = mode
+			FailingInitializePlugin.service = null
+			val file = fakePlugin(File(RuntimeEnvironment.getApplication().filesDir, "plugins/failing.cgp"), "failing", "debugger.endpoints", FailingInitializePlugin::class.java)
+
+			assertThat(pluginManager().loadPlugin(file).isFailure).isTrue()
+
+			val service = checkNotNull(FailingInitializePlugin.service)
+			assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		}
+		assertThat(asked).isEmpty()
+	}
+
+	@Test
 	fun `a second install, as a plugin would try, fails and leaves the app's source in place`() {
 		val service = load("reader", "debugger.endpoints")
 		openInEditor(project)
@@ -185,8 +225,9 @@ class PluginManagerDebuggerEndpointTest {
 	private fun load(
 		id: String,
 		permissions: String,
+		mainClass: Class<out IPlugin> = ContextKeepingPlugin::class.java,
 	): DebuggerEndpointService {
-		val file = fakePlugin(File(RuntimeEnvironment.getApplication().filesDir, "plugins/$id.cgp"), id, permissions)
+		val file = fakePlugin(File(RuntimeEnvironment.getApplication().filesDir, "plugins/$id.cgp"), id, permissions, mainClass)
 		val result = pluginManager().loadPlugin(file)
 		assertWithMessage("plugin $id did not load: ${result.exceptionOrNull()}").that(result.isSuccess).isTrue()
 		val plugin = pluginManager().getPlugin(id) as ContextKeepingPlugin
@@ -215,6 +256,7 @@ class PluginManagerDebuggerEndpointTest {
 		file: File,
 		id: String,
 		permissions: String,
+		mainClass: Class<out IPlugin> = ContextKeepingPlugin::class.java,
 	): File {
 		file.parentFile?.mkdirs()
 		ZipOutputStream(file.outputStream()).use { it.putNextEntry(ZipEntry("classes.dex")) }
@@ -226,7 +268,7 @@ class PluginManagerDebuggerEndpointTest {
 						metaData =
 							Bundle().apply {
 								putString("plugin.id", id)
-								putString("plugin.main_class", ContextKeepingPlugin::class.java.name)
+								putString("plugin.main_class", mainClass.name)
 								putString("plugin.permissions", permissions)
 							}
 					}
@@ -236,7 +278,7 @@ class PluginManagerDebuggerEndpointTest {
 	}
 
 	/** A plugin that keeps its context. Its class loader finds it through its parent, the test's. */
-	class ContextKeepingPlugin : IPlugin {
+	open class ContextKeepingPlugin : IPlugin {
 		lateinit var context: PluginContext
 
 		override fun initialize(context: PluginContext): Boolean {
@@ -249,6 +291,42 @@ class PluginManagerDebuggerEndpointTest {
 		override fun deactivate() = true
 
 		override fun dispose() = Unit
+	}
+
+	/** Reads endpoints from initialize(), on a thread of its own as a real plugin would. */
+	class ReadingInInitializePlugin : ContextKeepingPlugin() {
+		override fun initialize(context: PluginContext): Boolean {
+			super.initialize(context)
+			val service = checkNotNull(context.services.get(DebuggerEndpointService::class.java))
+			val result = AtomicReference<Result<List<DebuggerEndpoint>>>()
+			thread { result.set(runCatching { service.getEndpoints() }) }.join()
+			outcome = result.get()
+			return true
+		}
+
+		companion object {
+			@Volatile
+			var outcome: Result<List<DebuggerEndpoint>>? = null
+		}
+	}
+
+	/** Keeps its service, then fails initialize() as [mode] says. */
+	class FailingInitializePlugin : ContextKeepingPlugin() {
+		enum class Mode { RETURN_FALSE, THROW }
+
+		override fun initialize(context: PluginContext): Boolean {
+			service = context.services.get(DebuggerEndpointService::class.java)
+			if (mode == Mode.THROW) error("initialize failed")
+			return false
+		}
+
+		companion object {
+			@Volatile
+			var mode = Mode.RETURN_FALSE
+
+			@Volatile
+			var service: DebuggerEndpointService? = null
+		}
 	}
 
 	/** The editor activity's provider, as registered while it shows a project. */
