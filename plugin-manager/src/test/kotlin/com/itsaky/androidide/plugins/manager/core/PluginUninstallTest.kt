@@ -94,6 +94,16 @@ class PluginUninstallTest {
 	}
 
 	@Test
+	fun theProfilesOfAPluginInstalledWithAnUpperCaseExtensionAreDeleted() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.CGP"), "a")
+		val own = listOf(file(oatDir, "a-0123456789012345.CGP.prof"), file(oatDir, "a-0123456789012345.CGP.cur.prof"))
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("uninstalling \"a\" left the profiles of its .CGP file").that(own.filter(File::exists)).isEmpty()
+	}
+
+	@Test
 	fun compiledCodeOfAnotherPluginWhoseIdLooksLikeThisPluginsFileNameIsKept() {
 		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
 		// Installed by an older CoGo build: named by its ID, which looks like "a" plus a hash.

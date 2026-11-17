@@ -232,9 +232,9 @@ class PluginBuildFiles internal constructor(
 
 		private const val HASH_CHARS = 16
 
-		// ART's files for `<stem>.cgp`. One list for matching and for finding the stem: a suffix
-		// missing from either would leave the stem unmatched and delete another plugin's code.
-		private const val COMPILED_CODE_SUFFIX = "(odex|vdex|art|$PLUGIN_ARCHIVE_EXTENSION\\.(cur\\.)?prof)"
+		// ART's files for `<stem>.cgp`, or `.CGP`: it names profiles after the file. One list for matching
+		// and for finding the stem: a suffix missing from either would leave the stem unmatched and delete another plugin's code.
+		private const val COMPILED_CODE_SUFFIX = "(odex|vdex|art|(?i:$PLUGIN_ARCHIVE_EXTENSION)\\.(cur\\.)?prof)"
 		private val COMPILED_CODE_END = Regex("\\.$COMPILED_CODE_SUFFIX$")
 
 		// Not app_plugin_native_libs: an older CoGo build reuses its plugin's folder there whatever it
