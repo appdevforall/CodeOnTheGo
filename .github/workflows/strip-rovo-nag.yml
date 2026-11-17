@@ -32,20 +32,27 @@ jobs:
        github.event.comment.user.login == 'atlassian[bot]' &&
        contains(github.event.comment.body, 'Rovo Dev code review'))
     runs-on: ubuntu-latest
+    # Each run is a few API calls; anything longer is stuck.
+    timeout-minutes: 5
     steps:
       - name: Strip the Rovo Dev block and delete the Rovo Dev comment
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
+          # One failed call would otherwise stop the sweep partway through.
+          retries: 3
           script: |
             const { owner, repo } = context.repo;
 
             // Atlassian wraps the description block in HTML comment markers.
             // Anchoring on those catches every wording of the message, not just
             // "not activated", and swallows the horizontal rule tucked inside.
-            const marked = /\n*<!--\s*Rovo Dev code review status\s*-->[\s\S]*?<!--\s*\/\s*Rovo Dev code review status\s*-->[ \t]*/gi;
+            // Both patterns start only where a run of whitespace starts, and match
+            // whitespace in one place: a description with thousands of blank lines
+            // otherwise backtracks for minutes to hours.
+            const marked = /(?<!\n)\n*<!--\s*Rovo Dev code review status\s*-->[\s\S]*?<!--\s*\/\s*Rovo Dev code review status\s*-->[ \t]*/gi;
 
             // Fallback for the day Atlassian drops the markers.
-            const bare = /\n*(?:-{3,}[ \t]*\n)?[ \t]*(?:\*\*|<strong>)?\s*Rovo Dev code review:[\s\S]*?Atlassian organization admin needs to activate Rovo Dev\.[ \t]*/gi;
+            const bare = /(?<!\s)\s*(?:-{3,}[ \t]*\n\s*)?(?:(?:\*\*|<strong>)\s*)?Rovo Dev code review:[\s\S]*?Atlassian organization admin needs to activate Rovo Dev\.[ \t]*/gi;
 
             // Deliberately narrow: a real Rovo Dev code review would also come
             // from atlassian[bot], and deleting one of those would lose content.
