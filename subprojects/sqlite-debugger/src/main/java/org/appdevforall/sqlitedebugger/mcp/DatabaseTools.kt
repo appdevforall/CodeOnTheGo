@@ -40,7 +40,11 @@ class DatabaseTools(
 		/** get_schema's limit on a CREATE statement, well above [MAX_TEXT_BYTES]. */
 		const val MAX_SCHEMA_SQL_BYTES = 65536
 
-		/** The most cell bytes one tool result holds (the engine's `maxTotalBytes`); the rest is paged. */
+		/**
+		 * The most cell bytes one tool result holds (the engine's `maxTotalBytes`); the rest is paged. The first
+		 * row always comes back whole, so one wider row passes it: in query, up to 2000 columns (SQLite's default
+		 * SQLITE_MAX_COLUMN, which requery keeps) of [MAX_TEXT_BYTES] each, about 7.8 MiB.
+		 */
 		const val MAX_TOTAL_BYTES = 4 * 1024 * 1024
 
 		/**
@@ -212,7 +216,8 @@ class DatabaseTools(
 				"Run a query",
 				"Runs one read-only SQL statement. Returns at most max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS); " +
 					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. A result also stops at about " +
-					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true). Use offset to page. " +
+					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
+					"comes back whole. Use offset to page. " +
 					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead.",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
