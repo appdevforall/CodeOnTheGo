@@ -104,11 +104,20 @@ static void on_alarm (int sig) {
     _exit(1);
 }
 
+// a thread that cannot start leaves its test untested, so it stops the run like a database that cannot open
+static void start_thread (pthread_t *thread, void *(*run)(void *)) {
+    int err = pthread_create(thread, NULL, run, NULL);
+    if (err != 0) {
+        fprintf(stderr, "cannot start a thread: %s\n", strerror(err));
+        exit(2);
+    }
+}
+
 // Runs sql, cancelling all JavaScript once it has called started(); returns its result code
 static int exec_cancelled (sqlite3 *db, const char *sql) {
     pthread_t thread;
     js_started = 0;
-    if (pthread_create(&thread, NULL, cancel_when_started, NULL) != 0) return SQLITE_ERROR;
+    start_thread(&thread, cancel_when_started);
     alarm(30);
     int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
     alarm(0);
@@ -131,7 +140,7 @@ static int exec_interrupted (sqlite3 *db, const char *sql) {
     pthread_t thread;
     js_started = 0;
     interrupt_db = db;
-    if (pthread_create(&thread, NULL, interrupt_when_started, NULL) != 0) return SQLITE_ERROR;
+    start_thread(&thread, interrupt_when_started);
     alarm(30);
     int rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
     alarm(0);
