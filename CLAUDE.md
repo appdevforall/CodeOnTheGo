@@ -15,7 +15,7 @@ flox activate -d flox/local -- ./gradlew <task>
 ```
 
 - **Debug APK (arm64, the usual target):** `flox activate -d flox/local -- ./gradlew :app:assembleV8Debug --parallel --max-workers=6`
-- **Module unit tests:** `flox activate -d flox/local -- ./gradlew :editor:testV7DebugUnitTest` - unit tests are per-flavor, there is no plain `test` task. `:plugin-api` is the one module without flavors: `:plugin-api:testDebugUnitTest`.
+- **Module unit tests:** `flox activate -d flox/local -- ./gradlew :editor:testV7DebugUnitTest` - unit tests are per-flavor, there is no plain `test` task. `:plugin-api` and `:subprojects:sqlite-js` are the modules without flavors: `:plugin-api:testDebugUnitTest`.
 - **Single unit test:** append `--tests "com.itsaky.androidide.SomeTest"` to the flavored task above.
 - **Fast iteration:** during multi-file/multi-module changes, verify with targeted `:module:compileV8DebugKotlin`/`compileV8DebugJavaWithJavac` invocations (batch several modules into one Gradle call) rather than a full assemble. Reserve `:app:assembleV8Debug` for final end-to-end verification — it's slow (multi-minute) in this multi-module project, and running it after every small change adds up.
 - **Long-running commands: narrate them, and background only the read-only ones.** Anything that can exceed ~60s — `assembleV8Debug`, a full test sweep, a cold Gradle invocation of any kind (daemon start plus configuring this many modules is ~20s before any task runs, and far worse under memory pressure), and `git push`, which runs Spotless through the hook — gets a line before it starts saying what is running and roughly how long it takes, and a status line every couple of minutes while it runs: elapsed time, the last output line, whether it is still progressing. A silent terminal is indistinguishable from a hang, and saying which it is is your job, not the user's to ask.
@@ -26,7 +26,7 @@ When the user names a CI/CD job ("the sonar job", "the analyze workflow"), read 
 
 ### ABI product flavors (v7 / v8)
 
-Every module carries `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) flavors, so build tasks are `assembleV8Debug`, `assembleV7Release`, etc. — there is **no** flavorless `assembleDebug`. See [ARCHITECTURE.md](ARCHITECTURE.md) (Build & Module Configuration) for flavors, native asset bundling, and SDK levels.
+Every module except `:plugin-api` and `:subprojects:sqlite-js` carries `v7` (`armeabi-v7a`) and `v8` (`arm64-v8a`) flavors, so build tasks are `assembleV8Debug`, `assembleV7Release`, etc. — there is **no** flavorless `assembleDebug`. Those two build one artifact for other projects. See [ARCHITECTURE.md](ARCHITECTURE.md) (Build & Module Configuration) for flavors, native asset bundling, and SDK levels.
 
 ### Emulator / device
 
