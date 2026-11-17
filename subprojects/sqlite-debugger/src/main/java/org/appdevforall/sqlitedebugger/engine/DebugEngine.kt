@@ -39,13 +39,15 @@ interface DebugEngine {
 /** A connection the server opened with [DebugEngine.openServerConnection]. Use from one thread at a time. */
 interface ServerConnection : Closeable {
 	/**
-	 * Runs [sql] with [args] bound (null, [Long], [Double], [String] or [ByteArray]), skips
+	 * Runs [sql], which must hold exactly one statement (trailing semicolons and comments are fine),
+	 * with [args] bound (null, [Long], [Double], [String] or [ByteArray]), skips
 	 * [offset] rows, and returns at most [QueryLimits.maxRows]. Paging re-runs the statement, so a
 	 * later page can differ if the data changed. Stops the statement (sqlite3_interrupt, through a
 	 * progress handler on this server connection) once [deadlineMillis] (System.currentTimeMillis
 	 * clock) has passed.
 	 *
-	 * @throws DebugEngineException for SQLite errors, a refused write, or the deadline.
+	 * @throws DebugEngineException for SQLite errors, SQL with no statement or more than one, a
+	 *   refused write, or the deadline.
 	 */
 	fun query(
 		sql: String,

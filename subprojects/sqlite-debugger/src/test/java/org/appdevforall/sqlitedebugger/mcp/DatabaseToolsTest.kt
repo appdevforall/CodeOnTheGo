@@ -1,10 +1,13 @@
 package org.appdevforall.sqlitedebugger.mcp
 
 import org.appdevforall.sqlitedebugger.engine.AppConnection
+import org.appdevforall.sqlitedebugger.engine.DebugEngine
 import org.appdevforall.sqlitedebugger.engine.DebugEngineException
 import org.appdevforall.sqlitedebugger.engine.EventKind
 import org.appdevforall.sqlitedebugger.engine.FakeDebugEngine
+import org.appdevforall.sqlitedebugger.engine.QueryLimits
 import org.appdevforall.sqlitedebugger.engine.QueryResult
+import org.appdevforall.sqlitedebugger.engine.ServerConnection
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -12,6 +15,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicLong
 
 class DatabaseToolsTest {
 	private val engine = FakeDebugEngine()
@@ -281,6 +286,113 @@ class DatabaseToolsTest {
 			}
 		ok("query", db().put("sql", "x"), DatabaseTools(wrapper, null, { now }))
 		assertEquals(now + 50_000, deadline)
+	}
+
+	/** [engine], refusing like the native one to start a query whose deadline has passed. */
+	private fun nativeDeadline(clock: () -> Long) =
+		object : DebugEngine by engine {
+			override fun openServerConnection(
+				path: String,
+				writable: Boolean,
+			) = engine.openServerConnection(path, writable).let { c ->
+				object : ServerConnection by c {
+					override fun query(
+						sql: String,
+						args: List<Any?>,
+						offset: Long,
+						limits: QueryLimits,
+						deadlineMillis: Long,
+					): QueryResult {
+						if (clock() >= deadlineMillis) {
+							throw DebugEngineException(
+								DebugEngineException.SQLITE_INTERRUPT,
+								"the time limit passed before the query started",
+							)
+						}
+						return c.query(sql, args, offset, limits, deadlineMillis)
+					}
+				}
+			}
+		}
+
+	/**
+	 * Runs tool [name] while another call holds the lock: it waits for it [waitMs] of the fake clock
+	 * (in the idle check, its first wait), then its query is answered by [then]. Returns its result.
+	 */
+	private fun queuedBehindAnotherCall(
+		waitMs: Long,
+		then: () -> QueryResult,
+		name: String = "query",
+		args: JSONObject = db().put("sql", "select 1"),
+	): JSONObject {
+		engine.appConnections += conn(1, "/data/a.db")
+		val time = AtomicLong(now)
+		val holding = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		engine.answer = { _, _, sql, _ ->
+			if (sql == "slow") {
+				holding.countDown()
+				release.await()
+				QueryResult(emptyList(), emptyList(), 0, false)
+			} else {
+				then()
+			}
+		}
+		val t = DatabaseTools(nativeDeadline(time::get), null, time::get)
+		val slow = Thread({ ok("query", db().put("sql", "slow"), t) }, "dbtools-slow")
+		slow.start()
+		holding.await()
+		var result: JSONObject? = null
+		val queued = Thread({ result = runTool(t, name, args) }, "dbtools-queued")
+		queued.start()
+		// BLOCKED is a wait to enter a monitor; the slow call holds the tools' lock, and has already loaded every class on the path
+		while (queued.state != Thread.State.BLOCKED) Thread.sleep(5)
+		time.addAndGet(waitMs)
+		release.countDown()
+		queued.join()
+		slow.join()
+		return result!!
+	}
+
+	private val answersEmpty: () -> QueryResult = { QueryResult(emptyList(), emptyList(), 0, false) }
+
+	private val ranPastItsLimit: () -> QueryResult = {
+		throw DebugEngineException(DebugEngineException.SQLITE_INTERRUPT, "the query ran past its time limit")
+	}
+
+	private fun errorText(r: JSONObject): String {
+		assertTrue(r.toString(), r.getBoolean("isError"))
+		return r.getJSONArray("content").getJSONObject(0).getString("text")
+	}
+
+	@Test(timeout = 10_000)
+	fun aCallWhoseTimeRanOutWaitingForAnotherCallSaysSo() {
+		val r = queuedBehindAnotherCall(DatabaseTools.DEADLINE_MS + 1, answersEmpty)
+		assertEquals(
+			"the time limit passed before the query started (this call waited 50.001 s of its 50 s for another tool call to finish; " +
+				"tool calls run one at a time, so retry it)",
+			errorText(r),
+		)
+		assertEquals(DebugEngineException.SQLITE_INTERRUPT, r.getJSONObject("structuredContent").getInt("sqlite_code"))
+	}
+
+	@Test(timeout = 10_000)
+	fun aCallWhoseTimeRanOutMostlyWaitingSaysSo() {
+		val r = queuedBehindAnotherCall(30_000, ranPastItsLimit)
+		assertTrue(errorText(r), errorText(r).startsWith("the query ran past its time limit (this call waited 30.0 s of its 50 s"))
+	}
+
+	@Test(timeout = 10_000)
+	fun getStatsCountsTheWaitForTheLockInItsTimeLimit() {
+		val r = queuedBehindAnotherCall(DatabaseTools.DEADLINE_MS, answersEmpty, "get_stats", db())
+		val text = errorText(r)
+		assertTrue(text, text.startsWith("the time limit passed before the query started (this call waited 50.0 s of its 50 s"))
+	}
+
+	@Test(timeout = 10_000)
+	fun aQueryThatUsedMostOfItsOwnTimeIsNotTiedToTheWait() {
+		val r = queuedBehindAnotherCall(10_000, ranPastItsLimit)
+		assertEquals("the query ran past its time limit", errorText(r))
 	}
 
 	@Test fun jsonEncodesNonFiniteDoublesBigIntegersAndBlobs() {
