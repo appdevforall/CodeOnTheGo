@@ -396,6 +396,36 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
+	fun `each project gets only its own apps, also through a symlinked path, and an app moved away leaves the old one`() =
+		runBlocking<Unit> {
+			val a = java.nio.file.Files.createTempDirectory("projA").toFile()
+			val b = java.nio.file.Files.createTempDirectory("projB").toFile()
+			val link = File(a.parentFile, a.name + "-link")
+			java.nio.file.Files.createSymbolicLink(link.toPath(), a.toPath())
+			try {
+				addProject(a.canonicalPath)
+				addProject(b.canonicalPath)
+				assertThat(repository.recordInstalled("com.example.a", a.canonicalPath)).isTrue()
+				assertThat(repository.recordInstalled("com.example.b", b.canonicalPath)).isTrue()
+				assertThat(repository.storeEndpoint("com.example.a", DebuggerEndpointValidation.Endpoint("tok-a", 1111))).isTrue()
+				assertThat(repository.storeEndpoint("com.example.b", DebuggerEndpointValidation.Endpoint("tok-b", 2222))).isTrue()
+
+				assertThat(repository.reportedEndpoints(a).map { it.applicationId }).containsExactly("com.example.a")
+				assertThat(repository.reportedEndpoints(b).map { it.applicationId }).containsExactly("com.example.b")
+				assertThat(repository.reportedEndpoints(link).map { it.token }).containsExactly("tok-a")
+
+				// The app is now built by project b: a no longer lists it, and its token was cleared.
+				assertThat(repository.recordInstalled("com.example.a", b.canonicalPath)).isTrue()
+				assertThat(repository.reportedEndpoints(a)).isEmpty()
+				assertThat(repository.reportedEndpoints(b).map { it.applicationId }).containsExactly("com.example.b")
+			} finally {
+				link.delete()
+				a.delete()
+				b.delete()
+			}
+		}
+
+	@Test
 	fun `the package manager check tells installed from missing apps`() {
 		val app = ApplicationProvider.getApplicationContext<android.app.Application>()
 		val packageManager = app.packageManager
