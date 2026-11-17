@@ -21,7 +21,9 @@ import java.util.TimerTask
  *
  * One lock guards the cached server connections and every query, so tool calls run one at a time:
  * a slow query (up to [DEADLINE_MS]) makes the others wait. That is accepted: the debugger serves
- * one agent, and a connection per call would open the app's file many times over.
+ * one agent, and a connection per call would open the app's file many times over. A query's
+ * deadline is set before it waits for the lock, so a call whose time ran out mostly in that wait
+ * says so in its error.
  */
 class DatabaseTools(
 	private val engine: DebugEngine,
@@ -497,8 +499,10 @@ class DatabaseTools(
 		offset: Long,
 		limits: QueryLimits,
 		deadline: Long,
-	): QueryResult =
-		synchronized(lock) {
+	): QueryResult {
+		val waitStart = clock()
+		return synchronized(lock) {
+			val waited = clock() - waitStart
 			try {
 				val live = engine.connections()
 				dropStaleServerConnections(live)
@@ -510,9 +514,21 @@ class DatabaseTools(
 						}.connection
 				conn.query(sql, bind, offset, limits, deadline)
 			} catch (e: DebugEngineException) {
-				throw engineError(e)
+				val error = engineError(e)
+				// The deadline counts this wait for the lock, so a quick query can run out of time behind a slow
+				// call: say so, for the agent to retry, not simplify it.
+				val had = deadline - waitStart
+				if (e.sqliteCode == DebugEngineException.SQLITE_INTERRUPT && had > 0 && waited * 2 >= had) {
+					throw McpToolError(
+						"${error.message} (this call waited ${waited / 1000.0} s of its ${DEADLINE_MS / 1000} s for another tool " +
+							"call to finish; tool calls run one at a time, so retry it)",
+						error.details,
+					)
+				}
+				throw error
 			}
 		}
+	}
 
 	/**
 	 * Closes cached server connections whose file may be gone: after the app deletes and recreates a
