@@ -12,6 +12,19 @@ import org.junit.Test;
 public class DebuggerEndpointTest {
 
 	@Test
+	public void aJavaCallerCanCatchTheInterrupt() {
+		final DebuggerEndpointService interrupted = () -> {
+			throw new InterruptedException("stop");
+		};
+		try {
+			interrupted.getEndpoints();
+			fail();
+		} catch (InterruptedException expected) {
+			assertEquals("stop", expected.getMessage());
+		}
+	}
+
+	@Test
 	public void equalityCoversEveryField() {
 		final DebuggerEndpoint base = new DebuggerEndpoint("a", 1, "t", 2L);
 		assertEquals(base, new DebuggerEndpoint("a", 1, "t", 2L));

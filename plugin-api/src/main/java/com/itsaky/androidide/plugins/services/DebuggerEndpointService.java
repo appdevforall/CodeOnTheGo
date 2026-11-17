@@ -10,7 +10,7 @@ import java.util.List;
  * The host registers this service for every plugin; a call needs the {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws {@link SecurityException} without it, like the other permission-gated services. Plugins run in Code on the Go's process, so the permission declares what a plugin means to do: it cannot stop a plugin that reaches into the host by reflection.
  *
  * <p>
- * Calls are synchronous, as in {@link IdeLogService} and {@link IdeProjectService}, rather than returning a {@link java.util.concurrent.CompletableFuture} as the services that start long work do: the answer is a small read of the IDE's own database, not an operation with a lifecycle. That read is disk I/O, so call from a background thread: on the main thread the call throws {@link IllegalStateException}.
+ * Calls are synchronous, as in {@link IdeLogService} and {@link IdeProjectService}, rather than returning a {@link java.util.concurrent.CompletableFuture} as the services that start long work do: the answer is a small read of the IDE's own database, not an operation with a lifecycle. That read is disk I/O, so call from a background thread: on the main thread the call throws {@link IllegalStateException}. This is stricter than those two services on purpose: they answer on any thread, but a database read on the main thread can stall the UI.
  */
 public interface DebuggerEndpointService {
 
@@ -31,8 +31,10 @@ public interface DebuggerEndpointService {
 	 * @throws IllegalStateException
 	 *             if called on the main thread, or if the IDE's database could not be read. A failed read is not the same as no apps: keep what you had and try again later
 	 * @throws java.util.concurrent.CancellationException
-	 *             if the plugin has been disabled or unloaded, until it is enabled again; also when a call already reading sees it disabled
+	 *             if the plugin has been disabled or unloaded, until it is enabled again; also when a call already reading sees it disabled, or when the read itself is cancelled
+	 * @throws InterruptedException
+	 *             if the calling thread is interrupted while it waits for the read. The thread's interrupt status is set again before this is thrown, so code further up still sees it
 	 */
 	@NonNull
-	List<DebuggerEndpoint> getEndpoints();
+	List<DebuggerEndpoint> getEndpoints() throws InterruptedException;
 }

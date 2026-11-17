@@ -47,7 +47,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `SecurityException` without it, and `IllegalStateException` on the main thread or when the database
   cannot be read (an unreadable database is not reported as an empty list). Once the plugin is disabled
   or unloaded, a call throws `java.util.concurrent.CancellationException` until it is enabled again, as
-  `IdeTerminalService` calls do. Plugins run in Code on the
+  `IdeTerminalService` calls do. The method declares `InterruptedException`, thrown with the thread's
+  interrupt status set again when the caller is interrupted during the read. Plugins run in Code on the
   Go's process, so the permission declares intent and cannot stop reflection, as with `IdeLogService`
   below. Floor `plugin.min_ide_version`
   at `26.47`: an IDE of 26.46 or older rejects the unknown `debugger.endpoints` permission when it

@@ -44,6 +44,7 @@ internal class DebuggerEndpointServiceImpl(
 	@Volatile
 	private var closed = false
 
+	@Throws(InterruptedException::class)
 	override fun getEndpoints(): List<DebuggerEndpoint> {
 		if (PluginPermission.DEBUGGER_ENDPOINTS !in permissions) {
 			throw SecurityException(
@@ -66,7 +67,7 @@ internal class DebuggerEndpointServiceImpl(
 				throw e
 			} catch (e: Exception) {
 				log.warn("getEndpoints failed for plugin {}", pluginId, e)
-				throw IllegalStateException("Could not read the debugger endpoints: ${e.message}", e)
+				throw IllegalStateException("Could not read the SQLite debugger endpoints: ${e.message}", e)
 			}
 		// Again after the read: a plugin disabled while it ran gets no tokens either.
 		requireOpen()
