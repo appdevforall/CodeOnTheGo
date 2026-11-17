@@ -44,6 +44,21 @@ class PluginBuildFiles internal constructor(
 	private fun isPluginFile(file: File): Boolean =
 		file.isFile && file.parentFile == pluginsDir && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 
+	/**
+	 * Whether [file] is ART's compiled code for a file of [pluginId] that is gone. Call it after
+	 * [delete], which removed all of [pluginId]'s plugin files. The name can't tell the plugin: an
+	 * older CoGo build's `<id>.cgp` may have an ID that looks like `<pluginId>-<hash>`. So a plugin
+	 * file left under the stem belongs to another plugin, and its compiled code is kept.
+	 */
+	fun isLeftoverCompiledCodeOf(
+		pluginId: String,
+		file: File,
+	): Boolean {
+		if (!isCompiledCodeOf(pluginId, file)) return false
+		val stem = file.name.replace(Regex("\\.(odex|vdex|art|$PLUGIN_ARCHIVE_EXTENSION\\.(cur\\.)?prof)$"), "")
+		return !File(pluginsDir, "$stem.$PLUGIN_ARCHIVE_EXTENSION").exists()
+	}
+
 	/** Every plugin file whose manifest has [pluginId]. Its name can't tell: it names the build. */
 	fun filesOf(pluginId: String): List<File> =
 		pluginsDir
@@ -231,7 +246,7 @@ class PluginBuildFiles internal constructor(
 		/**
 		 * Whether [file] is ART's compiled code for a file of [pluginId]: `<stem>.odex`, `.vdex` or
 		 * `.art`, or `<stem>.cgp.prof` or `.cgp.cur.prof`. Matched exactly, since another plugin's ID
-		 * or content hash can contain this ID.
+		 * or content hash can contain this ID. By name only: see [isLeftoverCompiledCodeOf].
 		 */
 		internal fun isCompiledCodeOf(
 			pluginId: String,

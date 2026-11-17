@@ -90,6 +90,24 @@ class PluginUninstallTest {
 		assertWithMessage("uninstalling \"a\" left its own files").that(own.filter(File::exists)).isEmpty()
 	}
 
+	@Test
+	fun compiledCodeOfAnotherPluginWhoseIdLooksLikeThisPluginsFileNameIsKept() {
+		fakePlugin(File(pluginsDir, "a-0123456789012345.cgp"), "a")
+		// Installed by an older CoGo build: named by its ID, which looks like "a" plus a hash.
+		fakePlugin(File(pluginsDir, "a-0123456789abcdef.cgp"), "a-0123456789abcdef")
+		val others =
+			listOf(
+				file(oatDir, "arm64/a-0123456789abcdef.odex"),
+				file(oatDir, "a-0123456789abcdef.cgp.cur.prof"),
+			)
+
+		assertThat(pluginManager().uninstallPlugin("a")).isTrue()
+
+		assertWithMessage("uninstalling \"a\" deleted the compiled code of \"a-0123456789abcdef\"")
+			.that(others.filterNot(File::exists))
+			.isEmpty()
+	}
+
 	private fun file(
 		dir: File,
 		path: String,

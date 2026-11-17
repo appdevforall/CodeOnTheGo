@@ -1893,7 +1893,8 @@ class PluginManager private constructor(
 				val oatDir = File(pluginsDir, "oat")
 				if (oatDir.exists() && oatDir.isDirectory) {
 					oatDir.walkTopDown().forEach { file ->
-						if (PluginBuildFiles.isCompiledCodeOf(pluginId, file)) {
+						// Skips code whose plugin file remains: it is another plugin's.
+						if (buildFiles.isLeftoverCompiledCodeOf(pluginId, file)) {
 							val deleted = file.deleteRecursively()
 							logger.debug("Deleted ART cache: ${file.absolutePath} (success: $deleted)")
 						}
