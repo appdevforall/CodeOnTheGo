@@ -144,15 +144,19 @@ internal fun unsyncedProjectManager(projectRoot: File): FakeProjectManager = Fak
  * @param variantName the selected variant, or null for the mid-sync read the provisioner
  *   falls back to the default variant on.
  * @param buildDir the module's build directory as the synced model reports it.
+ * @param projectDir the module's directory, where the SQLite debugger opt-in check reads its
+ *   `gradle.properties`.
  */
 internal fun androidModule(
 	path: String = ":app",
 	variantName: String? = "debug",
 	buildDir: File = File("/fake-project/app/build"),
+	projectDir: File = File("/fake-project/app"),
 ): AndroidModule =
 	mockk<AndroidModule>().also { module ->
 		every { module.path } returns path
 		every { module.buildDirPath } returns buildDir.path
+		every { module.projectDirPath } returns projectDir.path
 		every { module.getSelectedVariant() } returns
 			variantName?.let {
 				AndroidModels.AndroidVariant
@@ -257,7 +261,10 @@ internal fun testProvisioner(
 	projectRoot: File,
 	buildService: BuildService? = FakeBuildService(),
 	projectManager: IProjectManager =
-		FakeProjectManager(projectRoot, appModules = listOf(androidModule(buildDir = File(projectRoot, "app/build")))),
+		FakeProjectManager(
+			projectRoot,
+			appModules = listOf(androidModule(buildDir = File(projectRoot, "app/build"), projectDir = File(projectRoot, "app"))),
+		),
 	installer: ProxyAppInstaller = recordingInstaller(),
 	packages: InstalledPackages = FakePackages(),
 	apkCertSha256: (File) -> String? = { null },
