@@ -224,6 +224,43 @@ class McpProtocolTest {
 		assertEquals(2, replies.getJSONObject(1).getInt("id"))
 	}
 
+	@Test fun batchOverTheMessageLimitIsRefusedWholeAndRunsNothing() {
+		val p = protocol()
+		val s = session(p)
+		val batch = JSONArray()
+		repeat(McpProtocol.MAX_BATCH_MESSAGES + 1) { batch.put(request(it, "ping")) }
+		val r = p.post(batch.toString(), s, null)
+		assertEquals(400, r.status)
+		assertEquals(McpProtocol.INVALID_REQUEST, JSONObject(r.body!!).getJSONObject("error").getInt("code"))
+		val atLimit = JSONArray()
+		repeat(McpProtocol.MAX_BATCH_MESSAGES) { atLimit.put(request(it, "ping")) }
+		assertEquals(McpProtocol.MAX_BATCH_MESSAGES, JSONArray(p.post(atLimit.toString(), s, null).body!!).length())
+	}
+
+	@Test fun batchPastTheReplyBudgetAnswersTheRestWithAnErrorWithoutRunningThem() {
+		val p = protocol()
+		val s = session(p)
+		val big = "x".repeat(McpProtocol.MAX_BATCH_REPLY_CHARS / 2)
+
+		fun echoCall(id: Int) = request(id, "tools/call", JSONObject().put("name", "echo").put("arguments", JSONObject().put("v", big)))
+		// each reply is over twice big (the arguments come back as text and as structured content)
+		val batch =
+			JSONArray()
+				.put(echoCall(1))
+				.put(echoCall(2))
+				.put(echoCall(3))
+				.put(request(4, "ping"))
+		batch.put(JSONObject().put("jsonrpc", "2.0").put("method", "notifications/x"))
+		val replies = JSONArray(p.post(batch.toString(), s, null).body!!)
+		assertEquals(4, replies.length())
+		assertTrue(replies.getJSONObject(0).has("result"))
+		for (i in 1..3) {
+			val e = replies.getJSONObject(i)
+			assertEquals(i + 1, e.getInt("id"))
+			assertEquals(McpProtocol.BATCH_BUDGET_EXCEEDED, e.getJSONObject("error").getInt("code"))
+		}
+	}
+
 	@Test fun initializeMustBeAlone() {
 		val batch = JSONArray().put(JSONObject(initBody())).put(request(2, "ping"))
 		assertEquals(400, protocol().post(batch.toString(), null, null).status)
