@@ -33,7 +33,12 @@ class DebuggerEndpointRepositoryTest {
 				.allowMainThreadQueries()
 				.build()
 		repository =
-			DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { 1234L }, isInstalled = { true })
+			DebuggerEndpointRepository(
+				room.debuggerEndpointDao(),
+				CoroutineScope(Dispatchers.IO),
+				clock = { 1234L },
+				isInstalled = { true },
+			)
 	}
 
 	@After
@@ -179,7 +184,12 @@ class DebuggerEndpointRepositoryTest {
 	}
 
 	private fun clockedRepository(now: AtomicLong) =
-		DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { now.get() }, isInstalled = { true })
+		DebuggerEndpointRepository(
+			room.debuggerEndpointDao(),
+			CoroutineScope(Dispatchers.IO),
+			clock = { now.get() },
+			isInstalled = { true },
+		)
 
 	@Test
 	fun `a failed install does not pair a later install of the same app`() =
@@ -398,10 +408,17 @@ class DebuggerEndpointRepositoryTest {
 	@Test
 	fun `each project gets only its own apps, also through a symlinked path, and an app moved away leaves the old one`() =
 		runBlocking<Unit> {
-			val a = java.nio.file.Files.createTempDirectory("projA").toFile()
-			val b = java.nio.file.Files.createTempDirectory("projB").toFile()
+			val a =
+				java.nio.file.Files
+					.createTempDirectory("projA")
+					.toFile()
+			val b =
+				java.nio.file.Files
+					.createTempDirectory("projB")
+					.toFile()
 			val link = File(a.parentFile, a.name + "-link")
-			java.nio.file.Files.createSymbolicLink(link.toPath(), a.toPath())
+			java.nio.file.Files
+				.createSymbolicLink(link.toPath(), a.toPath())
 			try {
 				addProject(a.canonicalPath)
 				addProject(b.canonicalPath)
