@@ -36,6 +36,15 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.43 — unreleased
+- **breaking — A `ShellCommand` stops at its timeout or `cancel()`, with every process it started** _(ADFA-7178)_
+  A timeout used to wait for the command to exit, and a stop killed only the command's own
+  process, never its children. Each command now runs in a process group of its own, and a
+  timeout, `cancel()` or `cancelAllCommands()` stops the whole group: SIGTERM, then SIGKILL
+  250 ms later. `await()` returns within a second of the timeout, and a stopped command frees its slot.
+  A command that exits on its own is never reported as timed out. If a background child still
+  holds its output, `await()` returns 500 ms after the command exits and the child is stopped;
+  a child whose output goes elsewhere (`server >log 2>&1 &`) is left running, as is a process
+  that calls `setsid` itself.
 - **breaking — JavaScript highlighting and the IDE's grammar names are the IDE's** _(ADFA-7084)_
   The IDE now highlights `js`, `mjs`, `cjs` and `jsx` itself. A `LanguageDefinition` can still
   claim them, but only with a language server: its grammar is ignored for them, and its server
