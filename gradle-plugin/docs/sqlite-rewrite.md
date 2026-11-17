@@ -161,7 +161,7 @@ provider, `<queries>` entry or classes). QA runs it on the release APK of an opt
   the Quick Build daemon from the project's source (and its baseline payload is diverted out of the classes
   pipeline), so those classes would still use `android.database.sqlite` next to rewritten baseline classes.
   The plugin logs why and the build is a normal one. The IDE does not provision Quick Build for such a project
-  either (`QuickBuildProjectSupport.sqliteDebuggerMessage`): it shows `quick_build_disabled_sqlite_debugger`, which
+  either (`GradleQuickBuildProvisioner.sqliteDebuggerRefusal`): it shows `quick_build_disabled_sqlite_debugger`, which
   says Quick Build is off while the SQLite debugger is on.
 - Classes loaded by name (`Class.forName`, reflection, strings naming `android.database.sqlite.*`) are not
   rewritten.
