@@ -46,6 +46,7 @@ class QuickBuildMessagesTest {
 		assertResolvesTo(QuickBuildMessage.ReinstallDeclined, R.string.quick_build_reinstall_declined)
 		assertResolvesTo(QuickBuildMessage.ReinstallWaitingForGradle, R.string.quick_build_reinstall_waiting_for_gradle)
 		assertResolvesTo(QuickBuildMessage.InstallCouldNotStart, R.string.quick_build_install_could_not_start)
+		assertResolvesTo(QuickBuildMessage.TooManyInstallSessions, R.string.quick_build_too_many_install_sessions)
 		assertResolvesTo(QuickBuildMessage.InstallFailed, R.string.quick_build_install_failed)
 		assertResolvesTo(QuickBuildMessage.RebuildFailed, R.string.quick_build_rebuild_failed)
 		assertResolvesTo(QuickBuildMessage.ProvisioningFailedUnexpectedly, R.string.quick_build_provisioning_failed_unexpectedly)
@@ -112,6 +113,7 @@ class QuickBuildMessagesTest {
 				QuickBuildMessage.ReinstallTimedOut(180),
 				QuickBuildMessage.ReinstallWaitingForGradle,
 				QuickBuildMessage.InstallCouldNotStart,
+				QuickBuildMessage.TooManyInstallSessions,
 				QuickBuildMessage.InstallFailed,
 				QuickBuildMessage.InstalledButUnresolvable("com.example.app"),
 				QuickBuildMessage.ForeignAppInstalled("com.example.other"),
