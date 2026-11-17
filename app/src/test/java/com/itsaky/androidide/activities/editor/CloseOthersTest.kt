@@ -1,7 +1,10 @@
 package com.itsaky.androidide.activities.editor
 
+import android.content.DialogInterface
 import android.content.Intent
+import android.os.Looper
 import android.widget.ViewFlipper
+import androidx.appcompat.app.AlertDialog
 import com.google.android.material.tabs.TabLayout
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.app.BaseApplication
@@ -14,7 +17,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowDialog
 import java.io.File
 
 /**
@@ -68,11 +73,24 @@ class CloseOthersTest {
 		assertThat(activity.editorViewModel.getOpenedFiles()).containsExactly(shown, a, b).inOrder()
 	}
 
+	@Test
+	fun closeOthersCarriesOnOnceTheUnsavedChangesAreDiscarded() {
+		val activity = activityWithTabs(listOf(shown to shown, a to null, b to b), modifiedAt = 1)
+		activity.editorViewModel.selectFile(0, shown)
+		activity.closeOthers()
+
+		// "No": discard the changes and close. The dialog delivers the click through the main looper.
+		(ShadowDialog.getLatestDialog() as AlertDialog).getButton(DialogInterface.BUTTON_NEGATIVE).performClick()
+		shadowOf(Looper.getMainLooper()).idle()
+
+		assertThat(activity.editorViewModel.getOpenedFiles()).containsExactly(shown)
+	}
+
 	/**
 	 * An editor activity, built but not created as in the other activity tests here, whose tab
 	 * strip and editor container follow its opened files. Each pair is an opened file and the file
 	 * its editor reports: null while the editor loads. The editor at [modifiedAt], if any, has
-	 * unsaved changes, and [onModifiedCheck] runs each time that is asked.
+	 * unsaved changes until it is marked saved, and [onModifiedCheck] runs each time that is asked.
 	 */
 	private fun activityWithTabs(
 		tabs: List<Pair<File, File?>>,
@@ -80,6 +98,7 @@ class CloseOthersTest {
 		onModifiedCheck: () -> Unit = {},
 	): EditorHandlerActivity {
 		val activity = Robolectric.buildActivity(EditorHandlerActivity::class.java, Intent()).get()
+		var saved = false
 		val editors =
 			tabs
 				.mapIndexed { i, (_, editorFile) ->
@@ -87,8 +106,9 @@ class CloseOthersTest {
 						every { file } returns editorFile
 						every { isModified } answers {
 							if (i == modifiedAt) onModifiedCheck()
-							i == modifiedAt
+							i == modifiedAt && !saved
 						}
+						every { markAsSaved() } answers { if (i == modifiedAt) saved = true }
 					}
 				}.toMutableList()
 		val tabStrip = mockk<TabLayout>(relaxed = true) { every { tabCount } answers { editors.size } }

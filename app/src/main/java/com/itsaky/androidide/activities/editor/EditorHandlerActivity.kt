@@ -1791,6 +1791,8 @@ open class EditorHandlerActivity :
 
 		val file = editorViewModel.getCurrentFile()
 		var index = 0
+		// Set when a close waits for the unsaved-changes dialog; that close carries on once answered.
+		var waiting = false
 
 		// keep closing the file at index 0
 		// if openedFiles[0] == file, then keep closing files at index 1
@@ -1801,10 +1803,13 @@ open class EditorHandlerActivity :
 			// while the current file is set from the opened file as soon as its tab is shown.
 			if (file != editorViewModel.getOpenedFile(index)) {
 				val openedBefore = editorViewModel.getOpenedFileCount()
-				closeFile(index)
+				closeFile(index) { if (waiting) closeOthers() }
 				// closeFile can return without closing, as when it asks about unsaved changes; trying
 				// again would spin on the main thread.
-				if (editorViewModel.getOpenedFileCount() == openedBefore) break
+				if (editorViewModel.getOpenedFileCount() == openedBefore) {
+					waiting = true
+					break
+				}
 			} else {
 				index = 1
 			}
