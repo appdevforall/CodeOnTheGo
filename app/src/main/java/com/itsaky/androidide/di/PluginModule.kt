@@ -1,12 +1,15 @@
 package com.itsaky.androidide.di
 
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.repositories.DownloadFilesRepository
 import com.itsaky.androidide.repositories.DownloadFilesRepositoryImpl
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.PluginRepositoryImpl
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepositoryImpl
+import com.itsaky.androidide.utils.AndroidConnectivityObserver
+import com.itsaky.androidide.utils.ConnectivityObserver
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.viewmodels.DownloadPickerViewModel
 import com.itsaky.androidide.viewmodels.ExternalFileInstallViewModel
@@ -34,6 +37,10 @@ val pluginModule =
 			TemplateCollectionRepositoryImpl()
 		}
 
+		single<ConnectivityObserver> {
+			AndroidConnectivityObserver(androidContext())
+		}
+
 		single<DownloadFilesRepository> {
 			DownloadFilesRepositoryImpl(downloadDir = Environment.DOWNLOAD_DIR)
 		}
@@ -44,6 +51,8 @@ val pluginModule =
 				pluginRepository = get(),
 				contentResolver = androidContext().contentResolver,
 				filesDir = IDEApplication.cachedFilesDir,
+				connectivityObserver = get(),
+				isOfflineModeEnabled = { BuildPreferences.isOfflineEnabled },
 			)
 		}
 

@@ -177,6 +177,7 @@ include(
 	":subprojects:tooling-api-events",
 	":subprojects:tooling-api-impl",
 	":subprojects:tooling-api-model",
+	":subprojects:tree-sitter-javascript",
 	":subprojects:xml-dom",
 	":subprojects:xml-utils",
 	":termux:termux-app",

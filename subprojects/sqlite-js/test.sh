@@ -25,7 +25,9 @@ build () { "$@" >"$WORK/build.log" 2>&1 || { cat "$WORK/build.log"; exit 1; }; }
 
 echo "# upstream test suite"
 build make -C "$SRC" dist/js.so dist/main
-( cd "$SRC" && ./dist/main )
+# upstream's main leaves its "Memory" (leak) check out of its exit code, so any FAILED line fails the run too
+( cd "$SRC" && ./dist/main ) | tee "$WORK/main.log"
+if grep -q 'FAILED$' "$WORK/main.log"; then echo "the upstream test suite reported a failure" >&2; exit 1; fi
 
 echo "# sqlitejs_android.c"
 JDK=${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")}
