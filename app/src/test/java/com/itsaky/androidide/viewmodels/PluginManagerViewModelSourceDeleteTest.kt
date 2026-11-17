@@ -9,6 +9,7 @@ import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.ui.models.PluginInstallSource
 import com.itsaky.androidide.ui.models.PluginManagerUiEffect
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
+import com.itsaky.androidide.utils.ConnectivityObserver
 import com.itsaky.androidide.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.every
@@ -17,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -58,6 +60,12 @@ class PluginManagerViewModelSourceDeleteTest {
 			pluginRepository = pluginRepository,
 			contentResolver = context.contentResolver,
 			filesDir = tempFolder.newFolder("files"),
+			// Connectivity (ADFA-5646) plays no part in source deletion: always online, offline mode off.
+			connectivityObserver =
+				object : ConnectivityObserver {
+					override fun observe() = flowOf(true)
+				},
+			isOfflineModeEnabled = { false },
 		)
 
 	private fun downloadedPlugin(): File = File(tempFolder.newFolder("Download"), "my-plugin.cgp").apply { writeText("cgp") }
