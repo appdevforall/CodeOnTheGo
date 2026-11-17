@@ -32,8 +32,9 @@ jobs:
        github.event.comment.user.login == 'atlassian[bot]' &&
        contains(github.event.comment.body, 'Rovo Dev code review'))
     runs-on: ubuntu-latest
-    # Each run is a few API calls; anything longer is stuck.
-    timeout-minutes: 5
+    # An event run is a few API calls and the sweep a few per open PR (19 s for
+    # all of them in August), so a run near this limit is stuck.
+    timeout-minutes: 15
     steps:
       - name: Strip the Rovo Dev block and delete the Rovo Dev comment
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
@@ -79,7 +80,9 @@ jobs:
               }
               // This update runs as GITHUB_TOKEN, which does not trigger further
               // workflow runs, so stripping the block cannot loop back on itself.
-              await github.rest.pulls.update({ owner, repo, pull_number: number, body: cleaned });
+              // Not retried: a retry resends this body after a backoff of seconds,
+              // undoing any edit made meanwhile. A later run strips the block instead.
+              await github.rest.pulls.update({ owner, repo, pull_number: number, body: cleaned, request: { retries: 0 } });
               core.info(`Stripped the Rovo Dev block from the body of PR #${number}.`);
               return true;
             }
