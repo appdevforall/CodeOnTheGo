@@ -21,13 +21,13 @@ import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
 import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSources
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
-import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.resources.localization.LocaleProvider
 import com.itsaky.androidide.services.builder.BuildOutputLocation
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
@@ -43,12 +43,12 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
-import org.koin.core.context.GlobalContext
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.get
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -63,7 +63,9 @@ import kotlin.system.exitProcess
  *
  * @author Akash Yadav
  */
-internal object CredentialProtectedApplicationLoader : ApplicationLoader {
+internal object CredentialProtectedApplicationLoader :
+	ApplicationLoader,
+	KoinComponent {
 	private val logger = LoggerFactory.getLogger(CredentialProtectedApplicationLoader::class.java)
 
 	private val _isLoaded = AtomicBoolean(false)
@@ -408,10 +410,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
 			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
-			// Plugins call it on a background thread (DebuggerEndpointService), so blocking on Room is fine.
-			DebuggerEndpointSources.install { location ->
-				runBlocking { GlobalContext.get().get<DebuggerEndpointRepository>().reportedEndpoints(File(location)) }
-			}
+			DebuggerEndpointSources.install(get<DebuggerEndpointSource>())
 			IdeTerminalServiceImpl.setSessionLauncher(PluginTerminalLauncher { application.foregroundActivity })
 			logger.info("Plugin services configured successfully")
 		}
