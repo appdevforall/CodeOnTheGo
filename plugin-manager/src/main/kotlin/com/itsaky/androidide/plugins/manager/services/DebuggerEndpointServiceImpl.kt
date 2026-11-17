@@ -40,28 +40,54 @@ internal class DebuggerEndpointServiceImpl(
 	private val permissions: Set<PluginPermission> =
 		Collections.unmodifiableSet(EnumSet.noneOf(PluginPermission::class.java).apply { addAll(permissions) })
 
+	// Set by close, cleared by reopen. A disabled plugin keeps its services, and any thread it left running.
+	@Volatile
+	private var closed = false
+
 	override fun getEndpoints(): List<DebuggerEndpoint> {
 		if (PluginPermission.DEBUGGER_ENDPOINTS !in permissions) {
 			throw SecurityException(
 				"Plugin $pluginId does not have required permissions: ${PluginPermission.DEBUGGER_ENDPOINTS.name}",
 			)
 		}
+		requireOpen()
 
 		check(!isMainThread()) { "DebuggerEndpointService.getEndpoints() reads a database; call it off the main thread" }
 
 		val root = projectRootProvider() ?: return emptyList()
 		val source = sourceProvider() ?: return emptyList()
-		return try {
-			source.endpointsFor(root.absolutePath)
-		} catch (e: InterruptedException) {
-			Thread.currentThread().interrupt()
-			throw e
-		} catch (e: CancellationException) {
-			throw e
-		} catch (e: Exception) {
-			log.warn("getEndpoints failed for plugin {}", pluginId, e)
-			throw IllegalStateException("Could not read the debugger endpoints: ${e.message}", e)
-		}
+		val endpoints =
+			try {
+				source.endpointsFor(root.absolutePath)
+			} catch (e: InterruptedException) {
+				Thread.currentThread().interrupt()
+				throw e
+			} catch (e: CancellationException) {
+				throw e
+			} catch (e: Exception) {
+				log.warn("getEndpoints failed for plugin {}", pluginId, e)
+				throw IllegalStateException("Could not read the debugger endpoints: ${e.message}", e)
+			}
+		// Again after the read: a plugin disabled while it ran gets no tokens either.
+		requireOpen()
+		return endpoints
+	}
+
+	/**
+	 * Refuses every later call, and one still reading, with [CancellationException] until [reopen],
+	 * as [IdeTerminalServiceImpl.cancelAll] does. Called when the plugin is disabled or unloaded.
+	 */
+	fun close() {
+		closed = true
+	}
+
+	/** Lets calls through again after [close]. Called when the plugin is enabled. */
+	fun reopen() {
+		closed = false
+	}
+
+	private fun requireOpen() {
+		if (closed) throw CancellationException("Plugin $pluginId is disabled or unloaded")
 	}
 
 	private companion object {

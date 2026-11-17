@@ -15,6 +15,7 @@ import com.itsaky.androidide.plugins.services.DebuggerEndpoint
 import com.itsaky.androidide.plugins.services.DebuggerEndpointService
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.utils.Environment
 import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -26,6 +27,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CancellationException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 import java.util.zip.ZipEntry
@@ -44,9 +46,13 @@ class PluginManagerDebuggerEndpointTest {
 	private val endpoint = DebuggerEndpoint("com.example.demo", 4321, "tok", 99L)
 	private val asked = CopyOnWriteArrayList<String>()
 
+	private val templatesDir = Environment.TEMPLATES_DIR
+
 	@Before
 	fun setUp() {
 		project = Files.createTempDirectory("proj").toFile()
+		// Disabling and unloading clean up the plugin's templates there.
+		Environment.TEMPLATES_DIR = File(RuntimeEnvironment.getApplication().filesDir, "templates").apply { mkdirs() }
 		pluginManager().installDebuggerEndpointSource { location ->
 			asked += location
 			if (location == project.absolutePath) listOf(endpoint) else emptyList()
@@ -56,6 +62,7 @@ class PluginManagerDebuggerEndpointTest {
 	@After
 	fun tearDown() {
 		forgetPluginManager()
+		Environment.TEMPLATES_DIR = templatesDir
 		ProjectManagerImpl.getInstance().projectPath = ""
 		GeneralPreferences.lastOpenedProject = GeneralPreferences.NO_OPENED_PROJECT
 		project.deleteRecursively()
@@ -97,6 +104,55 @@ class PluginManagerDebuggerEndpointTest {
 		} finally {
 			elsewhere.deleteRecursively()
 		}
+	}
+
+	@Test
+	fun `a disabled plugin's service refuses until the plugin is enabled again`() {
+		val service = load("reader", "debugger.endpoints")
+		openInEditor(project)
+
+		assertThat(pluginManager().disablePlugin("reader")).isTrue()
+
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+
+		assertThat(pluginManager().enablePlugin("reader")).isTrue()
+
+		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `a plugin disabled after crashing gets nothing`() {
+		val service = load("reader", "debugger.endpoints")
+		openInEditor(project)
+
+		pluginManager().forceDisablePlugin("reader")
+
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		assertThat(asked).isEmpty()
+	}
+
+	@Test
+	fun `an unloaded plugin's service refuses`() {
+		val service = load("reader", "debugger.endpoints")
+		openInEditor(project)
+
+		assertThat(pluginManager().unloadPlugin("reader")).isTrue()
+
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		assertThat(asked).isEmpty()
+	}
+
+	@Test
+	fun `a plugin loaded while disabled gets a service that refuses`() {
+		load("reader", "debugger.endpoints")
+		assertThat(pluginManager().disablePlugin("reader")).isTrue()
+		assertThat(pluginManager().unloadPlugin("reader")).isTrue()
+		openInEditor(project)
+
+		val reloaded = load("reader", "debugger.endpoints")
+
+		assertThat(pluginManager().getLoadedPlugin("reader")).isNull()
+		assertThrows(CancellationException::class.java) { offMainThread { reloaded.getEndpoints() } }
 	}
 
 	@Test

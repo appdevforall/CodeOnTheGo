@@ -724,6 +724,8 @@ class PluginManager private constructor(
 			loadedPlugins[manifest.id] = loadedPlugin
 
 			if (!isEnabled) {
+				// initialize() ran, so the plugin may already have threads of its own.
+				loadedPlugin.debuggerEndpointService()?.close()
 				logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
 				return Result.success(plugin)
 			}
@@ -766,6 +768,7 @@ class PluginManager private constructor(
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
 			loadedPlugin.isEnabled = false
+			loadedPlugin.debuggerEndpointService()?.close()
 			savePluginState(manifest.id, false)
 		}
 	}
@@ -806,6 +809,9 @@ class PluginManager private constructor(
 		val loadedPlugin = loadedPlugins.remove(pluginId) ?: return false
 
 		try {
+			// First: a later step can throw and end the unload.
+			loadedPlugin.debuggerEndpointService()?.close()
+
 			// Remove documentation if plugin implements DocumentationExtension
 			if (loadedPlugin.plugin is DocumentationExtension) {
 				CoroutineScope(Dispatchers.IO).launch {
@@ -1165,8 +1171,9 @@ class PluginManager private constructor(
 			return true
 		}
 
-		// The services outlive a disable, which closed the terminal service.
+		// The services outlive a disable, which closed the terminal and SQLite debugger endpoint services.
 		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
+		loadedPlugin.debuggerEndpointService()?.reopen()
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
@@ -1223,6 +1230,7 @@ class PluginManager private constructor(
 
 	private fun cleanupPluginContributions(loadedPlugin: LoadedPlugin) {
 		val pluginId = loadedPlugin.manifest.id
+		loadedPlugin.debuggerEndpointService()?.close()
 		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId) }
 			.onFailure { logger.error("Failed to clean project templates for: $pluginId", it) }
 		runCatching {
@@ -1244,6 +1252,10 @@ class PluginManager private constructor(
 			if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
 		}.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
 	}
+
+	/** The plugin's [DebuggerEndpointServiceImpl]. Its services outlive a disable, so it is closed instead. */
+	private fun LoadedPlugin.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
+		context.services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
 
 	sealed class CrashResult {
 		abstract val pluginId: String

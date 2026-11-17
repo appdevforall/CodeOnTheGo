@@ -88,6 +88,31 @@ class DebuggerEndpointServiceImplTest {
 	}
 
 	@Test
+	fun `a closed service refuses until reopened`() {
+		val service = service()
+		service.close()
+
+		assertThrows(java.util.concurrent.CancellationException::class.java) { service.getEndpoints() }
+		assertThat(seen).isEmpty()
+
+		service.reopen()
+
+		assertThat(service.getEndpoints()).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `a plugin disabled during a read gets no tokens from it`() {
+		lateinit var disabledMidRead: DebuggerEndpointServiceImpl
+		disabledMidRead =
+			service(source = {
+				disabledMidRead.close()
+				listOf(endpoint)
+			})
+
+		assertThrows(java.util.concurrent.CancellationException::class.java) { disabledMidRead.getEndpoints() }
+	}
+
+	@Test
 	fun `is empty until the app installs a source`() {
 		var installed: DebuggerEndpointSource? = null
 		val service = DebuggerEndpointServiceImpl("p", setOf(PluginPermission.DEBUGGER_ENDPOINTS), { project }, { installed }, { false })
