@@ -7,9 +7,11 @@ import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Resources
 import android.os.Build
+import android.os.Bundle
 import dalvik.system.DexClassLoader
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.Locale
 import java.util.zip.ZipFile
 
 /**
@@ -256,8 +258,8 @@ class PluginLoader(
 			val pluginDescription = metaData.getString("plugin.description") ?: ""
 			val pluginAuthor = metaData.getString("plugin.author") ?: ""
 			val pluginMainClass = metaData.getString("plugin.main_class") ?: return null
-			val pluginMinIdeVersion = metaData.getString("plugin.min_ide_version") ?: "1.0.0"
-			val pluginMaxIdeVersion = metaData.getString("plugin.max_ide_version")
+			val pluginMinIdeVersion = metaData.ideVersion("plugin.min_ide_version") ?: "1.0.0"
+			val pluginMaxIdeVersion = metaData.ideVersion("plugin.max_ide_version")
 
 			// Parse permissions
 			val permissions =
@@ -365,3 +367,10 @@ class PluginLoader(
 		pluginClassLoader = null
 	}
 }
+
+@Suppress("DEPRECATION")
+internal fun Bundle.ideVersion(key: String): String? =
+	when (val value = get(key)) {
+		is Float -> String.format(Locale.ROOT, "%.2f", value)
+		else -> value?.toString()
+	}
