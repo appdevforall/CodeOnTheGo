@@ -130,6 +130,14 @@ class AgentRunnerTest {
 	}
 
 	@Test
+	fun commandThatTurnsOnExtglobBeforeUsingItRuns() {
+		val run = run(runner.prepare("shopt -s extglob\ncase ab in +(a|b)) echo matched;; esac", null))
+
+		assertThat(run.output.lines().last()).isEqualTo("matched")
+		assertThat(run.marks.last().exitCode).isEqualTo(0)
+	}
+
+	@Test
 	fun carriageReturnInTheCommandCannotRewriteItsEcho() {
 		// Printed raw, the CR would return to the start of the line, and the echo would show only
 		// what follows it.

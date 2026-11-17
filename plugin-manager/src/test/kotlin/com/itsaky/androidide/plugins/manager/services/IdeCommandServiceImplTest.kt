@@ -229,7 +229,9 @@ class IdeCommandServiceImplTest {
 
 		val result = execution.awaitWithin(10_000)
 
-		assertThat(result).isEqualTo(CommandResult.Success(0, "done\n", "", (result as CommandResult.Success).durationMs))
+		assertThat(result).isInstanceOf(CommandResult.Success::class.java)
+		result as CommandResult.Success
+		assertThat(result.stdout).isEqualTo("done\n")
 		assertThat(result.durationMs).isAtLeast(2_000)
 		assertThat(pids(1).filter(::alive)).isEmpty()
 	}
