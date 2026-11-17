@@ -363,16 +363,7 @@ private fun KaSession.collectExtensionFunctions(
 	receiverType: KaType,
 	to: MutableList<CompletionItem>,
 ) {
-	val extensionSymbols =
-		ctx.scope
-			.callables { name -> matchesFilter(name) }
-			.filter { symbol ->
-				if (!symbol.isExtension) return@filter false
-
-				val extReceiverType = symbol.receiverType ?: return@filter false
-				receiverType.isSubtypeOf(extReceiverType)
-			}
-
+	val extensionSymbols = extensionCallableCandidates(receiverType, ctx.scope) { name -> matchesFilter(name) }
 	to += toCompletionItems(extensionSymbols)
 }
 
