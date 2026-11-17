@@ -32,20 +32,29 @@ jobs:
        github.event.comment.user.login == 'atlassian[bot]' &&
        contains(github.event.comment.body, 'Rovo Dev code review'))
     runs-on: ubuntu-latest
+    # An event run is a few API calls and the sweep a few per open PR (19 s for
+    # all of them in August), so a run near this limit is stuck.
+    timeout-minutes: 15
     steps:
       - name: Strip the Rovo Dev block and delete the Rovo Dev comment
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
+          # Reads and comment calls retry as they are. The description write retries
+          # with a fresh read instead: see stripBody.
+          retries: 3
           script: |
             const { owner, repo } = context.repo;
 
             // Atlassian wraps the description block in HTML comment markers.
             // Anchoring on those catches every wording of the message, not just
             // "not activated", and swallows the horizontal rule tucked inside.
-            const marked = /\n*<!--\s*Rovo Dev code review status\s*-->[\s\S]*?<!--\s*\/\s*Rovo Dev code review status\s*-->[ \t]*/gi;
+            // Both patterns start only where a run of whitespace starts, and match
+            // whitespace in one place: a description with thousands of blank lines
+            // otherwise backtracks for minutes to hours.
+            const marked = /(?<!\n)\n*<!--\s*Rovo Dev code review status\s*-->[\s\S]*?<!--\s*\/\s*Rovo Dev code review status\s*-->[ \t]*/gi;
 
             // Fallback for the day Atlassian drops the markers.
-            const bare = /\n*(?:-{3,}[ \t]*\n)?[ \t]*(?:\*\*|<strong>)?\s*Rovo Dev code review:[\s\S]*?Atlassian organization admin needs to activate Rovo Dev\.[ \t]*/gi;
+            const bare = /(?<!\s)\s*(?:-{3,}[ \t]*\n\s*)?(?:(?:\*\*|<strong>)\s*)?Rovo Dev code review:[\s\S]*?Atlassian organization admin needs to activate Rovo Dev\.[ \t]*/gi;
 
             // Deliberately narrow: a real Rovo Dev code review would also come
             // from atlassian[bot], and deleting one of those would lose content.
@@ -58,17 +67,40 @@ jobs:
             const isRovoAd = (comment) =>
               isAtlassianBot(comment.user) && adPhrases.some((re) => re.test(comment.body ?? ''));
 
-            async function stripBody(pr) {
-              const body = pr.body ?? '';
-              const cleaned = body.replace(marked, '').replace(bare, '').trimEnd();
-              if (cleaned === body.trimEnd()) {
-                return false;
+            // The client's own default: these mean the request itself is wrong.
+            const notRetried = [400, 401, 403, 404, 422];
+            const writeAttempts = 3;
+
+            // Reads the description now, not from the event payload or an earlier
+            // list: writing back an older copy would undo any edit made since,
+            // such as one made seconds after the push that made Atlassian append
+            // the block. GitHub has no conditional update, so a sub-second window
+            // between this read and the write remains.
+            async function stripBody(number) {
+              for (let attempt = 1; ; attempt++) {
+                const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+                const body = pr.body ?? '';
+                const cleaned = body.replace(marked, '').replace(bare, '').trimEnd();
+                if (cleaned === body.trimEnd()) {
+                  return false;
+                }
+                try {
+                  // This update runs as GITHUB_TOKEN, which does not trigger further
+                  // workflow runs, so stripping the block cannot loop back on itself.
+                  // The client doesn't retry it: that would resend this body after a
+                  // backoff of seconds, undoing any edit made meanwhile. The loop
+                  // retries it after reading the description again.
+                  await github.rest.pulls.update({ owner, repo, pull_number: number, body: cleaned, request: { retries: 0 } });
+                  core.info(`Stripped the Rovo Dev block from the body of PR #${number}.`);
+                  return true;
+                } catch (error) {
+                  if (attempt >= writeAttempts || notRetried.includes(error.status)) {
+                    throw error;
+                  }
+                  core.warning(`Writing the description of PR #${number} failed (${error.status ?? error.message}); reading it again.`);
+                  await new Promise((resolve) => setTimeout(resolve, 1000 * attempt * attempt));
+                }
               }
-              // This update runs as GITHUB_TOKEN, which does not trigger further
-              // workflow runs, so stripping the block cannot loop back on itself.
-              await github.rest.pulls.update({ owner, repo, pull_number: pr.number, body: cleaned });
-              core.info(`Stripped the Rovo Dev block from the body of PR #${pr.number}.`);
-              return true;
             }
 
             async function deleteComment(comment, number) {
@@ -92,7 +124,7 @@ jobs:
 
             if (context.eventName === 'pull_request_target') {
               const pr = context.payload.pull_request;
-              if (!(await stripBody(pr))) {
+              if (!(await stripBody(pr.number))) {
                 core.info(
                   `No Rovo Dev block in PR #${pr.number} (edited by ${context.payload.sender.login}); nothing to strip.`
                 );
@@ -121,12 +153,23 @@ jobs:
             });
             let bodies = 0;
             let comments = 0;
+            let failed = 0;
+            // One pull request that can't be cleaned doesn't stop the rest; the run
+            // fails at the end so the failure is still seen.
             for (const pr of pulls) {
-              if (await stripBody(pr)) {
-                bodies += 1;
+              try {
+                if (await stripBody(pr.number)) {
+                  bodies += 1;
+                }
+                comments += await deleteAdComments(pr.number);
+              } catch (error) {
+                failed += 1;
+                core.error(`Could not clean PR #${pr.number}: ${error.message}`);
               }
-              comments += await deleteAdComments(pr.number);
             }
             core.info(
-              `Swept ${pulls.length} open pull requests: stripped ${bodies} bodies, deleted ${comments} comments.`
+              `Swept ${pulls.length} open pull requests: stripped ${bodies} bodies, deleted ${comments} comments, ${failed} failed.`
             );
+            if (failed > 0) {
+              core.setFailed(`${failed} of ${pulls.length} pull requests could not be cleaned; see the errors above.`);
+            }
