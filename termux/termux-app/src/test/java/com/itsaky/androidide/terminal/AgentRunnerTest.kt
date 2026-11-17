@@ -31,20 +31,21 @@ class AgentRunnerTest {
 		val output: String,
 	)
 
-	private fun run(id: String): Run {
+	/** What the runner writes to the terminal for command [id], before the terminal reads it. */
+	private fun rawOutput(id: String): String {
 		val process =
 			ProcessBuilder(BASH, File(tmp.root, "agent-run").path, id)
 				.apply { environment()["HOME"] = tmp.root.path }
 				.redirectErrorStream(true)
 				.start()
-		// A pty turns \n into \r\n on the way out; the pipe here does not.
-		val bytes =
-			process.inputStream
-				.readBytes()
-				.toString(Charsets.UTF_8)
-				.replace("\n", "\r\n")
-				.toByteArray()
+		val output = process.inputStream.readBytes().toString(Charsets.UTF_8)
 		process.waitFor()
+		return output
+	}
+
+	private fun run(id: String): Run {
+		// A pty turns \n into \r\n on the way out; the pipe here does not.
+		val bytes = rawOutput(id).replace("\n", "\r\n").toByteArray()
 
 		val marks = mutableListOf<ShellIntegrationMark>()
 		lateinit var terminal: TerminalEmulator
@@ -96,6 +97,52 @@ class AgentRunnerTest {
 		assertThat(run.marks.map { it.options[AgentRunner.ID_OPTION] }).containsExactly(id, id)
 		assertThat(run.marks.last().exitCode).isEqualTo(3)
 		assertThat(run.output).isEqualTo("\$ echo \"it's quoted\"; exit 3\nit's quoted")
+	}
+
+	@Test
+	fun controlCharactersInTheCommandAreEchoedVisiblyAndRunUnchanged() {
+		val out = File(tmp.root, "out")
+		// Printed raw, the OSC 52 would put "PWNED", base64-encoded here, on the clipboard.
+		val id = runner.prepare(": '\u001b]52;c;UFdORUQ=\u0007'; printf '%s' 'a\rb\u009bc' > ${out.path}", null)
+
+		val output = rawOutput(id)
+
+		assertThat(output).doesNotContain("\u001b]52")
+		assertThat(output).contains("\$ : '<U+001B>]52;c;UFdORUQ=<U+0007>'; printf '%s' 'a<U+000D>b<U+009B>c' > ${out.path}\n")
+		assertThat(out.readText()).isEqualTo("a\rb\u009bc")
+	}
+
+	@Test
+	fun syntaxErrorIsReportedWithoutItsControlCharactersAndNothingRuns() {
+		val out = File(tmp.root, "out")
+		// bash quotes the line of a syntax error in its message, OSC 52 and all.
+		val id = runner.prepare("touch ${out.path}; echo '\u001b]52;c;UFdORUQ=\u0007' (", null)
+
+		val output = rawOutput(id)
+
+		// The runner's own marks are the only control sequences left.
+		val text = output.replace(Regex("\u001b]133;[^\u0007]*\u0007"), "")
+		assertThat(text).doesNotContain("\u001b")
+		assertThat(text).doesNotContain("\u0007")
+		assertThat(text).contains("?]52;c;UFdORUQ=?")
+		assertThat(output).contains("\u001b]133;D;2;")
+		assertThat(out.exists()).isFalse()
+	}
+
+	@Test
+	fun carriageReturnInTheCommandCannotRewriteItsEcho() {
+		// Printed raw, the CR would return to the start of the line, and the echo would show only
+		// what follows it.
+		val run = run(runner.prepare(": 'rm -rf ~'\r: 'harmless'", null))
+
+		assertThat(run.output.lines().first()).isEqualTo("\$ : 'rm -rf ~'<U+000D>: 'harmless'")
+		assertThat(run.marks.last().exitCode).isEqualTo(0)
+	}
+
+	@Test
+	fun displayedCommandMakesOnlyControlCharactersVisible() {
+		assertThat(AgentRunner.displayed("a\u0000b\u001bc\u007fd\u0080e\u009ff\u00a0g\th\ni\u00e9\u2028"))
+			.isEqualTo("a<U+0000>b<U+001B>c<U+007F>d<U+0080>e<U+009F>f\u00a0g\th\ni\u00e9\u2028")
 	}
 
 	@Test
@@ -178,8 +225,7 @@ class AgentRunnerTest {
 
 		runner.discard(id)
 
-		assertThat(File(tmp.root, "$id.cmd").exists()).isFalse()
-		assertThat(File(tmp.root, "$id.dir").exists()).isFalse()
+		assertThat(tmp.root.list()).asList().containsExactly("agent-run")
 	}
 
 	@Test
