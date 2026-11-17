@@ -217,6 +217,21 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 		}
 
 	@Test
+	fun `a project with the SQLite debugger on is refused as an off state, not a setup failure`() =
+		runTest {
+			File(projectRoot, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			val gradle = FakeBuildService(result = TaskExecutionResult(true, null))
+
+			val outcome = testProvisioner(context, projectRoot, buildService = gradle).provision()
+
+			// Its own message, so the session can tell this deliberate refusal from a fault.
+			assertThat(outcome).isEqualTo(ProvisionOutcome.Failure(QuickBuildMessage.DisabledBySqliteDebugger))
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(failureText(outcome)).isNotEqualTo(context.getString(R.string.quick_build_setup_failed))
+			assertThat(gradle.executedTasks).isNull()
+		}
+
+	@Test
 	fun `a Gradle build that failed falls back to the generic setup-failure text`() =
 		runTest {
 			val gradle =

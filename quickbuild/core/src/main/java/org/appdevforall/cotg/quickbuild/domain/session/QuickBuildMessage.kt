@@ -21,6 +21,13 @@ sealed interface QuickBuildMessage {
 	) : QuickBuildMessage
 
 	/**
+	 * Quick Build is deliberately off for this project because the SQLite debugger is on
+	 * (`cogo.sqliteDebugger=true`). Nothing failed and a retry cannot help, so the session records
+	 * it apart from a failed start ([QuickBuildSessionState.Idle.startRefused]).
+	 */
+	data object DisabledBySqliteDebugger : QuickBuildMessage
+
+	/**
 	 * The OS wants the reinstall confirmed but no dialog could be shown, because CoGo was not
 	 * in the foreground to host it. Returning to CoGo is what re-prompts.
 	 */

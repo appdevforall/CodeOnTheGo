@@ -77,6 +77,7 @@ class QuickBuildFlashes {
 			// nothing here either.
 			QuickBuildTransition.SessionStopped,
 			QuickBuildTransition.StartFailed,
+			QuickBuildTransition.StartRefused,
 			-> {
 				flashedFailure = null
 				null

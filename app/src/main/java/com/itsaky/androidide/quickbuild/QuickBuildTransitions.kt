@@ -31,6 +31,13 @@ internal sealed interface QuickBuildTransition {
 	data object StartFailed : QuickBuildTransition
 
 	/**
+	 * A session start was declined on purpose: Quick Build is off for this project while the
+	 * SQLite debugger is on. Nothing failed and retrying cannot help, so surfaces must not say
+	 * "failed" or offer a retry; the tap shows the refusal again.
+	 */
+	data object StartRefused : QuickBuildTransition
+
+	/**
 	 * A full Gradle build started.
 	 *
 	 * @property kind which of the three it is, which is the whole reason this is not one state.
@@ -132,7 +139,9 @@ internal fun quickBuildTransition(
 	}
 	return when (current) {
 		is QuickBuildStatus.Hidden -> {
-			if (current.lastStartFailed) {
+			if (current.lastStartFailed && current.startRefused) {
+				QuickBuildTransition.StartRefused
+			} else if (current.lastStartFailed) {
 				QuickBuildTransition.StartFailed
 			} else {
 				QuickBuildTransition.SessionStopped

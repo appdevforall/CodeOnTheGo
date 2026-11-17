@@ -19,9 +19,14 @@ sealed interface QuickBuildSessionState {
 	 *   failure flash. Cleared by the next tap (which starts a fresh provision anyway) or the next
 	 *   save ([SessionEvent.FileSaved]) - the save clears the tone only and never retries the
 	 *   start; a retry stays a tap.
+	 * @property startRefused the failed start was a deliberate refusal
+	 *   ([QuickBuildMessage.DisabledBySqliteDebugger]) rather than a fault, so the status line says
+	 *   Quick Build is off instead of offering a retry that cannot help. Only meaningful with
+	 *   [lastStartFailed]; cleared by the same gestures.
 	 */
 	data class Idle(
 		val lastStartFailed: Boolean = false,
+		val startRefused: Boolean = false,
 	) : QuickBuildSessionState
 
 	/**
@@ -33,10 +38,12 @@ sealed interface QuickBuildSessionState {
 	 * @property lastStartFailed carried from [Idle.lastStartFailed] so the silent warm build does
 	 *   not clear the failed-start error tone on its way through; a queued tap clears it, and a
 	 *   tapless finish hands it back to [Idle].
+	 * @property startRefused carried from [Idle.startRefused] alongside [lastStartFailed].
 	 */
 	data class Prebuilding(
 		val tapQueued: Boolean = false,
 		val lastStartFailed: Boolean = false,
+		val startRefused: Boolean = false,
 	) : QuickBuildSessionState
 
 	/**

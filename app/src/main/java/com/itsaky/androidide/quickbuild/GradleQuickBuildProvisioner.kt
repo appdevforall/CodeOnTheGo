@@ -112,6 +112,10 @@ class GradleQuickBuildProvisioner(
 					built
 				}
 
+				ProxyAppBuildResult.Refused -> {
+					return ProvisionOutcome.Failure(QuickBuildMessage.DisabledBySqliteDebugger)
+				}
+
 				is ProxyAppBuildResult.Failed -> {
 					return ProvisionOutcome.Failure(
 						built.message?.let(QuickBuildMessage::Literal)
@@ -200,6 +204,10 @@ class GradleQuickBuildProvisioner(
 				// retries later WITHOUT spending its bounded auto-retry budget.
 				ProxyAppBuildResult.SlotBusy -> {
 					return ProxyAppRebuildOutcome.BuildSlotBusy
+				}
+
+				ProxyAppBuildResult.Refused -> {
+					return ProxyAppRebuildOutcome.Failure(QuickBuildMessage.DisabledBySqliteDebugger)
 				}
 
 				is ProxyAppBuildResult.Failed -> {
@@ -312,6 +320,13 @@ class GradleQuickBuildProvisioner(
 
 		/** Another Gradle build owns the single slot, so nothing ran. */
 		data object SlotBusy : ProxyAppBuildResult
+
+		/**
+		 * Quick Build is deliberately off for this project (the SQLite debugger is on), so nothing
+		 * ran and nothing failed. Split from [Failed] so the session can say so rather than offer a
+		 * retry.
+		 */
+		data object Refused : ProxyAppBuildResult
 
 		/**
 		 * [message] replaces the caller's generic wording when the cause is one the user can
@@ -544,20 +559,19 @@ class GradleQuickBuildProvisioner(
 	private fun sqliteDebuggerRefusal(
 		projectManager: IProjectManager,
 		projectRoot: File,
-	): ProxyAppBuildResult.Failed? {
-		val refusal =
-			QuickBuildProjectSupport.sqliteDebuggerMessage(
-				QuickBuildProjectSupport.isSqliteDebuggerEnabled(
-					projectRoot,
-					Environment.GRADLE_USER_HOME,
-					projectManager.getAndroidAppModules().map { File(it.projectDirPath) },
-				),
-			) ?: return null
+	): ProxyAppBuildResult.Refused? {
+		QuickBuildProjectSupport.sqliteDebuggerMessage(
+			QuickBuildProjectSupport.isSqliteDebuggerEnabled(
+				projectRoot,
+				Environment.GRADLE_USER_HOME,
+				projectManager.getAndroidAppModules().map { File(it.projectDirPath) },
+			),
+		) ?: return null
 		log.info(
 			"Quick Build is not provisioned: {} is true in the Gradle user home's, an app module's or the project's gradle.properties",
 			GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
 		)
-		return ProxyAppBuildResult.Failed(context.getString(refusal))
+		return ProxyAppBuildResult.Refused
 	}
 
 	/** `:app` -> `<root>/app`; nested paths (`:feature:home`) map to nested dirs. */

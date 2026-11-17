@@ -88,6 +88,12 @@ fun quickBuildStatusBarUpdate(
 			QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_start_failed)
 		}
 
+		QuickBuildTransition.StartRefused -> {
+			// Not a failure: Quick Build is deliberately off here, and a retry cannot help. The tap
+			// shows the full refusal again.
+			QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_off_sqlite_debugger)
+		}
+
 		is QuickBuildTransition.ProvisioningStarted -> {
 			when (transition.kind) {
 				is ProvisioningKind.Rebaseline -> {
