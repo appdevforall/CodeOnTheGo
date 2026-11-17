@@ -258,6 +258,38 @@ static int utf8_prefix(const unsigned char *s, int len, int max) {
 	return max;
 }
 
+// Prepares sql, which must hold exactly one statement: SQLite compiles only the first statement of a
+// string and reads no further than a NUL, so anything after either would be dropped without a word.
+// Returns SQLITE_OK with *st set, or a code with *message set (left NULL for sqlite3_errmsg).
+static int prepare_one(sqlite3 *db, const jchar *sql, jsize len, sqlite3_stmt **st, const char **message) {
+	*st = NULL;
+	for (jsize i = 0; i < len; i++) {
+		if (sql[i] == 0) {
+			*message = "the SQL holds a NUL character, and SQLite reads no further than it";
+			return SQLITE_ERROR;
+		}
+	}
+	const void *tail = NULL;
+	int rc = sqlite3_prepare16_v2(db, sql, len * 2, st, &tail);
+	if (rc != SQLITE_OK) return rc;
+	if (!*st) {
+		*message = "the SQL holds no statement, only whitespace or comments";
+		return SQLITE_ERROR;
+	}
+	// Whitespace, comments and semicolons prepare to no statement. Anything else is a second
+	// statement, also when it fails to prepare: the server's authorizer refuses a write then.
+	int left = len * 2 - (int)((const char *)tail - (const char *)sql);
+	sqlite3_stmt *next = NULL;
+	if (left > 0 && (sqlite3_prepare16_v2(db, tail, left, &next, NULL) != SQLITE_OK || next)) {
+		sqlite3_finalize(next);
+		sqlite3_finalize(*st);
+		*st = NULL;
+		*message = "the SQL holds more than one statement; run one statement per call";
+		return SQLITE_ERROR;
+	}
+	return SQLITE_OK;
+}
+
 // One cell as a Java object, or NULL for SQL NULL (or on failure, with an exception pending).
 // *cut is set when a TEXT or BLOB was cut at its limit, and *bytes grows by what the cell costs the
 // result: the TEXT or BLOB bytes kept, 8 for a number.
@@ -322,10 +354,10 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	jsize sql_len = (*env)->GetStringLength(env, sql);
 	const jchar *sql_chars = (*env)->GetStringChars(env, sql, NULL);
 	if (!sql_chars) return NULL;
-	rc = sqlite3_prepare16_v2(db, sql_chars, sql_len * 2, &st, NULL);
+	rc = prepare_one(db, sql_chars, sql_len, &st, &message);
 	(*env)->ReleaseStringChars(env, sql, sql_chars);
 	if (rc != SQLITE_OK) {
-		throw_engine(env, rc, sqlite3_errmsg(db));
+		throw_engine(env, rc, message ? message : sqlite3_errmsg(db));
 		return NULL;
 	}
 
@@ -335,7 +367,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	handler_set = 1;
 
 	// A missing argument would be bound as NULL and the query would run, returning a plausible empty result.
-	int wanted = st ? sqlite3_bind_parameter_count(st) : 0;
+	int wanted = sqlite3_bind_parameter_count(st);
 	jsize given = (*env)->GetArrayLength(env, args);
 	if (given != wanted) {
 		char msg[96];
@@ -343,13 +375,13 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		throw_engine(env, SQLITE_RANGE, msg);
 		goto done;
 	}
-	rc = st ? bind_args(env, db, st, args, &message) : SQLITE_OK;
+	rc = bind_args(env, db, st, args, &message);
 	if (rc != SQLITE_OK) {
 		if (!(*env)->ExceptionCheck(env)) throw_engine(env, rc, message ? message : "cannot bind");
 		goto done;
 	}
 
-	int ncols = st ? sqlite3_column_count(st) : 0;
+	int ncols = sqlite3_column_count(st);
 	jobjectArray names = (*env)->NewObjectArray(env, ncols, g_string, NULL);
 	jobject rows = names ? (*env)->NewObject(env, g_array_list, g_list_init) : NULL;
 	if (!rows) goto done;
@@ -364,7 +396,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	int has_more = 0, row_count = 0;
 	int64_t total = 0;
 	jlong skipped = 0;
-	while (st && (rc = sqlite3_step(st)) == SQLITE_ROW) {
+	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {
 		if (skipped < offset) {
 			skipped++;
 			continue;
@@ -413,7 +445,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		if ((*env)->ExceptionCheck(env)) goto done;
 		row_count++;
 	}
-	if (st && !has_more && rc != SQLITE_DONE) {
+	if (!has_more && rc != SQLITE_DONE) {
 		if (dl.hit && rc == SQLITE_INTERRUPT) throw_engine(env, SQLITE_INTERRUPT, "the query ran past its time limit");
 		else throw_engine(env, rc, sqlite3_errmsg(db));
 		goto done;
