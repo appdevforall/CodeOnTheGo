@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.manager.core
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import org.junit.Assume
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -262,6 +263,8 @@ class PluginBuildFilesTest {
 		nativeLibsDir.setWritable(false)
 		val extracted =
 			try {
+				// Root, and file systems without POSIX permissions, ignore the write bit.
+				Assume.assumeFalse("the folder stayed writable", nativeLibsDir.canWrite())
 				runCatching { files.extractNativeLibs(ID, build, ABI) }
 			} finally {
 				nativeLibsDir.setWritable(true)

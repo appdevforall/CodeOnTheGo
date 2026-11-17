@@ -57,7 +57,7 @@ class PluginBuildFiles internal constructor(
 		file: File,
 	): Boolean {
 		if (!isCompiledCodeOf(pluginId, file)) return false
-		val stem = file.name.replace(Regex("\\.(odex|vdex|art|$PLUGIN_ARCHIVE_EXTENSION\\.(cur\\.)?prof)$"), "")
+		val stem = file.name.replace(COMPILED_CODE_END, "")
 		// loadPlugins loads .CGP too, so any case of the extension keeps the code.
 		return pluginsDir.listFiles { f -> isPluginFile(f) && f.nameWithoutExtension == stem }.isNullOrEmpty()
 	}
@@ -232,6 +232,11 @@ class PluginBuildFiles internal constructor(
 
 		private const val HASH_CHARS = 16
 
+		// ART's files for `<stem>.cgp`. One list for matching and for finding the stem: a suffix
+		// missing from either would leave the stem unmatched and delete another plugin's code.
+		private const val COMPILED_CODE_SUFFIX = "(odex|vdex|art|$PLUGIN_ARCHIVE_EXTENSION\\.(cur\\.)?prof)"
+		private val COMPILED_CODE_END = Regex("\\.$COMPILED_CODE_SUFFIX$")
+
 		// Not app_plugin_native_libs: an older CoGo build reuses its plugin's folder there whatever it
 		// holds, so it would find these per-build folders and no libraries. Folder names as getDir()
 		// makes them.
@@ -276,7 +281,7 @@ class PluginBuildFiles internal constructor(
 			file: File,
 		): Boolean =
 			file.isFile &&
-				Regex("${Regex.escape(pluginId)}(-[0-9a-f]{$HASH_CHARS})?\\.(odex|vdex|art|$PLUGIN_ARCHIVE_EXTENSION\\.(cur\\.)?prof)")
+				Regex("${Regex.escape(pluginId)}(-[0-9a-f]{$HASH_CHARS})?\\.$COMPILED_CODE_SUFFIX")
 					.matches(file.name)
 
 		private fun sha256Hex(file: File): String {
