@@ -6,14 +6,13 @@ import com.android.build.api.instrumentation.InstrumentationScope
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.itsaky.androidide.gradle.APP_PLUGIN
 import com.itsaky.androidide.gradle.requireRuntimeConfiguration
+import com.itsaky.androidide.gradle.requireSqliteAar
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_REWRITE_RUNTIME_AAR
-import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition
 import org.gradle.api.logging.Logging
-import java.io.File
 
 /**
  * Registers the android.database.sqlite -> requery class rewrite on every variant (ADFA-7138), adds the
@@ -40,17 +39,7 @@ class SqliteRewritePlugin : Plugin<Project> {
 		logger.info("Applying SqliteRewritePlugin to project '${target.path}'")
 
 		val runtimeAar =
-			target.findProperty(PROPERTY_SQLITE_REWRITE_RUNTIME_AAR)?.let { File(it.toString()) }
-				?: throw GradleException(
-					"'$PROPERTY_SQLITE_DEBUGGER_ENABLED' is true but no property '$PROPERTY_SQLITE_REWRITE_RUNTIME_AAR' is set. " +
-						"Remove the line from gradle.properties to build without the SQLite rewrite.",
-				)
-		if (!runtimeAar.isFile) {
-			throw GradleException(
-				"SQLite rewrite runtime AAR not found at '${runtimeAar.absolutePath}'. " +
-					"Remove '$PROPERTY_SQLITE_DEBUGGER_ENABLED' from gradle.properties to build without it.",
-			)
-		}
+			target.requireSqliteAar(PROPERTY_SQLITE_REWRITE_RUNTIME_AAR, "SQLite rewrite runtime AAR", "SQLite rewrite")
 
 		target.extensions.getByType(ApplicationAndroidComponentsExtension::class.java).onVariants { variant ->
 			variant.instrumentation.transformClassesWith(

@@ -69,23 +69,6 @@ object QuickBuildProjectSupport {
 		}
 
 	/**
-	 * A project with `cogo.sqliteDebugger=true` is moved to requery by the Gradle plugin, which
-	 * never applies Quick Build to it (its payload would compile the source without the move). The
-	 * IDE must not provision it either: the build would succeed and then end in a "variant setup
-	 * missing" message that blames the variant.
-	 *
-	 * @param sqliteDebuggerEnabled see [isSqliteDebuggerEnabled].
-	 * @return the refusal message, or null when Quick Build may run.
-	 */
-	@StringRes
-	fun sqliteDebuggerMessage(sqliteDebuggerEnabled: Boolean): Int? =
-		if (sqliteDebuggerEnabled) {
-			R.string.quick_build_disabled_sqlite_debugger
-		} else {
-			null
-		}
-
-	/**
 	 * Whether one `gradle.properties` text opts in, decided as the Gradle plugin does: the value is
 	 * exactly `true`.
 	 *
@@ -94,7 +77,12 @@ object QuickBuildProjectSupport {
 	fun isSqliteDebuggerEnabled(gradleProperties: String?): Boolean = gradleProperties != null && propertyValue(gradleProperties) == "true"
 
 	/**
-	 * Whether the project opts in, from the same files the Gradle plugin's `findProperty` sees in
+	 * Whether the project opts in to `cogo.sqliteDebugger=true`, in which case Quick Build must not
+	 * provision it: the Gradle plugin moves such a project to requery and never applies Quick Build
+	 * to it, so a build would succeed and end in a "variant setup missing" message that blames the
+	 * variant. Decided per project, from all app modules (see [moduleDirs]).
+	 *
+	 * Reads the opt-in from the same files the Gradle plugin's `findProperty` sees in
 	 * Code on the Go's builds: the Gradle user home `gradle.properties` (`GRADLE_USER_HOME`, which
 	 * overrides the project files), the app module's, and the root's. Gradle loads a
 	 * `gradle.properties` from every project directory into that project, and a subproject also

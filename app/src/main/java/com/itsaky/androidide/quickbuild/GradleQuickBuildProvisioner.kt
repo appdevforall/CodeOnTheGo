@@ -560,13 +560,13 @@ class GradleQuickBuildProvisioner(
 		projectManager: IProjectManager,
 		projectRoot: File,
 	): ProxyAppBuildResult.Refused? {
-		QuickBuildProjectSupport.sqliteDebuggerMessage(
+		val enabled =
 			QuickBuildProjectSupport.isSqliteDebuggerEnabled(
 				projectRoot,
 				Environment.GRADLE_USER_HOME,
 				projectManager.getAndroidAppModules().map { File(it.projectDirPath) },
-			),
-		) ?: return null
+			)
+		if (!enabled) return null
 		log.info(
 			"Quick Build is not provisioned: {} is true in the Gradle user home's, an app module's or the project's gradle.properties",
 			GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,

@@ -6,11 +6,9 @@ import com.android.build.api.variant.Component
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED
 import org.adfa.constants.KOTLIN_VERSION
-import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logging
-import java.io.File
 import java.lang.reflect.Method
 
 /**
@@ -54,19 +52,7 @@ class SqliteDebuggerPlugin : Plugin<Project> {
 			logger.lifecycle("Applying {} to project '{}'", javaClass.simpleName, target.path)
 		}
 
-		val aar =
-			target.findProperty(PROPERTY_SQLITE_DEBUGGER_AAR)?.let { File(it.toString()) }
-				?: throw GradleException(
-					"'$PROPERTY_SQLITE_DEBUGGER_ENABLED' is true but no property '$PROPERTY_SQLITE_DEBUGGER_AAR' is set. " +
-						"Remove the line from gradle.properties to build without the SQLite debugger.",
-				)
-
-		if (!aar.isFile) {
-			throw GradleException(
-				"SQLite debugger AAR not found at '${aar.absolutePath}'. " +
-					"Remove '$PROPERTY_SQLITE_DEBUGGER_ENABLED' from gradle.properties to build without it.",
-			)
-		}
+		val aar = target.requireSqliteAar(PROPERTY_SQLITE_DEBUGGER_AAR, "SQLite debugger AAR", "SQLite debugger")
 
 		target.extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
 			val addDebugger = { variant: ApplicationVariant ->

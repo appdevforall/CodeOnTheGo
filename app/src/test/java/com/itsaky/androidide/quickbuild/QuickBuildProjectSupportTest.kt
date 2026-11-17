@@ -78,13 +78,6 @@ class QuickBuildProjectSupportTest {
 	}
 
 	@Test
-	fun `an opted-in SQLite debugger project is refused with its own message`() {
-		assertThat(QuickBuildProjectSupport.sqliteDebuggerMessage(sqliteDebuggerEnabled = true))
-			.isEqualTo(R.string.quick_build_disabled_sqlite_debugger)
-		assertThat(QuickBuildProjectSupport.sqliteDebuggerMessage(sqliteDebuggerEnabled = false)).isNull()
-	}
-
-	@Test
 	fun `gradle properties decide the opt-in as the Gradle plugin does`() {
 		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("org.gradle.jvmargs=-Xmx2g\ncogo.sqliteDebugger=true\n")).isTrue()
 		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebugger = true")).isTrue()
