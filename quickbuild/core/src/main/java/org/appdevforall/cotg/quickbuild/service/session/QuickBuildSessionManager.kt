@@ -1343,7 +1343,13 @@ class QuickBuildSessionManager(
 				// event, so a still-broken build file does not loop.
 				session.orchestrator.onProxyAppRebuildFailed()
 				val park = rebuildPark
-				if (park != null) {
+				if (result.message == QuickBuildMessage.DisabledBySqliteDebugger) {
+					// Not a build failure: the user turned the SQLite debugger on mid-session, so
+					// Quick Build is off for this project. A park would retry on every save and be
+					// refused each time; end like a refused start (Idle, "off" status) instead.
+					log.info("Proxy app rebuild refused: the SQLite debugger is on; ending the session")
+					dispatch(SessionEvent.ProvisioningFailed(result.message))
+				} else if (park != null) {
 					// Park recoverable instead of dying to Idle: the session and the running proxy
 					// app are both fine; what failed is the user's build files. The message is
 					// surfaced here rather than through SurfaceProvisioningError, whose effect

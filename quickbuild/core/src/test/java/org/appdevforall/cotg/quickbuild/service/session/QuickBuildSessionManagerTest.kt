@@ -1680,6 +1680,28 @@ class QuickBuildSessionManagerTest {
 			assertThat(userMessages).contains(QuickBuildMessage.Literal("manifest does not build"))
 		}
 
+	@Test
+	fun `a rebuild refused for the SQLite debugger ends in the refused state with no retry`() =
+		runTest {
+			proxyAppRebuildOutcome = { ProxyAppRebuildOutcome.Failure(QuickBuildMessage.DisabledBySqliteDebugger) }
+			val manager = createManager()
+			manager.onQuickBuildTapped()
+			advanceUntilIdle()
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+
+			// Same state as a refused start, not a parked failed rebuild.
+			assertThat(manager.state.value)
+				.isEqualTo(QuickBuildSessionState.Idle(lastStartFailed = true, startRefused = true))
+			assertThat(userMessages).contains(QuickBuildMessage.DisabledBySqliteDebugger)
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
+
+			manager.save(gradleFile)
+			advanceUntilIdle()
+			assertThat(proxyAppRebuildCount).isEqualTo(1)
+		}
+
 	// Review gap (2026-07-26 #69): pin the failed proxy app rebuild's DAEMON state and the
 	// recovery - the session must stay recoverable, not linger wedged and daemon-less.
 	@Test
