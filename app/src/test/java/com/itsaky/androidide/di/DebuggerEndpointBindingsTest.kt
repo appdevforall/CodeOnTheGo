@@ -77,4 +77,15 @@ class DebuggerEndpointBindingsTest {
 			assertThat(endpoints.map { it.applicationId }).containsExactly(app.packageName)
 			assertThat(endpoints.single().token).isEqualTo("tok-en_1")
 		}
+
+	@Test
+	fun `the bound repository asks the package manager, so an app that is not installed is left out`() =
+		runBlocking<Unit> {
+			report(app.packageName, "tok-en_1")
+			report("com.example.not.installed", "tok-en_2")
+
+			val endpoints = koin.get<DebuggerEndpointRepository>().reportedEndpoints(project)
+
+			assertThat(endpoints.map { it.applicationId }).containsExactly(app.packageName)
+		}
 }

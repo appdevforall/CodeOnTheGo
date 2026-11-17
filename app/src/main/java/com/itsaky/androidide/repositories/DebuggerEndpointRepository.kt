@@ -24,7 +24,8 @@ class DebuggerEndpointRepository(
 	private val dao: DebuggerEndpointDao,
 	private val scope: CoroutineScope,
 	private val clock: () -> Long = System::currentTimeMillis,
-	private val isInstalled: (String) -> Boolean = { true },
+	/** Required, with no default: one that answered true would serve an uninstalled app's port and token as live. */
+	private val isInstalled: (String) -> Boolean,
 ) {
 	private class PendingInstall(
 		val location: String,

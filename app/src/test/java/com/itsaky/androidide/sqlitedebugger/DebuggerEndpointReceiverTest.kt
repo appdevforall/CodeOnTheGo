@@ -42,7 +42,7 @@ class DebuggerEndpointReceiverTest {
 				.allowMainThreadQueries()
 				.build()
 		val scope = CoroutineScope(Dispatchers.IO)
-		val repository = DebuggerEndpointRepository(room.debuggerEndpointDao(), scope, clock = { 99L })
+		val repository = DebuggerEndpointRepository(room.debuggerEndpointDao(), scope, clock = { 99L }, isInstalled = { true })
 		if (GlobalContext.getOrNull() != null) stopKoin()
 		startKoin {
 			modules(

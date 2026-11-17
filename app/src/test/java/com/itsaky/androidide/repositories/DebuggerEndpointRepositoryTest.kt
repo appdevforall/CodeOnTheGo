@@ -32,7 +32,8 @@ class DebuggerEndpointRepositoryTest {
 				.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), RecentProjectRoomDatabase::class.java)
 				.allowMainThreadQueries()
 				.build()
-		repository = DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { 1234L })
+		repository =
+			DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { 1234L }, isInstalled = { true })
 	}
 
 	@After
@@ -178,7 +179,7 @@ class DebuggerEndpointRepositoryTest {
 	}
 
 	private fun clockedRepository(now: AtomicLong) =
-		DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { now.get() })
+		DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { now.get() }, isInstalled = { true })
 
 	@Test
 	fun `a failed install does not pair a later install of the same app`() =
@@ -317,7 +318,7 @@ class DebuggerEndpointRepositoryTest {
 				{ IllegalStateException("closed") },
 				{ android.database.SQLException("generic") },
 			)) {
-				val failing = DebuggerEndpointRepository(ThrowingDao(error), CoroutineScope(Dispatchers.IO))
+				val failing = DebuggerEndpointRepository(ThrowingDao(error), CoroutineScope(Dispatchers.IO), isInstalled = { true })
 
 				assertThat(failing.recordInstalled("com.example", "/p/a")).isFalse()
 				assertThat(failing.recordLaunched("com.example", "/p/a")).isFalse()
@@ -331,6 +332,7 @@ class DebuggerEndpointRepositoryTest {
 			DebuggerEndpointRepository(
 				ThrowingDao { kotlinx.coroutines.CancellationException("cancelled") },
 				CoroutineScope(Dispatchers.IO),
+				isInstalled = { true },
 			)
 
 		val result = runCatching { runBlocking { failing.storeEndpoint("com.example", endpoint) } }
