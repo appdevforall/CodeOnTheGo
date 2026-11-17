@@ -2,7 +2,9 @@ package com.itsaky.androidide.lsp
 
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.editor.language.treesitter.JavaScriptFileTypes
 import com.itsaky.androidide.editor.language.treesitter.PluginGrammars
 import com.itsaky.androidide.editor.language.treesitter.PluginTreeSitterLanguage
 import com.itsaky.androidide.editor.language.treesitter.TSLanguageRegistry
@@ -23,7 +25,12 @@ import java.util.concurrent.Executors
 
 object PluginLanguageSupport {
 	private val log = LoggerFactory.getLogger(PluginLanguageSupport::class.java)
-	private val hostFileTypes = setOf("java", "kt", "kts", "xml", "json", "log", "gradle", "c", "h", "cc", "cpp", "cxx")
+
+	// Closed to plugins entirely.
+	private val closedFileTypes = setOf("java", "kt", "kts", "xml", "json", "log", "gradle", "c", "h", "cc", "cpp", "cxx")
+
+	// The IDE highlights these; a plugin may claim them only to supply a language server.
+	private val hostFileTypes = JavaScriptFileTypes.ALL.toSet()
 	private val mainExecutor = Handler(Looper.getMainLooper()).let { handler -> Executor { handler.post(it) } }
 	private val refreshExecutor = Executors.newSingleThreadExecutor { Thread(it, "plugin-languages") }
 	private val lock = Any()
@@ -35,9 +42,11 @@ object PluginLanguageSupport {
 			changedFileTypes.toSet().also { changedFileTypes.clear() }
 		}
 
-	fun serverIdFor(file: File): String? {
-		val type = file.extension.lowercase()
-		return synchronized(lock) { installed.firstOrNull { type in it.fileTypes }?.serverId }
+	fun serverIdFor(file: File): String? = serverIdForType(file.extension)
+
+	fun serverIdForType(type: String): String? {
+		val key = type.lowercase()
+		return synchronized(lock) { installed.firstOrNull { key in it.fileTypes }?.serverId }
 	}
 
 	fun refresh() {
@@ -79,7 +88,8 @@ object PluginLanguageSupport {
 		}
 	}
 
-	private fun install(
+	@VisibleForTesting
+	internal fun install(
 		contribution: PluginLanguageContribution,
 		claimed: MutableSet<String>,
 	): InstalledLanguage? {
@@ -88,11 +98,16 @@ object PluginLanguageSupport {
 			definition.fileExtensions
 				.map { it.lowercase() }
 				.filter { type ->
-					val free = type !in hostFileTypes && type !in claimed
-					if (!free) {
-						log.warn("Plugin {} cannot claim '.{}' for {}: already handled", contribution.pluginId, type, definition.languageId)
+					val refusal =
+						when {
+							type in closedFileTypes || type in claimed -> "already handled"
+							type in hostFileTypes && definition.server == null -> "the IDE highlights it and there is no server"
+							else -> null
+						}
+					if (refusal != null) {
+						log.warn("Plugin {} cannot claim '.{}' for {}: {}", contribution.pluginId, type, definition.languageId, refusal)
 					}
-					free
+					refusal == null
 				}.toSet()
 		if (fileTypes.isEmpty()) return null
 		claimed += fileTypes
@@ -112,12 +127,17 @@ object PluginLanguageSupport {
 		serverId: String?,
 	): Map<String, TreeSitterLanguage.Factory<*>> {
 		val grammar = contribution.definition.grammar ?: return emptyMap()
+		val grammarTypes = fileTypes - hostFileTypes
+		if (grammarTypes.size != fileTypes.size) {
+			log.info("Plugin {} grammar ignored for {}: the IDE highlights them", contribution.pluginId, fileTypes - grammarTypes)
+		}
+		if (grammarTypes.isEmpty()) return emptyMap()
 		val library = File(contribution.nativeLibraryDir, "libtree-sitter-${grammar.name}.so")
 		if (!library.isFile) {
 			log.error("Plugin {} grammar library not found: {}", contribution.pluginId, library)
 			return emptyMap()
 		}
-		return fileTypes
+		return grammarTypes
 			.associateWith { type ->
 				PluginTreeSitterLanguage.Factory(type, library, grammar.name, contribution.assets, grammar.queriesAssetPath, serverId)
 			}
@@ -175,7 +195,7 @@ object PluginLanguageSupport {
 			}.start()
 	}
 
-	private data class InstalledLanguage(
+	internal data class InstalledLanguage(
 		val contribution: PluginLanguageContribution,
 		val fileTypes: Set<String>,
 		val serverId: String?,

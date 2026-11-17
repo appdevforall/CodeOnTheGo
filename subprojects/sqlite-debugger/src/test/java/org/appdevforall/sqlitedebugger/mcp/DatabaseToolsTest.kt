@@ -458,9 +458,9 @@ class DatabaseToolsTest {
 	}
 
 	@Test(timeout = 10_000)
-	fun aCallWhoseTimeRanOutMostlyWaitingSaysSo() {
-		val r = queuedBehindAnotherCall(30_000, ranPastItsLimit)
-		assertTrue(errorText(r), errorText(r).startsWith("the query ran past its time limit (this call waited 30.0 s of its 50 s"))
+	fun aCallThatWaitedHalfItsTimeLimitSaysSo() {
+		val r = queuedBehindAnotherCall(DatabaseTools.DEADLINE_MS / 2, ranPastItsLimit)
+		assertTrue(errorText(r), errorText(r).startsWith("the query ran past its time limit (this call waited 25.0 s of its 50 s"))
 	}
 
 	@Test(timeout = 10_000)
