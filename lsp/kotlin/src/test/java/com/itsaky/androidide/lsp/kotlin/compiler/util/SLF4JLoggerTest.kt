@@ -20,4 +20,18 @@ class SLF4JLoggerTest : KtLspTest() {
 		logger.error("with throwable", RuntimeException("boom"))
 		logger.error("with details", RuntimeException(), "detail-1", "detail-2")
 	}
+
+	@Test
+	fun `an error logs its attachments' sizes, not their contents`() {
+		// IntelliJ attaches whole file texts to errors such as "Inconsistent tree"; inlined, one error
+		// wrote thousands of log lines per keystroke.
+		val fileText = "class Foo\n".repeat(1_000)
+
+		val message = SLF4JLogger.errorMessage("Inconsistent kotlin.FILE tree", arrayOf("/src/Foo.kt", fileText, null))
+
+		assertThat(message).startsWith("Inconsistent kotlin.FILE tree")
+		assertThat(message).doesNotContain("class Foo")
+		assertThat(message).contains("2 attachments")
+		assertThat(message).contains("${fileText.length}")
+	}
 }
