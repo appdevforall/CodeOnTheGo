@@ -59,6 +59,11 @@ class DatabaseTools(
 
 		const val PAGING_NOTE = "Paging re-runs the query for each page, so a later page can differ if the data changed."
 
+		/** Server connections never load what the app registers on its own connections (see the README). */
+		private const val APP_FUNCTIONS_NOTE =
+			"Functions the app adds to its own connections, such as sqlite-js's stored JavaScript functions, do not exist " +
+				"here (\"no such function\", also through a view)"
+
 		/** A SQLite value as JSON: org.json throws on NaN and infinities, and JSON numbers lose integers past 2^53. */
 		fun encodeValue(
 			value: Any?,
@@ -194,8 +199,11 @@ class DatabaseTools(
 				"Get schema",
 				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_master. " +
 					"A CREATE statement is cut at ${MAX_SCHEMA_SQL_BYTES / 1024} KiB: its entry then has truncated true, and " +
-					"truncated_cells counts the cut values. The top-level truncated is true when anything was cut or entries past " +
-					"the first $MAX_ROWS were left out.",
+					"truncated_cells counts the cut values. The top-level truncated is true when anything was cut or entries were left " +
+					"out: past the first $MAX_ROWS, or past about ${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (about " +
+					"${MAX_TOTAL_BYTES / MAX_SCHEMA_SQL_BYTES} statements of ${MAX_SCHEMA_SQL_BYTES / 1024} KiB). There is no offset: " +
+					"to read the rest, page through sqlite_master with query, and read a statement longer than its " +
+					"$MAX_TEXT_BYTES-byte TEXT limit in parts with substr.",
 				databaseSchema(),
 			) { call, args -> getSchema(call, args) },
 			tool(
@@ -204,7 +212,7 @@ class DatabaseTools(
 				"Runs one read-only SQL statement. Returns at most max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS); " +
 					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true). Use offset to page. " +
-					"$PAGING_NOTE Writes are refused.",
+					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead.",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
@@ -216,7 +224,7 @@ class DatabaseTools(
 			tool(
 				"explain_query_plan",
 				"Explain a query plan",
-				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run.",
+				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. $APP_FUNCTIONS_NOTE.",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters."),
