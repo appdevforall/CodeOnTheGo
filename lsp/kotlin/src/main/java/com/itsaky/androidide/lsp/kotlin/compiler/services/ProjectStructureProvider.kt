@@ -5,7 +5,6 @@ import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.NotUnderContentRootModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
-import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
 import org.jetbrains.kotlin.analysis.api.KaPlatformInterface
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProvider
 import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProviderBase
@@ -20,6 +19,8 @@ import org.jetbrains.kotlin.com.intellij.openapi.vfs.VirtualFile
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.psi.KtFile
 import java.nio.file.Paths
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.pathString
 
@@ -29,7 +30,20 @@ internal class ProjectStructureProvider :
 	companion object {
 		fun getInstance(project: Project): ProjectStructureProvider =
 			KotlinProjectStructureProvider.getInstance(project) as ProjectStructureProvider
+
+		/**
+		 * Distinct source ids are the library JAR paths plus the source files looked up. A workspace the
+		 * size of CodeOnTheGo's own (about 180 dependencies of `:app`, about 2,000 source files) fits, and
+		 * an entry holds only two references, so the bound costs well under a megabyte.
+		 */
+		const val MAX_MEMOIZED_MODULE_LOOKUPS = 4096
 	}
+
+	@Volatile
+	private var moduleLookups = SourceModuleLookupMemo(MAX_MEMOIZED_MODULE_LOOKUPS)
+
+	@VisibleForTesting
+	internal fun memoizedModuleLookupCount(): Int = moduleLookups.size
 
 	private lateinit var modules: List<KtModule>
 	private lateinit var project: Project
@@ -81,6 +95,9 @@ internal class ProjectStructureProvider :
 	) {
 		this.modules = modules
 		this.project = project
+		// A new memo rather than a cleared one: a lookup still walking the previous graph writes into the
+		// memo it started with, which is discarded here.
+		moduleLookups = SourceModuleLookupMemo(MAX_MEMOIZED_MODULE_LOOKUPS)
 	}
 
 	override fun getModule(
@@ -147,15 +164,25 @@ internal class ProjectStructureProvider :
 	 * The search is recursive: if the top-level modules do not match, their transitive dependencies
 	 * are checked as well.
 	 *
+	 * Completion calls this once per unimported-symbol candidate, so results are memoized, misses
+	 * included: a miss is the costliest lookup, a walk of the whole graph. Memoizing is sound because
+	 * an environment's module graph is fixed for its lifetime: `AbstractCompilationEnvironment` builds
+	 * `modules` once, during initialization; [KtModule.contentRoots] are immutable; and a workspace
+	 * change builds a new compiler, whose environment calls [setupWith] again, which starts a new memo.
+	 *
 	 * @return The declaring [KaModule], or `null` if none is found.
 	 */
-	@OptIn(KaExperimentalApi::class)
-	fun findModuleForSourceId(sourceId: String): KaModule? {
+	fun findModuleForSourceId(sourceId: String): KaModule? = moduleLookups.lookup(sourceId, ::searchModuleForSourceId)
+
+	private fun searchModuleForSourceId(sourceId: String): KaModule? {
 		val path = Paths.get(sourceId)
-		val visited = mutableSetOf<String>()
+		// By identity, not by moduleDescription: the description is diagnostic text rebuilt on every read,
+		// joining every dependency's id, and reading it per visited module per lookup was most of the
+		// lookup's cost (ADFA-6855 profiling).
+		val visited = Collections.newSetFromMap(IdentityHashMap<KaModule, Boolean>())
 
 		fun search(module: KaModule): KaModule? {
-			if (!visited.add(module.moduleDescription)) return null
+			if (!visited.add(module)) return null
 			if (module is KtModule) {
 				val roots = module.contentRoots
 				if (roots.contains(path) || roots.any { path.startsWith(it) }) return module
