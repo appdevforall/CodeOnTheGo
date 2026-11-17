@@ -23,7 +23,7 @@ import java.util.TimerTask
  * a slow query (up to [DEADLINE_MS]) makes the others wait. That is accepted: the debugger serves
  * one agent, and a connection per call would open the app's file many times over. A tool call's
  * time limit starts when the call begins, so its waits for the lock count and the server gives up
- * before the client does; a call whose time went mostly to waiting says so in its error.
+ * before the client does; a call that waited at least half its time limit says so in its error.
  */
 class DatabaseTools(
 	private val engine: DebugEngine,
