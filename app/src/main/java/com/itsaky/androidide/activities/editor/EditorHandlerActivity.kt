@@ -1795,16 +1795,11 @@ open class EditorHandlerActivity :
 		// keep closing the file at index 0
 		// if openedFiles[0] == file, then keep closing files at index 1
 		while (editorViewModel.getOpenedFileCount() != 1) {
-			val editor = getEditorAtIndex(index)
-
-			if (editor == null) {
-				log.error("Unable to save file at index {}", index)
-				continue
-			}
-
 			// Index of files changes as we keep close files
-			// So we compare the files instead of index
-			if (file != editor.file) {
+			// So we compare the files instead of index. The opened file, not the editor's: an
+			// editor's file is null until its text has loaded, or for good if the read failed,
+			// while the current file is set from the opened file as soon as its tab is shown.
+			if (file != editorViewModel.getOpenedFile(index)) {
 				closeFile(index)
 			} else {
 				index = 1
