@@ -94,6 +94,12 @@ internal class IncrementalKtDocument(
 		// The diff below moves the new children into oldRoot, so its old contents are only readable now.
 		val replacedHadClassOrObject =
 			oldRoot !is FileElement && PsiTreeUtil.findChildOfType(oldRoot.psi, KtClassOrObject::class.java) != null
+		// The contents go first, as in IntelliJ's own commit (document, then reparse): applying the PSI
+		// change checks the tree against the view provider's contents and reports a mismatch as an error
+		// carrying the whole file. doActualPsiChange does not update the contents itself. On a failure
+		// below the caller drops this KtFile, so contents ahead of the tree are never read.
+		(viewProvider.virtualFile as LightVirtualFile).setContent(null, text, false)
+		syncDocument(text)
 		// PomModelImpl refuses to change physical PSI outside a command. CoreCommandProcessor swallows
 		// whatever the runnable throws, so the text check below is the only reliable failure signal.
 		CommandProcessor.getInstance().executeCommand(
@@ -105,9 +111,6 @@ internal class IncrementalKtDocument(
 		if (!(ktFile.node as FileElement).textMatches(text)) {
 			return ReparseOutcome.Failed("tree text does not match the document after the reparse", null)
 		}
-		// doActualPsiChange leaves the view provider's contents at the old text.
-		(viewProvider.virtualFile as LightVirtualFile).setContent(null, text, false)
-		syncDocument(text)
 
 		if (oldRoot is FileElement) return ReparseOutcome.WholeFile
 		// A reparseable node outside the Kotlin PSI (KDoc) has no KtElement to report; the whole file is
