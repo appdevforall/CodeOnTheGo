@@ -169,6 +169,7 @@ class GradleQuickBuildProvisioner(
 					extraSourceRoots = proxyApp.sourceRoots,
 					stableIdsFile = proxyApp.stableIdsFile,
 					libraryResourceFlats = proxyApp.libraryResourceFlats,
+					gradleUserHome = Environment.GRADLE_USER_HOME,
 				),
 			variantName = buildResult.variantName,
 			baselineGeneration = buildResult.baselineGeneration,
@@ -255,6 +256,7 @@ class GradleQuickBuildProvisioner(
 							extraSourceRoots = buildResult.proxyApp.sourceRoots,
 							stableIdsFile = buildResult.proxyApp.stableIdsFile,
 							libraryResourceFlats = buildResult.proxyApp.libraryResourceFlats,
+							gradleUserHome = Environment.GRADLE_USER_HOME,
 						),
 				)
 			}
