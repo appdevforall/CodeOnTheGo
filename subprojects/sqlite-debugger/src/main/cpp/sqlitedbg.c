@@ -62,6 +62,8 @@ static uint64_t g_next_seq = 1;
 
 // Set around the server's own sqlite3_open_v2: auto extensions run on the opening thread, inside it.
 static __thread int tls_opening_server;
+// Set around sqlitedbg_end_transaction's ROLLBACK, which the authorizer checks on this thread.
+static __thread int tls_ending_transaction;
 
 static int64_t now_ns(void) {
 	struct timespec ts;
@@ -415,9 +417,11 @@ static int server_authorizer(void *unused, int action, const char *a1, const cha
 		case SQLITE_ATTACH:
 		case SQLITE_DETACH:
 		// A client could open a transaction or savepoint and hold a lock on the app's database.
-		case SQLITE_TRANSACTION:
 		case SQLITE_SAVEPOINT:
 			return SQLITE_DENY;
+		case SQLITE_TRANSACTION:
+			// Only the ROLLBACK of sqlitedbg_end_transaction, which ends one, gets past.
+			return tls_ending_transaction && a1 && strcmp(a1, "ROLLBACK") == 0 ? SQLITE_OK : SQLITE_DENY;
 		case SQLITE_PRAGMA:
 			// PRAGMA query_only=0 would lift the guard, and a PRAGMA that stores a value writes.
 			// PRAGMA table_info(t) also has a second argument, so only these names are checked.
@@ -438,6 +442,21 @@ static int server_authorizer(void *unused, int action, const char *a1, const cha
 		default:
 			return SQLITE_OK;
 	}
+}
+
+#ifdef SQLITEDBG_TEST
+// Host tests: the authorizer, to put back after opening a transaction with it cleared, as a way past
+// it would leave a server connection.
+int (*const sqlitedbg_test_server_authorizer)(void *, int, const char *, const char *, const char *,
+                                              const char *) = server_authorizer;
+#endif
+
+int sqlitedbg_end_transaction(sqlite3 *db) {
+	if (sqlite3_get_autocommit(db)) return SQLITE_OK;
+	tls_ending_transaction = 1;
+	int rc = sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL);
+	tls_ending_transaction = 0;
+	return rc;
 }
 
 int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db) {

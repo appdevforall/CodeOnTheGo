@@ -25,3 +25,20 @@ JNIEXPORT jint JNICALL Java_Helper_close(JNIEnv *e, jclass c, jlong db) {
 	(void)c;
 	return sqlite3_close((sqlite3 *)(intptr_t)db);
 }
+
+static int deny_transactions(void *u, int action, const char *a1, const char *a2, const char *d, const char *t) {
+	(void)u;
+	(void)a1;
+	(void)a2;
+	(void)d;
+	(void)t;
+	return action == SQLITE_TRANSACTION ? SQLITE_DENY : SQLITE_OK;
+}
+
+// An authorizer on any connection, a server one included, that refuses BEGIN, COMMIT and ROLLBACK,
+// or none (deny false).
+JNIEXPORT jint JNICALL Java_Helper_denyTransactions(JNIEnv *e, jclass c, jlong db, jboolean deny) {
+	(void)e;
+	(void)c;
+	return sqlite3_set_authorizer((sqlite3 *)(intptr_t)db, deny ? deny_transactions : 0, 0);
+}

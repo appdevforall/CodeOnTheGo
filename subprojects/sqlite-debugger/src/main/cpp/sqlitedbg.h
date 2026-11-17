@@ -148,6 +148,13 @@ void sqlitedbg_set_client_connected(int connected);
 // API to call), or what sqlite3_open_v2 returns.
 int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db);
 
+// Ends a transaction left open on a server connection with ROLLBACK, which the read-only authorizer
+// lets past for this call only: a client's BEGIN, COMMIT and ROLLBACK stay refused. The JNI layer
+// calls it after every query as a backstop; nothing a client can send opens one on a read-only
+// connection. Returns SQLITE_OK when none was open or it was rolled back, else what ROLLBACK
+// returned, and the transaction is still open.
+int sqlitedbg_end_transaction(sqlite3 *db);
+
 #ifdef __cplusplus
 }
 #endif
