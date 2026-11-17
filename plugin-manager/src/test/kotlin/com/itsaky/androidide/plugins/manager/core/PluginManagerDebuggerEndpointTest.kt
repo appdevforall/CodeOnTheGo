@@ -196,6 +196,17 @@ class PluginManagerDebuggerEndpointTest {
 	}
 
 	@Test
+	fun `a plugin whose activation fails is left disabled and its service refuses`() {
+		openInEditor(project)
+
+		val service = load("reader", "debugger.endpoints", FailingActivationPlugin::class.java)
+
+		assertThat(pluginManager().getLoadedPlugin("reader")).isNull()
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		assertThat(asked).isEmpty()
+	}
+
+	@Test
 	fun `a second install, as a plugin would try, fails and leaves the app's source in place`() {
 		val service = load("reader", "debugger.endpoints")
 		openInEditor(project)
@@ -327,6 +338,11 @@ class PluginManagerDebuggerEndpointTest {
 			@Volatile
 			var service: DebuggerEndpointService? = null
 		}
+	}
+
+	/** initialize() succeeds, activate() throws. */
+	class FailingActivationPlugin : ContextKeepingPlugin() {
+		override fun activate(): Boolean = error("activate failed")
 	}
 
 	/** The editor activity's provider, as registered while it shows a project. */
