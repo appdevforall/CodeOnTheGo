@@ -5,6 +5,8 @@ import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.plugins.extensions.CommandResult
 import com.itsaky.androidide.plugins.extensions.CommandSpec
 import com.itsaky.androidide.plugins.services.CommandExecution
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -25,20 +27,24 @@ class IdeCommandServiceImplTest {
 	private val pidFile by lazy { File(tmp.root, "pids") }
 
 	/** `setsid` and `kill` from util-linux and procps, standing in for Android's toybox and [android.system.Os]. */
-	private val hostGroups =
-		ProcessGroups(SETSID) { pgid, signal ->
-			val name =
-				when (signal) {
-					GroupSignal.PROBE -> "0"
-					GroupSignal.TERM -> "TERM"
-					GroupSignal.KILL -> "KILL"
-				}
-			ProcessBuilder(KILL, "-s", name, "--", "-$pgid")
-				.redirectOutput(DEV_NULL)
-				.redirectError(DEV_NULL)
-				.start()
-				.waitFor() == 0
-		}
+	private val hostGroups = ProcessGroups(SETSID, ::hostSignal)
+
+	private fun hostSignal(
+		pgid: Int,
+		signal: GroupSignal,
+	): Boolean {
+		val name =
+			when (signal) {
+				GroupSignal.PROBE -> "0"
+				GroupSignal.TERM -> "TERM"
+				GroupSignal.KILL -> "KILL"
+			}
+		return ProcessBuilder(KILL, "-s", name, "--", "-$pgid")
+			.redirectOutput(DEV_NULL)
+			.redirectError(DEV_NULL)
+			.start()
+			.waitFor() == 0
+	}
 
 	@After
 	fun killLeftovers() {
@@ -232,6 +238,7 @@ class IdeCommandServiceImplTest {
 		assertThat(result).isInstanceOf(CommandResult.Success::class.java)
 		result as CommandResult.Success
 		assertThat(result.stdout).isEqualTo("done\n")
+		assertThat(result.stderr).isEmpty()
 		assertThat(result.durationMs).isAtLeast(2_000)
 		assertThat(pids(1).filter(::alive)).isEmpty()
 	}
@@ -290,6 +297,60 @@ class IdeCommandServiceImplTest {
 	}
 
 	@Test
+	fun `a command's slot is free once its await returns`() {
+		assumeHostTools()
+		val service = service()
+		val running = mutableListOf<Int>()
+
+		runBlocking {
+			// Unconfined: the code after await() runs inside the completion, as soon as the result is set.
+			val finished = service.executeCommand(shell("sleep 0.2"), 5_000)
+			launch(Dispatchers.Unconfined) {
+				finished.await()
+				running += service.getRunningCommandCount()
+			}.join()
+			val cancelled = service.executeCommand(shell("sleep 600"), 60_000)
+			val waiter =
+				launch(Dispatchers.Unconfined) {
+					cancelled.await()
+					running += service.getRunningCommandCount()
+				}
+			cancelled.cancel()
+			waiter.join()
+		}
+
+		assertThat(running).containsExactly(0, 0)
+	}
+
+	@Test
+	fun `setsid is used when it runs the command in place`() {
+		assumeHostTools()
+
+		assertThat(ProcessGroups.usableSetsid(SETSID, SH)).isEqualTo(SETSID)
+	}
+
+	@Test
+	fun `a missing setsid is not used`() {
+		assertThat(ProcessGroups.usableSetsid(File(tmp.root, "none").path, SH)).isNull()
+	}
+
+	// As Android 11's toybox setsid does: it forks, and its parent exits 0 at once.
+	@Test
+	fun `a setsid that forks is not used, so a command still runs to its end`() {
+		assumeHostTools()
+		val forking =
+			File(tmp.root, "setsid").apply {
+				writeText("#!/bin/sh\n\"\$@\" &\nexit 0\n")
+				setExecutable(true)
+			}
+		val groups = ProcessGroups(ProcessGroups.usableSetsid(forking.path, SH), ::hostSignal)
+
+		val result = service(groups).executeCommand(shell("sleep 1; echo late"), 10_000).awaitWithin(10_000)
+
+		assertThat((result as CommandResult.Success).stdout).isEqualTo("late\n")
+	}
+
+	@Test
 	fun `without setsid a timeout still stops the command itself`() {
 		assumeHostTools()
 		val noGroups = ProcessGroups(null) { _, _ -> throw AssertionError("signalled a group that does not exist") }
@@ -324,6 +385,7 @@ class IdeCommandServiceImplTest {
 	private companion object {
 		const val SETSID = "/usr/bin/setsid"
 		const val KILL = "/usr/bin/kill"
+		const val SH = "/bin/sh"
 		val DEV_NULL = File("/dev/null")
 
 		/** A child, a double-forked grandchild, the shell itself, and a child it waits for. */

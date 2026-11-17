@@ -6,6 +6,7 @@ import android.system.OsConstants
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /** A signal [ProcessGroups] sends. [PROBE] delivers nothing; it only asks whether the group exists. */
 internal enum class GroupSignal { PROBE, TERM, KILL }
@@ -21,10 +22,9 @@ internal data class GroupedCommand(
  * every process it started, not only the one the IDE holds. Without a group, a command's children
  * (`a | b`, `cmd &`, pip's build steps) outlive it.
  *
- * @param setsidPath the `setsid` program. It does not fork when its caller leads no group, which a
- *   [ProcessBuilder] child never does, so the process the IDE holds becomes the group's leader and its
- *   process id the group's. Null where there is none: commands then share the IDE's group, and only
- *   their own process can be stopped.
+ * @param setsidPath the `setsid` program, one that runs its command in place (see [usableSetsid]), so
+ *   the process the IDE holds becomes the group's leader and its process id the group's. Null where
+ *   there is none: commands then share the IDE's group, and only their own process can be stopped.
  * @param signal sends a [GroupSignal] to every process in group `pgid`, as `kill(-pgid, sig)` does.
  *   Returns false when no process is left in the group.
  */
@@ -76,12 +76,12 @@ internal class ProcessGroups(
 		private const val NANOS_PER_MILLI = 1_000_000L
 
 		private const val ANDROID_SETSID = "/system/bin/setsid"
+		private const val ANDROID_SH = "/system/bin/sh"
+		private const val CHECK_TIMEOUT_S = 5L
 
-		/** Android's toybox `setsid`, and `kill(2)` through [Os]. */
+		/** Android's toybox `setsid`, if it runs commands in place, and `kill(2)` through [Os]. */
 		val android: ProcessGroups by lazy {
-			val setsid = ANDROID_SETSID.takeIf { File(it).canExecute() }
-			if (setsid == null) log.warn("No {}: a plugin's command can be stopped, but not the processes it starts", ANDROID_SETSID)
-			ProcessGroups(setsid) { pgid, signal ->
+			ProcessGroups(usableSetsid(ANDROID_SETSID, ANDROID_SH)) { pgid, signal ->
 				val number =
 					when (signal) {
 						GroupSignal.PROBE -> 0
@@ -96,6 +96,35 @@ internal class ProcessGroups(
 					false
 				}
 			}
+		}
+
+		/**
+		 * [setsid] if it runs its command in place, which it checks by running [shell] under it once;
+		 * otherwise null, with a warning. Toybox's `setsid` forks only when its caller leads a group,
+		 * which a [ProcessBuilder] child never does, except in Android 11: there it makes itself a
+		 * group leader first, so it always forks and exits 0 at once. Every command would then seem to
+		 * end as it started, and its group would not be the one the IDE holds.
+		 */
+		fun usableSetsid(
+			setsid: String,
+			shell: String,
+		): String? {
+			if (!File(setsid).canExecute()) {
+				log.warn("No {}: a plugin's command can be stopped, but not the processes it starts", setsid)
+				return null
+			}
+			val inPlace =
+				runCatching {
+					val process = ProcessBuilder(setsid, shell, "-c", "echo \$\$").redirectErrorStream(true).start()
+					if (!process.waitFor(CHECK_TIMEOUT_S, TimeUnit.SECONDS)) {
+						process.destroyForcibly()
+						return@runCatching false
+					}
+					val printed = process.inputStream.bufferedReader().use { it.readLine() }
+					printed != null && printed.trim() == process.pidOrNull()?.toString()
+				}.getOrDefault(false)
+			if (!inPlace) log.warn("{} forks: a plugin's command can be stopped, but not the processes it starts", setsid)
+			return setsid.takeIf { inPlace }
 		}
 	}
 }

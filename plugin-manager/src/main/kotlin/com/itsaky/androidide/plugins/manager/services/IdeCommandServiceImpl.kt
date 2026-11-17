@@ -235,9 +235,10 @@ internal class CommandExecutionImpl(
 				}
 			exitCode?.let { outputChannel.trySend(CommandOutput.ExitCode(it)) }
 			outputChannel.close()
+			// First, so that a caller resuming from await() finds the slot free.
+			onComplete()
 			// cancel() has already completed it with Cancelled.
 			resultDeferred.complete(result)
-			onComplete()
 		}
 	}
 
@@ -268,12 +269,13 @@ internal class CommandExecutionImpl(
 
 	override fun cancel() {
 		outputChannel.close()
+		// First, so that a caller resuming from await() finds the slot free.
+		onComplete()
 		if (resultDeferred.isActive) {
 			resultDeferred.complete(CommandResult.Cancelled(snapshot(stdoutBuilder), snapshot(stderrBuilder)))
 		}
 		// The command's coroutine stops the process and its group as it ends.
 		scope.cancel()
-		onComplete()
 	}
 
 	override fun isRunning(): Boolean = process?.isAlive == true
