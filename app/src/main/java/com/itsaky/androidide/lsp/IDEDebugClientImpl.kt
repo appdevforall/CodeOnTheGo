@@ -139,10 +139,25 @@ class IDEDebugClientImpl(
 			logger.debug("resuming client: {}", client.name)
 			// Mark running before resuming: a breakpoint hit as soon as the VM resumes
 			// must not be overwritten by this call completing afterwards.
+			val previousState = connectionState
 			connectionState = DebuggerConnectionState.ATTACHED
 			breakpoints.unhighlightHighlightedLocation()
 			launchUpdateThreadInfo(client)
-			clientScope.launch { client.adapter.resumeClient(client) }
+			clientScope.launch {
+				val resumed =
+					try {
+						client.adapter.resumeClient(client)
+					} catch (e: CancellationException) {
+						throw e
+					} catch (e: Exception) {
+						logger.error("Failed to resume client", e)
+						false
+					}
+				if (!resumed && connectionState == DebuggerConnectionState.ATTACHED) {
+					connectionState = previousState
+					launchUpdateThreadInfo(client)
+				}
+			}
 		}
 
 	fun killVm() =

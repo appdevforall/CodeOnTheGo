@@ -23,6 +23,7 @@ import com.sun.jdi.InvalidStackFrameException
 import com.sun.jdi.ObjectCollectedException
 import com.sun.jdi.ThreadReference
 import com.sun.jdi.VMDisconnectedException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -250,5 +251,33 @@ class EvaluationContextTest {
 
 			assertThat(first.await()).isEqualTo("first")
 			assertThat(second.await()).isNull()
+		}
+
+	@Test
+	fun `processBatches completes remaining batches with null on CancellationException`() =
+		runBlocking {
+			val thread1 = fakeThread(isSuspended = true, name = "thread-1")
+			val thread2 = fakeThread(isSuspended = true, name = "thread-2")
+
+			val cancelled =
+				async(Dispatchers.Unconfined) {
+					context.evaluate(thread1) {
+						throw CancellationException("evaluator cancelled")
+					}
+				}
+			val sibling =
+				async(Dispatchers.Unconfined) {
+					context.evaluate(thread2) {
+						"sibling-val"
+					}
+				}
+
+			try {
+				cancelled.await()
+			} catch (_: CancellationException) {
+			}
+
+			val siblingResult = withTimeout(2_000) { sibling.await() }
+			assertThat(siblingResult).isNull()
 		}
 }

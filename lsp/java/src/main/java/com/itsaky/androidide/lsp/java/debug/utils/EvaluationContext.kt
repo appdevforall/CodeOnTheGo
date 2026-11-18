@@ -115,6 +115,12 @@ class EvaluationContext : AutoCloseable {
 					requests.clear()
 				}
 			}
+		} catch (e: CancellationException) {
+			threadBatches.values.forEach { requests ->
+				requests.forEach { it.deferred.complete(null) }
+				requests.clear()
+			}
+			throw e
 		} catch (e: Throwable) {
 			logger.error("Failed to process evaluator batches", e)
 		}
