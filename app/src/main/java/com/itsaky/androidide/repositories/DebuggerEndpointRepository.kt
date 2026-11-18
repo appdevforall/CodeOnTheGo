@@ -38,8 +38,9 @@ class DebuggerEndpointRepository(
 	 * Installs Code on the Go started from a project, by PackageInstaller session ID, until the session reports a
 	 * result. Held by this application-wide singleton, so recreating the editor Activity loses none; a process death
 	 * loses them all, and each app is then paired by its next launch from its project (LaunchAppAction). Nothing
-	 * expires, so a slow install still finds its note. A note whose session never reports, as when the commit
-	 * failed, stays unused until the process ends: session IDs are not reused.
+	 * expires, so a slow install still finds its note. A session whose staging or commit throws reports no result,
+	 * so ApkInstaller's onCommitFailed drops its note through [discardPendingInstall]; a note whose session never
+	 * reports for another reason stays unused until the process ends: session IDs are not reused.
 	 */
 	private val pendingInstalls = ConcurrentHashMap<Int, PendingInstall>()
 
@@ -79,7 +80,10 @@ class DebuggerEndpointRepository(
 		return scope.launch { recordInstalled(note.applicationId, note.location) }
 	}
 
-	/** Call when the session [sessionId] failed, was aborted or was blocked, to drop its note; other sessions' stay. */
+	/**
+	 * Call when the session [sessionId] failed, was aborted or was blocked, or could not be committed, to drop its
+	 * note; other sessions' stay.
+	 */
 	fun discardPendingInstall(sessionId: Int) {
 		pendingInstalls.remove(sessionId)
 	}

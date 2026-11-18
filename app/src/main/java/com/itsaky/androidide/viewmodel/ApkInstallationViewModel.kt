@@ -121,12 +121,14 @@ class ApkInstallationViewModel : ViewModel() {
 	 * @param context The context.
 	 * @param apk The APK file to install.
 	 * @param beforeCommit see [ApkInstaller.installApk].
+	 * @param onCommitFailed see [ApkInstaller.installApk].
 	 */
 	fun installApk(
 		context: Context,
 		apk: File,
 		launchInDebugMode: Boolean,
 		beforeCommit: ((sessionId: Int) -> Unit)? = null,
+		onCommitFailed: ((sessionId: Int) -> Unit)? = null,
 	) {
 		packageInstaller = context.applicationContext.packageManager.packageInstaller
 		packageInstaller.unregisterSessionCallback(callback)
@@ -138,6 +140,7 @@ class ApkInstallationViewModel : ViewModel() {
 				apk,
 				launchInDebugMode,
 				beforeCommit = beforeCommit,
+				onCommitFailed = onCommitFailed,
 			)
 		}
 	}
