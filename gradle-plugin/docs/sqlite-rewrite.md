@@ -93,6 +93,20 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   stays valid, and writes every frame of that method in full (compressed frames are relative to the implicit first
   frame, which now has the wide type). A driver that is handed an `Object[]` with an element that is not a
   `String` throws `ClassCastException` on entry; requery's own drivers pass strings.
+  The mode is per variant, but `COPY_FRAMES` cannot weaken another instrumentation in the same build (Hilt, Firebase,
+  an app's own `transformClassesWith`) that needs frames computed: `setAsmFramesComputationMode` keeps the highest
+  mode any plugin asks for (AGP 7.3.0, 8.8.2 and 9.3.1 compare the enum ordinals; checked with javap), and
+  `COPY_FRAMES` is the lowest. Checked once (2026-11-17, AGP 9.3.1, not a standing test) in the order a last-call-wins
+  rule would break: CoGo applies its plugin in `afterEvaluate`, so its `onVariants` runs after the app's. The
+  functional tests' sample app, opted in, got a `SQLiteOpenHelper` subclass, a `SQLiteCursorDriver` and a second
+  `AsmClassVisitorFactory` (scope ALL) that inserts `if (0 != 0) throw null` at the start of every method but
+  constructors of the app, androidx.sqlite and Room, and asks for `COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS`.
+  demoDebug and demoRelease assembled (D8, R8). Their transformed classes, 232 each, pass ASM's `CheckClassAdapter`
+  and the JVM's verifier (each class linked against android.jar and the instrumented dependency jars), except Room's
+  `LimitOffsetDataSource`, which cannot load because the app has no `androidx.paging`. `Driver.query` carries the
+  `CHECKCAST` prologue and the branch, with a computed frame at the branch target. The control, the same build
+  without the request for computed frames, fails the JVM's verifier (`Expecting a stackmap frame at branch
+  target`), so the check does see stale frames.
 
 Excluded: `io.requery.**`. The helper's package is renamed only (a redirect would call itself).
 `androidx.sqlite.db.framework.**` and `androidx.core.database.**` are rewritten but exempt from the fail rule: see
