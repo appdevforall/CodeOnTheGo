@@ -272,6 +272,15 @@ class EditorViewModel : ViewModel() {
 			_isInternalBuildInProgress.value = value
 		}
 
+	/**
+	 * The project directory this editor last reported open to plugins, as
+	 * `PluginWorkspaceEvents.projectOpened` returned it (canonical). Held here rather than on the
+	 * activity so a recreated editor closes the project its predecessor opened, and rather than read
+	 * from the global project path, which a pending project switch may already have changed.
+	 */
+	@Volatile
+	var pluginOpenedProjectDir: File? = null
+
 	var isInitializing: Boolean
 		get() = _isInitializing.value ?: false
 		set(value) {
