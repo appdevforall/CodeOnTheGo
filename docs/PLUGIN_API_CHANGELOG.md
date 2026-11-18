@@ -46,7 +46,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   `filesystem.read`. Calls arrive in order on one background thread shared by every plugin, so
   return quickly. The IDE drops the listeners when the plugin is disabled or unloads, so register
   them from `activate()`. A listener added while a project is open hears `onProjectOpened` for it
-  first. Paths are canonical. Floor `plugin.min_ide_version` at `26.48` to use them.
+  first. Paths are canonical, except one the IDE cannot resolve (`getCanonicalFile()` fails),
+  which is absolute instead. Floor `plugin.min_ide_version` at `26.48` to use them.
 
 ### 26.43 — unreleased
 - **breaking — JavaScript highlighting and the IDE's grammar names are the IDE's** _(ADFA-7084)_

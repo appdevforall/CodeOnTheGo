@@ -92,7 +92,8 @@ interface ProjectLifecycleListener {
 	 * The editor started opening the project rooted at [projectDir], or the project was already open
 	 * when this listener was added. The IDE does not wait for this call: the project's sync may
 	 * already be running, so do not rely on finishing work before it starts. A later sync or build
-	 * of the same project does not call this again. [projectDir] is canonical.
+	 * of the same project does not call this again. [projectDir] is canonical, or absolute if the
+	 * IDE could not resolve it.
 	 */
 	fun onProjectOpened(projectDir: File)
 
@@ -107,7 +108,10 @@ interface ProjectLifecycleListener {
  * Available since 26.48.
  */
 fun interface FileSaveListener {
-	/** [file] is canonical, the same form as a project directory, so `file.startsWith(dir)` works. */
+	/**
+	 * [file] is canonical, the same form as a project directory, so `file.startsWith(dir)` works. A
+	 * path the IDE could not resolve is absolute instead, and may not match.
+	 */
 	fun onFileSaved(file: File)
 }
 

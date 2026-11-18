@@ -274,7 +274,7 @@ class EditorViewModel : ViewModel() {
 
 	/**
 	 * The project directory this editor last reported open to plugins, as
-	 * `PluginWorkspaceEvents.projectOpened` returned it (canonical). Held here rather than on the
+	 * `PluginWorkspaceEvents.projectOpened` returned it. Held here rather than on the
 	 * activity so a recreated editor closes the project its predecessor opened, and rather than read
 	 * from the global project path, which a pending project switch may already have changed.
 	 */
