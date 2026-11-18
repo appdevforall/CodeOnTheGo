@@ -57,15 +57,23 @@ class DebuggerEndpointRepository(
 	}
 
 	/**
-	 * Call when the install of [applicationId] succeeded. Pairs it with the project that built it,
-	 * if [expectInstallAsync] noted one, and returns whether it did. An install the user started
-	 * some other way, such as opening an APK file, is not paired.
+	 * Call when the install of [applicationId] succeeded, before the app is launched, and returns whether it paired
+	 * the app. With a note from [expectInstallAsync] at most 5 minutes old, the app moves to the project that built
+	 * it. Without one, as when the install prompt stayed open longer, the launch that follows pairs it as
+	 * [recordLaunched] does, with [launchingProjectDir]: the caller passes the open project's directory when that
+	 * project builds [applicationId], and null otherwise, so an unrelated APK installed from a file is not paired.
 	 */
-	suspend fun confirmInstall(applicationId: String): Boolean {
-		val pending = pendingInstalls.remove(applicationId) ?: return false
-		// A note this old belongs to an install that never reported a result.
-		if (clock() - pending.noteTimeMillis > PENDING_INSTALL_MAX_AGE_MILLIS) return false
-		return recordInstalled(applicationId, pending.location)
+	suspend fun confirmInstall(
+		applicationId: String,
+		launchingProjectDir: File?,
+	): Boolean {
+		val pending = pendingInstalls.remove(applicationId)
+		// An older note may belong to an install that never reported a result, from a project that is no longer
+		// open, so it must not move the pairing; recordLaunched never moves one.
+		if (pending != null && clock() - pending.noteTimeMillis <= PENDING_INSTALL_MAX_AGE_MILLIS) {
+			return recordInstalled(applicationId, pending.location)
+		}
+		return launchingProjectDir != null && recordLaunched(applicationId, launchingProjectDir)
 	}
 
 	/**

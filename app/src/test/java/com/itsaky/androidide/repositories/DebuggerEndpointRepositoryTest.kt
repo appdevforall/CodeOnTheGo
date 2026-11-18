@@ -131,7 +131,7 @@ class DebuggerEndpointRepositoryTest {
 				var confirmed = false
 				repeat(100) {
 					if (!confirmed) {
-						confirmed = repository.confirmInstall("com.example")
+						confirmed = repository.confirmInstall("com.example", launchingProjectDir = null)
 						if (!confirmed) Thread.sleep(50)
 					}
 				}
@@ -144,11 +144,11 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
-	fun `an install nobody expected is not paired`() =
+	fun `an install nobody expected is not paired when the open project does not build it`() =
 		runBlocking<Unit> {
 			addProject("/p/a")
 
-			assertThat(repository.confirmInstall("com.example")).isFalse()
+			assertThat(repository.confirmInstall("com.example", launchingProjectDir = null)).isFalse()
 
 			assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
 		}
@@ -179,12 +179,13 @@ class DebuggerEndpointRepositoryTest {
 		discard: Boolean,
 		advanceMillis: Long,
 		now: AtomicLong,
+		launchingProjectDir: File? = null,
 	): Boolean {
 		repo.expectInstallAsync(dir) { id }
 		Thread.sleep(300)
 		if (discard) repo.discardPendingInstall(id)
 		now.addAndGet(advanceMillis)
-		return repo.confirmInstall(id)
+		return repo.confirmInstall(id, launchingProjectDir)
 	}
 
 	private fun clockedRepository(now: AtomicLong) =
@@ -233,6 +234,56 @@ class DebuggerEndpointRepositoryTest {
 
 				assertThat(paired).isFalse()
 				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `after a note expires, the launch still pairs the app with the open project`() =
+		runBlocking<Unit> {
+			val dir =
+				File.createTempFile("proj", "").apply {
+					delete()
+					mkdirs()
+				}
+			try {
+				addProject(dir.canonicalPath)
+				val now = AtomicLong(1_000L)
+
+				val sixMinutes = 6 * 60 * 1000L
+				val paired =
+					awaitNoted(
+						clockedRepository(now),
+						"com.example",
+						dir,
+						discard = false,
+						advanceMillis = sixMinutes,
+						now = now,
+						launchingProjectDir = File(dir, "../" + dir.name),
+					)
+
+				assertThat(paired).isTrue()
+				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")?.projectLocation).isEqualTo(dir.canonicalPath)
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `an install with no note pairs with the open project that builds the app`() =
+		runBlocking<Unit> {
+			val dir =
+				File.createTempFile("proj", "").apply {
+					delete()
+					mkdirs()
+				}
+			try {
+				addProject(dir.canonicalPath)
+
+				assertThat(repository.confirmInstall("com.example", launchingProjectDir = dir)).isTrue()
+
+				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")?.projectLocation).isEqualTo(dir.canonicalPath)
 			} finally {
 				dir.delete()
 			}
