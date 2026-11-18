@@ -42,8 +42,9 @@ class DebuggerEndpointRepository(
 	 * Installs Code on the Go started from a project, by PackageInstaller session ID, until the session reports a
 	 * result. Held by this application-wide singleton, so recreating the editor Activity loses none; a process death
 	 * loses them all, and each app is then paired by its next launch from its project (LaunchAppAction). Nothing
-	 * expires, so a slow install still finds its note. A note whose session never reports, as when the commit
-	 * failed, stays unused until the process ends: session IDs are not reused.
+	 * expires, so a slow install still finds its note. A session whose staging or commit throws reports no result,
+	 * so ApkInstaller's onCommitFailed drops its note through [discardPendingInstall]; a note whose session never
+	 * reports for another reason stays unused until the process ends: session IDs are not reused.
 	 */
 	private val pendingInstalls = ConcurrentHashMap<Int, PendingInstall>()
 
@@ -69,21 +70,25 @@ class DebuggerEndpointRepository(
 	 *
 	 * Returns null, and writes nothing, for an install that was not noted, such as an APK opened from the file
 	 * tree; its next launch from a project pairs it. Also when [installedApplicationId], the package the result
-	 * names, is not the noted one: the result comes through an exported receiver, so it can be forged.
+	 * names, is missing or is not the noted one: the result comes through an exported receiver, so it can be forged,
+	 * and the framework names the package in every result it sends.
 	 */
 	fun confirmInstall(
 		sessionId: Int,
 		installedApplicationId: String?,
 	): Job? {
 		val note = pendingInstalls.remove(sessionId) ?: return null
-		if (installedApplicationId != null && installedApplicationId != note.applicationId) {
+		if (installedApplicationId != note.applicationId) {
 			log.warn("Session {} installed {}, not {}; not paired", sessionId, installedApplicationId, note.applicationId)
 			return null
 		}
 		return scope.launch { recordInstalled(note.applicationId, note.location) }
 	}
 
-	/** Call when the session [sessionId] failed, was aborted or was blocked, to drop its note; other sessions' stay. */
+	/**
+	 * Call when the session [sessionId] failed, was aborted or was blocked, or could not be committed, to drop its
+	 * note; other sessions' stay.
+	 */
 	fun discardPendingInstall(sessionId: Int) {
 		pendingInstalls.remove(sessionId)
 	}
