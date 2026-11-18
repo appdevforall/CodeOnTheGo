@@ -655,6 +655,8 @@ object SqliteRewriter {
 
 				is Action.Retype -> {
 					if (action.signal) {
+						// requery checks androidx.core's signal, so a cancelled query throws androidx.core's
+						// OperationCanceledException, which a catch of Android's does not catch (see the docs)
 						m.instructions.insertBefore(
 							mi,
 							MethodInsnNode(Opcodes.INVOKESTATIC, Rules.HELPER, "toCancellationSignal", Rules.HELPER_SIGNAL_DESC, false),

@@ -184,8 +184,7 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   `CursorWindow` extends android's `SQLiteClosable`, which stays the platform's class. Calls that name a
   `CursorWindow` in a renamed class's descriptor fail the build; calls on a `CursorWindow` are left alone.
 - The items below were reported by review and not verified here: `ATTACH` on a WAL database (requery runs it on
-  one connection only; Android turns write-ahead logging off on the first `ATTACH`); a cancelled query throws
-  `androidx.core.os.OperationCanceledException`, not `android.os.OperationCanceledException`; page size and
+  one connection only; Android turns write-ahead logging off on the first `ATTACH`); page size and
   `wal_autocheckpoint` defaults can differ from the platform's; there is no compatibility WAL mode; the cursor
   window is a fixed 2 MB, and a row larger than it throws `IllegalStateException`; `beginTransactionReadOnly`
   is not in requery (it fails the build) and its read-only semantics have no counterpart; requery has no
@@ -213,6 +212,13 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - `instanceof` is not rewritten: `cursor instanceof AbstractWindowedCursor`, `AbstractCursor` or
   `CrossProcessCursor` is silently false for requery's cursors (no build failure), which is what Room's
   `DBUtil.query` relies on.
+- A cancelled query throws `androidx.core.os.OperationCanceledException`, not
+  `android.os.OperationCanceledException`: requery checks androidx.core's signal, which the rewrite converts Android's
+  to, and its native layer throws the same class (checked with javap and in requery 3.49.0's `.so`). The two classes
+  are unrelated, and the rewrite does not change `catch` clauses, so a `catch (android.os.OperationCanceledException e)`
+  around a query, or around reading its cursor, no longer catches a cancellation, which reaches the caller instead. An
+  app that catches it should catch both, `catch (android.os.OperationCanceledException |
+  androidx.core.os.OperationCanceledException e)`, which works with the SQLite debugger on and off.
 - Android's `CancellationSignal` holds one listener: the conversion replaces any listener the caller set. Each
   query gets its own androidx.core signal, and cancelling the Android signal cancels every one still in use, so
   two lazy queries that share it both stop (requery keeps a query's signal for its cursor's later reads).
