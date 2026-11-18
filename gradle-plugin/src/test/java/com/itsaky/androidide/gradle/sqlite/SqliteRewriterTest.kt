@@ -1178,6 +1178,53 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a string that only contains a renamed class name inside a longer name does not warn`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Longer",
+						"""
+						package p;
+						public class Longer {
+							String longer() { return "xandroid.database.sqlite.SQLiteDatabase"; }
+							String named() { return "android.database.sqlite.SQLiteDatabase"; }
+						}
+						""".trimIndent(),
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		SqliteRewriter.rewrite(classes["p/Longer"]!!, warn = { warnings += it })
+		assertThat(warnings).hasSize(1)
+		assertThat(warnings.single()).contains("p.Longer.named (line ")
+	}
+
+	@Test
+	fun `a type descriptor or array class name naming a renamed class still warns`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Descriptors",
+						"""
+						package p;
+						public class Descriptors {
+							String array() { return "[Landroid.database.sqlite.SQLiteDatabase;"; }
+							String method() { return "(Landroid/database/sqlite/SQLiteDatabase;)V"; }
+						}
+						""".trimIndent(),
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		SqliteRewriter.rewrite(classes["p/Descriptors"]!!, warn = { warnings += it })
+		assertThat(warnings).hasSize(2)
+		assertThat(warnings[0]).contains("p.Descriptors.array (line ")
+		assertThat(warnings[1]).contains("p.Descriptors.method (line ")
+	}
+
+	@Test
 	fun `calls on android's CursorWindow are not reported even when the hierarchy says it extends SQLiteClosable`() {
 		val classes =
 			Compiler.compile(

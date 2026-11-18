@@ -75,14 +75,20 @@ internal object SqliteRewriteRules {
 
 	/**
 	 * A renamed class in a string, as Class.forName or reflection spells it: dots or slashes, `$` or `.` before a
-	 * nested class. Longest names first, and not followed by more of a name, so a kept class such as
-	 * SQLiteDatabaseLockedException does not match SQLiteDatabase.
+	 * nested class. Longest names first, and neither preceded nor followed by more of a name, so a kept class such as
+	 * SQLiteDatabaseLockedException does not match SQLiteDatabase, nor does a longer name such as
+	 * xandroid.database.sqlite.SQLiteDatabase. The `L` of a type descriptor may precede it, as in
+	 * `[Landroid.database.sqlite.SQLiteDatabase;`, the name Class.forName takes for an array of it.
 	 */
 	val RENAMED_CLASS_NAME: Regex =
 		Regex(
 			RENAMES.keys
 				.sortedByDescending { it.length }
-				.joinToString("|", prefix = "(?:", postfix = ")(?![A-Za-z0-9_])") {
+				.joinToString(
+					"|",
+					prefix = "(?:(?<![A-Za-z0-9_.$])|(?<=(?:^|[^A-Za-z0-9_.$])L))(?:",
+					postfix = ")(?![A-Za-z0-9_])",
+				) {
 					it.replace("$", "[.$]").replace("/", "[./]")
 				},
 		)
