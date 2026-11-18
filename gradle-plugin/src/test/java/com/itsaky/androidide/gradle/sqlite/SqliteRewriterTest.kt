@@ -535,13 +535,17 @@ class SqliteRewriterTest {
 				),
 			)
 		val asked = mutableListOf<String>()
-		SqliteRewriter.rewrite(
-			classes["p/Named"]!!,
-			ClassHierarchy { name ->
-				asked += name
-				null
-			},
-		)
+		try {
+			SqliteRewriter.rewrite(
+				classes["p/Named"]!!,
+				ClassHierarchy { name ->
+					asked += name
+					null
+				},
+			)
+		} catch (e: SqliteRewriteException) {
+			// getUniqueId on an owner that cannot be resolved is reported, which is not what this test is about
+		}
 		assertThat(asked).containsExactly("p/Mine", "p/Other")
 	}
 
@@ -1428,5 +1432,50 @@ class SqliteRewriterTest {
 		assertThat(overrides).hasSize(1)
 		assertThat(overrides.single()).contains("Landroid/os/CancellationSignal;)Landroid/database/Cursor;'")
 		assertThat(e.message).contains("p.MyBuilder")
+	}
+
+	@Test
+	fun `a call a rule could match on an owner the hierarchy cannot resolve fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesLost",
+						"""
+						package p;
+						import android.database.sqlite.*;
+						public class UsesLost {
+							void go(Lost l, SQLiteDatabase db, String[] a, android.os.CancellationSignal s) {
+								l.isStrict();
+								l.query(db, a, "w", a, null, null, null, "1", s);
+								l.rawQuery("x", a);
+								l.delete("x");
+							}
+						}
+						""",
+					),
+					// left out of the hierarchy, as a class missing from the runtime classpath is
+					src(
+						"p.Lost",
+						"""
+						package p;
+						public class Lost extends android.database.sqlite.SQLiteQueryBuilder {
+							public android.database.Cursor rawQuery(String s, String[] a) { return null; }
+							public int delete(String s) { return 0; }
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/UsesLost"]!!, hierarchy) }
+		val unresolved =
+			e.message!!
+				.lines()
+				.filter { "p.Lost cannot be resolved" in it }
+				.map { it.substringAfter("whether its ").substringBefore(" is ") }
+		// SQLiteDatabase is final, so no class inherits its rawQuery, and no rule has a delete(String)
+		assertThat(unresolved).hasSize(2)
+		assertThat(unresolved[0]).isEqualTo("isStrict()Z")
+		assertThat(unresolved[1]).startsWith("query(Landroid/database/sqlite/SQLiteDatabase;")
 	}
 }

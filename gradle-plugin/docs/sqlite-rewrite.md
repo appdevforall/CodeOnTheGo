@@ -84,6 +84,10 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   the override). So does an override of `SQLiteQueryBuilder.query` with a `CancellationSignal` in a subclass: its
   calls get requery's descriptor while the override keeps Android's, so they would reach requery's method and skip
   it. Retyping the override would mean turning requery's signal back into Android's inside its body.
+  Likewise a call on an owner that AGP's class loader cannot resolve fails when its name and descriptor are those of
+  a member a rule above changes or rejects in a renamed class another class can extend (not the final
+  `SQLiteDatabase`, `SQLiteQuery` or `SQLiteStatement`): the owner may inherit that member, and its renamed
+  ancestors are unknown.
 - Method references: a handle in an invokedynamic (`db::rawQuery`, `ctx::deleteDatabase`) that any rule
   above would change, redirect or reject fails the build, naming class, method and line, with the advice to
   write a lambda (its body is an ordinary call, which the rules handle). The rules are not applied to the

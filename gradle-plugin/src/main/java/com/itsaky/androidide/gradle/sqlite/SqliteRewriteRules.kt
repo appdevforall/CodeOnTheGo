@@ -241,6 +241,27 @@ internal object SqliteRewriteRules {
 	/** Names of the calls whose descriptor changes. */
 	val DESCRIPTOR_RULE_NAMES: Set<String> = DESCRIPTOR_RULES.map { it.name }.toSet()
 
+	/** The renamed classes android.jar declares final: no other class extends them. */
+	private val FINAL_CLASSES: Set<String> = setOf(DATABASE, "${SQLITE_PKG}SQLiteQuery", "${SQLITE_PKG}SQLiteStatement")
+
+	/**
+	 * Name plus descriptor of each member that a rule changes or rejects and that another class can inherit (not a
+	 * constructor, nor a member of a final class), mapped to the renamed class that declares it. A class the build
+	 * cannot resolve may inherit one of these, so a call that matches one exactly cannot be checked.
+	 */
+	val INHERITABLE_RULE_MEMBERS: Map<String, String> =
+		buildMap {
+			for ((key, descs) in MISSING_MEMBERS) {
+				val owner = key.substringBeforeLast('.')
+				val name = key.substringAfterLast('.')
+				if (owner in FINAL_CLASSES || name == "<init>") continue
+				for (desc in descs) putIfAbsent(name + desc, owner)
+			}
+			for (rule in DESCRIPTOR_RULES) {
+				if (rule.owner !in FINAL_CLASSES) putIfAbsent(rule.name + rule.desc, rule.owner)
+			}
+		}
+
 	/** SQLiteCursorDriver.query, matched on any owner: an app class may implement the interface. */
 	const val DRIVER_QUERY_NAME = "query"
 	const val DRIVER_QUERY_DESC = "($CF[Ljava/lang/String;)Landroid/database/Cursor;"

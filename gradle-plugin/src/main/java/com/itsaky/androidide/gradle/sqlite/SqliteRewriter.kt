@@ -271,14 +271,19 @@ object SqliteRewriter {
 		private val ancestorsCache = HashMap<String, List<String>>()
 		private val superTypesCache = HashMap<String, Collection<String>?>()
 
-		private fun superTypes(owner: String): Collection<String>? = superTypesCache.getOrPut(owner) { hierarchy.superTypes(owner) }
+		// not getOrPut, which asks again for an owner that cannot be resolved (null)
+		private fun superTypes(owner: String): Collection<String>? =
+			if (owner in superTypesCache) superTypesCache[owner] else hierarchy.superTypes(owner).also { superTypesCache[owner] = it }
 
 		/** Owners that cannot extend a renamed class: the JDK, Kotlin, and Android outside the renamed set. */
 		private fun cannotBeSqlite(owner: String): Boolean =
 			owner.startsWith("java/") || owner.startsWith("javax/") || owner.startsWith("kotlin/") || owner.startsWith("kotlinx/") ||
 				(owner.startsWith("android/") && owner !in Rules.SQLITE_CLASSES)
 
-		/** The renamed classes that [owner] is or extends, nearest first, so the rule tables see them all. */
+		/**
+		 * The renamed classes that [owner] is or extends, nearest first, so the rule tables see them all. None for an
+		 * owner that cannot be resolved: [unresolvedOwner] reports the calls a rule could match on one.
+		 */
 		fun renamedAncestors(owner: String): List<String> {
 			if (owner.startsWith("[")) return emptyList()
 			return ancestorsCache.getOrPut(owner) {
@@ -408,6 +413,27 @@ object SqliteRewriter {
 			return renamedAncestors(owner)
 				.firstOrNull { Rules.MISSING_MEMBERS["$it.$name"]?.contains(desc) == true }
 				?.let { "${simple(it)}.$name does not exist in requery" }
+				?: unresolvedOwner(owner, name, desc)
+		}
+
+		/**
+		 * Why `owner.name desc` cannot be checked, or null: [owner] cannot be resolved, so its renamed ancestors are
+		 * unknown, and the member has the name and descriptor of one a rule changes or rejects in a renamed class
+		 * another class can extend. Like a Context database method on an unresolved owner, this fails under the
+		 * full policy rather than pass a call that may break at run time.
+		 */
+		fun unresolvedOwner(
+			owner: String,
+			name: String,
+			desc: String,
+		): String? {
+			val declaring = Rules.INHERITABLE_RULE_MEMBERS[name + desc] ?: return null
+			if (owner.startsWith("[") || owner in Rules.SQLITE_CLASSES || cannotBeSqlite(owner) || RewritePolicy.isExcluded(owner)) {
+				return null
+			}
+			if (superTypes(owner) != null) return null
+			return "${owner.replace('/', '.')} cannot be resolved, so the rewrite cannot tell whether its $name$desc is " +
+				"${simple(declaring)}.$name, which it changes or rejects"
 		}
 
 		fun typeInsn(
@@ -503,6 +529,7 @@ object SqliteRewriter {
 							"the platform method would not link",
 					)
 				}
+				unresolvedOwner(owner, name, desc)?.let { return Action.Fail(it) }
 				return Action.None
 			}
 			for (c in ancestors) {
