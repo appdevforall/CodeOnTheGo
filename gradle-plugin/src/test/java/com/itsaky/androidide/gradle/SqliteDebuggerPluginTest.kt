@@ -138,5 +138,10 @@ class SqliteDebuggerPluginTest {
 
 		assertThat(failure).isInstanceOf(UnexpectedBuildResultException::class.java)
 		assertThat(failure!!.message).contains("SQLite debugger AAR not found")
+		// app init extracts the AAR in the background, so right after a fresh install it can be missing for a while
+		assertThat(failure.message).contains(
+			"Remove '$PROPERTY_SQLITE_DEBUGGER_ENABLED' from gradle.properties to build without it, " +
+				"or retry in a few seconds if Code on the Go has just started.",
+		)
 	}
 }
