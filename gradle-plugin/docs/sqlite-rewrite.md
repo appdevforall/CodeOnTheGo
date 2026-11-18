@@ -72,7 +72,9 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).
   The same conversion without a cast fails too: a value declared `SQLiteCursor`, or a subclass, returned, passed,
   called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
-  { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify.
+  { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
+  into an array of those types (`AbstractCursor[] a; a[0] = c;`), which would throw `ArrayStoreException`: the
+  array must be one on every path to the store, from a parameter, field, call or `new`.
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
@@ -202,6 +204,11 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   class, alone or in a type descriptor) logs a warning with class, method and line, in the classes the fail rule
   covers; names of kept classes such as `SQLiteException`, and longer names that contain a renamed one, such as
   `xandroid.database.sqlite.SQLiteDatabase`, do not.
+- Stores of an SQLite cursor into an array known only as a `Cursor[]` or `Object[]` are allowed on purpose (failing
+  them would fail ordinary apps), but such an array can be an `AbstractCursor[]` at run time (arrays are covariant),
+  and a store whose array type is unknown where branches merge is not checked. Both can still throw
+  `ArrayStoreException`, in release builds too (the rewrite runs in every variant of an opted-in app). Cursors loaded
+  from arrays are not followed.
 - The `AbstractWindowedCursor` check follows the cursor through locals and the stack only. A cast of a
   cursor that reached the method through a field, a parameter or another call is not seen (the app throws
   `ClassCastException` at run time), and a cast of a cursor from an SQLite API to a type that is not an

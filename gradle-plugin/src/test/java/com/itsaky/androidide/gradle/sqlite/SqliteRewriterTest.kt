@@ -1529,6 +1529,107 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `an SQLite cursor stored into an array of an Android cursor class fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Stores",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class Stores {
+							void param(AbstractCursor[] a, SQLiteCursor c) {
+								a[0] = c;
+							}
+							AbstractWindowedCursor[] fresh(SQLiteCursor c) {
+								AbstractWindowedCursor[] a = new AbstractWindowedCursor[1];
+								a[0] = c;
+								return a;
+							}
+							void crossProcess(CrossProcessCursor[] a, SQLiteCursor c) {
+								Object[] same = a;
+								same[0] = c;
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Stores"]!!, hierarchy) }
+		assertThat(e.message).contains("'p.Stores'")
+		assertThat(e.message).contains(
+			"  - param([Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 7): an SQLite cursor stored " +
+				"into an array of android.database.AbstractCursor; requery's SQLiteCursor is not one, so the store would throw ArrayStoreException",
+		)
+		assertThat(e.message).contains(
+			"  - fresh(Landroid/database/sqlite/SQLiteCursor;)[Landroid/database/AbstractWindowedCursor; (line 11): " +
+				"an SQLite cursor stored into an array of android.database.AbstractWindowedCursor",
+		)
+		// the Object[] local holds the parameter's array, which is a CrossProcessCursor[] on every path
+		assertThat(e.message).contains(
+			"  - crossProcess([Landroid/database/CrossProcessCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 16): " +
+				"an SQLite cursor stored into an array of android.database.CrossProcessCursor",
+		)
+	}
+
+	@Test
+	fun `an SQLite cursor stored into a Cursor or Object array, or another value into an Android cursor array, passes`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.StoresFine",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class StoresFine {
+							void cursors(Cursor[] a, SQLiteCursor c) {
+								a[0] = c;
+							}
+							void objects(Object[] a, SQLiteCursor c) {
+								a[0] = c;
+							}
+							void otherValues(AbstractCursor[] a, MatrixCursor m) {
+								a[0] = m;
+								a[1] = null;
+							}
+						}
+						""",
+					),
+				),
+			)
+		SqliteRewriter.rewrite(classes["p/StoresFine"]!!, hierarchy)
+	}
+
+	@Test
+	fun `a store whose array is an Android cursor array on one path only is not checked`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.StoresMerged",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class StoresMerged {
+							void merged(AbstractCursor[] a, Cursor[] k, SQLiteCursor c, boolean b) {
+								Cursor[] t = b ? a : k;
+								t[0] = c;
+							}
+						}
+						""",
+					),
+				),
+			)
+		// a known limit: when b is true, the store throws ArrayStoreException at run time
+		SqliteRewriter.rewrite(classes["p/StoresMerged"]!!, hierarchy)
+	}
+
+	@Test
 	fun `an instanceof guard counts only when it covers every path to the cast`() {
 		val classes =
 			Compiler.compile(

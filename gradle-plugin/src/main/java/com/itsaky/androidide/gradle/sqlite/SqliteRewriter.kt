@@ -186,16 +186,22 @@ object SqliteRewriter {
 		}
 	}
 
-	/** A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's. */
+	/**
+	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
+	 * ([renamedCursor]), or, on every path, an array of one of the Android-only cursor types ([androidCursorArray],
+	 * that element type).
+	 */
 	private class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
+		val androidCursorArray: String? = null,
 	) : BasicValue(type) {
 		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
 		override fun equals(other: Any?): Boolean =
-			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false)
+			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false) &&
+				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray
 
-		override fun hashCode(): Int = super.hashCode() * 31 + if (renamedCursor) 1 else 0
+		override fun hashCode(): Int = (super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()
 	}
 
 	private class ClassRewrite(
@@ -758,15 +764,21 @@ object SqliteRewriter {
 		/** A type in a frame or an internal name, when it is one of the Android-only cursor types, or null. */
 		private fun androidOnlyCursor(entry: Any?): String? = (entry as? String)?.takeIf { it in Rules.ANDROID_ONLY_CURSOR_TYPES }
 
+		/** [type]'s element type when it is a one-dimensional array of an Android-only cursor type, or null. */
+		private fun androidCursorArray(type: Type?): String? =
+			if (type != null && type.sort == Type.ARRAY && type.dimensions == 1) androidOnlyCursor(type.elementType) else null
+
 		/** Whether [m] names an Android-only cursor type where a value could be converted to it without a cast. */
 		private fun mayConvertToAndroidCursor(m: MethodNode): Boolean {
 			fun names(desc: String) = Rules.ANDROID_ONLY_CURSOR_TYPES.any { desc.contains("L$it;") }
-			if (names(Type.getReturnType(m.desc).descriptor)) return true
+			// the parameters too: an array parameter is all that a store into one needs
+			if (names(m.desc)) return true
 			return m.instructions.any { insn ->
 				when (insn) {
 					is MethodInsnNode -> insn.owner in Rules.ANDROID_ONLY_CURSOR_TYPES || names(insn.desc)
 					is InvokeDynamicInsnNode -> names(insn.desc)
 					is FieldInsnNode -> names(insn.desc)
+					is TypeInsnNode -> names(insn.desc) || (insn.opcode == Opcodes.ANEWARRAY && androidOnlyCursor(insn.desc) != null)
 					is FrameNode -> (insn.local.orEmpty() + insn.stack.orEmpty()).any { androidOnlyCursor(it) != null }
 					else -> false
 				}
@@ -778,8 +790,11 @@ object SqliteRewriter {
 		 * AbstractWindowedCursor, AbstractCursor or CrossProcessCursor without a cast, by the message for each: returned,
 		 * passed, called on, stored in a field, or held where a frame declares one of them. javac writes no CHECKCAST
 		 * for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the interface, so
-		 * the renamed class would not verify (or, for the interface, the call would fail). Values stored in or loaded
-		 * from arrays are not followed; storing one into such an array throws ArrayStoreException.
+		 * the renamed class would not verify (or, for the interface, the call would fail). Also an AASTORE of such a value
+		 * into an array that is, on every path to it, one of those types' arrays (from a parameter, field, call or
+		 * ANEWARRAY): it would throw ArrayStoreException. Not checked: stores into a Cursor[] or Object[], allowed on
+		 * purpose although one can be such an array at run time; a store whose array type differs between the paths
+		 * that merge before it; values loaded from arrays, which are not followed.
 		 */
 		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, String> {
 			if (!mayConvertToAndroidCursor(m)) return emptyMap()
@@ -787,16 +802,25 @@ object SqliteRewriter {
 				object : BasicInterpreter(Opcodes.ASM9) {
 					override fun newValue(type: Type?): BasicValue? {
 						val v = super.newValue(type) ?: return null
-						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type)) else v
+						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type), androidCursorArray(type)) else v
 					}
 
 					override fun merge(
 						value1: BasicValue,
 						value2: BasicValue,
 					): BasicValue {
-						val renamed =
-							(value1 as? StaticCursorValue)?.renamedCursor == true || (value2 as? StaticCursorValue)?.renamedCursor == true
-						if (renamed && value1.type != null && value1.type == value2.type) return StaticCursorValue(value1.type, true)
+						val s1 = value1 as? StaticCursorValue
+						val s2 = value2 as? StaticCursorValue
+						// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
+						if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
+							val merged =
+								StaticCursorValue(
+									value1.type,
+									s1?.renamedCursor == true || s2?.renamedCursor == true,
+									s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray },
+								)
+							return if (merged == value1) value1 else merged
+						}
 						return super.merge(value1, value2)
 					}
 				}
@@ -815,6 +839,14 @@ object SqliteRewriter {
 				fun renamed(value: BasicValue?) = (value as? StaticCursorValue)?.renamedCursor == true
 
 				fun fromTop(depth: Int) = if (depth < f.stackSize) f.getStack(f.stackSize - 1 - depth) else null
+				if (insn.opcode == Opcodes.AASTORE) {
+					val element = (fromTop(2) as? StaticCursorValue)?.androidCursorArray
+					if (element != null && renamed(fromTop(0))) {
+						result[insn] = "an SQLite cursor stored into an array of ${element.replace('/', '.')}; requery's SQLiteCursor " +
+							"is not one, so the store would throw ArrayStoreException"
+					}
+					continue
+				}
 				val target: String? =
 					when {
 						insn is MethodInsnNode || insn is InvokeDynamicInsnNode -> {
