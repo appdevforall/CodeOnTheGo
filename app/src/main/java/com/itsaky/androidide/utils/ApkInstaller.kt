@@ -103,6 +103,10 @@ object ApkInstaller {
 	 * @param apk The APK file to install.
 	 * @param suppressPostInstallLaunch tag the install so its success result skips the
 	 *   launch-after-install behavior; see [EXTRA_SUPPRESS_POST_INSTALL_LAUNCH].
+	 * @param beforeCommit called with the session ID on an IO thread once the APK is staged, just before the session
+	 *   is committed, so whatever it records is in place when the result arrives. Not called by the intent-based
+	 *   fallback installer, which has no session and reports no result. What it throws is logged, and the install
+	 *   goes on.
 	 */
 	@JvmStatic
 	suspend fun installApk(
@@ -111,6 +115,7 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		suppressPostInstallLaunch: Boolean = false,
+		beforeCommit: ((sessionId: Int) -> Unit)? = null,
 	): Boolean =
 		installApkSession(
 			context = context,
@@ -118,12 +123,13 @@ object ApkInstaller {
 			launchInDebugMode = launchInDebugMode,
 			debugFallbackInstaller = debugFallbackInstaller,
 			suppressPostInstallLaunch = suppressPostInstallLaunch,
+			beforeCommit = beforeCommit,
 		) is SessionLaunchResult.Started
 
 	/**
 	 * Starts a session-based package installation workflow and returns a [SessionLaunchResult]
 	 * with the committed `sessionId` (or a distinct [SessionLaunchResult.TooManySessions]
-	 * when the UID's active session quota is exhausted).
+	 * when the UID's active session quota is exhausted). [beforeCommit] is as for [installApk].
 	 */
 	@JvmStatic
 	suspend fun installApkSession(
@@ -132,6 +138,7 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		suppressPostInstallLaunch: Boolean = false,
+		beforeCommit: ((sessionId: Int) -> Unit)? = null,
 	): SessionLaunchResult {
 		val isValidApk =
 			withContext(Dispatchers.IO) {
@@ -167,7 +174,7 @@ object ApkInstaller {
 			}
 		}
 
-		return installUsingSession(context, apk, baseIntent)
+		return installUsingSession(context, apk, baseIntent, beforeCommit)
 	}
 
 	/**
@@ -463,6 +470,7 @@ object ApkInstaller {
 		context: Context,
 		apk: File,
 		intent: Intent,
+		beforeCommit: ((sessionId: Int) -> Unit)? = null,
 	): SessionLaunchResult {
 		val installer = context.packageManager.packageInstaller
 		val params = createSessionParams()
@@ -489,6 +497,9 @@ object ApkInstaller {
 							"PackageInstaller callback intent is null"
 						}
 					addToSession(session, apk)
+					beforeCommit?.let { record ->
+						runCatching { record(sessionId) }.onFailure { log.warn("beforeCommit failed for session {}", sessionId, it) }
+					}
 					session.commit(callback.intentSender)
 					sessionId
 				} catch (t: Throwable) {

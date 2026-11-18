@@ -20,7 +20,6 @@ package com.itsaky.androidide.activities.editor
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.pm.PackageInstaller
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Rect
@@ -756,33 +755,7 @@ abstract class BaseEditorActivity :
 			return
 		}
 
-		val packageName = onResult(this, intent)
-		if (packageName == null) {
-			val extras = intent.extras
-			val installed = extras?.getString(PackageInstaller.EXTRA_PACKAGE_NAME)
-			if (installed != null && extras.getInt(PackageInstaller.EXTRA_STATUS) != PackageInstaller.STATUS_PENDING_USER_ACTION) {
-				onInstallEndedWithoutLaunch(installed)
-			}
-			return
-		}
-		// Runs before the launch so the app's first report finds its pairing row.
-		activityScope.launch(Dispatchers.Main.immediate) {
-			beforePostInstallLaunch(packageName)
-			launchAfterInstall(event, packageName)
-		}
-	}
-
-	/** Called on the main thread when an install of [packageName] ended and no post-install launch follows (failed, cancelled, or suppressed). */
-	protected open fun onInstallEndedWithoutLaunch(packageName: String) {}
-
-	/** Called on the main thread after an install succeeded, before the app is launched. Must not throw. */
-	protected open suspend fun beforePostInstallLaunch(packageName: String) {}
-
-	private fun launchAfterInstall(
-		event: InstallationEvent.InstallationResultEvent,
-		packageName: String,
-	) {
-		if (isDestroying) return
+		val packageName = onResult(this, intent) ?: return
 		val isDebugging = event.intent.getBooleanExtra(DebugAction.ID, false)
 		if (!isDebugging) {
 			doLaunchApp(packageName)

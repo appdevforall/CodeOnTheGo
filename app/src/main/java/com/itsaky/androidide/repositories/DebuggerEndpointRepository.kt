@@ -6,6 +6,7 @@ import com.itsaky.androidide.utils.canonicalProjectLocation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -29,60 +30,58 @@ class DebuggerEndpointRepository(
 	private val announce: (applicationId: String) -> Unit,
 ) {
 	private class PendingInstall(
+		val applicationId: String,
 		val location: String,
-		val noteTimeMillis: Long,
 	)
 
-	/** Installs expected to finish, by applicationId, with the project location that built them. */
-	private val pendingInstalls = ConcurrentHashMap<String, PendingInstall>()
+	/**
+	 * Installs Code on the Go started from a project, by PackageInstaller session ID, until the session reports a
+	 * result. Held by this application-wide singleton, so recreating the editor Activity loses none; a process death
+	 * loses them all, and each app is then paired by its next launch from its project (LaunchAppAction). Nothing
+	 * expires, so a slow install still finds its note. A note whose session never reports, as when the commit
+	 * failed, stays unused until the process ends: session IDs are not reused.
+	 */
+	private val pendingInstalls = ConcurrentHashMap<Int, PendingInstall>()
 
 	/**
-	 * Notes, off the main thread, that [projectDir] is installing the app [applicationId] returns
-	 * (it may read an APK). Nothing is written until [confirmInstall] reports the install succeeded.
+	 * Notes that the PackageInstaller session [sessionId] installs [applicationId], built by [projectDir]. Call it
+	 * before the session is committed, so its result always finds the note. It reads the file system: not on the
+	 * main thread.
 	 */
-	fun expectInstallAsync(
+	fun notePendingInstall(
+		sessionId: Int,
 		projectDir: File,
-		applicationId: () -> String?,
-	) {
-		scope.launch {
-			try {
-				val id = runCatching(applicationId).getOrNull()?.takeIf { it.isNotBlank() } ?: return@launch
-				pendingInstalls[id] = PendingInstall(projectDir.canonicalProjectLocation(), clock())
-			} catch (e: CancellationException) {
-				throw e
-			} catch (e: Exception) {
-				log.warn("Could not note the install of project {}", projectDir, e)
-			}
-		}
-	}
-
-	/**
-	 * Call when the install of [applicationId] succeeded, before the app is launched, and returns whether it paired
-	 * the app. With a note from [expectInstallAsync] at most 5 minutes old, the app moves to the project that built
-	 * it. Without one, as when the install prompt stayed open longer, the launch that follows pairs it as
-	 * [recordLaunched] does, with [launchingProjectDir]: the caller passes the open project's directory when that
-	 * project builds [applicationId], and null otherwise, so an unrelated APK installed from a file is not paired.
-	 */
-	suspend fun confirmInstall(
 		applicationId: String,
-		launchingProjectDir: File?,
-	): Boolean {
-		val pending = pendingInstalls.remove(applicationId)
-		// An older note may belong to an install that never reported a result, from a project that is no longer
-		// open, so it must not move the pairing; recordLaunched never moves one.
-		if (pending != null && clock() - pending.noteTimeMillis <= PENDING_INSTALL_MAX_AGE_MILLIS) {
-			return recordInstalled(applicationId, pending.location)
-		}
-		return launchingProjectDir != null && recordLaunched(applicationId, launchingProjectDir)
+	) {
+		pendingInstalls[sessionId] = PendingInstall(applicationId, projectDir.canonicalProjectLocation())
 	}
 
 	/**
-	 * Call when the install of [applicationId] ended without success (failed, cancelled, blocked), so
-	 * a later install of the same app from elsewhere, such as an APK file, is not paired with the
-	 * project that started this one.
+	 * Call when the session [sessionId] succeeded, whether or not a launch follows. If [notePendingInstall] noted it,
+	 * pairs the app with the project that started it on the application scope, moving it from any other project,
+	 * and returns that write; the caller need not wait for it before launching the app, which is asked to report
+	 * again once paired. Only this session's result uses its note, however long the install took: another install
+	 * of the same application ID, from this project or another, has its own session.
+	 *
+	 * Returns null, and writes nothing, for an install that was not noted, such as an APK opened from the file
+	 * tree; its next launch from a project pairs it. Also when [installedApplicationId], the package the result
+	 * names, is not the noted one: the result comes through an exported receiver, so it can be forged.
 	 */
-	fun discardPendingInstall(applicationId: String) {
-		pendingInstalls.remove(applicationId)
+	fun confirmInstall(
+		sessionId: Int,
+		installedApplicationId: String?,
+	): Job? {
+		val note = pendingInstalls.remove(sessionId) ?: return null
+		if (installedApplicationId != null && installedApplicationId != note.applicationId) {
+			log.warn("Session {} installed {}, not {}; not paired", sessionId, installedApplicationId, note.applicationId)
+			return null
+		}
+		return scope.launch { recordInstalled(note.applicationId, note.location) }
+	}
+
+	/** Call when the session [sessionId] failed, was aborted or was blocked, to drop its note; other sessions' stay. */
+	fun discardPendingInstall(sessionId: Int) {
+		pendingInstalls.remove(sessionId)
 	}
 
 	/**
@@ -149,7 +148,6 @@ class DebuggerEndpointRepository(
 		}
 
 	private companion object {
-		private const val PENDING_INSTALL_MAX_AGE_MILLIS = 5 * 60 * 1000L
 		private val log = LoggerFactory.getLogger(DebuggerEndpointRepository::class.java)
 	}
 }

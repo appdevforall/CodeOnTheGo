@@ -117,76 +117,15 @@ class DebuggerEndpointRepositoryTest {
 			assertThat(row.updatedAt).isNull()
 		}
 
-	@Test
-	fun `an expected install is paired with its canonical project location once it succeeds`() =
-		runBlocking<Unit> {
-			val dir =
-				java.nio.file.Files
-					.createTempDirectory("proj")
-					.toFile()
-			try {
-				addProject(dir.canonicalPath)
+	/** A project directory that exists and is in recents. */
+	private suspend fun newProject(): File =
+		java.nio.file.Files
+			.createTempDirectory("proj")
+			.toFile()
+			.also { addProject(it.canonicalPath) }
 
-				repository.expectInstallAsync(File(dir, "../" + dir.name)) { "com.example" }
-				var confirmed = false
-				repeat(100) {
-					if (!confirmed) {
-						confirmed = repository.confirmInstall("com.example", launchingProjectDir = null)
-						if (!confirmed) Thread.sleep(50)
-					}
-				}
-
-				assertThat(confirmed).isTrue()
-				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")?.projectLocation).isEqualTo(dir.canonicalPath)
-			} finally {
-				dir.delete()
-			}
-		}
-
-	@Test
-	fun `an install nobody expected is not paired when the open project does not build it`() =
-		runBlocking<Unit> {
-			addProject("/p/a")
-
-			assertThat(repository.confirmInstall("com.example", launchingProjectDir = null)).isFalse()
-
-			assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
-		}
-
-	@Test
-	fun `an expected install writes nothing until it is confirmed`() =
-		runBlocking<Unit> {
-			val dir =
-				java.nio.file.Files
-					.createTempDirectory("proj")
-					.toFile()
-			try {
-				addProject(dir.canonicalPath)
-
-				repository.expectInstallAsync(dir) { "com.example" }
-				Thread.sleep(500)
-
-				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
-			} finally {
-				dir.delete()
-			}
-		}
-
-	private suspend fun awaitNoted(
-		repo: DebuggerEndpointRepository,
-		id: String,
-		dir: File,
-		discard: Boolean,
-		advanceMillis: Long,
-		now: AtomicLong,
-		launchingProjectDir: File? = null,
-	): Boolean {
-		repo.expectInstallAsync(dir) { id }
-		Thread.sleep(300)
-		if (discard) repo.discardPendingInstall(id)
-		now.addAndGet(advanceMillis)
-		return repo.confirmInstall(id, launchingProjectDir)
-	}
+	private suspend fun pairedLocation(applicationId: String = "com.example"): String? =
+		room.debuggerEndpointDao().getByApplicationId(applicationId)?.projectLocation
 
 	private fun clockedRepository(now: AtomicLong) =
 		DebuggerEndpointRepository(
@@ -197,113 +136,134 @@ class DebuggerEndpointRepositoryTest {
 		)
 
 	@Test
-	fun `a failed install does not pair a later install of the same app`() =
+	fun `a noted install is paired with its canonical project location once its session succeeds`() =
 		runBlocking<Unit> {
-			val dir =
-				File.createTempFile("proj", "").apply {
-					delete()
-					mkdirs()
-				}
+			val dir = newProject()
 			try {
-				addProject(dir.canonicalPath)
-				val now = AtomicLong(1_000L)
+				repository.notePendingInstall(1, File(dir, "../" + dir.name), "com.example")
 
-				val paired = awaitNoted(clockedRepository(now), "com.example", dir, discard = true, advanceMillis = 0, now = now)
+				repository.confirmInstall(1, "com.example")?.join()
 
-				assertThat(paired).isFalse()
-				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
+				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
+				assertThat(announced).containsExactly("com.example")
 			} finally {
 				dir.delete()
 			}
 		}
 
 	@Test
-	fun `a note older than the expiry is not used`() =
+	fun `a noted install writes nothing until its session succeeds`() =
 		runBlocking<Unit> {
-			val dir =
-				File.createTempFile("proj", "").apply {
-					delete()
-					mkdirs()
-				}
+			val dir = newProject()
 			try {
-				addProject(dir.canonicalPath)
-				val now = AtomicLong(1_000L)
+				repository.notePendingInstall(1, dir, "com.example")
 
-				val sixMinutes = 6 * 60 * 1000L
-				val paired = awaitNoted(clockedRepository(now), "com.example", dir, discard = false, advanceMillis = sixMinutes, now = now)
-
-				assertThat(paired).isFalse()
-				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")).isNull()
+				assertThat(pairedLocation()).isNull()
 			} finally {
 				dir.delete()
 			}
 		}
 
 	@Test
-	fun `after a note expires, the launch still pairs the app with the open project`() =
+	fun `a stale note is not used by another session's result or an install Code on the Go did not start`() =
 		runBlocking<Unit> {
-			val dir =
-				File.createTempFile("proj", "").apply {
-					delete()
-					mkdirs()
-				}
+			val dir = newProject()
 			try {
-				addProject(dir.canonicalPath)
-				val now = AtomicLong(1_000L)
+				repository.notePendingInstall(1, dir, "com.example")
 
-				val sixMinutes = 6 * 60 * 1000L
-				val paired =
-					awaitNoted(
-						clockedRepository(now),
-						"com.example",
-						dir,
-						discard = false,
-						advanceMillis = sixMinutes,
-						now = now,
-						launchingProjectDir = File(dir, "../" + dir.name),
-					)
+				// Session 2 has no note: an APK opened from the file tree, say, of the same application ID.
+				assertThat(repository.confirmInstall(2, "com.example")).isNull()
+				assertThat(pairedLocation()).isNull()
 
-				assertThat(paired).isTrue()
-				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")?.projectLocation).isEqualTo(dir.canonicalPath)
+				repository.confirmInstall(1, "com.example")?.join()
+				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
 			} finally {
 				dir.delete()
 			}
 		}
 
 	@Test
-	fun `an install with no note pairs with the open project that builds the app`() =
+	fun `two projects with the same application ID each pair with their own session`() =
 		runBlocking<Unit> {
-			val dir =
-				File.createTempFile("proj", "").apply {
-					delete()
-					mkdirs()
-				}
+			val projectA = newProject()
+			val projectB = newProject()
 			try {
-				addProject(dir.canonicalPath)
+				repository.notePendingInstall(1, projectA, "com.example")
+				repository.notePendingInstall(2, projectB, "com.example")
 
-				assertThat(repository.confirmInstall("com.example", launchingProjectDir = dir)).isTrue()
+				repository.confirmInstall(1, "com.example")?.join()
+				assertThat(pairedLocation()).isEqualTo(projectA.canonicalPath)
 
-				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example")?.projectLocation).isEqualTo(dir.canonicalPath)
+				repository.confirmInstall(2, "com.example")?.join()
+				assertThat(pairedLocation()).isEqualTo(projectB.canonicalPath)
+			} finally {
+				projectA.delete()
+				projectB.delete()
+			}
+		}
+
+	@Test
+	fun `an install whose prompt stayed open more than 5 minutes still pairs with its own project`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				val now = AtomicLong(1_000L)
+				val repo = clockedRepository(now)
+				repo.notePendingInstall(1, dir, "com.example")
+
+				now.addAndGet(6 * 60 * 1000L)
+				repo.confirmInstall(1, "com.example")?.join()
+
+				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
 			} finally {
 				dir.delete()
 			}
 		}
 
 	@Test
-	fun `a recent note still pairs on success`() =
+	fun `a failed install drops only its own session's note`() =
 		runBlocking<Unit> {
-			val dir =
-				File.createTempFile("proj", "").apply {
-					delete()
-					mkdirs()
-				}
+			val dir = newProject()
 			try {
-				addProject(dir.canonicalPath)
-				val now = AtomicLong(1_000L)
+				repository.notePendingInstall(1, dir, "com.example")
+				repository.notePendingInstall(2, dir, "com.example")
 
-				val paired = awaitNoted(clockedRepository(now), "com.example", dir, discard = false, advanceMillis = 60_000L, now = now)
+				repository.discardPendingInstall(1)
 
-				assertThat(paired).isTrue()
+				assertThat(repository.confirmInstall(1, "com.example")).isNull()
+				repository.confirmInstall(2, "com.example")?.join()
+				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `a result naming another package than the noted one pairs nothing`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				repository.notePendingInstall(1, dir, "com.example")
+
+				assertThat(repository.confirmInstall(1, "com.other")).isNull()
+
+				assertThat(pairedLocation("com.example")).isNull()
+				assertThat(pairedLocation("com.other")).isNull()
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `a result without a package name pairs the noted application ID`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				repository.notePendingInstall(1, dir, "com.example")
+
+				repository.confirmInstall(1, installedApplicationId = null)?.join()
+
+				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
 			} finally {
 				dir.delete()
 			}
