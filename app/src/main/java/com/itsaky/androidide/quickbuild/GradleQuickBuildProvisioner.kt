@@ -365,7 +365,6 @@ class GradleQuickBuildProvisioner(
 			// Build to an opted-in project, so building would only end in "variant setup missing". During
 			// a sync the model has no app modules yet, so an opt-in in a module's own gradle.properties is
 			// seen only by the second check, after the wait for the model.
-			val modulesKnown = projectManager.workspace != null
 			sqliteDebuggerRefusal(projectManager, projectRoot)?.let { return it }
 			stage(context, paths)
 
@@ -379,9 +378,9 @@ class GradleQuickBuildProvisioner(
 					context.getString(R.string.quick_build_waiting_for_sync),
 				)
 			}
-			if (!modulesKnown) {
-				sqliteDebuggerRefusal(projectManager, projectRoot)?.let { return it }
-			}
+			// Again, whatever the first check saw: a sync during the staging or the wait can publish modules, and
+			// one of them can carry the opt-in in its own gradle.properties.
+			sqliteDebuggerRefusal(projectManager, projectRoot)?.let { return it }
 
 			val module =
 				quickBuildModule(projectManager)

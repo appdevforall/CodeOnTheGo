@@ -151,6 +151,27 @@ internal class SyncingProjectManager(
 }
 
 /**
+ * A project whose model is published from the start, and replaced by a sync that runs while Quick Build stages:
+ * [before]'s modules until [resynced] is set, [synced]'s after.
+ */
+internal class ResyncingProjectManager(
+	private val before: FakeProjectManager,
+	private val synced: FakeProjectManager,
+) : IProjectManager by synced {
+	var resynced = false
+
+	private val current: FakeProjectManager
+		get() = if (resynced) synced else before
+
+	override val workspace: Workspace?
+		get() = current.workspace
+
+	override fun getAndroidModules(): List<AndroidModule> = current.getAndroidModules()
+
+	override fun getAndroidAppModules(): List<AndroidModule> = current.getAndroidAppModules()
+}
+
+/**
  * An Android module as the Build Variants sidebar presents it.
  *
  * Mocked rather than built from a real model: [AndroidModule.getSelectedVariant] reads the
