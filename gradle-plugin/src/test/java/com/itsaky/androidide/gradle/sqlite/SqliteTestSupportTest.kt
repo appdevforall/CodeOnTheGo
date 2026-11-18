@@ -27,6 +27,23 @@ class SqliteTestSupportTest {
 	}
 
 	@Test
+	fun `the requery AAR is found when only a Gradle user home other than the default one has it`(
+		@TempDir dir: File,
+	) {
+		val home = File(dir, "home")
+		// the default home's cache exists, without requery
+		File(home, ".gradle/caches/modules-2/files-2.1").mkdirs()
+		val active = File(dir, "active-gradle-home")
+		val aar = File(active, "caches/modules-2/files-2.1/com.github.requery/sqlite-android/3.49.0/0123abcd/sqlite-android-3.49.0.aar")
+		aar.parentFile.mkdirs()
+		aar.writeText("aar")
+
+		assertThat(requeryAar(env = null, gradleHome = gradleUserHome(active.path, null, home))).isEqualTo(aar)
+		// GRADLE_USER_HOME, as when the tests run from an IDE
+		assertThat(requeryAar(env = null, gradleHome = gradleUserHome(null, active.path, home))).isEqualTo(aar)
+	}
+
+	@Test
 	fun `a constructor resolves in the named class only, while methods are still inherited`() {
 		val classes =
 			Compiler.compile(

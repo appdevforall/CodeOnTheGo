@@ -39,10 +39,33 @@ internal fun gradleUserHome(
 	userHome: File = File(System.getProperty("user.home")),
 ): File = property?.takeIf { it.isNotEmpty() }?.let(::File) ?: env?.takeIf { it.isNotEmpty() }?.let(::File) ?: File(userHome, ".gradle")
 
+/** The module cache of [gradleHome]: group/artifact/version/<hash>/file. */
+internal fun moduleCache(gradleHome: File = gradleUserHome()): File = File(gradleHome, "caches/modules-2/files-2.1")
+
+/** [file] of [group]:[artifact]:[version] in the module cache of [gradleHome], or null. */
+internal fun gradleCacheFile(
+	group: String,
+	artifact: String,
+	version: String,
+	file: String,
+	gradleHome: File = gradleUserHome(),
+): File? =
+	File(moduleCache(gradleHome), "$group/$artifact/$version")
+		.walkTopDown()
+		.firstOrNull { it.name == file }
+
+/** requery's AAR: the file REQUERY_AAR names, else the one in the module cache of [gradleHome], or null. */
+internal fun requeryAar(
+	env: String? = System.getenv("REQUERY_AAR"),
+	gradleHome: File = gradleUserHome(),
+): File? =
+	env?.let(::File)?.takeIf { it.isFile }
+		?: gradleCacheFile("com.github.requery", "sqlite-android", "3.49.0", "sqlite-android-3.49.0.aar", gradleHome)
+
 /** Jars the tests compile and resolve against. Each lookup skips the test with a message, or fails it on CI. */
 internal object TestJars {
 	private val home = File(System.getProperty("user.home"))
-	private val modules by lazy { File(gradleUserHome(), "caches/modules-2/files-2.1") }
+	private val modules by lazy { moduleCache() }
 
 	val androidJar: File by lazy {
 		val sdkRoots =
@@ -65,16 +88,6 @@ internal object TestJars {
 		jar!!
 	}
 
-	private fun gradleCacheAar(
-		group: String,
-		artifact: String,
-		version: String,
-		file: String,
-	): File? =
-		File(modules, "$group/$artifact/$version")
-			.walkTopDown()
-			.firstOrNull { it.name == file }
-
 	private fun classesJarOf(
 		aar: File,
 		name: String,
@@ -88,21 +101,19 @@ internal object TestJars {
 	}
 
 	val requeryJar: File by lazy {
-		val aar =
-			System.getenv("REQUERY_AAR")?.let(::File)?.takeIf { it.isFile }
-				?: gradleCacheAar("com.github.requery", "sqlite-android", "3.49.0", "sqlite-android-3.49.0.aar")
+		val aar = requeryAar()
 		requireEnvironment(aar != null, "requery 3.49.0 AAR not found: set REQUERY_AAR or resolve it into the Gradle cache")
 		classesJarOf(aar!!, "requery")
 	}
 
 	val androidxSqliteJar: File by lazy {
-		val aar = gradleCacheAar("androidx.sqlite", "sqlite-android", "2.6.2", "sqlite.aar")
+		val aar = gradleCacheFile("androidx.sqlite", "sqlite-android", "2.6.2", "sqlite.aar")
 		requireEnvironment(aar != null, "androidx.sqlite 2.6.2 AAR not found in the Gradle cache")
 		classesJarOf(aar!!, "androidx-sqlite")
 	}
 
 	val androidxSqliteFrameworkJar: File by lazy {
-		val aar = gradleCacheAar("androidx.sqlite", "sqlite-framework-android", "2.6.2", "sqlite-framework.aar")
+		val aar = gradleCacheFile("androidx.sqlite", "sqlite-framework-android", "2.6.2", "sqlite-framework.aar")
 		requireEnvironment(aar != null, "androidx.sqlite framework 2.6.2 AAR not found in the Gradle cache")
 		classesJarOf(aar!!, "androidx-sqlite-framework")
 	}
@@ -116,7 +127,7 @@ internal object TestJars {
 	}
 
 	val androidxCoreJar: File by lazy {
-		val aar = gradleCacheAar("androidx.core", "core", "1.13.1", "core-1.13.1.aar")
+		val aar = gradleCacheFile("androidx.core", "core", "1.13.1", "core-1.13.1.aar")
 		requireEnvironment(aar != null, "androidx.core 1.13.1 AAR not found in the Gradle cache")
 		classesJarOf(aar!!, "androidx-core")
 	}
