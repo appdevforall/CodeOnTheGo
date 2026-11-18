@@ -51,14 +51,15 @@ object MemprofLines {
 		nowMs: Long,
 		durationMs: Long,
 		allocBytes: Long,
-	): String = "MEMPROF|phase_end|$nowMs|marker=$marker|durationMs=$durationMs|allocBytes=$allocBytes"
+	): String = "MEMPROF|phase_end|$nowMs|marker=$marker|durationMs=$durationMs|procAllocBytes=$allocBytes"
 
 	/**
 	 * The line one finished section instance emits, read by `alloc_budget.py`'s per-file report.
 	 *
-	 * The field order and names (`allocBytes`, `durationMs`, `path`) after the timestamp are fixed
+	 * The field order and names (`procAllocBytes`, `durationMs`, `path`) after the timestamp are fixed
 	 * by that script's `MEMPROF\|file\|(\d+)\|(.*)` regex and its k=v parsing; changing them breaks
-	 * the harness silently rather than with an error, since unknown keys are ignored.
+	 * the harness silently rather than with an error, since unknown keys are ignored. The [details] the
+	 * section put follow the fixed fields, where the script's k=v parsing picks them up.
 	 */
 	fun fileLine(
 		nowMs: Long,
@@ -67,7 +68,10 @@ object MemprofLines {
 		path: String?,
 		name: String,
 		completed: Boolean,
-	): String = "MEMPROF|file|$nowMs|allocBytes=$allocBytes|durationMs=$durationMs|path=$path|name=$name|completed=$completed"
+		details: Map<String, Long>,
+	): String =
+		"MEMPROF|file|$nowMs|procAllocBytes=$allocBytes|durationMs=$durationMs|path=$path|name=$name|completed=$completed" +
+			detailsSuffix(details)
 
 	private fun detailsSuffix(details: Map<String, Long>): String = details.entries.joinToString("") { (key, value) -> "|$key=$value" }
 }
