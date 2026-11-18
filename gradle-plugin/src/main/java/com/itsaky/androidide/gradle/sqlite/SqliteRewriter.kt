@@ -18,7 +18,7 @@ import org.objectweb.asm.tree.FieldInsnNode
 import org.objectweb.asm.tree.FrameNode
 import org.objectweb.asm.tree.InsnList
 import org.objectweb.asm.tree.InvokeDynamicInsnNode
-import org.objectweb.asm.tree.JumpInsnNode
+import org.objectweb.asm.tree.LabelNode
 import org.objectweb.asm.tree.LdcInsnNode
 import org.objectweb.asm.tree.LineNumberNode
 import org.objectweb.asm.tree.MethodInsnNode
@@ -30,6 +30,7 @@ import org.objectweb.asm.tree.analysis.AnalyzerException
 import org.objectweb.asm.tree.analysis.BasicInterpreter
 import org.objectweb.asm.tree.analysis.BasicValue
 import org.objectweb.asm.tree.analysis.Frame
+import org.objectweb.asm.tree.analysis.Interpreter
 import com.itsaky.androidide.gradle.sqlite.SqliteRewriteRules as Rules
 
 /** Thrown with every unsupported reference of a class, so the build names them all at once. */
@@ -125,15 +126,64 @@ object SqliteRewriter {
 			}
 		}
 
+	/** [instanceOf]: the types an `instanceof` proved the value to be, on every path to here. */
 	private class TaintValue(
 		type: Type?,
 		val sqliteCursor: Boolean,
+		val instanceOf: Set<String> = emptySet(),
 	) : BasicValue(type) {
-		// Frame.merge keeps the old value when the merged one equals it, so the taint must count
+		// Frame.merge keeps the old value when the merged one equals it, so the taint and the proofs must count
 		override fun equals(other: Any?): Boolean =
-			other is BasicValue && super.equals(other) && sqliteCursor == ((other as? TaintValue)?.sqliteCursor ?: false)
+			other is BasicValue && super.equals(other) && sqliteCursor == ((other as? TaintValue)?.sqliteCursor ?: false) &&
+				instanceOf == ((other as? TaintValue)?.instanceOf ?: emptySet<String>())
 
-		override fun hashCode(): Int = super.hashCode() * 31 + if (sqliteCursor) 1 else 0
+		override fun hashCode(): Int = (super.hashCode() * 31 + if (sqliteCursor) 1 else 0) * 31 + instanceOf.hashCode()
+
+		fun provedInstanceOf(type: String) = TaintValue(this.type, sqliteCursor, instanceOf + type)
+	}
+
+	/**
+	 * A frame that learns from `ALOAD n; INSTANCEOF X; IFEQ/IFNE`, written without anything between them (no label, so
+	 * no other path joins there): on the edge where the test succeeded, local n's value is proved an X. The proof goes
+	 * with the value through copies, and a merge keeps it only when every path brings it.
+	 */
+	private class GuardFrame : Frame<BasicValue> {
+		constructor(numLocals: Int, maxStack: Int) : super(numLocals, maxStack)
+		constructor(frame: Frame<out BasicValue>) : super(frame)
+
+		private var local = -1
+		private var type: String? = null
+		private var provedOnJump = false
+		private var before: BasicValue? = null
+
+		override fun execute(
+			insn: AbstractInsnNode,
+			interpreter: Interpreter<BasicValue>,
+		) {
+			local = -1
+			before = null
+			val test = insn.previous as? TypeInsnNode
+			val load = test?.previous as? VarInsnNode
+			if ((insn.opcode == Opcodes.IFEQ || insn.opcode == Opcodes.IFNE) && test?.opcode == Opcodes.INSTANCEOF &&
+				load?.opcode == Opcodes.ALOAD
+			) {
+				local = load.`var`
+				type = test.desc
+				provedOnJump = insn.opcode == Opcodes.IFNE
+			}
+			super.execute(insn, interpreter)
+		}
+
+		// Called on this frame once per edge of the jump, before it is merged there, in no order this relies on
+		override fun initJumpTarget(
+			opcode: Int,
+			target: LabelNode?,
+		) {
+			if (local < 0) return
+			val value = before ?: getLocal(local).also { before = it }
+			val proved = (target != null) == provedOnJump
+			setLocal(local, if (proved && value is TaintValue) value.provedInstanceOf(type!!) else value)
+		}
 	}
 
 	/** A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's. */
@@ -478,9 +528,7 @@ object SqliteRewriter {
 			if (t.desc.startsWith(Rules.OPEN_PARAMS)) {
 				violate(m, line, "OpenParams, which requery lacks")
 			}
-			if (t.opcode == Opcodes.CHECKCAST && t.desc in Rules.ANDROID_ONLY_CURSOR_TYPES && t in tainted &&
-				!isGuardedByInstanceof(m, t)
-			) {
+			if (t.opcode == Opcodes.CHECKCAST && t.desc in Rules.ANDROID_ONLY_CURSOR_TYPES && t in tainted) {
 				violate(
 					m,
 					line,
@@ -693,63 +741,6 @@ object SqliteRewriter {
 		) = owner in Rules.SQLITE_CLASSES || name in Rules.MISSING_MEMBER_NAMES || name in Rules.DESCRIPTOR_RULE_NAMES ||
 			desc.contains(Rules.CURSOR_WINDOW)
 
-		private fun previousReal(node: AbstractInsnNode): AbstractInsnNode? {
-			var n = node.previous
-			while (n != null && n.opcode < 0) n = n.previous
-			return n
-		}
-
-		private fun nextReal(node: AbstractInsnNode): AbstractInsnNode? {
-			var n = node.next
-			while (n != null && n.opcode < 0) n = n.next
-			return n
-		}
-
-		/** True when the instruction before [label] never falls through to it. */
-		private fun endsWithExit(label: AbstractInsnNode): Boolean {
-			val op = previousReal(label)?.opcode ?: return false
-			return op == Opcodes.GOTO || op == Opcodes.ATHROW || op in Opcodes.IRETURN..Opcodes.RETURN
-		}
-
-		/**
-		 * The idiom `if (c instanceof X) ... (X) c`: the operand of [cast] is a local read right before it,
-		 * and an INSTANCEOF of the same type on that local sits before it in a branch that contains the
-		 * cast, with no store to the local in between. A guard that jumps over the cast when false (IFEQ)
-		 * covers the instructions up to its target; one that jumps to the cast when true (IFNE) must be
-		 * followed by code that cannot fall through to its target. The cast then cannot throw, so it is
-		 * not reported.
-		 */
-		fun isGuardedByInstanceof(
-			m: MethodNode,
-			cast: TypeInsnNode,
-		): Boolean {
-			val local = (previousReal(cast) as? VarInsnNode)?.takeIf { it.opcode == Opcodes.ALOAD }?.`var` ?: return false
-			val castIndex = m.instructions.indexOf(cast)
-			var node: AbstractInsnNode? = cast.previous
-			while (node != null) {
-				if (node is VarInsnNode && node.`var` == local && node.opcode in Opcodes.ISTORE..Opcodes.ASTORE) return false
-				if (node is TypeInsnNode && node.opcode == Opcodes.INSTANCEOF && node.desc == cast.desc &&
-					(previousReal(node) as? VarInsnNode)?.let { it.opcode == Opcodes.ALOAD && it.`var` == local } == true
-				) {
-					val jump = nextReal(node) as? JumpInsnNode
-					if (jump != null) {
-						val target = m.instructions.indexOf(jump.label)
-						when (jump.opcode) {
-							Opcodes.IFEQ -> {
-								if (target > castIndex) return true
-							}
-
-							Opcodes.IFNE -> {
-								if (target <= castIndex && target > m.instructions.indexOf(jump) && endsWithExit(jump.label)) return true
-							}
-						}
-					}
-				}
-				node = node.previous
-			}
-			return false
-		}
-
 		fun mentionsRenamed(desc: String) = desc.contains("android/database/") && Rules.RENAMED_DESCRIPTOR_TOKENS.any { desc.contains(it) }
 
 		fun simple(name: String) = name.substringAfterLast('/')
@@ -873,8 +864,11 @@ object SqliteRewriter {
 		/**
 		 * The CHECKCASTs to AbstractWindowedCursor whose operand came from an SQLite API (a call on
 		 * one of the renamed classes returning a cursor, or a parameter or instance field declared as
-		 * SQLiteCursor), through locals and the stack. Approximate: values that went through other
-		 * calls, array elements or static fields are not followed (a miss).
+		 * SQLiteCursor), through locals and the stack, unless an `instanceof` of the cast's type proved
+		 * the operand on every path to the cast (see [GuardFrame]): `if (c instanceof X) ((X) c)`, `&&`,
+		 * `?:` and an early exit when it is false, but not `b || c instanceof X`, which reaches the cast
+		 * with `b` alone. Approximate: values that went through other calls, array elements or static
+		 * fields are not followed (a miss).
 		 */
 		fun cursorCastTaint(m: MethodNode): Set<AbstractInsnNode> {
 			val casts =
@@ -914,7 +908,12 @@ object SqliteRewriter {
 						}
 						if (insn.opcode == Opcodes.CHECKCAST && r != null) {
 							val castTo = (insn as TypeInsnNode).desc
-							return TaintValue(r.type, (value as? TaintValue)?.sqliteCursor == true || castTo == Rules.SQLITE_CURSOR)
+							val operand = value as? TaintValue
+							return TaintValue(
+								r.type,
+								operand?.sqliteCursor == true || castTo == Rules.SQLITE_CURSOR,
+								operand?.instanceOf.orEmpty(),
+							)
 						}
 						return r
 					}
@@ -940,13 +939,30 @@ object SqliteRewriter {
 						value1: BasicValue,
 						value2: BasicValue,
 					): BasicValue {
-						val tainted = (value1 as? TaintValue)?.sqliteCursor == true || (value2 as? TaintValue)?.sqliteCursor == true
-						// BasicInterpreter.merge answers UNINITIALIZED for values that differ, taint included
-						if (tainted && value1.type != null && value1.type == value2.type) return TaintValue(value1.type, true)
+						val t1 = value1 as? TaintValue
+						val t2 = value2 as? TaintValue
+						// BasicInterpreter.merge answers UNINITIALIZED for values that differ, taint and proofs included
+						if ((t1 != null || t2 != null) && value1.type != null && value1.type == value2.type) {
+							val merged =
+								TaintValue(
+									value1.type,
+									t1?.sqliteCursor == true || t2?.sqliteCursor == true,
+									t1?.instanceOf.orEmpty() intersect t2?.instanceOf.orEmpty(),
+								)
+							return if (merged == value1) value1 else merged
+						}
 						return super.merge(value1, value2)
 					}
 				}
-			val analyzer = Analyzer(interpreter)
+			val analyzer =
+				object : Analyzer<BasicValue>(interpreter) {
+					override fun newFrame(
+						numLocals: Int,
+						numStack: Int,
+					): Frame<BasicValue> = GuardFrame(numLocals, numStack)
+
+					override fun newFrame(frame: Frame<out BasicValue>): Frame<BasicValue> = GuardFrame(frame)
+				}
 			val frames: Array<Frame<BasicValue>?> =
 				try {
 					analyzer.analyze(cn.name, m)
@@ -957,7 +973,8 @@ object SqliteRewriter {
 			return casts
 				.filter { cast ->
 					val frame = frames[insns.indexOf(cast)]
-					frame != null && (frame.getStack(frame.stackSize - 1) as? TaintValue)?.sqliteCursor == true
+					val operand = frame?.let { it.getStack(it.stackSize - 1) } as? TaintValue
+					operand != null && operand.sqliteCursor && (cast as TypeInsnNode).desc !in operand.instanceOf
 				}.toSet()
 		}
 	}

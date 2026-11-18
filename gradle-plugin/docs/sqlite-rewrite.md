@@ -74,7 +74,8 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
   { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify.
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
-  or an early return when it is false) is not reported. `COLLATE LOCALIZED` only logs a warning: it works, but
+  or an early return when it is false) is not reported when the guard holds on every path to the cast: in
+  `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
   compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together, with
   the way out for a library class, which the user cannot change: comment out `cogo.sqliteDebugger=true`. A platform method outside the renamed set whose
   descriptor mentions a renamed class (found with javap over android.jar: the other `DatabaseUtils` methods

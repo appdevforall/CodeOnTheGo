@@ -1527,4 +1527,72 @@ class SqliteRewriterTest {
 		assertThat(unverified.message).contains("does not verify")
 		assertThat(unverified.message).contains("androidx/sqlite/db/framework/Up")
 	}
+
+	@Test
+	fun `an instanceof guard counts only when it covers every path to the cast`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Partly",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class Partly {
+							Object or(SQLiteDatabase db, boolean b) {
+								Cursor c = db.rawQuery("x", null);
+								if (b || c instanceof AbstractCursor) {
+									return (AbstractCursor) c;
+								}
+								return null;
+							}
+							Object beforeTheLoop(SQLiteDatabase db, int n) {
+								Cursor c = db.rawQuery("x", null);
+								for (int i = 0; i < n; i++) {
+									if (!(c instanceof AbstractWindowedCursor)) {
+										return null;
+									}
+									c = db.rawQuery("y", null);
+								}
+								return (AbstractWindowedCursor) c;
+							}
+						}
+						""",
+					),
+					src(
+						"p.Everywhere",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class Everywhere {
+							Object andAfter(SQLiteDatabase db, boolean b) {
+								Cursor c = db.rawQuery("x", null);
+								if (c instanceof AbstractCursor && b) {
+									return (AbstractCursor) c;
+								}
+								return null;
+							}
+							Object onBothBranches(SQLiteDatabase db, boolean b) {
+								Cursor c = db.rawQuery("x", null);
+								if (b) {
+									if (!(c instanceof AbstractWindowedCursor)) return null;
+								} else {
+									if (!(c instanceof AbstractWindowedCursor)) return null;
+								}
+								Cursor copy = c;
+								return (AbstractWindowedCursor) copy;
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Partly"]!!, hierarchy) }
+		// b alone reaches the cast in or; the loop may run zero times, or end on the unchecked cursor
+		assertThat(e.message).contains("  - or(")
+		assertThat(e.message).contains("  - beforeTheLoop(")
+		SqliteRewriter.rewrite(classes["p/Everywhere"]!!, hierarchy)
+	}
 }
