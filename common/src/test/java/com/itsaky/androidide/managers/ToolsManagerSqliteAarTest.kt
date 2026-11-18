@@ -1,10 +1,12 @@
 package com.itsaky.androidide.managers
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 
 /**
@@ -53,6 +55,25 @@ class ToolsManagerSqliteAarTest {
 		assertThat(source.seen.toSet()).containsExactly("previous-install-aar")
 		assertThat(aar.readText()).isEqualTo("this-install-aar")
 		assertThat(File(aar.parentFile, "sqlite-debugger.aar.part").exists()).isFalse()
+	}
+
+	@Test
+	fun `a copy that fails leaves the previous AAR and no temp file`() {
+		val aar = File(tempFolder.root, "sqlite-debugger/sqlite-debugger.aar")
+		aar.parentFile!!.mkdirs()
+		aar.writeText("previous-install-aar")
+		val failing =
+			object : InputStream() {
+				private var left = 4
+
+				override fun read(): Int = if (left-- > 0) 'x'.code else throw IOException("asset read failed")
+			}
+
+		val e = assertThrows(IOException::class.java) { ToolsManager.replaceAtomically(failing, aar) }
+
+		assertThat(e).hasMessageThat().isEqualTo("asset read failed")
+		assertThat(aar.readText()).isEqualTo("previous-install-aar")
+		assertThat(aar.parentFile!!.list()).asList().containsExactly("sqlite-debugger.aar")
 	}
 
 	@Test
