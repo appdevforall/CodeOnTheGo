@@ -155,6 +155,7 @@ object SqliteRewriter {
 					violations += "method '${m.name}${m.desc}' overrides Context.${m.name}; calls to it are redirected to requery's " +
 						"runtime and would skip the override"
 				}
+				if (policy.fail) bypassedOverride(m)?.let { violations += it }
 				if (policy.redirect && m.name == Rules.DRIVER_QUERY_NAME && m.desc == Rules.DRIVER_QUERY_DESC) {
 					retypeParameters(m, Rules.DRIVER_QUERY_NEW_DESC)
 				}
@@ -240,6 +241,20 @@ object SqliteRewriter {
 				frame.local = ArrayList(locals)
 				frame.stack = ArrayList(stack)
 			}
+		}
+
+		/**
+		 * A method that overrides one whose calls [decide] retypes, SQLiteQueryBuilder's `query` with a
+		 * CancellationSignal: the calls get requery's descriptor and the declaration keeps Android's, so they would
+		 * reach requery's inherited method and skip the override. Retyping the declaration too would mean turning
+		 * requery's signal back into Android's in a body written for Android's, so the build fails instead.
+		 */
+		fun bypassedOverride(m: MethodNode): String? {
+			if (m.access and (Opcodes.ACC_STATIC or Opcodes.ACC_PRIVATE) != 0 || m.name !in Rules.DESCRIPTOR_RULE_NAMES) return null
+			val ancestors = cn.superName?.let { renamedAncestors(it) }.orEmpty()
+			val rule = Rules.DESCRIPTOR_RULES.firstOrNull { it.owner in ancestors && it.name == m.name && it.desc == m.desc } ?: return null
+			return "method '${m.name}${m.desc}' overrides ${simple(rule.owner)}.${m.name}, whose calls the rewrite gives requery's " +
+				"descriptor; they would reach requery's method and skip the override"
 		}
 
 		fun checkDeclarations() {

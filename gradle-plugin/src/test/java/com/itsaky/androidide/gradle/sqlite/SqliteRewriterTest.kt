@@ -1394,4 +1394,39 @@ class SqliteRewriterTest {
 			assertThat(e.message).contains(name)
 		}
 	}
+
+	@Test
+	fun `a query builder subclass that overrides the query taking a CancellationSignal fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.MyBuilder",
+						"""
+						package p;
+						import android.database.Cursor;
+						import android.database.sqlite.*;
+						import android.os.CancellationSignal;
+						public class MyBuilder extends SQLiteQueryBuilder {
+							@Override
+							public Cursor query(SQLiteDatabase db, String[] p, String s, String[] a, String g, String h, String o, String l,
+									CancellationSignal c) {
+								return super.query(db, p, s, a, g, h, o, l, c);
+							}
+							@Override
+							public Cursor query(SQLiteDatabase db, String[] p, String s, String[] a, String g, String h, String o) {
+								return null;
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/MyBuilder"]!!, hierarchy) }
+		val overrides = e.message!!.lines().filter { "overrides SQLiteQueryBuilder.query" in it }
+		// the overload without a signal keeps its descriptor in requery, so overriding it still works
+		assertThat(overrides).hasSize(1)
+		assertThat(overrides.single()).contains("Landroid/os/CancellationSignal;)Landroid/database/Cursor;'")
+		assertThat(e.message).contains("p.MyBuilder")
+	}
 }
