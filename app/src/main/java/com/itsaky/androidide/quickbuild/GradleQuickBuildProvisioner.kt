@@ -362,10 +362,13 @@ class GradleQuickBuildProvisioner(
 			val projectRoot = File(projectManager.projectDirPath)
 
 			// Before staging, which a refused build need not pay for: the Gradle plugin never applies Quick
-			// Build to an opted-in project, so building would only end in "variant setup missing". During
-			// a sync the model has no app modules yet, so an opt-in in a module's own gradle.properties is
-			// seen only by the second check, after the wait for the model.
-			sqliteDebuggerRefusal(projectManager, projectRoot)?.let { return it }
+			// Build to an opted-in project, so building would only end in "variant setup missing". Only once
+			// the model has the app modules: during a sync this check would read the root's file without
+			// theirs, so a root opt-in would refuse a project whose module turns it off. The second check,
+			// after the wait for the model, decides then.
+			if (projectManager.workspace != null) {
+				sqliteDebuggerRefusal(projectManager, projectRoot)?.let { return it }
+			}
 			stage(context, paths)
 
 			// The project model only exists once CoGo's Gradle sync has populated it, and a tap
@@ -555,7 +558,7 @@ class GradleQuickBuildProvisioner(
 	/**
 	 * The refusal for a project with `cogo.sqliteDebugger=true`, or null. It reads the app modules'
 	 * own `gradle.properties` only for the modules [projectManager] knows, which is none before the
-	 * sync publishes the model.
+	 * sync publishes the model, so it decides only once the model is published.
 	 */
 	private fun sqliteDebuggerRefusal(
 		projectManager: IProjectManager,

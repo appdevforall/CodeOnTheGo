@@ -119,6 +119,35 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 		}
 
 	@Test
+	fun `a root opt-in that the app module turns off is not refused when the tap comes during the sync`() =
+		runTest {
+			File(projectRoot, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			val moduleDir = moduleDir()
+			File(moduleDir, "gradle.properties").writeText("cogo.sqliteDebugger=false\n")
+			val gradle = FakeBuildService()
+			val project =
+				SyncingProjectManager(
+					FakeProjectManager(
+						projectRoot,
+						appModules = listOf(androidModule(buildDir = File(moduleDir, "build"), projectDir = moduleDir)),
+					),
+				)
+
+			val outcome =
+				testProvisioner(
+					context = context,
+					projectRoot = projectRoot,
+					buildService = gradle,
+					projectManager = project,
+					stage = { _, _ -> project.published = true },
+				).provision()
+
+			// The module's file comes before the root's, so its false decides, as in Gradle: the build runs.
+			assertThat(failureText(outcome)).isNotEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(gradle.executedTasks).isNotNull()
+		}
+
+	@Test
 	fun `an opt-in in a module that a sync publishes during the staging is refused`() =
 		runTest {
 			val app = moduleDir()
