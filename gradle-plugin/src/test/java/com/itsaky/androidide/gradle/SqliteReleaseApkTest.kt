@@ -2,7 +2,9 @@ package com.itsaky.androidide.gradle
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.itsaky.androidide.gradle.sqlite.ProcessResult
 import com.itsaky.androidide.gradle.sqlite.requireEnvironment
+import com.itsaky.androidide.gradle.sqlite.runBounded
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_REWRITE_RUNTIME_AAR
@@ -11,7 +13,6 @@ import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 /**
  * The release-APK guard (ADFA-7138): an app that opted into the SQLite debugger gets it in its debuggable
@@ -32,19 +33,12 @@ class SqliteReleaseApkTest {
 		return File(path!!)
 	}
 
-	private class CheckResult(
-		val exitCode: Int,
-		val output: String,
-	)
-
-	private fun checkApk(apk: File): CheckResult {
+	private fun checkApk(apk: File): ProcessResult {
 		assertWithMessage("APK not built").that(apk.isFile).isTrue()
 		val script = FileProvider.projectRoot().resolve("scripts/check-release-apk-no-sqlite-debugger.sh").toFile()
-		val process = ProcessBuilder("bash", script.path, apk.path).redirectErrorStream(true).start()
-		val output = process.inputStream.bufferedReader().readText()
-		check(process.waitFor(1, TimeUnit.MINUTES)) { "the check script did not finish" }
-		println("${apk.name}: exit ${process.exitValue()}\n$output")
-		return CheckResult(process.exitValue(), output)
+		val result = runBounded(listOf("bash", script.path, apk.path), timeoutSeconds = 60)
+		println("${apk.name}: exit ${result.exitCode}\n${result.output}")
+		return result
 	}
 
 	@Test

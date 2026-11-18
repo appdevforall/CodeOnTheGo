@@ -7,6 +7,7 @@ import org.objectweb.asm.tree.ClassNode
 import java.io.File
 import java.net.URI
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
 import javax.tools.JavaFileObject
 import javax.tools.SimpleJavaFileObject
@@ -118,6 +119,38 @@ internal object TestJars {
 		val aar = gradleCacheAar("androidx.core", "core", "1.13.1", "core-1.13.1.aar")
 		requireEnvironment(aar != null, "androidx.core 1.13.1 AAR not found in the Gradle cache")
 		classesJarOf(aar!!, "androidx-core")
+	}
+}
+
+/** A finished process: its exit code, and its standard output and error together. */
+internal class ProcessResult(
+	val exitCode: Int,
+	val output: String,
+)
+
+/**
+ * Runs [command] with its output going to a temp file, so the time limit holds even for a process, or a child it
+ * leaves behind, that keeps the output open: reading a pipe to its end would wait for that. On timeout it destroys
+ * the process and fails with what it printed.
+ */
+internal fun runBounded(
+	command: List<String>,
+	timeoutSeconds: Long,
+): ProcessResult {
+	val log = Files.createTempFile("sqlite-test-process", ".log").toFile()
+	try {
+		val process =
+			ProcessBuilder(command)
+				.redirectErrorStream(true)
+				.redirectOutput(log)
+				.start()
+		if (!process.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
+			process.destroyForcibly().waitFor(10, TimeUnit.SECONDS)
+			throw AssertionError("${command.joinToString(" ")} did not finish in $timeoutSeconds s; it printed:\n${log.readText()}")
+		}
+		return ProcessResult(process.exitValue(), log.readText())
+	} finally {
+		log.delete()
 	}
 }
 
