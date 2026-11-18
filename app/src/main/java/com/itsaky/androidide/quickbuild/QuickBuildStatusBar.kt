@@ -21,11 +21,16 @@ sealed interface QuickBuildStatusBarUpdate {
 	 * @property args positional format arguments for [text], in order.
 	 * @property onlyIfOwned apply only if Quick Build's text is still on the bar, so a passive
 	 *   refresh cannot clobber a line another writer took over.
+	 * @property tapLabel set for a [text] that asks for a tap: a tap on the line then does what a
+	 *   tap on the Quick Build button does, and this is what TalkBack says the tap does. Null for
+	 *   a line that is plain text. The tap lasts only while this text is on the bar; the next
+	 *   write to the bar, by anyone, drops it.
 	 */
 	data class Show(
 		@param:StringRes @get:StringRes val text: Int,
 		val args: List<Any> = emptyList(),
 		val onlyIfOwned: Boolean = false,
+		@param:StringRes @get:StringRes val tapLabel: Int? = null,
 	) : QuickBuildStatusBarUpdate
 
 	/** Clear the bar - but only if the last write was Quick Build's (the caller tracks that). */
@@ -89,9 +94,13 @@ fun quickBuildStatusBarUpdate(
 		}
 
 		QuickBuildTransition.StartRefused -> {
-			// Not a failure: Quick Build is deliberately off here, and a retry cannot help. The tap
-			// shows the full refusal again.
-			QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_off_sqlite_debugger)
+			// Not a failure: Quick Build is deliberately off here, and a retry cannot help. The text
+			// says "tap for details", so the line itself takes the tap: it runs the button's tap,
+			// which re-runs the cheap check and shows the full refusal again.
+			QuickBuildStatusBarUpdate.Show(
+				R.string.quick_build_status_off_sqlite_debugger,
+				tapLabel = R.string.quick_build_status_off_sqlite_debugger_action,
+			)
 		}
 
 		is QuickBuildTransition.ProvisioningStarted -> {

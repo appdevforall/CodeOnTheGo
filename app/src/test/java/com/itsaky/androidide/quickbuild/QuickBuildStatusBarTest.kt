@@ -295,11 +295,15 @@ class QuickBuildStatusBarTest {
 					SessionEvent.ProvisioningFailed(QuickBuildMessage.RebuildFailed),
 				).state
 
-		assertThat(update(QuickBuildStatus.Provisioning(), QuickBuildStatus.from(refused)))
-			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_off_sqlite_debugger))
+		// The line says "tap for details", so it carries the tap; QuickBuildStatusLineTapTest clicks it.
+		val off =
+			QuickBuildStatusBarUpdate.Show(
+				R.string.quick_build_status_off_sqlite_debugger,
+				tapLabel = R.string.quick_build_status_off_sqlite_debugger_action,
+			)
+		assertThat(update(QuickBuildStatus.Provisioning(), QuickBuildStatus.from(refused))).isEqualTo(off)
 		// A recreation resubscribes with no previous status and must read the same.
-		assertThat(update(null, QuickBuildStatus.from(refused)))
-			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_off_sqlite_debugger))
+		assertThat(update(null, QuickBuildStatus.from(refused))).isEqualTo(off)
 		assertThat(update(QuickBuildStatus.Provisioning(), QuickBuildStatus.from(failed)))
 			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_start_failed))
 		// A save clears the carried refusal as it does a failure.

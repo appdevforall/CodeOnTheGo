@@ -1219,6 +1219,8 @@
 	<string name="quick_build_status_rebuild_failed">Quick Build failed - see Build Output</string>
 	<string name="quick_build_status_start_failed">Quick Build: setup failed - tap to retry</string>
 	<string name="quick_build_status_off_sqlite_debugger">Quick Build: off while the SQLite debugger is on - tap for details</string>
+	<!-- TalkBack reads this after "Double-tap to" on the line above, which takes a tap. -->
+	<string name="quick_build_status_off_sqlite_debugger_action">show why Quick Build is off</string>
 	<string name="quick_build_flash_failed">Quick Build failed. See the Build Output panel for more details.</string>
 	<string name="quick_build_flash_recovered">Quick Build successful</string>
 	<string name="quick_build_status_reconnecting">Quick Build compiler restarting…</string>
