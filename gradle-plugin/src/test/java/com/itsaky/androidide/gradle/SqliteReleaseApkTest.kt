@@ -22,7 +22,8 @@ import java.util.concurrent.TimeUnit
  * AAR brings. R8 renames and drops classes in a release, so the dex grep of the script can miss them; the
  * manifest provider and libsqlitedbg.so are what the control requires to fail.
  *
- * Run by the sqliteReleaseApkTest task, which builds the AARs and passes their paths.
+ * Run by the sqliteReleaseApkTest task, which builds the AARs and passes their paths. Run without an AAR's path, as
+ * from an IDE, it skips with a message, and fails instead when the environment variable CI is set (requireEnvironment).
  */
 class SqliteReleaseApkTest {
 	private fun aar(name: String): File {
