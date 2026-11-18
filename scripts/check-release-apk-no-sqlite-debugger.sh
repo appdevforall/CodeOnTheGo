@@ -79,7 +79,8 @@ if awk '
 fi
 
 # A dex stores type descriptors as plain strings, so a debugger class that got in shows up here even when
-# the manifest is clean (a library that registers nothing).
+# the manifest is clean (a library that registers nothing). R8 can rename or drop classes in a minified release,
+# so this check can miss them: the manifest and native-library checks above are the ones that hold.
 # grep -c reads all its input: with pipefail, grep -q exiting early would make unzip die of SIGPIPE
 # and the pipeline report failure.
 dex_hits=$(unzip -p "$apk" 'classes*.dex' 2>/dev/null | grep -ac 'Lorg/appdevforall/sqlitedebugger/' || true)

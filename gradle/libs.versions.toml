@@ -302,6 +302,8 @@ tests-junit-platformLauncher = { module = "org.junit.platform:junit-platform-lau
 tests-junit-vintageEngine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit-jupiter" }
 core-tests-anroidx-arch = { module = "androidx.arch.core:core-testing", version.ref = "anroidx-test-core" }
 tests-google-truth = { module = "com.google.truth:truth", version = "1.4.1" }
+# The requery the ADFA-7082 template ships in libs/ (JitPack); :gradle-plugin's sqliteReleaseApkTest builds against it
+tests-requery-sqliteAndroid = { module = "com.github.requery:sqlite-android", version = "3.49.0" }
 tests-robolectric = { module = "org.robolectric:robolectric", version = "4.11.1" }
 tests-androidx-test-core = { module = "androidx.test:core", version = "1.5.0" }
 tests-androidx-test-monitor = { module = "androidx.test:monitor", version = "1.8.0" }

@@ -138,7 +138,16 @@ this package, so the build does not report it.
 ## Checking a release APK
 
 `scripts/check-release-apk-no-sqlite-debugger.sh <apk>` fails when an APK carries the debugger (native library,
-provider, `<queries>` entry or classes). QA runs it on the release APK of an opted-in project: the release build must never contain the debugger.
+provider, `<queries>` entry or classes). The release build must never contain the debugger. R8 renames and drops
+classes in a minified release, so the class check can miss them; the manifest and native-library checks are the
+ones that hold.
+
+`:gradle-plugin:sqliteReleaseApkTest` (`SqliteReleaseApkTest`) runs it on every push, in the `build_apk` job of
+`.github/workflows/debug.yml`. It builds the minified release and the debug variant of the functional tests' sample
+app, opted in, with the debugger and rewrite runtime AARs this repo builds and requery 3.49.0 from JitPack as a file
+dependency, and runs the script on both APKs. The release must pass. The debug APK must fail on the provider and on
+`libsqlitedbg.so`, which shows the check still sees what the AAR brings. The task builds the AARs it needs, so
+`:gradle-plugin:test` leaves this test out. QA can still run the script on any release APK.
 
 ## Known limits
 
