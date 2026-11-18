@@ -8,6 +8,11 @@ import android.os.CancellationSignal;
 import android.text.TextUtils;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Targets of the calls that CoGo's Gradle plugin redirects when it rewrites an app from android.database.sqlite to requery (ADFA-7138).
@@ -40,6 +45,9 @@ public final class SqliteRewriteRuntime {
 	private static final int REQUERY_ENABLE_WRITE_AHEAD_LOGGING = 0x20000000;
 
 	private static final int CONTEXT_MODE_ENABLE_WRITE_AHEAD_LOGGING = 0x8;
+
+	/** The listener each Android signal forwards cancellation through; weak keys, so a signal the app dropped goes. */
+	private static final Map<CancellationSignal, CancelForwarder> FORWARDERS = new WeakHashMap<>();
 
 	/**
 	 * Same as Context.deleteDatabase, which also returns false on any exception. requery's deleteDatabase removes the -journal, -wal, -shm and -mj files next to the file, like Android's.
@@ -132,7 +140,7 @@ public final class SqliteRewriteRuntime {
 	}
 
 	/**
-	 * Android's signal for requery's. Android's signal holds one listener, so this replaces any listener the caller set on it (Android's setOnCancelListener documents that it replaces the previous one). It fires at once when the signal is cancelled already.
+	 * Android's signal for requery's. Each call returns a new requery signal, and cancelling Android's cancels every one of them still in use: requery keeps a query's signal for the cursor's later reads, so two lazy queries that share an Android signal must both stop. Android's signal holds one listener, so this replaces any listener the caller set on it (Android's setOnCancelListener documents that it replaces the previous one).
 	 */
 	public static androidx.core.os.CancellationSignal toCancellationSignal(
 			CancellationSignal signal) {
@@ -140,16 +148,21 @@ public final class SqliteRewriteRuntime {
 			return null;
 		}
 		final androidx.core.os.CancellationSignal converted = new androidx.core.os.CancellationSignal();
+		CancelForwarder forwarder;
+		synchronized (FORWARDERS) {
+			forwarder = FORWARDERS.get(signal);
+			if (forwarder == null) {
+				forwarder = new CancelForwarder();
+				FORWARDERS.put(signal, forwarder);
+			}
+		}
+		forwarder.add(converted);
+		signal.setOnCancelListener(forwarder);
+		// setOnCancelListener does not call a listener that is already set, so a signal cancelled before this call
+		// has to be checked
 		if (signal.isCanceled()) {
 			converted.cancel();
-			return converted;
 		}
-		signal.setOnCancelListener(new CancellationSignal.OnCancelListener() {
-			@Override
-			public void onCancel() {
-				converted.cancel();
-			}
-		});
 		return converted;
 	}
 
@@ -168,4 +181,38 @@ public final class SqliteRewriteRuntime {
 	}
 
 	private SqliteRewriteRuntime() {}
+
+	/**
+	 * Cancels every requery signal converted from one Android signal. It holds them weakly: a query's signal lives as long as its cursor, and a closed and dropped cursor must not be kept for a signal the app reuses.
+	 */
+	private static final class CancelForwarder implements CancellationSignal.OnCancelListener {
+		private final List<WeakReference<androidx.core.os.CancellationSignal>> converted = new ArrayList<>();
+
+		@Override
+		public void onCancel() {
+			List<androidx.core.os.CancellationSignal> live = new ArrayList<>();
+			synchronized (this) {
+				for (WeakReference<androidx.core.os.CancellationSignal> ref : converted) {
+					androidx.core.os.CancellationSignal signal = ref.get();
+					if (signal != null) {
+						live.add(signal);
+					}
+				}
+				converted.clear();
+			}
+			// outside the lock: requery's listener interrupts the native query
+			for (androidx.core.os.CancellationSignal signal : live) {
+				signal.cancel();
+			}
+		}
+
+		synchronized void add(androidx.core.os.CancellationSignal signal) {
+			for (int i = converted.size() - 1; i >= 0; i--) {
+				if (converted.get(i).get() == null) {
+					converted.remove(i);
+				}
+			}
+			converted.add(new WeakReference<>(signal));
+		}
+	}
 }

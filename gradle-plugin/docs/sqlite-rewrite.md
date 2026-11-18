@@ -213,6 +213,8 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - `instanceof` is not rewritten: `cursor instanceof AbstractWindowedCursor`, `AbstractCursor` or
   `CrossProcessCursor` is silently false for requery's cursors (no build failure), which is what Room's
   `DBUtil.query` relies on.
-- Android's `CancellationSignal` holds one listener: the conversion replaces any listener the caller set.
+- Android's `CancellationSignal` holds one listener: the conversion replaces any listener the caller set. Each
+  query gets its own androidx.core signal, and cancelling the Android signal cancels every one still in use, so
+  two lazy queries that share it both stop (requery keeps a query's signal for its cursor's later reads).
 - Which `SQLiteException` subclass requery throws for an error code (for example `SQLiteConstraintException`, which
   Room catches) is decided by its native layer; this rewrite does not change it and the survey did not check it.
