@@ -35,7 +35,7 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
-### 26.47 — unreleased
+### 26.48 — unreleased
 - **added — Find the SQLite debugger of the open project's apps** _(ADFA-7139)_ **[verified]**
   `DebuggerEndpointService.getEndpoints()` returns an unmodifiable `List<DebuggerEndpoint>`, one per app of the open
   project that has reported to the IDE: `applicationId`, `port` (on `127.0.0.1`), `token` (the bearer
@@ -55,7 +55,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   below, and does not stop a plugin from taking another plugin's service from
   `PluginManager.getInstance().getLoadedPlugin(id).context.services` or `PluginFragmentHelper.getServiceRegistry`
   (tracked in ADFA-7194). Floor `plugin.min_ide_version`
-  at `26.47`: an IDE of 26.46 or older rejects the unknown `debugger.endpoints` permission when it
+  at `26.48`: an IDE of 26.47 or older rejects the unknown `debugger.endpoints` permission when it
   validates the manifest, so it refuses to install a plugin that declares it.
 
 ### 26.43 — unreleased
