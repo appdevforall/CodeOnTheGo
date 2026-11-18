@@ -57,16 +57,24 @@ class SqliteRewriteTransformTest {
 
 	/**
 	 * AGP instruments the classes of dependencies with artifact transforms, which the dex builder triggers, not
-	 * in the variant's transform task, so the output is in Gradle's transform cache: the jars that hold [entry]. The class of this run
-	 * has a name no earlier run used, so a hit is this run's.
+	 * in the variant's transform task, so the output is in Gradle's transform cache, which every run of this test
+	 * shares: the bytes of [read] in each jar that holds [marker]. [marker] names a class no earlier run used, so a
+	 * hit is this run's.
 	 */
-	private fun transformedJarsWith(entry: String): List<ByteArray> {
+	private fun transformedJarsWith(
+		marker: String,
+		read: String = marker,
+	): List<ByteArray> {
 		val cache = FileProvider.projectRoot().resolve("gradle-plugin/build/tmp/test/work/.gradle-test-kit/caches").toFile()
 		return cache
 			.walkTopDown()
 			.filter { it.extension == "jar" && "/transforms/" in it.path }
 			.mapNotNull { jar ->
-				runCatching { ZipFile(jar).use { zip -> zip.getEntry(entry)?.let { zip.getInputStream(it).readBytes() } } }.getOrNull()
+				runCatching {
+					ZipFile(jar).use { zip ->
+						if (zip.getEntry(marker) == null) null else zip.getEntry(read)?.let { zip.getInputStream(it).readBytes() }
+					}
+				}.getOrNull()
 			}.toList()
 	}
 
@@ -89,9 +97,17 @@ class SqliteRewriteTransformTest {
 				.projectRoot()
 				.resolve("subprojects/sqlite-rewrite-runtime/src/main/java/org/appdevforall/sqliterewrite/SqliteRewriteRuntime.java")
 				.toFile()
+		// The helper's name is fixed, so its AAR also carries a class of this run's, to tell its transformed jar apart
+		val markerName = "Marker${System.nanoTime()}"
 		val helper =
 			Compiler.compile(
-				listOf(JavaSource("org.appdevforall.sqliterewrite.SqliteRewriteRuntime", helperSource.readText())),
+				listOf(
+					JavaSource("org.appdevforall.sqliterewrite.SqliteRewriteRuntime", helperSource.readText()),
+					JavaSource(
+						"org.appdevforall.sqliterewrite.$markerName",
+						"package org.appdevforall.sqliterewrite; class $markerName {}",
+					),
+				),
 				listOf(TestJars.androidJar, TestJars.androidxCoreJar),
 			)
 		val libAar = aar(File(dir, "libs/x.aar"), "x.lib", library)
@@ -160,8 +176,10 @@ class SqliteRewriteTransformTest {
 
 		// the injected helper AAR goes through the same transform: its class is rewritten to requery too
 		val helpers =
-			transformedJarsWith("org/appdevforall/sqliterewrite/SqliteRewriteRuntime.class")
-				.map { bytes -> ClassNode().also { ClassReader(bytes).accept(it, 0) } }
+			transformedJarsWith(
+				"org/appdevforall/sqliterewrite/$markerName.class",
+				read = "org/appdevforall/sqliterewrite/SqliteRewriteRuntime.class",
+			).map { bytes -> ClassNode().also { ClassReader(bytes).accept(it, 0) } }
 		assertThat(helpers).isNotEmpty()
 		assertThat(
 			helpers.any { helper ->
