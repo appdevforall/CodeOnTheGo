@@ -79,6 +79,23 @@ internal fun Throwable.isMissingClasspathFile(): Boolean =
 		.take(32)
 		.any { it is NoSuchFileException || it is FileNotFoundException }
 
+/**
+ * This resolver's answer, or null when it throws: e.g. the path's last refresh failed, so its future
+ * completed exceptionally. Callers run outside any catch on a scope with no exception handler.
+ */
+private fun ((Path, KtFile) -> Boolean).orNull(
+	path: Path,
+	ktFile: KtFile,
+): Boolean? =
+	try {
+		invoke(path, ktFile)
+	} catch (e: CancellationException) {
+		throw e
+	} catch (e: Throwable) {
+		logger.warn("Could not tell which instance FIR resolves {} to", path, e)
+		null
+	}
+
 internal fun KtFile.toMetadata(
 	project: Project,
 	isIndexed: Boolean = false,
@@ -137,7 +154,7 @@ internal suspend fun indexSourceFile(
 			 * on a full pass, or an edit's superseded parse) finds no FIR for its declarations (ADFA-5763).
 			 * Skip it: the refresh that produced the newer instance queued that instance's own pass.
 			 */
-			if (!resolvesTo(Path.of(metadata.filePath), ktFile)) {
+			if (resolvesTo.orNull(Path.of(metadata.filePath), ktFile) != true) {
 				logger.debug("Skipping {}: FIR resolves its path to another instance", metadata.filePath)
 				return@read null
 			}
@@ -232,7 +249,7 @@ private fun KaSession.analyzeDeclaration(
 			scope.apply {
 				setExtra("fpth", filePath)
 				// False means the instance was superseded mid-pass; true means the failure has another cause.
-				setTag("instanceMatches", resolvesTo(Path.of(filePath), dcl.containingKtFile).toString())
+				setTag("instanceMatches", resolvesTo.orNull(Path.of(filePath), dcl.containingKtFile)?.toString() ?: "unknown")
 				setExtra("dcl", dcl.name)
 				setExtra("dcl.dbg", dcl.getDebugText())
 				setExtra(

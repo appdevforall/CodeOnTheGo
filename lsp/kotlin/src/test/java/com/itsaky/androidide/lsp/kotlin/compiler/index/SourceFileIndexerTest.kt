@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.progress.ICancelChecker
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
 import org.appdevforall.codeonthego.indexing.api.Index
@@ -146,6 +147,31 @@ class SourceFileIndexerTest : KtLspTest() {
 			val wrote = index(file, buildFileIndex(), symbolsIndex)
 
 			assertThat(wrote).isFalse()
+		}
+
+	@Test
+	fun `a throwing resolver skips the file instead of escaping`(): Unit =
+		runBlocking {
+			val file = createSourceFile("Throws.kt", "fun throws() = 0")
+			val symbolsIndex = buildSymbolIndex()
+
+			val wrote =
+				indexSourceFile(env.project, file, buildFileIndex(), symbolsIndex, ICancelChecker.NOOP) { _, _ ->
+					throw IllegalStateException("refresh failed")
+				}
+
+			assertThat(wrote).isFalse()
+			assertThat(symbolsIndex.findByPrefix("").toList()).isEmpty()
+		}
+
+	@Test(expected = CancellationException::class)
+	fun `a cancelled resolver still cancels the pass`(): Unit =
+		runBlocking {
+			val file = createSourceFile("Cancelled.kt", "fun cancelled() = 0")
+
+			indexSourceFile(env.project, file, buildFileIndex(), buildSymbolIndex(), ICancelChecker.NOOP) { _, _ ->
+				throw CancellationException("cancelled")
+			}
 		}
 
 	@Test
