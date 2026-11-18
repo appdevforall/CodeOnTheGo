@@ -218,6 +218,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
 - A direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor` that overrides a member requery lacks is not
   reported.
+- On a `SQLiteCursor` subclass whose class the build cannot resolve, `getWindow()` is not detected, and the call fails
+  at run time: it is not in the rule table, and failing every unresolved call that returns a `CursorWindow` would fail
+  ordinary apps (android's kept `AbstractWindowedCursor` and `CrossProcessCursor` declare it too).
 - `instanceof` is not rewritten: `cursor instanceof AbstractWindowedCursor`, `AbstractCursor` or
   `CrossProcessCursor` is silently false for requery's cursors (no build failure), which is what Room's
   `DBUtil.query` relies on.
