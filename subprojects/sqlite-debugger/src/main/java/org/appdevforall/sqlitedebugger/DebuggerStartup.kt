@@ -60,7 +60,7 @@ class DebuggerStartup : ContentProvider() {
 		port = http.boundPort
 		endpointToken = token
 		Log.i(TAG, "listening on 127.0.0.1:${http.boundPort}")
-		EndpointBroadcast.send(context, token, http.boundPort)
+		EndpointBroadcast.sendAndListen(context, token, http.boundPort)
 	}
 
 	override fun query(

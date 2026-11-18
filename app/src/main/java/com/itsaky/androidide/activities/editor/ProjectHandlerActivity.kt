@@ -734,8 +734,26 @@ abstract class ProjectHandlerActivity :
 			?.takeIf { it.isNotBlank() }
 
 	override suspend fun beforePostInstallLaunch(packageName: String) {
-		debuggerEndpointRepository.confirmInstall(packageName)
+		debuggerEndpointRepository.confirmInstall(packageName, openProjectDirBuilding(packageName))
 	}
+
+	/**
+	 * The open project's directory when one of its app modules builds [applicationId], as LaunchAppAction pairs a
+	 * launch, else null. Never throws: [beforePostInstallLaunch] must not.
+	 */
+	private fun openProjectDirBuilding(applicationId: String): File? =
+		try {
+			val projectManager = IProjectManager.getInstance()
+			val projectDirPath = projectManager.projectDirPath
+			val builds =
+				projectManager.getAndroidAppModules().any { module ->
+					module.getSelectedVariant()?.mainArtifact?.applicationId == applicationId
+				}
+			if (projectDirPath.isNotBlank() && builds) File(projectDirPath) else null
+		} catch (e: Exception) {
+			logger.warn("Could not tell whether the open project builds {}", applicationId, e)
+			null
+		}
 
 	override fun onInstallEndedWithoutLaunch(packageName: String) {
 		debuggerEndpointRepository.discardPendingInstall(packageName)
