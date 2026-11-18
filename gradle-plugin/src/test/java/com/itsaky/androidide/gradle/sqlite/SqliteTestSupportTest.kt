@@ -23,4 +23,23 @@ class SqliteTestSupportTest {
 		assertThat(gradleUserHome(null, env.path, home)).isEqualTo(env)
 		assertThat(gradleUserHome(null, null, home)).isEqualTo(File(home, ".gradle"))
 	}
+
+	@Test
+	fun `a constructor resolves in the named class only, while methods are still inherited`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					JavaSource("p.Parent", "package p; public class Parent { public Parent() {} public void m() {} }"),
+					JavaSource("p.Child", "package p; public class Child extends Parent { public Child(int i) {} }"),
+				),
+				classpath = emptyList(),
+			)
+		val index = ClassIndex(emptyList())
+		classes.values.forEach(index::addClass)
+
+		assertThat(index.resolve("p/Child", "<init>", "(I)V", field = false)).isEqualTo("p/Child")
+		// the JVM throws NoSuchMethodError for `new Child()`: Parent's constructor is not Child's
+		assertThat(index.resolve("p/Child", "<init>", "()V", field = false)).isNull()
+		assertThat(index.resolve("p/Child", "m", "()V", field = false)).isEqualTo("p/Parent")
+	}
 }

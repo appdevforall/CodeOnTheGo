@@ -250,7 +250,8 @@ internal class ClassIndex(
 	 * The class declaring the member, or null when the JVM would not link the reference: the member is
 	 * missing, static where the call is not (or the reverse), or not accessible from [caller], a class
 	 * in [classes] (null: an unrelated class in another package). [protectedOk] accepts protected members
-	 * for a caller that is not a subclass, as a probe that stands in for one.
+	 * for a caller that is not a subclass, as a probe that stands in for one. A constructor is looked up
+	 * in [owner] only: it is not inherited.
 	 */
 	fun resolve(
 		owner: String,
@@ -279,6 +280,7 @@ internal class ClassIndex(
 				if (isStatic != null && (access and Opcodes.ACC_STATIC != 0) != isStatic) return null
 				return if (accessible(access, n, caller, protectedOk)) n else null
 			}
+			if (!field && name == "<init>") return null
 			c.superName?.let(pending::add)
 			pending.addAll(c.interfaces)
 		}
