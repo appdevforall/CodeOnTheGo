@@ -73,6 +73,20 @@ internal object SqliteRewriteRules {
 	/** The Android classes that get renamed. */
 	val SQLITE_CLASSES: Set<String> = RENAMES.keys.filter { it.startsWith(SQLITE_PKG) }.toSet()
 
+	/**
+	 * A renamed class in a string, as Class.forName or reflection spells it: dots or slashes, `$` or `.` before a
+	 * nested class. Longest names first, and not followed by more of a name, so a kept class such as
+	 * SQLiteDatabaseLockedException does not match SQLiteDatabase.
+	 */
+	val RENAMED_CLASS_NAME: Regex =
+		Regex(
+			RENAMES.keys
+				.sortedByDescending { it.length }
+				.joinToString("|", prefix = "(?:", postfix = ")(?![A-Za-z0-9_])") {
+					it.replace("$", "[.$]").replace("/", "[./]")
+				},
+		)
+
 	/** Renamed superclasses of the renamed classes, from the Wave 0 supertypes.tsv. */
 	val RENAMED_SUPERS: Map<String, List<String>> =
 		mapOf(

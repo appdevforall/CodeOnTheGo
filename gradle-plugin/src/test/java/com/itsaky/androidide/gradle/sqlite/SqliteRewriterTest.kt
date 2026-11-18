@@ -1151,6 +1151,33 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a string naming a renamed class only warns, and one naming a kept class does not`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.ByName",
+						"""
+						package p;
+						public class ByName {
+							Class<?> db() throws Exception { return Class.forName("android.database.sqlite.SQLiteDatabase"); }
+							String factory() { return "android/database/sqlite/SQLiteDatabase${'$'}CursorFactory"; }
+							String kept() { return "android.database.sqlite.SQLiteException android.database.sqlite.SQLiteDatabaseLockedException"; }
+						}
+						""".trimIndent(),
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		SqliteRewriter.rewrite(classes["p/ByName"]!!, warn = { warnings += it })
+		assertThat(warnings).hasSize(2)
+		assertThat(warnings[0]).contains("p.ByName.db (line ")
+		assertThat(warnings[0]).contains("\"android.database.sqlite.SQLiteDatabase\"")
+		assertThat(warnings[1]).contains("p.ByName.factory (line ")
+		assertThat(warnings[1]).contains("\"android/database/sqlite/SQLiteDatabase\$CursorFactory\"")
+	}
+
+	@Test
 	fun `calls on android's CursorWindow are not reported even when the hierarchy says it extends SQLiteClosable`() {
 		val classes =
 			Compiler.compile(

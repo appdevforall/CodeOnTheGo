@@ -330,11 +330,19 @@ object SqliteRewriter {
 					"SQL text uses COLLATE UNICODE, which does not exist in requery's SQLite (no ICU); the statement would fail",
 				)
 			}
+			val where = if (line >= 0) "line $line" else "no line number"
 			if (Rules.COLLATE_LOCALIZED.containsMatchIn(text)) {
-				val where = if (line >= 0) "line $line" else "no line number"
 				warn(
 					"${cn.name.replace('/', '.')}.${m.name} ($where): COLLATE LOCALIZED works in requery's SQLite but sorts by " +
 						"byte value (no ICU), not by the device locale",
+				)
+			}
+			// A warning, not a failure: the string may only be printed. Strings are not rewritten, so a class loaded by
+			// this name is Android's, which the rewritten code cannot mix with requery's.
+			Rules.RENAMED_CLASS_NAME.find(text)?.let {
+				warn(
+					"${cn.name.replace('/', '.')}.${m.name} ($where): the string \"${it.value}\" names a class the rewrite moves " +
+						"to requery. Strings are not rewritten: Class.forName or reflection on it reaches Android's class, not requery's",
 				)
 			}
 		}

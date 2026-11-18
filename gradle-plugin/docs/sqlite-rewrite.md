@@ -187,7 +187,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   either (`GradleQuickBuildProvisioner.sqliteDebuggerRefusal`): it shows `quick_build_disabled_sqlite_debugger`, which
   says Quick Build is off while the SQLite debugger is on.
 - Classes loaded by name (`Class.forName`, reflection, strings naming `android.database.sqlite.*`) are not
-  rewritten.
+  rewritten. A string constant that names one of the renamed classes (dots or slashes, `$` or `.` before a nested
+  class) logs a warning with class, method and line, in the classes the fail rule covers; names of kept classes such
+  as `SQLiteException` do not.
 - The `AbstractWindowedCursor` check follows the cursor through locals and the stack only. A cast of a
   cursor that reached the method through a field, a parameter or another call is not seen (the app throws
   `ClassCastException` at run time), and a cast of a cursor from an SQLite API to a type that is not an
