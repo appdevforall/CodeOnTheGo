@@ -285,6 +285,15 @@ abstract class ProjectHandlerActivity :
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
 
 		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
+
+		private fun apkApplicationId(
+			packageManager: PackageManager,
+			apk: File,
+		): String? =
+			runCatching { packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName }
+				.onFailure { logger.warn("Could not read the applicationId of {}", apk, it) }
+				.getOrNull()
+				?.takeIf { it.isNotBlank() }
 	}
 
 	abstract fun doCloseAll()
@@ -724,55 +733,30 @@ abstract class ProjectHandlerActivity :
 	 */
 	private fun apkApplicationId(apk: File): String? = apkApplicationId(packageManager, apk)
 
-	private fun apkApplicationId(
-		packageManager: PackageManager,
-		apk: File,
-	): String? =
-		runCatching { packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName }
-			.onFailure { logger.warn("Could not read the applicationId of {}", apk, it) }
-			.getOrNull()
-			?.takeIf { it.isNotBlank() }
-
-	override suspend fun beforePostInstallLaunch(packageName: String) {
-		debuggerEndpointRepository.confirmInstall(packageName, openProjectDirBuilding(packageName))
-	}
-
 	/**
-	 * The open project's directory when one of its app modules builds [applicationId], as LaunchAppAction pairs a
-	 * launch, else null. Never throws: [beforePostInstallLaunch] must not.
+	 * Notes the install of [apk] as the open project's for the SQLite debugger pairing (ADFA-7137), or null when no
+	 * project is open. It runs on the install's IO thread before the session is committed, and
+	 * InstallationResultReceiver pairs the app when that session succeeds. When the APK's application ID cannot be
+	 * read, nothing is noted, and the app's next launch from the project pairs it. Captures no Activity: the install
+	 * outlives a recreated one.
 	 */
-	private fun openProjectDirBuilding(applicationId: String): File? =
-		try {
-			val projectManager = IProjectManager.getInstance()
-			val projectDirPath = projectManager.projectDirPath
-			val builds =
-				projectManager.getAndroidAppModules().any { module ->
-					module.getSelectedVariant()?.mainArtifact?.applicationId == applicationId
-				}
-			if (projectDirPath.isNotBlank() && builds) File(projectDirPath) else null
-		} catch (e: Exception) {
-			logger.warn("Could not tell whether the open project builds {}", applicationId, e)
-			null
+	private fun pendingInstallNote(apk: File): ((sessionId: Int) -> Unit)? {
+		val projectDirPath = IProjectManager.getInstance().projectDirPath
+		if (projectDirPath.isBlank()) return null
+		val projectDir = File(projectDirPath)
+		val repository = debuggerEndpointRepository
+		val packageManager = applicationContext.packageManager
+		return { sessionId ->
+			apkApplicationId(packageManager, apk)?.let { repository.notePendingInstall(sessionId, projectDir, it) }
 		}
-
-	override fun onInstallEndedWithoutLaunch(packageName: String) {
-		debuggerEndpointRepository.discardPendingInstall(packageName)
 	}
 
 	private fun doInstallApk(state: BuildState.AwaitingInstall) {
-		val projectDirPath = IProjectManager.getInstance().projectDirPath
-		if (projectDirPath.isNotBlank()) {
-			val apk = state.apkFile
-			// The lambda outlives this Activity in the application scope. The pairing itself is written
-			// by beforePostInstallLaunch, once the install has succeeded.
-			val packageManager = applicationContext.packageManager
-			debuggerEndpointRepository.expectInstallAsync(File(projectDirPath)) { apkApplicationId(packageManager, apk) }
-		}
-
 		apkInstallationViewModel.installApk(
 			context = this,
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
+			beforeCommit = pendingInstallNote(state.apkFile),
 		)
 
 		if (state.launchProfilerAfterInstall) {
