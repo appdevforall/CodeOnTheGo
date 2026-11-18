@@ -70,6 +70,9 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   `CursorWindow` itself are fine), and a cast of
   an SQLite cursor to `android.database.AbstractWindowedCursor`, `AbstractCursor` or `CrossProcessCursor`
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).
+  The same conversion without a cast fails too: a value declared `SQLiteCursor`, or a subclass, returned, passed,
+  called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
+  { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify.
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported. `COLLATE LOCALIZED` only logs a warning: it works, but
   compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together, with

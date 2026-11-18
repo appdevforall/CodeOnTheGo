@@ -136,6 +136,18 @@ object SqliteRewriter {
 		override fun hashCode(): Int = super.hashCode() * 31 + if (sqliteCursor) 1 else 0
 	}
 
+	/** A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's. */
+	private class StaticCursorValue(
+		type: Type?,
+		val renamedCursor: Boolean,
+	) : BasicValue(type) {
+		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
+		override fun equals(other: Any?): Boolean =
+			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false)
+
+		override fun hashCode(): Int = super.hashCode() * 31 + if (renamedCursor) 1 else 0
+	}
+
 	private class ClassRewrite(
 		val cn: ClassNode,
 		val policy: RewritePolicy,
@@ -204,6 +216,26 @@ object SqliteRewriter {
 			m: MethodNode,
 			originalDesc: String,
 		) {
+			for (full in fullFrames(m, originalDesc)) {
+				full.node.type = Opcodes.F_NEW
+				full.node.local = ArrayList(full.locals)
+				full.node.stack = ArrayList(full.stack)
+			}
+		}
+
+		/** A frame of a method with its locals and stack in full, as a compressed frame leaves them implied. */
+		class FullFrame(
+			val node: FrameNode,
+			val locals: List<Any>,
+			val stack: List<Any>,
+		)
+
+		/** Every frame of [m] in full, starting from [originalDesc]'s parameters; changes nothing. */
+		fun fullFrames(
+			m: MethodNode,
+			originalDesc: String,
+		): List<FullFrame> {
+			val result = ArrayList<FullFrame>()
 			var locals = ArrayList<Any>()
 			if (m.access and Opcodes.ACC_STATIC == 0) locals += cn.name
 			for (t in Type.getArgumentTypes(originalDesc)) {
@@ -237,10 +269,9 @@ object SqliteRewriter {
 						stack = ArrayList(frame.stack)
 					}
 				}
-				frame.type = Opcodes.F_NEW
-				frame.local = ArrayList(locals)
-				frame.stack = ArrayList(stack)
+				result += FullFrame(frame, ArrayList(locals), stack)
 			}
+			return result
 		}
 
 		/**
@@ -301,6 +332,7 @@ object SqliteRewriter {
 
 		fun rewriteMethod(m: MethodNode) {
 			val tainted = if (policy.fail) cursorCastTaint(m) else emptySet()
+			val conversions = if (policy.fail) implicitCursorConversions(m) else emptyMap()
 			var line = -1
 			var insn: AbstractInsnNode? = m.instructions.first
 			while (insn != null) {
@@ -308,6 +340,7 @@ object SqliteRewriter {
 				if (insn is LineNumberNode) {
 					line = insn.line
 				}
+				conversions[insn]?.let { violate(m, line, it) }
 				when (insn) {
 					is MethodInsnNode -> {
 						methodInsn(m, insn, line)
@@ -720,6 +753,122 @@ object SqliteRewriter {
 		fun mentionsRenamed(desc: String) = desc.contains("android/database/") && Rules.RENAMED_DESCRIPTOR_TOKENS.any { desc.contains(it) }
 
 		fun simple(name: String) = name.substringAfterLast('/')
+
+		/** SQLiteCursor, or a class that extends it, which the rename makes a subclass of requery's SQLiteCursor. */
+		fun isRenamedCursorType(type: Type?): Boolean =
+			type != null && type.sort == Type.OBJECT && type.descriptor != "Lnull;" &&
+				Rules.SQLITE_CURSOR in renamedAncestors(type.internalName)
+
+		/** [type]'s internal name when it is one of the Android-only cursor types, or null. */
+		private fun androidOnlyCursor(type: Type): String? = if (type.sort == Type.OBJECT) androidOnlyCursor(type.internalName) else null
+
+		/** A type in a frame or an internal name, when it is one of the Android-only cursor types, or null. */
+		private fun androidOnlyCursor(entry: Any?): String? = (entry as? String)?.takeIf { it in Rules.ANDROID_ONLY_CURSOR_TYPES }
+
+		/** Whether [m] names an Android-only cursor type where a value could be converted to it without a cast. */
+		private fun mayConvertToAndroidCursor(m: MethodNode): Boolean {
+			fun names(desc: String) = Rules.ANDROID_ONLY_CURSOR_TYPES.any { desc.contains("L$it;") }
+			if (names(Type.getReturnType(m.desc).descriptor)) return true
+			return m.instructions.any { insn ->
+				when (insn) {
+					is MethodInsnNode -> insn.owner in Rules.ANDROID_ONLY_CURSOR_TYPES || names(insn.desc)
+					is InvokeDynamicInsnNode -> names(insn.desc)
+					is FieldInsnNode -> names(insn.desc)
+					is FrameNode -> (insn.local.orEmpty() + insn.stack.orEmpty()).any { androidOnlyCursor(it) != null }
+					else -> false
+				}
+			}
+		}
+
+		/**
+		 * The instructions where a value whose static type is SQLiteCursor, or a class that extends it, is used as an
+		 * AbstractWindowedCursor, AbstractCursor or CrossProcessCursor without a cast, by the message for each: returned,
+		 * passed, called on, stored in a field, or held where a frame declares one of them. javac writes no CHECKCAST
+		 * for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the interface, so
+		 * the renamed class would not verify (or, for the interface, the call would fail). Values stored in or loaded
+		 * from arrays are not followed; storing one into such an array throws ArrayStoreException.
+		 */
+		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, String> {
+			if (!mayConvertToAndroidCursor(m)) return emptyMap()
+			val interpreter =
+				object : BasicInterpreter(Opcodes.ASM9) {
+					override fun newValue(type: Type?): BasicValue? {
+						val v = super.newValue(type) ?: return null
+						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type)) else v
+					}
+
+					override fun merge(
+						value1: BasicValue,
+						value2: BasicValue,
+					): BasicValue {
+						val renamed =
+							(value1 as? StaticCursorValue)?.renamedCursor == true || (value2 as? StaticCursorValue)?.renamedCursor == true
+						if (renamed && value1.type != null && value1.type == value2.type) return StaticCursorValue(value1.type, true)
+						return super.merge(value1, value2)
+					}
+				}
+			val frames: Array<Frame<BasicValue>?> =
+				try {
+					Analyzer(interpreter).analyze(cn.name, m)
+				} catch (e: AnalyzerException) {
+					return emptyMap()
+				}
+			val declared = fullFrames(m, m.desc).associateBy { it.node }
+			val returnType = Type.getReturnType(m.desc)
+			val result = LinkedHashMap<AbstractInsnNode, String>()
+			for ((i, insn) in m.instructions.withIndex()) {
+				val f = frames[i] ?: continue
+
+				fun renamed(value: BasicValue?) = (value as? StaticCursorValue)?.renamedCursor == true
+
+				fun fromTop(depth: Int) = if (depth < f.stackSize) f.getStack(f.stackSize - 1 - depth) else null
+				val target: String? =
+					when {
+						insn is MethodInsnNode || insn is InvokeDynamicInsnNode -> {
+							val args = Type.getArgumentTypes((insn as? MethodInsnNode)?.desc ?: (insn as InvokeDynamicInsnNode).desc)
+							args.indices.firstNotNullOfOrNull { k ->
+								androidOnlyCursor(args[k])?.takeIf { renamed(fromTop(args.size - 1 - k)) }
+							}
+								?: (insn as? MethodInsnNode)
+									?.takeIf {
+										it.opcode != Opcodes.INVOKESTATIC && it.owner in Rules.ANDROID_ONLY_CURSOR_TYPES &&
+											renamed(fromTop(args.size))
+									}?.owner
+						}
+
+						insn is FieldInsnNode && (insn.opcode == Opcodes.PUTFIELD || insn.opcode == Opcodes.PUTSTATIC) -> {
+							androidOnlyCursor(Type.getType(insn.desc))?.takeIf { renamed(fromTop(0)) }
+						}
+
+						insn.opcode == Opcodes.ARETURN -> {
+							androidOnlyCursor(returnType)?.takeIf { renamed(fromTop(0)) }
+						}
+
+						insn is FrameNode -> {
+							declared[insn]?.let { full ->
+								var slot = 0
+								var hit: String? = null
+								for (t in full.locals) {
+									if (hit == null && slot < f.locals && renamed(f.getLocal(slot))) hit = androidOnlyCursor(t)
+									slot += if (t == Opcodes.LONG || t == Opcodes.DOUBLE) 2 else 1
+								}
+								hit ?: full.stack.indices.firstNotNullOfOrNull { k ->
+									androidOnlyCursor(full.stack[k])?.takeIf { k < f.stackSize && renamed(f.getStack(k)) }
+								}
+							}
+						}
+
+						else -> {
+							null
+						}
+					}
+				if (target != null) {
+					result[insn] = "an SQLite cursor used as ${target.replace('/', '.')} without a cast; requery's SQLiteCursor is not " +
+						"one, so the rewritten class would not verify or the call would fail"
+				}
+			}
+			return result
+		}
 
 		/**
 		 * The CHECKCASTs to AbstractWindowedCursor whose operand came from an SQLite API (a call on

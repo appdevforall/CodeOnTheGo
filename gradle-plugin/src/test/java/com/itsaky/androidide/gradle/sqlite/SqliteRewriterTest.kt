@@ -1478,4 +1478,53 @@ class SqliteRewriterTest {
 		assertThat(unresolved[0]).isEqualTo("isStrict()Z")
 		assertThat(unresolved[1]).startsWith("query(Landroid/database/sqlite/SQLiteDatabase;")
 	}
+
+	@Test
+	fun `an SQLite cursor used as an Android cursor class without a cast fails the build, and would not verify`() {
+		fun up(pkg: String) =
+			src(
+				"$pkg.Up",
+				"""
+				package $pkg;
+				import android.database.*;
+				import android.database.sqlite.*;
+				public class Up {
+					AbstractCursor field;
+					AbstractCursor returned(SQLiteCursor c) { return c; }
+					void passed(SQLiteCursor c) { take(c); }
+					static void take(AbstractWindowedCursor w) {}
+					void stored(SQLiteCursor c) { field = c; }
+					int calledOn(SQLiteCursor c) {
+						AbstractCursor a = c;
+						return a.getCount();
+					}
+					Object inFrame(SQLiteCursor c, boolean b) {
+						AbstractCursor a = c;
+						if (b) {
+							a = null;
+						}
+						return a;
+					}
+					Cursor fine(SQLiteCursor c, Cursor other) {
+						Cursor k = c;
+						Object o = c;
+						AbstractCursor a = (AbstractCursor) other;
+						return k;
+					}
+				}
+				""",
+			)
+		val classes = Compiler.compile(listOf(up("p")))
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Up"]!!, hierarchy) }
+		for (name in listOf("returned", "passed", "stored", "calledOn", "inFrame")) {
+			assertThat(e.message).contains("  - $name(")
+		}
+		assertThat(e.message).contains("an SQLite cursor used as android.database.AbstractWindowedCursor without a cast")
+		assertThat(e.message).contains("an SQLite cursor used as android.database.AbstractCursor without a cast")
+		assertThat(e.message).doesNotContain("fine(")
+		// The failure mode: rewritten in a package the fail rule exempts, the same class does not verify
+		val unverified = assertThrows(IllegalStateException::class.java) { transform(up("androidx.sqlite.db.framework")) }
+		assertThat(unverified.message).contains("does not verify")
+		assertThat(unverified.message).contains("androidx/sqlite/db/framework/Up")
+	}
 }
