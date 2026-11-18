@@ -10,10 +10,11 @@ import org.junit.Test
  */
 class DebuggerEndpointContractTest {
 	@Test
-	fun `the broadcast names match what the library sends`() {
+	fun `the broadcast names match what the library sends and listens for`() {
 		assertThat(DebuggerEndpointValidation.ACTION).isEqualTo("com.itsaky.androidide.SQLITE_DEBUGGER_ENDPOINT")
 		assertThat(DebuggerEndpointValidation.EXTRA_TOKEN).isEqualTo("token")
 		assertThat(DebuggerEndpointValidation.EXTRA_PORT).isEqualTo("port")
 		assertThat(DebuggerEndpointValidation.EXTRA_SENDER).isEqualTo("sender")
+		assertThat(DebuggerEndpointAnnounce.ACTION).isEqualTo("org.appdevforall.sqlitedebugger.ANNOUNCE")
 	}
 }

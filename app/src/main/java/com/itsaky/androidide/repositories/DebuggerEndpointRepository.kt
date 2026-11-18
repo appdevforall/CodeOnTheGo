@@ -22,6 +22,11 @@ class DebuggerEndpointRepository(
 	private val dao: DebuggerEndpointDao,
 	private val scope: CoroutineScope,
 	private val clock: () -> Long = System::currentTimeMillis,
+	/**
+	 * Asks the app to report its endpoint again, after each pairing; see DebuggerEndpointAnnounce. Required, with no
+	 * default: one that did nothing would leave an app that was already running unknown until its process restarts.
+	 */
+	private val announce: (applicationId: String) -> Unit,
 ) {
 	private class PendingInstall(
 		val location: String,
@@ -73,17 +78,20 @@ class DebuggerEndpointRepository(
 	}
 
 	/**
-	 * Moves [applicationId] to [projectLocation], clearing its token and port if the project changed.
-	 * Returns false when the project has no recent_project_table row yet, or the write failed.
+	 * Moves [applicationId] to [projectLocation], clearing its token and port if the project changed, then asks the
+	 * app to report again. Returns false when the project has no recent_project_table row yet, or the write failed.
 	 */
 	suspend fun recordInstalled(
 		applicationId: String,
 		projectLocation: String,
-	): Boolean = guarded("pair $applicationId with project $projectLocation") { dao.upsertPairing(applicationId, projectLocation) }
+	): Boolean =
+		guarded("pair $applicationId with project $projectLocation") { dao.upsertPairing(applicationId, projectLocation) }
+			.also { if (it) announce(applicationId) }
 
 	/**
 	 * Pairs [applicationId] with the project at [projectDir] only if it has no pairing; an existing
-	 * one, with its token and port, is left alone because launching restarts nothing.
+	 * one, with its token and port, is left alone because launching restarts nothing. Either way the
+	 * app is then asked to report again, which an app that was already running needs.
 	 */
 	suspend fun recordLaunched(
 		applicationId: String,
@@ -99,7 +107,7 @@ class DebuggerEndpointRepository(
 	): Boolean =
 		guarded("pair launched $applicationId with project $projectLocation") {
 			dao.insertPairingIfAbsent(applicationId, projectLocation)
-		}
+		}.also { if (it) announce(applicationId) }
 
 	/** Returns true when [applicationId] has a pairing and its token and port were stored. */
 	suspend fun storeEndpoint(

@@ -1,8 +1,10 @@
 package org.appdevforall.sqlitedebugger
 
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.util.Log
 
@@ -18,7 +20,56 @@ internal object EndpointBroadcast {
 	const val EXTRA_TOKEN = "token"
 	const val EXTRA_PORT = "port"
 	const val EXTRA_SENDER = "sender"
+
+	// Code on the Go sends this when it pairs the app; its DebuggerEndpointAnnounce (:app) repeats the value, and
+	// the same two tests pin it.
+	const val ANNOUNCE_ACTION = "org.appdevforall.sqlitedebugger.ANNOUNCE"
 	private const val IDENTITY_ACTION = "org.appdevforall.sqlitedebugger.IDENTITY"
+
+	/**
+	 * Sends the endpoint now, and again each time Code on the Go asks with [ANNOUNCE_ACTION]. Code on the Go drops
+	 * a report from an app it has not paired, so an app already running when it pairs would otherwise stay unknown
+	 * to it until the process restarts. Listens first, so a request that arrives before the first send is not lost.
+	 */
+	fun sendAndListen(
+		context: Context,
+		token: String,
+		port: Int,
+	) {
+		listen(context, token, port)
+		send(context, token, port)
+	}
+
+	/**
+	 * Registered at run time, not in the manifest, so it lives as long as this process's server and a request never
+	 * starts the app. Exported, because Code on the Go is another app, and not authenticated (ADFA-7131 D8): the
+	 * reply goes only to Code on the Go, so a request from any other app learns nothing. Never throws.
+	 */
+	private fun listen(
+		context: Context,
+		token: String,
+		port: Int,
+	) {
+		try {
+			val receiver =
+				object : BroadcastReceiver() {
+					override fun onReceive(
+						context: Context,
+						intent: Intent,
+					) {
+						if (intent.action == ANNOUNCE_ACTION) send(context, token, port)
+					}
+				}
+			val filter = IntentFilter(ANNOUNCE_ACTION)
+			if (Build.VERSION.SDK_INT >= 33) {
+				context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+			} else {
+				context.registerReceiver(receiver, filter)
+			}
+		} catch (e: Exception) {
+			Log.w(TAG, "could not listen for Code on the Go's requests to send the endpoint again", e)
+		}
+	}
 
 	/** Never throws: the app must run whether or not Code on the Go is there to hear this. */
 	fun send(

@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 
 /** The database path DebuggerEndpointReceiver and the install/launch hooks call. */
@@ -25,6 +26,9 @@ class DebuggerEndpointRepositoryTest {
 	private lateinit var room: RecentProjectRoomDatabase
 	private lateinit var repository: DebuggerEndpointRepository
 
+	/** The application IDs the repository asked to report again, in order. */
+	private val announced = CopyOnWriteArrayList<String>()
+
 	@Before
 	fun setUp() {
 		room =
@@ -32,7 +36,13 @@ class DebuggerEndpointRepositoryTest {
 				.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), RecentProjectRoomDatabase::class.java)
 				.allowMainThreadQueries()
 				.build()
-		repository = DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { 1234L })
+		repository =
+			DebuggerEndpointRepository(
+				room.debuggerEndpointDao(),
+				CoroutineScope(Dispatchers.IO),
+				clock = { 1234L },
+				announce = { announced += it },
+			)
 	}
 
 	@After
@@ -178,7 +188,12 @@ class DebuggerEndpointRepositoryTest {
 	}
 
 	private fun clockedRepository(now: AtomicLong) =
-		DebuggerEndpointRepository(room.debuggerEndpointDao(), CoroutineScope(Dispatchers.IO), clock = { now.get() })
+		DebuggerEndpointRepository(
+			room.debuggerEndpointDao(),
+			CoroutineScope(Dispatchers.IO),
+			clock = { now.get() },
+			announce = { announced += it },
+		)
 
 	@Test
 	fun `a failed install does not pair a later install of the same app`() =
@@ -270,6 +285,35 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
+	fun `pairing on launch asks the app to report its endpoint again`() =
+		runBlocking<Unit> {
+			addProject("/p/a")
+
+			repository.recordLaunched("com.example", "/p/a")
+
+			assertThat(announced).containsExactly("com.example")
+		}
+
+	@Test
+	fun `pairing on install asks the app to report its endpoint again`() =
+		runBlocking<Unit> {
+			addProject("/p/a")
+
+			repository.recordInstalled("com.example", "/p/a")
+
+			assertThat(announced).containsExactly("com.example")
+		}
+
+	@Test
+	fun `a pairing that was not written asks nothing`() =
+		runBlocking<Unit> {
+			repository.recordLaunched("com.example", "/p/missing")
+			repository.recordInstalled("com.example", "/p/missing")
+
+			assertThat(announced).isEmpty()
+		}
+
+	@Test
 	fun `launching a project that is not in recents is skipped without throwing`() =
 		runBlocking<Unit> {
 			assertThat(repository.recordLaunched("com.example", "/p/missing")).isFalse()
@@ -317,12 +361,14 @@ class DebuggerEndpointRepositoryTest {
 				{ IllegalStateException("closed") },
 				{ android.database.SQLException("generic") },
 			)) {
-				val failing = DebuggerEndpointRepository(ThrowingDao(error), CoroutineScope(Dispatchers.IO))
+				val failing =
+					DebuggerEndpointRepository(ThrowingDao(error), CoroutineScope(Dispatchers.IO), announce = { announced += it })
 
 				assertThat(failing.recordInstalled("com.example", "/p/a")).isFalse()
 				assertThat(failing.recordLaunched("com.example", "/p/a")).isFalse()
 				assertThat(failing.storeEndpoint("com.example", endpoint)).isFalse()
 			}
+			assertThat(announced).isEmpty()
 		}
 
 	@Test
@@ -331,6 +377,7 @@ class DebuggerEndpointRepositoryTest {
 			DebuggerEndpointRepository(
 				ThrowingDao { kotlinx.coroutines.CancellationException("cancelled") },
 				CoroutineScope(Dispatchers.IO),
+				announce = {},
 			)
 
 		val result = runCatching { runBlocking { failing.storeEndpoint("com.example", endpoint) } }

@@ -11,6 +11,7 @@ import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.repositories.RecentProjectRepository
 import com.itsaky.androidide.repositories.RecentProjectRepositoryImpl
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.sqlitedebugger.DebuggerEndpointAnnounce
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -63,7 +64,12 @@ val coreModule =
 		}
 
 		single {
-			DebuggerEndpointRepository(get(), get(named(APPLICATION_SCOPE)))
+			val context = androidContext()
+			DebuggerEndpointRepository(
+				get(),
+				get(named(APPLICATION_SCOPE)),
+				announce = { DebuggerEndpointAnnounce.send(context, it) },
+			)
 		}
 
 		single<RecentProjectRepository> {
