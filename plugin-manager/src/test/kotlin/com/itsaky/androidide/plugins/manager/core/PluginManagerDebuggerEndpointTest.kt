@@ -46,6 +46,13 @@ class PluginManagerDebuggerEndpointTest {
 	private val endpoint = DebuggerEndpoint("com.example.demo", 4321, "tok", 99L)
 	private val asked = CopyOnWriteArrayList<String>()
 
+	/** The app's source, which setUp installs. */
+	private val source =
+		DebuggerEndpointSource { location ->
+			asked += location
+			if (location == project.absolutePath) listOf(endpoint) else emptyList()
+		}
+
 	private val templatesDir = Environment.TEMPLATES_DIR
 
 	@Before
@@ -53,10 +60,7 @@ class PluginManagerDebuggerEndpointTest {
 		project = Files.createTempDirectory("proj").toFile()
 		// Disabling and unloading clean up the plugin's templates there.
 		Environment.TEMPLATES_DIR = File(RuntimeEnvironment.getApplication().filesDir, "templates").apply { mkdirs() }
-		pluginManager().installDebuggerEndpointSource { location ->
-			asked += location
-			if (location == project.absolutePath) listOf(endpoint) else emptyList()
-		}
+		pluginManager().installDebuggerEndpointSource(source)
 	}
 
 	@After
@@ -217,6 +221,17 @@ class PluginManagerDebuggerEndpointTest {
 		val service = load("reader", "debugger.endpoints")
 		openInEditor(project)
 
+		assertThrows(IllegalStateException::class.java) { pluginManager().installDebuggerEndpointSource { emptyList() } }
+
+		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `installing the same source again, as a retried app start does, is allowed and a different one still fails`() {
+		val service = load("reader", "debugger.endpoints")
+		openInEditor(project)
+
+		pluginManager().installDebuggerEndpointSource(source)
 		assertThrows(IllegalStateException::class.java) { pluginManager().installDebuggerEndpointSource { emptyList() } }
 
 		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)

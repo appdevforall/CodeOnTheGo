@@ -420,14 +420,18 @@ class PluginManager private constructor(
 
 	/**
 	 * Installs where every plugin's [DebuggerEndpointService] reads the SQLite debugger endpoints apps
-	 * reported. The app installs it once, before plugins load. Plugins share this class loader, so a
-	 * later call, which can only be a plugin's, fails rather than replacing or blanking the source for
-	 * every plugin.
+	 * reported. The app installs it before plugins load. Installing the same source again does nothing:
+	 * the app's start runs again when a later step of it failed (CredentialProtectedApplicationLoader.load
+	 * retries after the user unlocks). Plugins share this class loader, so a different source, which can
+	 * only be a plugin's, fails rather than replacing or blanking the source for every plugin.
 	 *
-	 * @throws IllegalStateException if a source is already installed
+	 * @throws IllegalStateException if a different source is already installed
 	 */
 	fun installDebuggerEndpointSource(source: DebuggerEndpointSource) {
-		check(debuggerEndpointSource.compareAndSet(null, source)) { "The SQLite debugger endpoint source is already installed" }
+		// Never cleared, so once compareAndSet fails, get() is the installed source.
+		check(debuggerEndpointSource.compareAndSet(null, source) || debuggerEndpointSource.get() === source) {
+			"A different SQLite debugger endpoint source is already installed"
+		}
 	}
 
 	init {
