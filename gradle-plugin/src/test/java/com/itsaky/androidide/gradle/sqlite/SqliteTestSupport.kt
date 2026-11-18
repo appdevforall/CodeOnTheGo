@@ -28,9 +28,20 @@ internal fun requireEnvironment(
 	assumeTrue(false, missing)
 }
 
+/**
+ * The Gradle user home whose cache holds the jars: the one of the build that runs the tests, which the test tasks pass
+ * as cogo.test.gradleUserHome, then GRADLE_USER_HOME, then ~/.gradle, as from an IDE.
+ */
+internal fun gradleUserHome(
+	property: String? = System.getProperty("cogo.test.gradleUserHome"),
+	env: String? = System.getenv("GRADLE_USER_HOME"),
+	userHome: File = File(System.getProperty("user.home")),
+): File = property?.takeIf { it.isNotEmpty() }?.let(::File) ?: env?.takeIf { it.isNotEmpty() }?.let(::File) ?: File(userHome, ".gradle")
+
 /** Jars the tests compile and resolve against. Each lookup skips the test with a message, or fails it on CI. */
 internal object TestJars {
 	private val home = File(System.getProperty("user.home"))
+	private val modules by lazy { File(gradleUserHome(), "caches/modules-2/files-2.1") }
 
 	val androidJar: File by lazy {
 		val sdkRoots =
@@ -59,7 +70,7 @@ internal object TestJars {
 		version: String,
 		file: String,
 	): File? =
-		File(home, ".gradle/caches/modules-2/files-2.1/$group/$artifact/$version")
+		File(modules, "$group/$artifact/$version")
 			.walkTopDown()
 			.firstOrNull { it.name == file }
 
@@ -97,7 +108,7 @@ internal object TestJars {
 
 	/** The Kotlin classes the framework classes call; null when the Gradle cache has none. */
 	val kotlinStdlibJar: File? by lazy {
-		File(home, ".gradle/caches/modules-2/files-2.1/org.jetbrains.kotlin/kotlin-stdlib")
+		File(modules, "org.jetbrains.kotlin/kotlin-stdlib")
 			.walkTopDown()
 			.filter { it.name.startsWith("kotlin-stdlib-") && it.name.endsWith(".jar") && "sources" !in it.name }
 			.maxByOrNull { it.name }

@@ -63,11 +63,20 @@ fun Test.stageMavenLocalRepos() {
 	}
 }
 
+// The SQLite rewrite tests find the jars they compile against in the cache of this build's Gradle user home, which
+// GRADLE_USER_HOME or --gradle-user-home can move from ~/.gradle. An argument, not an input: the path is per machine.
+val gradleUserHomePath: String = gradle.gradleUserHomeDir.absolutePath
+
+fun Test.passGradleUserHome() {
+	jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dcogo.test.gradleUserHome=$gradleUserHomePath") })
+}
+
 val sqliteReleaseApkTestClass = "com.itsaky.androidide.gradle.SqliteReleaseApkTest"
 
 tasks.named<Test>("test") {
 	useJUnitPlatform()
 	stageMavenLocalRepos()
+	passGradleUserHome()
 	// Run by sqliteReleaseApkTest below, which builds the AARs it needs
 	filter { excludeTestsMatching(sqliteReleaseApkTestClass) }
 }
@@ -103,6 +112,7 @@ tasks.register<Test>("sqliteReleaseApkTest") {
 	classpath = testSourceSet.runtimeClasspath
 	useJUnitPlatform()
 	stageMavenLocalRepos()
+	passGradleUserHome()
 	filter { includeTestsMatching(sqliteReleaseApkTestClass) }
 
 	// The tasks AndroidIDEAssetsPlugin bundles these AARs with, so this task and :app:assemble build them once
