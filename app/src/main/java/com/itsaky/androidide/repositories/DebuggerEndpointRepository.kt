@@ -66,14 +66,15 @@ class DebuggerEndpointRepository(
 	 *
 	 * Returns null, and writes nothing, for an install that was not noted, such as an APK opened from the file
 	 * tree; its next launch from a project pairs it. Also when [installedApplicationId], the package the result
-	 * names, is not the noted one: the result comes through an exported receiver, so it can be forged.
+	 * names, is missing or is not the noted one: the result comes through an exported receiver, so it can be forged,
+	 * and the framework names the package in every result it sends.
 	 */
 	fun confirmInstall(
 		sessionId: Int,
 		installedApplicationId: String?,
 	): Job? {
 		val note = pendingInstalls.remove(sessionId) ?: return null
-		if (installedApplicationId != null && installedApplicationId != note.applicationId) {
+		if (installedApplicationId != note.applicationId) {
 			log.warn("Session {} installed {}, not {}; not paired", sessionId, installedApplicationId, note.applicationId)
 			return null
 		}

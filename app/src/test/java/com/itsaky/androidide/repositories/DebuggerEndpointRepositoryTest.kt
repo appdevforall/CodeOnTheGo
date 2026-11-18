@@ -255,15 +255,16 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
-	fun `a result without a package name pairs the noted application ID`() =
+	fun `a result without a package name pairs nothing`() =
 		runBlocking<Unit> {
 			val dir = newProject()
 			try {
 				repository.notePendingInstall(1, dir, "com.example")
 
-				repository.confirmInstall(1, installedApplicationId = null)?.join()
+				// The framework names the package in every result it sends, so this one was forged.
+				assertThat(repository.confirmInstall(1, installedApplicationId = null)).isNull()
 
-				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
+				assertThat(pairedLocation()).isNull()
 			} finally {
 				dir.delete()
 			}
