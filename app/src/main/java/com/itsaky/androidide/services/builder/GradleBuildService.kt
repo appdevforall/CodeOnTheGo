@@ -53,6 +53,8 @@ import com.itsaky.androidide.tooling.api.ForwardingToolingApiClient
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_JDWP_ENABLED
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_AAR
 import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_AAR
+import com.itsaky.androidide.tooling.api.GradlePluginConfig.PROPERTY_SQLITE_REWRITE_RUNTIME_AAR
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.IToolingApiServer
 import com.itsaky.androidide.tooling.api.messages.BuildId
@@ -726,6 +728,10 @@ class GradleBuildService :
 		extraArgs.add("-P${PROPERTY_JDWP_ENABLED}=$enableJdwp")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_ENABLED}=$enableLogSender")
 		extraArgs.add("-P${PROPERTY_LOG_SENDER_AAR}=${Environment.LOGSENDER_AAR.absolutePath}")
+		// Always passed, like logsender's: the plugin reads it only for a project that opted in, and
+		// then names the missing file instead of a missing property.
+		extraArgs.add("-P${PROPERTY_SQLITE_DEBUGGER_AAR}=${Environment.SQLITE_DEBUGGER_AAR.absolutePath}")
+		extraArgs.add("-P${PROPERTY_SQLITE_REWRITE_RUNTIME_AAR}=${Environment.SQLITE_REWRITE_RUNTIME_AAR.absolutePath}")
 
 		extraArgs.addAll(relocatedBuildOutputArgs(isSync))
 

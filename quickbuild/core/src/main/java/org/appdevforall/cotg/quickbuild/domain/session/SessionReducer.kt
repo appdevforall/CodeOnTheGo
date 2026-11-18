@@ -99,7 +99,10 @@ class SessionReducer {
 				// The flag rides along so the silent warm build cannot clear a failed-start
 				// tone: only a tap or a save is a user gesture.
 				SessionTransition(
-					QuickBuildSessionState.Prebuilding(lastStartFailed = state.lastStartFailed),
+					QuickBuildSessionState.Prebuilding(
+						lastStartFailed = state.lastStartFailed,
+						startRefused = state.startRefused,
+					),
 					listOf(SessionEffect.StartProxyAppPrebuild),
 				)
 			}
@@ -164,13 +167,16 @@ class SessionReducer {
 			// the tooling server); it queues and fires on PrebuildFinished. The tap is also
 			// the retry gesture, so it clears a carried failed-start tone.
 			is SessionEvent.QuickBuildTapped -> {
-				SessionTransition(state.copy(tapQueued = true, lastStartFailed = false), listOf(SessionEffect.RecordAsk))
+				SessionTransition(
+					state.copy(tapQueued = true, lastStartFailed = false, startRefused = false),
+					listOf(SessionEffect.RecordAsk),
+				)
 			}
 
 			SessionEvent.FileSaved -> {
 				// Same clearing gesture as in Idle; the warm build itself is not one.
 				if (state.lastStartFailed) {
-					SessionTransition(state.copy(lastStartFailed = false))
+					SessionTransition(state.copy(lastStartFailed = false, startRefused = false))
 				} else {
 					SessionTransition(state)
 				}
@@ -186,7 +192,12 @@ class SessionReducer {
 				} else {
 					// A carried failed-start tone goes back to Idle uncleared: the warm build's
 					// outcome is silent either way, and only a tap or a save clears the tone.
-					SessionTransition(QuickBuildSessionState.Idle(lastStartFailed = state.lastStartFailed))
+					SessionTransition(
+						QuickBuildSessionState.Idle(
+							lastStartFailed = state.lastStartFailed,
+							startRefused = state.startRefused,
+						),
+					)
 				}
 			}
 
@@ -300,7 +311,10 @@ class SessionReducer {
 				// lastStartFailed keeps the error tone on the bolt after the failure flash
 				// fades - a plain Idle here read READY right after a failed start (Q8).
 				SessionTransition(
-					QuickBuildSessionState.Idle(lastStartFailed = true),
+					QuickBuildSessionState.Idle(
+						lastStartFailed = true,
+						startRefused = event.message == QuickBuildMessage.DisabledBySqliteDebugger,
+					),
 					listOf(SessionEffect.WithdrawAsk, SessionEffect.SurfaceProvisioningError(event.message)),
 				)
 			}

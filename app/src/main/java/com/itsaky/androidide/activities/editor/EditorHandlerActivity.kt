@@ -879,9 +879,7 @@ open class EditorHandlerActivity :
 		popup.setOnMenuItemClickListener { item ->
 			when (item.itemId) {
 				R.id.action_quick_build -> {
-					// Through the registry, same as Standard Run below, so the menu entry
-					// and the toolbar tap share one code path (incl. the analytics event).
-					if (quickBuild != null && quickBuild.enabled) registry.executeAction(quickBuild, data)
+					runQuickBuildAction(data)
 					true
 				}
 
@@ -905,6 +903,22 @@ open class EditorHandlerActivity :
 			}
 		}
 		popup.show()
+	}
+
+	/**
+	 * Runs the toolbar's Quick Build action through the registry, as the button's own tap does, so
+	 * the dropdown row and a status line that asks for a tap share the button's code path
+	 * (including the analytics event). Does nothing while the button is greyed out, as the button
+	 * does.
+	 */
+	private fun runQuickBuildAction(data: ActionData) {
+		val registry = getInstance() as DefaultActionsRegistry
+		val quickBuild = registry.findAction(EDITOR_TOOLBAR, QuickBuildAction.ID) ?: return
+		if (quickBuild.enabled) registry.executeAction(quickBuild, data)
+	}
+
+	override fun onQuickBuildStatusLineTapped() {
+		runQuickBuildAction(createToolbarActionData())
 	}
 
 	private fun createToolbarActionData(): ActionData {

@@ -129,6 +129,8 @@ public class ToolsManager {
 
 			ensureToolingJar(app);
 			extractLogSender(app);
+			extractSqliteDebugger();
+			extractSqliteRewriteRuntime();
 
 			writeNoMediaFile();
 			extractCogoPlugin();
@@ -208,6 +210,23 @@ public class ToolsManager {
 		return toolingJarFile.isFile() && stamp != null && stamp.equals(readStampFile(stampFile));
 	}
 
+	/**
+	 * Copies the stream to a temp sibling of the target, then renames it over the target. {@link #init} extracts the SQLite AARs in the background, and GradleBuildService passes their paths to a build without waiting, so a build that starts meanwhile must find the previous complete file or the new one, never a missing or partly written one. rename(2) within one directory atomically replaces the target on Linux. Does not close the stream.
+	 */
+	@VisibleForTesting
+	static void replaceAtomically(InputStream source, File target) throws IOException {
+		final var dir = Objects.requireNonNull(target.getParentFile());
+		dir.mkdirs();
+		final var tempFile = new File(dir, target.getName() + ".part");
+		try (final var fos = new FileOutputStream(tempFile)) {
+			IoUtilsKt.transferToStream(source, fos);
+		}
+		if (!tempFile.renameTo(target)) {
+			tempFile.delete();
+			throw new IOException("Could not move " + tempFile + " to " + target);
+		}
+	}
+
 	private static void deleteIdeenv() {
 		final var file = new File(Environment.BIN_DIR, "ideenv");
 		if (file.exists() && !file.delete()) {
@@ -259,6 +278,26 @@ public class ToolsManager {
 		final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
 		ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
 				Environment.LOGSENDER_AAR.getAbsolutePath());
+	}
+
+	private static void extractSqliteAar(String asset, File aar) {
+		try (InputStream source = BaseApplication.getBaseInstance().getAssets().open(asset)) {
+			replaceAtomically(source, aar);
+		} catch (IOException err) {
+			LOG.error("Failed to extract {} to {}", asset, aar, err);
+		}
+	}
+
+	@WorkerThread
+	private static void extractSqliteDebugger() {
+		// One AAR with both ABIs, unlike logsender's per-flavor AARs
+		extractSqliteAar(getCommonAsset("sqlite-debugger-release.aar"), Environment.SQLITE_DEBUGGER_AAR);
+	}
+
+	@WorkerThread
+	private static void extractSqliteRewriteRuntime() {
+		// Java only, so one AAR for both ABIs
+		extractSqliteAar(getCommonAsset("sqlite-rewrite-runtime-release.aar"), Environment.SQLITE_REWRITE_RUNTIME_AAR);
 	}
 
 	private static void generateKeystore() {

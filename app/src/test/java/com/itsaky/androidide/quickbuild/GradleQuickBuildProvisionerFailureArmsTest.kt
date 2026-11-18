@@ -70,6 +70,114 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 		}
 
 	@Test
+	fun `a project that opted into the SQLite debugger is refused before staging, with its own message`() =
+		runTest {
+			File(projectRoot, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			var staged = 0
+			val gradle = FakeBuildService()
+
+			val outcome =
+				testProvisioner(
+					context = context,
+					projectRoot = projectRoot,
+					buildService = gradle,
+					stage = { _, _ -> staged++ },
+				).provision()
+
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(staged).isEqualTo(0)
+			assertThat(gradle.executedTasks).isNull()
+		}
+
+	@Test
+	fun `an opt-in in the app module's gradle properties is refused when the tap comes during the sync`() =
+		runTest {
+			val moduleDir = moduleDir()
+			File(moduleDir, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			val gradle = FakeBuildService()
+			val project =
+				SyncingProjectManager(
+					FakeProjectManager(
+						projectRoot,
+						appModules = listOf(androidModule(buildDir = File(moduleDir, "build"), projectDir = moduleDir)),
+					),
+				)
+
+			val outcome =
+				testProvisioner(
+					context = context,
+					projectRoot = projectRoot,
+					buildService = gradle,
+					projectManager = project,
+					// The sync publishes the modules while Quick Build stages, so only a check made after
+					// the wait for the model can read the module's gradle.properties.
+					stage = { _, _ -> project.published = true },
+				).provision()
+
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(gradle.executedTasks).isNull()
+		}
+
+	@Test
+	fun `a root opt-in that the app module turns off is not refused when the tap comes during the sync`() =
+		runTest {
+			File(projectRoot, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			val moduleDir = moduleDir()
+			File(moduleDir, "gradle.properties").writeText("cogo.sqliteDebugger=false\n")
+			val gradle = FakeBuildService()
+			val project =
+				SyncingProjectManager(
+					FakeProjectManager(
+						projectRoot,
+						appModules = listOf(androidModule(buildDir = File(moduleDir, "build"), projectDir = moduleDir)),
+					),
+				)
+
+			val outcome =
+				testProvisioner(
+					context = context,
+					projectRoot = projectRoot,
+					buildService = gradle,
+					projectManager = project,
+					stage = { _, _ -> project.published = true },
+				).provision()
+
+			// The module's file comes before the root's, so its false decides, as in Gradle: the build runs.
+			assertThat(failureText(outcome)).isNotEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(gradle.executedTasks).isNotNull()
+		}
+
+	@Test
+	fun `an opt-in in a module that a sync publishes during the staging is refused`() =
+		runTest {
+			val app = moduleDir()
+			val feature = File(projectRoot, "feature").apply { mkdirs() }
+			File(feature, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			val appModule = androidModule(buildDir = File(app, "build"), projectDir = app)
+			val featureModule = androidModule(path = ":feature", buildDir = File(feature, "build"), projectDir = feature)
+			val gradle = FakeBuildService()
+			val project =
+				ResyncingProjectManager(
+					FakeProjectManager(projectRoot, appModules = listOf(appModule)),
+					FakeProjectManager(projectRoot, appModules = listOf(appModule, featureModule)),
+				)
+
+			val outcome =
+				testProvisioner(
+					context = context,
+					projectRoot = projectRoot,
+					buildService = gradle,
+					projectManager = project,
+					// The model was already published, so the first check read the old modules; the module with the
+					// opt-in appears only after it.
+					stage = { _, _ -> project.resynced = true },
+				).provision()
+
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(gradle.executedTasks).isNull()
+		}
+
+	@Test
 	fun `a slot that goes busy between the staging and the build still reads as a busy slot`() =
 		runTest {
 			// Free on the early read, taken on the late one: CoGo's own project sync fires on
@@ -165,6 +273,21 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 			// generic "setup failed".
 			assertThat(failureText(outcome))
 				.isEqualTo(context.getString(R.string.quick_build_variant_setup_missing, "debug"))
+		}
+
+	@Test
+	fun `a project with the SQLite debugger on is refused as an off state, not a setup failure`() =
+		runTest {
+			File(projectRoot, "gradle.properties").writeText("cogo.sqliteDebugger=true\n")
+			val gradle = FakeBuildService(result = TaskExecutionResult(true, null))
+
+			val outcome = testProvisioner(context, projectRoot, buildService = gradle).provision()
+
+			// Its own message, so the session can tell this deliberate refusal from a fault.
+			assertThat(outcome).isEqualTo(ProvisionOutcome.Failure(QuickBuildMessage.DisabledBySqliteDebugger))
+			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_disabled_sqlite_debugger))
+			assertThat(failureText(outcome)).isNotEqualTo(context.getString(R.string.quick_build_setup_failed))
+			assertThat(gradle.executedTasks).isNull()
 		}
 
 	@Test

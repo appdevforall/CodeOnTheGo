@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.resources.R
 import org.appdevforall.cotg.quickbuild.domain.classify.InvalidationReason
 import org.appdevforall.cotg.quickbuild.domain.reload.BuildDiagnostic
+import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildMessage
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildSessionState
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildStatus
 import org.appdevforall.cotg.quickbuild.domain.session.SessionEvent
@@ -276,6 +277,38 @@ class QuickBuildStatusBarTest {
 		// and the failed start must still read correctly.
 		assertThat(update(null, QuickBuildStatus.Hidden(lastStartFailed = true)))
 			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_start_failed))
+	}
+
+	@Test
+	fun `a refused start says Quick Build is off, not that setup failed, and a real failure still does`() {
+		val reducer = SessionReducer()
+		val refused =
+			reducer
+				.reduce(
+					QuickBuildSessionState.Provisioning(),
+					SessionEvent.ProvisioningFailed(QuickBuildMessage.DisabledBySqliteDebugger),
+				).state
+		val failed =
+			reducer
+				.reduce(
+					QuickBuildSessionState.Provisioning(),
+					SessionEvent.ProvisioningFailed(QuickBuildMessage.RebuildFailed),
+				).state
+
+		// The line says "tap for details", so it carries the tap; QuickBuildStatusLineTapTest clicks it.
+		val off =
+			QuickBuildStatusBarUpdate.Show(
+				R.string.quick_build_status_off_sqlite_debugger,
+				tapLabel = R.string.quick_build_status_off_sqlite_debugger_action,
+			)
+		assertThat(update(QuickBuildStatus.Provisioning(), QuickBuildStatus.from(refused))).isEqualTo(off)
+		// A recreation resubscribes with no previous status and must read the same.
+		assertThat(update(null, QuickBuildStatus.from(refused))).isEqualTo(off)
+		assertThat(update(QuickBuildStatus.Provisioning(), QuickBuildStatus.from(failed)))
+			.isEqualTo(QuickBuildStatusBarUpdate.Show(R.string.quick_build_status_start_failed))
+		// A save clears the carried refusal as it does a failure.
+		assertThat(QuickBuildStatus.from(reducer.reduce(refused, SessionEvent.FileSaved).state))
+			.isEqualTo(QuickBuildStatus.Hidden())
 	}
 
 	@Test

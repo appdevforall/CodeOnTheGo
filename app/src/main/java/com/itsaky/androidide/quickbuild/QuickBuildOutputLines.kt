@@ -48,6 +48,12 @@ fun quickBuildOutputLines(
 				listOf("could not start - tap Quick Build to retry.")
 			}
 
+			// The refusal itself went to the flash and the log line that made it; a refusal is not a
+			// failure, so this only says what the tap does.
+			QuickBuildTransition.StartRefused -> {
+				listOf("off while the SQLite debugger is on - tap Quick Build to see why.")
+			}
+
 			is QuickBuildTransition.ProvisioningStarted -> {
 				when (val kind = transition.kind) {
 					is ProvisioningKind.Rebaseline -> {

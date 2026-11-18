@@ -71,6 +71,12 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 				// Add logsender.aar
 				registerLogSenderAarCopierTask(variant, variantNameCapitalized)
 
+				// Add sqlite-debugger-release.aar
+				registerSqliteDebuggerAarCopierTask(variant, variantNameCapitalized)
+
+				// Add sqlite-rewrite-runtime-release.aar
+				registerSqliteRewriteRuntimeAarCopierTask(variant, variantNameCapitalized)
+
 				// Add plugin-artifacts.zip
 				registerPluginArtifactsCopierTask(variant, variantNameCapitalized)
 
@@ -213,6 +219,39 @@ class AndroidIDEAssetsPlugin : Plugin<Project> {
 			projectTask = "assemble${flavorName.capitalized()}Release",
 		) { project ->
 			project.layout.buildDirectory.file("outputs/aar/logsender-$flavorName-release.aar")
+		}
+	}
+
+	/**
+	 * The debugger module has no v7/v8 flavors: one AAR carries both ABIs, so every variant bundles
+	 * the same file. The release build type, as for logsender.
+	 */
+	private fun Project.registerSqliteDebuggerAarCopierTask(
+		variant: Variant,
+		variantName: String,
+	) {
+		addProjectArtifactToAssets<AddFileToAssetsTask>(
+			variant = variant,
+			taskName = "copy${variantName}SqliteDebuggerAar",
+			projectPath = ":subprojects:sqlite-debugger",
+			projectTask = "assembleRelease",
+		) { project ->
+			project.layout.buildDirectory.file("outputs/aar/sqlite-debugger-release.aar")
+		}
+	}
+
+	/** Java only, no v7/v8 flavors: every variant bundles the same file. The release build type, as above. */
+	private fun Project.registerSqliteRewriteRuntimeAarCopierTask(
+		variant: Variant,
+		variantName: String,
+	) {
+		addProjectArtifactToAssets<AddFileToAssetsTask>(
+			variant = variant,
+			taskName = "copy${variantName}SqliteRewriteRuntimeAar",
+			projectPath = ":subprojects:sqlite-rewrite-runtime",
+			projectTask = "assembleRelease",
+		) { project ->
+			project.layout.buildDirectory.file("outputs/aar/sqlite-rewrite-runtime-release.aar")
 		}
 	}
 
