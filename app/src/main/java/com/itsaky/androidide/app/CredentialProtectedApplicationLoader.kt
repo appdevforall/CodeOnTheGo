@@ -424,19 +424,28 @@ internal object CredentialProtectedApplicationLoader :
 
 	/**
 	 * Installs where every plugin's DebuggerEndpointService reads the SQLite debugger endpoints. The
-	 * SQLite debugger is optional, so a failure here, such as a binding that cannot be built or a
-	 * different source already installed, is reported and the plugin system starts anyway: plugins load,
-	 * and getEndpoints() throws IllegalStateException saying the endpoints are unavailable.
+	 * SQLite debugger is optional, so an Exception or LinkageError here, such as a binding that cannot
+	 * be built or a different source already installed, is reported and the plugin system starts anyway:
+	 * plugins load, and getEndpoints() throws IllegalStateException saying the endpoints are unavailable.
+	 * Like the other host and plugin-system calls, this catches nothing else: a VirtualMachineError such
+	 * as OutOfMemoryError propagates out of [initializePluginSystem].
 	 */
 	private fun installDebuggerEndpointSource(
 		manager: PluginManager,
 		endpointSource: () -> DebuggerEndpointSource,
 	) {
-		runCatching { manager.installDebuggerEndpointSource(endpointSource()) }
-			.onFailure { e ->
-				Sentry.captureException(e)
-				logger.error("Could not set up the SQLite debugger endpoints for plugins; plugins load without them", e)
-			}
+		try {
+			manager.installDebuggerEndpointSource(endpointSource())
+		} catch (e: Exception) {
+			reportEndpointSourceFailure(e)
+		} catch (e: LinkageError) {
+			reportEndpointSourceFailure(e)
+		}
+	}
+
+	private fun reportEndpointSourceFailure(e: Throwable) {
+		Sentry.captureException(e)
+		logger.error("Could not set up the SQLite debugger endpoints for plugins; plugins load without them", e)
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)
