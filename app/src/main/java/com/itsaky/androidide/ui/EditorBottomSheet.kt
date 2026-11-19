@@ -384,6 +384,11 @@ class EditorBottomSheet
 			binding.viewOptionsOutputAction.displayTooltipOnLongPress(context, TooltipTag.OUTPUT_VIEW_OPTIONS)
 
 			binding.headerContainer.setOnClickListener {
+				// While the keyboard is up the header only carries the symbol input, and a stray
+				// tap beside the symbols must not open the sheet. Dragging still expands it.
+				if (isImeVisible) {
+					return@setOnClickListener
+				}
 				viewModel.setSheetState(sheetState = BottomSheetBehavior.STATE_EXPANDED)
 			}
 
