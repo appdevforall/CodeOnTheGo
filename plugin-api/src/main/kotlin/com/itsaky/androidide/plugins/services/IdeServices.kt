@@ -70,7 +70,7 @@ interface IdeProjectService {
 	 * plugins often load after the editor reopened the last project. Registering the same listener
 	 * twice has no effect. The IDE drops
 	 * the listener when the plugin is disabled or unloads, so register it from
-	 * [com.itsaky.androidide.plugins.IPlugin.activate]. Available since 26.47.
+	 * [com.itsaky.androidide.plugins.IPlugin.activate]. Available since 26.48.
 	 *
 	 * Requires the FILESYSTEM_READ permission.
 	 *
@@ -78,21 +78,22 @@ interface IdeProjectService {
 	 */
 	fun addProjectLifecycleListener(listener: ProjectLifecycleListener) {}
 
-	/** Unregisters a listener added with [addProjectLifecycleListener]. Available since 26.47. */
+	/** Unregisters a listener added with [addProjectLifecycleListener]. Available since 26.48. */
 	fun removeProjectLifecycleListener(listener: ProjectLifecycleListener) {}
 }
 
 /**
  * Hears the editor open and close a project. Calls arrive in order on one background thread
  * shared by every plugin, so return quickly and hand slow work to your own thread.
- * Available since 26.47.
+ * Available since 26.48.
  */
 interface ProjectLifecycleListener {
 	/**
 	 * The editor started opening the project rooted at [projectDir], or the project was already open
 	 * when this listener was added. The IDE does not wait for this call: the project's sync may
 	 * already be running, so do not rely on finishing work before it starts. A later sync or build
-	 * of the same project does not call this again. [projectDir] is canonical.
+	 * of the same project does not call this again. [projectDir] is canonical, or absolute if the
+	 * IDE could not resolve it.
 	 */
 	fun onProjectOpened(projectDir: File)
 
@@ -104,10 +105,13 @@ interface ProjectLifecycleListener {
  * Hears the editor write a file to disk: the user saving, the IDE saving before a build, or a
  * plugin calling [IdeEditorService.saveFile]. Typing alone, without a save, is never reported.
  * Calls arrive in order on one background thread shared by every plugin, so return quickly.
- * Available since 26.47.
+ * Available since 26.48.
  */
 fun interface FileSaveListener {
-	/** [file] is canonical, the same form as a project directory, so `file.startsWith(dir)` works. */
+	/**
+	 * [file] is canonical, the same form as a project directory, so `file.startsWith(dir)` works. A
+	 * path the IDE could not resolve is absolute instead, and may not match.
+	 */
 	fun onFileSaved(file: File)
 }
 
@@ -336,7 +340,7 @@ interface IdeEditorService {
 	/**
 	 * Registers [listener] to hear each file the editor saves. Registering the same listener twice
 	 * has no effect. The IDE drops the listener when the plugin is disabled or unloads, so register
-	 * it from [com.itsaky.androidide.plugins.IPlugin.activate]. Available since 26.47.
+	 * it from [com.itsaky.androidide.plugins.IPlugin.activate]. Available since 26.48.
 	 *
 	 * Requires the FILESYSTEM_READ permission.
 	 *
@@ -344,7 +348,7 @@ interface IdeEditorService {
 	 */
 	fun addFileSaveListener(listener: FileSaveListener) {}
 
-	/** Unregisters a listener added with [addFileSaveListener]. Available since 26.47. */
+	/** Unregisters a listener added with [addFileSaveListener]. Available since 26.48. */
 	fun removeFileSaveListener(listener: FileSaveListener) {}
 
 	/**

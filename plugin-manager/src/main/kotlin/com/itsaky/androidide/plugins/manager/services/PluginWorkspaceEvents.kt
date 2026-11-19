@@ -36,7 +36,7 @@ class PluginWorkspaceEvents internal constructor(
 
 	/**
 	 * The editor opened [projectDir]. Repeats for the project already open are ignored. Returns the
-	 * directory as listeners hear it, canonical; report the close with that.
+	 * directory as listeners hear it, canonical where it resolves; report the close with that.
 	 */
 	fun projectOpened(projectDir: File): File {
 		val dir = normalize(projectDir)
@@ -66,7 +66,7 @@ class PluginWorkspaceEvents internal constructor(
 
 	/** The editor wrote [file] to disk. */
 	fun fileSaved(file: File) {
-		// Canonical like the project directory, so a listener can test saved.startsWith(projectDir).
+		// Resolved like the project directory, so a listener can test saved.startsWith(projectDir).
 		// Resolved on the listeners' thread: the caller is often the main thread.
 		val saved = lazy { normalize(file) }
 		synchronized(lock) {
@@ -177,6 +177,7 @@ class PluginWorkspaceEvents internal constructor(
 		}
 	}
 
+	// Absolute, not canonical, if getCanonicalFile() fails; the API docs say so.
 	private fun normalize(file: File): File = runCatching { file.canonicalFile }.getOrDefault(file.absoluteFile)
 
 	companion object {
