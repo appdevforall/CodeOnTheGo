@@ -50,7 +50,7 @@ class PluginManagerDebuggerEndpointTest {
 	private val source =
 		DebuggerEndpointSource { location ->
 			asked += location
-			if (location == project.absolutePath) listOf(endpoint) else emptyList()
+			if (location == project.canonicalPath) listOf(endpoint) else emptyList()
 		}
 
 	private val templatesDir = Environment.TEMPLATES_DIR
@@ -105,7 +105,7 @@ class PluginManagerDebuggerEndpointTest {
 			openInEditor(elsewhere)
 
 			assertThat(offMainThread { reader.getEndpoints() }).isEmpty()
-			assertThat(asked).containsExactly(project.absolutePath, elsewhere.absolutePath).inOrder()
+			assertThat(asked).containsExactly(project.canonicalPath, elsewhere.canonicalPath).inOrder()
 		} finally {
 			elsewhere.deleteRecursively()
 		}

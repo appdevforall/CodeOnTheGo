@@ -16,7 +16,7 @@ import java.util.concurrent.CancellationException
  * this module cannot reach the table itself.
  */
 fun interface DebuggerEndpointSource {
-	/** Returns the endpoints stored for the project at [projectLocation], as it appears in `recent_project_table.location`. */
+	/** Returns the endpoints stored for the project at [projectLocation], as it appears in `recent_project_table.location`: its canonical path. */
 	fun endpointsFor(projectLocation: String): List<DebuggerEndpoint>
 }
 
@@ -61,9 +61,12 @@ internal class DebuggerEndpointServiceImpl(
 
 		val root = projectRootProvider() ?: return emptyList()
 		val source = sourceProvider() ?: return emptyList()
+		// The canonical path, as recent_project_table.location holds it, falling back to the absolute
+		// path as the app's pairing does, so a project opened through a symlink still finds its apps.
+		val location = runCatching { root.canonicalPath }.getOrElse { root.absolutePath }
 		val endpoints =
 			try {
-				source.endpointsFor(root.absolutePath)
+				source.endpointsFor(location)
 			} catch (e: InterruptedException) {
 				Thread.currentThread().interrupt()
 				throw e

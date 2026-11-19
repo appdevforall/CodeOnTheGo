@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.services.DebuggerEndpoint
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 
 class DebuggerEndpointServiceImplTest {
 	private val project = File("/data/projects/demo")
@@ -14,7 +15,7 @@ class DebuggerEndpointServiceImplTest {
 	private val source =
 		DebuggerEndpointSource { location ->
 			seen += location
-			if (location == project.absolutePath) listOf(endpoint) else emptyList()
+			if (location == project.canonicalPath) listOf(endpoint) else emptyList()
 		}
 
 	private fun service(
@@ -27,7 +28,30 @@ class DebuggerEndpointServiceImplTest {
 	@Test
 	fun `returns the endpoints stored for the open project`() {
 		assertThat(service().getEndpoints()).containsExactly(endpoint)
-		assertThat(seen).containsExactly(project.absolutePath)
+		assertThat(seen).containsExactly(project.canonicalPath)
+	}
+
+	@Test
+	fun `asks the source by the canonical path, as recent_project_table stores it, for a root opened through a symlink`() {
+		val dir = Files.createTempDirectory("proj").toFile()
+		val links = Files.createTempDirectory("links").toFile()
+		val link = File(links, "proj")
+		try {
+			Files.createSymbolicLink(link.toPath(), dir.toPath())
+			val stored =
+				DebuggerEndpointSource { location ->
+					seen += location
+					if (location == dir.canonicalPath) listOf(endpoint) else emptyList()
+				}
+
+			assertThat(service(root = link, source = stored).getEndpoints()).containsExactly(endpoint)
+			assertThat(seen).containsExactly(dir.canonicalPath)
+		} finally {
+			// The link first, by itself: walking it would reach into the directory it points at.
+			link.delete()
+			links.delete()
+			dir.delete()
+		}
 	}
 
 	@Test
