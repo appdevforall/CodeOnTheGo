@@ -166,9 +166,10 @@ class DebuggerEndpointRepository(
 
 	/**
 	 * The endpoints the apps of [projectDir] have reported, for the plugin API (ADFA-7139). Looked
-	 * up by the canonical path, as the pairing stores it; apps that have not reported yet are left
-	 * out, and so are apps that are no longer installed: their stored port and token would otherwise
-	 * come back as live. An endpoint can still be stale when the app's process has died. Unlike the
+	 * up by the canonical path, as the pairing stores it; apps that have not reported since Code on
+	 * the Go last installed them from a project are left out (the install clears what they reported),
+	 * and so are apps that are no longer installed: their stored port and token would otherwise come
+	 * back as live. An endpoint can still be stale when the app's process has died. Unlike the
 	 * writes, a read failure is thrown: the plugin API reports it rather than answering "no apps".
 	 */
 	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =

@@ -550,6 +550,26 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
+	fun `an app reinstalled from its project is left out until its new process reports`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				assertThat(repository.recordInstalled("com.example", dir.canonicalPath)).isTrue()
+				assertThat(repository.storeEndpoint("com.example", endpoint)).isTrue()
+				repository.notePendingInstall(1, dir, "com.example")
+
+				// The app is still installed, so only the clear keeps a build without the SQLite debugger out.
+				repository.confirmInstall(1, "com.example")!!.join()
+				assertThat(repository.reportedEndpoints(dir)).isEmpty()
+
+				assertThat(repository.storeEndpoint("com.example", DebuggerEndpointValidation.Endpoint("new-tok_2", 6666))).isTrue()
+				assertThat(repository.reportedEndpoints(dir).map { it.token to it.port }).containsExactly("new-tok_2" to 6666)
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
 	fun `each project gets only its own apps, also through a symlinked path, and an app moved away leaves the old one`() =
 		runBlocking<Unit> {
 			val a =
