@@ -300,9 +300,13 @@ private fun KaSession.collectMemberCompletions(to: MutableList<CompletionItem>) 
 	}
 
 	val receiver = qualifiedExpr.receiverExpression
-	val receiverType = receiver.expressionType
+	abortIfCancelled()
+	val symbols =
+		memberCompletionSymbols(receiver, isSafeCall = qualifiedExpr is KtSafeQualifiedExpression) { name ->
+			matchesFilter(name)
+		}
 
-	if (receiverType == null) {
+	if (symbols == null) {
 		logger.error("Unable to find receiver expression type")
 		return
 	}
@@ -310,54 +314,21 @@ private fun KaSession.collectMemberCompletions(to: MutableList<CompletionItem>) 
 	logger.info(
 		"Complete members of {}: {} [{}] matching '{}'",
 		receiver,
-		receiverType,
+		symbols.extensionReceiverType,
 		receiver.text,
 		ctx.partial,
 	)
 
-	collectMembersFromType(receiverType, to)
+	to +=
+		symbols.members.mapNotNull { symbol ->
+			when (symbol) {
+				is KaCallableSymbol -> callableSymbolToCompletionItem(symbol)
+				is KaClassifierSymbol -> classifierSymbolToCompletionItem(symbol)
+				else -> null
+			}
+		}
 
-	if (qualifiedExpr is KtSafeQualifiedExpression) {
-		val nonNullType = receiverType.withNullability(isMarkedNullable = false)
-		collectMembersFromType(nonNullType, to)
-	}
-
-	collectExtensionFunctions(receiverType, to)
-}
-
-@OptIn(KaExperimentalApi::class)
-context(ctx: AnalysisContext)
-private fun KaSession.collectMembersFromType(
-	receiverType: KaType,
-	to: MutableList<CompletionItem>,
-) {
-	abortIfCancelled()
-
-	val typeScope = receiverType.scope
-	if (typeScope != null) {
-		val callables =
-			typeScope
-				.getCallableSignatures { name -> matchesFilter(name) }
-				.map { it.symbol }
-
-		val classifiers =
-			typeScope.getClassifierSymbols { name -> matchesFilter(name) }
-
-		to += toCompletionItems(callables)
-		to += toCompletionItems(classifiers)
-		return
-	}
-
-	// fallback approach when typeScope is not available
-	val classType = receiverType as? KaClassType ?: return
-	val classSymbol = classType.symbol as? KaClassSymbol ?: return
-	val memberScope = classSymbol.memberScope
-
-	val callables = memberScope.callables { name -> matchesFilter(name) }
-	val classifiers = memberScope.classifiers { name -> matchesFilter(name) }
-
-	to += toCompletionItems(callables)
-	to += toCompletionItems(classifiers)
+	symbols.extensionReceiverType?.let { collectExtensionFunctions(it, to) }
 }
 
 context(ctx: AnalysisContext)
