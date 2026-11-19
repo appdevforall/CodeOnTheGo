@@ -1824,6 +1824,69 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a store into an Android cursor array that is null on the other path fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.NullOnOnePath",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class NullOnOnePath {
+							void local(AbstractCursor[] p, SQLiteCursor c, boolean b) {
+								AbstractCursor[] a = null;
+								if (b) {
+									a = p;
+								}
+								a[0] = c;
+							}
+							void stack(AbstractWindowedCursor[] p, SQLiteCursor c, boolean b) {
+								(b ? p : null)[0] = c;
+							}
+						}
+						""",
+					),
+				),
+			)
+		// when b is false the store throws NullPointerException; when it is true, ArrayStoreException
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/NullOnOnePath"]!!, hierarchy) }
+		assertThat(e.message).contains(
+			"  - local([Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;Z)V (line 11): " +
+				"an SQLite cursor stored into an array of android.database.AbstractCursor;",
+		)
+		assertThat(e.message).contains(
+			"  - stack([Landroid/database/AbstractWindowedCursor;Landroid/database/sqlite/SQLiteCursor;Z)V (line 14): " +
+				"an SQLite cursor stored into an array of android.database.AbstractWindowedCursor;",
+		)
+	}
+
+	@Test
+	fun `an SQLite cursor array used as an Android cursor array is not checked, and would not verify`() {
+		fun covariant(pkg: String) =
+			src(
+				"$pkg.Covariant",
+				"""
+				package $pkg;
+				import android.database.*;
+				import android.database.sqlite.*;
+				public class Covariant {
+					AbstractCursor[] up(SQLiteCursor[] s) {
+						return s;
+					}
+				}
+				""",
+			)
+		// a known limit: arrays are covariant, and an SQLiteCursor[] is not followed
+		SqliteRewriter.rewrite(Compiler.compile(listOf(covariant("p")))["p/Covariant"]!!, hierarchy)
+		// The failure mode: rewritten in a package the fail rule exempts, the same class does not verify
+		val unverified = assertThrows(IllegalStateException::class.java) { transform(covariant("androidx.sqlite.db.framework")) }
+		assertThat(unverified.message).contains("does not verify")
+		assertThat(unverified.message).contains("androidx/sqlite/db/framework/Covariant")
+	}
+
+	@Test
 	fun `an instanceof guard counts only when it covers every path to the cast`() {
 		val classes =
 			Compiler.compile(

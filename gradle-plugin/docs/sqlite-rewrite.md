@@ -74,8 +74,8 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
   { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
   into an array of those types (`AbstractCursor[] a; a[0] = c;`), which would throw `ArrayStoreException`: the
-  array must be one on every path to the store, from a parameter, field, call or `new`, or loaded from an array of
-  them (`AbstractCursor[][] g; g[0][0] = c;`).
+  array must be one on every path to the store where it is not `null`, from a parameter, field, call or `new`, or
+  loaded from an array of them (`AbstractCursor[][] g; g[0][0] = c;`).
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
@@ -213,9 +213,13 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   `xandroid.database.sqlite.SQLiteDatabase`, do not.
 - Stores of an SQLite cursor into an array known only as a `Cursor[]` or `Object[]` are allowed on purpose (failing
   them would fail ordinary apps), but such an array can be an `AbstractCursor[]` at run time (arrays are covariant),
-  and a store whose array type is unknown where branches merge is not checked. Both can still throw
-  `ArrayStoreException`, in release builds too (the rewrite runs in every variant of an opted-in app). Cursors loaded
-  from arrays are not followed.
+  and a store whose array type differs between branches that merge is not checked (`null` on a branch counts as
+  no difference). Both can still throw `ArrayStoreException`, in release builds too (the rewrite runs in every
+  variant of an opted-in app). Cursors loaded from arrays are not followed.
+- An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
+  `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
+  covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,
+  so a class that passes, returns or stores it as one does not verify.
 - The `AbstractWindowedCursor` check follows the cursor through locals and the stack only. A cast of a
   cursor that reached the method through a field, a parameter or another call is not seen (the app throws
   `ClassCastException` at run time), and a cast of a cursor from an SQLite API to a type that is not an

@@ -189,20 +189,23 @@ object SqliteRewriter {
 
 	/**
 	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
-	 * ([renamedCursor]), or, on every path, an array of one of the Android-only cursor types, of any dimension
-	 * ([androidCursorArray], that array type).
+	 * ([renamedCursor]), or, on every path where it is not null, an array of one of the Android-only cursor types, of
+	 * any dimension ([androidCursorArray], that array type). [nullConstant]: `null` on every path.
 	 */
 	private class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
 		val androidCursorArray: Type? = null,
+		val nullConstant: Boolean = false,
 	) : BasicValue(type) {
 		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
 		override fun equals(other: Any?): Boolean =
 			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false) &&
-				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray
+				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray &&
+				nullConstant == ((other as? StaticCursorValue)?.nullConstant ?: false)
 
-		override fun hashCode(): Int = (super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()
+		override fun hashCode(): Int =
+			((super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()) * 31 + if (nullConstant) 1 else 0
 	}
 
 	private class ClassRewrite(
@@ -826,8 +829,8 @@ object SqliteRewriter {
 		 * into an array that is, on every path to it, one of those types' arrays (from a parameter, field, call,
 		 * ANEWARRAY or MULTIANEWARRAY, or loaded from an array of them): it would throw ArrayStoreException. Not checked:
 		 * stores into a Cursor[] or Object[], allowed on purpose although one can be such an array at run time; a store
-		 * whose array type differs between the paths that merge before it; cursors loaded from arrays, which are not
-		 * followed.
+		 * whose array type differs between the paths that merge before it (null on a path is no difference); cursors
+		 * loaded from arrays, which are not followed; an SQLiteCursor[] used as one of those types' arrays.
 		 */
 		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, String> {
 			if (!mayConvertToAndroidCursor(m)) return emptyMap()
@@ -835,7 +838,12 @@ object SqliteRewriter {
 				object : BasicInterpreter(Opcodes.ASM9) {
 					override fun newValue(type: Type?): BasicValue? {
 						val v = super.newValue(type) ?: return null
-						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type), androidCursorArray(type)) else v
+						return if (v.isReference) {
+							val nullConstant = type == BasicInterpreter.NULL_TYPE
+							StaticCursorValue(v.type, isRenamedCursorType(type), androidCursorArray(type), nullConstant)
+						} else {
+							v
+						}
 					}
 
 					override fun binaryOperation(
@@ -859,11 +867,19 @@ object SqliteRewriter {
 						val s2 = value2 as? StaticCursorValue
 						// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
 						if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
+							// null on one path does not hide the array on the other: `AbstractCursor[] a = null; if (b) a = p;`
+							val array =
+								when {
+									s1?.nullConstant == true -> s2?.androidCursorArray
+									s2?.nullConstant == true -> s1?.androidCursorArray
+									else -> s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray }
+								}
 							val merged =
 								StaticCursorValue(
 									value1.type,
 									s1?.renamedCursor == true || s2?.renamedCursor == true,
-									s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray },
+									array,
+									s1?.nullConstant == true && s2?.nullConstant == true,
 								)
 							return if (merged == value1) value1 else merged
 						}
