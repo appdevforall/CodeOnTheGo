@@ -709,7 +709,7 @@ class PluginManager private constructor(
 				initializePlugin(plugin, pluginContext).getOrElse { e ->
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
 					// The plugin may have started threads of its own in initialize().
-					pluginContext.closeDebuggerEndpointService()
+					pluginContext.debuggerEndpointService()?.close()
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
 					}
@@ -718,7 +718,7 @@ class PluginManager private constructor(
 
 			if (!initResult) {
 				logger.warn(" plugin initialization returned false for: ${manifest.id}")
-				pluginContext.closeDebuggerEndpointService()
+				pluginContext.debuggerEndpointService()?.close()
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -747,8 +747,6 @@ class PluginManager private constructor(
 			loadedPlugins[manifest.id] = loadedPlugin
 
 			if (!isEnabled) {
-				// initialize() ran, so the plugin may already have threads of its own.
-				loadedPlugin.debuggerEndpointService()?.close()
 				logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
 				return Result.success(plugin)
 			}
@@ -791,7 +789,7 @@ class PluginManager private constructor(
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
 			loadedPlugin.isEnabled = false
-			loadedPlugin.debuggerEndpointService()?.close()
+			loadedPlugin.context.debuggerEndpointService()?.close()
 			savePluginState(manifest.id, false)
 		}
 	}
@@ -833,7 +831,7 @@ class PluginManager private constructor(
 
 		try {
 			// First: a later step can throw and end the unload.
-			loadedPlugin.debuggerEndpointService()?.close()
+			loadedPlugin.context.debuggerEndpointService()?.close()
 
 			// Remove documentation if plugin implements DocumentationExtension
 			if (loadedPlugin.plugin is DocumentationExtension) {
@@ -1163,7 +1161,7 @@ class PluginManager private constructor(
 
 		// The services outlive a disable, which closed the terminal and SQLite debugger endpoint services.
 		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
-		loadedPlugin.debuggerEndpointService()?.reopen()
+		loadedPlugin.context.debuggerEndpointService()?.reopen()
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
@@ -1220,7 +1218,7 @@ class PluginManager private constructor(
 
 	private fun cleanupPluginContributions(loadedPlugin: LoadedPlugin) {
 		val pluginId = loadedPlugin.manifest.id
-		loadedPlugin.debuggerEndpointService()?.close()
+		loadedPlugin.context.debuggerEndpointService()?.close()
 		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId, loadedPlugins.keys - pluginId) }
 			.onFailure { logger.error("Failed to clean project templates for: $pluginId", it) }
 		runCatching {
@@ -1243,13 +1241,9 @@ class PluginManager private constructor(
 		}.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
 	}
 
-	private fun PluginContext.closeDebuggerEndpointService() {
-		(services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl)?.close()
-	}
-
 	/** The plugin's [DebuggerEndpointServiceImpl]. Its services outlive a disable, so it is closed instead. */
-	private fun LoadedPlugin.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
-		context.services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
+	private fun PluginContext.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
+		services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
 
 	sealed class CrashResult {
 		abstract val pluginId: String
@@ -1629,7 +1623,8 @@ class PluginManager private constructor(
 				permissions = permissions,
 				projectRootProvider = ::openProjectRoot,
 				sourceProvider = debuggerEndpointSource::get,
-				// A plugin saved as disabled gets no tokens from its own initialize(); enablePlugin reopens it.
+				// The only close a plugin loaded as disabled needs: it stays closed through its own
+				// initialize() and after, until enablePlugin reopens it.
 				startOpen = getPluginState(pluginId),
 			)
 		}
