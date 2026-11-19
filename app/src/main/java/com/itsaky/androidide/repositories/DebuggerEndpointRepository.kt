@@ -17,9 +17,11 @@ import com.itsaky.androidide.plugins.services.DebuggerEndpoint as PluginDebugger
 
 /**
  * Which app each project builds, and the SQLite debugger endpoint the app last reported (ADFA-7137).
- * Nothing here throws except [CancellationException]: any other failure is logged and reported as
- * false, because none of the callers can do anything about it, and they run on the application scope,
- * which has no CoroutineExceptionHandler (an escaping exception would crash the process).
+ * The writes throw nothing but [CancellationException]: any other failure is logged and reported as
+ * false, because none of their callers can do anything about it, and they run on the application
+ * scope, which has no CoroutineExceptionHandler (an escaping exception would crash the process).
+ * [reportedEndpoints], the read behind the plugin API, is the exception: it throws on a read failure,
+ * so call it where a failure is handled, not on the application scope.
  */
 class DebuggerEndpointRepository(
 	private val dao: DebuggerEndpointDao,
@@ -160,8 +162,8 @@ class DebuggerEndpointRepository(
 	 * The endpoints the apps of [projectDir] have reported, for the plugin API (ADFA-7139). Looked
 	 * up by the canonical path, as the pairing stores it; apps that have not reported yet are left
 	 * out, and so are apps that are no longer installed: their stored port and token would otherwise
-	 * come back as live. An endpoint can still be stale when the app's process has died. Unlike the writes, a read failure is thrown: the plugin API reports it rather than
-	 * answering "no apps".
+	 * come back as live. An endpoint can still be stale when the app's process has died. Unlike the
+	 * writes, a read failure is thrown: the plugin API reports it rather than answering "no apps".
 	 */
 	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
 		dao.getByProjectLocation(projectDir.canonicalProjectLocation()).mapNotNull { row ->
