@@ -84,14 +84,22 @@ class SqliteRewriteTransformTest {
 	) {
 		val daoName = "Dao${System.nanoTime()}"
 		val library =
-			Compiler.compile(
-				listOf(
-					JavaSource(
-						"x.lib.$daoName",
-						"package x.lib; public class $daoName { public Object q(android.database.sqlite.SQLiteDatabase db, String[] a) { return db.rawQuery(\"select 1\", a); } }",
+			Compiler
+				.compile(
+					listOf(
+						JavaSource(
+							"x.lib.$daoName",
+							"package x.lib; public class $daoName { public Object q(android.database.sqlite.SQLiteDatabase db, String[] a) { return db.rawQuery(\"select 1\", a); } " +
+								"public boolean probe(com.unknown.Row r) { return r.isString(0); } }",
+						),
+						JavaSource(
+							"com.unknown.Row",
+							"package com.unknown; public class Row { public boolean isString(int column) { return false; } }",
+						),
 					),
-				),
-			)
+				)
+				// left out of the AAR, as an optional class a library references and the app does not ship
+				.filterKeys { it != "com/unknown/Row" }
 		val helperSource =
 			FileProvider
 				.projectRoot()
@@ -155,6 +163,13 @@ class SqliteRewriteTransformTest {
 
 		assertThat(result.task(":app:checkDemoDebugSqliteRewriteClasspath")!!.outcome).isEqualTo(TaskOutcome.SUCCESS)
 		assertThat(result.task(":app:transformDemoDebugClassesWithAsm")!!.outcome).isEqualTo(TaskOutcome.SUCCESS)
+		// isString(I)Z names no SQLite type, so the owner that cannot be resolved is only reported through Gradle's logger
+		val warning =
+			"x.lib.$daoName: com.unknown.Row cannot be resolved, so the rewrite cannot tell whether its isString(I)Z is " +
+				"SQLiteCursor.isString, which it changes or rejects; the call is left as it is, and fails at run time if the owner " +
+				"extends that class"
+		assertThat(result.output).contains(warning)
+		println("WARNING LINE: " + result.output.lines().first { warning in it })
 
 		// the unmodified copy from extracting the AAR is in the cache too; the rewritten one is the other
 		val daos = transformedJarsWith("x/lib/$daoName.class").map { bytes -> ClassNode().also { ClassReader(bytes).accept(it, 0) } }
