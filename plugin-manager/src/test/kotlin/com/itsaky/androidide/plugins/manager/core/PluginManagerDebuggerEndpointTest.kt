@@ -125,6 +125,28 @@ class PluginManagerDebuggerEndpointTest {
 	}
 
 	@Test
+	fun `a disable whose deactivate throws leaves the plugin enabled and its service open`() {
+		val service = load("reader", "debugger.endpoints", FailingDeactivatePlugin::class.java)
+		openInEditor(project)
+
+		assertThat(pluginManager().disablePlugin("reader")).isFalse()
+
+		assertThat(pluginManager().getLoadedPlugin("reader")).isNotNull()
+		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `a plugin force-disabled after crashing gets nothing, even when its deactivate throws`() {
+		val service = load("reader", "debugger.endpoints", FailingDeactivatePlugin::class.java)
+		openInEditor(project)
+
+		pluginManager().forceDisablePlugin("reader")
+
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		assertThat(asked).isEmpty()
+	}
+
+	@Test
 	fun `a plugin disabled after crashing gets nothing`() {
 		val service = load("reader", "debugger.endpoints")
 		openInEditor(project)
@@ -364,6 +386,11 @@ class PluginManagerDebuggerEndpointTest {
 	/** initialize() succeeds, activate() throws. */
 	class FailingActivationPlugin : ContextKeepingPlugin() {
 		override fun activate(): Boolean = error("activate failed")
+	}
+
+	/** Loads and activates, then deactivate() throws. */
+	class FailingDeactivatePlugin : ContextKeepingPlugin() {
+		override fun deactivate(): Boolean = error("deactivate failed")
 	}
 
 	/** The editor activity's provider, as registered while it shows a project. */

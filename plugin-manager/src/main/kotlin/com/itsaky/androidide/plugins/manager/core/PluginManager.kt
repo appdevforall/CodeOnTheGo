@@ -788,8 +788,7 @@ class PluginManager private constructor(
 			notifyLanguageContributionsChanged(plugin)
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
-			loadedPlugin.isEnabled = false
-			loadedPlugin.context.debuggerEndpointService()?.close()
+			markDisabled(loadedPlugin)
 			savePluginState(manifest.id, false)
 		}
 	}
@@ -1186,7 +1185,7 @@ class PluginManager private constructor(
 		return try {
 			cleanupPluginContributions(loadedPlugin)
 			loadedPlugin.plugin.deactivate()
-			loadedPlugin.isEnabled = false
+			markDisabled(loadedPlugin)
 			savePluginState(pluginId, false)
 			lifecycleDispatcher.notifyDeactivated(pluginId)
 			notifyLanguageContributionsChanged(loadedPlugin.plugin)
@@ -1209,7 +1208,7 @@ class PluginManager private constructor(
 		runCatching { loadedPlugin.plugin.deactivate() }.onFailure { e ->
 			logger.error("Plugin deactivate threw during force-disable: $pluginId", e)
 		}
-		loadedPlugin.isEnabled = false
+		markDisabled(loadedPlugin)
 		savePluginState(pluginId, false)
 		lifecycleDispatcher.notifyDeactivated(pluginId)
 		notifyLanguageContributionsChanged(loadedPlugin.plugin)
@@ -1218,7 +1217,6 @@ class PluginManager private constructor(
 
 	private fun cleanupPluginContributions(loadedPlugin: LoadedPlugin) {
 		val pluginId = loadedPlugin.manifest.id
-		loadedPlugin.context.debuggerEndpointService()?.close()
 		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId, loadedPlugins.keys - pluginId) }
 			.onFailure { logger.error("Failed to clean project templates for: $pluginId", it) }
 		runCatching {
@@ -1239,6 +1237,17 @@ class PluginManager private constructor(
 			val templateService = loadedPlugin.context.services.get(IdeTemplateService::class.java)
 			if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
 		}.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
+	}
+
+	/**
+	 * Marks [loadedPlugin] disabled and closes its SQLite debugger endpoint service in one step, so the
+	 * service is closed exactly when the plugin stops being enabled. A disable that fails before this
+	 * point, as when deactivate() throws, leaves the plugin enabled and its service open: enablePlugin
+	 * returns early for an enabled plugin, so it could never reopen the service.
+	 */
+	private fun markDisabled(loadedPlugin: LoadedPlugin) {
+		loadedPlugin.context.debuggerEndpointService()?.close()
+		loadedPlugin.isEnabled = false
 	}
 
 	/** The plugin's [DebuggerEndpointServiceImpl]. Its services outlive a disable, so it is closed instead. */
