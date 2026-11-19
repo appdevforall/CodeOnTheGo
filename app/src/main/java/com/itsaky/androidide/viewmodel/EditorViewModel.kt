@@ -408,7 +408,8 @@ class EditorViewModel : ViewModel() {
 		}
 
 	/**
-	 * Remove the file at the given index from the list of opened files.
+	 * Remove the file at the given index from the list of opened files. The current and shown
+	 * indexes keep pointing at the same files when an earlier tab is removed.
 	 *
 	 * @param index The index of the closed file.
 	 */
@@ -420,6 +421,18 @@ class EditorViewModel : ViewModel() {
 				// As removeAllFiles does: no tab is left to select, so nothing else would tell the
 				// displayed-file observers that no file is shown.
 				setCurrentFile(-1, null)
+				return@updateFiles
+			}
+
+			// The tab bar fires no selection event when a tab before the selected one closes.
+			// Closing the shown tab itself is left to the tab selected next.
+			// Current file first, as setCurrentFile does: displayed-index observers may read it.
+			val current = mCurrentFile.value
+			if (current != null && index < current.first) {
+				mCurrentFile.value = (current.first - 1) to current.second
+			}
+			if (index < displayedFileIndex) {
+				displayedFileIndex -= 1
 			}
 		}
 

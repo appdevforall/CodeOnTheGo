@@ -19,6 +19,8 @@ class EditorViewModelDisplayedFileTest {
 
 	private val a = File("/project/A.kt")
 	private val b = File("/project/B.kt")
+	private val s = File("/project/S.kt")
+	private val t = File("/project/T.kt")
 	private lateinit var viewModel: EditorViewModel
 	private val heard = mutableListOf<File?>()
 
@@ -119,5 +121,49 @@ class EditorViewModelDisplayedFileTest {
 		viewModel.removeAllFiles()
 
 		assertThat(heard).containsExactly(null)
+	}
+
+	@Test
+	fun closingEarlierTabsKeepsTheShownFileCurrent() {
+		open(a)
+		open(b)
+		open(s)
+
+		viewModel.removeFile(0)
+		viewModel.removeFile(0)
+
+		assertThat(viewModel.displayedFile()).isEqualTo(s)
+		assertThat(viewModel.displayedFileIndex).isEqualTo(0)
+		assertThat(viewModel.getCurrentFileIndex()).isEqualTo(0)
+		assertThat(viewModel.getCurrentFile()).isEqualTo(s)
+	}
+
+	@Test
+	fun closingAnEarlierTabDoesNotShowTheNextFile() {
+		open(a)
+		open(b)
+		open(s)
+		open(t)
+		viewModel.setCurrentFile(2, s)
+
+		viewModel.removeFile(0)
+
+		assertThat(viewModel.displayedFile()).isEqualTo(s)
+		assertThat(viewModel.displayedFileIndex).isEqualTo(1)
+		assertThat(viewModel.getCurrentFileIndex()).isEqualTo(1)
+	}
+
+	@Test
+	fun closingALaterTabLeavesTheIndexesAlone() {
+		open(a)
+		open(s)
+		open(b)
+		viewModel.setCurrentFile(1, s)
+
+		viewModel.removeFile(2)
+
+		assertThat(viewModel.displayedFile()).isEqualTo(s)
+		assertThat(viewModel.displayedFileIndex).isEqualTo(1)
+		assertThat(viewModel.getCurrentFileIndex()).isEqualTo(1)
 	}
 }
