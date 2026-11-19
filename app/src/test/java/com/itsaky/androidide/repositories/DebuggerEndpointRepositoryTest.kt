@@ -93,7 +93,7 @@ class DebuggerEndpointRepositoryTest {
 			repository.recordInstalled("com.example", "/p/a")
 			repository.storeEndpoint("com.example", endpoint)
 
-			repository.recordInstalled("com.example", "/p/a")
+			repository.recordLaunched("com.example", "/p/a")
 
 			val row = room.debuggerEndpointDao().getByApplicationId("com.example")!!
 			assertThat(row.port).isEqualTo(5555)
@@ -273,6 +273,65 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
+	fun `an install from the same project clears the token, port and time the replaced process reported`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				repository.recordInstalled("com.example", dir.canonicalPath)
+				repository.storeEndpoint("com.example", endpoint)
+				repository.notePendingInstall(1, dir, "com.example")
+
+				// A build without the SQLite debugger never reports again, so nothing would replace the dead port.
+				repository.confirmInstall(1, "com.example")?.join()
+
+				assertThat(room.debuggerEndpointDao().getByApplicationId("com.example"))
+					.isEqualTo(DebuggerEndpoint("com.example", dir.canonicalPath, null, null, null))
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `a report the new process sends before the install's write is cleared, then stored from its reply to the request`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				repository.recordInstalled("com.example", dir.canonicalPath)
+				repository.storeEndpoint("com.example", endpoint)
+				val fresh = DebuggerEndpointValidation.Endpoint("new-tok_2", 6666)
+				val seenWhenAsked = CopyOnWriteArrayList<Pair<String?, Int?>>()
+				lateinit var replying: DebuggerEndpointRepository
+				replying =
+					DebuggerEndpointRepository(
+						room.debuggerEndpointDao(),
+						CoroutineScope(Dispatchers.IO),
+						clock = { 1234L },
+						isInstalled = { true },
+						announce = { id ->
+							// The running app replies at once, the tightest case: before anything after the request runs.
+							runBlocking {
+								val row = room.debuggerEndpointDao().getByApplicationId(id)
+								seenWhenAsked += row?.token to row?.port
+								replying.storeEndpoint(id, fresh)
+							}
+						},
+					)
+				replying.notePendingInstall(1, dir, "com.example")
+				// The post-install launch does not wait for the write, so the new process can report first.
+				assertThat(replying.storeEndpoint("com.example", fresh)).isTrue()
+
+				replying.confirmInstall(1, "com.example")!!.join()
+
+				val row = room.debuggerEndpointDao().getByApplicationId("com.example")!!
+				assertThat(row.token to row.port).isEqualTo("new-tok_2" to 6666)
+				// Cleared before the request, in the pairing's write: a clear after it could wipe the reply for good.
+				assertThat(seenWhenAsked).containsExactly(null to null)
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
 	fun `launching pairs an unpaired app`() =
 		runBlocking<Unit> {
 			addProject("/p/a")
@@ -346,10 +405,7 @@ class DebuggerEndpointRepositoryTest {
 			projectLocation: String,
 		): Unit = throw error()
 
-		override suspend fun clearEndpointIfProjectDiffers(
-			applicationId: String,
-			projectLocation: String,
-		): Unit = throw error()
+		override suspend fun clearEndpoint(applicationId: String): Unit = throw error()
 
 		override suspend fun upsertPairing(
 			applicationId: String,

@@ -11,10 +11,13 @@ import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.roomData.recentproject.DebuggerEndpointDao
 import com.itsaky.androidide.roomData.recentproject.RecentProject
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.sqlitedebugger.DebuggerEndpointValidation
 import com.itsaky.androidide.utils.ApkInstaller
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
@@ -147,6 +150,57 @@ class InstallationResultReceiverTest {
 
 		assertThat(repository.confirmInstall(1, "com.example")).isNull()
 		assertThat(repository.confirmInstall(2, "com.example")).isNotNull()
+	}
+
+	/** Parent of the writes of a repository built with [writesScope], so a test can wait for all of them. */
+	private val writes = SupervisorJob()
+	private val writesScope = CoroutineScope(Dispatchers.IO + writes)
+
+	private fun awaitWrites() = runBlocking { writes.children.toList().joinAll() }
+
+	/** Pairs com.example with the project and stores the endpoint its running build reported. */
+	private fun pairWithReportedEndpoint(repository: DebuggerEndpointRepository) =
+		runBlocking {
+			assertThat(repository.recordInstalled("com.example", project.canonicalPath)).isTrue()
+			assertThat(repository.storeEndpoint("com.example", DebuggerEndpointValidation.Endpoint("tok-en_1", 5555))).isTrue()
+		}
+
+	private fun storedEndpoint(): Pair<String?, Int?> =
+		runBlocking { room.debuggerEndpointDao().getByApplicationId("com.example")!! }.let { it.token to it.port }
+
+	@Test
+	fun `a success clears the endpoint the replaced process reported`() {
+		val repository = repository(scope = writesScope)
+		pairWithReportedEndpoint(repository)
+		repository.notePendingInstall(1, project, "com.example")
+
+		deliver(1, PackageInstaller.STATUS_SUCCESS)
+		awaitWrites()
+
+		assertThat(storedEndpoint()).isEqualTo(null to null)
+	}
+
+	@Test
+	fun `a failure leaves the stored endpoint as it was`() {
+		val repository = repository(scope = writesScope)
+		pairWithReportedEndpoint(repository)
+		val failures =
+			listOf(
+				PackageInstaller.STATUS_FAILURE,
+				PackageInstaller.STATUS_FAILURE_ABORTED,
+				PackageInstaller.STATUS_FAILURE_BLOCKED,
+				PackageInstaller.STATUS_FAILURE_CONFLICT,
+				PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
+				PackageInstaller.STATUS_FAILURE_INVALID,
+				PackageInstaller.STATUS_FAILURE_STORAGE,
+			)
+		failures.indices.forEach { repository.notePendingInstall(it + 1, project, "com.example") }
+
+		// The old APK, and the process that reported, are still there.
+		failures.forEachIndexed { i, status -> deliver(i + 1, status) }
+		awaitWrites()
+
+		assertThat(storedEndpoint()).isEqualTo("tok-en_1" to 5555)
 	}
 
 	@Test

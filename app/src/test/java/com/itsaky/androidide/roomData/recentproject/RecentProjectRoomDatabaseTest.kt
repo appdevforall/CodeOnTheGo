@@ -209,7 +209,7 @@ class RecentProjectRoomDatabaseTest {
 		}
 
 	@Test
-	fun `upsertPairing for the same project keeps token, port and time`() =
+	fun `upsertPairing for the same project also clears token, port and time`() =
 		runBlocking<Unit> {
 			val room = newDatabase()
 			try {
@@ -221,7 +221,7 @@ class RecentProjectRoomDatabaseTest {
 				dao.upsertPairing("com.example.one", "/p/a")
 
 				assertThat(dao.getByApplicationId("com.example.one"))
-					.isEqualTo(DebuggerEndpoint("com.example.one", "/p/a", "tok", 4242, 99L))
+					.isEqualTo(DebuggerEndpoint("com.example.one", "/p/a", null, null, null))
 			} finally {
 				room.close()
 			}
