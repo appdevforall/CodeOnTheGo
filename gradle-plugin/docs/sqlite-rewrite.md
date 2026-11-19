@@ -74,7 +74,8 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
   { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
   into an array of those types (`AbstractCursor[] a; a[0] = c;`), which would throw `ArrayStoreException`: the
-  array must be one on every path to the store, from a parameter, field, call or `new`.
+  array must be one on every path to the store, from a parameter, field, call or `new`, or loaded from an array of
+  them (`AbstractCursor[][] g; g[0][0] = c;`).
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but

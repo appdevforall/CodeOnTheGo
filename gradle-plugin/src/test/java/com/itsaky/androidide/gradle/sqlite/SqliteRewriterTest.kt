@@ -1708,6 +1708,60 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `an SQLite cursor stored into an Android cursor array loaded from an array of them fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Nested",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class Nested {
+							void param(AbstractCursor[][] g, SQLiteCursor c) {
+								g[0][0] = c;
+							}
+							void fresh(SQLiteCursor c) {
+								AbstractCursor[][] g = new AbstractCursor[2][2];
+								g[1][1] = c;
+							}
+							void rows(SQLiteCursor c) {
+								AbstractWindowedCursor[][] g = new AbstractWindowedCursor[2][];
+								g[0] = new AbstractWindowedCursor[1];
+								AbstractWindowedCursor[] row = g[0];
+								row[0] = c;
+							}
+							void threeDims(CrossProcessCursor[][][] g, SQLiteCursor c) {
+								g[0][1][2] = c;
+							}
+							AbstractCursor[] initializer(SQLiteCursor c) {
+								return new AbstractCursor[] {c};
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Nested"]!!, hierarchy) }
+		val stored = "an SQLite cursor stored into an array of android.database"
+		assertThat(e.message).contains(
+			"  - param([[Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 7): $stored.AbstractCursor;",
+		)
+		// MULTIANEWARRAY, with nothing else in the method naming an Android cursor type
+		assertThat(e.message).contains("  - fresh(Landroid/database/sqlite/SQLiteCursor;)V (line 11): $stored.AbstractCursor;")
+		assertThat(e.message).contains("  - rows(Landroid/database/sqlite/SQLiteCursor;)V (line 17): $stored.AbstractWindowedCursor;")
+		assertThat(e.message).contains(
+			"  - threeDims([[[Landroid/database/CrossProcessCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 20): " +
+				"$stored.CrossProcessCursor;",
+		)
+		// an array initializer is an ANEWARRAY and an AASTORE
+		assertThat(e.message).contains(
+			"  - initializer(Landroid/database/sqlite/SQLiteCursor;)[Landroid/database/AbstractCursor; (line 23): $stored.AbstractCursor;",
+		)
+	}
+
+	@Test
 	fun `an SQLite cursor stored into a Cursor or Object array, or another value into an Android cursor array, passes`() {
 		val classes =
 			Compiler.compile(
@@ -1728,6 +1782,13 @@ class SqliteRewriterTest {
 							void otherValues(AbstractCursor[] a, MatrixCursor m) {
 								a[0] = m;
 								a[1] = null;
+							}
+							void nestedCursors(Cursor[][] g, SQLiteCursor c) {
+								g[0][0] = c;
+							}
+							void nestedRows(AbstractCursor[][] g, AbstractCursor[] row, MatrixCursor m) {
+								g[0] = row;
+								g[1][0] = m;
 							}
 						}
 						""",

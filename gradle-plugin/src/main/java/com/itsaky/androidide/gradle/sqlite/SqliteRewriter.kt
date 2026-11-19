@@ -23,6 +23,7 @@ import org.objectweb.asm.tree.LdcInsnNode
 import org.objectweb.asm.tree.LineNumberNode
 import org.objectweb.asm.tree.MethodInsnNode
 import org.objectweb.asm.tree.MethodNode
+import org.objectweb.asm.tree.MultiANewArrayInsnNode
 import org.objectweb.asm.tree.TypeInsnNode
 import org.objectweb.asm.tree.VarInsnNode
 import org.objectweb.asm.tree.analysis.Analyzer
@@ -188,13 +189,13 @@ object SqliteRewriter {
 
 	/**
 	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
-	 * ([renamedCursor]), or, on every path, an array of one of the Android-only cursor types ([androidCursorArray],
-	 * that element type).
+	 * ([renamedCursor]), or, on every path, an array of one of the Android-only cursor types, of any dimension
+	 * ([androidCursorArray], that array type).
 	 */
 	private class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
-		val androidCursorArray: String? = null,
+		val androidCursorArray: Type? = null,
 	) : BasicValue(type) {
 		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
 		override fun equals(other: Any?): Boolean =
@@ -791,9 +792,12 @@ object SqliteRewriter {
 		/** A type in a frame or an internal name, when it is one of the Android-only cursor types, or null. */
 		private fun androidOnlyCursor(entry: Any?): String? = (entry as? String)?.takeIf { it in Rules.ANDROID_ONLY_CURSOR_TYPES }
 
-		/** [type]'s element type when it is a one-dimensional array of an Android-only cursor type, or null. */
-		private fun androidCursorArray(type: Type?): String? =
-			if (type != null && type.sort == Type.ARRAY && type.dimensions == 1) androidOnlyCursor(type.elementType) else null
+		/** [type] when it is an array of an Android-only cursor type, of any dimension, or null. */
+		private fun androidCursorArray(type: Type?): Type? =
+			type?.takeIf {
+				it.sort == Type.ARRAY &&
+					androidOnlyCursor(it.elementType) != null
+			}
 
 		/** Whether [m] names an Android-only cursor type where a value could be converted to it without a cast. */
 		private fun mayConvertToAndroidCursor(m: MethodNode): Boolean {
@@ -806,6 +810,7 @@ object SqliteRewriter {
 					is InvokeDynamicInsnNode -> names(insn.desc)
 					is FieldInsnNode -> names(insn.desc)
 					is TypeInsnNode -> names(insn.desc) || (insn.opcode == Opcodes.ANEWARRAY && androidOnlyCursor(insn.desc) != null)
+					is MultiANewArrayInsnNode -> names(insn.desc)
 					is FrameNode -> (insn.local.orEmpty() + insn.stack.orEmpty()).any { androidOnlyCursor(it) != null }
 					else -> false
 				}
@@ -818,10 +823,11 @@ object SqliteRewriter {
 		 * passed, called on, stored in a field, or held where a frame declares one of them. javac writes no CHECKCAST
 		 * for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the interface, so
 		 * the renamed class would not verify (or, for the interface, the call would fail). Also an AASTORE of such a value
-		 * into an array that is, on every path to it, one of those types' arrays (from a parameter, field, call or
-		 * ANEWARRAY): it would throw ArrayStoreException. Not checked: stores into a Cursor[] or Object[], allowed on
-		 * purpose although one can be such an array at run time; a store whose array type differs between the paths
-		 * that merge before it; values loaded from arrays, which are not followed.
+		 * into an array that is, on every path to it, one of those types' arrays (from a parameter, field, call,
+		 * ANEWARRAY or MULTIANEWARRAY, or loaded from an array of them): it would throw ArrayStoreException. Not checked:
+		 * stores into a Cursor[] or Object[], allowed on purpose although one can be such an array at run time; a store
+		 * whose array type differs between the paths that merge before it; cursors loaded from arrays, which are not
+		 * followed.
 		 */
 		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, String> {
 			if (!mayConvertToAndroidCursor(m)) return emptyMap()
@@ -830,6 +836,19 @@ object SqliteRewriter {
 					override fun newValue(type: Type?): BasicValue? {
 						val v = super.newValue(type) ?: return null
 						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type), androidCursorArray(type)) else v
+					}
+
+					override fun binaryOperation(
+						insn: AbstractInsnNode,
+						value1: BasicValue,
+						value2: BasicValue,
+					): BasicValue? {
+						val array = (value1 as? StaticCursorValue)?.androidCursorArray
+						// BasicInterpreter types every AALOAD as Object; a row of an AbstractCursor[][] is an AbstractCursor[]
+						if (insn.opcode == Opcodes.AALOAD && array != null && array.dimensions > 1) {
+							return newValue(Type.getType(array.descriptor.substring(1)))
+						}
+						return super.binaryOperation(insn, value1, value2)
 					}
 
 					override fun merge(
@@ -867,7 +886,12 @@ object SqliteRewriter {
 
 				fun fromTop(depth: Int) = if (depth < f.stackSize) f.getStack(f.stackSize - 1 - depth) else null
 				if (insn.opcode == Opcodes.AASTORE) {
-					val element = (fromTop(2) as? StaticCursorValue)?.androidCursorArray
+					val element =
+						(fromTop(2) as? StaticCursorValue)
+							?.androidCursorArray
+							?.takeIf { it.dimensions == 1 }
+							?.elementType
+							?.internalName
 					if (element != null && renamed(fromTop(0))) {
 						result[insn] = "an SQLite cursor stored into an array of ${element.replace('/', '.')}; requery's SQLiteCursor " +
 							"is not one, so the store would throw ArrayStoreException"
