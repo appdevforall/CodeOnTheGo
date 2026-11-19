@@ -40,7 +40,8 @@ class DebuggerEndpointRepository(
 	 * loses them all, and each app is then paired by its next launch from its project (LaunchAppAction). Nothing
 	 * expires, so a slow install still finds its note. A session whose staging or commit throws reports no result,
 	 * so ApkInstaller's onCommitFailed drops its note through [discardPendingInstall]; a note whose session never
-	 * reports for another reason stays unused until the process ends: session IDs are not reused.
+	 * reports for another reason, or whose real success result names another package or none (see [confirmInstall]),
+	 * stays unused until the process ends: session IDs are not reused.
 	 */
 	private val pendingInstalls = ConcurrentHashMap<Int, PendingInstall>()
 
@@ -67,18 +68,23 @@ class DebuggerEndpointRepository(
 	 *
 	 * Returns null, and writes nothing, for an install that was not noted, such as an APK opened from the file
 	 * tree; its next launch from a project pairs it. Also when [installedApplicationId], the package the result
-	 * names, is missing or is not the noted one: the result comes through an exported receiver, so it can be forged,
-	 * and the framework names the package in every result it sends.
+	 * names, is missing or is not the noted one: the result comes through an exported receiver, so it can be forged.
+	 * Such a result leaves the note, so the session's real result still pairs. Unverified: that the framework names
+	 * the package in every success result. AOSP's PackageInstallerSession.sendOnPackageInstalled is said to, and
+	 * ProxyAppInstallerEdgeTest says some OEM installers do not; a real success that names none is paired at the
+	 * app's next launch from its project instead.
 	 */
 	fun confirmInstall(
 		sessionId: Int,
 		installedApplicationId: String?,
 	): Job? {
-		val note = pendingInstalls.remove(sessionId) ?: return null
+		val note = pendingInstalls[sessionId] ?: return null
 		if (installedApplicationId != note.applicationId) {
 			log.warn("Session {} installed {}, not {}; not paired", sessionId, installedApplicationId, note.applicationId)
 			return null
 		}
+		// Of two results that both pass the check, only the first pairs.
+		if (!pendingInstalls.remove(sessionId, note)) return null
 		return scope.launch { recordInstalled(note.applicationId, note.location) }
 	}
 

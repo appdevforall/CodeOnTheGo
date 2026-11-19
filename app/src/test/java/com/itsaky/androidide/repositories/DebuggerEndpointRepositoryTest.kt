@@ -255,16 +255,36 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
-	fun `a result without a package name pairs nothing`() =
+	fun `a result naming another package leaves the note, so the session's real result still pairs`() =
 		runBlocking<Unit> {
 			val dir = newProject()
 			try {
 				repository.notePendingInstall(1, dir, "com.example")
 
-				// The framework names the package in every result it sends, so this one was forged.
-				assertThat(repository.confirmInstall(1, installedApplicationId = null)).isNull()
+				// Forged: the receiver is exported.
+				assertThat(repository.confirmInstall(1, "com.other")).isNull()
+				repository.confirmInstall(1, "com.example")?.join()
 
+				assertThat(pairedLocation("com.example")).isEqualTo(dir.canonicalPath)
+				assertThat(pairedLocation("com.other")).isNull()
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `a result without a package name pairs nothing, and leaves the note for the real result`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				repository.notePendingInstall(1, dir, "com.example")
+
+				// Forged, or from an installer that names no package; see confirmInstall.
+				assertThat(repository.confirmInstall(1, installedApplicationId = null)).isNull()
 				assertThat(pairedLocation()).isNull()
+
+				repository.confirmInstall(1, "com.example")?.join()
+				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
 			} finally {
 				dir.delete()
 			}
