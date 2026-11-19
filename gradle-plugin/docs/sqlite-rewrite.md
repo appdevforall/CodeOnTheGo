@@ -93,10 +93,13 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   Likewise a call on an owner that AGP's class loader cannot resolve fails when its name and descriptor are those of
   a member a rule above changes or rejects in a renamed class another class can extend (not the final
   `SQLiteDatabase`, `SQLiteQuery` or `SQLiteStatement`) and the descriptor names an SQLite-related type (any
-  `android.database.sqlite` or requery type, `Cursor`, `CursorWindow`, `CancellationSignal`,
-  `DatabaseErrorHandler`): the owner may inherit that member, and its renamed ancestors are unknown. When the
-  descriptor names none (`isStrict()Z`, `isString(I)Z`), the call only logs a warning: libraries reference optional
-  classes the app does not ship, and failing every app build over them would be worse than missing the case.
+  `android.database.sqlite` or requery type, `Cursor`, `CancellationSignal`, `DatabaseErrorHandler`): the owner may
+  inherit that member, and its renamed ancestors are unknown. When the descriptor names none (`isStrict()Z`,
+  `isString(I)Z`, `setWindow(CursorWindow)`, `mWindow`), the call or field access only logs a warning with class,
+  method and line: libraries reference optional classes the app does not ship, and failing every app build over them
+  would be worse than missing the case. `CursorWindow` is not an SQLite type: it carries every ContentProvider cursor
+  across processes, and android's kept `AbstractWindowedCursor` declares `setWindow(CursorWindow)` and `mWindow` too,
+  so a library's own windowed cursor matches them.
 - Method references: a handle in an invokedynamic (`db::rawQuery`, `ctx::deleteDatabase`) that any rule
   above would change, redirect or reject fails the build, naming class, method and line, with the advice to
   write a lambda (its body is an ordinary call, which the rules handle). The rules are not applied to the
@@ -221,12 +224,14 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
 - A direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor` that overrides a member requery lacks is not
   reported.
-- On a `SQLiteCursor` subclass whose class the build cannot resolve, `getWindow()` is not detected, and the call fails
-  at run time: it is not in the rule table, and failing every unresolved call that returns a `CursorWindow` would fail
-  ordinary apps (android's kept `AbstractWindowedCursor` and `CrossProcessCursor` declare it too). On any class the
+- On a `SQLiteCursor` subclass whose class the build cannot resolve, `getWindow()` is not detected, and
+  `setWindow(CursorWindow)` and `mWindow` only log a warning; each fails at run time. `getWindow()` is not in the rule
+  table, and failing every unresolved member that names a `CursorWindow` would fail ordinary apps (android's kept
+  `AbstractWindowedCursor` declares all three, and `CrossProcessCursor` declares `getWindow()`). On any class the
   build cannot resolve, a call that matches the rule table fails the build only when its descriptor names an
-  SQLite-related type (see Rules); any other match, such as `isString(I)Z` or `isStrict()Z`, logs a warning and is left
-  as it is, and fails at run time if the class does extend the renamed class.
+  SQLite-related type (see Rules); any other match, such as `isString(I)Z`, `isStrict()Z` or `setWindow(CursorWindow)`,
+  logs a warning with class, method and line and is left as it is, and fails at run time if the class does extend the
+  renamed class.
 - `instanceof` is not rewritten: `cursor instanceof AbstractWindowedCursor`, `AbstractCursor` or
   `CrossProcessCursor` is silently false for requery's cursors (no build failure), which is what Room's
   `DBUtil.query` relies on.

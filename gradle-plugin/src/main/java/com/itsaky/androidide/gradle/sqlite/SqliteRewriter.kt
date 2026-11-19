@@ -440,10 +440,9 @@ object SqliteRewriter {
 					"SQL text uses COLLATE UNICODE, which does not exist in requery's SQLite (no ICU); the statement would fail",
 				)
 			}
-			val where = if (line >= 0) "line $line" else "no line number"
 			if (Rules.COLLATE_LOCALIZED.containsMatchIn(text)) {
 				warn(
-					"${cn.name.replace('/', '.')}.${m.name} ($where): COLLATE LOCALIZED works in requery's SQLite but sorts by " +
+					"${site(m, line)}: COLLATE LOCALIZED works in requery's SQLite but sorts by " +
 						"byte value (no ICU), not by the device locale",
 				)
 			}
@@ -451,11 +450,19 @@ object SqliteRewriter {
 			// this name is Android's, which the rewritten code cannot mix with requery's.
 			Rules.RENAMED_CLASS_NAME.find(text)?.let {
 				warn(
-					"${cn.name.replace('/', '.')}.${m.name} ($where): the string \"${it.value}\" names a class the rewrite moves " +
+					"${site(m, line)}: the string \"${it.value}\" names a class the rewrite moves " +
 						"to requery. Strings are not rewritten: Class.forName or reflection on it reaches Android's class, not requery's",
 				)
 			}
 		}
+
+		fun where(line: Int) = if (line >= 0) "line $line" else "no line number"
+
+		/** Where a warning points: class, method and line, as `p.Dao.query (line 12)`. */
+		fun site(
+			m: MethodNode,
+			line: Int,
+		) = "${cn.name.replace('/', '.')}.${m.name} (${where(line)})"
 
 		fun invokeDynamic(
 			m: MethodNode,
@@ -478,8 +485,7 @@ object SqliteRewriter {
 			what: String,
 		) {
 			if (!policy.fail) return
-			val where = if (line >= 0) "line $line" else "no line number"
-			violations += "${m.name}${m.desc} ($where): $what"
+			violations += "${m.name}${m.desc} (${where(line)}): $what"
 		}
 
 		fun fieldInsn(
@@ -487,10 +493,13 @@ object SqliteRewriter {
 			f: FieldInsnNode,
 			line: Int,
 		) {
-			fieldProblem(f.owner, f.name, f.desc)?.let { violate(m, line, it) }
+			fieldProblem(m, line, f.owner, f.name, f.desc)?.let { violate(m, line, it) }
 		}
 
+		/** [m] and [line] locate the access, for a warning. */
 		fun fieldProblem(
+			m: MethodNode,
+			line: Int,
 			owner: String,
 			name: String,
 			desc: String,
@@ -503,7 +512,7 @@ object SqliteRewriter {
 			return renamedAncestors(owner)
 				.firstOrNull { Rules.MISSING_MEMBERS["$it.$name"]?.contains(desc) == true }
 				?.let { "${simple(it)}.$name does not exist in requery" }
-				?: unresolvedOwner(owner, name, desc)
+				?: unresolvedOwner(m, line, owner, name, desc)
 		}
 
 		/**
@@ -511,10 +520,13 @@ object SqliteRewriter {
 		 * renamed ancestors are unknown, the member has the name and descriptor of one a rule changes or rejects in a
 		 * renamed class another class can extend, and the descriptor names an SQLite-related type. Like a Context
 		 * database method on an unresolved owner, this fails under the full policy rather than pass a call that may
-		 * break at run time. A match on name and descriptor alone (isStrict()Z, isString(I)Z) is only a warning:
-		 * libraries reference optional classes the app does not ship, and most of them are not SQLite classes.
+		 * break at run time. A match on name and descriptor alone (isStrict()Z, isString(I)Z, setWindow(CursorWindow))
+		 * is only a warning, naming class, method and [line] of [m]: libraries reference optional classes the app does
+		 * not ship, and most of them are not SQLite classes. The same warning at the same place is logged once.
 		 */
 		fun unresolvedOwner(
+			m: MethodNode,
+			line: Int,
 			owner: String,
 			name: String,
 			desc: String,
@@ -529,9 +541,10 @@ object SqliteRewriter {
 				return cannot + "${simple(declaring)}.$name, which it changes or rejects"
 			}
 			if (policy.fail) {
+				val use = if (desc.startsWith("(")) "call" else "field access"
 				val message =
-					"${cn.name.replace('/', '.')}: $cannot${simple(declaring)}.$name, which it changes or rejects; " +
-						"the call is left as it is, and fails at run time if the owner extends that class"
+					"${site(m, line)}: $cannot${simple(declaring)}.$name, which it changes or rejects; " +
+						"the $use is left as it is, and fails at run time if the owner extends that class"
 				if (warned.add(message)) warn(message)
 			}
 			return null
@@ -587,9 +600,11 @@ object SqliteRewriter {
 		/**
 		 * Decides, without changing anything, what happens to `owner.name desc` invoked with [opcode]
 		 * (the opcode a method handle's kind stands for). Redirects and retyping apply only when the
-		 * policy allows; a [Action.Fail] is reported only when it fails.
+		 * policy allows; a [Action.Fail] is reported only when it fails. [m] and [line] locate the call, for a warning.
 		 */
 		fun decide(
+			m: MethodNode,
+			line: Int,
 			opcode: Int,
 			owner: String,
 			name: String,
@@ -628,7 +643,7 @@ object SqliteRewriter {
 							"the platform method would not link",
 					)
 				}
-				unresolvedOwner(owner, name, desc)?.let { return Action.Fail(it) }
+				unresolvedOwner(m, line, owner, name, desc)?.let { return Action.Fail(it) }
 				return Action.None
 			}
 			for (c in ancestors) {
@@ -656,7 +671,7 @@ object SqliteRewriter {
 			mi: MethodInsnNode,
 			line: Int,
 		) {
-			when (val action = decide(mi.opcode, mi.owner, mi.name, mi.desc)) {
+			when (val action = decide(m, line, mi.opcode, mi.owner, mi.name, mi.desc)) {
 				Action.None -> {}
 
 				is Action.Fail -> {
@@ -699,7 +714,7 @@ object SqliteRewriter {
 			val what =
 				when (h.tag) {
 					Opcodes.H_GETFIELD, Opcodes.H_GETSTATIC, Opcodes.H_PUTFIELD, Opcodes.H_PUTSTATIC -> {
-						fieldProblem(h.owner, h.name, h.desc)
+						fieldProblem(m, line, h.owner, h.name, h.desc)
 					}
 
 					else -> {
@@ -710,7 +725,7 @@ object SqliteRewriter {
 								Opcodes.H_INVOKEVIRTUAL -> Opcodes.INVOKEVIRTUAL
 								else -> Opcodes.INVOKESPECIAL
 							}
-						when (val action = decide(opcode, h.owner, h.name, h.desc)) {
+						when (val action = decide(m, line, opcode, h.owner, h.name, h.desc)) {
 							Action.None -> null
 							is Action.Fail -> action.what
 							is Action.Redirect -> "the runtime takes this call over"

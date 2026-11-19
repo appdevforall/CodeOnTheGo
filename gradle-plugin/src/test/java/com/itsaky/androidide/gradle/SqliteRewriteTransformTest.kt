@@ -163,9 +163,10 @@ class SqliteRewriteTransformTest {
 
 		assertThat(result.task(":app:checkDemoDebugSqliteRewriteClasspath")!!.outcome).isEqualTo(TaskOutcome.SUCCESS)
 		assertThat(result.task(":app:transformDemoDebugClassesWithAsm")!!.outcome).isEqualTo(TaskOutcome.SUCCESS)
-		// isString(I)Z names no SQLite type, so the owner that cannot be resolved is only reported through Gradle's logger
+		// isString(I)Z names no SQLite type, so the owner that cannot be resolved is only reported through Gradle's logger,
+		// at the calling method and line (the library's source is one line)
 		val warning =
-			"x.lib.$daoName: com.unknown.Row cannot be resolved, so the rewrite cannot tell whether its isString(I)Z is " +
+			"x.lib.$daoName.probe (line 1): com.unknown.Row cannot be resolved, so the rewrite cannot tell whether its isString(I)Z is " +
 				"SQLiteCursor.isString, which it changes or rejects; the call is left as it is, and fails at run time if the owner " +
 				"extends that class"
 		assertThat(result.output).contains(warning)

@@ -1508,6 +1508,78 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `an unresolvable windowed cursor's setWindow(CursorWindow) and mWindow only warn`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesWindowed",
+						"""
+						package p;
+						import android.database.CursorWindow;
+						public class UsesWindowed {
+							void reset(com.unknown.Windowed c, CursorWindow w) { c.setWindow(w); }
+							CursorWindow window(com.unknown.Windowed c) { return c.mWindow; }
+						}
+						""",
+					),
+					// a library's own windowed cursor, as android's AbstractWindowedCursor declares both members; left
+					// out of the hierarchy, as an optional class the app does not ship is
+					src(
+						"com.unknown.Windowed",
+						"""
+						package com.unknown;
+						public class Windowed {
+							public android.database.CursorWindow mWindow;
+							public void setWindow(android.database.CursorWindow w) {}
+						}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		// CursorWindow is not an SQLite type: it carries every ContentProvider cursor across processes
+		SqliteRewriter.rewrite(classes["p/UsesWindowed"]!!, hierarchy, warn = warnings::add)
+		assertThat(warnings).hasSize(2)
+		assertThat(warnings[0]).contains("its setWindow(Landroid/database/CursorWindow;)V is SQLiteCursor.setWindow")
+		assertThat(warnings[0]).contains("the call is left as it is")
+		assertThat(warnings[1]).contains("its mWindowLandroid/database/CursorWindow; is SQLiteCursor.mWindow")
+		assertThat(warnings[1]).contains("the field access is left as it is")
+	}
+
+	@Test
+	fun `an unresolved-owner warning names the method and line, once per place`() {
+		val source =
+			"""
+			package p;
+			public class Sites {
+				boolean one(com.unknown.Row r) {
+					return r.isString(0) && r.isString(1);
+				}
+				boolean two(com.unknown.Row r) {
+					return r.isString(2);
+				}
+			}
+			"""
+		val classes =
+			Compiler.compile(
+				listOf(
+					src("p.Sites", source),
+					src("com.unknown.Row", "package com.unknown; public class Row { public boolean isString(int i) { return false; } }"),
+				),
+			)
+
+		fun lineOf(text: String) = source.lines().indexOfFirst { text in it } + 1
+		val warnings = mutableListOf<String>()
+		SqliteRewriter.rewrite(classes["p/Sites"]!!, hierarchy, warn = warnings::add)
+		// the two calls on one line make the same warning, logged once
+		assertThat(warnings.map { it.substringBefore(": ") })
+			.containsExactly("p.Sites.one (line ${lineOf("r.isString(0)")})", "p.Sites.two (line ${lineOf("r.isString(2)")})")
+			.inOrder()
+		assertThat(warnings.map { it.substringAfter(": ") }.distinct().single()).startsWith("com.unknown.Row cannot be resolved")
+	}
+
+	@Test
 	fun `an unresolvable owner whose member names an SQLite type still fails`() {
 		val classes =
 			Compiler.compile(
