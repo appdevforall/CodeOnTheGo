@@ -593,6 +593,10 @@ class PluginManager private constructor(
 	 */
 	fun loadPlugin(file: File): Result<IPlugin> {
 		var reservedSlotsPluginId: String? = null
+		// The new plugin's context until loadedPlugins holds the plugin. Every way out before that, a
+		// failure path or a throw, leaves a plugin whose initialize() may have started threads, so the
+		// finally below closes its endpoint service. Once loaded, disabling or unloading closes it.
+		var notLoadedContext: PluginContext? = null
 		return try {
 			logger.debug("Loading plugin from: ${file.absolutePath}")
 
@@ -703,13 +707,12 @@ class PluginManager private constructor(
 			}
 
 			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
+			notLoadedContext = pluginContext
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
 			val initResult =
 				initializePlugin(plugin, pluginContext).getOrElse { e ->
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
-					// The plugin may have started threads of its own in initialize().
-					pluginContext.debuggerEndpointService()?.close()
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
 					}
@@ -718,7 +721,6 @@ class PluginManager private constructor(
 
 			if (!initResult) {
 				logger.warn(" plugin initialization returned false for: ${manifest.id}")
-				pluginContext.debuggerEndpointService()?.close()
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -745,6 +747,7 @@ class PluginManager private constructor(
 					nativeLibraryDir = nativeLibPath?.let(::File),
 				)
 			loadedPlugins[manifest.id] = loadedPlugin
+			notLoadedContext = null
 
 			if (!isEnabled) {
 				logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
@@ -760,6 +763,8 @@ class PluginManager private constructor(
 			logger.error("Failed to load plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
 			val prefix = if (e is RuntimeException) "" else "[${e.javaClass.simpleName}] "
 			Result.failure(RuntimeException("Error loading plugin: $prefix${e.message}", e))
+		} finally {
+			notLoadedContext?.debuggerEndpointService()?.close()
 		}
 	}
 
