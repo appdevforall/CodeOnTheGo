@@ -211,6 +211,7 @@ object SqliteRewriter {
 		val warn: (String) -> Unit,
 	) {
 		val violations = linkedSetOf<String>()
+		private val warned = hashSetOf<String>()
 
 		fun run() {
 			if (policy.fail) {
@@ -506,10 +507,12 @@ object SqliteRewriter {
 		}
 
 		/**
-		 * Why `owner.name desc` cannot be checked, or null: [owner] cannot be resolved, so its renamed ancestors are
-		 * unknown, and the member has the name and descriptor of one a rule changes or rejects in a renamed class
-		 * another class can extend. Like a Context database method on an unresolved owner, this fails under the
-		 * full policy rather than pass a call that may break at run time.
+		 * Why `owner.name desc` cannot be checked and must fail the build, or null: [owner] cannot be resolved, so its
+		 * renamed ancestors are unknown, the member has the name and descriptor of one a rule changes or rejects in a
+		 * renamed class another class can extend, and the descriptor names an SQLite-related type. Like a Context
+		 * database method on an unresolved owner, this fails under the full policy rather than pass a call that may
+		 * break at run time. A match on name and descriptor alone (isStrict()Z, isString(I)Z) is only a warning:
+		 * libraries reference optional classes the app does not ship, and most of them are not SQLite classes.
 		 */
 		fun unresolvedOwner(
 			owner: String,
@@ -521,8 +524,17 @@ object SqliteRewriter {
 				return null
 			}
 			if (superTypes(owner) != null) return null
-			return "${owner.replace('/', '.')} cannot be resolved, so the rewrite cannot tell whether its $name$desc is " +
-				"${simple(declaring)}.$name, which it changes or rejects"
+			val cannot = "${owner.replace('/', '.')} cannot be resolved, so the rewrite cannot tell whether its $name$desc is "
+			if (Rules.SQLITE_DESCRIPTOR_TOKENS.any { desc.contains(it) }) {
+				return cannot + "${simple(declaring)}.$name, which it changes or rejects"
+			}
+			if (policy.fail) {
+				val message =
+					"${cn.name.replace('/', '.')}: $cannot${simple(declaring)}.$name, which it changes or rejects; " +
+						"the call is left as it is, and fails at run time if the owner extends that class"
+				if (warned.add(message)) warn(message)
+			}
+			return null
 		}
 
 		fun typeInsn(

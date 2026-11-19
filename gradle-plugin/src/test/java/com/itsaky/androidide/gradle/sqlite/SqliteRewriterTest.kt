@@ -1467,16 +1467,80 @@ class SqliteRewriterTest {
 					),
 				),
 			)
-		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/UsesLost"]!!, hierarchy) }
+		val warnings = mutableListOf<String>()
+		val bytes = classes["p/UsesLost"]!!
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(bytes, hierarchy, warn = warnings::add) }
 		val unresolved =
 			e.message!!
 				.lines()
 				.filter { "p.Lost cannot be resolved" in it }
 				.map { it.substringAfter("whether its ").substringBefore(" is ") }
-		// SQLiteDatabase is final, so no class inherits its rawQuery, and no rule has a delete(String)
-		assertThat(unresolved).hasSize(2)
-		assertThat(unresolved[0]).isEqualTo("isStrict()Z")
-		assertThat(unresolved[1]).startsWith("query(Landroid/database/sqlite/SQLiteDatabase;")
+		// SQLiteDatabase is final, so no class inherits its rawQuery, and no rule has a delete(String).
+		// isStrict()Z names no SQLite type, so it only warns; the query descriptor names SQLiteDatabase, so it fails.
+		assertThat(unresolved).hasSize(1)
+		assertThat(unresolved[0]).startsWith("query(Landroid/database/sqlite/SQLiteDatabase;")
+		assertThat(warnings).hasSize(1)
+		assertThat(warnings.single()).contains("p.Lost cannot be resolved")
+		assertThat(warnings.single()).contains("isStrict()Z")
+	}
+
+	@Test
+	fun `an unresolvable owner whose member names no SQLite type only warns`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesRow",
+						"""
+						package p;
+						public class UsesRow {
+							boolean go(com.unknown.Row r) { return r.isString(0); }
+						}
+						""",
+					),
+					// left out of the hierarchy, as an optional class the app does not ship is
+					src("com.unknown.Row", "package com.unknown; public class Row { public boolean isString(int i) { return false; } }"),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		SqliteRewriter.rewrite(classes["p/UsesRow"]!!, hierarchy, warn = warnings::add)
+		assertThat(warnings).hasSize(1)
+		assertThat(warnings.single()).contains("p.UsesRow")
+		assertThat(warnings.single()).contains("com.unknown.Row cannot be resolved")
+		assertThat(warnings.single()).contains("isString(I)Z")
+	}
+
+	@Test
+	fun `an unresolvable owner whose member names an SQLite type still fails`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesQb",
+						"""
+						package p;
+						import android.database.sqlite.*;
+						public class UsesQb {
+							void go(com.unknown.Qb q, SQLiteDatabase db, String[] a, android.os.CancellationSignal s) {
+								q.query(db, a, "w", a, null, null, null, "1", s);
+							}
+						}
+						""",
+					),
+					src(
+						"com.unknown.Qb",
+						"""
+						package com.unknown;
+						public class Qb extends android.database.sqlite.SQLiteQueryBuilder {}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		val bytes = classes["p/UsesQb"]!!
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(bytes, hierarchy, warn = warnings::add) }
+		assertThat(e.message).contains("com.unknown.Qb cannot be resolved")
+		assertThat(warnings).isEmpty()
 	}
 
 	@Test
