@@ -106,7 +106,10 @@ class PluginSystemStartTest {
 		PluginFragmentHelper.onPluginInflationError = null
 	}
 
-	private fun sessionLauncherField() = IdeTerminalServiceImpl::class.java.getDeclaredField("sessionLauncher").apply { isAccessible = true }
+	private fun sessionLauncherField() =
+		IdeTerminalServiceImpl::class.java
+			.getDeclaredField("sessionLauncher")
+			.apply { isAccessible = true }
 
 	/** Writes [file] as a plugin with the debugger.endpoints permission: Robolectric can't read a manifest from an APK. */
 	private fun probePlugin(file: File) {
