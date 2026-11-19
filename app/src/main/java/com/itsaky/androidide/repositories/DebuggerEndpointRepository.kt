@@ -167,9 +167,10 @@ class DebuggerEndpointRepository(
 	 */
 	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
 		dao.getByProjectLocation(projectDir.canonicalProjectLocation()).mapNotNull { row ->
-			if (!isInstalled(row.applicationId)) return@mapNotNull null
 			val token = row.token ?: return@mapNotNull null
 			val port = row.port ?: return@mapNotNull null
+			// Last: a binder call per app, which an app that has not reported need not cost.
+			if (!isInstalled(row.applicationId)) return@mapNotNull null
 			PluginDebuggerEndpoint(row.applicationId, port, token, row.updatedAt ?: 0L)
 		}
 

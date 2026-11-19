@@ -431,6 +431,38 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
+	fun `an app that has not reported is dropped without asking whether it is installed, a binder call`() =
+		runBlocking<Unit> {
+			val dir =
+				java.nio.file.Files
+					.createTempDirectory("proj")
+					.toFile()
+			try {
+				addProject(dir.canonicalPath)
+				val asked = CopyOnWriteArrayList<String>()
+				val counting =
+					DebuggerEndpointRepository(
+						room.debuggerEndpointDao(),
+						CoroutineScope(Dispatchers.IO),
+						clock = { 1234L },
+						isInstalled = {
+							asked += it
+							true
+						},
+						announce = {},
+					)
+				assertThat(counting.recordInstalled("com.example.reported", dir.canonicalPath)).isTrue()
+				assertThat(counting.recordInstalled("com.example.silent", dir.canonicalPath)).isTrue()
+				assertThat(counting.storeEndpoint("com.example.reported", endpoint)).isTrue()
+
+				assertThat(counting.reportedEndpoints(dir).map { it.applicationId }).containsExactly("com.example.reported")
+				assertThat(asked).containsExactly("com.example.reported")
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
 	fun `an app that is no longer installed is left out and installed ones are returned`() =
 		runBlocking<Unit> {
 			val dir =
