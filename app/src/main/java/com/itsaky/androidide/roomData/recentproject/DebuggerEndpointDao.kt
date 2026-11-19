@@ -18,21 +18,15 @@ interface DebuggerEndpointDao {
 		projectLocation: String,
 	)
 
-	/** Clears what the old project's build reported, when [applicationId] moves to another project. */
-	@Query(
-		"UPDATE debugger_endpoint_table SET token = NULL, port = NULL, updated_at = NULL " +
-			"WHERE application_id = :applicationId AND project_location != :projectLocation",
-	)
-	suspend fun clearEndpointIfProjectDiffers(
-		applicationId: String,
-		projectLocation: String,
-	)
+	/** Clears what [applicationId] reported, once an install has replaced the process that reported it. */
+	@Query("UPDATE debugger_endpoint_table SET token = NULL, port = NULL, updated_at = NULL WHERE application_id = :applicationId")
+	suspend fun clearEndpoint(applicationId: String)
 
 	/**
-	 * Pairs [applicationId] with [projectLocation], keeping any token and port already stored
-	 * unless the app was paired with a different project, whose build they belong to.
-	 * Not REPLACE, which would delete the row and lose them. Two statements rather than
-	 * ON CONFLICT DO UPDATE, which needs SQLite 3.24 and minSdk 28 ships 3.22.
+	 * Pairs the just-installed [applicationId] with [projectLocation] and clears its token and port,
+	 * in one transaction: the install replaced the process they came from, whichever project built
+	 * it. Not REPLACE, which would delete the row. Statements rather than ON CONFLICT DO UPDATE,
+	 * which needs SQLite 3.24 and minSdk 28 ships 3.22.
 	 *
 	 * Throws SQLiteConstraintException when [projectLocation] has no recent_project_table row.
 	 */
@@ -42,7 +36,7 @@ interface DebuggerEndpointDao {
 		projectLocation: String,
 	) {
 		insertPairingIfAbsent(applicationId, projectLocation)
-		clearEndpointIfProjectDiffers(applicationId, projectLocation)
+		clearEndpoint(applicationId)
 		updatePairingLocation(applicationId, projectLocation)
 	}
 
