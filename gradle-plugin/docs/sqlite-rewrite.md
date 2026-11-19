@@ -223,7 +223,10 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   reported.
 - On a `SQLiteCursor` subclass whose class the build cannot resolve, `getWindow()` is not detected, and the call fails
   at run time: it is not in the rule table, and failing every unresolved call that returns a `CursorWindow` would fail
-  ordinary apps (android's kept `AbstractWindowedCursor` and `CrossProcessCursor` declare it too).
+  ordinary apps (android's kept `AbstractWindowedCursor` and `CrossProcessCursor` declare it too). On any class the
+  build cannot resolve, a call that matches the rule table fails the build only when its descriptor names an
+  SQLite-related type (see Rules); any other match, such as `isString(I)Z` or `isStrict()Z`, logs a warning and is left
+  as it is, and fails at run time if the class does extend the renamed class.
 - `instanceof` is not rewritten: `cursor instanceof AbstractWindowedCursor`, `AbstractCursor` or
   `CrossProcessCursor` is silently false for requery's cursors (no build failure), which is what Room's
   `DBUtil.query` relies on.
