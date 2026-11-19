@@ -144,14 +144,13 @@ class DebuggerEndpointServiceImplTest {
 	}
 
 	@Test
-	fun `is empty until the app installs a source`() {
-		var installed: DebuggerEndpointSource? = null
-		val service = DebuggerEndpointServiceImpl("p", setOf(PluginPermission.DEBUGGER_ENDPOINTS), { project }, { installed }, { false })
-		assertThat(service.getEndpoints()).isEmpty()
+	fun `without a source, as when the app could not set one up, a call fails clearly instead of reporting no apps`() {
+		for (root in listOf(project, null)) {
+			val service = DebuggerEndpointServiceImpl("p", setOf(PluginPermission.DEBUGGER_ENDPOINTS), { root }, { null }, { false })
 
-		installed = source
-
-		assertThat(service.getEndpoints()).containsExactly(endpoint)
+			val thrown = assertThrows(IllegalStateException::class.java) { service.getEndpoints() }
+			assertThat(thrown).hasMessageThat().startsWith("The SQLite debugger endpoints are unavailable")
+		}
 	}
 
 	@Test

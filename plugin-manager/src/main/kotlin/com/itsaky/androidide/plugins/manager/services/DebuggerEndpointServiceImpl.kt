@@ -35,7 +35,7 @@ internal class DebuggerEndpointServiceImpl(
 	private val pluginId: String,
 	permissions: Set<PluginPermission>,
 	private val projectRootProvider: () -> File?,
-	/** Null until the app installs one. */
+	/** Null when the app could not install one; [getEndpoints] then fails rather than report no apps. */
 	private val sourceProvider: () -> DebuggerEndpointSource?,
 	private val isMainThread: () -> Boolean = { Looper.myLooper() == Looper.getMainLooper() },
 	/** False for a plugin saved as disabled: it stays closed through its own initialize() until [reopen]. */
@@ -59,8 +59,12 @@ internal class DebuggerEndpointServiceImpl(
 
 		check(!isMainThread()) { "DebuggerEndpointService.getEndpoints() reads a database; call it off the main thread" }
 
+		val source =
+			sourceProvider()
+				?: throw IllegalStateException(
+					"The SQLite debugger endpoints are unavailable: Code on the Go could not set up access to them when it started",
+				)
 		val root = projectRootProvider() ?: return emptyList()
-		val source = sourceProvider() ?: return emptyList()
 		// The canonical path, as recent_project_table.location holds it, falling back to the absolute
 		// path as the app's pairing does, so a project opened through a symlink still finds its apps.
 		val location = runCatching { root.canonicalPath }.getOrElse { root.absolutePath }
