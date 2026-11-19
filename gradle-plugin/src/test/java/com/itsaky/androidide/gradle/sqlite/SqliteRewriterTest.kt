@@ -502,7 +502,7 @@ class SqliteRewriterTest {
 		try {
 			SqliteRewriter.rewrite(classes["p/Chatty"]!!, counting)
 		} catch (e: SqliteRewriteException) {
-			// getUniqueId is reported, which is not what this test is about
+			// SQLiteStatement.getUniqueId fails the build (requery lacks it), which is not what this test is about
 		}
 		assertThat(asked.filter { it.startsWith("java/") || it.startsWith("android/") }).isEmpty()
 		assertThat(asked.groupingBy { it }.eachCount().filterValues { it > 1 }).isEmpty()
@@ -535,17 +535,14 @@ class SqliteRewriterTest {
 				),
 			)
 		val asked = mutableListOf<String>()
-		try {
-			SqliteRewriter.rewrite(
-				classes["p/Named"]!!,
-				ClassHierarchy { name ->
-					asked += name
-					null
-				},
-			)
-		} catch (e: SqliteRewriteException) {
-			// getUniqueId on an owner that cannot be resolved is reported, which is not what this test is about
-		}
+		// getUniqueId()I names no SQLite type, so on an owner that cannot be resolved it only warns
+		SqliteRewriter.rewrite(
+			classes["p/Named"]!!,
+			ClassHierarchy { name ->
+				asked += name
+				null
+			},
+		)
 		assertThat(asked).containsExactly("p/Mine", "p/Other")
 	}
 
