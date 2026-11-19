@@ -239,6 +239,10 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   androidx.core.os.OperationCanceledException e)`, which works with the SQLite debugger on and off.
 - Android's `CancellationSignal` holds one listener: the conversion replaces any listener the caller set. Each
   query gets its own androidx.core signal, and cancelling the Android signal cancels every one still in use, so
-  two lazy queries that share it both stop (requery keeps a query's signal for its cursor's later reads).
+  two lazy queries that share it both stop (requery keeps a query's signal for its cursor's later reads). The
+  runtime's forwarder is held only as the Android signal's listener (`SqliteRewriteRuntime.FORWARDERS` holds signals
+  and forwarders weakly), so nothing of a signal the app dropped is kept: a strong value outlived its key until the
+  map's next call. A caller that sets its own listener after a query lets that forwarder go: the next query on the
+  signal gets a new one, and queries from before the caller's listener no longer stop with the signal.
 - Which `SQLiteException` subclass requery throws for an error code (for example `SQLiteConstraintException`, which
   Room catches) is decided by its native layer; this rewrite does not change it and the survey did not check it.

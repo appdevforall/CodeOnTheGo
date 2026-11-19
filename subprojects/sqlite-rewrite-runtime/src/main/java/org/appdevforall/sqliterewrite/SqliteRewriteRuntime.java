@@ -46,8 +46,10 @@ public final class SqliteRewriteRuntime {
 
 	private static final int CONTEXT_MODE_ENABLE_WRITE_AHEAD_LOGGING = 0x8;
 
-	/** The listener each Android signal forwards cancellation through; weak keys, so a signal the app dropped goes. */
-	private static final Map<CancellationSignal, CancelForwarder> FORWARDERS = new WeakHashMap<>();
+	/**
+	 * The listener each Android signal forwards cancellation through. Weak keys, so a signal the app dropped goes, and weak values: a WeakHashMap keeps the value of a cleared key until a later call on the map, so a strong value kept a dropped signal's forwarder alive until the next conversion. The signal's own listener field keeps its forwarder alive while the signal lives.
+	 */
+	private static final Map<CancellationSignal, WeakReference<CancelForwarder>> FORWARDERS = new WeakHashMap<>();
 
 	/**
 	 * Same as Context.deleteDatabase, which also returns false on any exception. requery's deleteDatabase removes the -journal, -wal, -shm and -mj files next to the file, like Android's.
@@ -140,7 +142,7 @@ public final class SqliteRewriteRuntime {
 	}
 
 	/**
-	 * Android's signal for requery's. Each call returns a new requery signal, and cancelling Android's cancels every one of them still in use: requery keeps a query's signal for the cursor's later reads, so two lazy queries that share an Android signal must both stop. Android's signal holds one listener, so this replaces any listener the caller set on it (Android's setOnCancelListener documents that it replaces the previous one).
+	 * Android's signal for requery's. Each call returns a new requery signal, and cancelling Android's cancels every one of them still in use: requery keeps a query's signal for the cursor's later reads, so two lazy queries that share an Android signal must both stop. Android's signal holds one listener, so this replaces any listener the caller set on it (Android's setOnCancelListener documents that it replaces the previous one). The forwarder lives only as long as it is that listener: if the caller sets its own listener after a query, the forwarder can be collected, the next call starts a new one, and queries converted before the caller's listener no longer stop with the signal.
 	 */
 	public static androidx.core.os.CancellationSignal toCancellationSignal(
 			CancellationSignal signal) {
@@ -150,12 +152,14 @@ public final class SqliteRewriteRuntime {
 		final androidx.core.os.CancellationSignal converted = new androidx.core.os.CancellationSignal();
 		CancelForwarder forwarder;
 		synchronized (FORWARDERS) {
-			forwarder = FORWARDERS.get(signal);
+			WeakReference<CancelForwarder> ref = FORWARDERS.get(signal);
+			forwarder = ref == null ? null : ref.get();
 			if (forwarder == null) {
 				forwarder = new CancelForwarder();
-				FORWARDERS.put(signal, forwarder);
+				FORWARDERS.put(signal, new WeakReference<>(forwarder));
 			}
 		}
+		// the local keeps the new forwarder alive until setOnCancelListener stores it in the signal
 		forwarder.add(converted);
 		signal.setOnCancelListener(forwarder);
 		// setOnCancelListener does not call a listener that is already set, so a signal cancelled before this call
