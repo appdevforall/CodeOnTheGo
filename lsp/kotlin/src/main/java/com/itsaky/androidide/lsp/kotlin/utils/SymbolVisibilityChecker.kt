@@ -6,7 +6,6 @@ import org.appdevforall.codeonthego.indexing.jvm.JvmVisibility
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.analysis.api.projectStructure.allDirectDependencies
 import org.slf4j.LoggerFactory
-import java.util.concurrent.ConcurrentHashMap
 
 internal class SymbolVisibilityChecker(
 	private val structureProvider: ProjectStructureProvider,
@@ -15,46 +14,67 @@ internal class SymbolVisibilityChecker(
 		private val logger = LoggerFactory.getLogger(SymbolVisibilityChecker::class.java)
 	}
 
-	// visibility check cache, for memoization
-	// useSiteModule -> list of modules visible from useSiteModule
-	private val moduleVisibilityCache = ConcurrentHashMap<KaModule, List<KaModule>>()
+	/**
+	 * Visibility checks from one use site, with the modules reachable from it computed once.
+	 *
+	 * Held per request rather than cached on the checker: completion's use site is the dangling module
+	 * of its placeholder copy, a new instance per request, so a cache keyed on it would gain an entry
+	 * per completion and never be hit.
+	 */
+	inner class UseSiteSymbolVisibility internal constructor(
+		private val useSiteModule: KaModule,
+	) {
+		private val reachableModules: Set<KaModule> by lazy { modulesReachableFrom(useSiteModule) }
+
+		fun isVisible(
+			symbol: JvmSymbol,
+			useSitePackage: String?,
+		): Boolean {
+			val declaringModule =
+				structureProvider.findModuleForSourceId(symbol.sourceId)
+					?: return false
+
+			if (declaringModule !in reachableModules) return false
+			if (!arePlatformCompatible(useSiteModule, declaringModule)) return false
+			if (!isDeclarationVisible(symbol, useSiteModule, declaringModule, useSitePackage)) return false
+
+			return true
+		}
+	}
+
+	/** Checks for many symbols from [useSiteModule]; walks its dependency graph once for all of them. */
+	fun forUseSite(useSiteModule: KaModule) = UseSiteSymbolVisibility(useSiteModule)
 
 	fun isVisible(
 		symbol: JvmSymbol,
 		useSiteModule: KaModule,
 		useSitePackage: String? = null,
-	): Boolean {
-		val declaringModule = structureProvider.findModuleForSourceId(symbol.sourceId)
-			?: return false
+	): Boolean = forUseSite(useSiteModule).isVisible(symbol, useSitePackage)
 
-		if (!isReachable(useSiteModule, declaringModule)) return false
-		if (!arePlatformCompatible(useSiteModule, declaringModule)) return false
-		if (!isDeclarationVisible(symbol, useSiteModule, declaringModule, useSitePackage)) return false
+	fun isReachable(
+		useSiteModule: KaModule,
+		declaringModule: KaModule,
+	): Boolean = declaringModule in modulesReachableFrom(useSiteModule)
 
-		return true
-	}
-
-	fun isReachable(useSiteModule: KaModule, declaringModule: KaModule): Boolean {
-		if (useSiteModule == declaringModule) return true
-		if (moduleVisibilityCache[useSiteModule]?.contains(declaringModule) == true) return true
-
-		// walk the dependency graph
+	/** [start] and every module reachable through its dependencies of any kind. */
+	private fun modulesReachableFrom(start: KaModule): Set<KaModule> {
 		val visited = mutableSetOf<KaModule>()
 		val queue = ArrayDeque<KaModule>()
-		queue.add(useSiteModule)
+		queue.add(start)
 
 		while (queue.isNotEmpty()) {
 			val current = queue.removeFirst()
 			if (!visited.add(current)) continue
-			if (current == declaringModule) return true
-
 			queue.addAll(current.allDirectDependencies())
 		}
 
-		return false
+		return visited
 	}
 
-	fun arePlatformCompatible(useSiteModule: KaModule, declaringModule: KaModule): Boolean {
+	fun arePlatformCompatible(
+		useSiteModule: KaModule,
+		declaringModule: KaModule,
+	): Boolean {
 		val usePlatform = useSiteModule.targetPlatform
 		val declPlatform = declaringModule.targetPlatform
 
