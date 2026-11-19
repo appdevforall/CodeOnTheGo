@@ -10,6 +10,7 @@ import com.itsaky.androidide.templates.manager.models.displayName
 import com.itsaky.androidide.ui.models.TemplateManagerUiEffect
 import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.ui.models.TemplateManagerUiState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,8 @@ class TemplateManagerViewModel(
 	private val _uiEffect = Channel<TemplateManagerUiEffect>(Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
+	private var loadJob: Job? = null
+
 	init {
 		loadTemplates()
 		// A .cgt opened from outside the app installs in ExternalFileInstallActivity, which then
@@ -55,26 +58,33 @@ class TemplateManagerViewModel(
 		}
 	}
 
+	/**
+	 * Scans finish in any order, so a reload cancels the scan it supersedes; otherwise an earlier
+	 * scan finishing last would overwrite the newer list (e.g. hide a collection that just
+	 * installed). The repository rethrows cancellation, so a cancelled scan never reaches the state.
+	 */
 	private fun loadTemplates() {
-		viewModelScope.launch {
-			_uiState.update { it.copy(isLoading = true) }
+		loadJob?.cancel()
+		loadJob =
+			viewModelScope.launch {
+				_uiState.update { it.copy(isLoading = true) }
 
-			templateRepository
-				.listTemplateFiles()
-				.onSuccess { items ->
-					Log.d(TAG, "Loaded ${items.size} template files")
-					_uiState.update { it.copy(isLoading = false, items = items) }
-				}.onFailure { exception ->
-					Log.e(TAG, "Failed to load template files", exception)
-					_uiState.update { it.copy(isLoading = false) }
-					_uiEffect.send(
-						TemplateManagerUiEffect.ShowError(
-							R.string.msg_template_load_failed,
-							listOf(exception.message ?: ""),
-						),
-					)
-				}
-		}
+				templateRepository
+					.listTemplateFiles()
+					.onSuccess { items ->
+						Log.d(TAG, "Loaded ${items.size} template files")
+						_uiState.update { it.copy(isLoading = false, items = items) }
+					}.onFailure { exception ->
+						Log.e(TAG, "Failed to load template files", exception)
+						_uiState.update { it.copy(isLoading = false) }
+						_uiEffect.send(
+							TemplateManagerUiEffect.ShowError(
+								R.string.msg_template_load_failed,
+								listOf(exception.message ?: ""),
+							),
+						)
+					}
+			}
 	}
 
 	private fun showInstallConfirmation(item: CgtFileItem) {

@@ -17,6 +17,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -95,6 +96,29 @@ class TemplateManagerViewModelTest {
 
 			assertThat(viewModel.uiState.value.items).containsExactly(installedItem)
 			coVerify(exactly = 2) { repository.listTemplateFiles() }
+		}
+
+	@Test
+	fun collectionInstall_duringInitialScan_keepsTheNewerResult() =
+		runTest {
+			// The initial scan is still running when an install arrives, and finishes last. Its
+			// stale (empty) list must not replace the post-install one.
+			val initialScan = CompletableDeferred<Result<List<CgtFileItem>>>()
+			var calls = 0
+			coEvery { repository.listTemplateFiles() } coAnswers {
+				if (calls++ == 0) initialScan.await() else Result.success(listOf(installedItem))
+			}
+
+			val viewModel = TemplateManagerViewModel(repository, collectionInstalls)
+			advanceUntilIdle()
+
+			collectionInstalls.emit(Unit)
+			advanceUntilIdle()
+			initialScan.complete(Result.success(emptyList()))
+			advanceUntilIdle()
+
+			assertThat(viewModel.uiState.value.items).containsExactly(installedItem)
+			assertThat(viewModel.uiState.value.isLoading).isFalse()
 		}
 
 	@Test
