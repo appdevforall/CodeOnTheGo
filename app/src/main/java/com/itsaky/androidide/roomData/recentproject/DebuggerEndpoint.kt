@@ -8,7 +8,8 @@ import androidx.room.PrimaryKey
 
 /**
  * The SQLite debugger endpoint of one app built from a project (ADFA-7131). [token], [port] and
- * [updatedAt] stay null until the app reports them.
+ * [updatedAt] stay null until the app reports them, and go back to null when Code on the Go
+ * installs the app from a project, until the new process reports.
  *
  * ON UPDATE CASCADE as well as ON DELETE: renaming a project rewrites its recent_project_table
  * location, which would otherwise be refused while foreign keys are on.

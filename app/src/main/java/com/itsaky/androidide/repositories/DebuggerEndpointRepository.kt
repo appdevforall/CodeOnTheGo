@@ -65,10 +65,11 @@ class DebuggerEndpointRepository(
 
 	/**
 	 * Call when the session [sessionId] succeeded, whether or not a launch follows. If [notePendingInstall] noted it,
-	 * pairs the app with the project that started it on the application scope, moving it from any other project,
-	 * and returns that write; the caller need not wait for it before launching the app, which is asked to report
-	 * again once paired. Only this session's result uses its note, however long the install took: another install
-	 * of the same application ID, from this project or another, has its own session.
+	 * pairs the app with the project that started it on the application scope, moving it from any other project and
+	 * clearing the endpoint it reported before (see [recordInstalled]), and returns that write; the caller need not
+	 * wait for it before launching the app, which is asked to report again once paired. Only this session's result
+	 * uses its note, however long the install took: another install of the same application ID, from this project
+	 * or another, has its own session.
 	 *
 	 * Returns null, and writes nothing, for an install that was not noted, such as an APK opened from the file
 	 * tree; its next launch from a project pairs it. Also when [installedApplicationId], the package the result
@@ -96,8 +97,13 @@ class DebuggerEndpointRepository(
 	}
 
 	/**
-	 * Moves [applicationId] to [projectLocation], clearing its token and port if the project changed, then asks the
-	 * app to report again. Returns false when the project has no recent_project_table row yet, or the write failed.
+	 * Moves the just-installed [applicationId] to [projectLocation] and clears its token and port, then asks the app
+	 * to report again. Returns false when the project has no recent_project_table row yet, or the write failed.
+	 *
+	 * The install replaced the process that reported them, so they are dead whether or not the new build has the
+	 * SQLite debugger: a build without it never reports again, and its row would otherwise keep a dead port. The
+	 * clear is in the pairing's transaction, before the request: a report the new process sent before this write
+	 * (the launch does not wait for it) is cleared, then sent again in reply to the request.
 	 */
 	suspend fun recordInstalled(
 		applicationId: String,
@@ -160,9 +166,10 @@ class DebuggerEndpointRepository(
 
 	/**
 	 * The endpoints the apps of [projectDir] have reported, for the plugin API (ADFA-7139). Looked
-	 * up by the canonical path, as the pairing stores it; apps that have not reported yet are left
-	 * out, and so are apps that are no longer installed: their stored port and token would otherwise
-	 * come back as live. An endpoint can still be stale when the app's process has died. Unlike the
+	 * up by the canonical path, as the pairing stores it; apps that have not reported since Code on
+	 * the Go last installed them from a project are left out (the install clears what they reported),
+	 * and so are apps that are no longer installed: their stored port and token would otherwise come
+	 * back as live. An endpoint can still be stale when the app's process has died. Unlike the
 	 * writes, a read failure is thrown: the plugin API reports it rather than answering "no apps".
 	 */
 	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
