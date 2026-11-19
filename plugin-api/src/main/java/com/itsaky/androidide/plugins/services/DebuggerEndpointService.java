@@ -32,7 +32,7 @@ public interface DebuggerEndpointService {
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
-	 *             if called on the main thread, or if the IDE's database could not be read. A failed read is not the same as no apps: keep what you had and try again later
+	 *             if called on the main thread, if the IDE's database could not be read, or if the IDE could not set up access to the endpoints when it started (its log says why). A failed read is not the same as no apps: keep what you had and try again later
 	 * @throws java.util.concurrent.CancellationException
 	 *             if the plugin has been disabled or unloaded, until it is enabled again; also when a call already reading sees it disabled, or when the read itself is cancelled
 	 * @throws InterruptedException

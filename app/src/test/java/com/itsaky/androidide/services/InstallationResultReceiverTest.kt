@@ -125,7 +125,8 @@ class InstallationResultReceiverTest {
 	}
 
 	@Test
-	fun `a success with the launch suppressed pairs and uses up the note`() {
+	fun `the suppress-launch flag does not stop a noted success from pairing and using up the note`() {
+		// No install sets the flag and has a note today: Quick Build, the one that sets it, notes nothing.
 		val repository = repository()
 		repository.notePendingInstall(1, project, "com.example")
 

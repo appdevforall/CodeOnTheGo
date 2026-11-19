@@ -257,15 +257,16 @@ class DebuggerEndpointRepositoryTest {
 		}
 
 	@Test
-	fun `a result without a package name pairs the noted application ID`() =
+	fun `a result without a package name pairs nothing`() =
 		runBlocking<Unit> {
 			val dir = newProject()
 			try {
 				repository.notePendingInstall(1, dir, "com.example")
 
-				repository.confirmInstall(1, installedApplicationId = null)?.join()
+				// The framework names the package in every result it sends, so this one was forged.
+				assertThat(repository.confirmInstall(1, installedApplicationId = null)).isNull()
 
-				assertThat(pairedLocation()).isEqualTo(dir.canonicalPath)
+				assertThat(pairedLocation()).isNull()
 			} finally {
 				dir.delete()
 			}
@@ -424,6 +425,38 @@ class DebuggerEndpointRepositoryTest {
 				assertThat(e.port).isEqualTo(5555)
 				assertThat(e.token).isEqualTo("tok-en_1")
 				assertThat(e.updatedAtMillis).isEqualTo(1234L)
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `an app that has not reported is dropped without asking whether it is installed, a binder call`() =
+		runBlocking<Unit> {
+			val dir =
+				java.nio.file.Files
+					.createTempDirectory("proj")
+					.toFile()
+			try {
+				addProject(dir.canonicalPath)
+				val asked = CopyOnWriteArrayList<String>()
+				val counting =
+					DebuggerEndpointRepository(
+						room.debuggerEndpointDao(),
+						CoroutineScope(Dispatchers.IO),
+						clock = { 1234L },
+						isInstalled = {
+							asked += it
+							true
+						},
+						announce = {},
+					)
+				assertThat(counting.recordInstalled("com.example.reported", dir.canonicalPath)).isTrue()
+				assertThat(counting.recordInstalled("com.example.silent", dir.canonicalPath)).isTrue()
+				assertThat(counting.storeEndpoint("com.example.reported", endpoint)).isTrue()
+
+				assertThat(counting.reportedEndpoints(dir).map { it.applicationId }).containsExactly("com.example.reported")
+				assertThat(asked).containsExactly("com.example.reported")
 			} finally {
 				dir.delete()
 			}

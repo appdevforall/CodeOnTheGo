@@ -761,6 +761,7 @@ abstract class ProjectHandlerActivity :
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
 			beforeCommit = pendingInstallNote(state.apkFile),
+			onCommitFailed = debuggerEndpointRepository::discardPendingInstall,
 		)
 
 		if (state.launchProfilerAfterInstall) {

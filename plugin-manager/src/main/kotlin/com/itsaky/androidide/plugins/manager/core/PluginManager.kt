@@ -420,7 +420,8 @@ class PluginManager private constructor(
 
 	/**
 	 * Installs where every plugin's [DebuggerEndpointService] reads the SQLite debugger endpoints apps
-	 * reported. The app installs it before plugins load. Installing the same source again does nothing:
+	 * reported. The app installs it before plugins load; when it cannot, plugins load anyway and their
+	 * getEndpoints() throws IllegalStateException. Installing the same source again does nothing:
 	 * the app's start runs again when a later step of it failed (CredentialProtectedApplicationLoader.load
 	 * retries after the user unlocks). Plugins share this class loader, so a different source, which can
 	 * only be a plugin's, fails rather than replacing or blanking the source for every plugin.
@@ -593,6 +594,10 @@ class PluginManager private constructor(
 	 */
 	fun loadPlugin(file: File): Result<IPlugin> {
 		var reservedSlotsPluginId: String? = null
+		// The new plugin's context until loadedPlugins holds the plugin. Every way out before that, a
+		// failure path or a throw, leaves a plugin whose initialize() may have started threads, so the
+		// finally below closes its endpoint service. Once loaded, disabling or unloading closes it.
+		var notLoadedContext: PluginContext? = null
 		return try {
 			logger.debug("Loading plugin from: ${file.absolutePath}")
 
@@ -703,13 +708,12 @@ class PluginManager private constructor(
 			}
 
 			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
+			notLoadedContext = pluginContext
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
 			val initResult =
 				initializePlugin(plugin, pluginContext).getOrElse { e ->
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
-					// The plugin may have started threads of its own in initialize().
-					pluginContext.closeDebuggerEndpointService()
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
 					}
@@ -718,7 +722,6 @@ class PluginManager private constructor(
 
 			if (!initResult) {
 				logger.warn(" plugin initialization returned false for: ${manifest.id}")
-				pluginContext.closeDebuggerEndpointService()
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -745,10 +748,9 @@ class PluginManager private constructor(
 					nativeLibraryDir = nativeLibPath?.let(::File),
 				)
 			loadedPlugins[manifest.id] = loadedPlugin
+			notLoadedContext = null
 
 			if (!isEnabled) {
-				// initialize() ran, so the plugin may already have threads of its own.
-				loadedPlugin.debuggerEndpointService()?.close()
 				logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
 				return Result.success(plugin)
 			}
@@ -762,6 +764,8 @@ class PluginManager private constructor(
 			logger.error("Failed to load plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
 			val prefix = if (e is RuntimeException) "" else "[${e.javaClass.simpleName}] "
 			Result.failure(RuntimeException("Error loading plugin: $prefix${e.message}", e))
+		} finally {
+			notLoadedContext?.debuggerEndpointService()?.close()
 		}
 	}
 
@@ -790,8 +794,7 @@ class PluginManager private constructor(
 			notifyLanguageContributionsChanged(plugin)
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
-			loadedPlugin.isEnabled = false
-			loadedPlugin.debuggerEndpointService()?.close()
+			markDisabled(loadedPlugin)
 			savePluginState(manifest.id, false)
 		}
 	}
@@ -833,7 +836,7 @@ class PluginManager private constructor(
 
 		try {
 			// First: a later step can throw and end the unload.
-			loadedPlugin.debuggerEndpointService()?.close()
+			loadedPlugin.context.debuggerEndpointService()?.close()
 
 			// Remove documentation if plugin implements DocumentationExtension
 			if (loadedPlugin.plugin is DocumentationExtension) {
@@ -1163,7 +1166,7 @@ class PluginManager private constructor(
 
 		// The services outlive a disable, which closed the terminal and SQLite debugger endpoint services.
 		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
-		loadedPlugin.debuggerEndpointService()?.reopen()
+		loadedPlugin.context.debuggerEndpointService()?.reopen()
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
@@ -1188,7 +1191,7 @@ class PluginManager private constructor(
 		return try {
 			cleanupPluginContributions(loadedPlugin)
 			loadedPlugin.plugin.deactivate()
-			loadedPlugin.isEnabled = false
+			markDisabled(loadedPlugin)
 			savePluginState(pluginId, false)
 			lifecycleDispatcher.notifyDeactivated(pluginId)
 			notifyLanguageContributionsChanged(loadedPlugin.plugin)
@@ -1211,7 +1214,7 @@ class PluginManager private constructor(
 		runCatching { loadedPlugin.plugin.deactivate() }.onFailure { e ->
 			logger.error("Plugin deactivate threw during force-disable: $pluginId", e)
 		}
-		loadedPlugin.isEnabled = false
+		markDisabled(loadedPlugin)
 		savePluginState(pluginId, false)
 		lifecycleDispatcher.notifyDeactivated(pluginId)
 		notifyLanguageContributionsChanged(loadedPlugin.plugin)
@@ -1220,7 +1223,6 @@ class PluginManager private constructor(
 
 	private fun cleanupPluginContributions(loadedPlugin: LoadedPlugin) {
 		val pluginId = loadedPlugin.manifest.id
-		loadedPlugin.debuggerEndpointService()?.close()
 		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId, loadedPlugins.keys - pluginId) }
 			.onFailure { logger.error("Failed to clean project templates for: $pluginId", it) }
 		runCatching {
@@ -1243,13 +1245,20 @@ class PluginManager private constructor(
 		}.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
 	}
 
-	private fun PluginContext.closeDebuggerEndpointService() {
-		(services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl)?.close()
+	/**
+	 * Marks [loadedPlugin] disabled and closes its SQLite debugger endpoint service in one step, so the
+	 * service is closed exactly when the plugin stops being enabled. A disable that fails before this
+	 * point, as when deactivate() throws, leaves the plugin enabled and its service open: enablePlugin
+	 * returns early for an enabled plugin, so it could never reopen the service.
+	 */
+	private fun markDisabled(loadedPlugin: LoadedPlugin) {
+		loadedPlugin.context.debuggerEndpointService()?.close()
+		loadedPlugin.isEnabled = false
 	}
 
 	/** The plugin's [DebuggerEndpointServiceImpl]. Its services outlive a disable, so it is closed instead. */
-	private fun LoadedPlugin.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
-		context.services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
+	private fun PluginContext.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
+		services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
 
 	sealed class CrashResult {
 		abstract val pluginId: String
@@ -1629,7 +1638,8 @@ class PluginManager private constructor(
 				permissions = permissions,
 				projectRootProvider = ::openProjectRoot,
 				sourceProvider = debuggerEndpointSource::get,
-				// A plugin saved as disabled gets no tokens from its own initialize(); enablePlugin reopens it.
+				// The only close a plugin loaded as disabled needs: it stays closed through its own
+				// initialize() and after, until enablePlugin reopens it.
 				startOpen = getPluginState(pluginId),
 			)
 		}

@@ -46,8 +46,9 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   the new `debugger.endpoints` permission (`PluginPermission.DEBUGGER_ENDPOINTS`) and throws
   `SecurityException` without it. The token is the server's only credential, so a plugin holding the
   permission can query the databases of the open project's apps (read-only in this version; a later
-  version may allow writes). The call throws `IllegalStateException` on the main thread or when the database
-  cannot be read (an unreadable database is not reported as an empty list). Once the plugin is disabled
+  version may allow writes). The call throws `IllegalStateException` on the main thread, when the database
+  cannot be read, or when the IDE could not set up access to the endpoints at startup (neither failure is
+  reported as an empty list). Once the plugin is disabled
   or unloaded, a call throws `java.util.concurrent.CancellationException` until it is enabled again, as
   `IdeTerminalService` calls do. The method declares `InterruptedException`, thrown with the thread's
   interrupt status set again when the caller is interrupted during the read. Plugins run in Code on the

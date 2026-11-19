@@ -284,6 +284,45 @@ class ApkInstallerSessionTest {
 		}
 
 	@Test
+	fun `a commit that throws leaves no note, as its session reports no result`() =
+		runTest {
+			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+			val session = mockk<PackageInstaller.Session>(relaxed = true)
+			every { session.openWrite(any(), any(), any()) } returns ByteArrayOutputStream()
+			every { session.commit(any()) } throws SecurityException("commit refused")
+
+			val installer = mockk<PackageInstaller>()
+			every { installer.createSession(any()) } returns 300
+			every { installer.openSession(300) } returns session
+			justRun { installer.abandonSession(300) }
+
+			val baseContext = ApplicationProvider.getApplicationContext<Context>()
+			val pm = spyk(baseContext.packageManager)
+			every { pm.packageInstaller } returns installer
+			val context = spyk(baseContext)
+			every { context.packageManager } returns pm
+
+			// What ProjectHandlerActivity passes: a note before the commit, dropped when the commit fails.
+			val notes = mutableSetOf<Int>()
+			var noted = false
+			val result =
+				ApkInstaller.installUsingSession(
+					context,
+					apk,
+					Intent(),
+					beforeCommit = {
+						notes += it
+						noted = true
+					},
+					onCommitFailed = { notes -= it },
+				)
+
+			assertThat(result).isEqualTo(ApkInstaller.SessionLaunchResult.Failed)
+			assertThat(noted).isTrue()
+			assertThat(notes).isEmpty()
+		}
+
+	@Test
 	fun `abandonSession retains tracking when abandonment throws and session is not finalized`() =
 		runTest {
 			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }

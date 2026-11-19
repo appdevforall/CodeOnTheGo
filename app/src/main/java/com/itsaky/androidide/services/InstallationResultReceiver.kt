@@ -58,9 +58,10 @@ class InstallationResultReceiver :
 	/**
 	 * Pairs the installed app with the project whose install it was, for the SQLite debugger (ADFA-7137), or drops
 	 * the install's note when it failed. Done here rather than in the editor, which receives the event only while it
-	 * is started: the event is not sticky, and the install prompt can stop the editor. On success it pairs whether
-	 * or not a launch follows (Quick Build suppresses it), and the event, which launches the app, is posted without
-	 * waiting for the write.
+	 * is started: the event is not sticky, and the install prompt can stop the editor. On success it pairs only an
+	 * install that ProjectHandlerActivity noted, and does not read EXTRA_SUPPRESS_POST_INSTALL_LAUNCH; Quick Build's
+	 * installs, the ones that set it, are never noted, so never paired. The event, which launches the app, is posted
+	 * without waiting for the write.
 	 */
 	private fun pairSqliteDebugger(intent: Intent) {
 		try {

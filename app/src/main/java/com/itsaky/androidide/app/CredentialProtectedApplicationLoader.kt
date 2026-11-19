@@ -1,9 +1,11 @@
 package com.itsaky.androidide.app
 
+import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.os.UserManager
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.work.WorkManager
@@ -332,8 +334,13 @@ internal object CredentialProtectedApplicationLoader :
 		ideLogcatReader = null
 	}
 
+	/** [context] and [endpointSource] are parameters only so a test can start the plugin system without the app. */
+	@VisibleForTesting
 	@OptIn(DelicateCoroutinesApi::class)
-	private fun initializePluginSystem() {
+	internal fun initializePluginSystem(
+		context: Context = application,
+		endpointSource: () -> DebuggerEndpointSource = { get() },
+	) {
 		try {
 			logger.info("Initializing plugin system...")
 
@@ -373,7 +380,7 @@ internal object CredentialProtectedApplicationLoader :
 
 			pluginManager =
 				PluginManager.getInstance(
-					context = application,
+					context = context,
 					eventBus = EventBus.getDefault(),
 					logger = pluginLogger,
 				)
@@ -381,7 +388,7 @@ internal object CredentialProtectedApplicationLoader :
 			pluginManager?.setLanguageContributionsListener(PluginLanguageSupport::refresh)
 
 			// Set up plugin service providers
-			setupPluginServices()
+			setupPluginServices(endpointSource)
 			setupPluginInflationErrorHandler()
 
 			// Load plugins asynchronously
@@ -403,16 +410,33 @@ internal object CredentialProtectedApplicationLoader :
 	/**
 	 * Sets up the plugin service providers to integrate with AndroidIDE's actual systems.
 	 */
-	private fun setupPluginServices() {
+	private fun setupPluginServices(endpointSource: () -> DebuggerEndpointSource) {
 		pluginManager?.let { manager ->
 			manager.setActivityProvider { application.foregroundActivity }
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
 			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
-			manager.installDebuggerEndpointSource(get<DebuggerEndpointSource>())
+			installDebuggerEndpointSource(manager, endpointSource)
 			IdeTerminalServiceImpl.setSessionLauncher(PluginTerminalLauncher { application.foregroundActivity })
 			logger.info("Plugin services configured successfully")
 		}
+	}
+
+	/**
+	 * Installs where every plugin's DebuggerEndpointService reads the SQLite debugger endpoints. The
+	 * SQLite debugger is optional, so a failure here, such as a binding that cannot be built or a
+	 * different source already installed, is reported and the plugin system starts anyway: plugins load,
+	 * and getEndpoints() throws IllegalStateException saying the endpoints are unavailable.
+	 */
+	private fun installDebuggerEndpointSource(
+		manager: PluginManager,
+		endpointSource: () -> DebuggerEndpointSource,
+	) {
+		runCatching { manager.installDebuggerEndpointSource(endpointSource()) }
+			.onFailure { e ->
+				Sentry.captureException(e)
+				logger.error("Could not set up the SQLite debugger endpoints for plugins; plugins load without them", e)
+			}
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)

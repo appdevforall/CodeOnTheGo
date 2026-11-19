@@ -50,7 +50,7 @@ class PluginManagerDebuggerEndpointTest {
 	private val source =
 		DebuggerEndpointSource { location ->
 			asked += location
-			if (location == project.absolutePath) listOf(endpoint) else emptyList()
+			if (location == project.canonicalPath) listOf(endpoint) else emptyList()
 		}
 
 	private val templatesDir = Environment.TEMPLATES_DIR
@@ -65,6 +65,7 @@ class PluginManagerDebuggerEndpointTest {
 
 	@After
 	fun tearDown() {
+		QuietLogger.failOn = null
 		forgetPluginManager()
 		Environment.TEMPLATES_DIR = templatesDir
 		ProjectManagerImpl.getInstance().projectPath = ""
@@ -104,7 +105,7 @@ class PluginManagerDebuggerEndpointTest {
 			openInEditor(elsewhere)
 
 			assertThat(offMainThread { reader.getEndpoints() }).isEmpty()
-			assertThat(asked).containsExactly(project.absolutePath, elsewhere.absolutePath).inOrder()
+			assertThat(asked).containsExactly(project.canonicalPath, elsewhere.canonicalPath).inOrder()
 		} finally {
 			elsewhere.deleteRecursively()
 		}
@@ -122,6 +123,28 @@ class PluginManagerDebuggerEndpointTest {
 		assertThat(pluginManager().enablePlugin("reader")).isTrue()
 
 		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `a disable whose deactivate throws leaves the plugin enabled and its service open`() {
+		val service = load("reader", "debugger.endpoints", FailingDeactivatePlugin::class.java)
+		openInEditor(project)
+
+		assertThat(pluginManager().disablePlugin("reader")).isFalse()
+
+		assertThat(pluginManager().getLoadedPlugin("reader")).isNotNull()
+		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `a plugin force-disabled after crashing gets nothing, even when its deactivate throws`() {
+		val service = load("reader", "debugger.endpoints", FailingDeactivatePlugin::class.java)
+		openInEditor(project)
+
+		pluginManager().forceDisablePlugin("reader")
+
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		assertThat(asked).isEmpty()
 	}
 
 	@Test
@@ -206,6 +229,27 @@ class PluginManagerDebuggerEndpointTest {
 	}
 
 	@Test
+	fun `a plugin that fails to load after its initialize succeeded is left with a service that refuses`() {
+		openInEditor(project)
+		ServiceKeepingPlugin.service = null
+		// Logged by the step right after initialize(), which registers the plugin's resource context.
+		QuietLogger.failOn = "Registered resource context for plugin: keeper"
+		val file =
+			fakePlugin(
+				File(RuntimeEnvironment.getApplication().filesDir, "plugins/keeper.cgp"),
+				"keeper",
+				"debugger.endpoints",
+				ServiceKeepingPlugin::class.java,
+			)
+
+		assertThat(pluginManager().loadPlugin(file).isFailure).isTrue()
+
+		val service = checkNotNull(ServiceKeepingPlugin.service)
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		assertThat(asked).isEmpty()
+	}
+
+	@Test
 	fun `a plugin whose activation fails is left disabled and its service refuses`() {
 		openInEditor(project)
 
@@ -273,7 +317,7 @@ class PluginManagerDebuggerEndpointTest {
 		return result.get().getOrThrow()
 	}
 
-	private fun pluginManager() = PluginManager.getInstance(RuntimeEnvironment.getApplication(), Any(), NoLogger)
+	private fun pluginManager() = PluginManager.getInstance(RuntimeEnvironment.getApplication(), Any(), QuietLogger)
 
 	/** Forgets the singleton plugin manager: each test has an application of its own. */
 	private fun forgetPluginManager() {
@@ -361,9 +405,27 @@ class PluginManagerDebuggerEndpointTest {
 		}
 	}
 
+	/** Keeps its service where the test can reach it when the load fails, then succeeds in initialize(). */
+	class ServiceKeepingPlugin : ContextKeepingPlugin() {
+		override fun initialize(context: PluginContext): Boolean {
+			service = context.services.get(DebuggerEndpointService::class.java)
+			return super.initialize(context)
+		}
+
+		companion object {
+			@Volatile
+			var service: DebuggerEndpointService? = null
+		}
+	}
+
 	/** initialize() succeeds, activate() throws. */
 	class FailingActivationPlugin : ContextKeepingPlugin() {
 		override fun activate(): Boolean = error("activate failed")
+	}
+
+	/** Loads and activates, then deactivate() throws. */
+	class FailingDeactivatePlugin : ContextKeepingPlugin() {
+		override fun deactivate(): Boolean = error("deactivate failed")
 	}
 
 	/** The editor activity's provider, as registered while it shows a project. */
@@ -377,10 +439,17 @@ class PluginManagerDebuggerEndpointTest {
 		override fun getCurrentSelection(): String? = null
 	}
 
-	private object NoLogger : PluginLogger {
+	/** Logs nothing. A debug message starting with [failOn] throws, standing in for a load step that fails. */
+	private object QuietLogger : PluginLogger {
 		override val pluginId = "test"
 
-		override fun debug(message: String) = Unit
+		@Volatile
+		var failOn: String? = null
+
+		override fun debug(message: String) {
+			// Not error(): in here that is this logger's own error(String).
+			if (failOn?.let(message::startsWith) == true) throw IllegalStateException("simulated failure at: $message")
+		}
 
 		override fun debug(
 			message: String,
