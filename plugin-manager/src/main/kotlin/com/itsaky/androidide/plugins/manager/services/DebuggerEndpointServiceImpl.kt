@@ -67,7 +67,13 @@ internal class DebuggerEndpointServiceImpl(
 		val root = projectRootProvider() ?: return emptyList()
 		// The canonical path, as recent_project_table.location holds it, falling back to the absolute
 		// path as the app's pairing does, so a project opened through a symlink still finds its apps.
-		val location = runCatching { root.canonicalPath }.getOrElse { root.absolutePath }
+		// Only an Exception falls back: a VirtualMachineError propagates.
+		val location =
+			try {
+				root.canonicalPath
+			} catch (e: Exception) {
+				root.absolutePath
+			}
 		val endpoints =
 			try {
 				source.endpointsFor(location)
