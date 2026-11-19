@@ -18,7 +18,6 @@
 package com.itsaky.androidide.memprof
 
 import android.os.Debug
-import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -31,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * between two samples is exactly what was allocated between them.
  */
 object AllocationSampler {
-	private val logger = LoggerFactory.getLogger(AllocationSampler::class.java)
+	private val logger = MemprofLog("AllocationSampler")
 
 	/** Fine enough to separate a completion request from its neighbours, cheap enough to leave on. */
 	const val DEFAULT_INTERVAL_MS = 250L
@@ -68,7 +67,7 @@ object AllocationSampler {
 	@JvmOverloads
 	fun start(intervalMs: Long = DEFAULT_INTERVAL_MS) {
 		if (!running.compareAndSet(false, true)) {
-			logger.info("MEMPROF|sampler|{}|state=already_running", System.currentTimeMillis())
+			logger.i("MEMPROF|sampler|{}|state=already_running", System.currentTimeMillis())
 			return
 		}
 
@@ -77,7 +76,7 @@ object AllocationSampler {
 		thread.priority = Thread.MAX_PRIORITY
 		worker = thread
 		thread.start()
-		logger.info("MEMPROF|sampler|{}|state=started|intervalMs={}", System.currentTimeMillis(), intervalMs)
+		logger.i("MEMPROF|sampler|{}|state=started|intervalMs={}", System.currentTimeMillis(), intervalMs)
 	}
 
 	/** Stops sampling. Safe to call when not running. */
@@ -87,17 +86,17 @@ object AllocationSampler {
 		}
 		worker?.interrupt()
 		worker = null
-		logger.info("MEMPROF|sampler|{}|state=stopped", System.currentTimeMillis())
+		logger.i("MEMPROF|sampler|{}|state=stopped", System.currentTimeMillis())
 	}
 
 	/** Emits one sample immediately, tagged with [reason]. */
 	fun sampleNow(reason: String) {
-		logger.info(sample(reason, RuntimeHeapCounters.read()))
+		logger.i(sample(reason, RuntimeHeapCounters.read()))
 	}
 
 	/** Emits a named marker plus a sample, so a phase boundary and its counters share a timestamp. */
 	fun mark(name: String) {
-		logger.info("MEMPROF|mark|{}|name={}", System.currentTimeMillis(), name)
+		logger.i("MEMPROF|mark|{}|name={}", System.currentTimeMillis(), name)
 		sampleNow(name)
 	}
 
@@ -106,7 +105,7 @@ object AllocationSampler {
 			val counters = RuntimeHeapCounters.read()
 			// DEBUG, not INFO: profileable inherits release's Sentry setup, which turns an INFO
 			// line into a breadcrumb, and this fires up to 4 times a second.
-			logger.debug(sample("tick", counters))
+			logger.d(sample("tick", counters))
 			onTick?.invoke(counters.usedBytes)
 			dumpIfAboveThreshold()
 			try {
@@ -141,12 +140,12 @@ object AllocationSampler {
 		}
 
 		val path = "$dumpDir/memprof-peak-${System.currentTimeMillis()}.hprof"
-		logger.info("MEMPROF|hprof_start|{}|path={}|usedMb={}", System.currentTimeMillis(), path, used shr 20)
+		logger.i("MEMPROF|hprof_start|{}|path={}|usedMb={}", System.currentTimeMillis(), path, used shr 20)
 		runCatching { Debug.dumpHprofData(path) }
 			.onSuccess {
-				logger.info("MEMPROF|hprof|{}|path={}|bytes={}", System.currentTimeMillis(), path, File(path).length())
+				logger.i("MEMPROF|hprof|{}|path={}|bytes={}", System.currentTimeMillis(), path, File(path).length())
 			}.onFailure { failure ->
-				logger.error("MEMPROF|hprof_failed|{}|path={}", System.currentTimeMillis(), path, failure)
+				logger.e("MEMPROF|hprof_failed|{}|path={}", System.currentTimeMillis(), path, failure)
 			}
 	}
 
