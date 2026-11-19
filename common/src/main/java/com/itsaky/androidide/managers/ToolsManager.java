@@ -211,19 +211,24 @@ public class ToolsManager {
 	}
 
 	/**
-	 * Copies the stream to a temp sibling of the target, then renames it over the target. {@link #init} extracts the SQLite AARs in the background, and GradleBuildService passes their paths to a build without waiting, so a build that starts meanwhile must find the previous complete file or the new one, never a missing or partly written one. rename(2) within one directory atomically replaces the target on Linux. Does not close the stream.
+	 * Copies the stream to a temp sibling of the target, syncs it, then renames it over the target. {@link #init} extracts the SQLite AARs in the background, and GradleBuildService passes their paths to a build without waiting, so a build that starts meanwhile must find the previous complete file or the new one, never a missing or partly written one. rename(2) within one directory atomically replaces the target on Linux; syncing first means a power loss after the rename cannot leave the target empty. The temp file is deleted when any step fails. Its name is fixed, not unique: init runs once per process, and the next run overwrites what a killed process left. Does not close the stream.
 	 */
 	@VisibleForTesting
 	static void replaceAtomically(InputStream source, File target) throws IOException {
 		final var dir = Objects.requireNonNull(target.getParentFile());
 		dir.mkdirs();
 		final var tempFile = new File(dir, target.getName() + ".part");
-		try (final var fos = new FileOutputStream(tempFile)) {
-			IoUtilsKt.transferToStream(source, fos);
-		}
-		if (!tempFile.renameTo(target)) {
+		try {
+			try (final var fos = new FileOutputStream(tempFile)) {
+				IoUtilsKt.transferToStream(source, fos);
+				fos.getFD().sync();
+			}
+			if (!tempFile.renameTo(target)) {
+				throw new IOException("Could not move " + tempFile + " to " + target);
+			}
+		} finally {
+			// gone after a successful rename; a leftover of a failed copy is what this removes
 			tempFile.delete();
-			throw new IOException("Could not move " + tempFile + " to " + target);
 		}
 	}
 

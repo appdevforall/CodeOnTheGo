@@ -72,7 +72,9 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).
   The same conversion without a cast fails too: a value declared `SQLiteCursor`, or a subclass, returned, passed,
   called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
-  { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify.
+  { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
+  into an array of those types (`AbstractCursor[] a; a[0] = c;`), which would throw `ArrayStoreException`: the
+  array must be one on every path to the store, from a parameter, field, call or `new`.
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
@@ -90,8 +92,14 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   it. Retyping the override would mean turning requery's signal back into Android's inside its body.
   Likewise a call on an owner that AGP's class loader cannot resolve fails when its name and descriptor are those of
   a member a rule above changes or rejects in a renamed class another class can extend (not the final
-  `SQLiteDatabase`, `SQLiteQuery` or `SQLiteStatement`): the owner may inherit that member, and its renamed
-  ancestors are unknown.
+  `SQLiteDatabase`, `SQLiteQuery` or `SQLiteStatement`) and the descriptor names an SQLite-related type (any
+  `android.database.sqlite` or requery type, `Cursor`, `CancellationSignal`, `DatabaseErrorHandler`): the owner may
+  inherit that member, and its renamed ancestors are unknown. When the descriptor names none (`isStrict()Z`,
+  `isString(I)Z`, `setWindow(CursorWindow)`, `mWindow`), the call or field access only logs a warning with class,
+  method and line: libraries reference optional classes the app does not ship, and failing every app build over them
+  would be worse than missing the case. `CursorWindow` is not an SQLite type: it carries every ContentProvider cursor
+  across processes, and android's kept `AbstractWindowedCursor` declares `setWindow(CursorWindow)` and `mWindow` too,
+  so a library's own windowed cursor matches them.
 - Method references: a handle in an invokedynamic (`db::rawQuery`, `ctx::deleteDatabase`) that any rule
   above would change, redirect or reject fails the build, naming class, method and line, with the advice to
   write a lambda (its body is an ordinary call, which the rules handle). The rules are not applied to the
@@ -202,6 +210,11 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   class, alone or in a type descriptor) logs a warning with class, method and line, in the classes the fail rule
   covers; names of kept classes such as `SQLiteException`, and longer names that contain a renamed one, such as
   `xandroid.database.sqlite.SQLiteDatabase`, do not.
+- Stores of an SQLite cursor into an array known only as a `Cursor[]` or `Object[]` are allowed on purpose (failing
+  them would fail ordinary apps), but such an array can be an `AbstractCursor[]` at run time (arrays are covariant),
+  and a store whose array type is unknown where branches merge is not checked. Both can still throw
+  `ArrayStoreException`, in release builds too (the rewrite runs in every variant of an opted-in app). Cursors loaded
+  from arrays are not followed.
 - The `AbstractWindowedCursor` check follows the cursor through locals and the stack only. A cast of a
   cursor that reached the method through a field, a parameter or another call is not seen (the app throws
   `ClassCastException` at run time), and a cast of a cursor from an SQLite API to a type that is not an
@@ -211,6 +224,14 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
 - A direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor` that overrides a member requery lacks is not
   reported.
+- On a `SQLiteCursor` subclass whose class the build cannot resolve, `getWindow()` is not detected, and
+  `setWindow(CursorWindow)` and `mWindow` only log a warning; each fails at run time. `getWindow()` is not in the rule
+  table, and failing every unresolved member that names a `CursorWindow` would fail ordinary apps (android's kept
+  `AbstractWindowedCursor` declares all three, and `CrossProcessCursor` declares `getWindow()`). On any class the
+  build cannot resolve, a call that matches the rule table fails the build only when its descriptor names an
+  SQLite-related type (see Rules); any other match, such as `isString(I)Z`, `isStrict()Z` or `setWindow(CursorWindow)`,
+  logs a warning with class, method and line and is left as it is, and fails at run time if the class does extend the
+  renamed class.
 - `instanceof` is not rewritten: `cursor instanceof AbstractWindowedCursor`, `AbstractCursor` or
   `CrossProcessCursor` is silently false for requery's cursors (no build failure), which is what Room's
   `DBUtil.query` relies on.
@@ -223,6 +244,10 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   androidx.core.os.OperationCanceledException e)`, which works with the SQLite debugger on and off.
 - Android's `CancellationSignal` holds one listener: the conversion replaces any listener the caller set. Each
   query gets its own androidx.core signal, and cancelling the Android signal cancels every one still in use, so
-  two lazy queries that share it both stop (requery keeps a query's signal for its cursor's later reads).
+  two lazy queries that share it both stop (requery keeps a query's signal for its cursor's later reads). The
+  runtime's forwarder is held only as the Android signal's listener (`SqliteRewriteRuntime.FORWARDERS` holds signals
+  and forwarders weakly), so nothing of a signal the app dropped is kept: a strong value outlived its key until the
+  map's next call. A caller that sets its own listener after a query lets that forwarder go: the next query on the
+  signal gets a new one, and queries from before the caller's listener no longer stop with the signal.
 - Which `SQLiteException` subclass requery throws for an error code (for example `SQLiteConstraintException`, which
   Room catches) is decided by its native layer; this rewrite does not change it and the survey did not check it.

@@ -97,7 +97,10 @@ class SqliteRewritePluginTest {
 		val message = failureOf { build(dir, ":app:printRuntimeDeps", runtimeAar = File(dir, "absent.aar")) }
 
 		assertThat(message).contains("SQLite rewrite runtime AAR not found")
-		assertThat(message).contains("Remove '$PROPERTY_SQLITE_DEBUGGER_ENABLED' from gradle.properties")
+		assertThat(message).contains(
+			"Remove '$PROPERTY_SQLITE_DEBUGGER_ENABLED' from gradle.properties to build without it, " +
+				"or retry in a few seconds if Code on the Go has just started.",
+		)
 	}
 
 	private fun jar(

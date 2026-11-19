@@ -247,7 +247,10 @@ internal object SqliteRewriteRules {
 	/**
 	 * Name plus descriptor of each member that a rule changes or rejects and that another class can inherit (not a
 	 * constructor, nor a member of a final class), mapped to the renamed class that declares it. A class the build
-	 * cannot resolve may inherit one of these, so a call that matches one exactly cannot be checked.
+	 * cannot resolve may inherit one of these, so a call that matches one exactly cannot be checked. Such a call
+	 * fails the build only when its descriptor names an SQLite-related type ([SQLITE_DESCRIPTOR_TOKENS]); otherwise
+	 * it is a warning, since a bare name and descriptor like isStrict()Z, or setWindow(CursorWindow) on any windowed
+	 * cursor, is common in unrelated classes.
 	 */
 	val INHERITABLE_RULE_MEMBERS: Map<String, String> =
 		buildMap {
@@ -298,6 +301,15 @@ internal object SqliteRewriteRules {
 
 	/** How a renamed class appears in a descriptor. */
 	val RENAMED_DESCRIPTOR_TOKENS: List<String> = RENAMES.keys.map { "L$it;" }
+
+	/**
+	 * What marks a descriptor as SQLite-related: a class in either package, Cursor, the signals, or the error handler.
+	 * Not android.database.CursorWindow, which is not an SQLite type: it carries every ContentProvider cursor across
+	 * processes, and android's kept AbstractWindowedCursor declares setWindow(CursorWindow) and mWindow too, so a
+	 * library's own windowed cursor on an owner the build cannot resolve would match SQLiteCursor's.
+	 */
+	val SQLITE_DESCRIPTOR_TOKENS: List<String> =
+		listOf("L$SQLITE_PKG", "L$REQUERY_DB_PKG", CUR, "L$ANDROID_SIGNAL;", "L$CORE_SIGNAL;", "L$ERROR_HANDLER;")
 
 	val CONTEXT_FAMILY: Set<String> =
 		setOf(

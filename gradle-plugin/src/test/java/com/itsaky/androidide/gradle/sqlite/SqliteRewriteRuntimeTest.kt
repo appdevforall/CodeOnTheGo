@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.utils.FileProvider
 import org.junit.jupiter.api.Test
+import java.lang.ref.WeakReference
 
 /**
  * The runtime helper's functions that need no device, run on the JVM from its bytecode compiled against android.jar,
@@ -41,6 +42,41 @@ class SqliteRewriteRuntimeTest {
 	}
 
 	private fun isCanceled(signal: Any) = signal.javaClass.getMethod("isCanceled").invoke(signal) as Boolean
+
+	/** The signal's listener, read from the signal itself: a call on FORWARDERS would expunge its stale entries. */
+	private fun listenerOf(signal: Any): Any? = androidSignal.getDeclaredField("listener").apply { isAccessible = true }.get(signal)
+
+	private fun setListener(
+		signal: Any,
+		listener: Any?,
+	) {
+		val type = loader.loadClass("android.os.CancellationSignal\$OnCancelListener")
+		androidSignal.getMethod("setOnCancelListener", type).invoke(signal, listener)
+	}
+
+	/** Converts a signal that nothing else holds, in its own frame, and returns a weak reference to its forwarder. */
+	private fun forwarderOfDroppedSignal(): WeakReference<Any> {
+		val signal = newAndroidSignal()
+		convert(signal)
+		return WeakReference(listenerOf(signal)!!)
+	}
+
+	/**
+	 * Requests GC until [ref] clears, at most [rounds] times. Timing-dependent only in the passing direction: HotSpot's
+	 * System.gc() is a full collection and clears a weak reference in the first round, and the bound only ends a run in
+	 * which it never clears. Nothing calls FORWARDERS meanwhile, as any call on it expunges the stale entries.
+	 */
+	private fun clearedAfterGc(
+		ref: WeakReference<*>,
+		rounds: Int = 50,
+	): Boolean {
+		repeat(rounds) {
+			if (ref.get() == null) return true
+			System.gc()
+			Thread.sleep(20)
+		}
+		return ref.get() == null
+	}
 
 	private fun translate(flags: Int) = runtime.getMethod("translateOpenFlags", Int::class.javaPrimitiveType).invoke(null, flags) as Int
 
@@ -87,6 +123,42 @@ class SqliteRewriteRuntimeTest {
 		cancel(signal)
 
 		assertThat(isCanceled(convert(signal))).isTrue()
+	}
+
+	@Test
+	fun `the forwarder of a signal the app dropped is not kept`() {
+		val forwarder = forwarderOfDroppedSignal()
+
+		assertWithMessage("CancelForwarder of a dropped signal, kept by the value of FORWARDERS' stale entry")
+			.that(clearedAfterGc(forwarder))
+			.isTrue()
+	}
+
+	@Test
+	fun `a live signal keeps its forwarder through a GC and still cancels its queries`() {
+		val signal = newAndroidSignal()
+		val converted = convert(signal)
+		val forwarder = WeakReference(listenerOf(signal))
+
+		assertWithMessage("forwarder collected while its signal lives").that(clearedAfterGc(forwarder, rounds = 3)).isFalse()
+		cancel(signal)
+
+		assertThat(isCanceled(converted)).isTrue()
+	}
+
+	@Test
+	fun `a signal whose forwarder was collected gets a new one`() {
+		val signal = newAndroidSignal()
+		convert(signal)
+		val first = WeakReference(listenerOf(signal))
+		// the caller sets its own listener, so nothing holds the first forwarder any more
+		setListener(signal, null)
+		assertWithMessage("first forwarder collected").that(clearedAfterGc(first)).isTrue()
+
+		val converted = convert(signal)
+		cancel(signal)
+
+		assertWithMessage("a query converted after the forwarder was collected").that(isCanceled(converted)).isTrue()
 	}
 
 	private companion object {

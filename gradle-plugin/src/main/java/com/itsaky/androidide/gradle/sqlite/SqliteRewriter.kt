@@ -186,16 +186,22 @@ object SqliteRewriter {
 		}
 	}
 
-	/** A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's. */
+	/**
+	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
+	 * ([renamedCursor]), or, on every path, an array of one of the Android-only cursor types ([androidCursorArray],
+	 * that element type).
+	 */
 	private class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
+		val androidCursorArray: String? = null,
 	) : BasicValue(type) {
 		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
 		override fun equals(other: Any?): Boolean =
-			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false)
+			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false) &&
+				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray
 
-		override fun hashCode(): Int = super.hashCode() * 31 + if (renamedCursor) 1 else 0
+		override fun hashCode(): Int = (super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()
 	}
 
 	private class ClassRewrite(
@@ -205,6 +211,7 @@ object SqliteRewriter {
 		val warn: (String) -> Unit,
 	) {
 		val violations = linkedSetOf<String>()
+		private val warned = hashSetOf<String>()
 
 		fun run() {
 			if (policy.fail) {
@@ -433,10 +440,9 @@ object SqliteRewriter {
 					"SQL text uses COLLATE UNICODE, which does not exist in requery's SQLite (no ICU); the statement would fail",
 				)
 			}
-			val where = if (line >= 0) "line $line" else "no line number"
 			if (Rules.COLLATE_LOCALIZED.containsMatchIn(text)) {
 				warn(
-					"${cn.name.replace('/', '.')}.${m.name} ($where): COLLATE LOCALIZED works in requery's SQLite but sorts by " +
+					"${site(m, line)}: COLLATE LOCALIZED works in requery's SQLite but sorts by " +
 						"byte value (no ICU), not by the device locale",
 				)
 			}
@@ -444,11 +450,19 @@ object SqliteRewriter {
 			// this name is Android's, which the rewritten code cannot mix with requery's.
 			Rules.RENAMED_CLASS_NAME.find(text)?.let {
 				warn(
-					"${cn.name.replace('/', '.')}.${m.name} ($where): the string \"${it.value}\" names a class the rewrite moves " +
+					"${site(m, line)}: the string \"${it.value}\" names a class the rewrite moves " +
 						"to requery. Strings are not rewritten: Class.forName or reflection on it reaches Android's class, not requery's",
 				)
 			}
 		}
+
+		fun where(line: Int) = if (line >= 0) "line $line" else "no line number"
+
+		/** Where a warning points: class, method and line, as `p.Dao.query (line 12)`. */
+		fun site(
+			m: MethodNode,
+			line: Int,
+		) = "${cn.name.replace('/', '.')}.${m.name} (${where(line)})"
 
 		fun invokeDynamic(
 			m: MethodNode,
@@ -471,8 +485,7 @@ object SqliteRewriter {
 			what: String,
 		) {
 			if (!policy.fail) return
-			val where = if (line >= 0) "line $line" else "no line number"
-			violations += "${m.name}${m.desc} ($where): $what"
+			violations += "${m.name}${m.desc} (${where(line)}): $what"
 		}
 
 		fun fieldInsn(
@@ -480,10 +493,13 @@ object SqliteRewriter {
 			f: FieldInsnNode,
 			line: Int,
 		) {
-			fieldProblem(f.owner, f.name, f.desc)?.let { violate(m, line, it) }
+			fieldProblem(m, line, f.owner, f.name, f.desc)?.let { violate(m, line, it) }
 		}
 
+		/** [m] and [line] locate the access, for a warning. */
 		fun fieldProblem(
+			m: MethodNode,
+			line: Int,
 			owner: String,
 			name: String,
 			desc: String,
@@ -496,16 +512,21 @@ object SqliteRewriter {
 			return renamedAncestors(owner)
 				.firstOrNull { Rules.MISSING_MEMBERS["$it.$name"]?.contains(desc) == true }
 				?.let { "${simple(it)}.$name does not exist in requery" }
-				?: unresolvedOwner(owner, name, desc)
+				?: unresolvedOwner(m, line, owner, name, desc)
 		}
 
 		/**
-		 * Why `owner.name desc` cannot be checked, or null: [owner] cannot be resolved, so its renamed ancestors are
-		 * unknown, and the member has the name and descriptor of one a rule changes or rejects in a renamed class
-		 * another class can extend. Like a Context database method on an unresolved owner, this fails under the
-		 * full policy rather than pass a call that may break at run time.
+		 * Why `owner.name desc` cannot be checked and must fail the build, or null: [owner] cannot be resolved, so its
+		 * renamed ancestors are unknown, the member has the name and descriptor of one a rule changes or rejects in a
+		 * renamed class another class can extend, and the descriptor names an SQLite-related type. Like a Context
+		 * database method on an unresolved owner, this fails under the full policy rather than pass a call that may
+		 * break at run time. A match on name and descriptor alone (isStrict()Z, isString(I)Z, setWindow(CursorWindow))
+		 * is only a warning, naming class, method and [line] of [m]: libraries reference optional classes the app does
+		 * not ship, and most of them are not SQLite classes. The same warning at the same place is logged once.
 		 */
 		fun unresolvedOwner(
+			m: MethodNode,
+			line: Int,
 			owner: String,
 			name: String,
 			desc: String,
@@ -515,8 +536,18 @@ object SqliteRewriter {
 				return null
 			}
 			if (superTypes(owner) != null) return null
-			return "${owner.replace('/', '.')} cannot be resolved, so the rewrite cannot tell whether its $name$desc is " +
-				"${simple(declaring)}.$name, which it changes or rejects"
+			val cannot = "${owner.replace('/', '.')} cannot be resolved, so the rewrite cannot tell whether its $name$desc is "
+			if (Rules.SQLITE_DESCRIPTOR_TOKENS.any { desc.contains(it) }) {
+				return cannot + "${simple(declaring)}.$name, which it changes or rejects"
+			}
+			if (policy.fail) {
+				val use = if (desc.startsWith("(")) "call" else "field access"
+				val message =
+					"${site(m, line)}: $cannot${simple(declaring)}.$name, which it changes or rejects; " +
+						"the $use is left as it is, and fails at run time if the owner extends that class"
+				if (warned.add(message)) warn(message)
+			}
+			return null
 		}
 
 		fun typeInsn(
@@ -569,9 +600,11 @@ object SqliteRewriter {
 		/**
 		 * Decides, without changing anything, what happens to `owner.name desc` invoked with [opcode]
 		 * (the opcode a method handle's kind stands for). Redirects and retyping apply only when the
-		 * policy allows; a [Action.Fail] is reported only when it fails.
+		 * policy allows; a [Action.Fail] is reported only when it fails. [m] and [line] locate the call, for a warning.
 		 */
 		fun decide(
+			m: MethodNode,
+			line: Int,
 			opcode: Int,
 			owner: String,
 			name: String,
@@ -610,7 +643,7 @@ object SqliteRewriter {
 							"the platform method would not link",
 					)
 				}
-				unresolvedOwner(owner, name, desc)?.let { return Action.Fail(it) }
+				unresolvedOwner(m, line, owner, name, desc)?.let { return Action.Fail(it) }
 				return Action.None
 			}
 			for (c in ancestors) {
@@ -638,7 +671,7 @@ object SqliteRewriter {
 			mi: MethodInsnNode,
 			line: Int,
 		) {
-			when (val action = decide(mi.opcode, mi.owner, mi.name, mi.desc)) {
+			when (val action = decide(m, line, mi.opcode, mi.owner, mi.name, mi.desc)) {
 				Action.None -> {}
 
 				is Action.Fail -> {
@@ -681,7 +714,7 @@ object SqliteRewriter {
 			val what =
 				when (h.tag) {
 					Opcodes.H_GETFIELD, Opcodes.H_GETSTATIC, Opcodes.H_PUTFIELD, Opcodes.H_PUTSTATIC -> {
-						fieldProblem(h.owner, h.name, h.desc)
+						fieldProblem(m, line, h.owner, h.name, h.desc)
 					}
 
 					else -> {
@@ -692,7 +725,7 @@ object SqliteRewriter {
 								Opcodes.H_INVOKEVIRTUAL -> Opcodes.INVOKEVIRTUAL
 								else -> Opcodes.INVOKESPECIAL
 							}
-						when (val action = decide(opcode, h.owner, h.name, h.desc)) {
+						when (val action = decide(m, line, opcode, h.owner, h.name, h.desc)) {
 							Action.None -> null
 							is Action.Fail -> action.what
 							is Action.Redirect -> "the runtime takes this call over"
@@ -758,15 +791,21 @@ object SqliteRewriter {
 		/** A type in a frame or an internal name, when it is one of the Android-only cursor types, or null. */
 		private fun androidOnlyCursor(entry: Any?): String? = (entry as? String)?.takeIf { it in Rules.ANDROID_ONLY_CURSOR_TYPES }
 
+		/** [type]'s element type when it is a one-dimensional array of an Android-only cursor type, or null. */
+		private fun androidCursorArray(type: Type?): String? =
+			if (type != null && type.sort == Type.ARRAY && type.dimensions == 1) androidOnlyCursor(type.elementType) else null
+
 		/** Whether [m] names an Android-only cursor type where a value could be converted to it without a cast. */
 		private fun mayConvertToAndroidCursor(m: MethodNode): Boolean {
 			fun names(desc: String) = Rules.ANDROID_ONLY_CURSOR_TYPES.any { desc.contains("L$it;") }
-			if (names(Type.getReturnType(m.desc).descriptor)) return true
+			// the parameters too: an array parameter is all that a store into one needs
+			if (names(m.desc)) return true
 			return m.instructions.any { insn ->
 				when (insn) {
 					is MethodInsnNode -> insn.owner in Rules.ANDROID_ONLY_CURSOR_TYPES || names(insn.desc)
 					is InvokeDynamicInsnNode -> names(insn.desc)
 					is FieldInsnNode -> names(insn.desc)
+					is TypeInsnNode -> names(insn.desc) || (insn.opcode == Opcodes.ANEWARRAY && androidOnlyCursor(insn.desc) != null)
 					is FrameNode -> (insn.local.orEmpty() + insn.stack.orEmpty()).any { androidOnlyCursor(it) != null }
 					else -> false
 				}
@@ -778,8 +817,11 @@ object SqliteRewriter {
 		 * AbstractWindowedCursor, AbstractCursor or CrossProcessCursor without a cast, by the message for each: returned,
 		 * passed, called on, stored in a field, or held where a frame declares one of them. javac writes no CHECKCAST
 		 * for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the interface, so
-		 * the renamed class would not verify (or, for the interface, the call would fail). Values stored in or loaded
-		 * from arrays are not followed; storing one into such an array throws ArrayStoreException.
+		 * the renamed class would not verify (or, for the interface, the call would fail). Also an AASTORE of such a value
+		 * into an array that is, on every path to it, one of those types' arrays (from a parameter, field, call or
+		 * ANEWARRAY): it would throw ArrayStoreException. Not checked: stores into a Cursor[] or Object[], allowed on
+		 * purpose although one can be such an array at run time; a store whose array type differs between the paths
+		 * that merge before it; values loaded from arrays, which are not followed.
 		 */
 		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, String> {
 			if (!mayConvertToAndroidCursor(m)) return emptyMap()
@@ -787,16 +829,25 @@ object SqliteRewriter {
 				object : BasicInterpreter(Opcodes.ASM9) {
 					override fun newValue(type: Type?): BasicValue? {
 						val v = super.newValue(type) ?: return null
-						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type)) else v
+						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type), androidCursorArray(type)) else v
 					}
 
 					override fun merge(
 						value1: BasicValue,
 						value2: BasicValue,
 					): BasicValue {
-						val renamed =
-							(value1 as? StaticCursorValue)?.renamedCursor == true || (value2 as? StaticCursorValue)?.renamedCursor == true
-						if (renamed && value1.type != null && value1.type == value2.type) return StaticCursorValue(value1.type, true)
+						val s1 = value1 as? StaticCursorValue
+						val s2 = value2 as? StaticCursorValue
+						// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
+						if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
+							val merged =
+								StaticCursorValue(
+									value1.type,
+									s1?.renamedCursor == true || s2?.renamedCursor == true,
+									s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray },
+								)
+							return if (merged == value1) value1 else merged
+						}
 						return super.merge(value1, value2)
 					}
 				}
@@ -815,6 +866,14 @@ object SqliteRewriter {
 				fun renamed(value: BasicValue?) = (value as? StaticCursorValue)?.renamedCursor == true
 
 				fun fromTop(depth: Int) = if (depth < f.stackSize) f.getStack(f.stackSize - 1 - depth) else null
+				if (insn.opcode == Opcodes.AASTORE) {
+					val element = (fromTop(2) as? StaticCursorValue)?.androidCursorArray
+					if (element != null && renamed(fromTop(0))) {
+						result[insn] = "an SQLite cursor stored into an array of ${element.replace('/', '.')}; requery's SQLiteCursor " +
+							"is not one, so the store would throw ArrayStoreException"
+					}
+					continue
+				}
 				val target: String? =
 					when {
 						insn is MethodInsnNode || insn is InvokeDynamicInsnNode -> {

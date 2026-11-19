@@ -502,7 +502,7 @@ class SqliteRewriterTest {
 		try {
 			SqliteRewriter.rewrite(classes["p/Chatty"]!!, counting)
 		} catch (e: SqliteRewriteException) {
-			// getUniqueId is reported, which is not what this test is about
+			// SQLiteStatement.getUniqueId fails the build (requery lacks it), which is not what this test is about
 		}
 		assertThat(asked.filter { it.startsWith("java/") || it.startsWith("android/") }).isEmpty()
 		assertThat(asked.groupingBy { it }.eachCount().filterValues { it > 1 }).isEmpty()
@@ -535,17 +535,14 @@ class SqliteRewriterTest {
 				),
 			)
 		val asked = mutableListOf<String>()
-		try {
-			SqliteRewriter.rewrite(
-				classes["p/Named"]!!,
-				ClassHierarchy { name ->
-					asked += name
-					null
-				},
-			)
-		} catch (e: SqliteRewriteException) {
-			// getUniqueId on an owner that cannot be resolved is reported, which is not what this test is about
-		}
+		// getUniqueId()I names no SQLite type, so on an owner that cannot be resolved it only warns
+		SqliteRewriter.rewrite(
+			classes["p/Named"]!!,
+			ClassHierarchy { name ->
+				asked += name
+				null
+			},
+		)
 		assertThat(asked).containsExactly("p/Mine", "p/Other")
 	}
 
@@ -1467,16 +1464,152 @@ class SqliteRewriterTest {
 					),
 				),
 			)
-		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/UsesLost"]!!, hierarchy) }
+		val warnings = mutableListOf<String>()
+		val bytes = classes["p/UsesLost"]!!
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(bytes, hierarchy, warn = warnings::add) }
 		val unresolved =
 			e.message!!
 				.lines()
 				.filter { "p.Lost cannot be resolved" in it }
 				.map { it.substringAfter("whether its ").substringBefore(" is ") }
-		// SQLiteDatabase is final, so no class inherits its rawQuery, and no rule has a delete(String)
-		assertThat(unresolved).hasSize(2)
-		assertThat(unresolved[0]).isEqualTo("isStrict()Z")
-		assertThat(unresolved[1]).startsWith("query(Landroid/database/sqlite/SQLiteDatabase;")
+		// SQLiteDatabase is final, so no class inherits its rawQuery, and no rule has a delete(String).
+		// isStrict()Z names no SQLite type, so it only warns; the query descriptor names SQLiteDatabase, so it fails.
+		assertThat(unresolved).hasSize(1)
+		assertThat(unresolved[0]).startsWith("query(Landroid/database/sqlite/SQLiteDatabase;")
+		assertThat(warnings).hasSize(1)
+		assertThat(warnings.single()).contains("p.Lost cannot be resolved")
+		assertThat(warnings.single()).contains("isStrict()Z")
+	}
+
+	@Test
+	fun `an unresolvable owner whose member names no SQLite type only warns`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesRow",
+						"""
+						package p;
+						public class UsesRow {
+							boolean go(com.unknown.Row r) { return r.isString(0); }
+						}
+						""",
+					),
+					// left out of the hierarchy, as an optional class the app does not ship is
+					src("com.unknown.Row", "package com.unknown; public class Row { public boolean isString(int i) { return false; } }"),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		SqliteRewriter.rewrite(classes["p/UsesRow"]!!, hierarchy, warn = warnings::add)
+		assertThat(warnings).hasSize(1)
+		assertThat(warnings.single()).contains("p.UsesRow")
+		assertThat(warnings.single()).contains("com.unknown.Row cannot be resolved")
+		assertThat(warnings.single()).contains("isString(I)Z")
+	}
+
+	@Test
+	fun `an unresolvable windowed cursor's setWindow(CursorWindow) and mWindow only warn`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesWindowed",
+						"""
+						package p;
+						import android.database.CursorWindow;
+						public class UsesWindowed {
+							void reset(com.unknown.Windowed c, CursorWindow w) { c.setWindow(w); }
+							CursorWindow window(com.unknown.Windowed c) { return c.mWindow; }
+						}
+						""",
+					),
+					// a library's own windowed cursor, as android's AbstractWindowedCursor declares both members; left
+					// out of the hierarchy, as an optional class the app does not ship is
+					src(
+						"com.unknown.Windowed",
+						"""
+						package com.unknown;
+						public class Windowed {
+							public android.database.CursorWindow mWindow;
+							public void setWindow(android.database.CursorWindow w) {}
+						}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		// CursorWindow is not an SQLite type: it carries every ContentProvider cursor across processes
+		SqliteRewriter.rewrite(classes["p/UsesWindowed"]!!, hierarchy, warn = warnings::add)
+		assertThat(warnings).hasSize(2)
+		assertThat(warnings[0]).contains("its setWindow(Landroid/database/CursorWindow;)V is SQLiteCursor.setWindow")
+		assertThat(warnings[0]).contains("the call is left as it is")
+		assertThat(warnings[1]).contains("its mWindowLandroid/database/CursorWindow; is SQLiteCursor.mWindow")
+		assertThat(warnings[1]).contains("the field access is left as it is")
+	}
+
+	@Test
+	fun `an unresolved-owner warning names the method and line, once per place`() {
+		val source =
+			"""
+			package p;
+			public class Sites {
+				boolean one(com.unknown.Row r) {
+					return r.isString(0) && r.isString(1);
+				}
+				boolean two(com.unknown.Row r) {
+					return r.isString(2);
+				}
+			}
+			"""
+		val classes =
+			Compiler.compile(
+				listOf(
+					src("p.Sites", source),
+					src("com.unknown.Row", "package com.unknown; public class Row { public boolean isString(int i) { return false; } }"),
+				),
+			)
+
+		fun lineOf(text: String) = source.lines().indexOfFirst { text in it } + 1
+		val warnings = mutableListOf<String>()
+		SqliteRewriter.rewrite(classes["p/Sites"]!!, hierarchy, warn = warnings::add)
+		// the two calls on one line make the same warning, logged once
+		assertThat(warnings.map { it.substringBefore(": ") })
+			.containsExactly("p.Sites.one (line ${lineOf("r.isString(0)")})", "p.Sites.two (line ${lineOf("r.isString(2)")})")
+			.inOrder()
+		assertThat(warnings.map { it.substringAfter(": ") }.distinct().single()).startsWith("com.unknown.Row cannot be resolved")
+	}
+
+	@Test
+	fun `an unresolvable owner whose member names an SQLite type still fails`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesQb",
+						"""
+						package p;
+						import android.database.sqlite.*;
+						public class UsesQb {
+							void go(com.unknown.Qb q, SQLiteDatabase db, String[] a, android.os.CancellationSignal s) {
+								q.query(db, a, "w", a, null, null, null, "1", s);
+							}
+						}
+						""",
+					),
+					src(
+						"com.unknown.Qb",
+						"""
+						package com.unknown;
+						public class Qb extends android.database.sqlite.SQLiteQueryBuilder {}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		val bytes = classes["p/UsesQb"]!!
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(bytes, hierarchy, warn = warnings::add) }
+		assertThat(e.message).contains("com.unknown.Qb cannot be resolved")
+		assertThat(warnings).isEmpty()
 	}
 
 	@Test
@@ -1526,6 +1659,107 @@ class SqliteRewriterTest {
 		val unverified = assertThrows(IllegalStateException::class.java) { transform(up("androidx.sqlite.db.framework")) }
 		assertThat(unverified.message).contains("does not verify")
 		assertThat(unverified.message).contains("androidx/sqlite/db/framework/Up")
+	}
+
+	@Test
+	fun `an SQLite cursor stored into an array of an Android cursor class fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Stores",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class Stores {
+							void param(AbstractCursor[] a, SQLiteCursor c) {
+								a[0] = c;
+							}
+							AbstractWindowedCursor[] fresh(SQLiteCursor c) {
+								AbstractWindowedCursor[] a = new AbstractWindowedCursor[1];
+								a[0] = c;
+								return a;
+							}
+							void crossProcess(CrossProcessCursor[] a, SQLiteCursor c) {
+								Object[] same = a;
+								same[0] = c;
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Stores"]!!, hierarchy) }
+		assertThat(e.message).contains("'p.Stores'")
+		assertThat(e.message).contains(
+			"  - param([Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 7): an SQLite cursor stored " +
+				"into an array of android.database.AbstractCursor; requery's SQLiteCursor is not one, so the store would throw ArrayStoreException",
+		)
+		assertThat(e.message).contains(
+			"  - fresh(Landroid/database/sqlite/SQLiteCursor;)[Landroid/database/AbstractWindowedCursor; (line 11): " +
+				"an SQLite cursor stored into an array of android.database.AbstractWindowedCursor",
+		)
+		// the Object[] local holds the parameter's array, which is a CrossProcessCursor[] on every path
+		assertThat(e.message).contains(
+			"  - crossProcess([Landroid/database/CrossProcessCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 16): " +
+				"an SQLite cursor stored into an array of android.database.CrossProcessCursor",
+		)
+	}
+
+	@Test
+	fun `an SQLite cursor stored into a Cursor or Object array, or another value into an Android cursor array, passes`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.StoresFine",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class StoresFine {
+							void cursors(Cursor[] a, SQLiteCursor c) {
+								a[0] = c;
+							}
+							void objects(Object[] a, SQLiteCursor c) {
+								a[0] = c;
+							}
+							void otherValues(AbstractCursor[] a, MatrixCursor m) {
+								a[0] = m;
+								a[1] = null;
+							}
+						}
+						""",
+					),
+				),
+			)
+		SqliteRewriter.rewrite(classes["p/StoresFine"]!!, hierarchy)
+	}
+
+	@Test
+	fun `a store whose array is an Android cursor array on one path only is not checked`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.StoresMerged",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class StoresMerged {
+							void merged(AbstractCursor[] a, Cursor[] k, SQLiteCursor c, boolean b) {
+								Cursor[] t = b ? a : k;
+								t[0] = c;
+							}
+						}
+						""",
+					),
+				),
+			)
+		// a known limit: when b is true, the store throws ArrayStoreException at run time
+		SqliteRewriter.rewrite(classes["p/StoresMerged"]!!, hierarchy)
 	}
 
 	@Test
