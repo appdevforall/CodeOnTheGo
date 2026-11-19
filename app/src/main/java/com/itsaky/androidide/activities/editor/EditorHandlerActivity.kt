@@ -1760,12 +1760,12 @@ open class EditorHandlerActivity :
 		}
 
 		val tabPosition = getTabPositionForFileIndex(index)
-		editorViewModel.removeFile(index)
-
-		if (tabPosition >= 0) {
-			content.tabs.removeTabAt(tabPosition)
-			content.editorContainer.removeViewAt(tabPosition)
-			shiftPluginIndices(tabPosition + 1, -1)
+		editorViewModel.removeFile(index) {
+			if (tabPosition >= 0) {
+				content.tabs.removeTabAt(tabPosition)
+				content.editorContainer.removeViewAt(tabPosition)
+				shiftPluginIndices(tabPosition + 1, -1)
+			}
 		}
 
 		editorViewModel.areFilesModified = hasUnsavedFiles()

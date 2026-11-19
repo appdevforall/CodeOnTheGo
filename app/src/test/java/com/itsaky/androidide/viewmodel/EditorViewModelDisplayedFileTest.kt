@@ -166,4 +166,25 @@ class EditorViewModelDisplayedFileTest {
 		assertThat(viewModel.displayedFileIndex).isEqualTo(1)
 		assertThat(viewModel.getCurrentFileIndex()).isEqualTo(1)
 	}
+
+	// The activity's observer maps the shown index to a tab and a view, so the index must not move
+	// while the closed tab's view still exists.
+	@Test
+	fun theShownIndexChangesOnlyAfterTheClosedTabsViewIsGone() {
+		open(a)
+		open(b)
+		open(s)
+		open(t)
+		viewModel.setCurrentFile(2, s)
+		var viewsRemoved = false
+		val removedAtEachFiring = mutableListOf<Boolean>()
+		viewModel._displayedFile.observeForever { removedAtEachFiring += viewsRemoved }
+		removedAtEachFiring.clear()
+
+		viewModel.removeFile(0) { viewsRemoved = true }
+
+		assertThat(removedAtEachFiring).isNotEmpty()
+		assertThat(removedAtEachFiring).doesNotContain(false)
+		assertThat(viewModel.displayedFile()).isEqualTo(s)
+	}
 }

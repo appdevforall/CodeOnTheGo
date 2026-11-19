@@ -35,6 +35,7 @@ class CloseOthersTest {
 	private val shown = File("/project/Shown.kt")
 	private val a = File("/project/A.kt")
 	private val b = File("/project/B.kt")
+	private val t = File("/project/T.kt")
 
 	@Test
 	fun closeOthersKeepsAShownFileWhoseEditorHasNotLoaded() {
@@ -86,15 +87,36 @@ class CloseOthersTest {
 		assertThat(activity.editorViewModel.getOpenedFiles()).containsExactly(shown)
 	}
 
+	// ViewAnimator shows the child at displayedChild, and removeViewAt leaves the shown child alone.
+	// So the editor shows the wrong file unless the closed tab's view is gone before the shown
+	// index moves.
+	@Test
+	fun closingAnEarlierTabRemovesItsViewBeforeTheShownIndexMoves() {
+		val events = mutableListOf<String>()
+		val activity = activityWithTabs(listOf(a to a, b to b, shown to shown, t to t), events = events)
+		activity.editorViewModel.selectFile(2, shown)
+		events.clear()
+
+		activity.closeFile(0)
+
+		assertThat(events.first()).isEqualTo("removeViewAt:0")
+		assertThat(events.last()).isEqualTo("displayedChild:1")
+		assertThat(activity.editorViewModel.displayedFile()).isEqualTo(shown)
+	}
+
 	/**
 	 * An editor activity, built but not created as in the other activity tests here, whose tab
 	 * strip and editor container follow its opened files. Each pair is an opened file and the file
 	 * its editor reports: null while the editor loads. The editor at [modifiedAt], if any, has
 	 * unsaved changes until it is marked saved, and [onModifiedCheck] runs each time that is asked.
+	 * With [events], the container's removeViewAt and displayedChild calls are recorded in it, and
+	 * the displayed-index observer onCreate would register is stood in for: it sets displayedChild
+	 * to the index, as there are no plugin tabs here.
 	 */
 	private fun activityWithTabs(
 		tabs: List<Pair<File, File?>>,
 		modifiedAt: Int = -1,
+		events: MutableList<String>? = null,
 		onModifiedCheck: () -> Unit = {},
 	): EditorHandlerActivity {
 		val activity = Robolectric.buildActivity(EditorHandlerActivity::class.java, Intent()).get()
@@ -116,7 +138,11 @@ class CloseOthersTest {
 			mockk<ViewFlipper>(relaxed = true) {
 				every { childCount } answers { editors.size }
 				every { getChildAt(any()) } answers { editors.getOrNull(firstArg()) }
-				every { removeViewAt(any()) } answers { editors.removeAt(firstArg<Int>()) }
+				every { removeViewAt(any()) } answers {
+					events?.add("removeViewAt:${firstArg<Int>()}")
+					editors.removeAt(firstArg<Int>())
+				}
+				every { setDisplayedChild(any()) } answers { events?.add("displayedChild:${firstArg<Int>()}") }
 			}
 		// The binding's views are public Java fields, which mockk cannot stub.
 		val content = mockk<ContentEditorBinding>(relaxed = true)
@@ -136,6 +162,9 @@ class CloseOthersTest {
 		activity._binding = binding
 
 		tabs.forEach { (opened, _) -> activity.editorViewModel.addFile(opened) }
+		if (events != null) {
+			activity.editorViewModel._displayedFile.observeForever { container.displayedChild = it }
+		}
 		return activity
 	}
 }

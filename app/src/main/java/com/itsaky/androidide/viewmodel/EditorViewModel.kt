@@ -402,9 +402,18 @@ class EditorViewModel : ViewModel() {
 	 * Remove the file at the given index from the list of opened files. The current and shown
 	 * indexes keep pointing at the same files when an earlier tab is removed.
 	 *
+	 * The shift waits for [removeViews]: the displayed-index observer maps the index through the tab
+	 * bar and the editor container, so shifting while the closed tab's view still exists would show
+	 * the wrong view.
+	 *
 	 * @param index The index of the closed file.
+	 * @param removeViews Removes the closed file's tab and editor view. Runs after the `files`
+	 * observers and before the indexes shift.
 	 */
-	fun removeFile(index: Int) =
+	fun removeFile(
+		index: Int,
+		removeViews: () -> Unit = {},
+	) {
 		updateFiles { files ->
 			files.removeAt(index)
 
@@ -412,20 +421,26 @@ class EditorViewModel : ViewModel() {
 				// As removeAllFiles does: no tab is left to select, so nothing else would tell the
 				// displayed-file observers that no file is shown.
 				setCurrentFile(-1, null)
-				return@updateFiles
-			}
-
-			// The tab bar fires no selection event when a tab before the selected one closes.
-			// Closing the shown tab itself is left to the tab selected next.
-			// Current file first, as setCurrentFile does: displayed-index observers may read it.
-			val current = mCurrentFile.value
-			if (current != null && index < current.first) {
-				mCurrentFile.value = (current.first - 1) to current.second
-			}
-			if (index < displayedFileIndex) {
-				displayedFileIndex -= 1
 			}
 		}
+
+		removeViews()
+
+		if (this.files.isEmpty()) {
+			return
+		}
+
+		// The tab bar fires no selection event when a tab before the selected one closes.
+		// Closing the shown tab itself is left to the tab selected next.
+		// Current file first, as setCurrentFile does: displayed-index observers may read it.
+		val current = mCurrentFile.value
+		if (current != null && index < current.first) {
+			mCurrentFile.value = (current.first - 1) to current.second
+		}
+		if (index < displayedFileIndex) {
+			displayedFileIndex -= 1
+		}
+	}
 
 	fun removeAllFiles() =
 		updateFiles { files ->
