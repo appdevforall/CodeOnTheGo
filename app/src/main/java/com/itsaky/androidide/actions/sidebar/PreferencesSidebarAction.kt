@@ -33,26 +33,28 @@ import kotlin.reflect.KClass
  *
  * @author Akash Yadav
  */
-class PreferencesSidebarAction(context: Context, override val order: Int) : AbstractSidebarAction() {
+class PreferencesSidebarAction(
+	context: Context,
+	override val order: Int,
+) : AbstractSidebarAction() {
+	override val id: String = ID
 
-  override val id: String = ID
+	companion object {
+		const val ID = "ide.editor.sidebar.preferences"
+	}
 
-  companion object {
-    const val ID = "ide.editor.sidebar.preferences"
-  }
+	// TODO : Should we show the preferences in the sidebar itself?
+	override val fragmentClass: KClass<out Fragment>? = null
 
-  // TODO : Should we show the preferences in the sidebar itself?
-  override val fragmentClass: KClass<out Fragment>? = null
+	init {
+		label = context.getString(R.string.ide_preferences)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_settings)
+	}
 
-  init {
-    label = context.getString(R.string.ide_preferences)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_settings)
-  }
+	override suspend fun execAction(data: ActionData): Any {
+		val context = data.requireContext()
+		return context.startActivity(Intent(context, PreferencesActivity::class.java))
+	}
 
-  override suspend fun execAction(data: ActionData): Any {
-    val context = data.requireContext()
-    return context.startActivity(Intent(context, PreferencesActivity::class.java))
-  }
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.PREFERENCES_SIDEBAR
-
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.PREFERENCES_SIDEBAR
 }

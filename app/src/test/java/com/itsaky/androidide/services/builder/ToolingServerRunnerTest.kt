@@ -18,17 +18,20 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.eclipse.lsp4j.jsonrpc.MessageConsumer
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -139,6 +142,34 @@ class ToolingServerRunnerTest {
 		override fun checkGradleWrapperAvailability(): CompletableFuture<GradleWrapperCheckResult> = CompletableFuture()
 	}
 
+	/** Records when the server's output reaches its end, and when the runner reports a stop. */
+	private class ReaderEndRecordingTap : ToolingMessageTap {
+		val events: MutableList<String> = CopyOnWriteArrayList()
+		val stopped = CountDownLatch(1)
+
+		override fun wrapInput(input: InputStream): InputStream =
+			object : FilterInputStream(input) {
+				override fun read(): Int = super.read().also(::recordEnd)
+
+				override fun read(
+					buffer: ByteArray,
+					offset: Int,
+					length: Int,
+				): Int = super.read(buffer, offset, length).also(::recordEnd)
+
+				private fun recordEnd(result: Int) {
+					if (result < 0 && "reader ended" !in events) events += "reader ended"
+				}
+			}
+
+		override fun wrapMessages(consumer: MessageConsumer): MessageConsumer = consumer
+
+		override fun onServerStopped() {
+			events += "stopped"
+			stopped.countDown()
+		}
+	}
+
 	private val started = CountDownLatch(1)
 	private var runner: ToolingServerRunner? = null
 
@@ -154,6 +185,7 @@ class ToolingServerRunnerTest {
 	@After
 	fun tearDown() {
 		runner?.release()
+		ToolingMessageTap.factory = null
 		unmockkStatic(ToolsManager::class)
 	}
 
@@ -201,5 +233,23 @@ class ToolingServerRunnerTest {
 		assertThat(runner.isStarted).isFalse()
 		assertThat(runner.pid).isNull()
 		assertThat(observer.exitCodes).containsExactly(1)
+	}
+
+	@Test
+	fun `a released runner reports the server stopped to the message tap only after the reader has ended`() {
+		val tap = ReaderEndRecordingTap()
+		ToolingMessageTap.factory = { tap }
+		val process = FakeProcess(exitCode = 0)
+		val runner = runner(process, RecordingObserver())
+		runner.startAsync(emptyMap())
+		assertThat(started.await(10, TimeUnit.SECONDS)).isTrue()
+
+		runner.release()
+		// A stop reported from the cancelled join arrives within this wait, before the reader ends.
+		tap.stopped.await(1, TimeUnit.SECONDS)
+		process.exit()
+
+		assertThat(tap.stopped.await(10, TimeUnit.SECONDS)).isTrue()
+		assertThat(tap.events).containsExactly("reader ended", "stopped").inOrder()
 	}
 }

@@ -14,12 +14,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.BufferedReader
 import java.io.File
+import java.io.IOException
 import java.io.InputStreamReader
+import java.nio.file.InvalidPathException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -44,24 +47,43 @@ class IdeCommandServiceImpl internal constructor(
 			when (spec) {
 				// Through the tooling server, never ./gradlew: a second daemon doubles Gradle's memory
 				// on the device, and its output would never reach the Build Output pane.
-				is CommandSpec.GradleTask -> GradleTaskExecution(executionId, spec, gradleTaskRunner, timeoutMs)
+				is CommandSpec.GradleTask -> {
+					GradleTaskExecution(executionId, spec, gradleTaskRunner, timeoutMs)
+				}
 
-				is CommandSpec.ShellCommand -> CommandExecutionImpl(executionId, shellProcess(spec), timeoutMs)
+				is CommandSpec.ShellCommand -> {
+					val workDir =
+						try {
+							resolvePluginWorkingDirectory(pluginId, projectRootProvider(), spec.workingDirectory)
+						} catch (e: InvalidPathException) {
+							return RejectedCommandExecution(executionId, "Invalid working directory: ${e.message}")
+						} catch (e: IOException) {
+							return RejectedCommandExecution(executionId, "Invalid working directory: ${e.message}")
+						}
+					val processBuilder =
+						try {
+							shellProcess(spec, workDir)
+						} catch (e: IllegalArgumentException) {
+							return RejectedCommandExecution(executionId, "Invalid environment: ${e.message}")
+						}
+					CommandExecutionImpl(executionId, processBuilder, timeoutMs)
+				}
 			}
 		runningCommands[executionId] = execution
 		execution.start { runningCommands.remove(executionId) }
 		return execution
 	}
 
-	private fun shellProcess(spec: CommandSpec.ShellCommand): ProcessBuilder {
-		val workDir = resolvePluginWorkingDirectory(pluginId, projectRootProvider(), spec.workingDirectory)
-		return ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
+	private fun shellProcess(
+		spec: CommandSpec.ShellCommand,
+		workDir: File?,
+	): ProcessBuilder =
+		ProcessBuilder(listOf(spec.executable) + spec.arguments).apply {
 			workDir?.let { directory(it) }
 			environment().putAll(spec.environment)
 			redirectErrorStream(false)
 			TermuxProcessEnvironment.applyTo(environment(), appFilesDir)
 		}
-	}
 
 	override fun isCommandRunning(executionId: String): Boolean = runningCommands[executionId]?.isRunning() == true
 
@@ -223,4 +245,17 @@ private class CommandExecutionImpl(
 	companion object {
 		private const val MAX_OUTPUT_BYTES = 10 * 1024 * 1024
 	}
+}
+
+private class RejectedCommandExecution(
+	override val executionId: String,
+	error: String,
+) : CommandExecution {
+	private val result = CommandResult.Failure(-1, "", "", error, 0)
+
+	override val output: Flow<CommandOutput> = emptyFlow()
+
+	override suspend fun await(): CommandResult = result
+
+	override fun cancel() = Unit
 }

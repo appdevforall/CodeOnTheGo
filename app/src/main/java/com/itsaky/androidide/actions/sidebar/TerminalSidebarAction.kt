@@ -58,21 +58,22 @@ class TerminalSidebarAction(
 		) {
 			val context = data.requireContext()
 			val intent =
-				Intent(context, TerminalActivity::class.java).apply {
-					putExtra(
-						TERMUX_ACTIVITY.EXTRA_SESSION_WORKING_DIR,
-						Objects.requireNonNull(IProjectManager.getInstance().projectDirPath),
-					)
-					putExtra(
-						TERMUX_ACTIVITY.EXTRA_SESSION_NAME,
-						IProjectManager
-							.getInstance()
-							.workspace
-							?.rootProject
-							?.name,
-					)
-					putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, isFailsafe)
-			}.applyMultiWindowFlags(context)
+				Intent(context, TerminalActivity::class.java)
+					.apply {
+						putExtra(
+							TERMUX_ACTIVITY.EXTRA_SESSION_WORKING_DIR,
+							Objects.requireNonNull(IProjectManager.getInstance().projectDirPath),
+						)
+						putExtra(
+							TERMUX_ACTIVITY.EXTRA_SESSION_NAME,
+							IProjectManager
+								.getInstance()
+								.workspace
+								?.rootProject
+								?.name,
+						)
+						putExtra(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, isFailsafe)
+					}.applyMultiWindowFlags(context)
 			context.startActivity(intent)
 		}
 	}
@@ -82,5 +83,5 @@ class TerminalSidebarAction(
 		return true
 	}
 
-	override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.TERMINAL_SIDEBAR
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.TERMINAL_SIDEBAR
 }

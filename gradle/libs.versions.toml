@@ -19,6 +19,7 @@ gson = "2.10.1"
 junit-jupiter = "5.10.2"
 anroidx-test-core = "2.2.0"
 koinAndroid = "4.1.1"
+# A Kotlin minor bump may need a newer `r8` (see its entry below, ADFA-6822).
 kotlin = "2.3.0"
 kotlin-coroutines = "1.9.0"
 kotlinxCoroutinesCore = "1.10.2"
@@ -37,6 +38,9 @@ ksp = "2.3.6"
 antlr4 = "4.13.1"
 androidx-work = "2.10.0"
 androidx-espresso = "3.5.1"
+# Pinned ahead of AGP on the root buildscript classpath: AGP 8.8.2's bundled D8 8.8.34 cannot rewrite
+# Kotlin 2.3 metadata. Bump with `kotlin`; remove once AGP is upgraded (ADFA-6837).
+r8 = "8.13.25"
 retrofit = "2.11.0"
 markwon = "4.6.2"
 maven-publish-plugin = "0.27.0"
@@ -324,6 +328,7 @@ tooling-slf4j = { module = "org.slf4j:slf4j-api", version = "2.0.17" }
 snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version = "2.10" }
 
 # Classpaths
+android-r8 = { module = "com.android.tools:r8", version.ref = "r8" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 nav-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-safe-args-gradle-plugin", version.ref = "androidx-navigation" }

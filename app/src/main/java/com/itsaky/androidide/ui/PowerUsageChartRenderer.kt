@@ -116,8 +116,8 @@ class PowerUsageChartRenderer(
 	fun onUsageChanged(usage: PowerUsage) {
 		val chart = this.chart ?: return
 		val data = chart.data
-		val temperature = data?.getDataSetByIndex(TEMPERATURE_INDEX) as LineDataSet?
-		val power = data?.getDataSetByIndex(POWER_INDEX) as LineDataSet?
+		val temperature = data.getDataSetByIndex(TEMPERATURE_INDEX) as LineDataSet?
+		val power = data.getDataSetByIndex(POWER_INDEX) as LineDataSet?
 
 		if (temperature == null || power == null ||
 			temperature.entryCount != usage.temperatureMilliCelsius.size ||

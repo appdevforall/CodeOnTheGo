@@ -1372,7 +1372,7 @@ abstract class BaseEditorActivity :
 	override fun onTabReselected(tab: Tab) {
 		val position = tab.position
 		if (this is EditorHandlerActivity && isPluginTab(position)) {
-			(this as EditorHandlerActivity).showPluginTabPopup(tab)
+			showPluginTabPopup(tab)
 			return
 		}
 
@@ -1948,7 +1948,7 @@ abstract class BaseEditorActivity :
 					content.apply {
 						val safeOffset = slideOffset.coerceAtLeast(0f)
 						val editorScale = 1 - safeOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-						this.bottomSheet.onSlide(slideOffset)
+						this.bottomSheet.onSlide()
 						this.viewContainer.scaleX = editorScale
 						this.viewContainer.scaleY = editorScale
 					}

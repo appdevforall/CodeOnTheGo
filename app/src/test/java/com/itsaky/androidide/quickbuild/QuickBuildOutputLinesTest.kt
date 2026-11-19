@@ -251,7 +251,7 @@ class QuickBuildOutputLinesTest {
 	}
 
 	@Test
-	fun `invalidation reads as information and names a next step`() {
+	fun `invalidation reads as information and says the full build is starting`() {
 		val emitted =
 			lines(
 				QuickBuildStatus.UpToDate(4L, buildDurationMillis = null),
@@ -259,7 +259,8 @@ class QuickBuildOutputLinesTest {
 			).joinToString("")
 
 		assertThat(emitted).contains("the manifest changed")
-		assertThat(emitted).contains("Tap Quick Build")
+		assertThat(emitted).contains("Starting it now")
+		assertThat(emitted).doesNotContain("Tap")
 		// Not a failure - a full build is the normal answer to an unabsorbable edit.
 		assertThat(emitted).doesNotContain("failed")
 	}

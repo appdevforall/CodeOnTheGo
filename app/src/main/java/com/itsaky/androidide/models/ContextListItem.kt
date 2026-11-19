@@ -6,12 +6,14 @@ import androidx.annotation.DrawableRes
 sealed interface ContextListItem
 
 // A data class for section titles like "FILES AND FOLDERS"
-data class HeaderItem(val title: String) : ContextListItem
+data class HeaderItem(
+	val title: String,
+) : ContextListItem
 
 // A data class for a single selectable option
 data class SelectableItem(
-    val id: String, // A unique ID for the item
-    val text: String,
-    @DrawableRes val icon: Int,
-    var isSelected: Boolean = false
+	val id: String, // A unique ID for the item
+	val text: String,
+	@param:DrawableRes @get:DrawableRes val icon: Int,
+	var isSelected: Boolean = false,
 ) : ContextListItem

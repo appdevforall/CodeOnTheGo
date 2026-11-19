@@ -1,6 +1,7 @@
 package org.appdevforall.codeonthego.indexing.service
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -197,6 +198,69 @@ class IndexRegistryTest {
 		assertThat(got).isEqualTo("created")
 		assertThat(registry.get(keyA)).isEqualTo("created")
 		assertThat(received).containsExactly("created")
+	}
+
+	@Test
+	fun `registerIfAbsent after close does not create and throws`() {
+		val registry = IndexRegistry()
+		registry.close()
+		var created = false
+
+		assertThrows(IndexRegistryClosedException::class.java) {
+			registry.registerIfAbsent(keyA) {
+				created = true
+				"created"
+			}
+		}
+
+		assertThat(created).isFalse()
+		assertThat(registry.get(keyA)).isNull()
+	}
+
+	@Test
+	fun `registerIfAbsent after the session ended does not create and throws`() {
+		val registry = IndexRegistry()
+		registry.lifetime.end()
+		var created = false
+
+		assertThrows(IndexRegistryClosedException::class.java) {
+			registry.registerIfAbsent(keyA) {
+				created = true
+				"created"
+			}
+		}
+
+		assertThat(created).isFalse()
+	}
+
+	@Test
+	fun `require of a missing index after the session ended throws the closed exception`() {
+		val registry = IndexRegistry()
+		registry.lifetime.end()
+
+		assertThrows(IndexRegistryClosedException::class.java) { registry.require(keyA) }
+	}
+
+	@Test
+	fun `register after close closes the given index and throws`() {
+		val registry = IndexRegistry()
+		registry.close()
+		val keyC = IndexKey<CloseableValue>("index-c")
+		val index = CloseableValue()
+
+		assertThrows(IndexRegistryClosedException::class.java) { registry.register(keyC, index) }
+
+		assertThat(index.closed).isTrue()
+		assertThat(registry.get(keyC)).isNull()
+	}
+
+	@Test
+	fun `require after close throws the closed exception`() {
+		val registry = IndexRegistry()
+		registry.register(keyA, "a")
+		registry.close()
+
+		assertThrows(IndexRegistryClosedException::class.java) { registry.require(keyA) }
 	}
 
 	class CloseableValue : Closeable {

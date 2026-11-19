@@ -23,6 +23,7 @@ import static java.util.Collections.emptySet;
 import androidx.annotation.NonNull;
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import com.itsaky.androidide.javac.services.fs.AndroidFsProviderImpl;
+import com.itsaky.androidide.javac.services.fs.JarPackageProviderImpl;
 import com.itsaky.androidide.projects.api.AndroidModule;
 import com.itsaky.androidide.projects.api.ModuleProject;
 import com.itsaky.androidide.projects.models.AndroidProjectExtsKt;
@@ -30,8 +31,11 @@ import com.itsaky.androidide.projects.util.StringSearch;
 import com.itsaky.androidide.utils.ClassTrie;
 import com.itsaky.androidide.utils.Environment;
 import com.itsaky.androidide.utils.SourceClassTrie;
+import com.itsaky.androidide.zipfs2.JarPackageProvider;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,13 +47,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+import jdkx.tools.DiagnosticListener;
 import jdkx.tools.FileObject;
 import jdkx.tools.ForwardingJavaFileManager;
 import jdkx.tools.JavaFileObject;
 import jdkx.tools.StandardLocation;
-import openjdk.tools.javac.api.JavacTool;
+import openjdk.tools.javac.file.CacheFSInfo;
 import openjdk.tools.javac.file.JavacFileManager;
 import openjdk.tools.javac.util.Context;
+import openjdk.tools.javac.util.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,10 +88,15 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 		return cachedFileManagers.computeIfAbsent(project, SourceFileManager::createForModule);
 	}
 
-	private static JavacFileManager createDelegateFileManager() {
-		return JavacTool.create()
-				.getStandardFileManager(msg -> LOG.debug(String.valueOf(msg)), Locale.getDefault(),
-						StandardCharsets.UTF_8);
+	/* Mirrors JavacTool.getStandardFileManager, plus the shared jar package provider. It must be in the context before the file manager is built, because the classpath archive containers are created in the constructor and read the provider only once. */
+	static JavacFileManager createDelegateFileManager() {
+		final Context context = new Context();
+		context.put(Locale.class, Locale.getDefault());
+		context.put(DiagnosticListener.class, (DiagnosticListener<JavaFileObject>) msg -> LOG.debug(String.valueOf(msg)));
+		context.put(Log.errKey, new PrintWriter(new OutputStreamWriter(System.err, StandardCharsets.UTF_8), true));
+		CacheFSInfo.preRegister(context);
+		context.put(JarPackageProvider.class, JarPackageProviderImpl.INSTANCE);
+		return new JavacFileManager(context, true, StandardCharsets.UTF_8);
 	}
 
 	private static SourceFileManager createForModule(@NonNull ModuleProject project) {

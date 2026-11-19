@@ -64,6 +64,7 @@ import com.itsaky.androidide.tasks.createJobCancelChecker
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.ifNotEmpty
+import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
@@ -133,8 +134,8 @@ class KotlinLanguageServer : ILanguageServer {
 		private val logger = LoggerFactory.getLogger(KotlinLanguageServer::class.java)
 
 		/**
-		 * Runs every Compiler.close(), which blocks draining workers and is reached from
-		 * ProjectHandlerActivity.onDestroy on the main thread. One thread serializes closes; the next
+		 * Runs every Compiler.close(), which blocks draining workers and is reached from the editor's
+		 * project teardown in ProjectHandlerActivity.onPause, on the main thread. One thread serializes closes; the next
 		 * build waits so a new compiler never starts while the previous one is still disposing.
 		 */
 		private val closeExecutor =
@@ -191,6 +192,8 @@ class KotlinLanguageServer : ILanguageServer {
 		EventBus.getDefault().unregister(this)
 		session.shutdown()
 		scope.cancel("LSP is being shut down")
+		// Drops the VFS handlers too, closing their JAR handles; the registry shuts every server down on project close.
+		JarListingCache.SHARED.clear()
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
@@ -213,10 +216,14 @@ class KotlinLanguageServer : ILanguageServer {
 	}
 
 	private inner class ProjectCompilerLifecycle : CompilerLifecycle<Compiler> {
-		override fun prepare(workspace: Workspace) {
+		override fun currentManager() = ProjectManagerImpl.getInstance().indexingServiceManager
+
+		override fun prepare(
+			workspace: Workspace,
+			manager: IndexingServiceManager,
+		) {
 			val context = BaseApplication.baseInstance
-			val indexingServiceManager = ProjectManagerImpl.getInstance().indexingServiceManager
-			val indexingRegistry = indexingServiceManager.registry
+			val indexingRegistry = manager.registry
 
 			// Once per project: replacing them would close the instances a live session reads.
 			indexingRegistry.registerIfAbsent(KT_SOURCE_FILE_INDEX_KEY) {
@@ -224,17 +231,19 @@ class KotlinLanguageServer : ILanguageServer {
 					context = context,
 					dbName = KT_SOURCE_FILE_INDEX_KEY.name,
 					indexName = KT_SOURCE_FILE_INDEX_KEY.name,
+					lifetime = indexingRegistry.lifetime,
 				)
 			}
 			indexingRegistry.registerIfAbsent(KT_SOURCE_FILE_META_INDEX_KEY) {
 				KtFileMetadataIndex.sqliteBacked(
 					context = context,
 					dbName = KT_SOURCE_FILE_META_INDEX_KEY.name,
+					lifetime = indexingRegistry.lifetime,
 				)
 			}
 
 			val jvmLibraryIndexingService =
-				indexingServiceManager.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
+				manager.getService(JvmLibraryIndexingService.ID) as? JvmLibraryIndexingService?
 			jvmLibraryIndexingService?.refresh()
 		}
 
@@ -249,6 +258,7 @@ class KotlinLanguageServer : ILanguageServer {
 		override fun build(
 			workspace: Workspace,
 			layout: KotlinModuleLayout,
+			manager: IndexingServiceManager,
 		): Compiler {
 			logger.info("Creating analysis session")
 
@@ -256,7 +266,7 @@ class KotlinLanguageServer : ILanguageServer {
 				JvmTarget.fromString(IJdkDistributionProvider.DEFAULT_JAVA_VERSION)
 					?: JvmTarget.JVM_21
 
-			val model = KotlinProjectModel()
+			val model = KotlinProjectModel(manager.registry)
 			model.update(workspace, JvmPlatforms.jvmPlatformByTargetVersion(jvmTarget))
 
 			return Compiler(
@@ -468,12 +478,13 @@ class KotlinLanguageServer : ILanguageServer {
 	@Suppress("unused")
 	fun onFileDeleted(event: FileDeletionEvent) {
 		val path = event.file.toPath()
-		if (!DocumentUtils.isKotlinFile(path)) {
+		// The file is already gone, so only its extension can say it was Kotlin.
+		if (!DocumentUtils.hasKotlinExtension(path)) {
 			return
 		}
 
 		scope.launch {
-			runCatching { compiler?.compilationEnvironmentFor(path) }
+			runCatching { compiler?.compilationEnvironmentForKotlinPath(path) }
 				.getOrNull()
 				?.onFileRemoved(path)
 		}
@@ -488,7 +499,8 @@ class KotlinLanguageServer : ILanguageServer {
 		scope.launch {
 			// One read: a rebuild can swap the compiler between two reads of the property.
 			val compiler = compiler ?: return@launch
-			val oldIsKotlinFile = DocumentUtils.isKotlinFile(fromPath)
+			// The old path no longer exists, so only its extension can say it was Kotlin.
+			val oldIsKotlinFile = DocumentUtils.hasKotlinExtension(fromPath)
 			val newIsKotlinFile = DocumentUtils.isKotlinFile(toPath)
 
 			if (!oldIsKotlinFile && newIsKotlinFile) {
@@ -504,17 +516,16 @@ class KotlinLanguageServer : ILanguageServer {
 				// only the old file was a Kotlin file
 				// so just remove it from the index
 				compiler
-					.compilationEnvironmentFor(fromPath)
+					.compilationEnvironmentForKotlinPath(fromPath)
 					?.onFileRemoved(fromPath)
 				return@launch
 			}
 
-			val fromKind = runCatching { compiler.compilationKindFor(fromPath) }.getOrNull()
-			val toKind = runCatching { compiler.compilationKindFor(toPath) }.getOrNull()
-			val fromEnv = fromKind?.let { compiler.compilationEnvironmentFor(it) }
-			val toEnv = toKind?.let { compiler.compilationEnvironmentFor(it) }
+			// Path-based, so a .kts side yields no environment instead of the kind-based overload's throw.
+			val fromEnv = runCatching { compiler.compilationEnvironmentForKotlinPath(fromPath) }.getOrNull()
+			val toEnv = runCatching { compiler.compilationEnvironmentForKotlinPath(toPath) }.getOrNull()
 
-			if (fromKind != null && fromEnv == toEnv && toEnv != null) {
+			if (fromEnv != null && fromEnv == toEnv) {
 				// file was renamed within the same compilation environment
 				toEnv.onFileMoved(fromPath, toPath)
 				return@launch

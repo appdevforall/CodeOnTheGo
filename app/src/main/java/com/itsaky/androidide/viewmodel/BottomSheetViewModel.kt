@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 class BottomSheetViewModel : ViewModel() {
 	data class SheetState(
 		val sheetState: Int,
-		@TabDef
+		@param:TabDef
 		val currentTab: Int,
 	) {
 		companion object {

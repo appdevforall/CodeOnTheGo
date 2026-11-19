@@ -1,5 +1,6 @@
 package com.itsaky.androidide.utils
 
+import com.itsaky.androidide.models.DeepLinkRequest
 import java.io.File
 import java.io.IOException
 import java.text.Normalizer
@@ -139,6 +140,8 @@ internal fun projectNamesMatch(
  * OPEN one -- for two clones of a repo the path exists in both, so the wrong file opens silently.
  * So the parent has to match as well.
  *
+ * [DeepLinkRequest.WILDCARD_PROJECT] is the target of whichever project is open, as long as one is.
+ *
  * Canonicalised, since either side can reach the same directory through a symlink; a failure to
  * canonicalise (an unreadable parent) falls back to the absolute path rather than throwing.
  */
@@ -147,6 +150,12 @@ internal fun isDeepLinkTargetOfOpenProject(
 	projectName: String,
 	projectsRoot: File,
 ): Boolean {
+	// The wildcard names whatever is open, wherever it lives, so there is no parent to compare.
+	// Deliberately here and not in deepLinkTargetOfOpenProjectWithoutIo: its other caller,
+	// CreateLinkAction, passes a real project's name, and a directory literally called "<*>" must not
+	// be reported as linkable by it.
+	if (projectName == DeepLinkRequest.WILDCARD_PROJECT) return openProjectPath.isNotBlank()
+
 	deepLinkTargetOfOpenProjectWithoutIo(openProjectPath, projectName, projectsRoot)?.let { return it }
 
 	// Deliberately NOT `deepLinkTargetOfOpenProjectOrNull(...) ?: false`, which was tried on the

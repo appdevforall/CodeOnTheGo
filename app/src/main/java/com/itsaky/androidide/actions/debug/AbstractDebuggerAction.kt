@@ -12,26 +12,25 @@ import com.itsaky.androidide.lsp.IDEDebugClientImpl
  * @author Akash Yadav
  */
 abstract class AbstractDebuggerAction(
-    @DrawableRes private val iconRes: Int
+	@param:DrawableRes private val iconRes: Int,
 ) : ActionItem {
+	// debugger actions must always be executed in a background thread
+	override var requiresUIThread = false
+	override var location = ActionItem.Location.DEBUGGER_ACTIONS
 
-    // debugger actions must always be executed in a background thread
-    override var requiresUIThread = false
-    override var location = ActionItem.Location.DEBUGGER_ACTIONS
+	override var visible = true
+	override var enabled = true
+	override var icon: Drawable? = null
 
-    override var visible = true
-    override var enabled = true
-    override var icon: Drawable? = null
+	protected val debugClient: IDEDebugClientImpl?
+		get() = IDEDebugClientImpl.getInstance()
 
-    protected val debugClient: IDEDebugClientImpl?
-        get() = IDEDebugClientImpl.getInstance()
+	protected open fun checkEnabled(data: ActionData): Boolean = debugClient?.isVmConnected() == true
 
-    protected open fun checkEnabled(data: ActionData): Boolean = debugClient?.isVmConnected() == true
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
-
-        icon = ContextCompat.getDrawable(data.requireContext(), iconRes)
-        enabled = checkEnabled(data)
-    }
+		icon = ContextCompat.getDrawable(data.requireContext(), iconRes)
+		enabled = checkEnabled(data)
+	}
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
+import org.appdevforall.codeonthego.indexing.IndexSessionLifetime
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.service.IndexKey
 import org.appdevforall.codeonthego.indexing.service.IndexRegistry
@@ -57,7 +58,7 @@ class JarIndexingServiceProgressTest {
 		val service =
 			TestService(
 				jars = setOf(jar("a.jar"), jar("b.jar"), jar("c.jar")),
-				indexFactory = { _, _, _ -> JvmSymbolIndex(backing, BackgroundIndexer(backing)) },
+				indexFactory = { _, _, _, _ -> JvmSymbolIndex(backing, BackgroundIndexer(backing)) },
 			)
 
 		val counted =
@@ -161,7 +162,7 @@ class JarIndexingServiceProgressTest {
 	private inner class TestService(
 		private val jars: Set<String>,
 		private val onComplete: suspend () -> Unit = {},
-		indexFactory: (Context, String, String) -> JvmSymbolIndex = JvmSymbolIndex::createSqliteIndex,
+		indexFactory: (Context, String, String, IndexSessionLifetime?) -> JvmSymbolIndex = JvmSymbolIndex::createSqliteIndex,
 	) : JarIndexingService(context, tracker, workspaceSupplier = { mockk<Workspace>() }, indexFactory = indexFactory) {
 		var stateWhileCompleting: IndexingState? = null
 

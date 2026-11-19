@@ -1,12 +1,41 @@
 package org.appdevforall.codeonthego.indexing.jvm
 
 import android.content.Context
+import org.appdevforall.codeonthego.indexing.IndexSessionLifetime
 import org.appdevforall.codeonthego.indexing.SQLiteIndex
 import org.appdevforall.codeonthego.indexing.api.Index
 import org.appdevforall.codeonthego.indexing.api.indexQuery
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor.KEY_IS_INDEXED
 import org.appdevforall.codeonthego.indexing.jvm.KtFileMetadataDescriptor.KEY_PACKAGE
 import java.io.Closeable
+import java.util.concurrent.CopyOnWriteArrayList
+
+/**
+ * A completed write to a [KtFileMetadataIndex].
+ */
+sealed interface KtFileMetadataWrite {
+	/** The record for [filePath] was inserted or replaced; its package is [packageFqName]. */
+	data class Upserted(
+		val filePath: String,
+		val packageFqName: String,
+	) : KtFileMetadataWrite
+
+	/** The records for [filePaths] were removed. */
+	data class Removed(
+		val filePaths: Collection<String>,
+	) : KtFileMetadataWrite
+
+	/** Every record was removed. */
+	data object Cleared : KtFileMetadataWrite
+}
+
+/**
+ * Receives each [KtFileMetadataWrite] after it has been applied to the index.
+ */
+fun interface KtFileMetadataWriteListener {
+	/** Called synchronously on the writing thread once [write] is visible to readers. */
+	fun onWrite(write: KtFileMetadataWrite)
+}
 
 /**
  * An index of [KtFileMetadata] entries, one per Kotlin source file.
@@ -19,11 +48,13 @@ class KtFileMetadataIndex(
 		 * Creates a [KtFileMetadataIndex] backed by a SQLite database.
 		 *
 		 * The [context] is required by the AndroidX SQLite helpers even for in-memory
-		 * databases; it is not used for any file I/O.
+		 * databases; it is not used for any file I/O. [lifetime] is the project session owning the
+		 * index, or null if it has none.
 		 */
 		fun sqliteBacked(
 			context: Context,
 			dbName: String? = null,
+			lifetime: IndexSessionLifetime? = null,
 		): KtFileMetadataIndex =
 			KtFileMetadataIndex(
 				SQLiteIndex(
@@ -32,8 +63,25 @@ class KtFileMetadataIndex(
 					dbName = dbName,
 					formatVersion = JvmSymbolIndex.FORMAT_VERSION,
 					name = "kt-file-metadata",
+					lifetime = lifetime,
 				),
 			)
+	}
+
+	private val listeners = CopyOnWriteArrayList<KtFileMetadataWriteListener>()
+
+	/**
+	 * Registers [listener] to be told about every later write.
+	 *
+	 * Closing the returned handle unregisters it.
+	 */
+	fun addWriteListener(listener: KtFileMetadataWriteListener): AutoCloseable {
+		listeners.add(listener)
+		return AutoCloseable { listeners.remove(listener) }
+	}
+
+	private fun notifyListeners(write: KtFileMetadataWrite) {
+		listeners.forEach { it.onWrite(write) }
 	}
 
 	/**
@@ -42,14 +90,20 @@ class KtFileMetadataIndex(
 	 * Because [KtFileMetadata.key] and [KtFileMetadata.sourceId] are both the
 	 * file path, a file has at most one row and an insert replaces it.
 	 */
-	suspend fun upsert(metadata: KtFileMetadata) = backing.insert(metadata)
+	suspend fun upsert(metadata: KtFileMetadata) {
+		backing.insert(metadata)
+		notifyListeners(KtFileMetadataWrite.Upserted(metadata.filePath, metadata.packageFqName))
+	}
 
 	/**
 	 * Remove the metadata record for [filePath].
 	 *
 	 * No-op if the file is not in the index.
 	 */
-	suspend fun remove(filePath: String) = backing.removeBySource(filePath)
+	suspend fun remove(filePath: String) {
+		backing.removeBySource(filePath)
+		notifyListeners(KtFileMetadataWrite.Removed(listOf(filePath)))
+	}
 
 	/**
 	 * Remove the metadata records for every path in [filePaths] as a single
@@ -59,7 +113,10 @@ class KtFileMetadataIndex(
 	 * transaction instead of N - see [Index.removeBySources]. Paths not present in
 	 * the index are ignored.
 	 */
-	suspend fun removeAll(filePaths: Collection<String>) = backing.removeBySources(filePaths)
+	suspend fun removeAll(filePaths: Collection<String>) {
+		backing.removeBySources(filePaths)
+		notifyListeners(KtFileMetadataWrite.Removed(filePaths))
+	}
 
 	/**
 	 * Return the [KtFileMetadata] for [filePath], or `null` if the file is
@@ -150,7 +207,10 @@ class KtFileMetadataIndex(
 			).map { it.filePath }
 
 	/** Remove all records from the index. */
-	suspend fun clear() = backing.clear()
+	suspend fun clear() {
+		backing.clear()
+		notifyListeners(KtFileMetadataWrite.Cleared)
+	}
 
 	/** Whether the backing index still serves reads and writes. */
 	val isOpen: Boolean

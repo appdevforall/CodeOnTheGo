@@ -33,6 +33,15 @@ enum class DeepLinkDepth {
 	COLUMN,
 }
 
+/** How a link identified its project. */
+enum class DeepLinkSelector {
+	/** By name, the original form. */
+	NAME,
+
+	/** By the `<*>` wildcard: whichever project is open. */
+	CURRENT,
+}
+
 /** What an incoming deep link ended up doing. */
 enum class DeepLinkOutcome {
 	/** Parsed and accepted, before anything was resolved. Pairs with a later terminal outcome. */
@@ -53,6 +62,9 @@ enum class DeepLinkOutcome {
 	 * here means storage trouble, not people mistyping project names.
 	 */
 	PROJECT_UNVERIFIABLE,
+
+	/** A wildcard link arrived with no project open to resolve it against. */
+	NO_PROJECT_OPEN,
 }
 
 /**
@@ -64,7 +76,15 @@ enum class DeepLinkOutcome {
 class DeepLinkMetric(
 	private val depth: DeepLinkDepth,
 	private val outcome: DeepLinkOutcome,
+	/**
+	 * The project's real name, or `null` when there is none to hash. Callers pass `null` for a
+	 * wildcard link, whose name is never resolved on a path that reports a metric -- and never the
+	 * wildcard token itself, which would hash to one value for every project and could not be joined
+	 * with `project_opened`.
+	 */
 	private val projectName: String? = null,
+	/** Whether the link named its project (`name`) or used the wildcard (`current`). */
+	private val selector: DeepLinkSelector = DeepLinkSelector.NAME,
 ) : Metric {
 	override val eventName: String = EVENT_NAME
 
@@ -72,6 +92,7 @@ class DeepLinkMetric(
 		Bundle().apply {
 			putString("depth", depth.name.lowercase())
 			putString("outcome", outcome.name.lowercase())
+			putString("selector", selector.name.lowercase())
 			// Hashed, never the raw name -- a project name is the user's content, and a link can
 			// carry a file path too. Matches trackProjectOpened's project_hash, which also makes the
 			// two joinable without either of them carrying the name off the device.
@@ -83,6 +104,9 @@ class DeepLinkMetric(
 		const val EVENT_NAME = "deep_link"
 	}
 }
+
+/** See [DeepLinkSelector]. */
+fun DeepLinkRequest.selector(): DeepLinkSelector = if (isCurrentProject) DeepLinkSelector.CURRENT else DeepLinkSelector.NAME
 
 /** How far down the optional segments this request actually reached. */
 fun DeepLinkRequest.depth(): DeepLinkDepth {

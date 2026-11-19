@@ -63,6 +63,16 @@ private sealed interface TemplateManagerDialogState : Parcelable {
 	data object None : TemplateManagerDialogState
 
 	@Parcelize
+	data class InstallConfirm(
+		val path: String,
+	) : TemplateManagerDialogState
+
+	@Parcelize
+	data class UninstallConfirm(
+		val path: String,
+	) : TemplateManagerDialogState
+
+	@Parcelize
 	data class DeleteConfirm(
 		val path: String,
 	) : TemplateManagerDialogState
@@ -87,8 +97,9 @@ private data class SelectedTemplateKey(
 
 /**
  * Templates tab content (ADR 0009). Passively scans `Environment.TEMPLATES_DIR` + the Downloads
- * folder for `.cgt` files - unlike the Plugins tab, there's no FAB/file-picker install flow here,
- * matching the reference `TemplateManagerPlugin`'s design.
+ * folder for `.cgt` files, matching the reference `TemplateManagerPlugin`'s design. The shared
+ * manager screen's + button also installs a `.cgt` from this tab; that flow lives in
+ * [com.itsaky.androidide.ui.compose.ManagerScreen], not here.
  *
  * Content-only (no Scaffold/TopAppBar): meant to be composed as one tab's body inside the shared
  * manager screen alongside the Plugins tab.
@@ -149,6 +160,14 @@ fun TemplateManagerScreen(
 						)
 					}
 
+					is TemplateManagerUiEffect.ShowInstallConfirmation -> {
+						dialogState = TemplateManagerDialogState.InstallConfirm(effect.item.file.absolutePath)
+					}
+
+					is TemplateManagerUiEffect.ShowUninstallConfirmation -> {
+						dialogState = TemplateManagerDialogState.UninstallConfirm(effect.item.file.absolutePath)
+					}
+
 					is TemplateManagerUiEffect.ShowDeleteConfirmation -> {
 						dialogState = TemplateManagerDialogState.DeleteConfirm(effect.item.file.absolutePath)
 					}
@@ -200,6 +219,34 @@ fun TemplateManagerScreen(
 
 	when (val dialog = dialogState) {
 		is TemplateManagerDialogState.None -> {}
+
+		is TemplateManagerDialogState.InstallConfirm -> {
+			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
+			if (item != null) {
+				InstallTemplateConfirmationDialog(
+					item = item,
+					onConfirm = { deleteSource ->
+						viewModel.confirmInstallTemplate(item, deleteSource)
+						dialogState = TemplateManagerDialogState.None
+					},
+					onDismiss = { dialogState = TemplateManagerDialogState.None },
+				)
+			}
+		}
+
+		is TemplateManagerDialogState.UninstallConfirm -> {
+			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }
+			if (item != null) {
+				UninstallTemplateConfirmationDialog(
+					item = item,
+					onConfirm = {
+						viewModel.confirmUninstallTemplate(item)
+						dialogState = TemplateManagerDialogState.None
+					},
+					onDismiss = { dialogState = TemplateManagerDialogState.None },
+				)
+			}
+		}
 
 		is TemplateManagerDialogState.DeleteConfirm -> {
 			val item = uiState.items.firstOrNull { it.file.absolutePath == dialog.path }

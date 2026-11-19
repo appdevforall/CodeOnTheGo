@@ -17,19 +17,53 @@
 
 package com.itsaky.androidide.actions.file
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.lifecycleScope
 import com.itsaky.androidide.actions.ActionData
 import com.itsaky.androidide.actions.markInvisible
+import com.itsaky.androidide.activities.ExternalFileInstallActivity
 import com.itsaky.androidide.activities.editor.EditorHandlerActivity
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.DialogUtils
+import com.itsaky.androidide.utils.fileProviderUriFor
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashSuccess
 import kotlinx.coroutines.launch
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.koin.core.context.GlobalContext
+import org.slf4j.LoggerFactory
+import java.io.File
+
+private val log = LoggerFactory.getLogger(InstallFileAction::class.java)
+
+/** What the file-tab Install action does with a file; one kind per supported extension. */
+internal enum class InstallKind { APK, PLUGIN, TEMPLATE }
+
+/** The [InstallKind] for [file], by case-insensitive extension, or null when it is not installable. */
+internal fun installKindFor(file: File?): InstallKind? =
+	when (file?.extension?.lowercase()) {
+		"apk" -> InstallKind.APK
+		PLUGIN_ARCHIVE_EXTENSION -> InstallKind.PLUGIN
+		TEMPLATE_ARCHIVE_EXTENSION -> InstallKind.TEMPLATE
+		else -> null
+	}
+
+/**
+ * An explicit VIEW intent that hands [file] to [ExternalFileInstallActivity] as a FileProvider
+ * `content://` Uri, so the editor reuses the install dialogs built for files opened from other apps.
+ */
+internal fun templateInstallIntent(
+	context: Context,
+	file: File,
+): Intent =
+	Intent(Intent.ACTION_VIEW)
+		.setClass(context, ExternalFileInstallActivity::class.java)
+		.setData(context.fileProviderUriFor(file))
+		.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
 class InstallFileAction(
 	context: Context,
@@ -50,14 +84,14 @@ class InstallFileAction(
 				return
 			}
 		val currentFile = activity.editorViewModel.getCurrentFile()
-		visible = currentFile?.extension?.lowercase() in setOf("apk", PLUGIN_ARCHIVE_EXTENSION)
+		visible = installKindFor(currentFile) != null
 		enabled = visible
 	}
 
 	override fun EditorHandlerActivity.doAction(data: ActionData): Boolean {
 		val file = editorViewModel.getCurrentFile() ?: return false
-		when (file.extension.lowercase()) {
-			"apk" -> {
+		when (installKindFor(file)) {
+			InstallKind.APK -> {
 				apkInstallationViewModel.installApk(
 					context = this,
 					apk = file,
@@ -65,7 +99,7 @@ class InstallFileAction(
 				)
 			}
 
-			PLUGIN_ARCHIVE_EXTENSION -> {
+			InstallKind.PLUGIN -> {
 				lifecycleScope.launch {
 					val repo = GlobalContext.get().get<PluginRepository>()
 					repo
@@ -77,6 +111,27 @@ class InstallFileAction(
 							flashError(getString(R.string.msg_plugin_install_failed, e.message))
 						}
 				}
+			}
+
+			InstallKind.TEMPLATE -> {
+				// Defensive: the provider declares a root-path, so getUriForFile only throws when the path
+				// cannot be canonicalised (an IOException it wraps). Flash the "could not read" error the
+				// shared install screen uses instead of crashing the editor, and keep the cause in the log.
+				try {
+					startActivity(templateInstallIntent(this, file))
+				} catch (e: IllegalArgumentException) {
+					log.warn("Could not start the template install for {}", file.name, e)
+					flashError(getString(R.string.msg_invalid_incoming_file))
+					return false
+				} catch (e: ActivityNotFoundException) {
+					log.warn("Could not start the template install for {}", file.name, e)
+					flashError(getString(R.string.msg_invalid_incoming_file))
+					return false
+				}
+			}
+
+			null -> {
+				return false
 			}
 		}
 		return true

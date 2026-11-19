@@ -8,12 +8,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import org.appdevforall.codeonthego.indexing.service.IndexRegistryClosedException
+import org.appdevforall.codeonthego.indexing.service.IndexingServiceManager
 import org.slf4j.LoggerFactory
 
 /** The steps [CompilerSession] runs for each project update, on its own thread. */
 internal interface CompilerLifecycle<C : Any> {
+	/** Returns the indexing manager of the current project session. */
+	fun currentManager(): IndexingServiceManager
+
 	/** Runs on every project update, before its layout is compared. */
-	fun prepare(workspace: Workspace)
+	fun prepare(
+		workspace: Workspace,
+		manager: IndexingServiceManager,
+	)
 
 	/** Returns the module layout of [workspace]. */
 	fun layoutOf(workspace: Workspace): KotlinModuleLayout
@@ -21,10 +29,11 @@ internal interface CompilerLifecycle<C : Any> {
 	/** Waits for the previous compiler to finish closing; returns false if it is still closing. */
 	fun awaitClosed(): Boolean
 
-	/** Builds a compiler for [layout]. */
+	/** Builds a compiler for [layout] against [manager]'s indexes. */
 	fun build(
 		workspace: Workspace,
 		layout: KotlinModuleLayout,
+		manager: IndexingServiceManager,
 	): C
 
 	/** Closes [compiler] without blocking the caller. */
@@ -75,7 +84,11 @@ internal class CompilerSession<C : Any>(
 				} catch (e: CancellationException) {
 					throw e
 				} catch (e: Throwable) {
-					logger.error("Kotlin project update failed", e)
+					if (e.isProjectClosed()) {
+						logger.info("Project closed during a Kotlin update; dropping it")
+					} else {
+						logger.error("Kotlin project update failed", e)
+					}
 				}
 			}
 		}
@@ -102,9 +115,14 @@ internal class CompilerSession<C : Any>(
 		 * prepare opens the source indexes, which a previous project's compiler may still hold open.
 		 * The update cannot be cancelled while it blocks, so shutdown is re-checked after each wait:
 		 * past it, prepare would revive the closed project's indexing state.
+		 *
+		 * The manager is taken once, under the same lock as that check: the editor stops this session
+		 * before it destroys the project, so an update past the check only ever sees the closing
+		 * session's manager, never the next one's.
 		 */
-		if (!awaitClosed() || isStopped()) return
-		lifecycle.prepare(workspace)
+		if (!awaitClosed()) return
+		val manager = synchronized(lock) { if (isShutDown) null else lifecycle.currentManager() } ?: return
+		lifecycle.prepare(workspace, manager)
 		val layout = lifecycle.layoutOf(workspace)
 		if (isStopped()) return
 
@@ -118,7 +136,7 @@ internal class CompilerSession<C : Any>(
 		detachCurrent()
 		if (!awaitClosed() || isStopped()) return
 
-		val built = lifecycle.build(workspace, layout)
+		val built = lifecycle.build(workspace, layout, manager)
 		val published =
 			synchronized(lock) {
 				if (!isShutDown) current = built
@@ -134,6 +152,8 @@ internal class CompilerSession<C : Any>(
 	}
 
 	private fun isStopped() = synchronized(lock) { isShutDown }
+
+	private fun Throwable.isProjectClosed() = generateSequence(this) { it.cause }.any { it is IndexRegistryClosedException }
 
 	private fun awaitClosed(): Boolean {
 		if (lifecycle.awaitClosed()) return true

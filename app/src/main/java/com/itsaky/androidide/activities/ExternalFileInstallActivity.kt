@@ -10,10 +10,11 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 
 /**
  * Trampoline activity that receives a `.cgp`/`.cgt` file opened from outside the app (e.g. an
- * email attachment), prompts to install it, and finishes - it has no content of its own beyond
- * the dialogs [ExternalFileInstallScreen] shows.
+ * email attachment) or handed over by the editor's Install action for a `.cgt` tab (via a
+ * FileProvider Uri, see `templateInstallIntent`), prompts to install it, and finishes - it has no
+ * content of its own beyond the dialogs [ExternalFileInstallScreen] shows.
  *
- * `singleTask` (manifest) + [onNewIntent] collapse a rapid double-tap on the same external file
+ * `singleTask` (manifest) + [onNewIntent] collapse a rapid double-tap on the same file
  * into this one instance/ViewModel, where [ExternalFileInstallViewModel]'s `receivedUriGate`
  * already dedupes by Uri - without it, `standard` launch mode would spin up a second
  * Activity+ViewModel pair minting an independent temp file, which `PluginManagerViewModel`'s

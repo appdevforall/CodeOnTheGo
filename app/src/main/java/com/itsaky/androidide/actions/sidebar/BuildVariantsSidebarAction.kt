@@ -31,21 +31,22 @@ import kotlin.reflect.KClass
  *
  * @author Akash Yadav
  */
-class BuildVariantsSidebarAction(context: Context, override val order: Int) :
-  AbstractSidebarAction() {
+class BuildVariantsSidebarAction(
+	context: Context,
+	override val order: Int,
+) : AbstractSidebarAction() {
+	override val fragmentClass: KClass<out Fragment> = BuildVariantsFragment::class
+	override val id: String = "ide.editor.sidebar.buildVariants"
+	override var location: ActionItem.Location = ActionItem.Location.EDITOR_SIDEBAR
 
-  override val fragmentClass: KClass<out Fragment> = BuildVariantsFragment::class
-  override val id: String = "ide.editor.sidebar.buildVariants"
-    override var location: ActionItem.Location = ActionItem.Location.EDITOR_SIDEBAR
+	companion object {
+		const val ID = "ide.editor.sidebar.buildVariants"
+	}
 
+	init {
+		label = context.getString(R.string.title_build_variants)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_android)
+	}
 
-  companion object {
-    const val ID ="ide.editor.sidebar.buildVariants"
-  }
-  init {
-    label = context.getString(R.string.title_build_variants)
-    icon = ContextCompat.getDrawable(context, R.drawable.ic_android)
-  }
-
-  override fun retrieveTooltipTag(isAlternateContext: Boolean) = TooltipTag.BUILD_VARIANT_SIDEBAR
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = TooltipTag.BUILD_VARIANT_SIDEBAR
 }

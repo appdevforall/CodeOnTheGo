@@ -152,6 +152,8 @@
 	<string name="msg_deeplink_setup_incomplete">Finish setting up Code on the Go, then open this link again.</string>
 	<string name="msg_deeplink_project_not_found">No project named \"%s\" was found.</string>
 	<string name="msg_deeplink_file_not_found">File \"%s\" was not found in the project.</string>
+	<string name="msg_deeplink_file_not_found_in_project">File \"%1$s\" was not found in project \"%2$s\".</string>
+	<string name="msg_deeplink_no_project_open">No project is open. Open a project, then try this link again.</string>
 	<string name="msg_deeplink_invalid_line">\"%s\" is not a valid line number.</string>
 	<string name="msg_deeplink_invalid_column">\"%s\" is not a valid column number.</string>
 	<string name="msg_deeplink_no_value">(no value given)</string>
@@ -888,7 +890,7 @@
 	<string name="export_kind_bundle">App Bundle (.aab)</string>
 	<string name="export_kind_plugin">Plugin (.cgp)</string>
 	<string name="export_share">Share</string>
-	<string name="export_copy_to_download">Copy to Download</string>
+	<string name="export_copy_to_download">Copy to Download folder</string>
 	<string name="msg_export_not_built">Nothing built yet. Run the app once to build it.</string>
 	<string name="msg_export_plugin_not_built">No plugin yet. Run the plugin project once to build it.</string>
 	<string name="msg_export_saved">Saved to Download as %1$s</string>
@@ -1070,8 +1072,8 @@
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">Plugin Manager</string>
-	<string name="plugin_manager_title">Addons Manager</string>
-	<string name="plugin_manager_summary">Manage IDE addons</string>
+	<string name="addons_manager_title">Add-ons Manager</string>
+	<string name="addons_manager_summary">Manage IDE extensions</string>
 	<string name="msg_open_plugin_settings_failed">Could not open this plugin\'s settings</string>
 	<string name="plugins">Plugins</string>
 	<string name="no_plugins_installed">No plugins installed</string>
@@ -1213,7 +1215,7 @@
 	<string name="quick_build_status_failed">Quick Build failed - see Build Output</string>
 	<string name="quick_build_status_deploy_failed">Quick Build: delivery failed - see Build Output</string>
 	<string name="quick_build_status_app_not_running">Quick Build: built - tap to start app</string>
-	<string name="quick_build_status_needs_full_build">Quick Build: tap again to rebuild</string>
+	<string name="quick_build_status_needs_full_build">Quick Build: starting a full build…</string>
 	<string name="quick_build_status_rebuild_failed">Quick Build failed - see Build Output</string>
 	<string name="quick_build_status_start_failed">Quick Build: setup failed - tap to retry</string>
 	<string name="quick_build_flash_failed">Quick Build failed. See the Build Output panel for more details.</string>
@@ -1240,6 +1242,7 @@
 	<string name="quick_build_reinstall_timed_out">Your app needs a reinstall - the install prompt went unanswered for %1$d seconds. Tap Quick Build to try again.</string>
 	<string name="quick_build_reinstall_waiting_for_gradle">Waiting for the current Gradle build to finish - your app still needs a reinstall. Tap Quick Build to retry.</string>
 	<string name="quick_build_install_could_not_start">Quick Build could not start installing your app.</string>
+	<string name="quick_build_too_many_install_sessions">Quick Build could not start installing your app because too many previous install prompts are still open. Tap Quick Build to try again.</string>
 	<string name="quick_build_install_failed">Quick Build could not install your app.</string>
 	<string name="quick_build_installed_but_unresolvable">Quick Build installed %1$s, but Android will not open it. Restarting the session reinstalls it.</string>
 	<string name="quick_build_foreign_app_installed">%1$s is already installed on this device and was not built here, so Quick Build cannot replace it without deleting its data. Back it up and uninstall it yourself first.</string>
@@ -1333,6 +1336,13 @@
 	<string name="msg_unsupported_plugin_file">Unsupported file type. Please select a .cgp file</string>
 	<string name="msg_unsupported_extension_file">Unsupported file type. Please select a .cgp plugin or .cgt template file</string>
 	<string name="msg_no_file_manager">No file manager found</string>
+	<!-- The Manager screen's + picker: add-on files in Downloads (ADFA-6729). -->
+	<string name="title_choose_plugin_file">Choose a plugin</string>
+	<string name="title_choose_template_file">Choose templates</string>
+	<string name="msg_no_download_files">No %1$s files in Download.</string>
+	<string name="action_browse_other_folders">Browse other folders</string>
+	<!-- %1$s is a file size such as "5.5 MB", %2$s a date such as "Oct 21". -->
+	<string name="label_download_file_details">%1$s · %2$s</string>
 	<string name="msg_plugin_manager_init_failed">Failed to initialize Plugin Manager: %1$s</string>
 	<string name="checkbox_delete_source_after_install">Delete installation file after install</string>
 	<string name="action_discover_plugins">Discover plugins</string>
@@ -1540,7 +1550,7 @@
 	<string name="title_plugin_manager">Plugin Manager</string>
 
 	<!-- Combined Plugin/Template Manager screen (ADFA-4928) -->
-	<string name="title_manager">Addons Manager</string>
+	<string name="title_manager">@string/addons_manager_title</string>
 	<string name="tab_plugins">Plugins</string>
 	<string name="tab_templates">Templates</string>
 	<string name="no_templates_found">No templates found</string>
@@ -1561,6 +1571,8 @@
 	<string name="title_templates_in">Templates in %1$s</string>
 	<string name="title_delete_template">Delete template?</string>
 	<string name="msg_delete_template_confirm">This permanently deletes \'%1$s\' from Downloads.</string>
+	<string name="title_uninstall_template">Uninstall template?</string>
+	<string name="msg_uninstall_template_confirm">This removes \'%1$s\' from your templates. To use it again, reinstall it from its .cgt file, or reinstall the plugin that added it.</string>
 	<string name="label_template_file">File</string>
 	<string name="label_template_status">Status</string>
 	<string name="label_template_location">Location</string>

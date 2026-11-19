@@ -51,6 +51,20 @@ class ProjectManagerImplIndexingServiceManagerTest {
 		manager.destroy()
 	}
 
+	@Test
+	fun `currentIndexingServiceManager is null after destroy and stays null`() {
+		val manager = ProjectManagerImpl()
+		manager.indexingServiceManager
+		manager.destroy()
+
+		assertThat(manager.currentIndexingServiceManager).isNull()
+		assertThat(manager.currentIndexingServiceManager).isNull()
+
+		val created = manager.indexingServiceManager
+		assertThat(manager.currentIndexingServiceManager).isSameInstanceAs(created)
+		manager.destroy()
+	}
+
 	private companion object {
 		const val ROUNDS = 50
 		const val THREADS = 16

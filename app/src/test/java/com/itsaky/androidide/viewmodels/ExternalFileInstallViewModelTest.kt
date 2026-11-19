@@ -9,6 +9,7 @@ import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.repositories.TemplateCollectionRepository
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEffect
 import com.itsaky.androidide.ui.models.ExternalFileInstallUiEvent
+import com.itsaky.androidide.utils.fileProviderUriFor
 import com.itsaky.androidide.viewmodel.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -16,9 +17,12 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -137,6 +141,41 @@ class ExternalFileInstallViewModelTest {
 			val first = viewModel.uiEffect.first()
 			assertThat(first).isInstanceOf(ExternalFileInstallUiEffect.ShowTemplateNameConflict::class.java)
 			assertThat((first as ExternalFileInstallUiEffect.ShowTemplateNameConflict).existingName).isEqualTo("my-templates")
+		}
+
+	@Test
+	fun `installing a cgt from the app's FileProvider consumes a copy and leaves the source file`() =
+		runTest {
+			stubTemplatesFeatureAvailable(true)
+			val info = TemplateCollectionRepository.CollectionInfo(templateNames = listOf("Empty Activity"))
+			var inspectedText: String? = null
+			coEvery { templateCollectionRepository.inspectCollection(any()) } coAnswers {
+				inspectedText = firstArg<File>().readText()
+				Result.success(info)
+			}
+			coEvery { templateCollectionRepository.findExistingCollision(any()) } returns null
+			// TemplateCollectionRepositoryImpl.installCollection deletes the file it is given on success.
+			coEvery { templateCollectionRepository.installCollection(any(), any(), any()) } coAnswers {
+				firstArg<File>().delete()
+				Result.success(Unit)
+			}
+			val file = File(context.filesDir, "editor.cgt").apply { writeText("dummy") }
+
+			viewModel.onReceived(context.fileProviderUriFor(file))
+
+			val confirmation = viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowTemplateInstallConfirmation
+			assertThat(confirmation.suggestedBaseName).isEqualTo("editor")
+			assertThat(inspectedText).isEqualTo("dummy")
+			assertThat(confirmation.tempFile.canonicalFile).isNotEqualTo(file.canonicalFile)
+
+			viewModel.onEvent(
+				ExternalFileInstallUiEvent.ConfirmTemplateInstall(confirmation.tempFile, confirmation.suggestedBaseName, overwrite = false),
+			)
+			viewModel.uiEffect.first() as ExternalFileInstallUiEffect.ShowSuccess
+
+			// The install consumed the temp copy; the editor's own file must still be there.
+			assertThat(confirmation.tempFile.exists()).isFalse()
+			assertThat(file.exists()).isTrue()
 		}
 
 	@Test
@@ -403,4 +442,52 @@ class ExternalFileInstallViewModelTest {
 	private fun stubTemplatesFeatureAvailable(available: Boolean) {
 		every { templateCollectionRepository.isTemplatesFeatureAvailable() } returns available
 	}
+
+	// The gate exists for an intent redelivered across a rotation: the same Uri twice is one
+	// request. Collected with a real-time timeout because processing hops to Dispatchers.IO.
+	@Test
+	fun `onReceived ignores a repeat of the same uri`() =
+		runTest {
+			val uri = sourceUriFor("notes.txt")
+
+			// Sequential, like a real repeat: a request still in flight is superseded by a newer one.
+			viewModel.onReceived(uri)
+			assertThat(collectErrors(maxEffects = 2)).hasSize(1)
+
+			// Each processed uri sends ShowError then Finish, so maxEffects = 2 returns as soon as both
+			// arrive. The gated call launches nothing, so it would wait out the full timeout; keep
+			// that wait short.
+			viewModel.onReceived(uri)
+			assertThat(collectErrors(maxEffects = 2, perEffectMillis = 300)).isEmpty()
+		}
+
+	// A user pick is never a redelivery: picking the same file again must be handled again.
+	@Test
+	fun `onPicked handles a repeat of the same uri`() =
+		runTest {
+			val uri = sourceUriFor("notes.txt")
+
+			viewModel.onPicked(uri)
+			assertThat(collectErrors(maxEffects = 2)).hasSize(1)
+
+			viewModel.onPicked(uri)
+			assertThat(collectErrors(maxEffects = 2)).hasSize(1)
+		}
+
+	/**
+	 * The ShowError effects among up to [maxEffects] effects, stopping early once none arrives
+	 * within [perEffectMillis] of real time.
+	 */
+	private suspend fun collectErrors(
+		maxEffects: Int,
+		perEffectMillis: Long = 2_000,
+	): List<ExternalFileInstallUiEffect.ShowError> =
+		withContext(Dispatchers.Default) {
+			buildList {
+				repeat(maxEffects) {
+					val next = withTimeoutOrNull(perEffectMillis) { viewModel.uiEffect.first() } ?: return@buildList
+					if (next is ExternalFileInstallUiEffect.ShowError) add(next)
+				}
+			}
+		}
 }

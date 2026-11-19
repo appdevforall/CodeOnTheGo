@@ -41,73 +41,77 @@ import java.util.concurrent.atomic.AtomicBoolean
  * day/night theme so decorations repaint with the right colors the moment the theme flips.
  */
 object EditorDecorationBridge {
+	private val log = LoggerFactory.getLogger(EditorDecorationBridge::class.java)
 
-    private val log = LoggerFactory.getLogger(EditorDecorationBridge::class.java)
+	private val registered = AtomicBoolean(false)
 
-    private val registered = AtomicBoolean(false)
+	/** Last seen UI night-mode bit, so we only react when day/night actually flips. */
+	private var lastNightMode = Int.MIN_VALUE
 
-    /** Last seen UI night-mode bit, so we only react when day/night actually flips. */
-    private var lastNightMode = Int.MIN_VALUE
+	/**
+	 * One-time setup: register a configuration listener so a system (or in-app) day/night flip
+	 * repaints editor decorations with the matching theme immediately — no restart required — then
+	 * do an initial [refresh]. Safe to call more than once; only the first call registers.
+	 */
+	@JvmStatic
+	fun init() {
+		// Atomically claim the one-time registration. Only the winning thread registers; if it
+		// fails, reset the flag so a later init() can retry.
+		if (registered.compareAndSet(false, true)) {
+			try {
+				val app = BaseApplication.baseInstance
+				lastNightMode = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+				app.registerComponentCallbacks(
+					object : ComponentCallbacks {
+						override fun onConfigurationChanged(newConfig: Configuration) {
+							val night = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
+							if (night != lastNightMode) {
+								lastNightMode = night
+								refresh()
+							}
+						}
 
-    /**
-     * One-time setup: register a configuration listener so a system (or in-app) day/night flip
-     * repaints editor decorations with the matching theme immediately — no restart required — then
-     * do an initial [refresh]. Safe to call more than once; only the first call registers.
-     */
-    @JvmStatic
-    fun init() {
-        // Atomically claim the one-time registration. Only the winning thread registers; if it
-        // fails, reset the flag so a later init() can retry.
-        if (registered.compareAndSet(false, true)) {
-            try {
-                val app = BaseApplication.baseInstance
-                lastNightMode = app.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                app.registerComponentCallbacks(object : ComponentCallbacks {
-                    override fun onConfigurationChanged(newConfig: Configuration) {
-                        val night = newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK
-                        if (night != lastNightMode) {
-                            lastNightMode = night
-                            refresh()
-                        }
-                    }
+						@Deprecated("Deprecated in Java")
+						override fun onLowMemory() {}
+					},
+				)
+			} catch (t: Throwable) {
+				registered.set(false)
+				log.error("Failed to register editor decoration theme listener", t)
+			}
+		}
+		refresh()
+	}
 
-                    override fun onLowMemory() {}
-                })
-            } catch (t: Throwable) {
-                registered.set(false)
-                log.error("Failed to register editor decoration theme listener", t)
-            }
-        }
-        refresh()
-    }
+	/**
+	 * Recompute the active decoration providers and current theme, then force open editors to
+	 * re-highlight.
+	 */
+	@JvmStatic
+	fun refresh() {
+		try {
+			val providers =
+				PluginManager
+					.getInstance()
+					?.getEnabledEditorDecorationProviders()
+					?: emptyList()
 
-    /**
-     * Recompute the active decoration providers and current theme, then force open editors to
-     * re-highlight.
-     */
-    @JvmStatic
-    fun refresh() {
-        try {
-            val providers = PluginManager.getInstance()
-                ?.getEnabledEditorDecorationProviders()
-                ?: emptyList()
+			EditorDecorationRegistry.isDark = isDarkTheme()
+			EditorDecorationRegistry.update(providers)
+			EventBus.getDefault().post(ColorSchemeInvalidatedEvent())
+		} catch (t: Throwable) {
+			log.error("Failed to refresh editor decoration providers", t)
+		}
+	}
 
-            EditorDecorationRegistry.isDark = isDarkTheme()
-            EditorDecorationRegistry.update(providers)
-            EventBus.getDefault().post(ColorSchemeInvalidatedEvent())
-        } catch (t: Throwable) {
-            log.error("Failed to refresh editor decoration providers", t)
-        }
-    }
-
-    private fun isDarkTheme(): Boolean {
-        // Honor an explicit user theme choice immediately (config may not have propagated yet
-        // right after a theme toggle); fall back to the resource config for "follow system".
-        when (AppCompatDelegate.getDefaultNightMode()) {
-            AppCompatDelegate.MODE_NIGHT_YES -> return true
-            AppCompatDelegate.MODE_NIGHT_NO -> return false
-        }
-        val uiMode = BaseApplication.baseInstance.resources.configuration.uiMode
-        return (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-    }
+	private fun isDarkTheme(): Boolean {
+		// Honor an explicit user theme choice immediately (config may not have propagated yet
+		// right after a theme toggle); fall back to the resource config for "follow system".
+		when (AppCompatDelegate.getDefaultNightMode()) {
+			AppCompatDelegate.MODE_NIGHT_YES -> return true
+			AppCompatDelegate.MODE_NIGHT_NO -> return false
+		}
+		val uiMode = BaseApplication.baseInstance.resources.configuration.uiMode
+		return (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+	}
 }

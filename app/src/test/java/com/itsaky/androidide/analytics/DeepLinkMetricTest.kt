@@ -87,4 +87,21 @@ class DeepLinkMetricTest {
 			assertThat(DeepLinkMetric(DeepLinkDepth.PROJECT, outcome).eventName).isEqualTo(DeepLinkMetric.EVENT_NAME)
 		}
 	}
+
+	@Test
+	fun `selector defaults to name and records current for a wildcard link`() {
+		assertThat(DeepLinkMetric(DeepLinkDepth.PROJECT, DeepLinkOutcome.RECEIVED).asBundle().getString("selector"))
+			.isEqualTo("name")
+
+		val wildcard = DeepLinkRequest(projectName = DeepLinkRequest.WILDCARD_PROJECT)
+		assertThat(wildcard.selector()).isEqualTo(DeepLinkSelector.CURRENT)
+		assertThat(request().selector()).isEqualTo(DeepLinkSelector.NAME)
+
+		val bundle =
+			DeepLinkMetric(DeepLinkDepth.PROJECT, DeepLinkOutcome.NO_PROJECT_OPEN, selector = wildcard.selector()).asBundle()
+		assertThat(bundle.getString("selector")).isEqualTo("current")
+		assertThat(bundle.getString("outcome")).isEqualTo("no_project_open")
+		// Unresolved, so there is no project to hash -- and never the hash of the token itself.
+		assertThat(bundle.containsKey("project_hash")).isFalse()
+	}
 }

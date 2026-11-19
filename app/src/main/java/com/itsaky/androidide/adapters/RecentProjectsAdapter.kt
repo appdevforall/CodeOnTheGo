@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.AnimationUtils
+import android.widget.FrameLayout
 import android.widget.PopupWindow
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.TooltipCompat
@@ -242,7 +243,14 @@ class RecentProjectsAdapter(
 		binding.textinputEdittext.setText(project.name)
 		binding.textinputLayout.hint = context.getString(R.string.msg_new_project_name)
 		val padding = (16 * context.resources.displayMetrics.density).toInt()
-		builder.setView(binding.root, padding, padding, padding, padding)
+		// Pad a wrapper, as the deprecated setView(view, l, t, r, b) did, so the layout's own 10dp
+		// padding is kept on top of it rather than overwritten.
+		val container =
+			FrameLayout(context).apply {
+				setPadding(padding, padding, padding, padding)
+				addView(binding.root)
+			}
+		builder.setView(container)
 
 		builder.setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
 		builder.setPositiveButton(R.string.rename) { _, _ ->

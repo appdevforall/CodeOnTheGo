@@ -37,13 +37,21 @@ sealed class TemplateManagerUiEvent {
 
 sealed class TemplateManagerUiEffect {
 	data class ShowError(
-		@StringRes val messageResId: Int,
+		@param:StringRes @get:StringRes val messageResId: Int,
 		val formatArgs: List<Any> = emptyList(),
 	) : TemplateManagerUiEffect()
 
 	data class ShowSuccess(
-		@StringRes val messageResId: Int,
+		@param:StringRes @get:StringRes val messageResId: Int,
 		val formatArgs: List<Any> = emptyList(),
+	) : TemplateManagerUiEffect()
+
+	data class ShowInstallConfirmation(
+		val item: CgtFileItem,
+	) : TemplateManagerUiEffect()
+
+	data class ShowUninstallConfirmation(
+		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()
 
 	data class ShowDeleteConfirmation(

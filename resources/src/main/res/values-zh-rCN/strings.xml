@@ -879,8 +879,8 @@
 
 	<!-- Plugin System -->
 	<string name="plugin_manager">插件管理器</string>
-	<string name="plugin_manager_title">插件管理器</string>
-	<string name="plugin_manager_summary">管理 IDE 插件和扩展</string>
+	<string name="addons_manager_title">插件管理器</string>
+	<string name="addons_manager_summary">管理 IDE 插件和扩展</string>
 	<string name="plugins">插件</string>
 	<string name="no_plugins_installed">未安装插件</string>
 	<string name="no_plugins_installed_hint">点击 + 按钮安装你的第一个插件</string>

@@ -31,12 +31,18 @@ import java.nio.file.Paths
  * distinguish "segment absent from the URL" (`null`) from "segment present but not a valid positive
  * integer" (non-null, fails [String.toIntOrNull] or non-positive) -- the latter must be reported to the
  * user, the former must not.
+ *
+ * [viaWildcard] records that the link named its project with [DeepLinkRequest.WILDCARD_PROJECT]. The
+ * request is armed on an intent and applied later (after a sync), by which time the link itself is
+ * gone, and a failure to find the file in a project the author never named should say which project
+ * was searched.
  */
 @Parcelize
 data class PendingFileRequest(
 	val filePath: String,
 	val lineRaw: String?,
 	val columnRaw: String?,
+	val viaWildcard: Boolean = false,
 ) : Parcelable {
 	companion object {
 		const val EXTRA_KEY = "com.itsaky.androidide.PENDING_FILE_REQUEST"
@@ -47,14 +53,34 @@ data class PendingFileRequest(
  * A parsed (but not yet resolved-to-a-path) request for
  * `https://appdevforall.org/device/open/project/{projectName}[/file/{filename}[/line/{n}[/column/{n}]]]`
  * (the `www` subdomain works identically -- see [HOSTS]).
+ *
+ * `{projectName}` may instead be the wildcard [WILDCARD_PROJECT] (`<*>`, written `%3C%2A%3E` in a
+ * link), meaning "whichever project is open in the editor right now". It is hand-authored only --
+ * [buildUrl] never writes one -- and exists for content, such as a course shown inside the IDE, that
+ * cannot know the name the learner gave their project. Every other `<...>` name is reserved for
+ * future selectors: [parse] rejects it and [isLinkableProjectName] refuses it, so a selector added
+ * later can never collide with a real project's name.
  */
 @Parcelize
 data class DeepLinkRequest(
 	val projectName: String,
 	val fileRequest: PendingFileRequest? = null,
 ) : Parcelable {
+	/** Whether this link names the open project via [WILDCARD_PROJECT] rather than by name. */
+	val isCurrentProject: Boolean
+		get() = projectName == WILDCARD_PROJECT
+
 	companion object {
 		const val EXTRA_KEY = "com.itsaky.androidide.DEEP_LINK_REQUEST"
+
+		/**
+		 * The project segment meaning "the project open in the editor". The URL carries it encoded
+		 * (`%3C%2A%3E`); [Uri.getPathSegments] hands it back decoded, which is the form compared here.
+		 */
+		const val WILDCARD_PROJECT = "<*>"
+
+		/** The reserved `<...>` shape: see [DeepLinkRequest]'s docs. */
+		private fun isSelectorShaped(name: String): Boolean = name.length >= 2 && name.startsWith('<') && name.endsWith('>')
 
 		private const val SCHEME = "https"
 
@@ -192,6 +218,12 @@ data class DeepLinkRequest(
 			}
 			val projectName = segments[projectIdx + 1]
 
+			// Anything shaped like a selector that is not one this build knows is refused outright, so an
+			// older IDE reports a newer selector as an invalid link rather than as `No project named "<x>"`.
+			if (isSelectorShaped(projectName) && projectName != WILDCARD_PROJECT) {
+				return null
+			}
+
 			val fileIdx = segments.indexOfFrom(projectIdx + 2, SEGMENT_FILE)
 			val fileRequest =
 				fileIdx.takeIf { it >= 0 }?.let { fIdx ->
@@ -242,6 +274,7 @@ data class DeepLinkRequest(
 							filePath = filePath,
 							lineRaw = lineRaw,
 							columnRaw = columnRaw,
+							viaWildcard = projectName == WILDCARD_PROJECT,
 						)
 					}
 				}
@@ -264,9 +297,14 @@ data class DeepLinkRequest(
 		 * *offer* to make a link has to reach the same verdict, and cheaply. Its own copy of these
 		 * four conditions is exactly the drift that put an offer in front of the user for a project
 		 * this function refuses.
+		 *
+		 * A `<...>` name is refused too, [WILDCARD_PROJECT] included: those are reserved for
+		 * selectors, so a link naming such a directory would be read back as a selector, not the
+		 * project.
 		 */
 		fun isLinkableProjectName(projectName: String): Boolean =
 			projectName.isNotEmpty() &&
+				!isSelectorShaped(projectName) &&
 				!projectName.startsWith('.') &&
 				!projectName.contains('/') &&
 				!projectName.contains('\\')

@@ -24,47 +24,47 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.resources.R
 
 /** @author Akash Yadav */
-class CopyAction(context: Context, override val order: Int) :
-    BaseEditorAction() {
+class CopyAction(
+	context: Context,
+	override val order: Int,
+) : BaseEditorAction() {
+	init {
+		label = context.getString(R.string.copy)
 
-    init {
-        label = context.getString(R.string.copy)
+		val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCopyDrawable))
+		icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
+		arr.recycle()
+	}
 
-        val arr = context.obtainStyledAttributes(intArrayOf(android.R.attr.actionModeCopyDrawable))
-        icon = arr.getDrawable(0)?.let { tintDrawable(context, it) }
-        arr.recycle()
-    }
+	companion object {
+		const val ID = "ide.editor.code.text.copy"
+	}
 
-    companion object {
-      const val ID = "ide.editor.code.text.copy"
-    }
+	override val id: String = ID
 
-    override val id: String = ID
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
+		if (!visible) return
 
-        if (!visible) return
+		val target = getTextTarget(data)
 
-        val target = getTextTarget(data)
+		visible = target != null
+		enabled = visible && target?.hasSelection() == true
+	}
 
-        visible = target != null
-        enabled = visible && target?.hasSelection() == true
-    }
+	override suspend fun execAction(data: ActionData): Boolean {
+		val target = getTextTarget(data) ?: return false
+		if (!target.hasSelection()) return false
 
-    override suspend fun execAction(data: ActionData): Boolean {
-        val target = getTextTarget(data) ?: return false
-        if (!target.hasSelection()) return false
+		target.copyText()
+		return true
+	}
 
-        target.copyText()
-        return true
-    }
-
-    override fun retrieveTooltipTag(isAlternateContext: Boolean): String {
-        return if (isAlternateContext) {
-            TooltipTag.EDITOR_TOOLBAR_OUTPUT_COPY
-        } else {
-            TooltipTag.EDITOR_TOOLBAR_COPY
-        }
-    }
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String =
+		if (isReadOnlyContext) {
+			TooltipTag.EDITOR_TOOLBAR_OUTPUT_COPY
+		} else {
+			TooltipTag.EDITOR_TOOLBAR_COPY
+		}
 }
