@@ -106,7 +106,9 @@ class AnalysisPreemptionBarrierTest {
 			}
 		try {
 			assertThat(held.await(5, SECONDS)).isTrue()
-			runCatching { AnalysisScheduler.preemptingAnalysis { } }
+			val failure = runCatching { AnalysisScheduler.preemptingAnalysis { } }.exceptionOrNull()
+
+			assertThat(failure).hasMessageThat().isEqualTo("onPreempt failed")
 		} finally {
 			release.countDown()
 			holder.join()
@@ -119,7 +121,9 @@ class AnalysisPreemptionBarrierTest {
 
 	@Test(timeout = 10_000)
 	fun `the barrier is lowered when the block throws`() {
-		runCatching { AnalysisScheduler.preemptingAnalysis { throw IllegalStateException("block failed") } }
+		val failure = runCatching { AnalysisScheduler.preemptingAnalysis { throw IllegalStateException("block failed") } }.exceptionOrNull()
+
+		assertThat(failure).hasMessageThat().isEqualTo("block failed")
 
 		val result = AnalysisScheduler.withLock(AnalysisPriority.INTERACTIVE, checker(), onPreempt = {}) { 42 }
 
