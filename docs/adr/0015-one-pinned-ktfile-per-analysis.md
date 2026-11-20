@@ -148,7 +148,7 @@ tracked separately; widening the hatch to a second caller has to weigh that, not
   firing a FIR modification event under it. Since ADFA-6855 only a full parse with no document yet (the path's
   first parse) can land there: the pin holds the document's edit read stamp, so in-place edits wait for the
   release. Instance identity still holds through every door - the pin is stamped with the locked document's
-  applied version, so the bump is not lost, only deferred. Closing the window fully would
+  applied version, so the bump is not lost, only deferred: the last pin's release refreshes again if a request asked for a newer version during the pin, or if the document is behind once the release has unlocked it, which catches a refresh that met the stamp after the pin had left the map. Closing the window fully would
   mean publishing a pin before its file exists, making joiners wait on an unresolved entry in the one path every
   caller depends on; that deadlock risk was judged worse than the window.
 
