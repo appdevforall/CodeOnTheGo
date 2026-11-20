@@ -21,6 +21,7 @@ import com.google.protobuf.MessageLite
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.project.JavaModels
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.models.ArtifactScope
 import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.projects.models.directory
 import com.itsaky.androidide.projects.models.jarFile
@@ -38,6 +39,7 @@ class JavaModule(
 	companion object {
 		const val SCOPE_COMPILE = "COMPILE"
 		const val SCOPE_RUNTIME = "RUNTIME"
+		const val SCOPE_TEST = "TEST"
 	}
 
 	init {
@@ -72,7 +74,16 @@ class JavaModule(
 
 	override fun getClassPaths(): Set<File> = getModuleClasspaths()
 
-	override fun getSourceDirectories(): Set<File> {
+	override fun getArtifactScopes(): List<ArtifactScope> = listOf(ArtifactScope.Main, ArtifactScope.UNIT_TEST)
+
+	override fun getSourceDirectories(scope: ArtifactScope): Set<File> =
+		when (scope) {
+			ArtifactScope.Main -> mainSourceDirectories()
+			ArtifactScope.UNIT_TEST -> contentRootList.flatMap { root -> root.testDirectoryList.map { it.directory } }.toSet()
+			else -> emptySet()
+		}
+
+	private fun mainSourceDirectories(): Set<File> {
 		val sources = mutableSetOf<File>()
 		contentRootList.forEach { contentRoot ->
 			sources.addAll(
@@ -88,6 +99,34 @@ class JavaModule(
 		val dirs = getSourceDirectories().toMutableSet()
 		getCompileModuleProjects().forEach { dirs.addAll(it.getSourceDirectories()) }
 		return dirs
+	}
+
+	// getDependencyClassPaths does not filter by scope, so test dependencies are already on the
+	// compile classpath.
+	override fun getCompileClasspaths(
+		scope: ArtifactScope,
+		excludeSourceGeneratedClassPath: Boolean,
+	): Set<File> =
+		when (scope) {
+			ArtifactScope.Main, ArtifactScope.UNIT_TEST -> getCompileClasspaths(excludeSourceGeneratedClassPath)
+			else -> emptySet()
+		}
+
+	// Unit tests see main's module dependencies plus the TEST-scoped ones (testImplementation).
+	override fun getCompileModuleProjects(scope: ArtifactScope): List<ModuleProject> {
+		if (scope == ArtifactScope.Main) {
+			return getCompileModuleProjects()
+		}
+		if (scope != ArtifactScope.UNIT_TEST) {
+			return emptyList()
+		}
+		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+		val testOnly =
+			dependencyList
+				.filter { it.hasModule() && it.scope == SCOPE_TEST }
+				.mapNotNull { root.findByPath(it.module.projectPath) as? ModuleProject }
+				.filter { it.path != path }
+		return (getCompileModuleProjects() + testOnly).distinctBy { it.path }
 	}
 
 	override fun getModuleClasspaths(): Set<File> = mutableSetOf(getClassesJar())
