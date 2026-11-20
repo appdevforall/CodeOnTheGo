@@ -35,12 +35,13 @@ class VariantSourceSetsTest : KtLspTest() {
 
 	private lateinit var use: Path
 	private lateinit var completion: Path
+	private lateinit var releaseConfig: Path
 
 	override fun layout(baseDir: Path): KotlinModuleLayout {
 		use = write(baseDir, "src/main/kotlin/p/Use.kt", USE)
 		completion = write(baseDir, "src/main/kotlin/p/Complete.kt", "package p\n\nfun c() = VariantConfig.\n")
 		write(baseDir, "src/debug/kotlin/p/VariantConfig.kt", "package p\n\nobject VariantConfig {\n\tval debugOnly = 1\n}\n")
-		write(baseDir, "src/release/kotlin/p/VariantConfig.kt", RELEASE_CONFIG)
+		releaseConfig = write(baseDir, "src/release/kotlin/p/VariantConfig.kt", RELEASE_CONFIG)
 		return variantLayout(baseDir, listOf("debug", "release"), selected = "debug")
 	}
 
@@ -86,6 +87,20 @@ class VariantSourceSetsTest : KtLspTest() {
 
 		assertThat(labels).contains("debugOnly")
 		assertThat(labels).doesNotContain("releaseOnly")
+	}
+
+	@Test
+	fun `a source of a variant that is not selected gets no diagnostics`() {
+		val server = KotlinLanguageServer()
+		try {
+			val result = runBlocking { server.analyze(releaseConfig) }
+
+			// Cleared for this file, not merely "no update": an earlier variant's errors must go away.
+			assertThat(result.file).isEqualTo(releaseConfig)
+			assertThat(result.diagnostics).isEmpty()
+		} finally {
+			server.shutdown()
+		}
 	}
 
 	private companion object {

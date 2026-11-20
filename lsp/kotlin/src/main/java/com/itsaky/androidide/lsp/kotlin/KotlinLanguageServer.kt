@@ -382,6 +382,11 @@ class KotlinLanguageServer : ILanguageServer {
 			return DiagnosticResult.NO_UPDATE
 		}
 
+		// Outside the selected variant: clear what an earlier variant reported, analyze nothing.
+		if (ProjectManagerImpl.getInstance().workspace?.isOutsideSelectedVariant(file) == true) {
+			return DiagnosticResult(file, ArrayList())
+		}
+
 		return compiler
 			?.compilationEnvironmentForKotlinPath(file)
 			?.diagnosticsFor(file, createJobCancelChecker())

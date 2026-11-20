@@ -49,7 +49,9 @@ class JavaDiagnosticProvider {
 		val module =
 			IProjectManager.getInstance().findModuleForFile(file, false)
 				?: return DiagnosticResult.NO_UPDATE
-		val compiler = JavaCompilerService(module, module.artifactScopeOf(file))
+		// Outside the selected variant: clear what an earlier variant reported, analyze nothing.
+		val scope = module.artifactScopeOf(file) ?: return DiagnosticResult(file, ArrayList())
+		val compiler = JavaCompilerService(module, scope)
 
 		abortIfCancelled()
 

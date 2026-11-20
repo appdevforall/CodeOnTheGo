@@ -229,6 +229,13 @@ class SourceFileManagerTestScopesTest {
 	private fun junitClasses(manager: SourceFileManager) =
 		manager.list(StandardLocation.CLASS_PATH, "org.junit", setOf(JavaFileObject.Kind.CLASS), false).toList()
 
+	@Test
+	fun `req 7 - a file outside every source set of the selected variant gets no compiler`() {
+		val other = source(temp.newFolder("app", "src", "release", "java"), "ReleaseOnly")
+
+		withAndroidJar { assertThat(JavaCompilerProvider.forFile(other)).isNull() }
+	}
+
 	/** Runs [block] with an android.jar set, as a compiler needs one, and drops the compilers it made. */
 	private fun withAndroidJar(block: () -> Unit) {
 		val previousAndroidJar = Environment.ANDROID_JAR
@@ -316,7 +323,9 @@ class SourceFileManagerTestScopesTest {
 					AndroidModels.AndroidProject
 						.newBuilder()
 						.setProjectType(AndroidModels.ProjectType.ApplicationProject)
-						.setMainSourceSet(
+						.addAllSourceSetDirPaths(
+							listOf(mainDir, unitDir, deviceDir, sharedDir, File(projectDir, "src/release/java")).map { it.path },
+						).setMainSourceSet(
 							AndroidModels.SourceSetContainer
 								.newBuilder()
 								.putSourceProviders(ArtifactScope.Main.key, provider(mainDir))
