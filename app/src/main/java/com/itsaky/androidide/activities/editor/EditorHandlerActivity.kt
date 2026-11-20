@@ -353,7 +353,7 @@ open class EditorHandlerActivity :
 			if (tabPosition >= 0) {
 				this.content.editorContainer.displayedChild = tabPosition
 			}
-			EditorEvents.notifyFileChanged(editorViewModel.getCurrentFile())
+			EditorEvents.notifyFileChanged(editorViewModel.displayedFile())
 		}
 
 		pluginEditorProvider =
@@ -1161,7 +1161,7 @@ open class EditorHandlerActivity :
 			if (fileIndex < 0) return@withContext null
 
 			editorViewModel.startDrawerOpened = false
-			editorViewModel.displayedFileIndex = fileIndex
+			editorViewModel.setCurrentFile(fileIndex, file)
 
 			val tabPosition = getTabPositionForFileIndex(fileIndex)
 			val tab = content.tabs.getTabAt(tabPosition)
@@ -1805,21 +1805,25 @@ open class EditorHandlerActivity :
 
 		val file = editorViewModel.getCurrentFile()
 		var index = 0
+		// Set when a close waits for the unsaved-changes dialog; that close carries on once answered.
+		var waiting = false
 
 		// keep closing the file at index 0
 		// if openedFiles[0] == file, then keep closing files at index 1
 		while (editorViewModel.getOpenedFileCount() != 1) {
-			val editor = getEditorAtIndex(index)
-
-			if (editor == null) {
-				log.error("Unable to save file at index {}", index)
-				continue
-			}
-
 			// Index of files changes as we keep close files
-			// So we compare the files instead of index
-			if (file != editor.file) {
-				closeFile(index)
+			// So we compare the files instead of index. The opened file, not the editor's: an
+			// editor's file is null until its text has loaded, or for good if the read failed,
+			// while the current file is set from the opened file as soon as its tab is shown.
+			if (file != editorViewModel.getOpenedFile(index)) {
+				val openedBefore = editorViewModel.getOpenedFileCount()
+				closeFile(index) { if (waiting) closeOthers() }
+				// closeFile can return without closing, as when it asks about unsaved changes; trying
+				// again would spin on the main thread.
+				if (editorViewModel.getOpenedFileCount() == openedBefore) {
+					waiting = true
+					break
+				}
 			} else {
 				index = 1
 			}

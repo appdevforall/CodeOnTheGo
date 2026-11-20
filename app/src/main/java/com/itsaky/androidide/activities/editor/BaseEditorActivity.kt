@@ -1334,6 +1334,8 @@ abstract class BaseEditorActivity :
 		if (this is EditorHandlerActivity && isPluginTab(position)) {
 			val pluginTabId = getPluginTabId(position)
 			if (pluginTabId != null) {
+				// No file is shown: listeners hear null, as when a plugin tab is first added.
+				editorViewModel.displayedFileIndex = -1
 				val tabManager = PluginEditorTabManager.getInstance()
 				tabManager.onTabSelected(pluginTabId)
 				invalidateOptionsMenu()
@@ -1353,7 +1355,9 @@ abstract class BaseEditorActivity :
 			return
 		}
 
-		editorViewModel.displayedFileIndex = fileIndex
+		// With the current file, not the index alone: plugins hear the switch as the index is set, and
+		// may ask for the current file.
+		editorViewModel.selectFile(fileIndex)
 
 		val editorView =
 			if (this is EditorHandlerActivity) {
@@ -1368,7 +1372,7 @@ abstract class BaseEditorActivity :
 		}
 
 		editorView.onEditorSelected()
-		editorViewModel.setCurrentFile(fileIndex, editorView.file)
+		editorViewModel.selectFile(fileIndex, editorView.file)
 		refreshSymbolInput(editorView)
 		invalidateOptionsMenu()
 	}
