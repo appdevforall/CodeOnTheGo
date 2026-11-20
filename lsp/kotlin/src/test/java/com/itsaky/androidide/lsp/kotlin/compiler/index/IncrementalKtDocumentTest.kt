@@ -111,9 +111,13 @@ class IncrementalKtDocumentTest : KtLspTest() {
 	fun `an in-place edit logs no IntelliJ error`() {
 		val doc = document()
 
-		val errors = errorsLoggedDuring { doc.applyUnderWrite(oldText.replace("val x = 1", "val x = 12"), 2) }
+		val newText = oldText.replace("val x = 1", "val x = 12")
+
+		val errors = errorsLoggedDuring { doc.applyUnderWrite(newText, 2) }
 
 		assertThat(errors).isEmpty()
+		// No error is also what an edit that was never applied logs.
+		assertThat(doc.ktFile.treeMatches(newText)).isTrue()
 	}
 
 	@Test
@@ -121,9 +125,13 @@ class IncrementalKtDocumentTest : KtLspTest() {
 		val doc = document()
 		PsiDocumentManager.getInstance(env.project).getDocument(doc.ktFile)!!
 
-		val errors = errorsLoggedDuring { doc.applyUnderWrite(oldText.replace("val x = 1", "val x = 12"), 2) }
+		val newText = oldText.replace("val x = 1", "val x = 12")
+
+		val errors = errorsLoggedDuring { doc.applyUnderWrite(newText, 2) }
 
 		assertThat(errors).isEmpty()
+		// No error is also what an edit that was never applied logs.
+		assertThat(doc.ktFile.treeMatches(newText)).isTrue()
 	}
 
 	/** An uncommitted document would make IntelliJ reparse the file again on its next commit. */
