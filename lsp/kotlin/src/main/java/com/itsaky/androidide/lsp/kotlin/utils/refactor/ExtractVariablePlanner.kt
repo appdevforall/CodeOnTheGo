@@ -26,6 +26,7 @@ import org.jetbrains.kotlin.psi.KtLoopExpression
 import org.jetbrains.kotlin.psi.KtPropertyAccessor
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
+import kotlin.coroutines.cancellation.CancellationException
 
 private val logger = LoggerFactory.getLogger("ExtractVariablePlanner")
 
@@ -81,6 +82,7 @@ internal fun buildExtractionPlan(
 			} ?: ExtractionPlan.empty()
 		}
 	}.getOrElse { error ->
+		if (error is CancellationException) throw error
 		logger.warn("Failed to build extract-variable plan for {}", nioPath, error)
 		ExtractionPlan.empty()
 	}
