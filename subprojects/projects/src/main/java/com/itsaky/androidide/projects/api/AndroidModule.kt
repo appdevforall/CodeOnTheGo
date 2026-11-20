@@ -25,13 +25,13 @@ import com.itsaky.androidide.builder.model.UNKNOWN_PACKAGE
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.projects.models.ArtifactScope
 import com.itsaky.androidide.projects.models.artifact
 import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.projects.models.buildDir
 import com.itsaky.androidide.projects.models.classJars
 import com.itsaky.androidide.projects.models.classesJar
 import com.itsaky.androidide.projects.models.compileJarFiles
-import com.itsaky.androidide.projects.models.generatedSourceFolders
 import com.itsaky.androidide.projects.models.javaDirs
 import com.itsaky.androidide.projects.models.kotlinDirs
 import com.itsaky.androidide.projects.models.resDirs
@@ -85,6 +85,16 @@ open class AndroidModule(
 
 	fun getVariant(name: String): AndroidModels.AndroidVariant? = variantList.firstOrNull { it.name == name }
 
+	/** The default source provider of [scope] (`src/main`, `src/test`, ...), if the module has one. */
+	internal fun defaultSources(scope: ArtifactScope): AndroidModels.SourceProvider? = mainSourceSet?.sourceProvidersMap?.get(scope.key)
+
+	/** What the selected variant's [scope] component adds over its default source set. */
+	private fun variantSources(scope: ArtifactScope): AndroidModels.VariantArtifactSources? =
+		getSelectedVariant()?.artifactSourcesMap?.get(scope.key)
+
+	/** The dependencies of the selected variant's [scope] component, if the variant has it. */
+	private fun dependenciesOf(scope: ArtifactScope): AndroidModels.ArtifactDependencies? = variantDependencies.artifactsMap[scope.key]
+
 	fun getResourceDirectories(): Set<File> {
 		if (mainSourceSet == null) {
 			log.error("No main source set found in application module: {}", name)
@@ -92,11 +102,11 @@ open class AndroidModule(
 		}
 
 		val dirs = mutableSetOf<File>()
-		dirs.addAll(mainSourceSet?.sourceProvider?.resDirs ?: emptyList())
+		dirs.addAll(defaultSources(ArtifactScope.Main)?.resDirs ?: emptyList())
 
 		// src/<buildType>/res, src/<flavor>/res and the variant's own res dir are resources of the
 		// selected variant as much as src/main/res is; a save there must regenerate R too.
-		getSelectedVariant()?.variantSourceProvidersList?.forEach { provider ->
+		variantSources(ArtifactScope.Main)?.variantSourceProvidersList?.forEach { provider ->
 			dirs.addAll(provider.resDirs)
 		}
 
@@ -109,28 +119,36 @@ open class AndroidModule(
 		return dirs
 	}
 
-	override fun getSourceDirectories(): Set<File> {
+	// The components the selected variant has: one AGP does not report for it is no scope, even if
+	// the module has its source set (src/androidTest while a non-tested build type is selected).
+	override fun getKnownSourceSetDirectories(): Set<File> = sourceSetDirPathsList.mapTo(LinkedHashSet(), ::File)
+
+	override fun getArtifactScopes(): List<ArtifactScope> =
+		(listOf(ArtifactScope.Main) + variantDependencies.artifactsMap.keys.mapNotNull(ArtifactScope::fromKey))
+			.distinct()
+			.sortedWith(ArtifactScope.ORDER)
+
+	override fun getSourceDirectories(scope: ArtifactScope): Set<File> {
 		if (mainSourceSet == null) {
 			log.warn(
 				"No main source set is available for project {}. Cannot get source directories.",
 				name,
 			)
-			return mutableSetOf()
+			return emptySet()
 		}
-
-		// src/main/java
-		val sources = mainSourceSet.sourceProvider.javaDirs.toMutableSet()
-
-		// src/main/kotlin
-		sources.addAll(mainSourceSet.sourceProvider.kotlinDirs)
-
-		// build/generated/**
-		// AIDL, ViewHolder, Renderscript, BuildConfig i.e every generated source sources
-		val selectedVariant = getSelectedVariant()
-		if (selectedVariant != null) {
-			sources.addAll(selectedVariant.mainArtifact.generatedSourceFolders)
+		if (scope != ArtifactScope.Main && dependenciesOf(scope) == null) {
+			return emptySet()
 		}
-		return sources
+		val provider = defaultSources(scope) ?: return emptySet()
+		val variant = variantSources(scope)
+
+		// src/<buildType>, src/<flavor>, src/<variant> and their test counterparts are compiled
+		// with the default source set whenever this variant is selected.
+		val layers = variant?.variantSourceProvidersList.orEmpty().flatMap { it.javaDirs + it.kotlinDirs }
+
+		// build/generated/**: AIDL, BuildConfig, kapt, KSP and every other generated source
+		val generated = variant?.generatedSourceFolderPathsList.orEmpty().map(::File)
+		return (provider.javaDirs + provider.kotlinDirs + layers + generated).toSet()
 	}
 
 	override fun getCompileSourceDirectories(): Set<File> {
@@ -138,6 +156,72 @@ open class AndroidModule(
 		dirs.addAll(getSourceDirectories())
 		getCompileModuleProjects().forEach { dirs.addAll(it.getSourceDirectories()) }
 		return dirs
+	}
+
+	override fun getTestFixturesModuleProjects(scope: ArtifactScope): List<ModuleProject> {
+		if (scope == ArtifactScope.Main) {
+			return emptyList()
+		}
+		return directProjectDependencies(scope)
+			.filter { (library, _) -> library.projectInfo.isTestFixtures }
+			.map { (_, module) -> module }
+			.distinctBy { it.path }
+	}
+
+	override fun getCompileModuleProjects(scope: ArtifactScope): List<ModuleProject> {
+		if (scope == ArtifactScope.Main) {
+			return getCompileModuleProjects()
+		}
+		// Seeded with this module so a test fixture that depends back on it (`:testutils` ->
+		// `:app`) is not re-expanded. Not on the recursion path: that back-edge is legal, not a cycle.
+		val visited = hashSetOf(path)
+		val recursionPath = ArrayDeque<String>()
+		val result = mutableListOf<ModuleProject>()
+		for ((_, module) in directProjectDependencies(scope)) {
+			result.add(module)
+			result.addAll(module.getCompileModuleProjects(visited, recursionPath))
+		}
+		return result.filter { it.path != path }.distinctBy { it.path }
+	}
+
+	/** The project libraries at the root of [scope]'s compile graph, with their modules, excluding this one. */
+	private fun directProjectDependencies(scope: ArtifactScope): List<Pair<AndroidModels.Library, ModuleProject>> {
+		val graph = dependenciesOf(scope)?.compileGraph ?: return emptyList()
+		val root = IProjectManager.getInstance().workspace ?: return emptyList()
+		return graph.rootList
+			.mapNotNull { nodeId -> graph.nodeList.getOrNull(nodeId)?.let { graph.keyList.getOrNull(it.keyId) } }
+			.mapNotNull { key -> variantDependencies.librariesMap[key] }
+			.filter { it.type == AndroidModels.LibraryType.Project }
+			.mapNotNull { library ->
+				(root.findByPath(library.projectInfo.projectPath) as? ModuleProject)
+					?.takeIf { it.path != path }
+					?.let { library to it }
+			}
+	}
+
+	override fun getCompileClasspaths(
+		scope: ArtifactScope,
+		excludeSourceGeneratedClassPath: Boolean,
+	): Set<File> {
+		if (scope == ArtifactScope.Main) {
+			return getCompileClasspaths(excludeSourceGeneratedClassPath)
+		}
+		val artifact = dependenciesOf(scope) ?: return emptySet()
+		val project = IProjectManager.getInstance().workspace ?: return emptySet()
+
+		val result = getCompileClasspaths(excludeSourceGeneratedClassPath).toMutableSet()
+		val graph = artifact.compileGraph
+		collectLibraries(
+			root = project,
+			graph = graph,
+			nodeIds = graph.rootList,
+			result = result,
+			excludeSourceGeneratedClassPath = excludeSourceGeneratedClassPath,
+			visited = HashSet(),
+			// A test graph that reaches back to this module must not re-expand it.
+			moduleVisited = hashSetOf(path),
+		)
+		return result
 	}
 
 	override fun getModuleClasspaths(): Set<File> =
@@ -172,7 +256,7 @@ open class AndroidModule(
 		} else {
 			result.addAll(getModuleClasspaths())
 		}
-		val graph = variantDependencies.mainArtifact.compileGraph
+		val graph = dependenciesOf(ArtifactScope.Main)?.compileGraph ?: AndroidModels.DependencyGraph.getDefaultInstance()
 		collectLibraries(
 			root = project,
 			graph = graph,
@@ -395,7 +479,7 @@ open class AndroidModule(
 		try {
 			val result = mutableListOf<ModuleProject>()
 
-			val graph = variantDependencies.mainArtifact.compileGraph
+			val graph = dependenciesOf(ArtifactScope.Main)?.compileGraph ?: AndroidModels.DependencyGraph.getDefaultInstance()
 			val libraryMap = variantDependencies.librariesMap
 			for (nodeId in graph.rootList) {
 				val node = graph.nodeList.getOrNull(nodeId)
@@ -499,7 +583,7 @@ open class AndroidModule(
 	fun getResourceTable(): ResourceTable? {
 		val namespace = this.namespace ?: return null
 
-		val resDirs = mainSourceSet?.sourceProvider?.resDirs ?: return null
+		val resDirs = defaultSources(ArtifactScope.Main)?.resDirs ?: return null
 		return ResourceTableRegistry.getInstance().forPackage(namespace, *resDirs.toTypedArray())
 	}
 
@@ -511,7 +595,7 @@ open class AndroidModule(
 
 		CompletableFuture.runAsync {
 			val tableRegistry = ResourceTableRegistry.getInstance()
-			val resDirs = mainSourceSet?.sourceProvider?.resDirs ?: return@runAsync
+			val resDirs = defaultSources(ArtifactScope.Main)?.resDirs ?: return@runAsync
 			tableRegistry.removeTable(this.namespace)
 			tableRegistry.forPackage(this.namespace, *resDirs.toTypedArray())
 		}

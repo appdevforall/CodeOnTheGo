@@ -24,8 +24,9 @@ internal class SymbolVisibilityChecker(
 		useSiteModule: KaModule,
 		useSitePackage: String? = null,
 	): Boolean {
-		val declaringModule = structureProvider.findModuleForSourceId(symbol.sourceId)
-			?: return false
+		val declaringModule =
+			structureProvider.findModuleForSourceId(symbol.sourceId)
+				?: return false
 
 		if (!isReachable(useSiteModule, declaringModule)) return false
 		if (!arePlatformCompatible(useSiteModule, declaringModule)) return false
@@ -34,7 +35,10 @@ internal class SymbolVisibilityChecker(
 		return true
 	}
 
-	fun isReachable(useSiteModule: KaModule, declaringModule: KaModule): Boolean {
+	fun isReachable(
+		useSiteModule: KaModule,
+		declaringModule: KaModule,
+	): Boolean {
 		if (useSiteModule == declaringModule) return true
 		if (moduleVisibilityCache[useSiteModule]?.contains(declaringModule) == true) return true
 
@@ -54,7 +58,10 @@ internal class SymbolVisibilityChecker(
 		return false
 	}
 
-	fun arePlatformCompatible(useSiteModule: KaModule, declaringModule: KaModule): Boolean {
+	fun arePlatformCompatible(
+		useSiteModule: KaModule,
+		declaringModule: KaModule,
+	): Boolean {
 		val usePlatform = useSiteModule.targetPlatform
 		val declPlatform = declaringModule.targetPlatform
 
@@ -84,7 +91,7 @@ internal class SymbolVisibilityChecker(
 		return when (symbol.visibility) {
 			JvmVisibility.PUBLIC -> true
 			JvmVisibility.PRIVATE -> false
-			JvmVisibility.INTERNAL -> useSiteModule == declaringModule
+			JvmVisibility.INTERNAL -> useSiteModule == declaringModule || declaringModule in useSiteModule.directFriendDependencies
 			JvmVisibility.PROTECTED -> isSamePackage || isDescendant
 			JvmVisibility.PACKAGE_PRIVATE -> isSamePackage
 		}

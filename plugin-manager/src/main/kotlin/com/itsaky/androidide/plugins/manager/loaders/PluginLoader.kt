@@ -6,10 +6,12 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.content.res.Resources
-import android.os.Build
+import android.os.Bundle
+import com.itsaky.androidide.plugins.manager.core.deleteWithoutFollowingLinks
 import dalvik.system.DexClassLoader
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.Locale
 import java.util.zip.ZipFile
 
 /**
@@ -26,7 +28,6 @@ class PluginLoader(
 	private var pluginResources: Resources? = null
 	private var pluginPackageInfo: PackageInfo? = null
 	private var pluginClassLoader: DexClassLoader? = null
-	private var nativeLibDir: File? = null
 
 	/**
 	 * Load plugin resources from APK
@@ -147,46 +148,6 @@ class PluginLoader(
 		)
 	}
 
-	fun extractNativeLibs(pluginId: String): File? {
-		val pluginNativeDir = File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId)
-		if (pluginNativeDir.exists()) {
-			nativeLibDir = pluginNativeDir
-			return pluginNativeDir
-		}
-
-		val libPrefix = "lib/${Build.SUPPORTED_ABIS[0]}/"
-		val targetPath = pluginNativeDir.toPath().toAbsolutePath().normalize()
-		pluginNativeDir.mkdirs()
-
-		var found = false
-		ZipFile(pluginApk).use { zip ->
-			zip
-				.entries()
-				.asSequence()
-				.filter { !it.isDirectory && it.name.startsWith(libPrefix) && it.name.endsWith(".so") }
-				.forEach { entry ->
-					val outPath = targetPath.resolve(entry.name.substringAfterLast("/")).normalize()
-					if (outPath.startsWith(targetPath)) {
-						zip.getInputStream(entry).use { input ->
-							outPath.toFile().outputStream().use { output ->
-								input.copyTo(output)
-							}
-						}
-						outPath.toFile().setExecutable(true, false)
-						found = true
-					}
-				}
-		}
-
-		if (!found) {
-			pluginNativeDir.deleteRecursively()
-			return null
-		}
-
-		nativeLibDir = pluginNativeDir
-		return pluginNativeDir
-	}
-
 	fun isDebuggable(): Boolean {
 		val packageInfo =
 			pluginPackageInfo
@@ -212,7 +173,7 @@ class PluginLoader(
 	): Pair<String?, String?> {
 		if (manifest.iconDay == null && manifest.iconNight == null) return null to null
 		val iconDir = File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId)
-		iconDir.deleteRecursively()
+		iconDir.deleteWithoutFollowingLinks()
 		iconDir.mkdirs()
 		val targetPath = iconDir.toPath().toAbsolutePath().normalize()
 		return try {
@@ -256,8 +217,8 @@ class PluginLoader(
 			val pluginDescription = metaData.getString("plugin.description") ?: ""
 			val pluginAuthor = metaData.getString("plugin.author") ?: ""
 			val pluginMainClass = metaData.getString("plugin.main_class") ?: return null
-			val pluginMinIdeVersion = metaData.getString("plugin.min_ide_version") ?: "1.0.0"
-			val pluginMaxIdeVersion = metaData.getString("plugin.max_ide_version")
+			val pluginMinIdeVersion = metaData.ideVersion("plugin.min_ide_version") ?: "1.0.0"
+			val pluginMaxIdeVersion = metaData.ideVersion("plugin.max_ide_version")
 
 			// Parse permissions
 			val permissions =
@@ -365,3 +326,10 @@ class PluginLoader(
 		pluginClassLoader = null
 	}
 }
+
+@Suppress("DEPRECATION")
+internal fun Bundle.ideVersion(key: String): String? =
+	when (val value = get(key)) {
+		is Float -> String.format(Locale.ROOT, "%.2f", value)
+		else -> value?.toString()
+	}

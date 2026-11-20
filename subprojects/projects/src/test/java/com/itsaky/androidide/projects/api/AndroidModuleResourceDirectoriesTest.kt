@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.models.ArtifactScope
 import com.itsaky.androidide.tooling.api.models.BuildVariantInfo
 import org.junit.After
 import org.junit.Rule
@@ -90,8 +91,13 @@ class AndroidModuleResourceDirectoriesTest {
 			.newBuilder()
 			.setName(name)
 			.setMainArtifact(AndroidModels.AndroidArtifact.newBuilder().setName("main"))
-			.addVariantSourceProviders(sourceProvider(res))
-			.build()
+			.putArtifactSources(
+				ArtifactScope.Main.key,
+				AndroidModels.VariantArtifactSources
+					.newBuilder()
+					.addVariantSourceProviders(sourceProvider(res))
+					.build(),
+			).build()
 
 	/** Install one application module with `debug` and `release` variants and select [selectedVariant]. */
 	private fun installApp(selectedVariant: String): AndroidModule {
@@ -100,7 +106,7 @@ class AndroidModuleResourceDirectoriesTest {
 				.newBuilder()
 				.setProjectType(AndroidModels.ProjectType.ApplicationProject)
 				.setMainSourceSet(
-					AndroidModels.SourceSetContainer.newBuilder().setSourceProvider(sourceProvider(mainRes)),
+					AndroidModels.SourceSetContainer.newBuilder().putSourceProviders(ArtifactScope.Main.key, sourceProvider(mainRes)),
 				).addVariant(variant("debug", debugRes))
 				.addVariant(variant("release", releaseRes))
 				.build()
