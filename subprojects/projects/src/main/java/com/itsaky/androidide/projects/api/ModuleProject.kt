@@ -89,12 +89,22 @@ abstract class ModuleProject(
 	/** The scopes of this module other than [ArtifactScope.Main]. */
 	private fun nonMainScopes(): List<ArtifactScope> = getArtifactScopes().filter { it != ArtifactScope.Main }
 
-	/** The scope whose own source directories hold [file], in [getArtifactScopes] order; main's for any other file. */
-	fun artifactScopeOf(file: Path): ArtifactScope =
-		getArtifactScopes().firstOrNull { scope -> getSourceDirectories(scope).any { file.startsWith(it.toPath()) } }
-			?: ArtifactScope.Main
+	/**
+	 * The scope whose own source directories hold [file], in [getArtifactScopes] order. Null when
+	 * [file] is instead in a source set this module has that the selected variant does not compile
+	 * (`src/release` while `debug` is selected): it gets no analysis. Any other file is main's.
+	 */
+	fun artifactScopeOf(file: Path): ArtifactScope? {
+		getArtifactScopes()
+			.firstOrNull { scope -> getSourceDirectories(scope).any { file.startsWith(it.toPath()) } }
+			?.let { return it }
+		return if (getKnownSourceSetDirectories().any { file.startsWith(it.toPath()) }) null else ArtifactScope.Main
+	}
 
-	fun artifactScopeOf(file: File): ArtifactScope = artifactScopeOf(file.toPath())
+	/** The source set dirs this module has for any variant; empty when the build model lists none. */
+	protected open fun getKnownSourceSetDirectories(): Set<File> = emptySet()
+
+	fun artifactScopeOf(file: File): ArtifactScope? = artifactScopeOf(file.toPath())
 
 	/**
 	 * The tries a Java [file] belongs in, each with the source root to index it under: a main source
@@ -183,8 +193,16 @@ abstract class ModuleProject(
 		} else {
 			getCompileSourceDirectories() +
 				nonMainScopes().filter(scope::sees).flatMap(::getSourceDirectories) +
-				getCompileModuleProjects(scope).flatMap { it.getSourceDirectories() }
+				getCompileModuleProjects(scope).flatMap { it.getSourceDirectories() } +
+				getTestFixturesModuleProjects(scope).flatMap { it.getSourceDirectories(ArtifactScope.TestFixtures) }
 		}
+
+	/**
+	 * The other modules whose test fixtures [scope] compiles against, such as `:lib` for
+	 * `testImplementation(testFixtures(project(":lib")))`. Their main sources come through
+	 * [getCompileModuleProjects].
+	 */
+	open fun getTestFixturesModuleProjects(scope: ArtifactScope): List<ModuleProject> = emptyList()
 
 	/**
 	 * Get the classpaths for this module project. The returned list always included the

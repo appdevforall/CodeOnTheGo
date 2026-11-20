@@ -78,6 +78,29 @@ class VariantSourceProvidersTest {
 		assertThat(sources.values.flatMap { it.variantSourceProvidersList }).isEmpty()
 	}
 
+	@Test
+	fun `req 7 - every source set dir AGP knows for the module is recorded`() {
+		val project =
+			project(
+				basicVariant("freeDebug", buildType = "debug", flavors = listOf("free"), main = artifact("freeMulti", "freeDebug")),
+				basicVariant("paidRelease", buildType = "release", flavors = listOf("paid"), main = artifact(null, "paidRelease")),
+			)
+
+		assertThat(project.allSourceSetDirs())
+			.containsAtLeast(
+				dir("main"),
+				dir("test"),
+				dir("debug"),
+				dir("release"),
+				dir("testRelease"),
+				dir("free"),
+				dir("paid"),
+				dir("freeMulti"),
+				dir("freeDebug"),
+				dir("paidRelease"),
+			)
+	}
+
 	private fun dir(name: String) = "/p/src/$name/java"
 
 	private fun provider(name: String): SourceProvider =
@@ -136,6 +159,7 @@ class VariantSourceProvidersTest {
 
 	private fun project(vararg variants: BasicVariant): BasicAndroidProject =
 		mockk {
+			every { mainSourceSet } returns container("main", unitTest = "test")
 			every { this@mockk.variants } returns variants.toList()
 			every { buildTypeSourceSets } returns listOf(release, debug)
 			every { productFlavorSourceSets } returns listOf(paid, free)

@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.fixtures
 
+import com.itsaky.androidide.lsp.kotlin.compiler.KotlinModuleLayout
 import com.itsaky.androidide.lsp.kotlin.compiler.index.toMetadata
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
@@ -17,6 +18,7 @@ import org.jetbrains.kotlin.psi.KtFile
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.nio.file.Path
 
 /**
  * Base class for plain JVM unit tests that need a real Kotlin Analysis API environment.
@@ -37,9 +39,15 @@ abstract class KtLspTest {
 	 */
 	internal open val enableParserEventSystem: Boolean = false
 
+	/**
+	 * The project layout to build the modules from, in place of [moduleSpecs]: write the sources under
+	 * [baseDir], install a workspace and return its layout. Null keeps [moduleSpecs].
+	 */
+	internal open fun layout(baseDir: Path): KotlinModuleLayout? = null
+
 	@get:Rule
 	@PublishedApi
-	internal val lspTestRule = KtLspTestRule({ moduleSpecs }, { enableParserEventSystem })
+	internal val lspTestRule = KtLspTestRule({ moduleSpecs }, { enableParserEventSystem }, ::layout)
 
 	internal val env: KtLspTestEnvironment
 		get() = lspTestRule.env

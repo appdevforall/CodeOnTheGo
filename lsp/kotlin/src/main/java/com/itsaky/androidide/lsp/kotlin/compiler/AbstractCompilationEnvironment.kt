@@ -17,10 +17,12 @@ import com.itsaky.androidide.lsp.kotlin.compiler.services.ResolutionScopeProvide
 import com.itsaky.androidide.lsp.kotlin.compiler.services.WriteAccessGuard
 import com.itsaky.androidide.lsp.kotlin.compiler.services.latestLanguageVersionSettings
 import com.itsaky.androidide.lsp.kotlin.compiler.util.SLF4JLogger
+import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.progress.ICancelChecker
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
 import org.jetbrains.kotlin.analysis.api.platform.analysisMessageBus
@@ -158,6 +160,13 @@ internal abstract class AbstractCompilationEnvironment(
 
 	val psiManager: PsiManager
 		get() = PsiManager.getInstance(project)
+
+	val symbolVisibilityChecker: SymbolVisibilityChecker by lazy {
+		SymbolVisibilityChecker(ProjectStructureProvider.getInstance(project))
+	}
+
+	/** The indexes completion searches for symbols to offer with an import, in that order: source first. */
+	abstract val unimportedSymbolIndexes: List<JvmSymbolIndex>
 
 	protected abstract fun createServiceRegistrars(): List<AnalysisApiSimpleServiceRegistrar>
 

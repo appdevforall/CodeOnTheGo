@@ -114,6 +114,24 @@ private fun BasicAndroidProject.variantLayers(variantName: String): Map<String, 
 	}
 }
 
+/**
+ * The Java and Kotlin dirs of every source set this module has, whichever variant is selected: each
+ * component of the default config, of every build type and flavor, and every variant's own and
+ * multi-flavor layers.
+ */
+fun BasicAndroidProject.allSourceSetDirs(): List<String> {
+	val containers = listOfNotNull(mainSourceSet) + buildTypeSourceSets + productFlavorSourceSets
+	val providers =
+		containers.flatMap { it.scopedSourceProviders().values } +
+			variants.flatMap { variant ->
+				variant.scopedArtifacts().values.flatMap { listOfNotNull(it.multiFlavorSourceProvider, it.variantSourceProvider) }
+			}
+	return providers
+		.flatMap { it.javaDirectories + it.kotlinDirectories }
+		.map { it.absolutePath }
+		.distinct()
+}
+
 /** Per scope key, the sources each of [variant]'s components adds over its default source set. */
 fun BasicAndroidProject.variantArtifactSources(variant: Variant): Map<String, AndroidModels.VariantArtifactSources> {
 	val generated = variant.scopedArtifacts().mapValues { (_, artifact) -> artifact.generatedSourceFolders.map { it.absolutePath } }

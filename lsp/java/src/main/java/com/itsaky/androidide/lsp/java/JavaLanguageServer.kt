@@ -251,7 +251,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun complete(params: CompletionParams?): CompletionResult {
 		val compiler = getCompiler(params!!.file)
-		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)) {
+		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file) || isOutsideSelectedVariant(params.file)) {
 			return CompletionResult.EMPTY
 		}
 
@@ -274,7 +274,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
 		val compiler = getCompiler(params.file)
-		return if (!settings.referencesEnabled()) {
+		return if (!settings.referencesEnabled() || isOutsideSelectedVariant(params.file)) {
 			ReferenceResult(emptyList())
 		} else {
 			ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
@@ -283,7 +283,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
 		val compiler = getCompiler(params.file)
-		return if (!settings.definitionsEnabled()) {
+		return if (!settings.definitionsEnabled() || isOutsideSelectedVariant(params.file)) {
 			DefinitionResult(emptyList())
 		} else {
 			DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
@@ -301,7 +301,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
 		val compiler = getCompiler(params.file)
-		return if (!settings.signatureHelpEnabled()) {
+		return if (!settings.signatureHelpEnabled() || isOutsideSelectedVariant(params.file)) {
 			SignatureHelp(emptyList(), -1, -1)
 		} else {
 			SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
@@ -333,6 +333,10 @@ class JavaLanguageServer : ILanguageServer {
 			}
 		}
 	}
+
+	/** Whether [file] is in a module but not compiled by its selected variant, so it gets no analysis. */
+	private fun isOutsideSelectedVariant(file: Path): Boolean =
+		ProjectManagerImpl.getInstance().workspace?.isOutsideSelectedVariant(file) == true
 
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 	fun getCompiler(file: Path?): JavaCompilerService {
@@ -368,8 +372,8 @@ class JavaLanguageServer : ILanguageServer {
 		val module =
 			getInstance()
 				.findModuleForFile(event.changedFile)
-		if (module != null) {
-			val changedScope = module.artifactScopeOf(event.changedFile)
+		val changedScope = module?.artifactScopeOf(event.changedFile)
+		if (module != null && changedScope != null) {
 			JavaCompilerProvider.getInstance().forModule(module, changedScope).onDocumentChange(event)
 			// Scopes that compile against the changed one (tests against main or fixtures) are stale now.
 			JavaCompilerProvider.getInstance().invalidateScopesSeeing(module, changedScope)
