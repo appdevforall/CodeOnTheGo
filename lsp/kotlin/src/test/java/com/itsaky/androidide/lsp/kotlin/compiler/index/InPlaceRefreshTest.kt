@@ -7,6 +7,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.write
+import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
@@ -19,6 +20,7 @@ import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.psi.KtFile
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
@@ -26,6 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
+import kotlin.io.path.pathString
 import java.util.concurrent.TimeUnit.SECONDS
 
 /** Requirement: an open document keeps one [KtFile], edited in place, with pins deferring the edit. */
@@ -38,6 +41,7 @@ internal class InPlaceRefreshTest : KtLspTest() {
 	fun closeDocs() {
 		env.ktSymbolIndex.onRefreshDeferred = null
 		env.ktSymbolIndex.beforePinStampReleased = null
+		env.ktSymbolIndex.beforeParsedDocumentPublished = null
 		openedPaths.forEach { FileManager.onDocumentClose(DocumentCloseEvent(it)) }
 		openedPaths.clear()
 	}
@@ -211,6 +215,7 @@ internal class InPlaceRefreshTest : KtLspTest() {
 		refresh.get(10, SECONDS)
 
 		assertEquals(null, env.ktSymbolIndex.incrementalDocument(path))
+		assertFalse(ProjectStructureProvider.getInstance(env.project).hasInMemoryFile(path.pathString))
 	}
 
 	@Test
@@ -262,5 +267,36 @@ internal class InPlaceRefreshTest : KtLspTest() {
 
 		assertEquals(2, doc.appliedVersion)
 		assertEquals(edited, env.project.read { doc.ktFile.text })
+	}
+
+	@Test
+	fun `a parse from before a close and reopen does not replace the reopened document`() {
+		createSourceFile("M.kt", "fun m() {}")
+		val path = sourcePath("M.kt")
+		openDocument(path, "fun m() {}")
+		val parsed = CountDownLatch(1)
+		val resume = CountDownLatch(1)
+		env.ktSymbolIndex.beforeParsedDocumentPublished = {
+			env.ktSymbolIndex.beforeParsedDocumentPublished = null
+			parsed.countDown()
+			resume.await(10, SECONDS)
+		}
+		val stale = CoroutineScope(Dispatchers.IO).future { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+		assertTrue(parsed.await(10, SECONDS))
+
+		closeDocument(path)
+		env.ktSymbolIndex.invalidateCurrent(path)
+		val reopened = "fun m() {}\nfun n() {}"
+		openDocument(path, reopened)
+		currentInstance(path)
+		resume.countDown()
+		stale.get(10, SECONDS)
+
+		val document = env.ktSymbolIndex.incrementalDocument(path)!!
+		assertEquals(reopened, env.project.read { document.ktFile.text })
+		assertSame(
+			document.ktFile.viewProvider.virtualFile,
+			ProjectStructureProvider.getInstance(env.project).inMemoryFile(path.pathString),
+		)
 	}
 }

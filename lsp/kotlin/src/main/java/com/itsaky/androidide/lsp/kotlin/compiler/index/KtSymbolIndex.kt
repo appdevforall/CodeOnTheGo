@@ -17,6 +17,7 @@ import com.itsaky.androidide.lsp.kotlin.compiler.writeUnlessDisposed
 import com.itsaky.androidide.lsp.kotlin.utils.toNioPathOrNull
 import com.itsaky.androidide.lsp.kotlin.utils.toVirtualFileOrNull
 import com.itsaky.androidide.projects.FileManager
+import com.itsaky.androidide.projects.models.ActiveDocument
 import com.itsaky.androidide.utils.DocumentUtils
 import io.sentry.Sentry
 import kotlinx.coroutines.CoroutineName
@@ -62,6 +63,21 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.StampedLock
 import kotlin.io.path.pathString
+
+/**
+ * The open document a refresh was launched for.
+ *
+ * Versions restart at every open, so only the [ActiveDocument] instance tells a reopened path apart
+ * from the open the refresh began under.
+ */
+private data class RefreshTarget(
+	val path: Path,
+	val version: Int,
+	val owner: ActiveDocument,
+) {
+	/** Whether [owner] is still the open document for [path]. */
+	fun isOpen(): Boolean = FileManager.getActiveDocument(path) === owner
+}
 
 /**
  * An index of symbols from Kotlin source files and JARs.
@@ -160,6 +176,11 @@ internal class KtSymbolIndex(
 	@VisibleForTesting
 	@Volatile
 	internal var onRefreshDeferred: (() -> Unit)? = null
+
+	/** Runs in a full parse once the file is parsed, before it is registered and published; set only by tests. */
+	@VisibleForTesting
+	@Volatile
+	internal var beforeParsedDocumentPublished: (() -> Unit)? = null
 
 	/** Runs once the last pin has left the map but before it unlocks its document; set only by tests. */
 	@VisibleForTesting
@@ -329,7 +350,7 @@ internal class KtSymbolIndex(
 							} catch (_: Throwable) {
 								null
 							}
-						refreshToCurrent(p, version, old)
+						refreshToCurrent(RefreshTarget(p, version, doc), old)
 					}, refreshExecutor)
 				}
 			}!!
@@ -358,15 +379,15 @@ internal class KtSymbolIndex(
 	 * a lagging stamp only costs one redundant refresh on the next request.
 	 */
 	private fun refreshToCurrent(
-		path: Path,
-		version: Int,
+		target: RefreshTarget,
 		old: KtFile?,
 	): VersionedKtFile {
+		val (path, version) = target
 		// A document whose file is not the one this refresh succeeds was left behind by a close racing a
 		// refresh; editing it in place would skip the in-memory registration the close undid.
 		val doc =
 			documents[path]?.takeIf { old != null && it.ktFile === old }
-				?: return parseIntoNewDocument(path, version, old)
+				?: return parseIntoNewDocument(target, old)
 		val stamp = doc.editLock.tryWriteLock()
 		if (stamp == 0L) {
 			// Never wait for the pin: it can be held across a whole analysis. Its release refreshes again.
@@ -382,7 +403,7 @@ internal class KtSymbolIndex(
 			val outcome = applyInPlace(doc, content, version)
 			if (outcome is ReparseOutcome.Failed) {
 				logger.warn("in-place reparse of {} failed, parsing in full: {}", path, outcome.reason, outcome.cause)
-				return parseIntoNewDocument(path, version, doc.ktFile)
+				return parseIntoNewDocument(target, doc.ktFile)
 			}
 			return VersionedKtFile(version, doc.ktFile)
 		} finally {
@@ -470,18 +491,22 @@ internal class KtSymbolIndex(
 	 * the path's [IncrementalKtDocument], and reports [old] (or the new file) modified.
 	 */
 	private fun parseIntoNewDocument(
-		path: Path,
-		version: Int,
+		target: RefreshTarget,
 		old: KtFile?,
 	): VersionedKtFile {
+		val (path, version) = target
 		val content = FileManager.getDocumentContents(path)
 		val newKtFile = project.read { parser.createFile(path.pathString, content) }
 		newKtFile.backingFilePath = path
+		beforeParsedDocumentPublished?.invoke()
+		// A close during the parse already ran invalidateCurrent, and a reopen may have published its own
+		// document since; registering or storing this file now would outlive the one or shadow the other.
+		if (!target.isOpen()) return VersionedKtFile(version, newKtFile)
 		// KtFile.virtualFile is null for non-physical PSI (unit-test env); the view provider's is
 		// always present, and identical to it in production.
-		ProjectStructureProvider
-			.getInstance(project)
-			.registerInMemoryFile(path.pathString, newKtFile.viewProvider.virtualFile)
+		val virtualFile = newKtFile.viewProvider.virtualFile
+		val structure = ProjectStructureProvider.getInstance(project)
+		structure.registerInMemoryFile(path.pathString, virtualFile)
 		// project.write serializes the mutation against a concurrent `analyze` (read lock); runWriteAction
 		// supplies the platform write access handleElementModification asserts, which our RW lock does not.
 		// The barrier preempts running analyses: completion waits on this refresh before it reaches the
@@ -496,9 +521,13 @@ internal class KtSymbolIndex(
 				queueOnFileChangedAsync(newKtFile)
 			}
 		}
-		// A close during the parse already ran invalidateCurrent; a document stored now would outlive it.
-		if (FileManager.isActive(path)) {
-			documents[path] = IncrementalKtDocument(newKtFile, version)
+		// Re-checked inside compute, which a close's invalidateCurrent serializes with on the same key.
+		val published =
+			documents.compute(path) { _, existing ->
+				if (target.isOpen()) IncrementalKtDocument(newKtFile, version) else existing
+			}
+		if (published?.ktFile !== newKtFile) {
+			structure.unregisterInMemoryFileIfCurrent(path.pathString, virtualFile)
 		}
 		return VersionedKtFile(version, newKtFile)
 	}
