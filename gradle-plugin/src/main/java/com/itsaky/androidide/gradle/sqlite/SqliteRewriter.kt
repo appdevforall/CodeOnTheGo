@@ -191,7 +191,8 @@ object SqliteRewriter {
 	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
 	 * ([renamedCursor]; [everyPathCursor] when it is one on every path where it is not null, so also for `null`
 	 * itself), or, on every path where it is not null, an array of one of the Android-only cursor types, of any
-	 * dimension ([androidCursorArray], that array type). [nullConstant]: `null` on every path.
+	 * dimension ([androidCursorArray], that array type). [nullConstant]: `null` on every path, which an element loaded
+	 * from it counts as, since that load throws.
 	 */
 	private class StaticCursorValue(
 		type: Type?,
@@ -870,6 +871,10 @@ object SqliteRewriter {
 						value1: BasicValue,
 						value2: BasicValue,
 					): BasicValue? {
+						// a load from null always throws, so its row is null too, which a merge with another path's row ignores
+						if (insn.opcode == Opcodes.AALOAD && (value1 as? StaticCursorValue)?.nullConstant == true) {
+							return newValue(BasicInterpreter.NULL_TYPE)
+						}
 						val array = (value1 as? StaticCursorValue)?.androidCursorArray
 						// BasicInterpreter types every AALOAD as Object; a row of an AbstractCursor[][] is an AbstractCursor[]
 						if (insn.opcode == Opcodes.AALOAD && array != null && array.dimensions > 1) {
