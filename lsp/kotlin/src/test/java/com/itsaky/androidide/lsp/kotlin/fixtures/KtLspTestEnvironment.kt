@@ -3,13 +3,17 @@ package com.itsaky.androidide.lsp.kotlin.fixtures
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationKind
 import com.itsaky.androidide.lsp.kotlin.compiler.DEFAULT_LANGUAGE_VERSION
+import com.itsaky.androidide.lsp.kotlin.compiler.KotlinModuleLayout
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
+import com.itsaky.androidide.lsp.kotlin.compiler.index.toMetadata
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.buildKtLibraryModule
 import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProviders
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.LspAnalysisApiServiceRegistrar
 import com.itsaky.androidide.lsp.kotlin.compiler.services.AnalysisPermissionOptions
+import com.itsaky.androidide.lsp.kotlin.compiler.toKtModules
+import kotlinx.coroutines.runBlocking
 import org.appdevforall.codeonthego.indexing.InMemoryIndex
 import org.appdevforall.codeonthego.indexing.api.IndexQuery
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
@@ -49,6 +53,9 @@ import org.jetbrains.kotlin.analysis.api.analyze as ktAnalyze
  * @param extraLibraryJars Additional JARs to add as library modules.
  * @param languageVersion Kotlin language version; defaults to [DEFAULT_LANGUAGE_VERSION].
  * @param jdkRelease JDK release version; defaults to the host JVM's feature version.
+ * @param layout When set, the modules are built from it the way production builds them, in place of
+ *   [moduleSpecs], and every Kotlin file under its source roots is indexed, as the background indexer
+ *   would. Its source roots must exist already.
  */
 @OptIn(K1Deprecation::class, KaImplementationDetail::class)
 internal class KtLspTestEnvironment(
@@ -63,6 +70,7 @@ internal class KtLspTestEnvironment(
 	// Tests that open a document and drive resolution/ranges through it (the live-document path)
 	// need true to be representative; everything else keeps the historical false.
 	enableParserEventSystem: Boolean = false,
+	private val layout: KotlinModuleLayout? = null,
 ) : AbstractCompilationEnvironment(
 		name = "test",
 		kind = CompilationKind.Default,
@@ -99,6 +107,7 @@ internal class KtLspTestEnvironment(
 	init {
 		try {
 			initialize(::buildModules, ::buildKtSymbolIndex)
+			layout?.let(::indexSourceRoots)
 		} catch (failure: Throwable) {
 			/*
 			 * A throwing constructor never hands the instance to KtLspTestRule, so its finally has
@@ -110,6 +119,10 @@ internal class KtLspTestEnvironment(
 			throw failure
 		}
 	}
+
+	// The fixture aliases one in-memory index as both source and library.
+	override val unimportedSymbolIndexes: List<JvmSymbolIndex>
+		get() = listOf(ktSymbolIndex.sourceIndex, ktSymbolIndex.libraryIndex).distinct()
 
 	override fun createServiceRegistrars(): List<AnalysisApiSimpleServiceRegistrar> =
 		listOf(
@@ -134,6 +147,8 @@ internal class KtLspTestEnvironment(
 		project: MockProject,
 		applicationEnv: KotlinCoreApplicationEnvironment,
 	): List<KtModule> {
+		layout?.let { return it.toKtModules(project, applicationEnv) }
+
 		val jdkModule =
 			buildKtLibraryModule(project, applicationEnv) {
 				id = "jdk"
@@ -208,6 +223,7 @@ internal class KtLspTestEnvironment(
 					name = spec.name,
 					roots = setOf(checkNotNull(rootByModule[name])),
 					dependencies = libraryDeps + spec.dependsOn.map { checkNotNull(built[it]) },
+					directFriendDependencies = spec.friends.map { checkNotNull(built[it]) { "Friend '$it' must be in dependsOn" } },
 					languageVersion = languageVersion,
 				)
 		}
@@ -292,6 +308,28 @@ internal class KtLspTestEnvironment(
 		}
 	}
 
+	/** The [KtFile] at [path], which must already exist on disk. */
+	fun ktFile(path: Path): KtFile {
+		val vf = localFileSystem.refreshAndFindFileByPath(path.pathString) ?: error("VFS cannot find $path")
+		return project.read { PsiManager.getInstance(project).findFile(vf) as? KtFile } ?: error("Not a Kotlin file: $path")
+	}
+
+	private fun indexSourceRoots(layout: KotlinModuleLayout) {
+		val files =
+			layout.modules
+				.flatMap { it.sourceRoots }
+				.flatMap { root ->
+					root
+						.toFile()
+						.walkTopDown()
+						.filter { it.isFile && it.extension == "kt" }
+						.toList()
+				}
+		runBlocking {
+			files.forEach { ktSymbolIndex.fileIndex.upsert(ktFile(it.toPath()).toMetadata(project, isIndexed = false)) }
+		}
+	}
+
 	/**
 	 * Runs [action] inside a [KaSession] for [file], acquiring the project read lock first.
 	 */
@@ -354,7 +392,7 @@ private fun findIntellijPluginRoot(): Path {
 	}
 }
 
-private fun findKotlinStdlibJar(): Path? =
+internal fun findKotlinStdlibJar(): Path? =
 	try {
 		val location =
 			KotlinVersion::class.java.protectionDomain
