@@ -77,6 +77,24 @@ class ToolsManagerSqliteAarTest {
 	}
 
 	@Test
+	fun `an extraction that throws a RuntimeException returns, so the rest of init runs, and keeps the previous AAR`() {
+		val aar = File(tempFolder.root, "sqlite-debugger/sqlite-debugger.aar")
+		aar.parentFile!!.mkdirs()
+		aar.writeText("previous-install-aar")
+		val failing =
+			object : InputStream() {
+				override fun read(): Int = throw IllegalStateException("asset manager gone")
+			}
+
+		// init calls the steps after this one (the cogo plugin, the init script, the keystore) only when it returns
+		ToolsManager.extractSqliteAar("sqlite-debugger-release.aar", aar) { failing }
+		ToolsManager.extractSqliteAar("sqlite-debugger-release.aar", aar) { throw NullPointerException("no base application") }
+
+		assertThat(aar.readText()).isEqualTo("previous-install-aar")
+		assertThat(aar.parentFile!!.list()).asList().containsExactly("sqlite-debugger.aar")
+	}
+
+	@Test
 	fun `the first extraction creates the directory and the AAR`() {
 		val aar = File(tempFolder.root, "sqlite-rewrite-runtime/sqlite-rewrite-runtime.aar")
 

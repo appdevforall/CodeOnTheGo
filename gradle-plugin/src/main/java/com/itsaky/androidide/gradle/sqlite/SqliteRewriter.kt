@@ -23,6 +23,7 @@ import org.objectweb.asm.tree.LdcInsnNode
 import org.objectweb.asm.tree.LineNumberNode
 import org.objectweb.asm.tree.MethodInsnNode
 import org.objectweb.asm.tree.MethodNode
+import org.objectweb.asm.tree.MultiANewArrayInsnNode
 import org.objectweb.asm.tree.TypeInsnNode
 import org.objectweb.asm.tree.VarInsnNode
 import org.objectweb.asm.tree.analysis.Analyzer
@@ -188,20 +189,28 @@ object SqliteRewriter {
 
 	/**
 	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
-	 * ([renamedCursor]), or, on every path, an array of one of the Android-only cursor types ([androidCursorArray],
-	 * that element type).
+	 * ([renamedCursor]; [everyPathCursor] when it is one on every path where it is not null, so also for `null`
+	 * itself), or, on every path where it is not null, an array of one of the Android-only cursor types, of any
+	 * dimension ([androidCursorArray], that array type). [nullConstant]: `null` on every path, which an element loaded
+	 * from it counts as, since that load throws.
 	 */
 	private class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
-		val androidCursorArray: String? = null,
+		val androidCursorArray: Type?,
+		val nullConstant: Boolean,
+		val everyPathCursor: Boolean,
 	) : BasicValue(type) {
 		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
 		override fun equals(other: Any?): Boolean =
 			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false) &&
-				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray
+				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray &&
+				nullConstant == ((other as? StaticCursorValue)?.nullConstant ?: false) &&
+				everyPathCursor == ((other as? StaticCursorValue)?.everyPathCursor ?: false)
 
-		override fun hashCode(): Int = (super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()
+		override fun hashCode(): Int =
+			(((super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()) * 31 + if (nullConstant) 1 else 0) *
+				31 + if (everyPathCursor) 1 else 0
 	}
 
 	private class ClassRewrite(
@@ -397,7 +406,7 @@ object SqliteRewriter {
 				if (insn is LineNumberNode) {
 					line = insn.line
 				}
-				conversions[insn]?.let { violate(m, line, it) }
+				conversions[insn]?.let { if (it.fails) violate(m, line, it.what) else warnOnce("${site(m, line)}: ${it.what}") }
 				when (insn) {
 					is MethodInsnNode -> {
 						methodInsn(m, insn, line)
@@ -454,6 +463,11 @@ object SqliteRewriter {
 						"to requery. Strings are not rewritten: Class.forName or reflection on it reaches Android's class, not requery's",
 				)
 			}
+		}
+
+		/** Logs [message] unless it was logged already: one warning per place, though one place can trip it twice. */
+		fun warnOnce(message: String) {
+			if (warned.add(message)) warn(message)
 		}
 
 		fun where(line: Int) = if (line >= 0) "line $line" else "no line number"
@@ -545,7 +559,7 @@ object SqliteRewriter {
 				val message =
 					"${site(m, line)}: $cannot${simple(declaring)}.$name, which it changes or rejects; " +
 						"the $use is left as it is, and fails at run time if the owner extends that class"
-				if (warned.add(message)) warn(message)
+				warnOnce(message)
 			}
 			return null
 		}
@@ -791,9 +805,12 @@ object SqliteRewriter {
 		/** A type in a frame or an internal name, when it is one of the Android-only cursor types, or null. */
 		private fun androidOnlyCursor(entry: Any?): String? = (entry as? String)?.takeIf { it in Rules.ANDROID_ONLY_CURSOR_TYPES }
 
-		/** [type]'s element type when it is a one-dimensional array of an Android-only cursor type, or null. */
-		private fun androidCursorArray(type: Type?): String? =
-			if (type != null && type.sort == Type.ARRAY && type.dimensions == 1) androidOnlyCursor(type.elementType) else null
+		/** [type] when it is an array of an Android-only cursor type, of any dimension, or null. */
+		private fun androidCursorArray(type: Type?): Type? =
+			type?.takeIf {
+				it.sort == Type.ARRAY &&
+					androidOnlyCursor(it.elementType) != null
+			}
 
 		/** Whether [m] names an Android-only cursor type where a value could be converted to it without a cast. */
 		private fun mayConvertToAndroidCursor(m: MethodNode): Boolean {
@@ -806,30 +823,64 @@ object SqliteRewriter {
 					is InvokeDynamicInsnNode -> names(insn.desc)
 					is FieldInsnNode -> names(insn.desc)
 					is TypeInsnNode -> names(insn.desc) || (insn.opcode == Opcodes.ANEWARRAY && androidOnlyCursor(insn.desc) != null)
+					is MultiANewArrayInsnNode -> names(insn.desc)
 					is FrameNode -> (insn.local.orEmpty() + insn.stack.orEmpty()).any { androidOnlyCursor(it) != null }
 					else -> false
 				}
 			}
 		}
 
+		/** What [implicitCursorConversions] found at one instruction: a build failure, or, unless it [fails], a warning. */
+		class Conversion(
+			val what: String,
+			val fails: Boolean,
+		)
+
 		/**
 		 * The instructions where a value whose static type is SQLiteCursor, or a class that extends it, is used as an
 		 * AbstractWindowedCursor, AbstractCursor or CrossProcessCursor without a cast, by the message for each: returned,
-		 * passed, called on, stored in a field, or held where a frame declares one of them. javac writes no CHECKCAST
-		 * for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the interface, so
-		 * the renamed class would not verify (or, for the interface, the call would fail). Also an AASTORE of such a value
-		 * into an array that is, on every path to it, one of those types' arrays (from a parameter, field, call or
-		 * ANEWARRAY): it would throw ArrayStoreException. Not checked: stores into a Cursor[] or Object[], allowed on
-		 * purpose although one can be such an array at run time; a store whose array type differs between the paths
-		 * that merge before it; values loaded from arrays, which are not followed.
+		 * passed, called on, stored in a field, or held where a frame declares one of them, on any path. javac writes no
+		 * CHECKCAST for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the
+		 * interface, so the renamed class would not verify (or, for the interface, the call would fail). Also an AASTORE of
+		 * such a value into an array that is, on every path to it where it is not null, one of those types' arrays (from a
+		 * parameter, field, call, ANEWARRAY or MULTIANEWARRAY, or loaded from an array of them): it would throw
+		 * ArrayStoreException. The store fails only when the value is such a cursor on every path where it is not null; on
+		 * some paths only, it is a warning, because the paths of the value are not matched with those of the array, and
+		 * the store throws only on a path that brings both. Not checked: stores into a Cursor[] or Object[], allowed on
+		 * purpose although one can be such an array at run time; a store whose array type differs between the paths that
+		 * merge before it (null on a path is no difference); cursors loaded from arrays, which are not followed; an
+		 * SQLiteCursor[] used as one of those types' arrays.
 		 */
-		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, String> {
+		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, Conversion> {
 			if (!mayConvertToAndroidCursor(m)) return emptyMap()
 			val interpreter =
 				object : BasicInterpreter(Opcodes.ASM9) {
 					override fun newValue(type: Type?): BasicValue? {
 						val v = super.newValue(type) ?: return null
-						return if (v.isReference) StaticCursorValue(v.type, isRenamedCursorType(type), androidCursorArray(type)) else v
+						return if (v.isReference) {
+							val nullConstant = type == BasicInterpreter.NULL_TYPE
+							val renamed = isRenamedCursorType(type)
+							StaticCursorValue(v.type, renamed, androidCursorArray(type), nullConstant, renamed || nullConstant)
+						} else {
+							v
+						}
+					}
+
+					override fun binaryOperation(
+						insn: AbstractInsnNode,
+						value1: BasicValue,
+						value2: BasicValue,
+					): BasicValue? {
+						// a load from null always throws, so its row is null too, which a merge with another path's row ignores
+						if (insn.opcode == Opcodes.AALOAD && (value1 as? StaticCursorValue)?.nullConstant == true) {
+							return newValue(BasicInterpreter.NULL_TYPE)
+						}
+						val array = (value1 as? StaticCursorValue)?.androidCursorArray
+						// BasicInterpreter types every AALOAD as Object; a row of an AbstractCursor[][] is an AbstractCursor[]
+						if (insn.opcode == Opcodes.AALOAD && array != null && array.dimensions > 1) {
+							return newValue(Type.getType(array.descriptor.substring(1)))
+						}
+						return super.binaryOperation(insn, value1, value2)
 					}
 
 					override fun merge(
@@ -840,11 +891,21 @@ object SqliteRewriter {
 						val s2 = value2 as? StaticCursorValue
 						// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
 						if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
+							// null on one path does not hide the array on the other: `AbstractCursor[] a = null; if (b) a = p;`
+							val array =
+								when {
+									s1?.nullConstant == true -> s2?.androidCursorArray
+									s2?.nullConstant == true -> s1?.androidCursorArray
+									else -> s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray }
+								}
 							val merged =
 								StaticCursorValue(
 									value1.type,
 									s1?.renamedCursor == true || s2?.renamedCursor == true,
-									s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray },
+									array,
+									s1?.nullConstant == true && s2?.nullConstant == true,
+									// true on null, so null is neutral; a plain BasicValue (an element loaded from an array) is not a known cursor
+									s1?.everyPathCursor == true && s2?.everyPathCursor == true,
 								)
 							return if (merged == value1) value1 else merged
 						}
@@ -859,7 +920,7 @@ object SqliteRewriter {
 				}
 			val declared = fullFrames(m, m.desc).associateBy { it.node }
 			val returnType = Type.getReturnType(m.desc)
-			val result = LinkedHashMap<AbstractInsnNode, String>()
+			val result = LinkedHashMap<AbstractInsnNode, Conversion>()
 			for ((i, insn) in m.instructions.withIndex()) {
 				val f = frames[i] ?: continue
 
@@ -867,10 +928,29 @@ object SqliteRewriter {
 
 				fun fromTop(depth: Int) = if (depth < f.stackSize) f.getStack(f.stackSize - 1 - depth) else null
 				if (insn.opcode == Opcodes.AASTORE) {
-					val element = (fromTop(2) as? StaticCursorValue)?.androidCursorArray
-					if (element != null && renamed(fromTop(0))) {
-						result[insn] = "an SQLite cursor stored into an array of ${element.replace('/', '.')}; requery's SQLiteCursor " +
-							"is not one, so the store would throw ArrayStoreException"
+					val element =
+						(fromTop(2) as? StaticCursorValue)
+							?.androidCursorArray
+							?.takeIf { it.dimensions == 1 }
+							?.elementType
+							?.internalName
+					val value = fromTop(0) as? StaticCursorValue
+					if (element != null && value != null && value.renamedCursor) {
+						val array = "an array of ${element.replace('/', '.')}"
+						result[insn] =
+							if (value.everyPathCursor) {
+								Conversion(
+									"an SQLite cursor stored into $array; requery's SQLiteCursor is not one, so the store would throw " +
+										"ArrayStoreException",
+									fails = true,
+								)
+							} else {
+								Conversion(
+									"the value stored into $array is an SQLite cursor on some paths only; requery's SQLiteCursor is not " +
+										"one, so the store may throw ArrayStoreException at run time when the value is an SQLite cursor",
+									fails = false,
+								)
+							}
 					}
 					continue
 				}
@@ -915,8 +995,12 @@ object SqliteRewriter {
 						}
 					}
 				if (target != null) {
-					result[insn] = "an SQLite cursor used as ${target.replace('/', '.')} without a cast; requery's SQLiteCursor is not " +
-						"one, so the rewritten class would not verify or the call would fail"
+					result[insn] =
+						Conversion(
+							"an SQLite cursor used as ${target.replace('/', '.')} without a cast; requery's SQLiteCursor is not " +
+								"one, so the rewritten class would not verify or the call would fail",
+							fails = true,
+						)
 				}
 			}
 			return result

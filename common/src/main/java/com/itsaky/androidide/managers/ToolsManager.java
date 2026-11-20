@@ -173,6 +173,18 @@ public class ToolsManager {
 	}
 
 	/**
+	 * Replaces aar with the asset, and logs any failure instead of throwing it. {@link #init} runs the steps after this one (the cogo plugin, the init script, the keystore) only when it returns, so a RuntimeException is caught too, not only an IOException. A failed extraction leaves the previous AAR, or none, which {@link #init} replaces on the next start.
+	 */
+	@VisibleForTesting
+	static void extractSqliteAar(String asset, File aar, SqliteAarSource source) {
+		try (InputStream stream = source.open()) {
+			replaceAtomically(stream, aar);
+		} catch (Exception err) {
+			LOG.error("Failed to extract {} to {}", asset, aar, err);
+		}
+	}
+
+	/**
 	 * Copies the stream to a temp sibling of toolingJarFile, renames it into place, then writes the stamp. This runs asynchronously from app init while the tooling server launches `java -jar` against the same path on project open, and launching against a half-written jar kills project init ("An unexpected error occurred while trying to open file ..."), so a partial jar must never be visible at the final path. rename(2) within one directory atomically replaces the target on Linux. The stamp is written only after a successful rename, so a failure at any step leaves the stamp absent and the next launch retries. The stale-jar half of the same race - the server reaching the final path before this rename and running the previous install's jar - is closed by {@link #ensureToolingJar(Context)}, which the server calls before launching. Always closes the stream.
 	 */
 	@VisibleForTesting
@@ -286,11 +298,7 @@ public class ToolsManager {
 	}
 
 	private static void extractSqliteAar(String asset, File aar) {
-		try (InputStream source = BaseApplication.getBaseInstance().getAssets().open(asset)) {
-			replaceAtomically(source, aar);
-		} catch (IOException err) {
-			LOG.error("Failed to extract {} to {}", asset, aar, err);
-		}
+		extractSqliteAar(asset, aar, () -> BaseApplication.getBaseInstance().getAssets().open(asset));
 	}
 
 	@WorkerThread
@@ -478,6 +486,13 @@ public class ToolsManager {
 				LOG.error("Failed to create .nomedia file in projects directory");
 			}
 		}
+	}
+
+	/** Opens a bundled SQLite AAR asset. */
+	@VisibleForTesting
+	interface SqliteAarSource {
+
+		InputStream open() throws IOException;
 	}
 
 	/** Opens the bundled tooling jar asset. Called only when the jar on disk is not this install's. */

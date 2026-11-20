@@ -1708,6 +1708,60 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `an SQLite cursor stored into an Android cursor array loaded from an array of them fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Nested",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class Nested {
+							void param(AbstractCursor[][] g, SQLiteCursor c) {
+								g[0][0] = c;
+							}
+							void fresh(SQLiteCursor c) {
+								AbstractCursor[][] g = new AbstractCursor[2][2];
+								g[1][1] = c;
+							}
+							void rows(SQLiteCursor c) {
+								AbstractWindowedCursor[][] g = new AbstractWindowedCursor[2][];
+								g[0] = new AbstractWindowedCursor[1];
+								AbstractWindowedCursor[] row = g[0];
+								row[0] = c;
+							}
+							void threeDims(CrossProcessCursor[][][] g, SQLiteCursor c) {
+								g[0][1][2] = c;
+							}
+							AbstractCursor[] initializer(SQLiteCursor c) {
+								return new AbstractCursor[] {c};
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Nested"]!!, hierarchy) }
+		val stored = "an SQLite cursor stored into an array of android.database"
+		assertThat(e.message).contains(
+			"  - param([[Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 7): $stored.AbstractCursor;",
+		)
+		// MULTIANEWARRAY, with nothing else in the method naming an Android cursor type
+		assertThat(e.message).contains("  - fresh(Landroid/database/sqlite/SQLiteCursor;)V (line 11): $stored.AbstractCursor;")
+		assertThat(e.message).contains("  - rows(Landroid/database/sqlite/SQLiteCursor;)V (line 17): $stored.AbstractWindowedCursor;")
+		assertThat(e.message).contains(
+			"  - threeDims([[[Landroid/database/CrossProcessCursor;Landroid/database/sqlite/SQLiteCursor;)V (line 20): " +
+				"$stored.CrossProcessCursor;",
+		)
+		// an array initializer is an ANEWARRAY and an AASTORE
+		assertThat(e.message).contains(
+			"  - initializer(Landroid/database/sqlite/SQLiteCursor;)[Landroid/database/AbstractCursor; (line 23): $stored.AbstractCursor;",
+		)
+	}
+
+	@Test
 	fun `an SQLite cursor stored into a Cursor or Object array, or another value into an Android cursor array, passes`() {
 		val classes =
 			Compiler.compile(
@@ -1728,6 +1782,13 @@ class SqliteRewriterTest {
 							void otherValues(AbstractCursor[] a, MatrixCursor m) {
 								a[0] = m;
 								a[1] = null;
+							}
+							void nestedCursors(Cursor[][] g, SQLiteCursor c) {
+								g[0][0] = c;
+							}
+							void nestedRows(AbstractCursor[][] g, AbstractCursor[] row, MatrixCursor m) {
+								g[0] = row;
+								g[1][0] = m;
 							}
 						}
 						""",
@@ -1760,6 +1821,245 @@ class SqliteRewriterTest {
 			)
 		// a known limit: when b is true, the store throws ArrayStoreException at run time
 		SqliteRewriter.rewrite(classes["p/StoresMerged"]!!, hierarchy)
+	}
+
+	@Test
+	fun `a store into an Android cursor array that is null on the other path fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.NullOnOnePath",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class NullOnOnePath {
+							void local(AbstractCursor[] p, SQLiteCursor c, boolean b) {
+								AbstractCursor[] a = null;
+								if (b) {
+									a = p;
+								}
+								a[0] = c;
+							}
+							void stack(AbstractWindowedCursor[] p, SQLiteCursor c, boolean b) {
+								(b ? p : null)[0] = c;
+							}
+						}
+						""",
+					),
+				),
+			)
+		// when b is false the store throws NullPointerException; when it is true, ArrayStoreException
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/NullOnOnePath"]!!, hierarchy) }
+		assertThat(e.message).contains(
+			"  - local([Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;Z)V (line 11): " +
+				"an SQLite cursor stored into an array of android.database.AbstractCursor;",
+		)
+		assertThat(e.message).contains(
+			"  - stack([Landroid/database/AbstractWindowedCursor;Landroid/database/sqlite/SQLiteCursor;Z)V (line 14): " +
+				"an SQLite cursor stored into an array of android.database.AbstractWindowedCursor;",
+		)
+	}
+
+	@Test
+	fun `a store into a row of an Android cursor array that is null on the other path fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.RowOfNull",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class RowOfNull {
+							void nullFirst(AbstractCursor[][] p, SQLiteCursor c, boolean b) {
+								AbstractCursor[][] g = null;
+								if (b) {
+									g = p;
+								}
+								g[0][0] = c;
+							}
+							void nullAfter(AbstractCursor[][] p, SQLiteCursor c, boolean b) {
+								AbstractCursor[][] g = p;
+								if (b) {
+									g = null;
+								}
+								g[0][0] = c;
+							}
+							void stack(AbstractWindowedCursor[][] p, SQLiteCursor c, boolean b) {
+								(b ? p : null)[0][0] = c;
+							}
+						}
+						""",
+					),
+				),
+			)
+		// on the null path the row load throws NullPointerException, so the row on the other path decides, whichever path
+		// the analysis visits first
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/RowOfNull"]!!, hierarchy) }
+		val stored = "an SQLite cursor stored into an array of android.database"
+		assertThat(e.message).contains(
+			"  - nullFirst([[Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;Z)V (line 11): $stored.AbstractCursor;",
+		)
+		assertThat(e.message).contains(
+			"  - nullAfter([[Landroid/database/AbstractCursor;Landroid/database/sqlite/SQLiteCursor;Z)V (line 18): $stored.AbstractCursor;",
+		)
+		assertThat(e.message).contains(
+			"  - stack([[Landroid/database/AbstractWindowedCursor;Landroid/database/sqlite/SQLiteCursor;Z)V (line 21): " +
+				"$stored.AbstractWindowedCursor;",
+		)
+	}
+
+	@Test
+	fun `a store whose value is an SQLite cursor on some paths only warns once per place and builds`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.SomePaths",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class SomePaths {
+							Object nullGuard(SQLiteCursor c, AbstractCursor[] cache, MatrixCursor m, boolean useDb) {
+								Object[] slot = null;
+								Object result;
+								if (useDb) {
+									result = c;
+								} else {
+									slot = cache;
+									result = m;
+								}
+								if (slot != null) {
+									slot[0] = result;
+								}
+								return result;
+							}
+							void correlated(SQLiteCursor c, AbstractCursor[] a, MatrixCursor m, boolean b) {
+								Object[] arr = a;
+								Object v = m;
+								if (b) {
+									v = c;
+								}
+								if (!b) {
+									arr[0] = v;
+								}
+							}
+							void ternary(SQLiteCursor c, AbstractWindowedCursor[] a, MatrixCursor m, boolean b) {
+								Object[] arr = a;
+								arr[0] = b ? c : m;
+							}
+							void twice(SQLiteCursor c, CrossProcessCursor[] a, MatrixCursor m, boolean b) {
+								Object[] arr = a;
+								Object v = b ? c : m;
+								arr[0] = v; arr[1] = v;
+							}
+							void loop(SQLiteCursor c, AbstractCursor[] a, MatrixCursor m, int n) {
+								Object[] arr = a;
+								Object v = null;
+								for (int i = 0; i < n; i++) {
+									if (v != null) {
+										arr[i] = v;
+									}
+									if (i % 2 == 0) {
+										v = c;
+									} else {
+										v = m;
+									}
+								}
+							}
+						}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		// no exception: nullGuard and correlated never throw, as the cursor's paths are not the array's
+		SqliteRewriter.rewrite(classes["p/SomePaths"]!!, hierarchy, warn = warnings::add)
+		val some =
+			"is an SQLite cursor on some paths only; requery's SQLiteCursor is not one, so the store may throw " +
+				"ArrayStoreException at run time when the value is an SQLite cursor"
+		assertThat(warnings)
+			.containsExactly(
+				"p.SomePaths.nullGuard (line 16): the value stored into an array of android.database.AbstractCursor $some",
+				"p.SomePaths.correlated (line 27): the value stored into an array of android.database.AbstractCursor $some",
+				"p.SomePaths.ternary (line 32): the value stored into an array of android.database.AbstractWindowedCursor $some",
+				// two stores on one line, logged once
+				"p.SomePaths.twice (line 37): the value stored into an array of android.database.CrossProcessCursor $some",
+				// v is null on the first pass and changes on the back edge, so the analysis must reach a fixed point
+				"p.SomePaths.loop (line 44): the value stored into an array of android.database.AbstractCursor $some",
+			).inOrder()
+	}
+
+	@Test
+	fun `a store whose value is an SQLite cursor on every path where it is not null fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.EveryPath",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class EveryPath {
+							void orNull(SQLiteCursor c, AbstractCursor[] a, boolean b) {
+								Object[] arr = a;
+								arr[0] = b ? c : null;
+							}
+							void either(SQLiteCursor c, SQLiteCursor d, AbstractCursor[] a, boolean b) {
+								Object[] arr = a;
+								arr[0] = b ? c : d;
+							}
+						}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/EveryPath"]!!, hierarchy, warn = warnings::add)
+			}
+		// null is neutral: storing it cannot throw ArrayStoreException, so the cursor on the other path decides
+		assertThat(e.message).contains(
+			"  - orNull(Landroid/database/sqlite/SQLiteCursor;[Landroid/database/AbstractCursor;Z)V (line 8): " +
+				"an SQLite cursor stored into an array of android.database.AbstractCursor;",
+		)
+		assertThat(e.message).contains(
+			"  - either(Landroid/database/sqlite/SQLiteCursor;Landroid/database/sqlite/SQLiteCursor;[Landroid/database/AbstractCursor;Z)V " +
+				"(line 12): an SQLite cursor stored into an array of android.database.AbstractCursor;",
+		)
+		// the stores are the only violations: through an Object[], neither ternary is typed as an Android cursor class
+		assertThat(e.message).doesNotContain("without a cast")
+		assertThat(warnings).isEmpty()
+	}
+
+	@Test
+	fun `an SQLite cursor array used as an Android cursor array is not checked, and would not verify`() {
+		fun covariant(pkg: String) =
+			src(
+				"$pkg.Covariant",
+				"""
+				package $pkg;
+				import android.database.*;
+				import android.database.sqlite.*;
+				public class Covariant {
+					AbstractCursor[] up(SQLiteCursor[] s) {
+						return s;
+					}
+				}
+				""",
+			)
+		// a known limit: arrays are covariant, and an SQLiteCursor[] is not followed
+		SqliteRewriter.rewrite(Compiler.compile(listOf(covariant("p")))["p/Covariant"]!!, hierarchy)
+		// The failure mode: rewritten in a package the fail rule exempts, the same class does not verify
+		val unverified = assertThrows(IllegalStateException::class.java) { transform(covariant("androidx.sqlite.db.framework")) }
+		assertThat(unverified.message).contains("does not verify")
+		assertThat(unverified.message).contains("androidx/sqlite/db/framework/Covariant")
 	}
 
 	@Test
