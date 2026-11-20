@@ -122,4 +122,50 @@ class QuickBuildActionPresentationTest {
 				.isFalse()
 		}
 	}
+
+	@Test
+	fun `a release variant greys the bolt out and says why`() {
+		// ADFA-6574: Quick Build only builds debuggable variants, so the button says so before
+		// the tap instead of refusing after it.
+		QuickBuildTone.entries
+			.filter { it != QuickBuildTone.BUILDING }
+			.forEach { tone ->
+				listOf("release", "freeRelease").forEach { variant ->
+					assertThat(QuickBuildAction.unsupportedProjectMessage(tone, isPluginProject = false, variantName = variant))
+						.isEqualTo(R.string.quick_build_non_debuggable_variant)
+				}
+			}
+	}
+
+	@Test
+	fun `a plugin project greys the bolt out and says why`() {
+		assertThat(
+			QuickBuildAction.unsupportedProjectMessage(QuickBuildTone.READY, isPluginProject = true, variantName = "debug"),
+		).isEqualTo(R.string.quick_build_unsupported_plugin_project)
+	}
+
+	@Test
+	fun `a debug variant of an app project leaves the bolt enabled`() {
+		QuickBuildTone.entries.forEach { tone ->
+			listOf("debug", "freeDebug").forEach { variant ->
+				assertThat(QuickBuildAction.unsupportedProjectMessage(tone, isPluginProject = false, variantName = variant))
+					.isNull()
+			}
+		}
+	}
+
+	@Test
+	fun `an unknown variant leaves the bolt enabled`() {
+		// Mid-sync the project model has no selection to read; the tap itself waits for the model.
+		assertThat(
+			QuickBuildAction.unsupportedProjectMessage(QuickBuildTone.READY, isPluginProject = false, variantName = null),
+		).isNull()
+	}
+
+	@Test
+	fun `the stop affordance stays tappable after a switch to release`() {
+		assertThat(
+			QuickBuildAction.unsupportedProjectMessage(QuickBuildTone.BUILDING, isPluginProject = false, variantName = "release"),
+		).isNull()
+	}
 }
