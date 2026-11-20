@@ -75,6 +75,11 @@ internal fun buildInlineVariablePlan(
 		 */
 		retryingOnPreemption(cancelChecker, "Inline-variable plan for $nioPath") { checker ->
 			env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+				// A joined pin can hold text older than the buffer the caller stamped documentVersion from.
+				if (live.isStale) {
+					logger.debug("refusing inline-variable plan for {}: pinned text is behind the buffer", nioPath)
+					return@withLiveKtFile InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
+				}
 				live.read { ktFile ->
 					val fileText = ktFile.text
 					live.analyzing(AnalysisPriority.INTERACTIVE, checker) {
