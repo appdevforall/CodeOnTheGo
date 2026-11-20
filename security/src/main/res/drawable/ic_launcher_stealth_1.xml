@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="108dp"
+	android:height="108dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<!-- Variation 1: Emerald Matrix / Grid -->
+	<path
+		android:fillColor="#0F2027"
+		android:pathData="M10,10h88v88h-88z" />
+	<path
+		android:fillColor="#2C5364"
+		android:pathData="M16,16h76v76h-76z" />
+	<path
+		android:fillColor="#00E676"
+		android:pathData="M24,26h16v16h-16z M46,26h16v16h-16z M68,26h16v16h-16z M24,48h38v12h-38z M24,68h60v12h-60z" />
+</vector>

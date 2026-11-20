@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Colours for the "Code Breaker" cryptogram disguise (ADFA-40). Light palette; the night variant lives in values-night/colors_security.xml. -->
+<resources>
+	<color name="success_green">#2E7D32</color>
+	<color name="cipher_letter_blue">#1565C0</color>
+	<color name="error_red">#C62828</color>
+	<color name="placeholder_gray">#9E9E9E</color>
+	<color name="secondary_text_gray">#616161</color>
+
+	<color name="pastel_bg">#F3EBF6</color>
+	<color name="pastel_toolbar">#E8D7F1</color>
+	<color name="pastel_toolbar_title">#3A2E39</color>
+	<color name="pastel_card_grid">#FBF9FC</color>
+	<color name="pastel_card_controls">#EBF4F6</color>
+	<color name="pastel_stroke">#D0C0D8</color>
+	<color name="pastel_input_bg">#FFFFFF</color>
+	<color name="pastel_author">#6B5B95</color>
+	<color name="pastel_text_dark">#2D2631</color>
+	<color name="pastel_instructions">#5C5466</color>
+</resources>

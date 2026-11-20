@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="108dp"
+	android:height="108dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<!-- Variation 4: Purple Enigma Gear / Dial -->
+	<path
+		android:fillColor="#1B1A55"
+		android:pathData="M10,10h88v88h-88z" />
+	<path
+		android:fillColor="#535C91"
+		android:pathData="M16,16h76v76h-76z" />
+	<path
+		android:fillColor="#E2F1E7"
+		android:pathData="M54,26a28,28 0 1,0 0.01,0z M54,38a16,16 0 1,1 -0.01,0z M50,42h8v24h-8z M42,50h24v8h-24z" />
+</vector>

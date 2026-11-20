@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Instant Hide (ADFA-40): the small icon of a notification shown while the disguise is engaged. A 3x3 letter grid, nothing
+	of the IDE. -->
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="24dp"
+	android:height="24dp"
+	android:viewportWidth="24"
+	android:viewportHeight="24">
+	<path
+		android:fillColor="#FFFFFFFF"
+		android:pathData="M3,3h5v5h-5zM9.5,3h5v5h-5zM16,3h5v5h-5zM3,9.5h5v5h-5zM9.5,9.5h5v5h-5zM16,9.5h5v5h-5zM3,16h5v5h-5zM9.5,16h5v5h-5zM16,16h5v5h-5z" />
+</vector>

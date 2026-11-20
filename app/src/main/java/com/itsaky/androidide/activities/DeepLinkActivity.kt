@@ -31,6 +31,7 @@ import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.api.ActionContextProvider
 import com.itsaky.androidide.models.DeepLinkRequest
 import com.itsaky.androidide.resources.R.string
+import com.itsaky.androidide.security.InstantHide
 import org.koin.android.ext.android.inject
 
 /**
@@ -41,7 +42,7 @@ import org.koin.android.ext.android.inject
  * [MainActivity] if nothing is open yet, or the already-running [EditorActivityKt] (via its
  * `singleTask` `onNewIntent`) if one is.
  *
- * Kept as a plain [Activity] (like [SplashActivity]), not [com.itsaky.androidide.app.BaseIDEActivity],
+ * Kept as a plain [Activity] (like [LauncherActivity]), not [com.itsaky.androidide.app.BaseIDEActivity],
  * since it never calls `setContentView` and has no theming needs of its own.
  */
 class DeepLinkActivity : Activity() {
@@ -50,8 +51,14 @@ class DeepLinkActivity : Activity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
 
+		// Instant Hide (ADFA-40): this activity is exported and routes straight into IDE content,
+		// bypassing LauncherActivity's hidden-state guard. While the disguise is engaged, show it instead
+		// and drop the link silently -- even acknowledging that a link arrived would leak the IDE's
+		// presence. Mirrors LauncherActivity; the state persists until the user performs the exit gesture.
+		if (InstantHide.redirectIfHidden(this)) return
+
 		// A link can arrive before the IDE is usable -- a fresh install, or a Clear Data. Both targets
-		// below sit *past* SplashActivity and OnboardingActivity, which are the only things enforcing
+		// below sit *past* LauncherActivity and OnboardingActivity, which are the only things enforcing
 		// the terms, the permissions, the JDK and SDK install, the low-storage check and the x86
 		// exit, so following the link now would land the user in an editor that cannot build, on a
 		// device the app is supposed to refuse to run on at all (ADFA-5067 review).
@@ -59,7 +66,7 @@ class DeepLinkActivity : Activity() {
 		// The link is dropped rather than deferred: carrying a request through an onboarding that can
 		// take several minutes, and may not finish at all, is a lot of machinery for a rare case. The
 		// user is told, and sent to the normal entry point, which decides what they actually need --
-		// storage, ABI and onboarding are SplashActivity's to enforce, not this activity's to repeat.
+		// storage, ABI and onboarding are LauncherActivity's to enforce, not this activity's to repeat.
 		if (!isIdeSetupComplete()) {
 			// Depth is UNKNOWN rather than parsed: the readiness gate deliberately runs before the
 			// URI is looked at, and reordering it just to enrich a metric would put parsing ahead of
@@ -72,7 +79,7 @@ class DeepLinkActivity : Activity() {
 			// whole terms/permissions/JDK-install onboarding inside that app's back stack, where
 			// back-press returns to them rather than exiting CoGo.
 			startActivity(
-				Intent(this, SplashActivity::class.java).apply {
+				Intent(this, LauncherActivity::class.java).apply {
 					addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 				},
 			)

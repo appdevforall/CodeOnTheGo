@@ -30,11 +30,16 @@ import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.preferences.PluginSettingsEntryPreference
 import com.itsaky.androidide.preferences.addRootPreferences
 import com.itsaky.androidide.preferences.pluginSettingsPreferences
+import com.itsaky.androidide.security.InstantHide
 import com.itsaky.androidide.utils.onLongPress
 import com.itsaky.androidide.utils.showIdeCategoryTooltipIfPresent
 import com.itsaky.androidide.preferences.IDEPreferences as prefs
 
-class PreferencesActivity : EdgeToEdgeIDEActivity() {
+// Instant Hide (ADFA-40) triggers don't fire while the user is arming or practising the feature on
+// its own Settings screen. FLAG_SECURE masking still applies.
+class PreferencesActivity :
+	EdgeToEdgeIDEActivity(),
+	InstantHide.GesturesExempt {
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _binding: ActivityPreferencesBinding? = null
 	private val binding: ActivityPreferencesBinding

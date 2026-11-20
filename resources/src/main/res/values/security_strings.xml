@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- User-facing strings for the Instant Hide emergency security feature and its "Code Breaker" cryptogram disguise (ADFA-40).
+	Kept in the :resources module so they feed the Crowdin translation flow (crowdin.yml sources only resources/.../values/*strings.xml);
+	kept in their own file so adding them does not pull strings.xml under the file-level Spotless ratchet. -->
+<resources>
+	<!-- Security settings group -->
+	<string name="idepref_security_title">Security</string>
+	<string name="idepref_security_summary">Quickly disguise the IDE in an emergency</string>
+	<string name="idepref_security_emergency_group">Emergency hiding</string>
+	<string name="idepref_security_instantHide_title">Instant Hide</string>
+	<string name="idepref_security_instantHide_summary">Disguise the app as a puzzle game on a three-finger tap, screen off, face-down, or one minute
+		idle. A slow double three-finger tap returns to the IDE.</string>
+
+	<!-- Cryptogram disguise. stealth_app_name is also the launcher label for the activity-aliases declared in the app manifest. -->
+	<string name="stealth_app_name">Code Breaker</string>
+	<string name="cryptogram_title">Code Breaker - Cryptogram</string>
+	<string name="cryptogram_instructions">Each blue letter represents an encrypted code. Replace each cipher letter with your guess. Your
+		decoded letters appear in green on the top row above each cipher letter.</string>
+	<string name="check_solution">Check Solution</string>
+	<string name="next_puzzle">Next Puzzle</string>
+	<string name="reset_puzzle">Reset</string>
+	<string name="hint_letter">Hint</string>
+	<string name="puzzle_solved">Congratulations! Puzzle Solved!</string>
+	<string name="puzzle_incorrect">Not quite right yet. Keep trying!</string>
+	<string name="hint_used">Revealed letter \"%1$c\" = \"%2$c\"</string>
+	<string name="puzzle_author_format">— %1$s</string>
+	<string name="letter_substitution_title">Letter Substitution Mapping:</string>
+	<string name="cipher_letter_label">Cipher Letter: </string>
+	<string name="replace_with_label">→ Replace with: </string>
+	<string name="apply_substitution">Apply</string>
+
+	<!-- Shown when the testing override file disables Instant Hide screenshot blocking. -->
+	<string name="instant_hide_screenshot_override">Screenshot protection is off because the override file /sdcard/Download/CodeOnTheGo.mfs is
+		present.</string>
+</resources>
