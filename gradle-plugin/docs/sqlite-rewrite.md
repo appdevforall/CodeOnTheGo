@@ -225,7 +225,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
   `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
   covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,
-  so a class that passes, returns or stores it as one does not verify.
+  so a class that passes or returns it as one, or stores it in a field of that type, does not verify. Stored into an
+  array of those arrays (`AbstractCursor[][] g; g[0] = s;`), it verifies, and the store throws `ArrayStoreException`
+  at run time.
 - The `AbstractWindowedCursor` check follows the cursor through locals and the stack only. A cast of a
   cursor that reached the method through a field, a parameter or another call is not seen (the app throws
   `ClassCastException` at run time), and a cast of a cursor from an SQLite API to a type that is not an
