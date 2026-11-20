@@ -81,9 +81,7 @@ jobs:
           FIREBASE_CONSOLE_URL: ${{ secrets.FIREBASE_CONSOLE_URL }}
           GLITCHTIP_DSN: ${{ secrets.GLITCHTIP_DSN }}
         run: |
-          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon
-          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
 
       - name: Cache SonarQube packages
         uses: actions/cache@v4
