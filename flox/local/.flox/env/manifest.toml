@@ -59,10 +59,11 @@ on-activate = '''
     mkdir -p "$hooks_dir"
     for hook_name in "pre-commit" "pre-push"; do
       hook="$hooks_dir/$hook_name"
-      if ! [ -f "$hook" ] || ! grep -q 'COGO_GIT_HOOK' "$hook"; then
+      # Also rewrite shims from before the env shebang, which fail where /bin/bash does not exist.
+      if ! [ -f "$hook" ] || ! grep -q 'COGO_GIT_HOOK' "$hook" || [ "$(head -n 1 "$hook")" = '#!/bin/bash' ]; then
         echo "Updating $hook_name hook..."
         cat >"$hook" <<'EOF'
-#!/bin/bash
+#!/usr/bin/env bash
 # -- COGO_GIT_HOOK
 exec "$(git rev-parse --show-toplevel)/.githooks/hook" "$(basename "$0")"
 EOF

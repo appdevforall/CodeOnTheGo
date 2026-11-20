@@ -4,6 +4,7 @@ package com.itsaky.androidide.plugins.manager.core
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import com.itsaky.androidide.actions.SidebarSlotManager
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
@@ -92,6 +93,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
 
 class PluginManager private constructor(
@@ -331,6 +333,10 @@ class PluginManager private constructor(
 	private val lifecycleDispatcher = PluginLifecycleDispatcher()
 
 	private val pluginsDir = File(context.filesDir, "plugins")
+	private val buildFiles =
+		PluginBuildFiles.inDataDir(pluginsDir, context.dataDir) { file ->
+			PluginLoader(context, file).getPluginMetadata()?.id
+		}
 	private val documentationManager = PluginDocumentationManager(context)
 	private var templateReloadListener: (() -> Unit)? = null
 	private var snippetRefreshListener: ((String) -> Unit)? = null
@@ -479,17 +485,25 @@ class PluginManager private constructor(
 		return Result.success(manifest to loader)
 	}
 
+	/**
+	 * The manifest, its ID unchecked: the Add-ons Manager reports this failing as an unreadable file,
+	 * so a bad ID is left for [getPluginValidation] to report. Don't build a path from it.
+	 */
 	fun getPluginMetadataOnly(pluginFile: File): Result<PluginManifest> = loadAndValidate(pluginFile).map { it.first }
 
-	fun getPluginValidation(pluginFile: File): Result<PluginValidation> =
-		loadAndValidate(pluginFile).map { (manifest, loader) ->
+	/** Fails for a plugin ID that is a path: install deletes and creates folders named after it. */
+	fun getPluginValidation(pluginFile: File): Result<PluginValidation> {
+		val (manifest, loader) = loadAndValidate(pluginFile).getOrElse { return Result.failure(it) }
+		checkPluginId(manifest.id).onFailure { return Result.failure(it) }
+		return Result.success(
 			PluginValidation(
 				manifest = manifest,
 				isDebug = loader.isDebuggable(),
 				iconDayEntryExists = manifest.iconDay?.let(loader::hasEntry) ?: false,
 				iconNightEntryExists = manifest.iconNight?.let(loader::hasEntry) ?: false,
-			)
-		}
+			),
+		)
+	}
 
 	/**
 	 * Load plugin and return both the plugin instance and its metadata
@@ -562,6 +576,7 @@ class PluginManager private constructor(
 			if (manifest == null) {
 				return Result.failure(IllegalArgumentException("Plugin manifest not found in: ${file.name}"))
 			}
+			checkPluginId(manifest.id).onFailure { return Result.failure(it) }
 
 			logger.debug("Parsed manifest for plugin: ${manifest.name} (${manifest.id})")
 
@@ -588,7 +603,7 @@ class PluginManager private constructor(
 
 			var nativeLibPath: String? =
 				try {
-					pluginLoader.extractNativeLibs(manifest.id)?.absolutePath
+					buildFiles.extractNativeLibs(manifest.id, file, Build.SUPPORTED_ABIS[0])?.absolutePath
 				} catch (e: Exception) {
 					logger.warn("Failed to extract native libs for plugin: ${manifest.id}", e)
 					null
@@ -603,7 +618,7 @@ class PluginManager private constructor(
 				}
 
 			if (nativeLibPath != null && !permissions.contains(PluginPermission.NATIVE_CODE)) {
-				File(nativeLibPath).deleteRecursively()
+				File(nativeLibPath).deleteWithoutFollowingLinks()
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -685,6 +700,7 @@ class PluginManager private constructor(
 					isEnabled,
 					iconDayPath = iconDayPath,
 					iconNightPath = iconNightPath,
+					nativeLibraryDir = nativeLibPath?.let(::File),
 				)
 			loadedPlugins[manifest.id] = loadedPlugin
 
@@ -798,7 +814,7 @@ class PluginManager private constructor(
 				}
 			}
 
-			PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId)
+			PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId, loadedPlugins.keys - pluginId)
 			PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
 			snippetRefreshListener?.invoke(pluginId)
 
@@ -842,10 +858,6 @@ class PluginManager private constructor(
 			// Drop lifecycle listeners this plugin registered; its classloader is going away.
 			lifecycleDispatcher.removeAllFrom(pluginId)
 
-			File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
-				if (dir.exists()) dir.deleteRecursively()
-			}
-
 			notifyLanguageContributionsChanged(loadedPlugin.plugin)
 			logger.info("Unloaded plugin: $pluginId")
 			return true
@@ -859,7 +871,13 @@ class PluginManager private constructor(
 		incomingFile: File,
 		existingPluginId: String,
 	): Boolean {
-		val existingFile = File(pluginsDir, "$existingPluginId.$PLUGIN_ARCHIVE_EXTENSION")
+		val existingFile =
+			loadedPlugins[existingPluginId]?.apkPath?.let(::File)?.takeIf(File::isFile)
+				?: buildFiles.filesOf(existingPluginId).firstOrNull()
+		if (existingFile == null) {
+			logger.warn("No installed file found for $existingPluginId; treating as mismatch")
+			return false
+		}
 		val incomingSig = PluginLoader(context, incomingFile).getSignatureHash()
 		val existingSig = PluginLoader(context, existingFile).getSignatureHash()
 		if (incomingSig == null || existingSig == null) {
@@ -886,41 +904,7 @@ class PluginManager private constructor(
 			logger.info("Successfully unloaded plugin from memory: $pluginId")
 		}
 
-		// Find and delete the plugin file (CGP)
-		val pluginFiles =
-			pluginsDir.listFiles { file ->
-				file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
-			}
-
-		if (pluginFiles == null || pluginFiles.isEmpty()) {
-			logger.error("No plugin files found in plugins directory")
-			return false
-		}
-
-		logger.info("Found ${pluginFiles.size} plugin files to check")
-		var deleted = false
-		for (pluginFile in pluginFiles) {
-			try {
-				// Check if this  contains the plugin we want to delete
-				val loader = PluginLoader(context, pluginFile)
-				val manifest = loader.getPluginMetadata()
-
-				if (manifest != null) {
-					if (manifest.id == pluginId) {
-						if (pluginFile.delete()) {
-							deleted = true
-							break // Found and deleted the right file
-						} else {
-							logger.error("File exists: ${pluginFile.exists()}, Can write: ${pluginFile.canWrite()}")
-						}
-					}
-				} else {
-					logger.warn("Could not read manifest from ${pluginFile.name}")
-				}
-			} catch (e: Exception) {
-				logger.error("Error checking plugin file ${pluginFile.name}: ${e.message}", e)
-			}
-		}
+		val deleted = buildFiles.delete(pluginId)
 
 		// Remove plugin state and cleanup contributions
 		if (deleted) {
@@ -1032,8 +1016,7 @@ class PluginManager private constructor(
 					logger.error("No resource context registered for plugin $pluginId; ignoring its languages")
 					return@flatMap emptyList()
 				}
-				val nativeLibraryDir =
-					File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).takeIf { it.isDirectory }
+				val nativeLibraryDir = loaded.nativeLibraryDir?.takeIf { it.isDirectory }
 				definitions
 					.filter { definition -> isLanguageAllowed(pluginId, loaded.manifest, definition, nativeLibraryDir) }
 					.map { definition -> PluginLanguageContribution(pluginId, definition, assets, nativeLibraryDir) }
@@ -1188,7 +1171,7 @@ class PluginManager private constructor(
 
 	private fun cleanupPluginContributions(loadedPlugin: LoadedPlugin) {
 		val pluginId = loadedPlugin.manifest.id
-		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId) }
+		runCatching { PluginProjectManager.getInstance().cleanupPluginTemplates(pluginId, loadedPlugins.keys - pluginId) }
 			.onFailure { logger.error("Failed to clean project templates for: $pluginId", it) }
 		runCatching {
 			PluginSnippetManager.getInstance().cleanupPlugin(pluginId)
@@ -1587,6 +1570,7 @@ class PluginManager private constructor(
 				pluginId = pluginId,
 				permissions = permissions,
 				onTemplatesChanged = { templateReloadListener?.invoke() },
+				loadedPluginIds = { loadedPlugins.keys },
 			)
 		}
 
@@ -1856,6 +1840,7 @@ class PluginManager private constructor(
 				pluginId = pluginId,
 				permissions = permissions,
 				onTemplatesChanged = { templateReloadListener?.invoke() },
+				loadedPluginIds = { loadedPlugins.keys },
 			)
 		}
 
@@ -1897,25 +1882,22 @@ class PluginManager private constructor(
 			logger.debug("Cleaning up ALL files and cache for plugin: $pluginId")
 
 			val pluginDir = File(pluginsDir, pluginId)
-			if (pluginDir.exists()) {
-				val deleted = pluginDir.deleteRecursively()
-				logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
-			}
-
-			File(context.getDir("plugin_native_libs", Context.MODE_PRIVATE), pluginId).let { dir ->
-				if (dir.exists()) dir.deleteRecursively()
-			}
+			// No exists() guard: it follows links, so a dangling link would survive.
+			val deleted = pluginDir.deleteWithoutFollowingLinks()
+			logger.debug("Deleted plugin directory: ${pluginDir.absolutePath} (success: $deleted)")
 
 			File(context.getDir("plugin_icons", Context.MODE_PRIVATE), pluginId).let { dir ->
-				if (dir.exists()) dir.deleteRecursively()
+				dir.deleteWithoutFollowingLinks()
 			}
 
 			// Clean up ART cache files in oat directory
 			try {
 				val oatDir = File(pluginsDir, "oat")
 				if (oatDir.exists() && oatDir.isDirectory) {
-					oatDir.walkTopDown().forEach { file ->
-						if (file.name.contains(pluginId)) {
+					// Not into a link: a file named like this plugin's code could be anywhere it points.
+					oatDir.walkTopDown().onEnter { !Files.isSymbolicLink(it.toPath()) }.forEach { file ->
+						// Skips code whose plugin file remains: it is another plugin's.
+						if (buildFiles.isLeftoverCompiledCodeOf(pluginId, file)) {
 							val deleted = file.deleteRecursively()
 							logger.debug("Deleted ART cache: ${file.absolutePath} (success: $deleted)")
 						}
@@ -1925,18 +1907,8 @@ class PluginManager private constructor(
 				logger.warn("Failed to cleanup ART cache files for: $pluginId", e)
 			}
 
-			// Clean up any other directories or files that contain the plugin ID
-			try {
-				pluginsDir.walkTopDown().forEach { file ->
-					if (file != pluginsDir && file.name.contains(pluginId)) {
-						val deleted = file.deleteRecursively()
-						logger.debug("Deleted plugin-related item: ${file.absolutePath} (success: $deleted)")
-					}
-				}
-			} catch (e: Exception) {
-				logger.warn("Failed to cleanup plugin-related files for: $pluginId", e)
-			}
-
+			// Nothing is swept by a name containing the ID: another plugin's ID, content hash or data
+			// can contain it. The plugin's files went by manifest ID in buildFiles.delete().
 			logger.debug("Complete plugin cleanup finished for: $pluginId")
 		}
 	}
@@ -1985,6 +1957,7 @@ data class LoadedPlugin(
 	var isEnabled: Boolean = true,
 	val iconDayPath: String? = null,
 	val iconNightPath: String? = null,
+	val nativeLibraryDir: File? = null,
 )
 
 fun LoadedPlugin.toPluginMetadata(): PluginMetadata =

@@ -20,33 +20,41 @@ package com.itsaky.androidide.tooling.events.task
 import com.itsaky.androidide.tooling.events.OperationDescriptor
 import com.itsaky.androidide.tooling.model.PluginIdentifier
 
-/** @author Akash Yadav */
+/**
+ * A Gradle task operation, as the IDE receives it in progress events.
+ *
+ * [dependencies] holds the direct dependencies' task paths (an operation name for one that is not a
+ * task), not their descriptors: those nest the whole task graph, and a single event serialized that
+ * way reached 23.7 MB.
+ *
+ * @author Akash Yadav
+ */
 class TaskOperationDescriptor(
-  val dependencies: Set<OperationDescriptor>,
-  val originPlugin: PluginIdentifier,
-  val taskPath: String,
-  override val name: String,
-  override val displayName: String
+	val dependencies: Set<String>,
+	val originPlugin: PluginIdentifier,
+	val taskPath: String,
+	override val name: String,
+	override val displayName: String,
 ) : OperationDescriptor() {
-  override fun equals(other: Any?): Boolean {
-    if (this === other) return true
-    if (other !is TaskOperationDescriptor) return false
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (other !is TaskOperationDescriptor) return false
 
-    if (dependencies != other.dependencies) return false
-    if (originPlugin != other.originPlugin) return false
-    if (taskPath != other.taskPath) return false
-    if (name != other.name) return false
-    if (displayName != other.displayName) return false
+		if (dependencies != other.dependencies) return false
+		if (originPlugin != other.originPlugin) return false
+		if (taskPath != other.taskPath) return false
+		if (name != other.name) return false
+		if (displayName != other.displayName) return false
 
-    return true
-  }
+		return true
+	}
 
-  override fun hashCode(): Int {
-    var result = dependencies.hashCode()
-    result = 31 * result + originPlugin.hashCode()
-    result = 31 * result + taskPath.hashCode()
-    result = 31 * result + name.hashCode()
-    result = 31 * result + displayName.hashCode()
-    return result
-  }
+	override fun hashCode(): Int {
+		var result = dependencies.hashCode()
+		result = 31 * result + originPlugin.hashCode()
+		result = 31 * result + taskPath.hashCode()
+		result = 31 * result + name.hashCode()
+		result = 31 * result + displayName.hashCode()
+		return result
+	}
 }

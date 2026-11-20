@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.models.ArtifactScope
 import io.mockk.every
 import io.mockk.spyk
 import org.junit.After
@@ -140,7 +141,8 @@ class ModuleOutputClasspathDeltaTest {
 			)
 		}
 
-		variantDeps.setMainArtifact(
+		variantDeps.putArtifacts(
+			ArtifactScope.Main.key,
 			AndroidModels.ArtifactDependencies
 				.newBuilder()
 				.setCompileGraph(graph.build())
