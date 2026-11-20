@@ -110,6 +110,16 @@ class JobCancelCheckerTest {
 		assertThrows(CancellationException::class.java) { checker.abortIfCancelled() }
 	}
 
+	@Test
+	fun `abortIfCancelled throws when a job is assigned after the checker was cancelled`() {
+		val checker = JobCancelChecker()
+		checker.cancel()
+
+		checker.job = Job()
+
+		assertThrows(CancellationException::class.java) { checker.abortIfCancelled() }
+	}
+
 	/** A plain child Job completes as soon as its parent is cancelled, so use a body that ignores cancellation. */
 	private suspend fun runUncancellableChild(parent: Job): CompletableDeferred<Unit> {
 		val gate = CompletableDeferred<Unit>()

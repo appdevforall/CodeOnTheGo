@@ -64,14 +64,17 @@ class JobCancelChecker @JvmOverloads constructor(
 	}
 
 	override fun cancel() {
-		job?.cancel("Cancelled by user")
-		job = null
+		val cancelled = job
+		// The flag goes up before the job is detached, so abortIfCancelled never sees neither.
 		super.cancel()
+		cancelled?.cancel("Cancelled by user")
+		job = null
 	}
 
 	override fun abortIfCancelled() {
-		// cancel() drops the job reference, so fall back to the flag once it is gone.
-		job?.ensureActive() ?: super.abortIfCancelled()
+		// The flag first: cancellation is terminal even if an active job was assigned after it.
+		super.abortIfCancelled()
+		job?.ensureActive()
 	}
 }
 
