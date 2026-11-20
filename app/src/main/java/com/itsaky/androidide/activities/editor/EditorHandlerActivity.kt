@@ -1765,13 +1765,17 @@ open class EditorHandlerActivity :
 		}
 
 		val tabPosition = getTabPositionForFileIndex(index)
-		editorViewModel.removeFile(index)
+		removingTab {
+			editorViewModel.removeFile(index)
 
-		if (tabPosition >= 0) {
-			content.tabs.removeTabAt(tabPosition)
-			content.editorContainer.removeViewAt(tabPosition)
-			shiftPluginIndices(tabPosition + 1, -1)
+			if (tabPosition >= 0) {
+				content.editorContainer.removeViewAt(tabPosition)
+				shiftPluginIndices(tabPosition + 1, -1)
+				content.tabs.removeTabAt(tabPosition)
+			}
 		}
+
+		syncSelectedTab()
 
 		editorViewModel.areFilesModified = hasUnsavedFiles()
 		updateTabs()
@@ -1865,6 +1869,26 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	// Suppresses onTabSelected while tab, view and index state are mid-update.
+	private inline fun removingTab(block: () -> Unit) {
+		isRemovingTab = true
+		try {
+			block()
+		} finally {
+			isRemovingTab = false
+		}
+	}
+
+	private fun syncSelectedTab() {
+		val safeContent = contentOrNull ?: return
+		if (safeContent.tabs.tabCount > 0) {
+			safeContent.tabs.getTabAt(safeContent.tabs.selectedTabPosition)?.let(::onTabSelected)
+		} else {
+			editorViewModel.setCurrentFile(-1, null)
+			updateTabVisibility()
+		}
+	}
+
 	private fun closePluginTab(tabPosition: Int) {
 		val pluginId = tabIndexToPluginId[tabPosition] ?: return
 
@@ -1883,13 +1907,17 @@ open class EditorHandlerActivity :
 			Log.e("EditorHandlerActivity", "Error cleaning up plugin tab $pluginId", e)
 		}
 
-		content.tabs.removeTabAt(tabPosition)
-		content.editorContainer.removeViewAt(tabPosition)
+		removingTab {
+			content.editorContainer.removeViewAt(tabPosition)
 
-		pluginTabIndices.remove(pluginId)
-		tabIndexToPluginId.remove(tabPosition)
+			pluginTabIndices.remove(pluginId)
+			tabIndexToPluginId.remove(tabPosition)
 
-		shiftPluginIndices(tabPosition + 1, -1)
+			shiftPluginIndices(tabPosition + 1, -1)
+			content.tabs.removeTabAt(tabPosition)
+		}
+
+		syncSelectedTab()
 		updateTabVisibility()
 
 		invalidateOptionsMenu()
@@ -2388,7 +2416,7 @@ open class EditorHandlerActivity :
 		return tabManager.canCloseTab(pluginId)
 	}
 
-	fun updateTabVisibility() {
+	override fun updateTabVisibility() {
 		val safeContent = contentOrNull ?: return
 		val hasFiles = editorViewModel.getOpenedFileCount() > 0
 		val hasPluginTabs = pluginTabIndices.isNotEmpty()
