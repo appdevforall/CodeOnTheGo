@@ -32,6 +32,8 @@ import com.termux.shared.reflection.ReflectionUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
@@ -113,6 +115,7 @@ internal class ToolingServerRunner(
 		this.listener = listener
 	}
 
+	@OptIn(DelicateCoroutinesApi::class)
 	fun startAsync(envs: Map<String, String>) =
 		runnerScope
 			.launch {
@@ -171,7 +174,8 @@ internal class ToolingServerRunner(
 
 					log.info("Tooling API server running with PID: {}", pid)
 
-					val inputStream = process.inputStream
+					val messageTap = ToolingMessageTap.factory?.invoke()
+					val inputStream = messageTap?.wrapInput(process.inputStream) ?: process.inputStream
 					val outputStream = process.outputStream
 					val errorStream = process.errorStream
 
@@ -192,6 +196,7 @@ internal class ToolingServerRunner(
 							observer!!.getClient(),
 							inputStream,
 							outputStream,
+							wrapMessages = { consumer -> messageTap?.wrapMessages(consumer) ?: consumer },
 						)
 
 					val future = launcher.startListening()
@@ -210,8 +215,9 @@ internal class ToolingServerRunner(
 					listener = null
 
 					// Wait(block) until the process terminates
+					// ATOMIC so a release() racing this launch still runs the body, and the finally with it.
 					val serverJob =
-						launch(Dispatchers.IO) {
+						launch(Dispatchers.IO, start = CoroutineStart.ATOMIC) {
 							try {
 								future.get()
 							} catch (err: Throwable) {
@@ -221,6 +227,10 @@ internal class ToolingServerRunner(
 
 								// rethrow the error
 								throw err
+							} finally {
+								// Here, not after joinAll: a cancel ends joinAll at once, while the
+								// blocking get() above returns only once the reader has stopped.
+								messageTap?.onServerStopped()
 							}
 						}
 

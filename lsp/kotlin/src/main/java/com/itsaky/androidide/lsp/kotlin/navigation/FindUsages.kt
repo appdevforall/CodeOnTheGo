@@ -318,12 +318,24 @@ private fun KaSession.scopeOf(
 
 	val module = moduleOf(declaration) ?: return fileOnly ?: UsageSearchScope.Modules(sourceModules())
 
-	// internal is module-wide, and there is no associated test module to widen to: this project model
-	// builds one module per Gradle module from the main source set only. A file-confined target with no
-	// derivable path lands here too - it cannot be narrowed to one file, but it is still unreferenceable
-	// outside its own module, so it must not fall through to the dependents below.
-	if (fileConfined || symbol.visibility == KaSymbolVisibility.INTERNAL) {
+	// A file-confined target with no derivable path cannot be narrowed to one file, but it is still
+	// unreferenceable outside its own module, so it must not fall through to the dependents below.
+	if (fileConfined) {
 		return UsageSearchScope.Modules(listOf(module))
+	}
+
+	// internal reaches its own module and that module's friends: the test modules layered over a main
+	// module. An internal override in a test module answers calls written against main's declaration
+	// (R3), so every match-set member's module is a root, as below.
+	if (symbol.visibility == KaSymbolVisibility.INTERNAL) {
+		val roots = LinkedHashSet<KtModule>()
+		roots.add(module)
+		for (member in matchSet) {
+			val memberDeclaration = member.sourcePsiSafe<PsiElement>() ?: continue
+			moduleOf(memberDeclaration)?.let(roots::add)
+		}
+		val friends = sourceModules().filter { candidate -> candidate.directFriendDependencies.any { it in roots } }
+		return UsageSearchScope.Modules((roots + friends).toList())
 	}
 
 	// Anything more visible can be referenced from any module that depends on this one. Dependents,

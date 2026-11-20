@@ -19,11 +19,15 @@ package com.itsaky.androidide.lsp.java.providers.definition
 
 import com.itsaky.androidide.lsp.api.IServerSettings
 import com.itsaky.androidide.lsp.java.compiler.JavaCompilerService
+import com.itsaky.androidide.lsp.java.compiler.SourceFileObject
+import com.itsaky.androidide.lsp.java.utils.FindHelper
+import com.itsaky.androidide.lsp.java.utils.NavigationHelper
 import com.itsaky.androidide.models.Location
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.progress.ICancelChecker
 import jdkx.lang.model.element.Element
 import jdkx.tools.JavaFileObject
+import openjdk.source.util.Trees
 import java.nio.file.Path
 
 /**
@@ -32,24 +36,30 @@ import java.nio.file.Path
  * @author Akash Yadav
  */
 class RemoteDefinitionProvider(
-  position: Position,
-  completingFile: Path,
-  compiler: JavaCompilerService,
-  settings: IServerSettings, cancelChecker: ICancelChecker,
+	position: Position,
+	completingFile: Path,
+	compiler: JavaCompilerService,
+	settings: IServerSettings,
+	cancelChecker: ICancelChecker,
 ) : IJavaDefinitionProvider(position, completingFile, compiler, settings, cancelChecker) {
+	private lateinit var otherFile: JavaFileObject
 
-  private lateinit var otherFile: JavaFileObject
+	fun setOtherFile(jfo: JavaFileObject): RemoteDefinitionProvider {
+		this.otherFile = jfo
+		return this
+	}
 
-  fun setOtherFile(jfo: JavaFileObject): RemoteDefinitionProvider {
-    this.otherFile = jfo
-    return this
-  }
-
-  override fun doFindDefinition(element: Element): List<Location> {
-//    val task = compiler.compile(listOf(SourceFileObject(file), otherFile))
-    val provider = LocalDefinitionProvider(position, file, compiler, settings, this)
-    return provider.findDefinition(element)
-//    return provider
-//      .findDefinition(task.get { NavigationHelper.findElement(it, file, line, column) })
-  }
+	// The compiler reuses one javac context: a class an earlier request compiled stays known without its
+	// tree, so the declaration only has a path when its file is compiled together with this one.
+	override fun doFindDefinition(element: Element): List<Location> =
+		compiler.compile(listOf(SourceFileObject(file), otherFile)).get { task ->
+			val inBatch = NavigationHelper.findElement(task, file, line, column, this) ?: return@get emptyList()
+			val path = Trees.instance(task.task).getPath(inBatch)
+			if (path == null) {
+				log.error("TreePath of element is null. Cannot find definition. Element is {}", inBatch)
+				return@get emptyList()
+			}
+			val name = if (inBatch.simpleName.contentEquals("<init>")) inBatch.enclosingElement.simpleName else inBatch.simpleName
+			listOf(FindHelper.location(task, path, name))
+		}
 }

@@ -22,6 +22,7 @@ import android.content.Context
 import android.content.Intent
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.events.InstallationEvent.InstallationResultEvent
+import com.itsaky.androidide.utils.ApkInstaller
 import org.greenrobot.eventbus.EventBus
 
 /**
@@ -38,6 +39,7 @@ class InstallationResultReceiver : BroadcastReceiver() {
 		context: Context,
 		intent: Intent,
 	) {
+		ApkInstaller.onInstallStatusBroadcast(intent, context)
 		EventBus.getDefault().post(InstallationResultEvent(intent))
 	}
 }

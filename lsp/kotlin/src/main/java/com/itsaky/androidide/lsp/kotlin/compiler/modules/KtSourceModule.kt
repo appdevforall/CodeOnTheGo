@@ -22,6 +22,7 @@ internal class KtSourceModule(
 	project: Project,
 	val layout: SourceModuleLayout,
 	directRegularDependencies: List<KtModule>,
+	override val directFriendDependencies: List<KtModule>,
 ) : AbstractSourceModule(project, directRegularDependencies),
 	KaSourceModule {
 	companion object {
@@ -36,11 +37,18 @@ internal class KtSourceModule(
 		// A set: a jar on both the boot and compile classpath is one shared module (ADFA-6381).
 		private val dependencies = linkedSetOf<KtModule>()
 
+		private val friends = linkedSetOf<KtModule>()
+
 		fun addDependency(dep: KtModule) {
 			dependencies.add(dep)
 		}
 
-		fun build(): KtSourceModule = KtSourceModule(project, layout, dependencies.toList())
+		/** Lets this module use [friend]'s `internal` declarations, as a test module does its main module's. */
+		fun addFriend(friend: KtModule) {
+			friends.add(friend)
+		}
+
+		fun build(): KtSourceModule = KtSourceModule(project, layout, dependencies.toList(), friends.toList())
 	}
 
 	override val id: String
