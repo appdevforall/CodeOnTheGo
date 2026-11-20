@@ -184,14 +184,15 @@ message VariantDependencies {
   // The name of the variant. It is made up of the build type and flavors (if applicable)
   string name = 1;
 
-  // The dependencies for the variant's main artifact.
-  ArtifactDependencies mainArtifact = 2;
-
   // The list of external libraries used by all the variants in the module.
   //
   // The key for the map entries is the keys found via [com.android.builder.model.v2.ide.GraphItem.key]
   // and [Library.key]
   map<string, Library> libraries = 3;
+
+  // The dependencies of each of the variant's components (main, test fixtures, each host and
+  // device test type), keyed by ArtifactScope.key. A component the variant lacks has no entry.
+  map<string, ArtifactDependencies> artifacts = 2;
 }
 
 // A custom source directory.
@@ -220,8 +221,9 @@ message SourceProvider {
 // Android source set container.
 message SourceSetContainer {
 
-  // The default source provider.
-  SourceProvider sourceProvider = 1;
+  // The source provider of each component (src/main, src/test, src/androidTest, ...), keyed by
+  // ArtifactScope.key. A component the module lacks has no entry.
+  map<string, SourceProvider> sourceProviders = 1;
 }
 
 // View binding options for Android projects.
@@ -275,6 +277,17 @@ message AndroidArtifact {
   int32 targetSdkVersionOverride = 13;
 }
 
+// The sources one component of a variant adds over that component's default source set.
+message VariantArtifactSources {
+
+  // The source providers AGP layers over the component's default source set for this variant: its
+  // build type, each product flavor, the multi-flavor provider and the variant's own provider.
+  repeated SourceProvider variantSourceProviders = 1;
+
+  // The component's generated source folders (kapt, KSP, BuildConfig and the like).
+  repeated string generatedSourceFolderPaths = 2;
+}
+
 // An Android project variant.
 message AndroidVariant {
 
@@ -284,9 +297,8 @@ message AndroidVariant {
   // The 'main' artifact of the variant.
   AndroidArtifact mainArtifact = 2;
 
-  // The source providers AGP layers over the main source set for this variant: its build
-  // type, each product flavor, the multi-flavor provider and the variant's own provider.
-  repeated SourceProvider variantSourceProviders = 3;
+  // The sources each of the variant's components adds, keyed by ArtifactScope.key.
+  map<string, VariantArtifactSources> artifactSources = 3;
 }
 
 // The Android project model.
@@ -324,5 +336,4 @@ message AndroidProject {
 
   // The compiler settings for Kotlin sources.
   optional KotlinCompilerSettings kotlinCompilerSettings = 11;
-
 }
