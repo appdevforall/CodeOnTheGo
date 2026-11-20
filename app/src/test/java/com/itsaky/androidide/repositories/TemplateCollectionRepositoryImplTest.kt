@@ -4,6 +4,11 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.plugins.templates.CgtTemplateBuilder
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -121,6 +126,40 @@ class TemplateCollectionRepositoryImplTest {
 			assertThat(installed.exists()).isTrue()
 			assertThat(installed.readBytes()).isEqualTo(expectedBytes)
 			assertThat(cgt.exists()).isFalse()
+		}
+
+	/** Collects [TemplateCollectionRepository.installs] for the rest of the test. */
+	private fun TestScope.recordInstalls(): List<Unit> {
+		val emissions = mutableListOf<Unit>()
+		// Unconfined, so the collector is subscribed before this returns and records an
+		// emission as it happens, with no virtual-time timeout that could skip past it.
+		backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { repository.installs.toList(emissions) }
+		return emissions
+	}
+
+	@Test
+	fun `installCollection emits on installs after a successful install`() =
+		runTest {
+			val emissions = recordInstalls()
+			val cgt = buildCgt("Empty Activity")
+
+			assertThat(repository.installCollection(cgt, "my-templates", overwrite = false).isSuccess).isTrue()
+			advanceUntilIdle()
+
+			assertThat(emissions).hasSize(1)
+		}
+
+	@Test
+	fun `installCollection does not emit on installs when the install fails`() =
+		runTest {
+			val emissions = recordInstalls()
+			File(templatesDir, "my-templates.cgt").writeText("existing")
+			val cgt = buildCgt("Empty Activity")
+
+			assertThat(repository.installCollection(cgt, "my-templates", overwrite = false).isFailure).isTrue()
+			advanceUntilIdle()
+
+			assertThat(emissions).isEmpty()
 		}
 
 	@Test

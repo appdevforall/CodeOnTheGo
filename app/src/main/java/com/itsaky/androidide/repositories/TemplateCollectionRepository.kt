@@ -1,5 +1,6 @@
 package com.itsaky.androidide.repositories
 
+import kotlinx.coroutines.flow.Flow
 import java.io.File
 
 /**
@@ -9,6 +10,13 @@ interface TemplateCollectionRepository {
 	data class CollectionInfo(
 		val templateNames: List<String>,
 	)
+
+	/**
+	 * Emits once after each successful [installCollection]. The install can run in another
+	 * activity (ExternalFileInstallActivity) while the Templates tab's list is still on screen
+	 * underneath, so the tab collects this to reload (ADFA-6967).
+	 */
+	val installs: Flow<Unit>
 
 	/**
 	 * Parse and validate a candidate .cgt archive without installing it.
