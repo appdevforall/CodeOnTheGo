@@ -6,6 +6,7 @@ import com.itsaky.androidide.plugins.services.DebuggerEndpoint
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 
 class DebuggerEndpointServiceImplTest {
@@ -52,6 +53,30 @@ class DebuggerEndpointServiceImplTest {
 			links.delete()
 			dir.delete()
 		}
+	}
+
+	@Test
+	fun `asks the source by the absolute path, as the app's pairing does, when the canonical path cannot be resolved`() {
+		val unresolvable =
+			object : File(project.path) {
+				override fun getCanonicalPath(): String = throw IOException("cannot resolve")
+			}
+
+		assertThat(service(root = unresolvable).getEndpoints()).containsExactly(endpoint)
+		assertThat(seen).containsExactly(project.absolutePath)
+	}
+
+	@Test
+	fun `a VirtualMachineError while resolving the project path is not swallowed`() {
+		val error = OutOfMemoryError("canonical path")
+		val root =
+			object : File(project.path) {
+				override fun getCanonicalPath(): String = throw error
+			}
+
+		val thrown = assertThrows(OutOfMemoryError::class.java) { service(root = root).getEndpoints() }
+		assertThat(thrown).isSameInstanceAs(error)
+		assertThat(seen).isEmpty()
 	}
 
 	@Test

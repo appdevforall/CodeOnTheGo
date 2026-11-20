@@ -286,14 +286,27 @@ abstract class ProjectHandlerActivity :
 
 		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
 
-		private fun apkApplicationId(
+		/**
+		 * Reads the applicationId from the archive, or null when it cannot be read. Catches only
+		 * [Exception] and [LinkageError], like the rest of the plugin stack, so a VirtualMachineError
+		 * (OutOfMemoryError while the package manager parses the APK) still crashes.
+		 */
+		internal fun apkApplicationId(
 			packageManager: PackageManager,
 			apk: File,
-		): String? =
-			runCatching { packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName }
-				.onFailure { logger.warn("Could not read the applicationId of {}", apk, it) }
-				.getOrNull()
-				?.takeIf { it.isNotBlank() }
+		): String? {
+			val packageName =
+				try {
+					packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName
+				} catch (e: Exception) {
+					logger.warn("Could not read the applicationId of {}", apk, e)
+					null
+				} catch (e: LinkageError) {
+					logger.warn("Could not read the applicationId of {}", apk, e)
+					null
+				}
+			return packageName?.takeIf { it.isNotBlank() }
+		}
 	}
 
 	abstract fun doCloseAll()

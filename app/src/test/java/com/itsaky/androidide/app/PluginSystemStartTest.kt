@@ -31,8 +31,9 @@ import kotlin.concurrent.thread
 
 /**
  * CredentialProtectedApplicationLoader's plugin start when the SQLite debugger endpoint source cannot
- * be installed: the steps after it still run and plugins still load. BaseApplication backs the
- * preferences the plugin manager reads; IDEApplication would start the whole app.
+ * be installed: after an Exception or a LinkageError the steps after it still run and plugins still
+ * load, and a VirtualMachineError is not swallowed. BaseApplication backs the preferences the plugin
+ * manager reads; IDEApplication would start the whole app.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = BaseApplication::class)
@@ -56,6 +57,27 @@ class PluginSystemStartTest {
 		val service = checkNotNull(awaitProbe().context.services.get(DebuggerEndpointService::class.java))
 		val thrown = offMainThread { assertThrows(IllegalStateException::class.java) { service.getEndpoints() } }
 		assertThat(thrown).hasMessageThat().startsWith("The SQLite debugger endpoints are unavailable")
+	}
+
+	@Test
+	fun `a source that fails to link leaves the later setup steps and plugin loading in place`() {
+		CredentialProtectedApplicationLoader.initializePluginSystem(app) { throw NoClassDefFoundError("DebuggerEndpointRepository") }
+
+		assertLaterStepsRan()
+		val service = checkNotNull(awaitProbe().context.services.get(DebuggerEndpointService::class.java))
+		val thrown = offMainThread { assertThrows(IllegalStateException::class.java) { service.getEndpoints() } }
+		assertThat(thrown).hasMessageThat().startsWith("The SQLite debugger endpoints are unavailable")
+	}
+
+	@Test
+	fun `a VirtualMachineError from the source is not swallowed`() {
+		val error = OutOfMemoryError("endpoint source")
+
+		val thrown =
+			assertThrows(OutOfMemoryError::class.java) {
+				CredentialProtectedApplicationLoader.initializePluginSystem(app) { throw error }
+			}
+		assertThat(thrown).isSameInstanceAs(error)
 	}
 
 	@Test
