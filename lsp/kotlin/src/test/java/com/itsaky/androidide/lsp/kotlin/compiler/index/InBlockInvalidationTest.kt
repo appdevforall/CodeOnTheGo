@@ -196,11 +196,12 @@ internal class InBlockInvalidationTest : KtLspTest() {
 		assertThat(reindexed.poll(5, TimeUnit.SECONDS)).isSameInstanceAs(document)
 
 		edit(path, original.replace("val x = 1", "val x = 2"), 2)
+		// Checked before the next edit: both edits keep the same KtFile, so a later command could stand in for this one.
+		assertThat(reindexed.poll(500, TimeUnit.MILLISECONDS)).isNull()
+
 		edit(path, original.replace("val x = 1", "class L\n    val x = 2"), 3)
 
 		assertThat(reindexed.poll(5, TimeUnit.SECONDS)).isSameInstanceAs(document)
-		// The first edit's reindex, had it been queued, was launched before the second's.
-		assertThat(reindexed.poll(500, TimeUnit.MILLISECONDS)).isNull()
 	}
 
 	@Test
