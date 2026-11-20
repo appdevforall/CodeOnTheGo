@@ -132,6 +132,9 @@ internal class ScheduledCancelChecker(
  *   that stale file fails. So [attempt] must re-fetch the file too.
  *
  * A second preemption propagates - this is one retry, not a loop.
+ *
+ * Must not be called while holding `project.read` or a pin: the retry first waits out any edit
+ * barrier, and the edit under that barrier needs `project.write`.
  */
 internal inline fun <R> retryingOnPreemption(
 	delegate: ICancelChecker,
@@ -142,6 +145,8 @@ internal inline fun <R> retryingOnPreemption(
 		attempt(ScheduledCancelChecker(delegate))
 	} catch (e: AnalysisPreemptedException) {
 		schedulerLogger.debug("{} preempted; retrying once", label)
+		// An edit's barrier turns every requester away until it ends, so retrying at once would meet it again.
+		AnalysisScheduler.awaitNoBarrier(delegate)
 		attempt(ScheduledCancelChecker(delegate))
 	}
 
@@ -165,6 +170,9 @@ internal val schedulerLogger: Logger = LoggerFactory.getLogger("AnalysisSchedule
 internal object AnalysisScheduler {
 	/** Upper bound on how long a queued requester waits before re-checking its cancellation. */
 	private const val WAIT_POLL_MILLIS = 25L
+
+	/** Upper bound on how long a preempted retry waits for an edit's barrier to come down. */
+	private const val BARRIER_WAIT_MILLIS = 5_000L
 
 	private val mutex = ReentrantLock()
 	private val available = mutex.newCondition()
@@ -317,6 +325,21 @@ internal object AnalysisScheduler {
 			mutex.withLock {
 				barriers--
 				available.signalAll()
+			}
+		}
+	}
+
+	/**
+	 * Blocks until no [preemptingAnalysis] barrier is up, [cancelChecker] is cancelled, or
+	 * [BARRIER_WAIT_MILLIS] passes. The bound keeps a caller that wrongly holds a lock the barrier's
+	 * edit needs from hanging; it then retries into the barrier and fails as it did before the wait.
+	 */
+	fun awaitNoBarrier(cancelChecker: ICancelChecker) {
+		val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(BARRIER_WAIT_MILLIS)
+		mutex.withLock {
+			while (barriers > 0 && System.nanoTime() < deadline) {
+				cancelChecker.abortIfCancelled()
+				available.await(WAIT_POLL_MILLIS, TimeUnit.MILLISECONDS)
 			}
 		}
 	}

@@ -125,4 +125,37 @@ class AnalysisPreemptionBarrierTest {
 
 		assertThat(result).isEqualTo(42)
 	}
+
+	@Test(timeout = 10_000)
+	fun `a retry rejected by an edit's barrier waits for the barrier instead of spending the retry on it`() {
+		val raised = CountDownLatch(1)
+		val firstAttemptRejected = CountDownLatch(1)
+		val barrier =
+			thread {
+				AnalysisScheduler.preemptingAnalysis {
+					raised.countDown()
+					firstAttemptRejected.await(5, SECONDS)
+					// Held past the rejection so an immediate retry would meet the same barrier.
+					Thread.sleep(200)
+				}
+			}
+		try {
+			assertThat(raised.await(5, SECONDS)).isTrue()
+
+			val result =
+				retryingOnPreemption(ICancelChecker.NOOP, "barrier retry") { checker ->
+					try {
+						AnalysisScheduler.withLock(AnalysisPriority.INTERACTIVE, checker, onPreempt = {}) { 42 }
+					} catch (e: AnalysisPreemptedException) {
+						firstAttemptRejected.countDown()
+						throw e
+					}
+				}
+
+			assertThat(result).isEqualTo(42)
+		} finally {
+			firstAttemptRejected.countDown()
+			barrier.join()
+		}
+	}
 }
