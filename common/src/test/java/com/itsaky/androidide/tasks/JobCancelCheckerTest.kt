@@ -54,15 +54,19 @@ class JobCancelCheckerTest {
 			val parent = Job()
 			val gate = runUncancellableChild(parent)
 			val checker = JobCancelChecker(parent)
-			var fired = false
-			checker.invokeOnCancel { fired = true }
+			try {
+				var fired = false
+				checker.invokeOnCancel { fired = true }
 
-			parent.cancel()
+				parent.cancel()
 
-			assertThat(parent.isCompleted).isFalse()
-			assertThat(checker.isCancelled()).isTrue()
-			assertThat(fired).isTrue()
-			gate.complete(Unit)
+				assertThat(parent.isCompleted).isFalse()
+				assertThat(checker.isCancelled()).isTrue()
+				assertThat(fired).isTrue()
+			} finally {
+				gate.complete(Unit)
+				parent.join()
+			}
 		}
 
 	@Test
@@ -71,16 +75,20 @@ class JobCancelCheckerTest {
 			val parent = Job()
 			val gate = runUncancellableChild(parent)
 			val checker = JobCancelChecker()
-			var fired = false
-			checker.invokeOnCancel { fired = true }
-			checker.job = parent
+			try {
+				var fired = false
+				checker.invokeOnCancel { fired = true }
+				checker.job = parent
 
-			parent.cancel()
+				parent.cancel()
 
-			assertThat(parent.isCompleted).isFalse()
-			assertThat(checker.isCancelled()).isTrue()
-			assertThat(fired).isTrue()
-			gate.complete(Unit)
+				assertThat(parent.isCompleted).isFalse()
+				assertThat(checker.isCancelled()).isTrue()
+				assertThat(fired).isTrue()
+			} finally {
+				gate.complete(Unit)
+				parent.join()
+			}
 		}
 
 	@Test
