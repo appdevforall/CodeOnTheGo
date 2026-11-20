@@ -54,6 +54,17 @@ object Memprof {
 		marker: String,
 	): MemprofSpan = sink?.beginPhase(title, marker) ?: MemprofSpan.None
 
+	/**
+	 * Starts a section whose start and end happen in different callbacks.
+	 *
+	 * The caller owns the returned span as with [beginPhase]; use [section] whenever the work fits one
+	 * block.
+	 */
+	fun beginSection(
+		name: String,
+		detail: String? = null,
+	): MemprofSpan = sink?.beginSection(name, detail) ?: MemprofSpan.None
+
 	/** Records that the instant named [marker] was reached. */
 	fun mark(marker: String) {
 		sink?.mark(marker)
