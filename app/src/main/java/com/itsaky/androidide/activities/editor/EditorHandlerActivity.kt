@@ -1771,13 +1771,12 @@ open class EditorHandlerActivity :
 
 		val tabPosition = getTabPositionForFileIndex(index)
 		removingTab {
-			// The indexes shift only once the tab and view are gone (ADFA-7141).
-			editorViewModel.removeFile(index) {
-				if (tabPosition >= 0) {
-					content.editorContainer.removeViewAt(tabPosition)
-					shiftPluginIndices(tabPosition + 1, -1)
-					content.tabs.removeTabAt(tabPosition)
-				}
+			editorViewModel.removeFile(index)
+
+			if (tabPosition >= 0) {
+				content.editorContainer.removeViewAt(tabPosition)
+				shiftPluginIndices(tabPosition + 1, -1)
+				content.tabs.removeTabAt(tabPosition)
 			}
 		}
 
