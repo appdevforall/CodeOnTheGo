@@ -156,6 +156,16 @@ internal class KtSymbolIndex(
 	@VisibleForTesting
 	internal fun incrementalDocument(path: Path): IncrementalKtDocument? = documents[path]
 
+	/** Runs inside a refresh that found its document locked, before it returns; set only by tests. */
+	@VisibleForTesting
+	@Volatile
+	internal var onRefreshDeferred: (() -> Unit)? = null
+
+	/** Runs once the last pin has left the map but before it unlocks its document; set only by tests. */
+	@VisibleForTesting
+	@Volatile
+	internal var beforePinStampReleased: (() -> Unit)? = null
+
 	/**
 	 * path -> the instance pinned for the duration of one or more open [LiveKtFile] scopes.
 	 *
@@ -361,6 +371,7 @@ internal class KtSymbolIndex(
 		if (stamp == 0L) {
 			// Never wait for the pin: it can be held across a whole analysis. Its release refreshes again.
 			pins[path]?.refreshOwed = true
+			onRefreshDeferred?.invoke()
 			return VersionedKtFile(doc.appliedVersion, doc.ktFile)
 		}
 		try {
@@ -585,7 +596,16 @@ internal class KtSymbolIndex(
 	 * becomes a reason to hold a live instance.
 	 */
 	suspend fun refreshCurrentKtFile(path: Path) {
-		getCurrentKtFile(path).await()
+		/*
+		 * A refresh joined while still pending can settle below its version, deferred by a pin's stamp.
+		 * With no pin left to owe the edit to, one more pass relaunches it. Bounded at two: a stamp still
+		 * held belongs to a pin being installed or released, and both of those check for a bump.
+		 */
+		repeat(2) {
+			val applied = getCurrentVersionedKtFile(path)?.await() ?: return
+			val current = FileManager.getActiveDocument(path)?.version ?: return
+			if (applied.version == current || pins.containsKey(path)) return
+		}
 	}
 
 	/**
@@ -679,18 +699,27 @@ internal class KtSymbolIndex(
 			released = pin
 			null
 		}
-		val refreshOwed = released?.refreshOwed ?: false
+		val pin = released ?: return
+		beforePinStampReleased?.invoke()
 		// Unlocked before the owed refresh below is launched, so that refresh can take the write stamp.
-		released?.unlockStamp()
+		pin.unlockStamp()
 
 		/*
 		 * Applied on the way out rather than during the pin: the version bump that arrived while the path
 		 * was frozen still has to reach the FIR session. Skipped once the document is gone, since
-		 * invalidateCurrent already unregistered it.
+		 * invalidateCurrent already unregistered it. The document is checked after the unlock because a
+		 * refresh that met the stamp once the pin had left the map had no pin to record the debt on.
 		 */
-		if (refreshOwed && FileManager.isActive(path)) {
+		val owed = pin.refreshOwed || (pin.editLock != null && isDocumentBehind(path))
+		if (owed && FileManager.isActive(path)) {
 			scope.launch { refreshCurrentKtFile(path) }
 		}
+	}
+
+	private fun isDocumentBehind(path: Path): Boolean {
+		val current = FileManager.getActiveDocument(path)?.version ?: return false
+		val applied = documents[path]?.appliedVersion ?: return false
+		return applied != current
 	}
 
 	private inner class PinnedKtFile(

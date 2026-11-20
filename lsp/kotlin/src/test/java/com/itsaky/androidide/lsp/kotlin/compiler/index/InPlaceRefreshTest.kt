@@ -22,8 +22,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit.SECONDS
 
 /** Requirement: an open document keeps one [KtFile], edited in place, with pins deferring the edit. */
@@ -34,6 +36,8 @@ internal class InPlaceRefreshTest : KtLspTest() {
 
 	@After
 	fun closeDocs() {
+		env.ktSymbolIndex.onRefreshDeferred = null
+		env.ktSymbolIndex.beforePinStampReleased = null
 		openedPaths.forEach { FileManager.onDocumentClose(DocumentCloseEvent(it)) }
 		openedPaths.clear()
 	}
@@ -207,5 +211,56 @@ internal class InPlaceRefreshTest : KtLspTest() {
 		refresh.get(10, SECONDS)
 
 		assertEquals(null, env.ktSymbolIndex.incrementalDocument(path))
+	}
+
+	@Test
+	fun `an edit deferred by a pin that is already leaving is applied after the release`() {
+		createSourceFile("H.kt", "fun h() {}")
+		val path = sourcePath("H.kt")
+		openDocument(path, "fun h() {}")
+		currentInstance(path)
+		val edited = "fun h() {}\nfun i() {}"
+		env.ktSymbolIndex.beforePinStampReleased = {
+			env.ktSymbolIndex.beforePinStampReleased = null
+			changeDocument(path, edited, 2)
+			// The pin has left the map but still holds its stamp, so this refresh defers with no pin to owe the edit to.
+			runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+		}
+
+		env.ktSymbolIndex.withLiveKtFile(path) { }
+
+		assertEquals(edited, awaitAppliedText(path, 2))
+	}
+
+	@Test
+	fun `a refresh that joins a deferred refresh still in flight brings the document up to date`() {
+		createSourceFile("J.kt", "fun j() {}")
+		val path = sourcePath("J.kt")
+		openDocument(path, "fun j() {}")
+		currentInstance(path)
+		val doc = env.ktSymbolIndex.incrementalDocument(path)!!
+		val edited = "fun j() {}\nfun k() {}"
+		val deferred = CountDownLatch(1)
+		val resume = CountDownLatch(1)
+		env.ktSymbolIndex.onRefreshDeferred = {
+			env.ktSymbolIndex.onRefreshDeferred = null
+			deferred.countDown()
+			resume.await(10, SECONDS)
+		}
+
+		val stamp = doc.editLock.readLock()
+		changeDocument(path, edited, 2)
+		val first = CoroutineScope(Dispatchers.IO).future { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+		assertTrue(deferred.await(10, SECONDS))
+		doc.editLock.unlockRead(stamp)
+		// As a pin's release retry would: the deferred refresh is still pending, so this joins it.
+		val retry = CoroutineScope(Dispatchers.IO).future { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+		Thread.sleep(200)
+		resume.countDown()
+		first.get(10, SECONDS)
+		retry.get(10, SECONDS)
+
+		assertEquals(2, doc.appliedVersion)
+		assertEquals(edited, env.project.read { doc.ktFile.text })
 	}
 }
