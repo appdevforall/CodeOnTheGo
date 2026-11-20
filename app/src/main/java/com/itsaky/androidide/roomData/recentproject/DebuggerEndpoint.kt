@@ -8,8 +8,12 @@ import androidx.room.PrimaryKey
 
 /**
  * The SQLite debugger endpoint of one app built from a project (ADFA-7131). [token], [port] and
- * [updatedAt] stay null until the app reports them, and go back to null when Code on the Go
- * installs the app from a project, until the new process reports.
+ * [updatedAt] stay null until the app reports them. They go back to null only when a Run install
+ * from ProjectHandlerActivity succeeds, its result names the package, and it arrives in the same
+ * Code on the Go process. Three installs keep the old token and port until the app reports again:
+ * a Quick Build install (the proxy app, installed under the project's application ID, writes no
+ * install note), a success result with no package name, and a result that arrives after Code on
+ * the Go restarted. LaunchAppAction pairs the last two later and keeps the stored values.
  *
  * ON UPDATE CASCADE as well as ON DELETE: renaming a project rewrites its recent_project_table
  * location, which would otherwise be refused while foreign keys are on.
