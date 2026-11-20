@@ -52,7 +52,8 @@ public class JavaCompilerProvider {
 	@Nullable
 	public static JavaCompilerService forFile(@NonNull Path file) {
 		final ModuleProject module = IProjectManager.getInstance().findModuleForFile(file, false);
-		return module == null ? null : get(module, file);
+		final ArtifactScope scope = module == null ? null : module.artifactScopeOf(file);
+		return scope == null ? null : getInstance().forModule(module, scope);
 	}
 
 	/** The compiler for {@code module}'s main sources. Use {@link #get(ModuleProject, Path)} for a file that may be a test. */
@@ -67,10 +68,16 @@ public class JavaCompilerProvider {
 		return get(module, file.toPath());
 	}
 
-	/** The compiler for the scope of {@code module} that holds {@code file}. */
+	/**
+	 * The compiler for the scope of {@code module} that holds {@code file}, or the no-module compiler when {@code file} is outside every source directory of the selected variant; callers that would analyze such a file must check {@link ModuleProject#artifactScopeOf(Path)} first.
+	 */
 	@NonNull
 	public static JavaCompilerService get(@NonNull ModuleProject module, @NonNull Path file) {
-		return JavaCompilerProvider.getInstance().forModule(module, module.artifactScopeOf(file));
+		final ArtifactScope scope = module.artifactScopeOf(file);
+		if (scope == null) {
+			return JavaCompilerService.NO_MODULE_COMPILER;
+		}
+		return JavaCompilerProvider.getInstance().forModule(module, scope);
 	}
 
 	public static JavaCompilerProvider getInstance() {

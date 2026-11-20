@@ -152,6 +152,10 @@ message ProjectInfo {
 
   // The project path.
   string projectPath = 2;
+
+  // Whether the dependency is on the project's test fixtures (testFixtures(project(":lib")))
+  // rather than on the project itself.
+  bool isTestFixtures = 3;
 }
 
 // An Android library.
@@ -336,4 +340,9 @@ message AndroidProject {
 
   // The compiler settings for Kotlin sources.
   optional KotlinCompilerSettings kotlinCompilerSettings = 11;
+
+  // The Java and Kotlin dirs of every source set AGP knows for this module: every component of the
+  // default config, every build type and flavor, and every variant's own and multi-flavor layers.
+  // A file in one of these that the selected variant does not compile gets no analysis.
+  repeated string sourceSetDirPaths = 12;
 }

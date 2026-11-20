@@ -121,6 +121,8 @@ open class AndroidModule(
 
 	// The components the selected variant has: one AGP does not report for it is no scope, even if
 	// the module has its source set (src/androidTest while a non-tested build type is selected).
+	override fun getKnownSourceSetDirectories(): Set<File> = sourceSetDirPathsList.mapTo(LinkedHashSet(), ::File)
+
 	override fun getArtifactScopes(): List<ArtifactScope> =
 		(listOf(ArtifactScope.Main) + variantDependencies.artifactsMap.keys.mapNotNull(ArtifactScope::fromKey))
 			.distinct()
@@ -138,10 +140,15 @@ open class AndroidModule(
 			return emptySet()
 		}
 		val provider = defaultSources(scope) ?: return emptySet()
+		val variant = variantSources(scope)
+
+		// src/<buildType>, src/<flavor>, src/<variant> and their test counterparts are compiled
+		// with the default source set whenever this variant is selected.
+		val layers = variant?.variantSourceProvidersList.orEmpty().flatMap { it.javaDirs + it.kotlinDirs }
 
 		// build/generated/**: AIDL, BuildConfig, kapt, KSP and every other generated source
-		val generated = variantSources(scope)?.generatedSourceFolderPathsList.orEmpty().map(::File)
-		return (provider.javaDirs + provider.kotlinDirs + generated).toSet()
+		val generated = variant?.generatedSourceFolderPathsList.orEmpty().map(::File)
+		return (provider.javaDirs + provider.kotlinDirs + layers + generated).toSet()
 	}
 
 	override fun getCompileSourceDirectories(): Set<File> {
@@ -149,6 +156,16 @@ open class AndroidModule(
 		dirs.addAll(getSourceDirectories())
 		getCompileModuleProjects().forEach { dirs.addAll(it.getSourceDirectories()) }
 		return dirs
+	}
+
+	override fun getTestFixturesModuleProjects(scope: ArtifactScope): List<ModuleProject> {
+		if (scope == ArtifactScope.Main) {
+			return emptyList()
+		}
+		return directProjectDependencies(scope)
+			.filter { (library, _) -> library.projectInfo.isTestFixtures }
+			.map { (_, module) -> module }
+			.distinctBy { it.path }
 	}
 
 	override fun getCompileModuleProjects(scope: ArtifactScope): List<ModuleProject> {
@@ -160,23 +177,26 @@ open class AndroidModule(
 		val visited = hashSetOf(path)
 		val recursionPath = ArrayDeque<String>()
 		val result = mutableListOf<ModuleProject>()
-		for (module in directProjectDependencies(scope)) {
+		for ((_, module) in directProjectDependencies(scope)) {
 			result.add(module)
 			result.addAll(module.getCompileModuleProjects(visited, recursionPath))
 		}
 		return result.filter { it.path != path }.distinctBy { it.path }
 	}
 
-	/** The modules of the project libraries at the root of [scope]'s compile graph, excluding this one. */
-	private fun directProjectDependencies(scope: ArtifactScope): List<ModuleProject> {
+	/** The project libraries at the root of [scope]'s compile graph, with their modules, excluding this one. */
+	private fun directProjectDependencies(scope: ArtifactScope): List<Pair<AndroidModels.Library, ModuleProject>> {
 		val graph = dependenciesOf(scope)?.compileGraph ?: return emptyList()
 		val root = IProjectManager.getInstance().workspace ?: return emptyList()
 		return graph.rootList
 			.mapNotNull { nodeId -> graph.nodeList.getOrNull(nodeId)?.let { graph.keyList.getOrNull(it.keyId) } }
 			.mapNotNull { key -> variantDependencies.librariesMap[key] }
 			.filter { it.type == AndroidModels.LibraryType.Project }
-			.mapNotNull { library -> root.findByPath(library.projectInfo.projectPath) as? ModuleProject }
-			.filter { it.path != path }
+			.mapNotNull { library ->
+				(root.findByPath(library.projectInfo.projectPath) as? ModuleProject)
+					?.takeIf { it.path != path }
+					?.let { library to it }
+			}
 	}
 
 	override fun getCompileClasspaths(

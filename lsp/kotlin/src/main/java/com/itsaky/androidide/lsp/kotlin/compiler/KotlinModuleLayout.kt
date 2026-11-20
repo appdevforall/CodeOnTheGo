@@ -5,6 +5,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.projects.models.ArtifactScope
 import com.itsaky.androidide.projects.models.bootClassPaths
+import java.io.File
 import java.nio.file.Path
 
 /**
@@ -106,7 +107,7 @@ private fun ModuleProject.sourceModuleLayout(): SourceModuleLayout {
 	return SourceModuleLayout(
 		path = path,
 		name = name,
-		sourceRoots = getSourceDirectories().mapTo(LinkedHashSet()) { it.toPath() },
+		sourceRoots = existingRoots(getSourceDirectories()),
 		classpath = getCompileClasspaths(excludeSourceGeneratedClassPath = true).mapTo(LinkedHashSet()) { it.toPath() },
 		moduleDependencies = getCompileModuleProjects().map { it.path },
 		apiVersion = kotlinSettings?.apiVersion,
@@ -123,7 +124,7 @@ private fun ModuleProject.testModuleLayout(
 	main: SourceModuleLayout,
 	scope: ArtifactScope,
 ): SourceModuleLayout? {
-	val sourceRoots = getSourceDirectories(scope).mapTo(LinkedHashSet()) { it.toPath() }
+	val sourceRoots = existingRoots(getSourceDirectories(scope))
 	if (sourceRoots.isEmpty()) {
 		return null
 	}
@@ -132,6 +133,10 @@ private fun ModuleProject.testModuleLayout(
 		nonMainScopes()
 			.filter { it != scope && scope.sees(it) && hasScopeModule(it) }
 			.map { testModulePath(path, it) }
+	val otherModulesFixtures =
+		getTestFixturesModuleProjects(scope)
+			.filter { it.hasScopeModule(ArtifactScope.TestFixtures) }
+			.map { testModulePath(it.path, ArtifactScope.TestFixtures) }
 	// Scope-only project dependencies must be source modules: the scope's classpath leaves out their jars.
 	val scopeOnlyModules = getCompileModuleProjects(scope).map { it.path }
 
@@ -140,13 +145,17 @@ private fun ModuleProject.testModuleLayout(
 		name = "$name (${scope.displayName()})",
 		sourceRoots = sourceRoots,
 		classpath = getCompileClasspaths(scope, excludeSourceGeneratedClassPath = true).mapTo(LinkedHashSet()) { it.toPath() },
-		moduleDependencies = (listOf(path) + ownSeenScopes + main.moduleDependencies + scopeOnlyModules).distinct(),
+		moduleDependencies = (listOf(path) + ownSeenScopes + otherModulesFixtures + main.moduleDependencies + scopeOnlyModules).distinct(),
 		friends = listOf(path),
 	)
 }
 
-/** Whether [scope] gets a source module: [testModuleLayout] makes one only when it has source dirs. */
-private fun ModuleProject.hasScopeModule(scope: ArtifactScope): Boolean = getSourceDirectories(scope).isNotEmpty()
+/** Whether [scope] gets a source module: [testModuleLayout] makes one only for existing dirs. */
+private fun ModuleProject.hasScopeModule(scope: ArtifactScope): Boolean = existingRoots(getSourceDirectories(scope)).isNotEmpty()
 
 /** `unitTest` -> `unit test`. */
 private fun ArtifactScope.displayName(): String = moduleSuffix.replace(Regex("[A-Z]")) { " " + it.value.lowercase() }
+
+// The analysis session drops a root that does not exist when it is built, so a dir created later
+// (src/debug/java, most variant layers) must change the layout for the next sync to rebuild it.
+private fun existingRoots(dirs: Set<File>): Set<Path> = dirs.filter { it.isDirectory }.mapTo(LinkedHashSet()) { it.toPath() }

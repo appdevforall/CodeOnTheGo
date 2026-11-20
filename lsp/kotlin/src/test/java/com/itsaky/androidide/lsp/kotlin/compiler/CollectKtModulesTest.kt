@@ -187,6 +187,34 @@ class CollectKtModulesTest : KtLspTest() {
 		assertThat(sourceModules.single { it.id == ":app" }.directRegularDependencies).doesNotContain(fixtures)
 	}
 
+	@Test
+	fun `req 10 - a unit test module depends on another module's test fixtures module`() {
+		val sourceModules =
+			collect(
+				listOf(
+					AndroidModule(
+						gradleProject(
+							":lib",
+							bootClassPath = tempJar("android.jar"),
+							testFixtures = TestSources(listOf(tempDir("lib/src/testFixtures/java"))),
+						),
+					),
+					AndroidModule(
+						gradleProject(
+							":app",
+							unitTests = TestSources(listOf(tempDir("app/src/test/java")), fixtureProjects = listOf(":lib")),
+							androidTests = TestSources(listOf(tempDir("app/src/androidTest/java"))),
+						),
+					),
+				),
+			)
+
+		val libFixtures = sourceModules.single { it.id == ":lib[testFixtures]" }
+		assertThat(sourceModules.single { it.id == ":app[unitTest]" }.directRegularDependencies).contains(libFixtures)
+		assertThat(sourceModules.single { it.id == ":app[androidTest]" }.directRegularDependencies).doesNotContain(libFixtures)
+		assertThat(sourceModules.single { it.id == ":app" }.directRegularDependencies).doesNotContain(libFixtures)
+	}
+
 	private fun tempDir(name: String): Path =
 		lspTestRule.tempDir.root
 			.toPath()
