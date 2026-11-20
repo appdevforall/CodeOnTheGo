@@ -5,6 +5,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentChangeEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.read
 import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
@@ -68,6 +69,20 @@ internal class InPlaceRefreshTest : KtLspTest() {
 		return env.ktSymbolIndex.peekLiveKtFile(path)
 	}
 
+	/** The document's text once its applied version reaches [version], observed without pinning or refreshing. */
+	private fun awaitAppliedText(
+		path: Path,
+		version: Int,
+	): String? {
+		val deadline = System.nanoTime() + SECONDS.toNanos(10)
+		while (System.nanoTime() < deadline) {
+			val doc = env.ktSymbolIndex.incrementalDocument(path)
+			if (doc != null && doc.appliedVersion == version) return env.project.read { doc.ktFile.text }
+			Thread.sleep(20)
+		}
+		return null
+	}
+
 	private fun pinnedText(path: Path): String? = env.ktSymbolIndex.withLiveKtFile(path) { live -> live.read { it.text } }
 
 	@Test
@@ -100,7 +115,8 @@ internal class InPlaceRefreshTest : KtLspTest() {
 			}
 
 		assertEquals("fun b() {}", textInsidePin)
-		assertEquals("fun b() {}\nfun c() {}", pinnedText(path))
+		// Pinning again would refresh by itself and hide a release that never scheduled the owed refresh.
+		assertEquals("fun b() {}\nfun c() {}", awaitAppliedText(path, 2))
 	}
 
 	/**
