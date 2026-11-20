@@ -21,6 +21,7 @@ import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.project.AndroidModels
 import com.itsaky.androidide.project.GradleModels
 import com.itsaky.androidide.projects.ProjectManagerImpl
+import com.itsaky.androidide.projects.models.ArtifactScope
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -91,7 +92,8 @@ class CompileModuleProjectsCycleTest {
 					).build(),
 			)
 		}
-		variantDeps.setMainArtifact(
+		variantDeps.putArtifacts(
+			ArtifactScope.Main.key,
 			AndroidModels.ArtifactDependencies
 				.newBuilder()
 				.setCompileGraph(graph.build())
@@ -155,7 +157,8 @@ class CompileModuleProjectsCycleTest {
 				.setName("debug")
 				.putLibraries("rootLib", externalJavaLibrary("rootLib", rootJar))
 				.putLibraries("transitiveLib", externalJavaLibrary("transitiveLib", transitiveJar))
-				.setMainArtifact(
+				.putArtifacts(
+					ArtifactScope.Main.key,
 					AndroidModels.ArtifactDependencies
 						.newBuilder()
 						.setCompileGraph(graph.build())
@@ -211,7 +214,8 @@ class CompileModuleProjectsCycleTest {
 				.newBuilder()
 				.setName("debug")
 				.putLibraries("rootLib", externalJavaLibrary("rootLib", "/tmp/root.jar"))
-				.setMainArtifact(
+				.putArtifacts(
+					ArtifactScope.Main.key,
 					AndroidModels.ArtifactDependencies
 						.newBuilder()
 						.setCompileGraph(graph.build())

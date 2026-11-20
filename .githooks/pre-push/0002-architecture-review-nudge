@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Non-blocking nudge: when a push includes changes to first-party app source,
 # remind the author to run an architecture pass (the architecture-review skill /
