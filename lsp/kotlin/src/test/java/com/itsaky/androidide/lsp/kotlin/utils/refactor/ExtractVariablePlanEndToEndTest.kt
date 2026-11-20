@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.refactor.RewriteSpan
 import com.itsaky.androidide.lsp.refactor.TextSpan
 import com.itsaky.androidide.lsp.ui.NameProblem
 import com.itsaky.androidide.lsp.ui.validateVariableName
+import com.itsaky.androidide.progress.ICancelChecker
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtIfExpression
@@ -15,11 +16,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.CancellationException
-import org.junit.Assert.assertThrows
-import com.itsaky.androidide.progress.ICancelChecker
 
 /**
  * The parts of the plan that need real symbol resolution: candidate filtering, the legal scope chain

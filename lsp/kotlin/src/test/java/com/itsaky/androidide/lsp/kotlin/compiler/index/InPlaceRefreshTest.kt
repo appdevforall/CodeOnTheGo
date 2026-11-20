@@ -6,8 +6,8 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentCloseEvent
 import com.itsaky.androidide.eventbus.events.editor.DocumentOpenEvent
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.read
-import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
+import com.itsaky.androidide.lsp.kotlin.compiler.write
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
@@ -28,8 +28,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
-import kotlin.io.path.pathString
 import java.util.concurrent.TimeUnit.SECONDS
+import kotlin.io.path.pathString
 
 /** Requirement: an open document keeps one [KtFile], edited in place, with pins deferring the edit. */
 internal class InPlaceRefreshTest : KtLspTest() {
