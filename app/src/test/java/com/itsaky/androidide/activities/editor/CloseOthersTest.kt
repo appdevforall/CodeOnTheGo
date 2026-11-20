@@ -11,6 +11,7 @@ import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.databinding.ActivityEditorBinding
 import com.itsaky.androidide.databinding.ContentEditorBinding
 import com.itsaky.androidide.ui.CodeEditorView
+import com.itsaky.androidide.ui.EditorBottomSheet
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Test
@@ -133,7 +134,29 @@ class CloseOthersTest {
 						every { markAsSaved() } answers { if (i == modifiedAt) saved = true }
 					}
 				}.toMutableList()
-		val tabStrip = mockk<TabLayout>(relaxed = true) { every { tabCount } answers { editors.size } }
+		// Selects as TabLayout does when a tab is removed, for syncSelectedTab after each close (ADFA-7144).
+		// Until the first removal, the selected tab is the shown file's, as the tests set it.
+		var selected: Int? = null
+		fun selectedTab() = selected ?: activity.editorViewModel.displayedFileIndex
+		val tabStrip =
+			mockk<TabLayout>(relaxed = true) {
+				every { tabCount } answers { editors.size }
+				every { selectedTabPosition } answers { selectedTab() }
+				every { getTabAt(any()) } answers {
+					val at = firstArg<Int>()
+					if (at in editors.indices) mockk<TabLayout.Tab>(relaxed = true) { every { position } returns at } else null
+				}
+				every { removeTabAt(any()) } answers {
+					val removed = firstArg<Int>()
+					val current = selectedTab()
+					selected =
+						when {
+							removed < current -> current - 1
+							removed == current -> maxOf(0, removed - 1)
+							else -> current
+						}
+				}
+			}
 		val container =
 			mockk<ViewFlipper>(relaxed = true) {
 				every { childCount } answers { editors.size }
@@ -154,6 +177,10 @@ class CloseOthersTest {
 			.getDeclaredField("editorContainer")
 			.apply { isAccessible = true }
 			.set(content, container)
+		ContentEditorBinding::class.java
+			.getDeclaredField("bottomSheet")
+			.apply { isAccessible = true }
+			.set(content, mockk<EditorBottomSheet>(relaxed = true))
 		val binding = mockk<ActivityEditorBinding>(relaxed = true)
 		ActivityEditorBinding::class.java
 			.getDeclaredField("content")
