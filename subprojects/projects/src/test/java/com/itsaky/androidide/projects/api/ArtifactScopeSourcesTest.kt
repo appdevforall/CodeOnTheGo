@@ -166,6 +166,41 @@ class ArtifactScopeSourcesTest {
 	}
 
 	@Test
+	fun `req 1 - main scope includes the selected variant's own source sets`() {
+		val app = variantApp()
+		install(app)
+		select("myStupidVariant")
+
+		assertThat(app.getSourceDirectories())
+			.containsAtLeast(File("/p/app/src/myStupidVariant/java"), File("/p/app/src/myStupidVariant/kotlin"), mainJava)
+		assertThat(app.getSourceDirectories()).doesNotContain(File("/p/app/src/release/java"))
+	}
+
+	@Test
+	fun `req 2 - the unit test scope includes the selected variant's test source sets`() {
+		val app = variantApp()
+		install(app)
+		select("myStupidVariant")
+
+		assertThat(app.getSourceDirectories(ArtifactScope.UNIT_TEST))
+			.containsAtLeast(unitJava, File("/p/app/src/testMyStupidVariant/java"))
+		assertThat(app.getSourceDirectories()).doesNotContain(File("/p/app/src/testMyStupidVariant/java"))
+	}
+
+	@Test
+	fun `req 6 - switching the selected variant moves main's roots`() {
+		val app = variantApp()
+		install(app)
+
+		select("myStupidVariant")
+		val before = app.getSourceDirectories()
+		select("release")
+
+		assertThat(app.getSourceDirectories()).contains(File("/p/app/src/release/java"))
+		assertThat(app.getSourceDirectories()).isNotEqualTo(before)
+	}
+
+	@Test
 	fun `a new test fixtures file is indexed for every scope that sees fixtures`() {
 		val app = app(withTests = true, extraScopes = mapOf(ArtifactScope.TestFixtures to fixturesJava))
 		install(app)
@@ -177,6 +212,53 @@ class ArtifactScopeSourcesTest {
 			app.javaSourceClasses(ArtifactScope.UNIT_TEST),
 			app.javaSourceClasses(ArtifactScope.ANDROID_TEST),
 		)
+	}
+
+	private fun select(variant: String) {
+		ProjectManagerImpl.getInstance().androidBuildVariants =
+			mapOf(":app" to BuildVariantInfo(":app", listOf("myStupidVariant", "release"), variant))
+	}
+
+	/**
+	 * An app with unit tests and two variants, each layering its own `src/<variant>` and
+	 * `src/test<Variant>`; every one of those dirs is a source set dir AGP knows for the module.
+	 */
+	private fun variantApp(): AndroidModule {
+		val base = app(withTests = true)
+		val project =
+			base.delegate.androidProject
+				.toBuilder()
+				.clearVariant()
+				.addVariant(layeredVariant("myStupidVariant"))
+				.addVariant(layeredVariant("release"))
+		return AndroidModule(
+			base.delegate
+				.toBuilder()
+				.setAndroidProject(project)
+				.build(),
+		)
+	}
+
+	private fun layeredVariant(name: String): AndroidModels.AndroidVariant {
+		val capitalized = name.replaceFirstChar(Char::uppercaseChar)
+
+		fun layer(dir: String) =
+			AndroidModels.VariantArtifactSources
+				.newBuilder()
+				.addVariantSourceProviders(provider(File(dir)))
+				.build()
+		return AndroidModels.AndroidVariant
+			.newBuilder()
+			.setName(name)
+			.setMainArtifact(AndroidModels.AndroidArtifact.newBuilder().setName("main"))
+			.putArtifactSources(
+				ArtifactScope.Main.key,
+				AndroidModels.VariantArtifactSources
+					.newBuilder()
+					.addVariantSourceProviders(provider(File("/p/app/src/$name/java"), File("/p/app/src/$name/kotlin")))
+					.build(),
+			).putArtifactSources(ArtifactScope.UNIT_TEST.key, layer("/p/app/src/test$capitalized/java"))
+			.build()
 	}
 
 	/** An app module; [extraScopes] adds scopes with one source dir and main's dependencies. */

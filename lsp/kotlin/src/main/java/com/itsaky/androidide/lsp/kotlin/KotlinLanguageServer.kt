@@ -38,7 +38,6 @@ import com.itsaky.androidide.lsp.kotlin.compiler.KotlinProjectModel
 import com.itsaky.androidide.lsp.kotlin.compiler.kotlinModuleLayout
 import com.itsaky.androidide.lsp.kotlin.completion.KotlinSnippetRepository
 import com.itsaky.androidide.lsp.kotlin.completion.codeComplete
-import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
 import com.itsaky.androidide.lsp.kotlin.format.KotlinCodeFormatter
 import com.itsaky.androidide.lsp.kotlin.navigation.findDefinitionAt
 import com.itsaky.androidide.lsp.kotlin.navigation.findUsagesAt
@@ -384,8 +383,8 @@ class KotlinLanguageServer : ILanguageServer {
 		}
 
 		return compiler
-			?.compilationEnvironmentFor(file)
-			?.let { context(it) { collectDiagnosticsFor(file, createJobCancelChecker()) } }
+			?.compilationEnvironmentForKotlinPath(file)
+			?.diagnosticsFor(file, createJobCancelChecker())
 			?: DiagnosticResult.NO_UPDATE
 	}
 

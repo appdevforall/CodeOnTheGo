@@ -1,9 +1,11 @@
 package com.itsaky.androidide.lsp.kotlin.fixtures
 
+import com.itsaky.androidide.lsp.kotlin.compiler.KotlinModuleLayout
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import java.nio.file.Path
 
 /**
  * @param moduleSpecs Supplied as a lambda, not a value: JUnit evaluates rules after the test class
@@ -17,6 +19,7 @@ internal class KtLspTestRule(
 		listOf(TestSourceModuleSpec("src"))
 	},
 	private val enableParserEventSystem: () -> Boolean = { false },
+	private val layout: (Path) -> KotlinModuleLayout? = { null },
 ) : TestRule {
 	val tempDir = TemporaryFolder()
 	lateinit var env: KtLspTestEnvironment
@@ -36,6 +39,7 @@ internal class KtLspTestRule(
 							tempDir.root.toPath(),
 							moduleSpecs(),
 							enableParserEventSystem = enableParserEventSystem(),
+							layout = layout(tempDir.root.toPath()),
 						)
 					env = environment
 
