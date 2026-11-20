@@ -237,7 +237,7 @@ class ImportCompletionProvider(
 	// A file in no module has no sources or classpath of its own, but still completes boot classpath imports.
 	private fun importPathChildren(module: ModuleProject?) =
 		ImportPathChildren(
-			module?.compileJavaSourceClasses ?: ClassTrie(),
+			module?.javaSourceClasses(compiler.scope) ?: ClassTrie(),
 			compiler.classpathPackages(),
 			BootClasspathProvider.getAllEntries(),
 		)
