@@ -1,7 +1,9 @@
 package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.lsp.kotlin.fixtures.TestSources
 import com.itsaky.androidide.lsp.kotlin.fixtures.gradleProject
+import com.itsaky.androidide.projects.api.AndroidModule
 import com.itsaky.androidide.projects.api.GradleProject
 import com.itsaky.androidide.projects.api.JavaModule
 import com.itsaky.androidide.projects.api.Workspace
@@ -52,6 +54,13 @@ class KotlinModuleLayoutTest {
 	fun `a changed jvm target changes the layout`() {
 		assertThat(layoutOf(jvmTarget = "17")).isNotEqualTo(layoutOf(jvmTarget = "11"))
 	}
+
+	private fun layoutWithUnitTests(dir: Path): KotlinModuleLayout =
+		Workspace(
+			rootProject = GradleProject(gradleProject(":")),
+			subProjects = listOf(AndroidModule(gradleProject(":app", unitTests = TestSources(listOf(dir))))),
+			syncIssues = emptyList(),
+		).kotlinModuleLayout()
 
 	private fun tempJar(name: String): Path =
 		tempDir.root
