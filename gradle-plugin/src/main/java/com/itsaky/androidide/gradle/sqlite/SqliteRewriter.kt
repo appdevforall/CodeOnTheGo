@@ -189,23 +189,27 @@ object SqliteRewriter {
 
 	/**
 	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
-	 * ([renamedCursor]), or, on every path where it is not null, an array of one of the Android-only cursor types, of
-	 * any dimension ([androidCursorArray], that array type). [nullConstant]: `null` on every path.
+	 * ([renamedCursor]; [everyPathCursor] when it is one on every path where it is not null, so also for `null`
+	 * itself), or, on every path where it is not null, an array of one of the Android-only cursor types, of any
+	 * dimension ([androidCursorArray], that array type). [nullConstant]: `null` on every path.
 	 */
 	private class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
-		val androidCursorArray: Type? = null,
-		val nullConstant: Boolean = false,
+		val androidCursorArray: Type?,
+		val nullConstant: Boolean,
+		val everyPathCursor: Boolean,
 	) : BasicValue(type) {
 		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
 		override fun equals(other: Any?): Boolean =
 			other is BasicValue && super.equals(other) && renamedCursor == ((other as? StaticCursorValue)?.renamedCursor ?: false) &&
 				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray &&
-				nullConstant == ((other as? StaticCursorValue)?.nullConstant ?: false)
+				nullConstant == ((other as? StaticCursorValue)?.nullConstant ?: false) &&
+				everyPathCursor == ((other as? StaticCursorValue)?.everyPathCursor ?: false)
 
 		override fun hashCode(): Int =
-			((super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()) * 31 + if (nullConstant) 1 else 0
+			(((super.hashCode() * 31 + if (renamedCursor) 1 else 0) * 31 + androidCursorArray.hashCode()) * 31 + if (nullConstant) 1 else 0) *
+				31 + if (everyPathCursor) 1 else 0
 	}
 
 	private class ClassRewrite(
@@ -401,7 +405,7 @@ object SqliteRewriter {
 				if (insn is LineNumberNode) {
 					line = insn.line
 				}
-				conversions[insn]?.let { violate(m, line, it) }
+				conversions[insn]?.let { if (it.fails) violate(m, line, it.what) else warnOnce("${site(m, line)}: ${it.what}") }
 				when (insn) {
 					is MethodInsnNode -> {
 						methodInsn(m, insn, line)
@@ -458,6 +462,11 @@ object SqliteRewriter {
 						"to requery. Strings are not rewritten: Class.forName or reflection on it reaches Android's class, not requery's",
 				)
 			}
+		}
+
+		/** Logs [message] unless it was logged already: one warning per place, though one place can trip it twice. */
+		fun warnOnce(message: String) {
+			if (warned.add(message)) warn(message)
 		}
 
 		fun where(line: Int) = if (line >= 0) "line $line" else "no line number"
@@ -549,7 +558,7 @@ object SqliteRewriter {
 				val message =
 					"${site(m, line)}: $cannot${simple(declaring)}.$name, which it changes or rejects; " +
 						"the $use is left as it is, and fails at run time if the owner extends that class"
-				if (warned.add(message)) warn(message)
+				warnOnce(message)
 			}
 			return null
 		}
@@ -820,19 +829,28 @@ object SqliteRewriter {
 			}
 		}
 
+		/** What [implicitCursorConversions] found at one instruction: a build failure, or, unless it [fails], a warning. */
+		class Conversion(
+			val what: String,
+			val fails: Boolean,
+		)
+
 		/**
 		 * The instructions where a value whose static type is SQLiteCursor, or a class that extends it, is used as an
 		 * AbstractWindowedCursor, AbstractCursor or CrossProcessCursor without a cast, by the message for each: returned,
-		 * passed, called on, stored in a field, or held where a frame declares one of them. javac writes no CHECKCAST
-		 * for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the interface, so
-		 * the renamed class would not verify (or, for the interface, the call would fail). Also an AASTORE of such a value
-		 * into an array that is, on every path to it, one of those types' arrays (from a parameter, field, call,
-		 * ANEWARRAY or MULTIANEWARRAY, or loaded from an array of them): it would throw ArrayStoreException. Not checked:
-		 * stores into a Cursor[] or Object[], allowed on purpose although one can be such an array at run time; a store
-		 * whose array type differs between the paths that merge before it (null on a path is no difference); cursors
-		 * loaded from arrays, which are not followed; an SQLiteCursor[] used as one of those types' arrays.
+		 * passed, called on, stored in a field, or held where a frame declares one of them, on any path. javac writes no
+		 * CHECKCAST for such an upcast, and requery's SQLiteCursor neither extends those classes nor implements the
+		 * interface, so the renamed class would not verify (or, for the interface, the call would fail). Also an AASTORE of
+		 * such a value into an array that is, on every path to it where it is not null, one of those types' arrays (from a
+		 * parameter, field, call, ANEWARRAY or MULTIANEWARRAY, or loaded from an array of them): it would throw
+		 * ArrayStoreException. The store fails only when the value is such a cursor on every path where it is not null; on
+		 * some paths only, it is a warning, because the paths of the value are not matched with those of the array, and
+		 * the store throws only on a path that brings both. Not checked: stores into a Cursor[] or Object[], allowed on
+		 * purpose although one can be such an array at run time; a store whose array type differs between the paths that
+		 * merge before it (null on a path is no difference); cursors loaded from arrays, which are not followed; an
+		 * SQLiteCursor[] used as one of those types' arrays.
 		 */
-		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, String> {
+		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, Conversion> {
 			if (!mayConvertToAndroidCursor(m)) return emptyMap()
 			val interpreter =
 				object : BasicInterpreter(Opcodes.ASM9) {
@@ -840,7 +858,8 @@ object SqliteRewriter {
 						val v = super.newValue(type) ?: return null
 						return if (v.isReference) {
 							val nullConstant = type == BasicInterpreter.NULL_TYPE
-							StaticCursorValue(v.type, isRenamedCursorType(type), androidCursorArray(type), nullConstant)
+							val renamed = isRenamedCursorType(type)
+							StaticCursorValue(v.type, renamed, androidCursorArray(type), nullConstant, renamed || nullConstant)
 						} else {
 							v
 						}
@@ -880,6 +899,8 @@ object SqliteRewriter {
 									s1?.renamedCursor == true || s2?.renamedCursor == true,
 									array,
 									s1?.nullConstant == true && s2?.nullConstant == true,
+									// true on null, so null is neutral; a plain BasicValue (an element loaded from an array) is not a known cursor
+									s1?.everyPathCursor == true && s2?.everyPathCursor == true,
 								)
 							return if (merged == value1) value1 else merged
 						}
@@ -894,7 +915,7 @@ object SqliteRewriter {
 				}
 			val declared = fullFrames(m, m.desc).associateBy { it.node }
 			val returnType = Type.getReturnType(m.desc)
-			val result = LinkedHashMap<AbstractInsnNode, String>()
+			val result = LinkedHashMap<AbstractInsnNode, Conversion>()
 			for ((i, insn) in m.instructions.withIndex()) {
 				val f = frames[i] ?: continue
 
@@ -908,9 +929,23 @@ object SqliteRewriter {
 							?.takeIf { it.dimensions == 1 }
 							?.elementType
 							?.internalName
-					if (element != null && renamed(fromTop(0))) {
-						result[insn] = "an SQLite cursor stored into an array of ${element.replace('/', '.')}; requery's SQLiteCursor " +
-							"is not one, so the store would throw ArrayStoreException"
+					val value = fromTop(0) as? StaticCursorValue
+					if (element != null && value != null && value.renamedCursor) {
+						val array = "an array of ${element.replace('/', '.')}"
+						result[insn] =
+							if (value.everyPathCursor) {
+								Conversion(
+									"an SQLite cursor stored into $array; requery's SQLiteCursor is not one, so the store would throw " +
+										"ArrayStoreException",
+									fails = true,
+								)
+							} else {
+								Conversion(
+									"the value stored into $array is an SQLite cursor on some paths only; requery's SQLiteCursor is not " +
+										"one, so the store may throw ArrayStoreException at run time when the value is an SQLite cursor",
+									fails = false,
+								)
+							}
 					}
 					continue
 				}
@@ -955,8 +990,12 @@ object SqliteRewriter {
 						}
 					}
 				if (target != null) {
-					result[insn] = "an SQLite cursor used as ${target.replace('/', '.')} without a cast; requery's SQLiteCursor is not " +
-						"one, so the rewritten class would not verify or the call would fail"
+					result[insn] =
+						Conversion(
+							"an SQLite cursor used as ${target.replace('/', '.')} without a cast; requery's SQLiteCursor is not " +
+								"one, so the rewritten class would not verify or the call would fail",
+							fails = true,
+						)
 				}
 			}
 			return result

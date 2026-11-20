@@ -75,7 +75,11 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
   into an array of those types (`AbstractCursor[] a; a[0] = c;`), which would throw `ArrayStoreException`: the
   array must be one on every path to the store where it is not `null`, from a parameter, field, call or `new`, or
-  loaded from an array of them (`AbstractCursor[][] g; g[0][0] = c;`).
+  loaded from an array of them (`AbstractCursor[][] g; g[0][0] = c;`), and the value an SQLite cursor on every path
+  where it is not `null`. A value that is one on some paths only (`Object v = b ? c : matrixCursor;`) logs a
+  warning with class, method and line instead, once per place: the check does not match the paths of the value with
+  those of the array, so it cannot tell whether one path brings both
+  (`if (useDb) v = c; else { a = cache; v = m; } if (a != null) a[0] = v;` never throws).
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
@@ -215,7 +219,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   them would fail ordinary apps), but such an array can be an `AbstractCursor[]` at run time (arrays are covariant),
   and a store whose array type differs between branches that merge is not checked (`null` on a branch counts as
   no difference). Both can still throw `ArrayStoreException`, in release builds too (the rewrite runs in every
-  variant of an opted-in app). Cursors loaded from arrays are not followed.
+  variant of an opted-in app). So can a store whose value is an SQLite cursor on some paths only, which logs a
+  warning and builds (see Rules): it throws when one path brings both the cursor and the array. Cursors loaded from
+  arrays are not followed: one counts as a value that is not an SQLite cursor.
 - An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
   `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
   covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,
