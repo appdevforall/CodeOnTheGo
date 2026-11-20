@@ -45,9 +45,12 @@ import org.jetbrains.kotlin.com.intellij.psi.impl.PsiManagerEx
 import org.jetbrains.kotlin.com.intellij.psi.impl.file.impl.FileManagerImpl
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.slf4j.LoggerFactory
 import java.nio.file.Path
@@ -419,11 +422,17 @@ internal class KtSymbolIndex(
 		}
 	}
 
-	/** SourceFileIndexer records local classes and objects, so only an in-block edit adding or removing one needs a reindex. */
+	/**
+	 * SourceFileIndexer records local classes and objects and each declaration's type, so an in-block
+	 * edit needs a reindex when it adds or removes a local class or object, or when it sits in a
+	 * reparseable block (a lambda) that a non-local declaration's type is inferred from.
+	 */
 	private fun ReparseOutcome.needsReindex(): Boolean =
 		when (this) {
 			is ReparseOutcome.InBlock -> {
-				replacedHadClassOrObject || PsiTreeUtil.findChildOfType(reparsed, KtClassOrObject::class.java) != null
+				replacedHadClassOrObject ||
+					PsiTreeUtil.findChildOfType(reparsed, KtClassOrObject::class.java) != null ||
+					reparsed.mayChangeInferredType()
 			}
 
 			ReparseOutcome.WholeFile -> {
@@ -432,6 +441,16 @@ internal class KtSymbolIndex(
 
 			ReparseOutcome.Unchanged, is ReparseOutcome.Failed -> {
 				false
+			}
+		}
+
+	/** Whether [this] lies in a non-local property with no declared type, or a non-local expression-bodied function with none. */
+	private fun KtElement.mayChangeInferredType(): Boolean =
+		generateSequence<PsiElement>(this) { it.parent }.any { ancestor ->
+			when (ancestor) {
+				is KtProperty -> !ancestor.isLocal && ancestor.typeReference == null
+				is KtNamedFunction -> !ancestor.isLocal && ancestor.typeReference == null && !ancestor.hasBlockBody()
+				else -> false
 			}
 		}
 

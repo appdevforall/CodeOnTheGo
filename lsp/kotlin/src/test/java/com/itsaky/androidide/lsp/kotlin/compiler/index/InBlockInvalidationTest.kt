@@ -10,6 +10,7 @@ import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.projects.FileManager
 import kotlinx.coroutines.runBlocking
+import org.appdevforall.codeonthego.indexing.jvm.JvmFieldInfo
 import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
 import org.jetbrains.kotlin.analysis.api.platform.analysisMessageBus
 import org.jetbrains.kotlin.analysis.api.platform.modification.KotlinModificationEvent
@@ -102,6 +103,25 @@ internal class InBlockInvalidationTest : KtLspTest() {
 				ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.EXTENDED_AND_COMMON_CHECKERS).map { it.factoryName }
 			}
 		}!!
+
+	/** Polls the source index until property [name] is stored with a type named [typeName], or times out. */
+	private fun awaitIndexedType(
+		name: String,
+		typeName: String,
+	): String? {
+		var last: String? = null
+		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+		while (System.nanoTime() < deadline) {
+			last =
+				env.ktSymbolIndex.sourceIndex
+					.findByPrefix(name)
+					.firstOrNull { it.shortName == name }
+					?.let { (it.data as JvmFieldInfo).typeName }
+			if (last == typeName) return last
+			Thread.sleep(50)
+		}
+		return last
+	}
 
 	private fun pinnedText(path: Path): String? = env.ktSymbolIndex.withLiveKtFile(path) { live -> live.read { it.text } }
 
@@ -219,5 +239,17 @@ internal class InBlockInvalidationTest : KtLspTest() {
 		edit(path, original, 2)
 
 		assertThat(reindexed.poll(5, TimeUnit.SECONDS)).isSameInstanceAs(document)
+	}
+
+	@Test
+	fun `an in-lambda edit that changes a top-level property's inferred type updates the indexed type`() {
+		val content = "package p\n\nval inferred = run {\n    1\n}"
+		val path = open("Inferred.kt", content)
+		env.ktSymbolIndex.refreshSources()
+		assertThat(awaitIndexedType("inferred", "kotlin/Int")).isEqualTo("kotlin/Int")
+
+		edit(path, content.replace("    1", "    \"s\""), 2)
+
+		assertThat(awaitIndexedType("inferred", "kotlin/String")).isEqualTo("kotlin/String")
 	}
 }
