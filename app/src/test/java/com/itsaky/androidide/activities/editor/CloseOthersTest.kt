@@ -137,6 +137,7 @@ class CloseOthersTest {
 		// Selects as TabLayout does when a tab is removed, for syncSelectedTab after each close (ADFA-7144).
 		// Until the first removal, the selected tab is the shown file's, as the tests set it.
 		var selected: Int? = null
+
 		fun selectedTab() = selected ?: activity.editorViewModel.displayedFileIndex
 		val tabStrip =
 			mockk<TabLayout>(relaxed = true) {
