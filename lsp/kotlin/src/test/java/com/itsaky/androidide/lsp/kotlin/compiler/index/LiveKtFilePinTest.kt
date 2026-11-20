@@ -171,6 +171,7 @@ internal class LiveKtFilePinTest : KtLspTest() {
 			bumpVersion(path, 2, bumped)
 			// Answered from the pin, which leaves the refresh for the new version owed.
 			runBlocking { env.ktSymbolIndex.refreshCurrentKtFile(path) }
+			assertThat(live.read { it.text }).isEqualTo(content)
 			val id = live.read { System.identityHashCode(it) }
 			val cached = env.ktSymbolIndex.peekLiveKtFile(path)
 			assertThat(System.identityHashCode(cached)).isEqualTo(id)
