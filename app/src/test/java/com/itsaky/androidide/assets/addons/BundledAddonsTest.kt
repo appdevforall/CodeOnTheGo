@@ -105,7 +105,15 @@ class BundledAddonsTest {
 		val entries =
 			BundledAddons.list(
 				source(
-					plugins = mapOf("a.cgp" to 1L, "readme.txt" to 2L, "t.cgt" to 3L, ".hidden.cgp" to 4L, "sub/b.cgp" to 5L, "UPPER.CGP" to 6L),
+					plugins =
+						mapOf(
+							"a.cgp" to 1L,
+							"readme.txt" to 2L,
+							"t.cgt" to 3L,
+							".hidden.cgp" to 4L,
+							"sub/b.cgp" to 5L,
+							"UPPER.CGP" to 6L,
+						),
 					templates = mapOf("t.cgt" to 7L, "a.cgp" to 8L),
 				),
 			)
@@ -153,7 +161,8 @@ class BundledAddonsTest {
 	fun `a zip source lists only the direct files of a folder, with their sizes`() {
 		val zipFile = tempFolder.newFile("assets.zip")
 		ZipOutputStream(zipFile.outputStream()).use { zip ->
-			listOf("bootstrap.zip" to 3, "plugins/a.cgp" to 5, "plugins/nested/b.cgp" to 9, "templates/t.cgt" to 7).forEach { (name, size) ->
+			val entries = listOf("bootstrap.zip" to 3, "plugins/a.cgp" to 5, "plugins/nested/b.cgp" to 9, "templates/t.cgt" to 7)
+			entries.forEach { (name, size) ->
 				zip.putNextEntry(ZipEntry(name))
 				zip.write(ByteArray(size))
 				zip.closeEntry()
