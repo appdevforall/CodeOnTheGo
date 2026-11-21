@@ -11,29 +11,31 @@ import io.github.kakaocup.kakao.text.KTextView
 import org.hamcrest.Matcher
 
 object PermissionScreen : KScreen<PermissionScreen>() {
+	override val layoutId: Int? = null
+	override val viewClass: Class<*>? = null
 
-    override val layoutId: Int? = null
-    override val viewClass: Class<*>? = null
+	val title = KTextView { withText(R.string.onboarding_title_permissions) }
 
-    val title = KTextView { withText(R.string.onboarding_title_permissions) }
-    // The subtitle is formatted with the app name, so match the formatted text, not the raw resource.
-    val subTitle =
-        KTextView {
-            val context = InstrumentationRegistry.getInstrumentation().targetContext
-            withText(context.getString(R.string.onboarding_subtitle_permissions, context.getString(R.string.app_name)))
-        }
+	// The subtitle is formatted with the app name, so match the formatted text, not the raw resource.
+	val subTitle =
+		KTextView {
+			val context = InstrumentationRegistry.getInstrumentation().targetContext
+			withText(context.getString(R.string.onboarding_subtitle_permissions, context.getString(R.string.app_name)))
+		}
 
-    val rvPermissions = KRecyclerView(
-        builder = { withId(R.id.onboarding_items) },
-        itemTypeBuilder = { itemType(::PermissionItem) }
-    )
+	val rvPermissions =
+		KRecyclerView(
+			builder = { withId(R.id.onboarding_items) },
+			itemTypeBuilder = { itemType(::PermissionItem) },
+		)
 
-    val finishInstallationButton = KButton { withId(R.id.finish_installation_button) }
+	val finishInstallationButton = KButton { withId(R.id.finish_installation_button) }
 
-    class PermissionItem(matcher: Matcher<View>) : KRecyclerItem<PermissionItem>(matcher) {
-
-        val grantButton = KButton(matcher) { withId(R.id.grant_button) }
-        val title = KTextView(matcher) { withId(R.id.title) }
-        val description = KTextView(matcher) { withId(R.id.description) }
-    }
+	class PermissionItem(
+		matcher: Matcher<View>,
+	) : KRecyclerItem<PermissionItem>(matcher) {
+		val grantButton = KButton(matcher) { withId(R.id.grant_button) }
+		val title = KTextView(matcher) { withId(R.id.title) }
+		val description = KTextView(matcher) { withId(R.id.description) }
+	}
 }
