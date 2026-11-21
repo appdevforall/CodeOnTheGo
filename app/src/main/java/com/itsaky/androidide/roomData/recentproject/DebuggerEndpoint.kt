@@ -13,9 +13,17 @@ import androidx.room.PrimaryKey
  * Code on the Go process. Some installs keep the old token and port until the app reports again:
  * a Quick Build install (the proxy app, installed under the project's application ID, writes no
  * install note), a Run install with no project open, a Run install whose APK's application ID
- * cannot be read (neither writes an install note), a success result with no package name, and a
- * result that arrives after Code on the Go restarted. LaunchAppAction pairs the last four at the
- * next launch from a project and keeps the stored values.
+ * cannot be read (neither writes an install note), a success result with no package name, a
+ * result that arrives after Code on the Go restarted, and an install by the intent-based fallback
+ * installer (on MIUI, or when debugFallbackInstaller is set; Run installs too), which never calls
+ * beforeCommit and has no session or result. Only the Launch action (LaunchAppAction) pairs the
+ * last five at the next launch from a project, and keeps the stored values; the automatic
+ * post-install launch (BaseEditorActivity.doLaunchApp), RestartVmAction and the SQLite debugger
+ * launch never call recordLaunched. Other installs keep them too: recordInstalled returns false and
+ * keeps the old values when the project has no recent-project row or the write fails; a result that
+ * names a different package is dropped without clearing; a beforeCommit that throws is logged and the
+ * install goes on with no note; and an install not made from a project (the file tab, adb) leaves an
+ * already-paired app listed with its dead token and port.
  *
  * ON UPDATE CASCADE as well as ON DELETE: renaming a project rewrites its recent_project_table
  * location, which would otherwise be refused while foreign keys are on.
