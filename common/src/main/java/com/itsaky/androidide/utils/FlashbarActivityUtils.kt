@@ -166,14 +166,15 @@ fun Activity.flashInfoLong(msg: String?) = showFlashBar(msg, IconType.INFO, dura
  * [FLASH_SHOWN_TIMEOUT_MS] elapses) instead of firing-and-forgetting - for callers (e.g. a
  * one-shot screen about to finish()) that need the message to be visible before proceeding,
  * rather than guessing a fixed delay that may or may not outlast the real animation.
+ * Returns whether the bar finished appearing: false for a `null` [msg] or on timeout.
  */
 private suspend fun Activity.showFlashBarAwaitShown(
 	msg: Any?,
 	iconType: IconType,
 	gravity: Flashbar.Gravity = TOP,
 	duration: Long = Flashbar.DURATION_SHORT,
-) {
-	val builder = configureFlashbar(msg, iconType, gravity, duration) ?: return
+): Boolean {
+	val builder = configureFlashbar(msg, iconType, gravity, duration) ?: return false
 
 	val shown = CompletableDeferred<Unit>()
 	builder.barShowListener(
@@ -192,7 +193,7 @@ private suspend fun Activity.showFlashBarAwaitShown(
 	)
 
 	runOnUiThread { builder.build().show() }
-	withTimeoutOrNull(FLASH_SHOWN_TIMEOUT_MS) { shown.await() }
+	return withTimeoutOrNull(FLASH_SHOWN_TIMEOUT_MS) { shown.await() } != null
 }
 
 suspend fun Activity.flashSuccessAwaitShown(msg: String?) = showFlashBarAwaitShown(msg, IconType.SUCCESS)

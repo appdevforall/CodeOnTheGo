@@ -344,8 +344,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	/**
 	 * Tells the user once which plugins bundled with the build did not start. The failures are
-	 * marked reported only after the bar is shown, so a screen destroyed first reports them next
-	 * time; [reportingBundledFailures] keeps a resume during the report from starting a second one.
+	 * marked reported only once the bar has finished appearing, so a screen that goes away first
+	 * reports them next time; [reportingBundledFailures] keeps a resume during the report from
+	 * starting a second one.
 	 */
 	private fun reportBundledPluginFailures() {
 		if (reportingBundledFailures) return
@@ -358,13 +359,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 						runCatching { record.unreportedFailures() }.getOrDefault(emptyList())
 					}
 				if (failures.isEmpty()) return@launch
-				flashErrorAwaitShown(
-					getString(
-						string.msg_bundled_plugins_failed,
-						failures.joinToString("\n") { "${it.pluginId}: ${it.message}" },
-					),
-				)
-				withContext(Dispatchers.IO) { runCatching { record.markReported() } }
+				val shown =
+					this@MainActivity.flashErrorAwaitShown(
+						getString(
+							string.msg_bundled_plugins_failed,
+							failures.joinToString("\n") { "${it.pluginId}: ${it.message}" },
+						),
+					)
+				if (shown) withContext(Dispatchers.IO) { runCatching { record.markReported() } }
 			} finally {
 				reportingBundledFailures = false
 			}

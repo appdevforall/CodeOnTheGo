@@ -757,6 +757,7 @@ class PluginManager private constructor(
 			buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
 			lifecycleDispatcher.notifyActivated(manifest.id)
 			notifyLanguageContributionsChanged(plugin)
+			loadFailures.remove(manifest.id)
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
 			loadFailures[manifest.id] = e.message ?: e.toString()
