@@ -122,6 +122,14 @@ class BundledAddonsTest {
 	}
 
 	@Test
+	fun `a bundled template named like the core template is ignored`() {
+		val templates = mapOf("core.cgt" to 1L, "Core.CGT" to 2L, "t.cgt" to 3L)
+		val entries = BundledAddons.list(source(templates = templates))
+
+		assertThat(entries.map { it.entryName }).containsExactly("templates/t.cgt")
+	}
+
+	@Test
 	fun `parse recognizes only the names a listing produces`() {
 		assertThat(BundledAddons.parse("plugins/a.cgp")).isEqualTo(BundledAddonKind.PLUGIN to "a.cgp")
 		assertThat(BundledAddons.parse("templates/t.cgt")).isEqualTo(BundledAddonKind.TEMPLATE to "t.cgt")

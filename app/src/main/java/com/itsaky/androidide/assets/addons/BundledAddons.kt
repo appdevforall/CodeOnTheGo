@@ -2,6 +2,7 @@ package com.itsaky.androidide.assets.addons
 
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
+import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
 import java.io.InputStream
 import java.security.MessageDigest
 
@@ -81,5 +82,10 @@ object BundledAddons {
 	private fun isAddonFile(
 		kind: BundledAddonKind,
 		fileName: String,
-	): Boolean = '/' !in fileName && !fileName.startsWith(".") && fileName.endsWith(".${kind.extension}", ignoreCase = true)
+	): Boolean =
+		'/' !in fileName &&
+			!fileName.startsWith(".") &&
+			fileName.endsWith(".${kind.extension}", ignoreCase = true) &&
+			// core.cgt is installed by its own entry into the same folder.
+			!(kind == BundledAddonKind.TEMPLATE && fileName.equals(TEMPLATE_CORE_ARCHIVE, ignoreCase = true))
 }

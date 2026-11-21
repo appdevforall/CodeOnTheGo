@@ -62,8 +62,11 @@ class BundledAddonInstaller(
 					{ input.copyToFile(it) },
 					{ copy ->
 						val id =
-							runCatching { readPluginId(copy) }.getOrNull()
-								?: throw RejectedPluginException("it has no readable manifest")
+							try {
+								readPluginId(copy)
+							} catch (e: Exception) {
+								null
+							} ?: throw RejectedPluginException("it has no readable manifest")
 						checkPluginId(id).onFailure { throw RejectedPluginException(it.message ?: "invalid plugin ID") }
 						pluginId = id
 						"${PluginBuildFiles.fileStem(id, copy)}.$PLUGIN_ARCHIVE_EXTENSION"

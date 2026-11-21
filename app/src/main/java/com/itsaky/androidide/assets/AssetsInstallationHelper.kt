@@ -247,8 +247,8 @@ object AssetsInstallationHelper {
 			// then cancel progress updater
 			progressUpdater.cancel()
 
-			// joinAll() does not rethrow a failed child, and returns at once when they have all
-			// finished already: without this a failed copy would still get its record written.
+			// A failed copy has already cancelled this scope, so joinAll() throws; this keeps the record
+			// unwritable after any failure even if that changes.
 			ensureActive()
 
 			// Last, and only here, so a record means every file of the bundle is in place.

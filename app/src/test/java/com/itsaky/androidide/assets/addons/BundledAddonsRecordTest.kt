@@ -145,4 +145,11 @@ class BundledAddonsRecordTest {
 
 		assertThat(file.exists()).isFalse()
 	}
+
+	@Test
+	fun `every caller of one files folder shares one record, so its lock covers them all`() {
+		val filesDir = File(tempFolder.root, "files")
+
+		assertThat(BundledAddonsRecord.inFilesDir(filesDir)).isSameInstanceAs(BundledAddonsRecord.inFilesDir(File(filesDir, ".")))
+	}
 }

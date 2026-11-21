@@ -4,6 +4,7 @@ import java.io.File
 import java.io.IOException
 import java.util.Properties
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /** A bundled plugin that did not load, and whether the user has been told. */
 data class BundledPluginFailure(
@@ -132,6 +133,11 @@ class BundledAddonsRecord(
 		private const val TEMPLATE = "template"
 		private const val FAILURE = "failure"
 
-		fun inFilesDir(filesDir: File) = BundledAddonsRecord(File(filesDir, FILE_NAME))
+		// One instance per file, so @Synchronized serializes every caller: the setup and the main screen
+		// both read, change and rewrite the file.
+		private val instances = ConcurrentHashMap<String, BundledAddonsRecord>()
+
+		fun inFilesDir(filesDir: File): BundledAddonsRecord =
+			instances.computeIfAbsent(File(filesDir, FILE_NAME).canonicalPath) { BundledAddonsRecord(File(it)) }
 	}
 }

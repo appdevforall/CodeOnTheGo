@@ -717,6 +717,16 @@ abstract class StageBundledAddons : DefaultTask() {
 	}
 }
 
+/** A bundled add-on file: directly in its folder, not hidden, with [extension] in any case. */
+fun isBundledAddon(
+	element: FileTreeElement,
+	extension: String,
+): Boolean =
+	!element.isDirectory &&
+		element.relativePath.segments.size == 1 &&
+		!element.name.startsWith(".") &&
+		element.name.endsWith(".$extension", ignoreCase = true)
+
 androidComponents.onVariants { variant ->
 	val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
 	val flavorName = variant.flavorName!!
@@ -724,8 +734,9 @@ androidComponents.onVariants { variant ->
 	if (hasBundledAssets(variant)) {
 		val stageBundledAddons =
 			tasks.register<StageBundledAddons>("stage${variantName}BundledAddons") {
-				pluginFiles.from(fileTree(rootProject.file("assets/plugins")) { include("*.cgp") })
-				templateFiles.from(fileTree(rootProject.file("assets/templates")) { include("*.cgt") })
+				// Top-level files only, extension in any case, as the debug zip takes them.
+				pluginFiles.from(fileTree(rootProject.file("assets/plugins")) { include { isBundledAddon(it, "cgp") } })
+				templateFiles.from(fileTree(rootProject.file("assets/templates")) { include { isBundledAddon(it, "cgt") } })
 				outputDirectory.set(layout.buildDirectory.dir("intermediates/bundled-addons/${variant.name}"))
 			}
 		variant.sources.assets?.addGeneratedSourceDirectory(
