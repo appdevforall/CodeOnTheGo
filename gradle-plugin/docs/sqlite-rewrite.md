@@ -195,6 +195,13 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - requery's native library is built without ICU: there is no `UNICODE` collator (a `COLLATE UNICODE` string
   constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, and
   `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
+- Four rare false positives of the checks, each rejected on purpose rather than proven safe:
+  - a custom `CursorFactory` that returns a non-requery cursor, then a cast to an Android cursor class, is rejected
+    (the cast check follows the static type from a renamed owner; a cast through `Cursor` or an `instanceof` guard avoids it);
+  - the `COLLATE` rule matches any string constant on purpose (Room's generated SQL), so a quoted literal or a log
+    message that contains the phrase is a false positive;
+  - an `instanceof` proof covers the checked local only, not a copy of it;
+  - a subclass that declares its own version of a member requery lacks is still rejected, because the check works on class names.
 - `SupportSQLiteDatabase.execPerConnectionSQL` is unsupported (see the design change): no build failure, an
   `UnsupportedOperationException` when called.
 - Passing an Android `CursorWindow` where a (renamed) `SQLiteClosable` is expected cannot work: android's
