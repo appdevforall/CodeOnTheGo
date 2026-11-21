@@ -25,7 +25,11 @@ class BundledAddonInstallerTest {
 		templatesDir = File(tempFolder.root, "templates")
 	}
 
-	private fun installer(readPluginId: (File) -> String? = { "com.example.plugin" }) = BundledAddonInstaller(pluginsDir, templatesDir, readPluginId)
+	private fun installer(
+		readPluginId: (File) -> String? = {
+			"com.example.plugin"
+		},
+	) = BundledAddonInstaller(pluginsDir, templatesDir, readPluginId)
 
 	private fun bytes(text: String): InputStream = ByteArrayInputStream(text.toByteArray())
 

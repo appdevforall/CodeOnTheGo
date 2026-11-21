@@ -6,7 +6,7 @@
 ##
 ## -------------------------------------------------------------------
 # Flox manifest version managed by Flox CLI
-version = 1
+schema-version = "1.11.0"
 
 
 ## Install Packages --------------------------------------------------
@@ -19,6 +19,7 @@ jdk17.pkg-path = "jdk17"
 android-studio-tools.pkg-path = "android-studio-tools"
 gh.pkg-path = "gh"
 awscli2.pkg-path = "awscli2"
+awscli2.outputs = "all"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 

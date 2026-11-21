@@ -40,7 +40,10 @@ class BundledAddonInstaller(
 		input: InputStream,
 	): InstalledAddon =
 		when (kind) {
-			BundledAddonKind.PLUGIN -> installPlugin(fileName, input)
+			BundledAddonKind.PLUGIN -> {
+				installPlugin(fileName, input)
+			}
+
 			BundledAddonKind.TEMPLATE -> {
 				val file = AtomicFiles.writeInto(templatesDir, { input.copyToFile(it) }, { fileName })
 				InstalledAddon(kind, file, null)

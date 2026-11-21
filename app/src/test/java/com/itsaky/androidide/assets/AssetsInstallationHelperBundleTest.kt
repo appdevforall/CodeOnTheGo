@@ -86,7 +86,9 @@ class AssetsInstallationHelperBundleTest {
 	@Test
 	fun `every entry is installed, then the record is written`() =
 		runBlocking {
-			val seen = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+			val seen =
+				java.util.concurrent.ConcurrentHashMap
+					.newKeySet<String>()
 			every { SplitAssetsInstaller.listBundledAddons(any()) } returns bundle
 			every { SplitAssetsInstaller.installedAddons() } returns bundle.map { installed(it.fileName) }
 			coEvery { SplitAssetsInstaller.doInstall(any(), any(), any(), any()) } coAnswers {
@@ -111,7 +113,9 @@ class AssetsInstallationHelperBundleTest {
 	@Test
 	fun `a thin build installs the eight entries and records an empty bundle`() =
 		runBlocking {
-			val seen = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+			val seen =
+				java.util.concurrent.ConcurrentHashMap
+					.newKeySet<String>()
 			every { SplitAssetsInstaller.listBundledAddons(any()) } returns emptyList()
 			every { SplitAssetsInstaller.installedAddons() } returns emptyList()
 			coEvery { SplitAssetsInstaller.doInstall(any(), any(), any(), any()) } coAnswers { seen += arg<String>(3) }
