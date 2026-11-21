@@ -210,6 +210,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   says Quick Build is off while the SQLite debugger is on. The editor's status line then reads
   `quick_build_status_off_sqlite_debugger`, and a tap on it does what a tap on the Quick Build button does: it
   shows that message again, or, while the button is greyed out (a release variant, a plugin project), why it is.
+- The array-store check is path-insensitive, so it gives a false positive when the cursor is null on exactly the path where
+  the array is set (`a = null; c = null; if (b) a = p; else c = query(); a[0] = c` fails the build although the store
+  never runs with both set).
 - Classes loaded by name (`Class.forName`, reflection, strings naming `android.database.sqlite.*`) are not
   rewritten. A string constant that names one of the renamed classes (dots or slashes, `$` or `.` before a nested
   class, alone or in a type descriptor) logs a warning with class, method and line, in the classes the fail rule
