@@ -3,6 +3,7 @@
 package docexamples
 
 import android.content.Context
+import android.util.Log
 import androidx.room.withTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -17,6 +18,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.appdevforall.sqlitejs.SqliteJs
 import org.junit.Assert.assertEquals
@@ -149,6 +151,79 @@ class DocExamplesTest {
 				assertEquals("$how: the transaction stayed open, with its earlier insert", 5, inside)
 				assertEquals("$how: Room rolled the transaction back", 4, after)
 			}
+		} finally {
+			db.close()
+		}
+	}
+
+	// What the page leaves open, logged for CLAIMS.md: what Room reports when SQLite has already
+	// rolled the transaction back (a write whose collation is stopped ends with SQLITE_INTERRUPT),
+	// and whether cancelling a coroutine without cancellable() ends a query that never returns.
+	@Test
+	fun whatRoomDoesWhenSqliteRolledBackAndWhenAPlainCoroutineIsCancelled() = runBlocking {
+		context.deleteDatabase("products.db")
+		storeFunctions(context)
+		val config = SQLiteDatabaseConfiguration(context.getDatabasePath("products.db").path, SQLiteDatabase.OPEN_READWRITE)
+		config.customExtensions.add(SQLiteCustomExtension(SqliteJs.libraryPath(context), SqliteJs.ENTRY_POINT))
+		SQLiteDatabase.openDatabase(config, null, null).use { raw ->
+			raw.text("SELECT js_create_collation('spin_collation', '(function (a, b) { for (;;) {} })')")
+		}
+		val db = openProductDatabase(context)
+		try {
+			db.products().insert(sample)
+			for (how in listOf("withTransaction", "runInTransaction")) {
+				val stopped = AtomicBoolean(false)
+				val canceller = Thread {
+					Thread.sleep(300)
+					while (!stopped.get()) {
+						SqliteJs.cancelAll()
+						Thread.sleep(10)
+					}
+				}
+				canceller.start()
+				var inner = "none"
+				val block = {
+					val raw = db.openHelper.writableDatabase
+					raw.execSQL("INSERT INTO Product (name, price) VALUES ('Extra', 1.0)")
+					try {
+						raw.execSQL("INSERT INTO Product (name, price) SELECT name, price FROM Product ORDER BY name COLLATE spin_collation")
+					} catch (e: Exception) {
+						inner = "${e.javaClass.name}: ${e.message}"
+						throw e
+					} finally {
+						stopped.set(true)
+					}
+				}
+				val outer = try {
+					if (how == "withTransaction") withContext(Dispatchers.IO) { db.withTransaction { block() } }
+					else withContext(Dispatchers.IO) { db.runInTransaction { block() } }
+					"none"
+				} catch (e: Exception) {
+					"${e.javaClass.name}: ${e.message}"
+				} finally {
+					stopped.set(true)
+					canceller.join()
+				}
+				Log.i("DocExamples", "collation write in $how: statement threw [$inner], $how threw [$outer]")
+				assertTrue("$how: the statement failed: $inner", inner != "none")
+				assertTrue("$how: the block's failure left $how: $outer", outer != "none")
+				assertEquals("$how: nothing of the transaction is kept", 4, db.count())
+			}
+
+			val plain = launch(Dispatchers.Default) { db.products().spin() }
+			delay(500)
+			plain.cancel()
+			delay(1000)
+			Log.i("DocExamples", "1 s after a plain cancel of spin(): job completed = ${plain.isCompleted}")
+			withTimeout(10_000) {
+				while (!plain.isCompleted) {
+					SqliteJs.cancelAll()
+					delay(10)
+				}
+			}
+			// spin() keeps its connection busy until cancelAll() stops it: the database answers again
+			repeat(20) { SqliteJs.cancelAll(); delay(10) }
+			assertEquals(4, db.count())
 		} finally {
 			db.close()
 		}
