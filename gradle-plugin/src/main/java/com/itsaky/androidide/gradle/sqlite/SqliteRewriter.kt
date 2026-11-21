@@ -192,9 +192,11 @@ object SqliteRewriter {
 	 * ([renamedCursor]; [everyPathCursor] when it is one on every path where it is not null, so also for `null`
 	 * itself), or, on every path where it is not null, an array of one of the Android-only cursor types, of any
 	 * dimension ([androidCursorArray], that array type), or, on every path where it is not null, an array of
-	 * SQLiteCursor or of a subclass, of any dimension ([renamedCursorArray], that array type): a row of one is an array of
-	 * the same kind, and an element of a one-dimensional one is a [renamedCursor]. [nullConstant]: `null` on every path,
-	 * which an element loaded from it counts as, since that load throws.
+	 * SQLiteCursor or of a subclass, of any dimension ([renamedCursorArray], an array type of that dimension; after a
+	 * merge of, say, an SQLiteCursor[] and a MyCursor[], its element class is the first merged value's, so only its
+	 * dimensions, and that it is not null, mean anything): a row of one is an array of the same kind, and an element of
+	 * a one-dimensional one is a [renamedCursor]. [nullConstant]: `null` on every path, which an element loaded from it
+	 * counts as, since that load throws.
 	 */
 	private class StaticCursorValue(
 		type: Type?,

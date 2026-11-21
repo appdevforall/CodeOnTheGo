@@ -228,6 +228,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   loaded from an `SQLiteCursor[]` (or an array of a subclass) counts as an SQLite cursor, and a row of an
   `SQLiteCursor[][]` is followed as an `SQLiteCursor[]`, at any depth (so `return g[0][0]` as an `AbstractCursor`
   fails the build); rows of other arrays are not followed, and one counts as a value that is not an SQLite cursor.
+  That includes an array that is an `SQLiteCursor[]` on one branch only (an `Object[]` or an `SQLiteCursor[][]` on
+  the other), except that when the analysis reaches the `SQLiteCursor[]` branch first, its row still counts as an
+  SQLite cursor on some paths, so storing it logs that warning; with the branches swapped it logs nothing.
 - An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
   `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
   covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,

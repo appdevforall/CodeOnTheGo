@@ -2252,6 +2252,56 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `an element of an SQLite cursor array merged with an Object array or a 2D one does not fail the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UnfollowedMerges",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class UnfollowedMerges {
+							void cursorsOrObjects(AbstractCursor[] a, SQLiteCursor[] cs, Object[] os, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? cs : os)[0];
+							}
+							void objectsOrCursors(AbstractCursor[] a, SQLiteCursor[] cs, Object[] os, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? os : cs)[0];
+							}
+							void cursorsOrGrid(AbstractCursor[] a, SQLiteCursor[] cs, SQLiteCursor[][] g, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? cs : g)[0];
+							}
+							void gridOrCursors(AbstractCursor[] a, SQLiteCursor[] cs, SQLiteCursor[][] g, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? g : cs)[0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		// on one path the array is not an SQLite cursor array of the same dimension, so the merge drops the tag and the
+		// element is not followed: no exception. Both orders, since a merge keeps the first merged value's tag, so only
+		// objectsOrCursors and gridOrCursors fail the build if that check is lost
+		SqliteRewriter.rewrite(classes["p/UnfollowedMerges"]!!, hierarchy, warn = warnings::add)
+		// the analysis visits the SQLiteCursor[] path first in these two and has already seen its element as an SQLite
+		// cursor; the element after the merge is not one, so the store's value is one on some paths only, which warns
+		val some =
+			"is an SQLite cursor on some paths only; requery's SQLiteCursor is not one, so the store may throw " +
+				"ArrayStoreException at run time when the value is an SQLite cursor"
+		assertThat(warnings)
+			.containsExactly(
+				"p.UnfollowedMerges.objectsOrCursors (line 12): the value stored into an array of android.database.AbstractCursor $some",
+				"p.UnfollowedMerges.gridOrCursors (line 20): the value stored into an array of android.database.AbstractCursor $some",
+			).inOrder()
+	}
+
+	@Test
 	fun `an SQLite cursor array used as an Android cursor array is not checked, and would not verify`() {
 		fun covariant(pkg: String) =
 			src(
