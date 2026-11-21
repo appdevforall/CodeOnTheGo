@@ -925,11 +925,12 @@ object SqliteRewriter {
 									s2?.nullConstant == true -> s1?.androidCursorArray
 									else -> s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray }
 								}
+							// both paths hold renamed cursor arrays of the same dimension, whichever classes: the tag keeps the dimension
 							val renamedArray =
 								when {
 									s1?.nullConstant == true -> s2?.renamedCursorArray
 									s2?.nullConstant == true -> s1?.renamedCursorArray
-									else -> s1?.renamedCursorArray?.takeIf { it == s2?.renamedCursorArray }
+									else -> s1?.renamedCursorArray?.takeIf { s2?.renamedCursorArray?.dimensions == it.dimensions }
 								}
 							val merged =
 								StaticCursorValue(

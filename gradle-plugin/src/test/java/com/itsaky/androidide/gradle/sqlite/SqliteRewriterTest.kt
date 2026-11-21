@@ -2166,6 +2166,61 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a store of an element of a merged SQLite cursor array and subclass array still fails the build, in one and two dimensions`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.MyCursor",
+						"""
+						package p;
+						import android.database.sqlite.*;
+						public class MyCursor extends SQLiteCursor {
+							public MyCursor(SQLiteCursorDriver d, String t, SQLiteQuery q) { super(d, t, q); }
+						}
+						""",
+					),
+					src(
+						"p.MixedArrays",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class MixedArrays {
+							void flat(AbstractCursor[] a, SQLiteCursor[] cs, MyCursor[] mcs, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? cs : mcs)[0];
+							}
+							void grid(AbstractCursor[] a, SQLiteCursor[][] g, MyCursor[][] mg, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? g : mg)[0][0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val withSubclass =
+			ClassHierarchy { name ->
+				if (name == "p/MyCursor") {
+					listOf(A + "SQLiteCursor", "android/database/AbstractWindowedCursor", "java/lang/Object")
+				} else {
+					null
+				}
+			}
+		val warnings = mutableListOf<String>()
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/MixedArrays"]!!, withSubclass, warn = warnings::add)
+			}
+		// the element is an SQLite cursor on every path, whichever of the two array types is taken, so these fail, not warn
+		assertThat(e.message).contains("flat(")
+		assertThat(e.message).contains("grid(")
+		assertThat(e.message).contains("an SQLite cursor stored into an array of android.database.AbstractCursor;")
+		assertThat(warnings).isEmpty()
+	}
+
+	@Test
 	fun `an SQLite cursor array used as an Android cursor array is not checked, and would not verify`() {
 		fun covariant(pkg: String) =
 			src(
