@@ -10,9 +10,10 @@
   calls the examples, is compiled with them. With DEVICE=1 it also runs, on the device adb
   reaches (ANDROID_SERIAL picks one): it installs and removes its own app there.
 - Every ```java example is compiled, as written, each in a file named after its first class,
-  in a second project: the template without its Kotlin sources, KSP plugin and activity,
-  with the ```gradle-java examples added to its app/build.gradle.kts, so that Room's
-  annotation processor builds the Java database. app-test/JavaDocExamplesTest.java is
+  in a second project: the template without its Kotlin sources and activity and without
+  the Kotlin-only lines of its build files (KOTLIN_ONLY), with the ```gradle-java examples
+  added to its app/build.gradle.kts, so that Room's annotation processor builds the Java
+  database with the page's Java settings and nothing Kotlin beside them. app-test/JavaDocExamplesTest.java is
   compiled with them, and runs with DEVICE=1.
 - The SQL in the Kotlin and Java examples, the statements that create the JavaScript
   functions and the DAO queries, runs on this host in sqlite3 with sqlite-js loaded.
@@ -72,6 +73,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.sqlitejs.SqliteJs
 """
+# What the Java project drops from the template's build files: each must match exactly one
+# line (the last, exactly one block), so that a changed template stops the test.
+KOTLIN_ONLY = {
+    "build.gradle.kts": [r"^\s*alias\(libs\.plugins\.ksp\) apply false\n"],
+    os.path.join("app", "build.gradle.kts"): [
+        r"^\s*alias\(libs\.plugins\.ksp\)\n",
+        r"^\s*ksp\(libs\.androidx\.room\.compiler\)\n",
+        r"^\s*implementation\(libs\.androidx\.room\.ktx\)\n",
+        r"^\s*implementation\(libs\.androidx\.lifecycle\.runtime\.ktx\)\n",
+        r"^\s*implementation\(libs\.kotlinx\.coroutines\.android\)\n",
+        r"^kotlin \{\n\s*compilerOptions \{\n.*\n\s*\}\n\}\n",
+    ],
+}
 JAVA_IMPORTS = """
 import android.content.Context;
 import android.database.Cursor;
@@ -100,6 +114,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.appdevforall.sqlitejs.SqliteJs;
 """
 # Added to the project's app/build.gradle.kts for the instrumented test. Its own application id, so that the
@@ -220,7 +235,7 @@ def check_sql(language, strings):
 
 
 def java_project(work, assets):
-    """A Java project from the template: no Kotlin sources, KSP plugin or activity; the
+    """A Java project from the template: no Kotlin sources, Kotlin-only build lines or activity; the
     ```gradle-java examples added; one file for each ```java example. Returns its path."""
     project = os.path.join(work, "project-java")
     subprocess.run([sys.executable, os.path.join(assets, "scripts", "render-template.py"),
@@ -233,13 +248,17 @@ def java_project(work, assets):
     text = open(manifest, encoding="utf-8").read()
     with open(manifest, "w", encoding="utf-8") as f:
         f.write(re.sub(r"<activity.*</activity>", "", text, flags=re.S))
-    build_file = os.path.join(project, "app", "build.gradle.kts")
-    lines = open(build_file, encoding="utf-8").read().split("\n")
-    kept = [l for l in lines if "libs.plugins.ksp" not in l and not l.strip().startswith("ksp(")]
-    if len(kept) != len(lines) - 2:
-        sys.exit("expected the template's app/build.gradle.kts to have one KSP plugin line and one ksp(...) line")
-    with open(build_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(kept) + "\n" + "\n".join(b for _, _, b in blocks("gradle-java")) + DEVICE_BUILD % ".java")
+    for name, patterns in KOTLIN_ONLY.items():
+        path = os.path.join(project, name)
+        text = open(path, encoding="utf-8").read()
+        for pattern in patterns:
+            text, count = re.subn(pattern, "", text, flags=re.M)
+            if count != 1:
+                sys.exit("%s: expected exactly one match of %s, found %d" % (name, pattern, count))
+        if name.startswith("app"):
+            text += "\n".join(b for _, _, b in blocks("gradle-java")) + DEVICE_BUILD % ".java"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
     source = os.path.join(project, "app", "src", "main", "java", PACKAGE)
     os.makedirs(source)
     for page, k, block in blocks("java"):

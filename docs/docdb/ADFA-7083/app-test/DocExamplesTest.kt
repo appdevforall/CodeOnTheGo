@@ -210,7 +210,8 @@ class DocExamplesTest {
 				assertEquals("$how: nothing of the transaction is kept", 4, db.count())
 			}
 
-			val plain = launch(Dispatchers.Default) { db.products().spin() }
+			// in a scope of its own: its failure, once cancelAll() stops it, is not this test's
+			val plain = CoroutineScope(Dispatchers.Default).launch { runCatching { db.products().spin() } }
 			delay(500)
 			plain.cancel()
 			delay(1000)

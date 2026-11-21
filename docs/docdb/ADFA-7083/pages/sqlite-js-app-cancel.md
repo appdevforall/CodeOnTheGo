@@ -6,7 +6,7 @@ parent: sqlite-js-app-top.html
 prev: sqlite-js-app-database.html
 ---
 
-`SqliteJs.cancelAll()` stops a JavaScript function that never returns. Neither Room nor Android's own way to cancel a query can stop one. Until the function stops, its query keeps one database connection busy.
+`SqliteJs.cancelAll()` stops a JavaScript function that never returns. Neither Room nor Android's own way to cancel a query can stop one, and cancelling the coroutine that waits for the query does not stop it either. Until the function stops, its query keeps one database connection busy.
 
 Call `cancelAll()` only when you know that a runaway function is running, for example from a **Cancel** button. It interrupts more than one query, as this page explains.
 
@@ -31,7 +31,7 @@ So roll the transaction back, and run all of it again:
 In one case SQLite rolls the whole transaction back by itself: when the interrupt of the connection, not the function's error, ends the statement. That happens to a statement that sorts with a JavaScript collation. The transaction is then already gone:
 
 - `ROLLBACK` fails with `cannot rollback - no transaction is active`.
-- Room's own rollback may fail too, and its error may replace the `interrupted` error.
+- Room's own rollback fails the same way. `withTransaction` and `runInTransaction` then throw that error, not the `interrupted` error.
 
 Treat either error the same way: the transaction is gone, so run all of it again.
 
@@ -99,7 +99,7 @@ final class CancellableQuery<T> {
     private static final ExecutorService THREADS = Executors.newCachedThreadPool();
 
     private final Future<T> running;
-    private volatile boolean cancelled;
+    private final AtomicBoolean cancelled = new AtomicBoolean();
 
     /** Starts the query on another thread. */
     CancellableQuery(Callable<T> query) {
@@ -108,19 +108,17 @@ final class CancellableQuery<T> {
 
     /**
      * Waits until the query has ended, and returns its result. Throws
-     * CancellationException if cancel() was called, so that a query the cancel
-     * stops ends as cancelled, not as failed.
+     * CancellationException if cancel() stopped the query, so that it ends as
+     * cancelled, not as failed. The exception's cause is the query's own error.
      */
     T get() throws ExecutionException, InterruptedException {
         try {
-            T result = running.get();
-            if (cancelled) {
-                throw new CancellationException();
-            }
-            return result;
+            return running.get();
         } catch (ExecutionException e) {
-            if (cancelled) {
-                throw new CancellationException();
+            if (cancelled.get()) {
+                CancellationException stopped = new CancellationException("cancelled");
+                stopped.initCause(e.getCause());
+                throw stopped;
             }
             throw e;
         }
@@ -128,7 +126,10 @@ final class CancellableQuery<T> {
 
     /** Stops the query's JavaScript. Returns at once. */
     void cancel() {
-        cancelled = true;
+        // A query that has ended keeps its result. A second call starts no second loop.
+        if (running.isDone() || !cancelled.compareAndSet(false, true)) {
+            return;
+        }
         THREADS.execute(() -> {
             // Future.cancel() could not stop the JavaScript. Only cancelAll() can.
             while (!running.isDone()) {
@@ -171,4 +172,4 @@ final class RunawayQuery {
 }
 ```
 
-To use a query's result, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.
+This `RunawayQuery` never reads the query's result, so it does not notice a query that fails. To read a result, or learn of a failure, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.

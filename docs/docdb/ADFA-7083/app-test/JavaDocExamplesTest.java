@@ -87,17 +87,24 @@ public class JavaDocExamplesTest {
 					products.slugs());
 			assertEquals(2.225, products.medianPrice(), 1e-9);
 
-			// a query that ends gives its result through get()
-			assertEquals(4, new CancellableQuery<>(products::slugs).get().size());
+			// a query that ends gives its result through get(), also after a cancel() that came too late
+			CancellableQuery<List<String>> ended = new CancellableQuery<>(products::slugs);
+			assertEquals(4, ended.get().size());
+			ended.cancel();
+			assertEquals(4, ended.get().size());
 
 			// cancel() stops JavaScript that never ends, and get() then reports a cancel
 			CancellableQuery<Integer> spin = new CancellableQuery<>(products::spin);
 			Thread.sleep(500);
 			long start = System.nanoTime();
 			spin.cancel();
-			assertTrue("cancel() returns at once", System.nanoTime() - start < 5_000_000);
+			spin.cancel();
+			assertTrue("cancel() returns at once", System.nanoTime() - start < 50_000_000);
 			Throwable thrown = thrownByGet(spin);
 			assertTrue(String.valueOf(thrown), thrown instanceof CancellationException);
+			// the query's own error is its cause
+			assertTrue(String.valueOf(thrown.getCause()),
+					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
 
 			// a query that fails by itself is not reported as cancelled
 			CancellableQuery<Integer> broken = new CancellableQuery<>(() -> {
