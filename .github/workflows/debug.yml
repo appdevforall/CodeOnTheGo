@@ -242,10 +242,8 @@ jobs:
 
       - name: Assemble Universal APK
         run: |
-          echo "gradle_time_start=$(date +%s)" >> $GITHUB_ENV
           set -o pipefail
           flox activate -d flox/base -- ./gradlew :app:assembleV8Debug --no-daemon 2>&1 | tee "$RUNNER_TEMP/assemble.log"
-          echo "gradle_time_end=$(date +%s)" >> $GITHUB_ENV
           # D8 logs this (non-fatal) once per class when the pinned R8 is older than the Kotlin
           # metadata version, burying every real diagnostic. See the `r8` pin in libs.versions.toml.
           if grep -q "Unexpected error during rewriting of Kotlin metadata" "$RUNNER_TEMP/assemble.log"; then
@@ -359,19 +357,6 @@ jobs:
             exit 1
           fi
           ls -la "${{ steps.find_apk.outputs.APK_PATH }}"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Write CI Performance Data
-        env:
-          APK_PATH: ${{ steps.find_apk.outputs.APK_PATH }}
-          GRADLE_START: ${{ env.gradle_time_start }}
-          GRADLE_END: ${{ env.gradle_time_end }}
-          DB_PASSWORD: ${{ secrets.PG_PERFORMANCE_PASSWORD }}
-        run: |
-          apk_size_bytes=$( /usr/bin/stat -c '%s' $APK_PATH )
-          uv run --with psycopg[binary] scripts/insert-ci-perf-data.py $( basename $APK_PATH ) $GRADLE_START $GRADLE_END $apk_size_bytes
 
       - name: Deploy to Firebase App Distribution
         id: firebase_upload

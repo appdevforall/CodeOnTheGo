@@ -61,6 +61,7 @@ fun createAndroidProjectProtoModel(
 			ProjectType.FUSED_LIBRARY -> AndroidModels.ProjectType.FusedLibrary
 		},
 	mainSourceSet = basicAndroidProject.mainSourceSet?.asProtoModel(),
+	sourceSetDirPathsList = basicAndroidProject.allSourceSetDirs(),
 	javaCompilerSettings = androidProject.javaCompileOptions?.asProtoModel(),
 	kotlinCompilerSettings = null, // TODO: Read kotlin compiler settings
 	viewBindingOptions = androidProject.viewBindingOptions?.asProtoModel(),
@@ -82,8 +83,8 @@ fun createAndroidProjectProtoModel(
 fun VariantDependencies.asProtoModel() =
 	VariantDependencies(
 		name = this.name,
-		mainArtifact = this.mainArtifact.asProtoModel(),
 		librariesMap = this.libraries.mapValues { entry -> entry.value.asProtoModel() },
+		artifactsMap = scopedArtifacts().mapValues { entry -> entry.value.asProtoModel() },
 	)
 
 fun Library.asProtoModel() =
@@ -114,6 +115,7 @@ fun ProjectInfo.asProtoModel() =
 	ProjectInfo(
 		buildId = this.buildId,
 		projectPath = projectPath,
+		isTestFixtures = isTestFixtures,
 	)
 
 fun LibraryInfo.asProtoModel() =
@@ -206,7 +208,10 @@ fun UnresolvedDependency.asProtoModel() =
 		cause = this.cause,
 	)
 
-fun SourceSetContainer.asProtoModel() = SourceSetContainer(sourceProvider = this.sourceProvider?.asProtoModel())
+fun SourceSetContainer.asProtoModel() =
+	SourceSetContainer(
+		sourceProvidersMap = scopedSourceProviders().mapValues { entry -> entry.value.asProtoModel() },
+	)
 
 fun SourceProvider.asProtoModel() =
 	SourceProvider(
@@ -242,32 +247,8 @@ fun Variant.asProtoModel(
 			androidDsl = androidDsl,
 			versions = versions,
 		),
-	variantSourceProvidersList =
-		basicAndroidProject.variantSourceProviders(this.name).map { provider -> provider.asProtoModel() },
+	artifactSourcesMap = basicAndroidProject.variantArtifactSources(this),
 )
-
-/**
- * The source providers AGP layers over `main` for the variant named [variantName], in the order
- * AGP applies them: the build type, each product flavor, the multi-flavor provider and the
- * variant's own provider. Empty when the basic model does not list the variant.
- */
-fun BasicAndroidProject.variantSourceProviders(variantName: String): List<SourceProvider> {
-	val variant = variants.firstOrNull { it.name == variantName } ?: return emptyList()
-	val providers = mutableListOf<SourceProvider>()
-	buildTypeSourceSets
-		.mapNotNull { it.sourceProvider }
-		.firstOrNull { it.name == variant.buildType }
-		?.let(providers::add)
-	for (flavor in variant.productFlavors) {
-		productFlavorSourceSets
-			.mapNotNull { it.sourceProvider }
-			.firstOrNull { it.name == flavor }
-			?.let(providers::add)
-	}
-	variant.mainArtifact.multiFlavorSourceProvider?.let(providers::add)
-	variant.mainArtifact.variantSourceProvider?.let(providers::add)
-	return providers
-}
 
 fun AndroidArtifact.asProtoModel(
 	artifactName: String,

@@ -9,6 +9,7 @@ import com.itsaky.androidide.projects.api.GradleProject
 import com.itsaky.androidide.projects.api.JavaModule
 import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
+import com.itsaky.androidide.projects.models.ArtifactScope
 import io.mockk.every
 import io.mockk.spyk
 import org.junit.rules.TemporaryFolder
@@ -90,7 +91,8 @@ internal class ModuleFixtures(
 			)
 		}
 
-		variantDeps.setMainArtifact(
+		variantDeps.putArtifacts(
+			ArtifactScope.Main.key,
 			AndroidModels.ArtifactDependencies
 				.newBuilder()
 				.setCompileGraph(graph.build())

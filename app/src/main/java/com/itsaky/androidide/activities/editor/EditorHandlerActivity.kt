@@ -25,7 +25,6 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
-import android.util.TypedValue
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams
@@ -134,8 +133,8 @@ import com.itsaky.androidide.utils.IntentUtils.openImage
 import com.itsaky.androidide.utils.UniqueNameBuilder
 import com.itsaky.androidide.utils.capHeightToSpaceBelow
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashInfoLong
 import com.itsaky.androidide.utils.flashSuccess
-import com.itsaky.androidide.utils.forEachViewRecursively
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
@@ -154,7 +153,6 @@ import org.greenrobot.eventbus.ThreadMode
 import org.koin.android.ext.android.inject
 import org.koin.core.qualifier.named
 import java.io.File
-import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
@@ -183,8 +181,7 @@ open class EditorHandlerActivity :
 
 	private val pluginTabIndices = mutableMapOf<String, Int>()
 	private val tabIndexToPluginId = mutableMapOf<Int, String>()
-	private var lastAppliedPluginFontScale = EditorPreferences.editorFontScale
-	private val pluginTextBaseSizes = WeakHashMap<TextView, Float>()
+	private val pluginTextScaler = PluginTextScaler(EditorPreferences.editorFontScale)
 
 	private val pluginFontScalingListener =
 		object : FragmentManager.FragmentLifecycleCallbacks() {
@@ -194,9 +191,8 @@ open class EditorHandlerActivity :
 				view: View,
 				savedInstanceState: Bundle?,
 			) {
-				val scale = EditorPreferences.editorFontScale
-				if (scale != 1f && isPluginFragment(mFragment)) {
-					applyPluginFontScale(view, scale)
+				if (isPluginFragment(mFragment)) {
+					pluginTextScaler.track(view)
 				}
 			}
 		}
@@ -803,7 +799,13 @@ open class EditorHandlerActivity :
 				// path's tint and disabled dim here.
 				icon = toolbarIcon(action.icon, action.createColorFilter(data), action.enabled),
 				hint = getToolbarContentDescription(action, data),
-				onClick = { if (action.enabled) registry.executeAction(action, data) },
+				onClick = {
+					if (action.enabled) {
+						registry.executeAction(action, data)
+					} else if (action.id == QuickBuildAction.ID) {
+						QuickBuildAction.disabledReason(this)?.let(::flashInfoLong)
+					}
+				},
 				onLongClick = {
 					// Quick Build is a split button: long-press opens the
 					// Quick Build / Restart session / Help dropdown instead of the
@@ -944,6 +946,9 @@ open class EditorHandlerActivity :
 			}
 		if (action.id == QuickRunAction.ID && buildInProgress) {
 			return getString(string.cd_toolbar_cancel_build)
+		}
+		if (action.id == QuickBuildAction.ID && !QuickBuildAction.isBlockedByStandardBuild()) {
+			QuickBuildAction.unsupportedProjectReason(this)?.let { return it }
 		}
 		val resId =
 			when (action.id) {
@@ -1779,13 +1784,17 @@ open class EditorHandlerActivity :
 		}
 
 		val tabPosition = getTabPositionForFileIndex(index)
-		editorViewModel.removeFile(index)
+		removingTab {
+			editorViewModel.removeFile(index)
 
-		if (tabPosition >= 0) {
-			content.tabs.removeTabAt(tabPosition)
-			content.editorContainer.removeViewAt(tabPosition)
-			shiftPluginIndices(tabPosition + 1, -1)
+			if (tabPosition >= 0) {
+				content.editorContainer.removeViewAt(tabPosition)
+				shiftPluginIndices(tabPosition + 1, -1)
+				content.tabs.removeTabAt(tabPosition)
+			}
 		}
+
+		syncSelectedTab()
 
 		editorViewModel.areFilesModified = hasUnsavedFiles()
 		updateTabs()
@@ -1879,6 +1888,26 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	// Suppresses onTabSelected while tab, view and index state are mid-update.
+	private inline fun removingTab(block: () -> Unit) {
+		isRemovingTab = true
+		try {
+			block()
+		} finally {
+			isRemovingTab = false
+		}
+	}
+
+	private fun syncSelectedTab() {
+		val safeContent = contentOrNull ?: return
+		if (safeContent.tabs.tabCount > 0) {
+			safeContent.tabs.getTabAt(safeContent.tabs.selectedTabPosition)?.let(::onTabSelected)
+		} else {
+			editorViewModel.setCurrentFile(-1, null)
+			updateTabVisibility()
+		}
+	}
+
 	private fun closePluginTab(tabPosition: Int) {
 		val pluginId = tabIndexToPluginId[tabPosition] ?: return
 
@@ -1897,13 +1926,17 @@ open class EditorHandlerActivity :
 			Log.e("EditorHandlerActivity", "Error cleaning up plugin tab $pluginId", e)
 		}
 
-		content.tabs.removeTabAt(tabPosition)
-		content.editorContainer.removeViewAt(tabPosition)
+		removingTab {
+			content.editorContainer.removeViewAt(tabPosition)
 
-		pluginTabIndices.remove(pluginId)
-		tabIndexToPluginId.remove(tabPosition)
+			pluginTabIndices.remove(pluginId)
+			tabIndexToPluginId.remove(tabPosition)
 
-		shiftPluginIndices(tabPosition + 1, -1)
+			shiftPluginIndices(tabPosition + 1, -1)
+			content.tabs.removeTabAt(tabPosition)
+		}
+
+		syncSelectedTab()
 		updateTabVisibility()
 
 		invalidateOptionsMenu()
@@ -2040,46 +2073,12 @@ open class EditorHandlerActivity :
 		}
 	}
 
+	// Also run from onStart: the event is missed while another activity, such as Preferences, is in front.
 	private fun syncPluginUiFontSize() {
-		val scale = EditorPreferences.editorFontScale
-		if (scale == lastAppliedPluginFontScale) {
-			return
-		}
-		lastAppliedPluginFontScale = scale
-
-		val pluginFragments = mutableListOf<Fragment>()
-		collectPluginFragments(supportFragmentManager, pluginFragments)
-		pluginFragments.forEach { fragment ->
-			fragment.view?.let { applyPluginFontScale(it, scale) }
-		}
+		pluginTextScaler.onEditorFontScaleChanged(EditorPreferences.editorFontScale)
 	}
 
 	private fun isPluginFragment(fragment: Fragment): Boolean = fragment.javaClass.classLoader !== javaClass.classLoader
-
-	private fun applyPluginFontScale(
-		root: View,
-		scale: Float,
-	) {
-		root.forEachViewRecursively { view ->
-			if (view is TextView) {
-				val baseSize = pluginTextBaseSizes.getOrPut(view) { view.textSize }
-				view.setTextSize(TypedValue.COMPLEX_UNIT_PX, baseSize * scale)
-			}
-		}
-	}
-
-	private fun collectPluginFragments(
-		manager: FragmentManager,
-		into: MutableList<Fragment>,
-	) {
-		manager.fragments.forEach { fragment ->
-			if (isPluginFragment(fragment)) {
-				into.add(fragment)
-			} else {
-				collectPluginFragments(fragment.childFragmentManager, into)
-			}
-		}
-	}
 
 	/**
 	 * Shows [dialog] above any floating windows, tracking it when it was actually raised.
@@ -2402,7 +2401,7 @@ open class EditorHandlerActivity :
 		return tabManager.canCloseTab(pluginId)
 	}
 
-	fun updateTabVisibility() {
+	override fun updateTabVisibility() {
 		val safeContent = contentOrNull ?: return
 		val hasFiles = editorViewModel.getOpenedFileCount() > 0
 		val hasPluginTabs = pluginTabIndices.isNotEmpty()

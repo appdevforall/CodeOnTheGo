@@ -4,7 +4,7 @@ package com.itsaky.androidide.lsp.kotlin.completion
 
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.lsp.api.describeSnippet
-import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
@@ -130,11 +130,11 @@ private fun Throwable.isCancellation(): Boolean = isAnalysisCancellation() || th
 /**
  * Provide code completion for the given completion parameters.
  *
- * @param CompilationEnvironment The compilation environment to use for the code completion.
+ * @param env The compilation environment to use for the code completion.
  * @param params The completion parameters.
  * @return The completion result.
  */
-context(env: CompilationEnvironment)
+context(env: AbstractCompilationEnvironment)
 internal fun codeComplete(params: CompletionParams): CompletionResult {
 	return try {
 		doComplete(params)
@@ -189,7 +189,7 @@ internal fun completionRequestBuffer(params: CompletionParams): CompletionReques
  * is never preempted by lower-priority work, but is superseded (cancelled and discarded) by a newer
  * completion request as the user keeps typing.
  */
-context(env: CompilationEnvironment)
+context(env: AbstractCompilationEnvironment)
 internal fun doComplete(params: CompletionParams): CompletionResult {
 	val result =
 		env.ktSymbolIndex.withLiveKtFile(params.file) { live ->
@@ -376,7 +376,7 @@ private fun KaSession.collectExtensionFunctions(
 	to += toCompletionItems(extensionSymbols)
 }
 
-context(env: CompilationEnvironment, ctx: AnalysisContext)
+context(env: AbstractCompilationEnvironment, ctx: AnalysisContext)
 private fun KaSession.collectScopeCompletions(to: MutableList<CompletionItem>) {
 	if (ctx.partial.isBlank()) {
 		logger.warn("cannot complete for blank partial candidate")
@@ -422,7 +422,7 @@ private fun KaSession.collectScopeCompletions(to: MutableList<CompletionItem>) {
 	collectKeywordCompletions(to)
 }
 
-context(env: CompilationEnvironment, ctx: AnalysisContext)
+context(env: AbstractCompilationEnvironment, ctx: AnalysisContext)
 private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) {
 	val currentPackage =
 		ctx.ktElement.containingKtFile.packageDirective
@@ -450,12 +450,7 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 		return true
 	}
 
-	/*
-	 * Source first, library last. One shared cap across the indexes means whichever is queried last
-	 * loses when the cap binds, and a symbol from the user's own project is likelier to be the one
-	 * they are reaching for than one from a dependency.
-	 */
-	val indexes = listOfNotNull(env.sourceIndex, env.generatedIndex, env.libraryIndex)
+	val indexes = env.unimportedSymbolIndexes
 
 	collectUnimportedSymbolMatches(
 		indexes = indexes,
