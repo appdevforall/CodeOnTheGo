@@ -103,7 +103,7 @@ class MainFragment : BaseFragment() {
 		val intent =
 			Intent(requireContext(), HelpActivity::class.java).apply {
 				putExtra(CONTENT_KEY, getString(R.string.quickstart_url))
-				putExtra(CONTENT_TITLE_KEY, R.string.back_to_cogo)
+				putExtra(CONTENT_TITLE_KEY, getString(R.string.back_to_cogo, getString(R.string.app_name)))
 			}
 		startActivity(intent)
 	}

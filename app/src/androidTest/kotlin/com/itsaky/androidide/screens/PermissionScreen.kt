@@ -1,6 +1,7 @@
 package com.itsaky.androidide.screens
 
 import android.view.View
+import androidx.test.platform.app.InstrumentationRegistry
 import com.itsaky.androidide.R
 import com.kaspersky.kaspresso.screens.KScreen
 import io.github.kakaocup.kakao.recycler.KRecyclerItem
@@ -15,7 +16,12 @@ object PermissionScreen : KScreen<PermissionScreen>() {
     override val viewClass: Class<*>? = null
 
     val title = KTextView { withText(R.string.onboarding_title_permissions) }
-    val subTitle = KTextView { withText(R.string.onboarding_subtitle_permissions) }
+    // The subtitle is formatted with the app name, so match the formatted text, not the raw resource.
+    val subTitle =
+        KTextView {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            withText(context.getString(R.string.onboarding_subtitle_permissions, context.getString(R.string.app_name)))
+        }
 
     val rvPermissions = KRecyclerView(
         builder = { withId(R.id.onboarding_items) },
