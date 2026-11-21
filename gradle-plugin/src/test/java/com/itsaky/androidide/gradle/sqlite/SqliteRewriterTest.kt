@@ -436,7 +436,8 @@ class SqliteRewriterTest {
 		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Lib"]!!, hierarchy) }
 		val lastLine = e.message!!.lines().last()
 		assertThat(lastLine).contains("in a library")
-		assertThat(lastLine).contains("comment out cogo.sqliteDebugger=true in gradle.properties")
+		assertThat(lastLine).contains("set cogo.sqliteDebugger=false in the gradle.properties that defines it, or in one read earlier")
+		assertThat(lastLine).contains("Gradle user home, then the app module, then the root")
 	}
 
 	@Test
@@ -1129,7 +1130,7 @@ class SqliteRewriterTest {
 		assertThat(message).contains("direct()Ljava/lang/String; (line ")
 		assertThat(message).contains("viaConstant()Ljava/lang/String; (line ")
 		assertThat(message).contains("COLLATE UNICODE")
-		assertThat(message).doesNotContain("fine")
+		assertThat(message).doesNotContain("fine()")
 	}
 
 	@Test

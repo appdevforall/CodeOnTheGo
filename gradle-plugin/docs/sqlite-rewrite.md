@@ -37,7 +37,9 @@ with an actionable message when the variant's runtime classpath has no
 `androidx/core/os/CancellationSignal.class`.
 
 The property is required because requery reaches apps only through `libs/`. Without it the rewritten classes
-cannot load, so the transform runs only on projects that opted in. Commenting the line out turns it off.
+cannot load, so the transform runs only on projects that opted in. To turn it off, set `cogo.sqliteDebugger=false` in
+the file that defines it, or in one read earlier (Gradle user home, then the app module, then the root: the first
+file that defines the property decides). Commenting the line out can expose another file's `true`.
 
 ## Rules
 
@@ -85,7 +87,7 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
   compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together, with
-  the way out for a library class, which the user cannot change: comment out `cogo.sqliteDebugger=true`. A platform method outside the renamed set whose
+  the way out for a library class, which the user cannot change: set `cogo.sqliteDebugger=false` in the file that defines it, or in one read earlier. A platform method outside the renamed set whose
   descriptor mentions a renamed class (found with javap over android.jar: the other `DatabaseUtils` methods
   `blobFileDescriptorForQuery` and `bindObjectToProgram`, `DatabaseUtils$InsertHelper`, `OpenParams`
   accessors) cannot link once the descriptor is renamed, so a call to one that is not redirected above fails
