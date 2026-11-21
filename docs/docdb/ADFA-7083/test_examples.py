@@ -44,11 +44,12 @@ ERROR_LINE = re.compile(r"^(Runtime error|Parse error|Error)\b")
 
 
 def run(sql):
-    """Runs sql in one session; returns the lines it printed and the errors it reported."""
+    """Runs sql in one session; returns the lines it printed, the errors it reported, its
+    standard error and its exit code."""
     r = subprocess.run([SQLITE3, "-batch", "-noheader", "-cmd", '.load "%s"' % EXT, ":memory:"],
                        input=sql + "\n", capture_output=True, text=True, timeout=60)
     out = r.stdout.rstrip("\n").split("\n") if r.stdout.strip() else []
-    return out, [l for l in r.stderr.split("\n") if ERROR_LINE.match(l)], r.stderr
+    return out, [l for l in r.stderr.split("\n") if ERROR_LINE.match(l)], r.stderr, r.returncode
 
 
 def split(block):
@@ -77,16 +78,19 @@ def main():
             earlier_errors += errors
             for label, all_sql, want_errors in runs:
                 n += 1
-                out, got_errors, stderr = run(all_sql)
+                out, got_errors, stderr, code = run(all_sql)
                 got = out[len(out) - out[::-1].index(BOUNDARY):] if BOUNDARY in out else []
-                ok = (BOUNDARY in out and (not want or got[-len(want):] == want)
+                # sqlite3 exits with 1 after a session that reported an error and with 0 after one
+                # that reported none: anything else is a crash
+                ok = (code == (1 if want_errors else 0)
+                      and BOUNDARY in out and (not want or got[-len(want):] == want)
                       and len(got_errors) == len(want_errors)
                       and all(w in g for w, g in zip(want_errors, got_errors)))
                 print("%s %d - %s example %d%s" % ("ok" if ok else "not ok", n, name, k, label))
                 if not ok:
                     failed += 1
-                    print("#   want %r, got %r, want errors %r, stderr %r"
-                          % (want, got[-(len(want) or 1):], want_errors, stderr[:300]))
+                    print("#   exit %d, want %r, got %r, want errors %r, stderr %r"
+                          % (code, want, got[-(len(want) or 1):], want_errors, stderr[:300]))
         front = re.match(r"---\n(.*?)\n---\n", text, re.S).group(1)
         for key, url in re.findall(r"^(parent|prev|next): (.*)$", front, re.M):
             n += 1
