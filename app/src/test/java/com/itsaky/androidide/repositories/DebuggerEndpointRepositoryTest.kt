@@ -171,7 +171,7 @@ class DebuggerEndpointRepositoryTest {
 			try {
 				repository.notePendingInstall(1, dir, "com.example")
 
-				// Session 2 has no note: an APK opened from the file tree, say, of the same application ID.
+				// Session 2 has no note: an APK installed from the file tab, say, of the same application ID.
 				assertThat(repository.confirmInstall(2, "com.example")).isNull()
 				assertThat(pairedLocation()).isNull()
 
