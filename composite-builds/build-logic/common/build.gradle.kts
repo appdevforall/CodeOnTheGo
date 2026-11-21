@@ -16,11 +16,11 @@
  */
 
 plugins {
-  //noinspection JavaPluginLanguageLevel
-  id("java-library")
-  alias(libs.plugins.kotlin.jvm)
+	//noinspection JavaPluginLanguageLevel
+	id("java-library")
+	alias(libs.plugins.kotlin.jvm)
 }
 
 dependencies {
-  api(gradleApi())
+	api(gradleApi())
 }
