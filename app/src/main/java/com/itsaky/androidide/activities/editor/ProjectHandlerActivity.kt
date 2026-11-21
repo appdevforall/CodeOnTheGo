@@ -1449,7 +1449,8 @@ abstract class ProjectHandlerActivity :
 
 	/**
 	 * A tap on a Quick Build status line that asks for one: it does what a tap on the Quick Build
-	 * button does, through the same action, so the line cannot promise what the button would not.
+	 * button does, through the same action - runs Quick Build, or, while the button is greyed out,
+	 * shows why - so the line cannot promise what the button would not.
 	 */
 	protected abstract fun onQuickBuildStatusLineTapped()
 

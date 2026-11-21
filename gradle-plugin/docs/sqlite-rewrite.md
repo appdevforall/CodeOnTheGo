@@ -208,8 +208,8 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   The plugin logs why and the build is a normal one. The IDE does not provision Quick Build for such a project
   either (`GradleQuickBuildProvisioner.sqliteDebuggerRefusal`): it shows `quick_build_disabled_sqlite_debugger`, which
   says Quick Build is off while the SQLite debugger is on. The editor's status line then reads
-  `quick_build_status_off_sqlite_debugger`, and a tap on it, like a tap on the Quick Build button, shows that
-  message again.
+  `quick_build_status_off_sqlite_debugger`, and a tap on it does what a tap on the Quick Build button does: it
+  shows that message again, or, while the button is greyed out (a release variant, a plugin project), why it is.
 - Classes loaded by name (`Class.forName`, reflection, strings naming `android.database.sqlite.*`) are not
   rewritten. A string constant that names one of the renamed classes (dots or slashes, `$` or `.` before a nested
   class, alone or in a type descriptor) logs a warning with class, method and line, in the classes the fail rule
