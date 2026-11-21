@@ -16,9 +16,12 @@ object OverlayPermissionGuide {
 
 	fun showRestrictedSettingsDialog(context: Context) {
 		val message = SpannableStringBuilder()
-		message.append(context.getString(R.string.permission_overlay_restricted_dialog_message))
+		val appName = context.getString(R.string.app_name)
+		message.append(context.getString(R.string.permission_overlay_restricted_dialog_message, appName))
 		message.append("\n\n")
-		message.appendOrderedList(*context.resources.getStringArray(R.array.overlay_restricted_settings_steps))
+		message.appendOrderedList(
+			*context.resources.getStringArray(R.array.overlay_restricted_settings_steps).map { it.format(appName) }.toTypedArray(),
+		)
 
 		DialogUtils
 			.newMaterialDialogBuilder(context)

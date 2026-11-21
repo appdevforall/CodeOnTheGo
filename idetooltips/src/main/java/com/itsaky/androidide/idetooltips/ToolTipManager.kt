@@ -174,7 +174,7 @@ object TooltipManager {
 					tooltipItem = IDETooltipItem(-1, -1, category, tag, "", "", arrayListOf(), ""),
 					requestFocus = requestFocus,
 					onHelpLinkClicked = { context, url, _ ->
-						HelpActivity.launch(context, url, context.getString(ResR.string.back_to_cogo))
+						HelpActivity.launch(context, url, context.getString(ResR.string.back_to_cogo, context.getString(ResR.string.app_name)))
 					}
 				)
 			}

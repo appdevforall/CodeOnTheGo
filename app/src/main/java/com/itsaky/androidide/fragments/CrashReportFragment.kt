@@ -79,7 +79,7 @@ class CrashReportFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         val args = requireArguments()
         closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
-        val title = getString(R.string.msg_ide_crashed)
+        val title = getString(R.string.msg_ide_crashed, getString(R.string.app_name))
 
         binding.apply {
             crashTitle.text = title

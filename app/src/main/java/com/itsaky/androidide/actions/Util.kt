@@ -51,6 +51,7 @@ fun showNotificationPermissionDialog(
 			context.getString(
 				R.string.adb_pairing_tutorial_content_notification,
 				context.getString(R.string.notification_channel_adb_pairing),
+				context.getString(R.string.app_name),
 			),
 		).setPositiveButton(R.string.title_grant) { dialog, _ ->
 			val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -73,7 +74,7 @@ fun showDebuggerNotReadyMessage(context: Context): AlertDialog? =
 			context.getString(R.string.debugger_not_ready) +
 				System
 					.lineSeparator()
-					.repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction),
+					.repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction, context.getString(R.string.app_name)),
 		).setPositiveButton(android.R.string.ok, null)
 		.show()
 
@@ -130,11 +131,14 @@ fun showPairingDialog(
 	ssb.append(System.lineSeparator())
 	ssb.append(System.lineSeparator())
 
-	ssb.appendOrderedList(*context.resources.getStringArray(R.array.debugger_setup_pairing_steps))
+	val appName = context.getString(R.string.app_name)
+	ssb.appendOrderedList(
+		*context.resources.getStringArray(R.array.debugger_setup_pairing_steps).map { it.format(appName) }.toTypedArray(),
+	)
 	ssb.append(System.lineSeparator())
 
 	ssb.appendHtmlWithLinks(
-		context.getString(R.string.debugger_setup_description_footer),
+		context.getString(R.string.debugger_setup_description_footer, appName),
 		launchHelp,
 	)
 
@@ -192,7 +196,7 @@ fun startPairingService(
 						null,
 					)
 			if (mode == AppOpsManager.MODE_ERRORED) {
-				flashError(context.getString(R.string.err_foreground_service_denial))
+				flashError(context.getString(R.string.err_foreground_service_denial, context.getString(R.string.app_name)))
 			}
 
 			context.startService(intent)

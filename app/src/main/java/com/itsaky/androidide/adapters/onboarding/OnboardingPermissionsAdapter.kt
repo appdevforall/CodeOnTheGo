@@ -68,7 +68,7 @@ class OnboardingPermissionsAdapter(
 
 		binding.infoContent.apply {
 			title.setText(permission.title)
-			description.setText(permission.description)
+			description.setText(context.getString(permission.description, context.getString(R.string.app_name)))
 			title.setTextColor(if (permission.isSupportedOnDevice) holder.titleColor else holder.disabledTitleColor)
 			description.setTextColor(if (permission.isSupportedOnDevice) holder.descriptionColor else holder.disabledDescriptionColor)
 		}

@@ -217,7 +217,7 @@ class AdbPairingService : Service() {
 			logger.info("Pair succeed")
 
 			title = getString(R.string.notification_adb_pairing_succeed_title)
-			text = getString(R.string.notification_adb_pairing_succeed_text)
+			text = getString(R.string.notification_adb_pairing_succeed_text, getString(R.string.app_name))
 
 			stopSearch()
 			sendBroadcast(Intent(ACTION_PAIR_SUCCEEDED), PERMISSION_RECEIVE_WADB_PAIR_RESULT)

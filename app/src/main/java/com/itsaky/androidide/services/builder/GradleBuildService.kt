@@ -393,7 +393,7 @@ class GradleBuildService :
 		val buildNotificationChannel =
 			NotificationChannel(
 				BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE,
-				getString(R.string.title_gradle_service_notification_channel),
+				getString(R.string.title_gradle_service_notification_channel, getString(R.string.app_name)),
 				NotificationManager.IMPORTANCE_LOW,
 			)
 		NotificationManagerCompat

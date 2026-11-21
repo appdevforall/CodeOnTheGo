@@ -84,7 +84,7 @@ object FeedbackManager {
 				val intent =
 					Intent(Intent.ACTION_SENDTO).apply {
 						data =
-							"mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
+							"mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject, context.getString(R.string.app_name))}".toUri()
 					}
 				context.startActivity(intent)
 				dialog.dismiss()

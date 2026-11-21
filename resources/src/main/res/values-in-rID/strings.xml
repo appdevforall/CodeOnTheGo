@@ -9,10 +9,10 @@
 	<string name="about_option_website">Situs web</string>
 	<string name="about_option_youtube">YouTube</string>
 	<string name="about_option_bilibili">Bilibili</string>
-	<string name="about_footer">Code on the Go %1$s untuk %2$s</string>
+	<string name="about_footer">%3$s %1$s untuk %2$s</string>
 	<string name="about_subtitle">Tidak punya komputer? Tidak ada internet? Tidak masalah. Koding aplikasi di mana saja.</string>
 	<string name="msg_get_package_failed">Gagal mengekstrak nama paket.</string>
-	<string name="msg_need_help">Jika Anda mengalami masalah saat menggunakan Code on the Go atau dalam mengembangkan aplikasi Android, Anda dapat bergabung dengan forum Diskusi kami dan meminta bantuan di sana.\n\nAnda juga dapat mengirimkan saran melalui email kami.</string>
+	<string name="msg_need_help">Jika Anda mengalami masalah saat menggunakan %1$s atau dalam mengembangkan aplikasi Android, Anda dapat bergabung dengan forum Diskusi kami dan meminta bantuan di sana.\n\nAnda juga dapat mengirimkan saran melalui email kami.</string>
 	<string name="download_codeonthego_message">Unduh Code on the Go dari situs web resmi untuk mendapatkan fitur dan pembaruan terbaru.</string>
 	<string name="msg_invalid_url">URL tidak valid.</string>
 	<string name="msg_no_browser_found">Tidak ditemukan browser untuk menangani permintaan ini.</string>
@@ -115,7 +115,7 @@
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">Perangkat ini tidak didukung</string>
-	<string name="msg_unsupported_device">Anda menggunakan varian %1$s dari Code on the Go pada perangkat yang hanya mendukung %2$s. Konfigurasi ini tidak didukung. Silakan instal varian %2$s dari Code on the Go.</string>
+	<string name="msg_unsupported_device">Anda menggunakan varian %1$s dari %3$s pada perangkat yang hanya mendukung %2$s. Konfigurasi ini tidak didukung. Silakan instal varian %2$s dari %3$s.</string>
 	<string name="title_clear_output">Hapus output</string>
 	<string name="build_output">Output Build</string>
 	<string name="quick_run_debug">Jalankan cepat</string>
@@ -132,7 +132,7 @@
 
 	<!-- Project -->
 	<string name="title_first_build">Menyiapkan proyek Anda</string>
-	<string name="msg_first_build">Code on the Go sedang menginisialisasi proyek Anda. Harap tunggu!\n\nSetelah penyiapan selesai, pesan \"Proyek berhasil diinisialisasi\" akan muncul di bagian bawah layar.</string>
+	<string name="msg_first_build">%1$s sedang menginisialisasi proyek Anda. Harap tunggu!\n\nSetelah penyiapan selesai, pesan \"Proyek berhasil diinisialisasi\" akan muncul di bagian bawah layar.</string>
 	<string name="create_project">Buat proyek</string>
 	<string name="minimum_sdk">Minimum SDK</string>
 	<string name="new_project">Proyek baru</string>
@@ -144,7 +144,7 @@
 	<string name="title_close_project">Tutup proyek ini</string>
 	<string name="msg_opened_project_does_not_exist">Proyek terakhir yang dibuka tidak ada.</string>
 	<string name="msg_deeplink_invalid_link">Tautan ini tidak dapat dibuka.</string>
-	<string name="msg_deeplink_setup_incomplete">Selesaikan penyiapan Code on the Go, lalu buka tautan ini lagi.</string>
+	<string name="msg_deeplink_setup_incomplete">Selesaikan penyiapan %1$s, lalu buka tautan ini lagi.</string>
 	<string name="msg_deeplink_project_not_found">Tidak ditemukan proyek bernama \"%s\".</string>
 	<string name="msg_deeplink_file_not_found">File \"%s\" tidak ditemukan dalam proyek.</string>
 	<string name="msg_deeplink_file_not_found_in_project">File \"%1$s\" tidak ditemukan di proyek \"%2$s\".</string>
@@ -358,7 +358,7 @@
 
 	<!-- Preferences -->
 	<string name="title_change_text_size">Ukuran font editor</string>
-	<string name="idepref_about_title">Tentang Code on the Go</string>
+	<string name="idepref_about_title">Tentang %1$s</string>
 	<string name="idepref_build_clearCache_title">Hapus cache Gradle</string>
 	<string name="idepref_build_clearCache_summary">Hapus direktori cache Gradle. Ini akan menghapus semua dependensi yang diunduh oleh Gradle. File yang diperlukan akan diunduh kembali pada build berikutnya.</string>
 	<string name="idepref_build_customgradlecommands_title">Flag Gradle tambahan</string>
@@ -374,9 +374,9 @@
 	<string name="idepref_editor_title">Editor</string>
 	<string name="idepref_build_title">Build &amp; Jalankan</string>
 	<string name="title_open_projects">Buka proyek terakhir</string>
-	<string name="msg_open_projects">Jika diaktifkan, saat Code on the Go dijalankan ulang, proyek terakhir yang dibuka akan otomatis dibuka kembali.</string>
+	<string name="msg_open_projects">Jika diaktifkan, saat %1$s dijalankan ulang, proyek terakhir yang dibuka akan otomatis dibuka kembali.</string>
 	<string name="title_confirm_project_open">Konfirmasi pembukaan proyek</string>
-	<string name="msg_confirm_project_open">Jika diaktifkan, Code on the Go akan meminta konfirmasi sebelum membuka proyek terakhir.</string>
+	<string name="msg_confirm_project_open">Jika diaktifkan, %1$s akan meminta konfirmasi sebelum membuka proyek terakhir.</string>
 	<string name="msg_error_opening_project">Terjadi kesalahan saat membuka proyek.</string>
 	<string name="title_general">Umum</string>
 	<string name="title_tab_size">Ukuran tab</string>
@@ -410,7 +410,7 @@
 	<string name="preview_render_error_message">Tidak dapat membuat tampilan root (root view). XML kosong atau tidak memiliki elemen tingkat atas yang valid.</string>
 
 	<!-- Crash Screen -->
-	<string name="msg_ide_crashed">Code on the Go mengalami crash</string>
+	<string name="msg_ide_crashed">%1$s mengalami crash</string>
 	<string name="msg_crash_info">Ada kesalahan internal.\n\nDetail untuk membantu kami
 		memperbaiki masalah telah disimpan dan akan dikirim secara aman saat perangkat Anda
 		kembali online.\n\nSaat Anda menekan OK, aplikasi akan ditutup dan perubahan yang belum
@@ -489,8 +489,8 @@
 	<string name="idepref_useIcu_summary">Jika diaktifkan, editor akan menganggap spasi kosong sebagai batas antar kata.</string>
 	<string name="msg_drawer_for_files">Untuk melihat struktur file dan opsi proyek, geser dari kiri ke kanan atau ketuk ikon menu di pojok kiri atas.</string>
 	<string name="msg_swipe_for_output">Untuk melihat log, diagnostik, dan lainnya, geser ke atas atau ketuk bagian bawah halaman.</string>
-	<string name="msg_help_hint">Untuk melihat bantuan di Code on the Go, tekan dan tahan apa saja untuk menampilkan keterangan (tooltip). Di editor, pilih dan tekan lama pada teks untuk menampilkan bilah alat (toolbar) pengeditan dan tombol bantuan.</string>
-	<string name="msg_long_press_help">Untuk melihat bantuan di Code on the Go, tekan dan tahan apa saja untuk menampilkan keterangan (tooltip). Di editor, pilih dan tekan lama pada teks untuk menampilkan bilah alat (toolbar) pengeditan dan tombol bantuan.</string>
+	<string name="msg_help_hint">Untuk melihat bantuan di %1$s, tekan dan tahan apa saja untuk menampilkan keterangan (tooltip). Di editor, pilih dan tekan lama pada teks untuk menampilkan bilah alat (toolbar) pengeditan dan tombol bantuan.</string>
+	<string name="msg_long_press_help">Untuk melihat bantuan di %1$s, tekan dan tahan apa saja untuk menampilkan keterangan (tooltip). Di editor, pilih dan tekan lama pada teks untuk menampilkan bilah alat (toolbar) pengeditan dan tombol bantuan.</string>
 	<string name="idepref_editor_useSoftTabs_title">Gunakan spasi sebagai pengganti tab</string>
 	<string name="idepref_editor_useSoftTabs_summary">Tentukan apakah tombol tab akan memasukkan spasi bukan karakter tab.</string>
 	<string name="btn_donate">Donasi</string>
@@ -504,7 +504,7 @@
 	<string name="idepref_channel_summary">Berlangganan untuk mendapatkan pembaruan terbaru.</string>
 	<string name="idepref_group_summary">Diskusikan fitur, bug, dan peningkatan di sini.</string>
 	<string name="idepref_changelog_summary">Apa yang baru di versi ini?</string>
-	<string name="idepref_about_summary">Informasi lebih lanjut tentang Code on the Go</string>
+	<string name="idepref_about_summary">Informasi lebih lanjut tentang %1$s</string>
 	<string name="idepref_general_summary">Konfigurasi umum IDE</string>
 	<string name="idepref_editor_summary">Konfigurasi editor</string>
 	<string name="idepref_xml_trimFinalNewLine_title">Hapus baris baru di akhir</string>
@@ -545,7 +545,7 @@
 	<string name="msg_action_open_application">Aplikasi Anda telah terinstal. Apakah Anda ingin menjalankannya?</string>
 	<string name="msg_action_open_title_application">Aplikasi terinstal</string>
 
-	<string name="title_gradle_service_notification_channel">Layanan build Gradle Code on the Go</string>
+	<string name="title_gradle_service_notification_channel">Layanan build Gradle %1$s</string>
 	<string name="msg_hex_color_code">Kode warna Hex</string>
 	<string name="msg_unsupported_color_format">Format warna tidak didukung: %s</string>
 	<string name="msg_color_picker_pick">Pilih</string>
@@ -710,7 +710,7 @@
 	<string name="uiMode_dark">Gelap</string>
 	<string name="uiMode_system">Ikuti sistem</string>
 	<string name="idepref_general_themeSelector_title">Tema</string>
-	<string name="idepref_general_themeSelector_summary">Pilih tema untuk Code on the Go (perlu dimulai ulang).</string>
+	<string name="idepref_general_themeSelector_summary">Pilih tema untuk %1$s (perlu dimulai ulang).</string>
 	<string name="idepref_general_projectConfig">Konfigurasi proyek</string>
 	<string name="msg_app_launch_failed">Anda harus mem-build dan menginstal aplikasi tersebut sebelum dapat menjalankannya.</string>
 	<string name="idepref_java_diagnosticEnabled_title">Diagnostik diaktifkan</string>
@@ -759,7 +759,7 @@
 	<string name="title_privacy">Privasi</string>
 
 	<string name="privacy_disclosure_title">Privasi &amp; analitik</string>
-	<string name="privacy_disclosure_message">Code on the Go mengumpulkan informasi penggunaan dan laporan crash anonim untuk membantu kami memperbaiki bug dan meningkatkan aplikasi. Tidak ada informasi pribadi yang dikumpulkan atau dibagikan.\n\n<i>Bagikan data anonim</i> akan mengirim informasi ini. <i>Tetap offline</i> tidak mengirim apa pun.</string>
+	<string name="privacy_disclosure_message">%1$s mengumpulkan informasi penggunaan dan laporan crash anonim untuk membantu kami memperbaiki bug dan meningkatkan aplikasi. Tidak ada informasi pribadi yang dikumpulkan atau dibagikan.\n\n<i>Bagikan data anonim</i> akan mengirim informasi ini. <i>Tetap offline</i> tidak mengirim apa pun.</string>
 	<string name="privacy_disclosure_accept">Bagikan data anonim</string>
 	<string name="privacy_disclosure_decline">Tetap offline</string>
 
@@ -772,10 +772,10 @@
 	<string name="title_android_version">Versi Android</string>
 	<string name="btn_opt_in">Setuju</string>
 	<string name="title_developer_options">Opsi Pengembang</string>
-	<string name="idepref_devOptions_summary">Opsi percobaan/debugging untuk Code on the Go</string>
+	<string name="idepref_devOptions_summary">Opsi percobaan/debugging untuk %1$s</string>
 	<string name="idepref_group_debugging">Debugging</string>
 	<string name="idepref_devOptions_dumpLogs_title">Simpan log</string>
-	<string name="idepref_devOptions_dumpLogs_summary">Simpan log Code on the Go ke $HOME/.androidide/logs</string>
+	<string name="idepref_devOptions_dumpLogs_summary">Simpan log %1$s ke $HOME/.androidide/logs</string>
 	<string name="msg_emptyview_applogs">Jalankan varian debug aplikasi Anda untuk melihat lognya di sini.</string>
 	<string name="msg_logsender_disabled">LogSender dinonaktifkan. Anda dapat mengaktifkannya di pengaturan.</string>
 	<string name="msg_emptyview_idelogs">Log dari IDE ditampilkan di sini.</string>
@@ -803,7 +803,7 @@
 	<string name="msg_emptyview_buildoutput">"Build aplikasi atau jalankan task untuk melihat output build-nya di sini."</string>
 	<string name="msg_codeaction_failed">Gagal melakukan tindakan kode</string>
 	<string name="idepref_devOptions_enableLogsender_title">Aktifkan LogSender</string>
-	<string name="idepref_devOptions_enableLogsender_summary">Jika dinonaktifkan, log dari aplikasi tidak akan ditampilkan di Code on the Go</string>
+	<string name="idepref_devOptions_enableLogsender_summary">Jika dinonaktifkan, log dari aplikasi tidak akan ditampilkan di %1$s</string>
 	<string name="title_build_variants">Varian build</string>
 	<string name="title_agent">Agen</string>
 	<string name="build_variants_apply">Terapkan</string>
@@ -837,14 +837,14 @@
 	<string name="msg_export_build_running">Build sedang berjalan. Ekspor setelah selesai.</string>
 	<string name="title_experiment_flavor">Percobaan</string>
 	<string name="title_experiments_on">Eksperimen aktif</string>
-	<string name="msg_experimental_flavor">Anda menggunakan varian %1$s dari Code on the Go pada perangkat %2$s. Konfigurasi ini mungkin berfungsi, tetapi akan mengurangi kinerja dan berpotensi menimbulkan risiko keamanan. Sebaiknya hindari menggunakan konfigurasi ini jika memungkinkan.</string>
+	<string name="msg_experimental_flavor">Anda menggunakan varian %1$s dari %3$s pada perangkat %2$s. Konfigurasi ini mungkin berfungsi, tetapi akan mengurangi kinerja dan berpotensi menimbulkan risiko keamanan. Sebaiknya hindari menggunakan konfigurasi ini jika memungkinkan.</string>
 	<string name="idepref_editor_pinLineNumbers_title">Sematkan nomor baris</string>
 	<string name="idepref_editor_pinLineNumbers_summary">Kunci nomor baris agar tetap terlihat saat menggulir secara horizontal.</string>
 	<string name="theme_blue_wave">Gelombang Biru</string>
 	<string name="theme_sunny_glow">Sinar Mentari</string>
 	<string name="theme_material_you">Material You</string>
 	<string name="idepref_general_localeSelector_title">Bahasa</string>
-	<string name="idepref_general_localeSelector_summary">Pilih bahasa untuk Code on the Go.</string>
+	<string name="idepref_general_localeSelector_summary">Pilih bahasa untuk %1$s.</string>
 	<string name="locale_system_default">Default Sistem</string>
 	<string name="msg_project_dir_inaccessible">Direktori proyek tidak dapat diakses</string>
 	<string name="msg_file_is_not_dir">File yang dipilih bukan direktori</string>
@@ -861,23 +861,23 @@
 	<string name="greeting_subtitle">Tidak punya komputer? Tidak ada internet? Tidak masalah.</string>
 	<string name="title_grant">Izinkan</string>
 	<string name="permission_title_storage">Penyimpanan</string>
-	<string name="permission_desc_storage">Izinkan Code on the Go membuka dan menyimpan file di perangkat ini.</string>
+	<string name="permission_desc_storage">Izinkan %1$s membuka dan menyimpan file di perangkat ini.</string>
 	<string name="permission_title_install_packages">Instal paket</string>
-	<string name="permission_desc_install_packages">Izinkan Code on the Go menginstal aplikasi yang Anda build di perangkat ini.</string>
+	<string name="permission_desc_install_packages">Izinkan %1$s menginstal aplikasi yang Anda build di perangkat ini.</string>
 	<string name="permission_title_overlay_window">Debugger mengambang</string>
-	<string name="permission_desc_overlay_window">Izinkan Code on the Go menampilkan kontrol debugger mengambang untuk memeriksa kode saat berjalan.</string>
+	<string name="permission_desc_overlay_window">Izinkan %1$s menampilkan kontrol debugger mengambang untuk memeriksa kode saat berjalan.</string>
 	<string name="permission_overlay_unsupported_hint">Fitur debugger mengambang tidak tersedia di perangkat ini.</string>
-	<string name="permission_overlay_restricted_settings_hint">Jika Anda tidak dapat mengaktifkan izin ini, buka Info aplikasi Code on the Go, ketuk menu titik tiga, lalu aktifkan pengaturan terbatas.</string>
+	<string name="permission_overlay_restricted_settings_hint">Jika Anda tidak dapat mengaktifkan izin ini, buka Info aplikasi %1$s, ketuk menu titik tiga, lalu aktifkan pengaturan terbatas.</string>
 	<string name="permission_overlay_restricted_dialog_title">Aktifkan pengaturan terbatas</string>
-	<string name="permission_overlay_restricted_dialog_message">Android telah menonaktifkan tombol “Tampilkan di atas aplikasi lain” karena Code on the Go diinstal dari luar toko aplikasi. Untuk mengaktifkannya:</string>
+	<string name="permission_overlay_restricted_dialog_message">Android telah menonaktifkan tombol “Tampilkan di atas aplikasi lain” karena %1$s diinstal dari luar toko aplikasi. Untuk mengaktifkannya:</string>
 	<string name="permission_overlay_open_app_info">Buka Info Aplikasi</string>
 	<string name="permission_title_notifications">Notifikasi</string>
-	<string name="permission_desc_notifications">Izinkan Code on the Go menampilkan notifikasi.</string>
+	<string name="permission_desc_notifications">Izinkan %1$s menampilkan notifikasi.</string>
 	<string name="permission_title_accessibility">Aksesibilitas</string>
-	<string name="permission_desc_accessibility">Izinkan Code on the Go mengakses layanan aksesibilitas untuk debugging.</string>
+	<string name="permission_desc_accessibility">Izinkan %1$s mengakses layanan aksesibilitas untuk debugging.</string>
 	<string name="finish_installation">Selesaikan penginstalan</string>
 	<string name="onboarding_title_permissions">Izin</string>
-	<string name="onboarding_subtitle_permissions">Code on the Go memerlukan izin berikut:</string>
+	<string name="onboarding_subtitle_permissions">%1$s memerlukan izin berikut:</string>
 	<string name="msg_grant_permissions">Silakan berikan izin untuk melanjutkan.</string>
 	<string name="msg_no_internet">Sepertinya Anda sedang offline. Periksa koneksi internet Anda.</string>
 	<string name="msg_connected_to_cellular">Perhatian! Anda menggunakan data seluler.</string>
@@ -902,7 +902,7 @@
 	<string name="idepref_jdkVersion_title">Versi JDK</string>
 	<string name="idepref_jdkVersion_summary">Pilihan saat ini: %1$s (perlu dimulai ulang jika diubah)</string>
 	<string name="ide_setup_in_progress">Proses penyiapan sedang berlangsung</string>
-	<string name="ide_setup_complete">Penyiapan Code on the Go selesai.</string>
+	<string name="ide_setup_complete">Penyiapan %1$s selesai.</string>
 	<string name="msg_complete_ide_setup">Selesaikan penyiapan IDE untuk melanjutkan.</string>
 	<string name="debugger_title">Debugger</string>
 	<string name="debugger_starting">Memulai debugger…</string>
@@ -937,12 +937,12 @@
 	<string name="debugger_error_immutable_variable">Nilai variabel \'%1$s\' tidak dapat diubah.</string>
 	<string name="debugger_error_network_access_error">Ada kesalahan pada akses jaringan</string>
 	<string name="debugger_error_errno">Tidak dapat mendeteksi koneksi JDWP. Operasi gagal dengan kesalahan %1$d.</string>
-	<string name="debugger_error_errno_eperm">Code on the Go tidak diizinkan membuka atau mengikat soket jaringan pada jaringan lokal.</string>
-	<string name="debugger_error_errno_econnrefused">Akses jaringan untuk Code on the Go diblokir oleh sistem. Aplikasi tidak diizinkan menggunakan jaringan atau layanan tidak tersedia.</string>
-	<string name="debugger_error_debugger_startup_failure">Tidak dapat memulai debugger Code on the Go.</string>
+	<string name="debugger_error_errno_eperm">%1$s tidak diizinkan membuka atau mengikat soket jaringan pada jaringan lokal.</string>
+	<string name="debugger_error_errno_econnrefused">Akses jaringan untuk %1$s diblokir oleh sistem. Aplikasi tidak diizinkan menggunakan jaringan atau layanan tidak tersedia.</string>
+	<string name="debugger_error_debugger_startup_failure">Tidak dapat memulai debugger %1$s.</string>
 	<string name="debugger_not_ready">Debugger belum siap untuk sesi debug.</string>
-	<string name="debugger_error_suggestion_network_restriction">Pastikan Code on the Go memiliki izin untuk mengakses jaringan lokal.
-		Hal ini dapat diperiksa dengan membuka layar \"Info aplikasi\" Code on the Go di pengaturan perangkat Anda,
+	<string name="debugger_error_suggestion_network_restriction">Pastikan %1$s memiliki izin untuk mengakses jaringan lokal.
+		Hal ini dapat diperiksa dengan membuka layar \"Info aplikasi\" %1$s di pengaturan perangkat Anda,
 		lalu periksa apakah akses jaringan diizinkan pada bagian \"Penggunaan data\" (nama dapat berbeda pada setiap perangkat).
 
 		\n\nJika akses jaringan diizinkan dan masalah masih terjadi, silakan kirim laporan bug dengan melampirkan log.
@@ -982,8 +982,8 @@
 	<string name="msg_contact_app_dev_title">Hubungi App Dev for All</string>
 	<string name="msg_contact_app_dev_description">Untuk melaporkan masalah, memberikan saran, dan mengajukan pertanyaan, kirim email ke feedback@appdevforall.org.
 		Akses internet diperlukan.</string>
-	<string name="code_on_the_go">Code on the Go</string>
-	<string name="feedback_email_subject">Masukan untuk Code on the Go</string>
+	<string name="code_on_the_go">@string/app_name</string>
+	<string name="feedback_email_subject">Masukan untuk %1$s</string>
 	<string name="msg_feedback_log_too_long">Log terlalu besar untuk dikirim langsung.</string>
 	<string name="msg_no_internet_no_problem">Tidak punya komputer? Tidak ada internet?\nTidak masalah.</string>
 	<string name="offline_message">Offline</string>
@@ -1084,9 +1084,9 @@
 	<string name="quick_build_switch_to_standard_title">Ganti aplikasi proxy Quick Build?</string>
 	<string name="quick_build_switch_to_standard_message">%1$s saat ini adalah aplikasi proxy Quick Build, yang memuat ulang perubahan Anda tanpa penginstalan ulang. Menjalankan ini akan menggantinya dengan APK biasa.</string>
 	<string name="quick_build_switch_unknown_app_title">Ganti aplikasi yang terinstal untuk proyek ini?</string>
-	<string name="quick_build_switch_unknown_app_message">Code on the Go tidak dapat menentukan aplikasi mana yang terinstal untuk proyek ini - proyek mungkin masih dalam proses sinkronisasi. Melanjutkan akan mengganti apa pun yang terinstal dengan ID aplikasi proyek ini.</string>
+	<string name="quick_build_switch_unknown_app_message">%1$s tidak dapat menentukan aplikasi mana yang terinstal untuk proyek ini - proyek mungkin masih dalam proses sinkronisasi. Melanjutkan akan mengganti apa pun yang terinstal dengan ID aplikasi proyek ini.</string>
 	<string name="quick_build_switch_confirm">Ganti</string>
-	<string name="quick_build_reload_crashed">Muat ulang langsung mengalami crash. Aplikasi berada pada versi terakhir yang berfungsi. Untuk info lebih lanjut, lihat Output Build di Code on the Go.</string>
+	<string name="quick_build_reload_crashed">Muat ulang langsung mengalami crash. Aplikasi berada pada versi terakhir yang berfungsi. Untuk info lebih lanjut, lihat Output Build di %1$s.</string>
 	<string name="quick_build_relink_stuck">Kesalahan resource ini kini menghalangi setiap penyimpanan, bahkan yang hanya berisi kode - Quick Build membangun ulang semua resource Anda pada setiap muat ulang. Perbaiki dan simpan. Jika kesalahan menyebutkan sesuatu yang tidak dapat Anda ubah, tekan lama Quick Build dan pilih Mulai ulang sesi.</string>
 	<string name="quick_build_test_source_ignored">Tersimpan. Quick Build tidak men-deploy sumber pengujian - tidak ada apa pun di bawah src/test, src/androidTest, atau testFixtures yang menjadi bagian dari aplikasi yang dibangunnya. Jalankan pengujian Anda dari tugas build sebagai gantinya.</string>
 	<string name="quick_build_stale_component_helpers">Dimuat ulang. Layanan, content provider, atau objek Application yang sedang berjalan masih dapat memanggil versi kode sebelumnya yang Anda ubah, hingga ia dimulai ulang - tutup dan buka kembali aplikasi Anda untuk memastikan.</string>
@@ -1295,7 +1295,7 @@
 	<string name="notification_adb_pairing_succeed_title">Penyambungan berhasil</string>
 
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-	<string name="notification_adb_pairing_succeed_text">Ketuk tombol Kembali untuk kembali ke Code on the Go.</string>
+	<string name="notification_adb_pairing_succeed_text">Ketuk tombol Kembali untuk kembali ke %1$s.</string>
 
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
 	<string name="notification_adb_pairing_failed_title">Penyambungan gagal</string>
@@ -1323,8 +1323,8 @@
 	<string name="adb_pairing_action_enable_notifications">Berikan izin notifikasi</string>
 
 	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_notification">Notifikasi dari Code on the Go akan membantu Anda menyelesaikan penyambungan.
-		Silakan izinkan Code on the Go untuk menampilkan notifikasi dengan kanal notifikasi \'%1$s\'.</string>
+	<string name="adb_pairing_tutorial_content_notification">Notifikasi dari %2$s akan membantu Anda menyelesaikan penyambungan.
+		Silakan izinkan %2$s untuk menampilkan notifikasi dengan kanal notifikasi \'%1$s\'.</string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
@@ -1353,7 +1353,7 @@
 
 	<!-- Error message displayed when the application is denied permission to start foreground services, which is necessary
 		for some features. -->
-	<string name="err_foreground_service_denial">Code on the Go tidak diizinkan untuk memulai layanan latar depan (OP_START_FOREGROUND ditolak)</string>
+	<string name="err_foreground_service_denial">%1$s tidak diizinkan untuk memulai layanan latar depan (OP_START_FOREGROUND ditolak)</string>
 
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
@@ -1374,18 +1374,18 @@
 	<string-array name="overlay_restricted_settings_steps">
 		<item><![CDATA[Di layar <b>Info Aplikasi</b>, ketuk menu titik tiga (⋮) di sudut atas.]]></item>
 		<item><![CDATA[Ketuk <b>Izinkan pengaturan terbatas</b>.]]></item>
-		<item><![CDATA[Buka <b>Tampilkan di atas aplikasi lain</b> dan aktifkan fitur tersebut untuk Code on the Go.]]></item>
+		<item><![CDATA[Buka <b>Tampilkan di atas aplikasi lain</b> dan aktifkan fitur tersebut untuk %1$s.]]></item>
 	</string-array>
 	<string-array name="debugger_setup_pairing_steps">
 		<item><![CDATA[Ketuk <b>Mulai menyambung</b>. Opsi pengembang akan ditampilkan.]]></item>
 		<item><![CDATA[Aktifkan <b>Debugging nirkabel</b>.]]></item>
 		<item><![CDATA[Ketuk teks <b>Debugging nirkabel</b> untuk menampilkan opsi lainnya.]]></item>
 		<item><![CDATA[Ketuk <b>Sambungkan perangkat dengan kode penyambung</b>.]]></item>
-		<item><![CDATA[Saat diminta, masukkan kode penyambung. Pesan berhasil akan ditampilkan. Saat Anda kembali ke Code on the Go, debugger akan tersambung.]]></item>
+		<item><![CDATA[Saat diminta, masukkan kode penyambung. Pesan berhasil akan ditampilkan. Saat Anda kembali ke %1$s, debugger akan tersambung.]]></item>
 	</string-array>
 
 	<!-- Text shown at the bottom of the ADB pairing dialog -->
-	<string name="debugger_setup_description_footer"><![CDATA[Beberapa perangkat (termasuk perangkat Xiaomi model lama) juga memerlukan pemberian izin "Penggunaan baterai tanpa batasan" kepada Code on the Go. <a href="http://localhost:6174/i/debug-enable.html">Lihat informasi lebih lanjut, termasuk tips pemecahan masalah</a>.]]></string>
+	<string name="debugger_setup_description_footer"><![CDATA[Beberapa perangkat (termasuk perangkat Xiaomi model lama) juga memerlukan pemberian izin "Penggunaan baterai tanpa batasan" kepada %1$s. <a href="http://localhost:6174/i/debug-enable.html">Lihat informasi lebih lanjut, termasuk tips pemecahan masalah</a>.]]></string>
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_missing_fallback_html"><![CDATA[Maaf, kami tidak memiliki keterangan (tooltip) untuk itu. <a href="%1$s">Jelajahi dokumentasi</a>.]]></string>
@@ -1454,11 +1454,11 @@
 	<string name="failed_to_save_bitmap_to_file">Gagal menyimpan bitmap ke file</string>
 	<string name="pixel_copy_failed">PixelCopy gagal</string>
 	<string name="failed_to_capture_or_save_screenshot">Gagal mengambil atau menyimpan tangkapan layar</string>
-	<string name="back_to_cogo">Kembali ke Code on the Go</string>
+	<string name="back_to_cogo">Kembali ke %1$s</string>
 
 	<!-- URL Consent Dialog -->
 	<string name="url_consent_title">Buka tautan eksternal?</string>
-	<string name="url_consent_message">Anda akan meninggalkan Code on the Go untuk membuka tautan eksternal:\n\n%s\n\nApakah Anda ingin melanjutkan?</string>
+	<string name="url_consent_message">Anda akan meninggalkan %2$s untuk membuka tautan eksternal:\n\n%1$s\n\nApakah Anda ingin melanjutkan?</string>
 	<string name="url_consent_cancel">Batal</string>
 	<string name="url_consent_proceed">Lanjutkan</string>
 	<string name="url_consent_dont_ask">Jangan tanya lagi</string>

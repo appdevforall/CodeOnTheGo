@@ -396,7 +396,7 @@ abstract class ProjectHandlerActivity :
 								}
 
 								QuickBuildNotice.RELOAD_CRASHED -> {
-									flashError(getString(string.quick_build_reload_crashed))
+									flashError(getString(string.quick_build_reload_crashed, getString(string.app_name)))
 								}
 
 								QuickBuildNotice.RELINK_STUCK -> {
@@ -673,7 +673,7 @@ abstract class ProjectHandlerActivity :
 						QuickBuildClobberConfirmation.NeededForUnknownAppId -> {
 							awaitBuildTypeSwitchConfirmation(
 								getString(string.quick_build_switch_unknown_app_title),
-								getString(string.quick_build_switch_unknown_app_message),
+								getString(string.quick_build_switch_unknown_app_message, getString(string.app_name)),
 							)
 						}
 
@@ -1027,7 +1027,7 @@ abstract class ProjectHandlerActivity :
 	private suspend fun confirmUnknownOccupantSwitch(): Boolean =
 		awaitBuildTypeSwitchConfirmation(
 			getString(string.quick_build_switch_unknown_app_title),
-			getString(string.quick_build_switch_unknown_app_message),
+			getString(string.quick_build_switch_unknown_app_message, getString(string.app_name)),
 		)
 
 	private fun projectRealApplicationId(): String? {
@@ -2476,19 +2476,19 @@ abstract class ProjectHandlerActivity :
 								?: (result.cause as? SocketException?).let { err ->
 									val msg = err?.message ?: ""
 									when {
-										msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm)
-										msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused)
+										msg.contains("EPERM") -> getString(string.debugger_error_errno_eperm, getString(string.app_name))
+										msg.contains("ECONNREFUSED") -> getString(string.debugger_error_errno_econnrefused, getString(string.app_name))
 										else -> null
 									}
 								}
 								?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
 									when (err.errno) {
-										OsConstants.EPERM -> getString(string.debugger_error_errno_eperm)
-										OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused)
+										OsConstants.EPERM -> getString(string.debugger_error_errno_eperm, getString(string.app_name))
+										OsConstants.ECONNREFUSED -> getString(string.debugger_error_errno_econnrefused, getString(string.app_name))
 										else -> getString(R.string.debugger_error_errno, err.errno)
 									}
 								}
-								?: getString(R.string.debugger_error_debugger_startup_failure)
+								?: getString(R.string.debugger_error_debugger_startup_failure, getString(R.string.app_name))
 
 						append(msg)
 						append(System.lineSeparator())
@@ -2498,7 +2498,7 @@ abstract class ProjectHandlerActivity :
 						append(System.lineSeparator())
 					}
 
-					append(getString(R.string.debugger_error_suggestion_network_restriction))
+					append(getString(R.string.debugger_error_suggestion_network_restriction, getString(R.string.app_name)))
 				}
 
 			withContext(Dispatchers.Main) {

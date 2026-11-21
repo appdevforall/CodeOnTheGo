@@ -8,11 +8,11 @@
 	<string name="app_name" translatable="false">Code on the Go</string>
 	<string name="about_option_email">邮箱</string>
 	<string name="about_option_website">网站</string>
-	<string name="about_footer_alternate" translatable="false">Code on the Go v\u2022 %s</string>
-	<string name="about_footer">Code on the Go %1$s，适用于 %2$s</string>
+	<string name="about_footer_alternate" translatable="false">%2$s v\u2022 %1$s</string>
+	<string name="about_footer">%3$s %1$s，适用于 %2$s</string>
 	<string name="about_subtitle">没有电脑？没有网络？没问题！随时随地编写应用</string>
 	<string name="msg_get_package_failed">提取包名失败</string>
-	<string name="msg_need_help">如果你在使用 Code on the Go 或构建 Android 应用时遇到问题，可以加入我们的讨论论坛寻求帮助\n\n你也可以通过邮箱发送建议</string>
+	<string name="msg_need_help">如果你在使用 %1$s 或构建 Android 应用时遇到问题，可以加入我们的讨论论坛寻求帮助\n\n你也可以通过邮箱发送建议</string>
 	<string name="download_codeonthego_message">从官方网站下载 Code on the Go，获取最新功能和更新</string>
 	<string name="download_codeonthego_url">https://appdevforall.org/codeonthego</string>
 	<string name="msg_invalid_url">提供的 URL 无效</string>
@@ -109,7 +109,7 @@
 
 	<!-- Project Builder -->
 	<string name="title_unsupported_device">此设备不受支持</string>
-	<string name="msg_unsupported_device">你在仅支持 %2$s 的设备上使用了 Code On The Go 的 %1$s 变体  此配置不受支持，请安装 %2$s 变体的 Code On The Go</string>
+	<string name="msg_unsupported_device">你在仅支持 %2$s 的设备上使用了 %3$s 的 %1$s 变体  此配置不受支持，请安装 %2$s 变体的 %3$s</string>
 	<string name="title_clear_output">清除输出</string>
 	<string name="build_output">构建输出</string>
 	<string name="quick_run_debug">快速运行</string>
@@ -124,7 +124,7 @@
 
 	<!-- Project -->
 	<string name="title_first_build">正在设置你的项目</string>
-	<string name="msg_first_build">Code on the Go 正在初始化你的项目，请耐心等待！\n\n设置完成后，屏幕底部将显示“项目已初始化”</string>
+	<string name="msg_first_build">%1$s 正在初始化你的项目，请耐心等待！\n\n设置完成后，屏幕底部将显示“项目已初始化”</string>
 	<string name="create_project">创建新项目</string>
 	<string name="minimum_sdk">最低 SDK</string>
 	<string name="new_project">新建项目</string>
@@ -311,7 +311,7 @@
 
 	<!-- Preferences -->
 	<string name="title_change_text_size">编辑器字体大小</string>
-	<string name="idepref_about_title">关于 Code on the Go</string>
+	<string name="idepref_about_title">关于 %1$s</string>
 	<string name="idepref_build_clearCache_title">清除 Gradle 缓存</string>
 	<string name="idepref_build_clearCache_summary">清除 Gradle 缓存目录 这将删除 Gradle 下载的所有依赖项，所需文件将在下次构建时重新下载</string>
 	<string name="idepref_build_customgradlecommands_title">附加 Gradle 标志</string>
@@ -327,9 +327,9 @@
 	<string name="idepref_editor_title">编辑器</string>
 	<string name="idepref_build_title">构建和运行</string>
 	<string name="title_open_projects">打开上次的项目</string>
-	<string name="msg_open_projects">启用后，重启 Code on the Go 时将自动打开上次打开的项目</string>
+	<string name="msg_open_projects">启用后，重启 %1$s 时将自动打开上次打开的项目</string>
 	<string name="title_confirm_project_open">确认打开项目</string>
-	<string name="msg_confirm_project_open">启用后，Code on the Go 在打开上次的项目前会要求确认</string>
+	<string name="msg_confirm_project_open">启用后，%1$s 在打开上次的项目前会要求确认</string>
 	<string name="msg_error_opening_project">打开项目时出错</string>
 	<string name="title_general">通用</string>
 	<string name="title_tab_size">制表符大小</string>
@@ -363,7 +363,7 @@
 	<string name="preview_render_error_message">无法创建根视图  XML 为空或缺少有效的顶级元素</string>
 
 	<!-- Crash Screen -->
-	<string name="msg_ide_crashed">Code on the Go 崩溃了</string>
+	<string name="msg_ide_crashed">%1$s 崩溃了</string>
 	<string name="msg_crash_info">发生内部错误\n\n有助于我们修复问题的详细信息已保存，并将在你的设备下次联网时安全发送\n\n按“确定”后应用将关闭，任何未保存的更改可能会丢失 请重新启动应用以继续 \n\n如果错误再次发生，请尝试重启设备 如果问题仍然存在，请%1$s</string>
 	<string name="contact_support_team">联系我们的支持团队 </string>
 	<string name="crash_email_subject">应用崩溃报告</string>
@@ -430,8 +430,8 @@
 	<string name="idepref_useIcu_summary">启用后，编辑器将空格视为单词之间的分隔符 </string>
 	<string name="msg_drawer_for_files">要查看文件树和项目选项，请从左向右滑动或点击左上角的菜单图标 </string>
 	<string name="msg_swipe_for_output">要查看日志、诊断信息等，请上滑或点击页面底部 </string>
-	<string name="msg_help_hint">要查看 Code on the Go 应用的帮助，长按任意元素可查看提示 在编辑器中，选中文本并长按可显示编辑工具栏和帮助按钮 </string>
-	<string name="msg_long_press_help">要查看 Code on the Go 的帮助，长按任意元素可查看提示 在编辑器中，选中文本并长按可显示编辑工具栏和帮助按钮 </string>
+	<string name="msg_help_hint">要查看 %1$s 应用的帮助，长按任意元素可查看提示 在编辑器中，选中文本并长按可显示编辑工具栏和帮助按钮 </string>
+	<string name="msg_long_press_help">要查看 %1$s 的帮助，长按任意元素可查看提示 在编辑器中，选中文本并长按可显示编辑工具栏和帮助按钮 </string>
 	<string name="idepref_editor_useSoftTabs_title">使用软制表符</string>
 	<string name="idepref_editor_useSoftTabs_summary">选择 Tab 键是插入空格还是制表符 </string>
 	<string name="btn_donate">捐赠</string>
@@ -445,7 +445,7 @@
 	<string name="idepref_channel_summary">订阅获取最新更新 </string>
 	<string name="idepref_group_summary">在此讨论功能、错误和改进 </string>
 	<string name="idepref_changelog_summary">此版本有什么新内容？</string>
-	<string name="idepref_about_summary">关于 Code on the Go 的更多信息</string>
+	<string name="idepref_about_summary">关于 %1$s 的更多信息</string>
 	<string name="idepref_general_summary">通用 IDE 配置</string>
 	<string name="idepref_editor_summary">配置编辑器</string>
 	<string name="xml" translatable="false">XML</string>
@@ -487,7 +487,7 @@
 	<string name="msg_action_open_application">你的应用已安装 是否要启动该应用？</string>
 	<string name="msg_action_open_title_application">应用已安装</string>
 
-	<string name="title_gradle_service_notification_channel">Code on the Go Gradle 构建服务</string>
+	<string name="title_gradle_service_notification_channel">%1$s Gradle 构建服务</string>
 	<string name="msg_hex_color_code">十六进制颜色代码</string>
 	<string name="msg_unsupported_color_format">不支持的色彩格式：%s</string>
 	<string name="msg_color_picker_pick">选取</string>
@@ -608,7 +608,7 @@
 	<string name="uiMode_dark">深色</string>
 	<string name="uiMode_system">跟随系统</string>
 	<string name="idepref_general_themeSelector_title">主题</string>
-	<string name="idepref_general_themeSelector_summary">为 Code on the Go 选择主题（需要重启） </string>
+	<string name="idepref_general_themeSelector_summary">为 %1$s 选择主题（需要重启） </string>
 	<string name="idepref_general_projectConfig">项目配置</string>
 	<string name="msg_app_launch_failed">必须先构建并安装应用才能启动 </string>
 	<string name="idepref_java_diagnosticEnabled_title">启用诊断</string>
@@ -657,7 +657,7 @@
 	<string name="title_privacy">隐私</string>
 
 	<string name="privacy_disclosure_title">隐私和分析</string>
-	<string name="privacy_disclosure_message">Code on the Go 会收集匿名的使用情况和崩溃信息，以帮助我们修复缺陷并改进应用。我们不会收集或分享任何个人信息。\n\n选择“共享匿名数据”将发送这些信息；选择“保持离线”则不会发送任何内容。</string>
+	<string name="privacy_disclosure_message">%1$s 会收集匿名的使用情况和崩溃信息，以帮助我们修复缺陷并改进应用。我们不会收集或分享任何个人信息。\n\n选择“共享匿名数据”将发送这些信息；选择“保持离线”则不会发送任何内容。</string>
 	<string name="privacy_disclosure_accept">共享匿名数据</string>
 	<string name="privacy_disclosure_decline">保持离线</string>
 
@@ -670,10 +670,10 @@
 	<string name="title_android_version">Android 版本</string>
 	<string name="btn_opt_in">同意</string>
 	<string name="title_developer_options">开发者选项</string>
-	<string name="idepref_devOptions_summary">Code on the Go 的实验/调试选项</string>
+	<string name="idepref_devOptions_summary">%1$s 的实验/调试选项</string>
 	<string name="idepref_group_debugging">调试</string>
 	<string name="idepref_devOptions_dumpLogs_title">转储日志</string>
-	<string name="idepref_devOptions_dumpLogs_summary">将 Code on the Go 日志转储到 $HOME/.cg/logs</string>
+	<string name="idepref_devOptions_dumpLogs_summary">将 %1$s 日志转储到 $HOME/.cg/logs</string>
 	<string name="msg_emptyview_applogs">运行应用的调试版本以在此查看其日志 </string>
 	<string name="msg_logsender_disabled">LogSender 已禁用 你可以在偏好设置中启用它 </string>
 	<string name="msg_emptyview_idelogs">IDE 的日志在此显示 </string>
@@ -694,7 +694,7 @@
 	<string name="msg_emptyview_buildoutput">构建应用或运行任务以在此查看构建输出 </string>
 	<string name="msg_codeaction_failed">执行代码操作失败</string>
 	<string name="idepref_devOptions_enableLogsender_title">启用 LogSender</string>
-	<string name="idepref_devOptions_enableLogsender_summary">禁用后，来自应用的日志将不会在 Code on the Go 中显示</string>
+	<string name="idepref_devOptions_enableLogsender_summary">禁用后，来自应用的日志将不会在 %1$s 中显示</string>
 	<string name="title_build_variants">构建变体</string>
 	<string name="title_agent">Agent</string>
 	<string name="build_variants_apply">应用</string>
@@ -714,14 +714,14 @@
 	<string name="msg_launch_failure_no_app_module">无法运行应用 项目中未找到应用模块 </string>
 	<string name="title_launch_app">启动应用</string>
 	<string name="title_experiment_flavor">实验性</string>
-	<string name="msg_experimental_flavor">你在 %2$s 设备上使用了 Code On The Go 的 %1$s 变体 此配置可能有效，但会导致性能下降并可能存在安全漏洞 请尽可能避免使用此配置 </string>
+	<string name="msg_experimental_flavor">你在 %2$s 设备上使用了 %3$s 的 %1$s 变体 此配置可能有效，但会导致性能下降并可能存在安全漏洞 请尽可能避免使用此配置 </string>
 	<string name="idepref_editor_pinLineNumbers_title">固定行号</string>
 	<string name="idepref_editor_pinLineNumbers_summary">锁定行号在视图中，水平滚动时保持可见 </string>
 	<string name="theme_blue_wave">蓝色波浪</string>
 	<string name="theme_sunny_glow">阳光辉光</string>
 	<string name="theme_material_you">Material You</string>
 	<string name="idepref_general_localeSelector_title">语言</string>
-	<string name="idepref_general_localeSelector_summary">选择 Code on the Go 的语言 </string>
+	<string name="idepref_general_localeSelector_summary">选择 %1$s 的语言 </string>
 	<string name="locale_system_default">系统默认</string>
 	<string name="msg_project_dir_inaccessible">项目目录不可访问</string>
 	<string name="msg_file_is_not_dir">所选文件不是目录</string>
@@ -737,23 +737,23 @@
 	<string name="greeting_subtitle">没有电脑？没有网络？没问题 </string>
 	<string name="title_grant">允许</string>
 	<string name="permission_title_storage">存储</string>
-	<string name="permission_desc_storage">允许 Code on the Go 在此设备上打开和保存文件 </string>
+	<string name="permission_desc_storage">允许 %1$s 在此设备上打开和保存文件 </string>
 	<string name="permission_title_install_packages">安装包</string>
-	<string name="permission_desc_install_packages">允许 Code on the Go 安装你在此设备上构建的应用 </string>
+	<string name="permission_desc_install_packages">允许 %1$s 安装你在此设备上构建的应用 </string>
 	<string name="permission_title_overlay_window">浮动调试器</string>
-	<string name="permission_desc_overlay_window">允许 Code on the Go 在应用运行时显示浮动调试控件以检查代码 </string>
+	<string name="permission_desc_overlay_window">允许 %1$s 在应用运行时显示浮动调试控件以检查代码 </string>
 	<string name="permission_overlay_unsupported_hint">此设备不支持浮动调试器 </string>
-	<string name="permission_overlay_restricted_settings_hint">如果无法启用此权限，请显示 Code on the Go 的应用信息，点击三点菜单，然后启用受限设置 </string>
+	<string name="permission_overlay_restricted_settings_hint">如果无法启用此权限，请显示 %1$s 的应用信息，点击三点菜单，然后启用受限设置 </string>
 	<string name="permission_overlay_restricted_dialog_title">启用受限设置</string>
-	<string name="permission_overlay_restricted_dialog_message">Android 已关闭“在其他应用上层显示”开关，因为 Code on the Go 是从应用商店外部安装的 要开启它：</string>
+	<string name="permission_overlay_restricted_dialog_message">Android 已关闭“在其他应用上层显示”开关，因为 %1$s 是从应用商店外部安装的 要开启它：</string>
 	<string name="permission_overlay_open_app_info">打开应用信息</string>
 	<string name="permission_title_notifications">通知</string>
-	<string name="permission_desc_notifications">允许 Code on the Go 显示通知 </string>
+	<string name="permission_desc_notifications">允许 %1$s 显示通知 </string>
 	<string name="permission_title_accessibility">无障碍</string>
-	<string name="permission_desc_accessibility">允许 Code on the Go 访问无障碍服务以进行调试 </string>
+	<string name="permission_desc_accessibility">允许 %1$s 访问无障碍服务以进行调试 </string>
 	<string name="finish_installation">完成安装</string>
 	<string name="onboarding_title_permissions">权限</string>
-	<string name="onboarding_subtitle_permissions">Code on the Go 需要以下权限：</string>
+	<string name="onboarding_subtitle_permissions">%1$s 需要以下权限：</string>
 	<string name="msg_grant_permissions">请授予权限以继续 </string>
 	<string name="msg_no_internet">你似乎处于离线状态 请检查网络连接 </string>
 	<string name="msg_connected_to_cellular">请注意！你正在使用蜂窝数据 </string>
@@ -778,7 +778,7 @@
 	<string name="idepref_jdkVersion_title">JDK 版本</string>
 	<string name="idepref_jdkVersion_summary">当前选择：%1$s（更改后需重启）</string>
 	<string name="ide_setup_in_progress">设置正在进行中</string>
-	<string name="ide_setup_complete">Code on the Go 设置完成 </string>
+	<string name="ide_setup_complete">%1$s 设置完成 </string>
 	<string name="msg_complete_ide_setup">请完成 IDE 设置以继续 </string>
 	<string name="debugger_title">调试器</string>
 	<string name="debugger_starting">正在启动调试器…</string>
@@ -815,11 +815,11 @@
 	<string name="debugger_error_immutable_variable">变量 \'%1$s\' 的值无法更新 </string>
 	<string name="debugger_error_network_access_error">网络访问错误</string>
 	<string name="debugger_error_errno">无法监听 JDWP 连接 操作失败，错误代码 %1$d </string>
-	<string name="debugger_error_errno_eperm">Code On the Go 不允许在本地网络上打开或绑定网络套接字 </string>
-	<string name="debugger_error_errno_econnrefused">Code On the Go 的网络访问被系统屏蔽 该应用不允许使用网络，或服务不可用 </string>
-	<string name="debugger_error_debugger_startup_failure">无法启动 Code On the Go 调试器 </string>
+	<string name="debugger_error_errno_eperm">%1$s 不允许在本地网络上打开或绑定网络套接字 </string>
+	<string name="debugger_error_errno_econnrefused">%1$s 的网络访问被系统屏蔽 该应用不允许使用网络，或服务不可用 </string>
+	<string name="debugger_error_debugger_startup_failure">无法启动 %1$s 调试器 </string>
 	<string name="debugger_not_ready">调试器尚未准备好进行调试会话 </string>
-	<string name="debugger_error_suggestion_network_restriction">请确保 Code On the Go 有权限访问本地网络 可以在设备的设置中进入 Code On the Go 的“应用信息”界面，检查“数据使用”下是否允许网络访问（具体名称可能因设备而异） \n\n如果允许网络访问但问题仍然存在，请附上日志提交错误报告 </string>
+	<string name="debugger_error_suggestion_network_restriction">请确保 %1$s 有权限访问本地网络 可以在设备的设置中进入 %1$s 的“应用信息”界面，检查“数据使用”下是否允许网络访问（具体名称可能因设备而异） \n\n如果允许网络访问但问题仍然存在，请附上日志提交错误报告 </string>
 
 	<string name="err_no_activity_to_handle_action">没有 Activity 可以处理操作 %1$s</string>
 
@@ -855,8 +855,8 @@
 	<string name="msg_internet_access_required">需要互联网访问 </string>
 	<string name="msg_contact_app_dev_title">联系 App Dev for All</string>
 	<string name="msg_contact_app_dev_description">要报告问题、提出建议或提问，请发送邮件至 feedback@appdevforall.org \n需要互联网访问 </string>
-	<string name="code_on_the_go">Code on the Go</string>
-	<string name="feedback_email_subject">Code on the Go 反馈</string>
+	<string name="code_on_the_go">@string/app_name</string>
+	<string name="feedback_email_subject">%1$s 反馈</string>
 	<string name="msg_feedback_log_too_long">日志太大，无法直接发送 </string>
 	<string name="msg_no_internet_no_problem">没有电脑？没有网络？\n没问题 </string>
 	<string name="offline_message">离线</string>
@@ -1083,7 +1083,7 @@
 	<string name="notification_adb_pairing_succeed_title">配对成功</string>
 
 	<!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-	<string name="notification_adb_pairing_succeed_text">按返回按钮返回 Code on the Go </string>
+	<string name="notification_adb_pairing_succeed_text">按返回按钮返回 %1$s </string>
 
 	<!-- Title for the notification when wireless debugging pairing has failed. -->
 	<string name="notification_adb_pairing_failed_title">配对失败</string>
@@ -1111,7 +1111,7 @@
 	<string name="adb_pairing_action_enable_notifications">授予通知权限</string>
 
 	<!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
-	<string name="adb_pairing_tutorial_content_notification">Code on the Go 的通知将帮助你完成配对 \n请允许 Code on the Go 通过 \'%1$s\' 通知频道显示通知 </string>
+	<string name="adb_pairing_tutorial_content_notification">%2$s 的通知将帮助你完成配对 \n请允许 %2$s 通过 \'%1$s\' 通知频道显示通知 </string>
 
 	<!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
@@ -1140,7 +1140,7 @@
 
 	<!-- Error message displayed when the application is denied permission to start foreground services, which is necessary
 		for some features. -->
-	<string name="err_foreground_service_denial">Code on the Go 不允许启动前台服务（OP_START_FOREGROUND 被拒绝）</string>
+	<string name="err_foreground_service_denial">%1$s 不允许启动前台服务（OP_START_FOREGROUND 被拒绝）</string>
 
 	<!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
@@ -1158,18 +1158,18 @@
 	<string-array name="overlay_restricted_settings_steps">
 		<item><![CDATA[在<b>应用信息</b>界面，点击右上角的三点菜单（⋮） ]]></item>
 		<item><![CDATA[点击<b>允许受限设置</b> ]]></item>
-		<item><![CDATA[打开<b>在其他应用上层显示</b>并为 Code on the Go 开启此选项 ]]></item>
+		<item><![CDATA[打开<b>在其他应用上层显示</b>并为 %1$s 开启此选项 ]]></item>
 	</string-array>
 	<string-array name="debugger_setup_pairing_steps">
 		<item><![CDATA[点击<b>开始配对</b> 将显示开发者选项 ]]></item>
 		<item><![CDATA[启用<b>无线调试</b> ]]></item>
 		<item><![CDATA[点击文字<b>无线调试</b>以显示更多选项 ]]></item>
 		<item><![CDATA[点击<b>使用配对码配对设备</b> ]]></item>
-		<item><![CDATA[在提示时输入配对码 将显示成功消息 返回 Code on the Go 后，调试器将已连接 ]]></item>
+		<item><![CDATA[在提示时输入配对码 将显示成功消息 返回 %1$s 后，调试器将已连接 ]]></item>
 	</string-array>
 
 	<!-- Text shown at the bottom of the ADB pairing dialog -->
-	<string name="debugger_setup_description_footer"><![CDATA[部分设备（包括较旧的小米设备）还需要授予 Code on the Go "不受限制的电池使用权限" <a href="http://localhost:6174/i/debug-enable.html">查看更多信息，包括故障排除提示</a> ]]></string>
+	<string name="debugger_setup_description_footer"><![CDATA[部分设备（包括较旧的小米设备）还需要授予 %1$s "不受限制的电池使用权限" <a href="http://localhost:6174/i/debug-enable.html">查看更多信息，包括故障排除提示</a> ]]></string>
 
 	<!-- Tooltip Links HTML Template -->
 	<string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
@@ -1217,11 +1217,11 @@
 	<string name="failed_to_save_bitmap_to_file">将位图保存到文件失败</string>
 	<string name="pixel_copy_failed">PixelCopy 失败</string>
 	<string name="failed_to_capture_or_save_screenshot">捕获或保存截图失败</string>
-	<string name="back_to_cogo">返回 Code on the Go</string>
+	<string name="back_to_cogo">返回 %1$s</string>
 
 	<!-- URL Consent Dialog -->
 	<string name="url_consent_title">打开外部链接？</string>
-	<string name="url_consent_message">你即将离开 Code on the Go 打开一个外部链接：\n\n%s\n\n是否要继续？</string>
+	<string name="url_consent_message">你即将离开 %2$s 打开一个外部链接：\n\n%1$s\n\n是否要继续？</string>
 	<string name="url_consent_cancel">取消</string>
 	<string name="url_consent_proceed">继续</string>
 	<string name="url_consent_dont_ask">不再询问</string>

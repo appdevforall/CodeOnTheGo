@@ -6,10 +6,10 @@
   <string name="text_to_search">Zu suchender Text</string>
   <string name="about_option_email">E-Mail</string>
   <string name="about_option_website">Internetseite</string>
-  <string name="about_footer">Code on the Go %1$s f&#xFC;r %2$s</string>
+  <string name="about_footer">%3$s %1$s f&#xFC;r %2$s</string>
   <string name="about_subtitle">Die IDE f&#xFC;r Android Ger&#xE4;te</string>
   <string name="msg_get_package_failed">Fehler beim Extrahieren des Paketnamens!</string>
-  <string name="msg_need_help">Wenn Sie bei der Verwendung von Code on the Go oder beim Erstellen von Android-Apps auf Probleme sto&#xDF;en, k&#xF6;nnen Sie unserer Telegram-Gruppe beitreten und dort um Hilfe bitten.\n\nSie k&#xF6;nnen uns auch Vorschl&#xE4;ge per E-Mail senden.</string>
+  <string name="msg_need_help">Wenn Sie bei der Verwendung von %1$s oder beim Erstellen von Android-Apps auf Probleme sto&#xDF;en, k&#xF6;nnen Sie unserer Telegram-Gruppe beitreten und dort um Hilfe bitten.\n\nSie k&#xF6;nnen uns auch Vorschl&#xE4;ge per E-Mail senden.</string>
   <string name="need_help">Brauchen Sie Hilfe?</string>
   <string name="ide_preferences">IDE-Einstellungen</string>
   <string name="discussions_on_telegram">Auf Telegram diskutieren</string>
@@ -40,7 +40,7 @@
   <string name="please_wait">Bitte warten Sie einen Moment &#x2026;</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">Dein Gerät wird nicht unterstützt</string>
-  <string name="msg_unsupported_device">You are using %1$s variant of Code on the Go on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of Code on the Go.</string>
+  <string name="msg_unsupported_device">You are using %1$s variant of %3$s on a %2$s-only device. This configuration is not supported. Please install the %2$s variant of %3$s.</string>
   <string name="title_clear_output">Ausgabe s&#xE4;ubern</string>
   <string name="build_output">Build-Ausgabe</string>
   <string name="quick_run_debug">Schnelldurchlauf</string>
@@ -51,7 +51,7 @@
   <string name="run">Ausführen</string>
   <!-- Project -->
   <string name="title_first_build">Einrichtung Ihres neuen Projekts</string>
-  <string name="msg_first_build">Code on the Go richtet die Dateien und Verzeichnisse Ihres neuen Projekts ein. Bitte haben Sie etwas Geduld!\n\nSobald die Einrichtung abgeschlossen ist, wird unten auf dem Bildschirm Projekt initialisiert angezeigt.</string>
+  <string name="msg_first_build">%1$s richtet die Dateien und Verzeichnisse Ihres neuen Projekts ein. Bitte haben Sie etwas Geduld!\n\nSobald die Einrichtung abgeschlossen ist, wird unten auf dem Bildschirm Projekt initialisiert angezeigt.</string>
   <string name="create_project">Projekt erstellen</string>
   <string name="minimum_sdk">Mindest SDK</string>
   <string name="new_project">Neues Projekt</string>
@@ -140,7 +140,7 @@
   <string name="redo">Wiederholen</string>
   <!-- Preferences -->
   <string name="title_change_text_size">Editor Schriftgr&#xF6;&#xDF;e</string>
-  <string name="idepref_about_title">&#xDC;ber Code on the Go</string>
+  <string name="idepref_about_title">&#xDC;ber %1$s</string>
   <string name="idepref_build_clearCache_title">Gradle-Caches l&#xF6;schen</string>
   <string name="idepref_build_clearCache_summary">L&#xF6;schen Sie das Gradle-Cache-Verzeichnis. Dadurch werden alle von Gradle heruntergeladenen Dateien gel&#xF6;scht. Erforderliche Dateien werden im n&#xE4;chsten Build erneut heruntergeladen.</string>
   <string name="idepref_build_customgradlecommands_title">Zus&#xE4;tzliche Gradle-Befehle</string>
@@ -175,7 +175,7 @@
   <string name="msg_generate_xml_failed">XML-Code konnte nicht generiert werden</string>
   <string name="title_generating_xml">Generieren von XML-Code</string>
   <string name="msg_swipe_up">Wischen Sie nach oben, um Build Ausgaben, Logs und mehr anzuzeigen.</string>
-  <string name="msg_ide_crashed">Code on the Go ist abgest&#xFC;rzt</string>
+  <string name="msg_ide_crashed">%1$s ist abgest&#xFC;rzt</string>
   <string name="msg_crash_info">Bitte &#xF6;ffnen Sie ein Issue auf GitHub mit dem folgenden Stacktrace:</string>
   <string name="msg_close_crash_page">Klicken Sie auf die Schaltfl&#xE4;che unten, um den Log zu kopieren und die Problemseite zu &#xF6;ffnen.</string>
   <string name="title_translations">&#xDC;bersetzungen</string>
@@ -242,7 +242,7 @@
   <string name="idepref_channel_summary">Abonnieren sie für die neuesten Updates.</string>
   <string name="idepref_group_summary">Diskutieren Sie hier über Features, Bugs und Verbesserungen.</string>
   <string name="idepref_changelog_summary">Was ist neu in der Version?</string>
-  <string name="idepref_about_summary">Mehr über Code on the Go.</string>
+  <string name="idepref_about_summary">Mehr über %1$s.</string>
   <string name="idepref_general_summary">Allgemeine IDE-Konfiguration.</string>
   <string name="idepref_editor_summary">Konfiguriere den Editor.</string>
   <string name="idepref_xml_trimFinalNewLine_title">Letzte Zeile löschen</string>
@@ -281,7 +281,7 @@
   <string name="idepref_customFont_summary">Wenn aktiviert, wird die Datei unter \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" als Editor Schriftart verwendet.</string>
   <string name="msg_installing_apk">Installiere APK...</string>
   <string name="msg_action_open_application">Möchtest du die Applikation öffnen?</string>
-  <string name="title_gradle_service_notification_channel">Code on the Go Gradle-Build-Service</string>
+  <string name="title_gradle_service_notification_channel">%1$s Gradle-Build-Service</string>
   <string name="msg_hex_color_code">Hex Farbcode</string>
   <string name="msg_color_picker_pick">Auswählen</string>
   <string name="msg_chmod_exec">Ausführbare Berechtigungen festlegen…</string>
@@ -346,7 +346,7 @@
   <string name="uiMode_dark">Dunkel</string>
   <string name="uiMode_system">Vom System übernehmen</string>
   <string name="idepref_general_themeSelector_title">Erscheinungsbild</string>
-  <string name="idepref_general_themeSelector_summary">Wählen Sie ein Theme für Code on the Go aus (erfordert Neustart).</string>
+  <string name="idepref_general_themeSelector_summary">Wählen Sie ein Theme für %1$s aus (erfordert Neustart).</string>
   <string name="idepref_general_projectConfig">Projektkonfiguration</string>
   <string name="msg_app_launch_failed">Launch failed. Install the application first.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnostik aktiviert</string>
@@ -386,10 +386,10 @@
   <string name="title_android_version">Android Version</string>
   <string name="btn_opt_in">Einwilligen</string>
   <string name="title_developer_options">Entwickleroptionen</string>
-  <string name="idepref_devOptions_summary">Experimentelle/Debugging Optionen für Code on the Go</string>
+  <string name="idepref_devOptions_summary">Experimentelle/Debugging Optionen für %1$s</string>
   <string name="idepref_group_debugging">Debugging</string>
   <string name="idepref_devOptions_dumpLogs_title">Protokolle ausgeben</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Code on the Go-Logs in $HOME/.cg/logs ausgeben</string>
+  <string name="idepref_devOptions_dumpLogs_summary">%1$s-Logs in $HOME/.cg/logs ausgeben</string>
   <string name="msg_emptyview_applogs">Run the debug variant of your application to view its logs here.</string>
   <string name="msg_logsender_disabled">LogSender is disabled. You can enable it in preferences.</string>
   <string name="msg_emptyview_idelogs">Protokolle der IDE werden hier angezeigt.</string>
@@ -397,7 +397,7 @@
   <string name="msg_emptyview_buildoutput">"Build the application or run a task to see its build output here. "</string>
   <string name="msg_codeaction_failed">Fehler beim Ausführen der Aktion</string>
   <string name="idepref_devOptions_enableLogsender_title">LogSender aktivieren</string>
-  <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in Code on the Go</string>
+  <string name="idepref_devOptions_enableLogsender_summary">When disabled, logs from applications won\'t be shown in %1$s</string>
   <string name="title_build_variants">Build Varianten</string>
   <string name="build_variants_apply">Übernehmen</string>
   <string name="build_variants_cancel">Verwerfen</string>
@@ -415,14 +415,14 @@
   <string name="msg_launch_failure_no_app_module">Anwendung kann nicht ausgeführt werden. Keine Anwendungsmodule im Projekt gefunden.</string>
   <string name="title_launch_app">App starten</string>
   <string name="title_experiment_flavor">Experimentell</string>
-  <string name="msg_experimental_flavor">You are using %1$s variant of Code on the Go on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
+  <string name="msg_experimental_flavor">You are using %1$s variant of %3$s on a %2$s device. This configuration may work, but it\'ll result in reduced performance and possible security vulnerabilities. Please avoid using this configuration whenever possible.</string>
   <string name="idepref_editor_pinLineNumbers_title">Pin line numbers</string>
   <string name="idepref_editor_pinLineNumbers_summary">Whether the editor should pin line number panel when scrolled horizontally.</string>
   <string name="theme_blue_wave">Blue Wave</string>
   <string name="theme_sunny_glow">Sunny Glow</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">Sprache</string>
-  <string name="idepref_general_localeSelector_summary">Wähle eine Sprache für Code on the Go aus.</string>
+  <string name="idepref_general_localeSelector_summary">Wähle eine Sprache für %1$s aus.</string>
   <string name="locale_system_default">Systemstandard</string>
   <string name="msg_project_dir_inaccessible">Projektverzeichnis ist nicht erreichbar</string>
   <string name="msg_file_is_not_dir">Ausgewählte Datei ist kein Verzeichnis</string>
@@ -436,10 +436,10 @@
   <string name="title_grant">Gewähren</string>
   <string name="permission_title_storage">Speicherplatz</string>
   <string name="permission_desc_storage">Erforderlich um auf Projektdateien zuzugreifen.</string>
-  <string name="permission_desc_install_packages">Ermöglicht die Installation von APKs, die mit Code on the Go erstellt wurden.</string>
+  <string name="permission_desc_install_packages">Ermöglicht die Installation von APKs, die mit %1$s erstellt wurden.</string>
   <string name="permission_title_install_packages">Pakete installieren</string>
   <string name="onboarding_title_permissions">Berechtigungen</string>
-  <string name="onboarding_subtitle_permissions">Code on the Go benötigt folgende Berechtigungen</string>
+  <string name="onboarding_subtitle_permissions">%1$s benötigt folgende Berechtigungen</string>
   <string name="msg_grant_permissions">Bitte erteile die Berechtigung, um fortzufahren.</string>
   <string name="msg_no_internet">Es sieht so aus, als wären sie offline. Überprüfen Sie Ihre Internetverbindung.</string>
   <string name="msg_connected_to_cellular">Achtung! Du benutzt mobile Daten.</string>

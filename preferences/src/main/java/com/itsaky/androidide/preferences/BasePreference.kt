@@ -36,8 +36,9 @@ abstract class BasePreference : IPreference() {
   override fun onCreateView(context: Context): Preference {
     val pref = onCreatePreference(context)
     pref.key = this.key
-    pref.title = context.getString(this.title)
-    this.summary?.let { pref.summary = context.getString(it) }
+    val appName = context.getString(R.string.app_name)
+    pref.title = context.getString(this.title, appName)
+    this.summary?.let { pref.summary = context.getString(it, appName) }
 
     pref.isIconSpaceReserved = this.icon != null
     this.icon?.let {

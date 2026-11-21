@@ -89,7 +89,7 @@ class EndToEndTest : TestCase() {
 									}
 									description {
 										isVisible()
-										hasText(item.description)
+										hasText(targetContext.getString(item.description, targetContext.getString(com.itsaky.androidide.R.string.app_name)))
 									}
 									grantButton {
 										isVisible()

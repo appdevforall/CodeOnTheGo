@@ -1482,7 +1482,7 @@ abstract class BaseEditorActivity :
 		newMaterialDialogBuilder(this)
 			.setPositiveButton(android.R.string.ok, null)
 			.setTitle(string.title_first_build)
-			.setMessage(string.msg_first_build)
+			.setMessage(getString(string.msg_first_build, getString(string.app_name)))
 			.setCancelable(false)
 			.create()
 			.show()
@@ -1879,7 +1879,7 @@ abstract class BaseEditorActivity :
 		val indentChild = 140
 
 		fun appendHierarchicalText(textRes: Int) {
-			val text = getString(textRes)
+			val text = getString(textRes, getString(string.app_name))
 			text.split("\n").forEach { line ->
 				val trimmed = line.trimStart()
 

@@ -44,7 +44,7 @@ class DocsAction(context: Context) : ActionItem {
         val intent =
             Intent(context, HelpActivity::class.java).apply {
                 putExtra(CONTENT_KEY, context.getString(string.docs_url))
-                putExtra(CONTENT_TITLE_KEY, context.getString(string.back_to_cogo))
+                putExtra(CONTENT_TITLE_KEY, context.getString(string.back_to_cogo, context.getString(string.app_name)))
             }
         context.startActivity(intent)
         return true

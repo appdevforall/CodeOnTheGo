@@ -127,7 +127,7 @@ class DebugOverlayManager private constructor(
 			val message = if (state == PermissionsHelper.OverlayPermissionState.UNSUPPORTED) {
 				ctx.getString(R.string.permission_overlay_unsupported_hint)
 			} else {
-				ctx.getString(R.string.permission_overlay_restricted_settings_hint)
+				ctx.getString(R.string.permission_overlay_restricted_settings_hint, ctx.getString(R.string.app_name))
 			}
 			Toast.makeText(ctx, message, Toast.LENGTH_LONG).show()
 			return
