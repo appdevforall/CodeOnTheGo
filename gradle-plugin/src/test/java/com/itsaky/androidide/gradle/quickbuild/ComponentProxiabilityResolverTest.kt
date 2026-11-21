@@ -78,6 +78,8 @@ class ComponentProxiabilityResolverTest {
 		// library plumbing that must stay out of the component list and the restart rule.
 		assertThat(resolver.resolve("com.google.firebase.components.ComponentDiscoveryService"))
 			.isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
+		assertThat(resolver.resolve("org.appdevforall.sqlitedebugger.DebuggerStartup"))
+			.isInstanceOf(ComponentProxiabilityResolver.Resolution.Skip::class.java)
 	}
 
 	@Test

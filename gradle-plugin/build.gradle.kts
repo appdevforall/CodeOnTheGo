@@ -35,9 +35,7 @@ description = "Gradle Plugin for projects that are built with AndroidIDE"
 // projectsEvaluated sweep silently misses projects under configure-on-demand.
 val mavenLocalStagingProjects = listOf(":logsender", ":logger", ":build-info")
 
-tasks.named<Test>("test") {
-	useJUnitPlatform()
-
+fun Test.stageMavenLocalRepos() {
 	val stagedRepos =
 		mavenLocalStagingProjects.map { path ->
 			dependsOn("$path:publishAllPublicationsToBuildMavenLocalRepository")
@@ -63,6 +61,75 @@ tasks.named<Test>("test") {
 		reposFile.parentFile.mkdirs()
 		reposFile.writeText(stagedRepos.joinToString(separator = File.pathSeparator))
 	}
+}
+
+// The SQLite rewrite tests find the jars they compile against in the cache of this build's Gradle user home, which
+// GRADLE_USER_HOME or --gradle-user-home can move from ~/.gradle. An argument, not an input: the path is per machine.
+val gradleUserHomePath: String = gradle.gradleUserHomeDir.absolutePath
+
+fun Test.passGradleUserHome() {
+	jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dcogo.test.gradleUserHome=$gradleUserHomePath") })
+}
+
+val sqliteReleaseApkTestClass = "com.itsaky.androidide.gradle.SqliteReleaseApkTest"
+
+tasks.named<Test>("test") {
+	useJUnitPlatform()
+	stageMavenLocalRepos()
+	passGradleUserHome()
+	// Run by sqliteReleaseApkTest below, which builds the AARs it needs
+	filter { excludeTestsMatching(sqliteReleaseApkTestClass) }
+}
+
+// The release-APK guard (ADFA-7138): SqliteReleaseApkTest builds the minified release and the debug variant
+// of a sample app that opted into the SQLite debugger, with the real debugger, rewrite runtime and requery
+// AARs, and runs scripts/check-release-apk-no-sqlite-debugger.sh on both APKs. A task of its own because it
+// needs the NDK-built debugger AAR, which the other tests do not; CI's build_apk job runs it on every push.
+val requeryAar =
+	configurations.create("sqliteReleaseApkTestRequery") {
+		isCanBeConsumed = false
+		isTransitive = false
+	}
+
+dependencies {
+	add(requeryAar.name, variantOf(libs.tests.requery.sqliteAndroid) { artifactType("aar") })
+}
+
+// Under configure-on-demand the AAR projects are not configured yet when the task below reads their build
+// directories, as in :app
+val sqliteReleaseApkTestAarProjects =
+	mapOf(
+		"debugger" to ":subprojects:sqlite-debugger",
+		"rewriteRuntime" to ":subprojects:sqlite-rewrite-runtime",
+	)
+sqliteReleaseApkTestAarProjects.values.forEach(::evaluationDependsOn)
+
+tasks.register<Test>("sqliteReleaseApkTest") {
+	description = "Builds an opted-in sample app's release APK and checks that it carries no SQLite debugger"
+	group = "verification"
+	val testSourceSet = sourceSets["test"]
+	testClassesDirs = testSourceSet.output.classesDirs
+	classpath = testSourceSet.runtimeClasspath
+	useJUnitPlatform()
+	stageMavenLocalRepos()
+	passGradleUserHome()
+	filter { includeTestsMatching(sqliteReleaseApkTestClass) }
+
+	// The tasks AndroidIDEAssetsPlugin bundles these AARs with, so this task and :app:assemble build them once
+	for ((name, path) in sqliteReleaseApkTestAarProjects) {
+		dependsOn("$path:assembleRelease")
+		val aar =
+			project(path)
+				.layout.buildDirectory
+				.file("outputs/aar/${path.substringAfterLast(':')}-release.aar")
+				.get()
+				.asFile
+		inputs.file(aar).withPropertyName("${name}Aar")
+		systemProperty("cogo.test.sqlite.${name}Aar", aar.absolutePath)
+	}
+	inputs.files(requeryAar).withPropertyName("requeryAar")
+	inputs.file(rootProject.file("scripts/check-release-apk-no-sqlite-debugger.sh")).withPropertyName("checkScript")
+	jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-Dcogo.test.sqlite.requeryAar=${requeryAar.singleFile.absolutePath}") })
 }
 
 configurations {
@@ -93,10 +160,21 @@ dependencies {
 	// claim the minAgpCheck guard below keeps honest by recompiling them against it.
 	add("androidBuildTool", libs.android.gradle.plugin)
 
+	// The SQLite rewrite (ADFA-7138). AGP's runtime classpath carries ASM, but its API
+	// artifacts expose only asm itself, so the rewrite compiles against the rest of it here.
+	compileOnly(libs.ow2.asm)
+	compileOnly(libs.ow2.asmCommons)
+	compileOnly(libs.ow2.asmTree)
+	compileOnly(libs.ow2.asmAnalysis)
+
 	testImplementation(gradleTestKit())
 	testImplementation(libs.tests.junit.jupiter)
 	testImplementation(libs.tests.google.truth)
 	testImplementation(projects.shared)
+	testImplementation(libs.ow2.asm)
+	testImplementation(libs.ow2.asmCommons)
+	testImplementation(libs.ow2.asmTree)
+	testImplementation(libs.ow2.asmAnalysis)
 
 	testRuntimeOnly(libs.tests.junit.platformLauncher)
 }
@@ -125,6 +203,10 @@ dependencies {
 	"minAgpCheckImplementation"(libs.composite.constants)
 	"minAgpCheckImplementation"(projects.gradlePluginConfig)
 	"minAgpCheckImplementation"(projects.buildInfo)
+	"minAgpCheckCompileOnly"(libs.ow2.asm)
+	"minAgpCheckCompileOnly"(libs.ow2.asmCommons)
+	"minAgpCheckCompileOnly"(libs.ow2.asmTree)
+	"minAgpCheckCompileOnly"(libs.ow2.asmAnalysis)
 }
 
 tasks.named("check") {
@@ -159,6 +241,15 @@ gradlePlugin {
 			description =
 				"Gradle plugin for applying LogSender-specific configuration to projects that are built with AndroidIDE"
 			tags.set(setOf("androidide", "logsender"))
+		}
+
+		create("sqliteDebuggerPlugin") {
+			id = "${BuildConfig.PACKAGE_NAME}.sqlitedebugger"
+			implementationClass = "${BuildConfig.PACKAGE_NAME}.gradle.SqliteDebuggerPlugin"
+			displayName = "AndroidIDE SQLite Debugger Gradle Plugin"
+			description =
+				"Gradle plugin for adding the SQLite debugger to debuggable variants of projects that are built with AndroidIDE"
+			tags.set(setOf("androidide", "sqlite"))
 		}
 	}
 }

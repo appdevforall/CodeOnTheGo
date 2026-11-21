@@ -19,9 +19,12 @@ sealed interface QuickBuildStatus {
 	 *   ([QuickBuildSessionState.Idle.lastStartFailed]), so the bolt keeps the error tone until
 	 *   the next tap or save; carried here because a failed start rests in Hidden and the tone
 	 *   is derived from status alone.
+	 * @property startRefused that failed start was Quick Build deliberately declining the project
+	 *   ([QuickBuildSessionState.Idle.startRefused]), not a fault; surfaces word it differently.
 	 */
 	data class Hidden(
 		val lastStartFailed: Boolean = false,
+		val startRefused: Boolean = false,
 	) : QuickBuildStatus
 
 	/**
@@ -120,7 +123,7 @@ sealed interface QuickBuildStatus {
 		fun from(state: QuickBuildSessionState): QuickBuildStatus =
 			when (state) {
 				is QuickBuildSessionState.Idle -> {
-					Hidden(state.lastStartFailed)
+					Hidden(state.lastStartFailed, state.startRefused)
 				}
 
 				// A warm-up the user never asked for stays invisible - but it must not clear a
@@ -128,7 +131,7 @@ sealed interface QuickBuildStatus {
 				is QuickBuildSessionState.Prebuilding -> {
 					// A warm build has no baseline to replace, so a tap that queues on one is
 					// always a session's first provision.
-					if (state.tapQueued) Provisioning() else Hidden(state.lastStartFailed)
+					if (state.tapQueued) Provisioning() else Hidden(state.lastStartFailed, state.startRefused)
 				}
 
 				is QuickBuildSessionState.Provisioning -> {

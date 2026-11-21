@@ -85,12 +85,40 @@ class LogSenderPlugin : Plugin<Project> {
 			}
 		}
 	}
+}
 
-	private fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
-		if (this is ApplicationVariantImpl) {
-			variantDependencies.runtimeClasspath.action()
-		} else if (this is AnalyticsEnabledApplicationVariant) {
-			delegate.withRuntimeConfiguration(action)
-		}
+/**
+ * The variant's runtime classpath configuration, or null for a variant type it does not recognize
+ * (a wrapper a future AGP may add).
+ */
+internal fun ApplicationVariant.runtimeConfigurationOrNull(): Configuration? =
+	when (this) {
+		is ApplicationVariantImpl -> variantDependencies.runtimeClasspath
+		is AnalyticsEnabledApplicationVariant -> delegate.runtimeConfigurationOrNull()
+		else -> null
 	}
+
+/**
+ * Runs [action] on the variant's runtime classpath configuration. Used by [LogSenderPlugin], and
+ * does nothing for a variant type it does not recognize; the SQLite plugins use
+ * [requireRuntimeConfiguration] instead.
+ */
+internal fun ApplicationVariant.withRuntimeConfiguration(action: Configuration.() -> Unit) {
+	runtimeConfigurationOrNull()?.action()
+}
+
+/**
+ * Like [withRuntimeConfiguration], but fails the build when the configuration cannot be reached. For
+ * plugins that have already registered something that needs what [action] adds: skipping it would
+ * build an app that throws NoClassDefFoundError on the device.
+ */
+internal fun ApplicationVariant.requireRuntimeConfiguration(action: Configuration.() -> Unit) {
+	val configuration =
+		runtimeConfigurationOrNull()
+			?: throw GradleException(
+				"Cannot reach the runtime classpath of variant '$name': its type ${javaClass.name} is not one this " +
+					"plugin knows. The SQLite debugger cannot add its runtime dependencies to it, so the app would " +
+					"fail at run time. Remove 'cogo.sqliteDebugger' from gradle.properties to build without it.",
+			)
+	configuration.action()
 }

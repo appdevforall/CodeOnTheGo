@@ -799,13 +799,7 @@ open class EditorHandlerActivity :
 				// path's tint and disabled dim here.
 				icon = toolbarIcon(action.icon, action.createColorFilter(data), action.enabled),
 				hint = getToolbarContentDescription(action, data),
-				onClick = {
-					if (action.enabled) {
-						registry.executeAction(action, data)
-					} else if (action.id == QuickBuildAction.ID) {
-						QuickBuildAction.disabledReason(this)?.let(::flashInfoLong)
-					}
-				},
+				onClick = { tapToolbarAction(registry, action, data) },
 				onLongClick = {
 					// Quick Build is a split button: long-press opens the
 					// Quick Build / Restart session / Help dropdown instead of the
@@ -881,9 +875,7 @@ open class EditorHandlerActivity :
 		popup.setOnMenuItemClickListener { item ->
 			when (item.itemId) {
 				R.id.action_quick_build -> {
-					// Through the registry, same as Standard Run below, so the menu entry
-					// and the toolbar tap share one code path (incl. the analytics event).
-					if (quickBuild != null && quickBuild.enabled) registry.executeAction(quickBuild, data)
+					runQuickBuildAction(data)
 					true
 				}
 
@@ -907,6 +899,37 @@ open class EditorHandlerActivity :
 			}
 		}
 		popup.show()
+	}
+
+	/**
+	 * A tap on a toolbar button: runs its action through the registry, or, while the Quick Build
+	 * button is greyed out, flashes why (ADFA-6574).
+	 */
+	private fun tapToolbarAction(
+		registry: DefaultActionsRegistry,
+		action: ActionItem,
+		data: ActionData,
+	) {
+		if (action.enabled) {
+			registry.executeAction(action, data)
+		} else if (action.id == QuickBuildAction.ID) {
+			QuickBuildAction.disabledReason(this)?.let(::flashInfoLong)
+		}
+	}
+
+	/**
+	 * Taps the toolbar's Quick Build button, through the button's own tap, so the dropdown row and a
+	 * status line that asks for a tap do what the button does (including the analytics event): run
+	 * Quick Build, or, while the button is greyed out, flash the reason the button gives.
+	 */
+	private fun runQuickBuildAction(data: ActionData) {
+		val registry = getInstance() as DefaultActionsRegistry
+		val quickBuild = registry.findAction(EDITOR_TOOLBAR, QuickBuildAction.ID) ?: return
+		tapToolbarAction(registry, quickBuild, data)
+	}
+
+	override fun onQuickBuildStatusLineTapped() {
+		runQuickBuildAction(createToolbarActionData())
 	}
 
 	private fun createToolbarActionData(): ActionData {

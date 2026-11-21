@@ -120,6 +120,10 @@ class ComponentProxiabilityResolver(
 				"com.itsaky.androidide.quickbuild.runtime.QuickBuildKeepAliveService" to
 					"the quick-build runtime's own keep-alive, not user code; skipping keeps it out " +
 					"of the component list and the deploy policy's restart rule",
+				// Guard only: AndroidIDEGradlePlugin never applies Quick Build to a project that opted into the SQLite debugger.
+				"org.appdevforall.sqlitedebugger.DebuggerStartup" to
+					"CoGo's injected SQLite debugger provider (ADFA-7131); it runs once from the base APK dex, " +
+					"and skipping keeps it out of the component list and the deploy policy's restart rule",
 				"com.google.firebase.components.ComponentDiscoveryService" to
 					"Firebase plumbing whose class never travels in the payload; skipping keeps it out " +
 					"of the component list and the deploy policy's restart rule",

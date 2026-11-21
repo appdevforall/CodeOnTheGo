@@ -65,6 +65,21 @@ public final class GradlePluginConfig {
 	public static final String PROPERTY_LOG_SENDER_AAR = "androidide.logsender.aar";
 
 	/**
+	 * Property, normally in the project's gradle.properties, that opts the project into the SQLite debugger (ADFA-7131). The debugger is added to debuggable variants only, and only when the value is <code>true</code>.
+	 */
+	public static final String PROPERTY_SQLITE_DEBUGGER_ENABLED = "cogo.sqliteDebugger";
+
+	/**
+	 * The path to the SQLite debugger AAR file, passed by Code on the Go like {@link #PROPERTY_LOG_SENDER_AAR}.
+	 */
+	public static final String PROPERTY_SQLITE_DEBUGGER_AAR = "androidide.sqliteDebugger.aar";
+
+	/**
+	 * The path to the AAR with the helpers the SQLite rewrite redirects to (ADFA-7138), passed by Code on the Go like {@link #PROPERTY_SQLITE_DEBUGGER_AAR}.
+	 */
+	public static final String PROPERTY_SQLITE_REWRITE_RUNTIME_AAR = "androidide.sqliteRewriteRuntime.aar";
+
+	/**
 	 * Property that is set in tests to indicate that the plugin is being applied in a test environment.
 	 * <p>
 	 * <b>This is an internal property and should not be manually set by users.</b>

@@ -291,6 +291,9 @@ composeRuntimeDaemonTests = { module = "androidx.compose.runtime:runtime-android
 # Only :quickbuild:daemon uses this, and it takes the jar from the on-device Gradle
 # distribution rather than the APK - so the version is the distribution's, not ours.
 ow2-asm = { module = "org.ow2.asm:asm", version = "9.9" }
+ow2-asmAnalysis = { module = "org.ow2.asm:asm-analysis", version = "9.9" }
+ow2-asmCommons = { module = "org.ow2.asm:asm-commons", version = "9.9" }
+ow2-asmTree = { module = "org.ow2.asm:asm-tree", version = "9.9" }
 
 # Tests
 tests-junit = { module = "junit:junit", version = "4.13.2" }
@@ -299,6 +302,8 @@ tests-junit-platformLauncher = { module = "org.junit.platform:junit-platform-lau
 tests-junit-vintageEngine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit-jupiter" }
 core-tests-anroidx-arch = { module = "androidx.arch.core:core-testing", version.ref = "anroidx-test-core" }
 tests-google-truth = { module = "com.google.truth:truth", version = "1.4.1" }
+# The requery the ADFA-7082 template ships in libs/ (JitPack); :gradle-plugin's sqliteReleaseApkTest builds against it
+tests-requery-sqliteAndroid = { module = "com.github.requery:sqlite-android", version = "3.49.0" }
 tests-robolectric = { module = "org.robolectric:robolectric", version = "4.11.1" }
 tests-androidx-test-core = { module = "androidx.test:core", version = "1.5.0" }
 tests-androidx-test-monitor = { module = "androidx.test:monitor", version = "1.8.0" }

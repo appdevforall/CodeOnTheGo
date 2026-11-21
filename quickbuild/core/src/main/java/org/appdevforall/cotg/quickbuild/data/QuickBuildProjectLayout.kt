@@ -29,6 +29,8 @@ import java.io.File
  * @property libraryResourceFlats pre-compiled `.flat` resource units from the proxy app build,
  *   passed to `aapt2 link` as `-R` overlays so a relink can resolve a resource only a dependency
  *   AAR declares (e.g. Material3's `Theme.Material3.DayNight.NoActionBar`).
+ * @property gradleUserHome the Gradle user home, whose `gradle.properties` is watched with the
+ *   project's own; null when there is none to watch.
  */
 class QuickBuildProjectLayout(
 	val projectRoot: File,
@@ -37,6 +39,7 @@ class QuickBuildProjectLayout(
 	private val extraSourceRoots: List<File> = emptyList(),
 	private val stableIdsFile: File? = null,
 	private val libraryResourceFlats: List<File> = emptyList(),
+	private val gradleUserHome: File? = null,
 ) {
 	private val mainDir = File(appModuleDir, "src/main")
 
@@ -107,18 +110,25 @@ class QuickBuildProjectLayout(
 	/**
 	 * Exact files watched outside the roots (gradle config; changes invalidate).
 	 *
-	 * @return the root's settings/properties/version-catalog files plus both build-script
-	 *   spellings for every module, listed unconditionally - only the existing ones are polled.
+	 * @return the root's settings/properties/version-catalog files, both build-script spellings
+	 *   and a `gradle.properties` for every module [moduleDirs] returns (the app module Quick Build
+	 *   builds, and each module the scan finds up to [MODULE_SCAN_MAX_DEPTH] levels below the root),
+	 *   and the Gradle user home's `gradle.properties`, listed unconditionally - only the existing
+	 *   ones are polled. So turning `QuickBuildProjectSupport.isSqliteDebuggerEnabled`'s opt-in on
+	 *   in one of those files invalidates a live session. Another app module nested deeper is read
+	 *   at the next proxy app build (a provision or a rebaseline), but its `gradle.properties` is
+	 *   not watched, so turning the opt-in on there does not end a running session.
 	 */
 	fun watchedFiles(): List<File> =
-		listOf(
+		listOfNotNull(
 			File(projectRoot, "settings.gradle"),
 			File(projectRoot, "settings.gradle.kts"),
 			File(projectRoot, "gradle.properties"),
 			File(projectRoot, "gradle/libs.versions.toml"),
+			gradleUserHome?.let { File(it, "gradle.properties") },
 		) +
 			moduleDirs().flatMap {
-				listOf(File(it, "build.gradle"), File(it, "build.gradle.kts"))
+				listOf(File(it, "build.gradle"), File(it, "build.gradle.kts"), File(it, "gradle.properties"))
 			}
 
 	/**
