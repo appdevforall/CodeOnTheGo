@@ -1,6 +1,7 @@
 package com.itsaky.androidide.build.maven
 
 import com.google.common.truth.Truth.assertThat
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -100,6 +101,14 @@ class ModuleUrlNamesTest {
 		renameFilesToModuleUrls(tmp.root.toPath())
 
 		assertThat(d.listing()).containsExactly("kmp-3.module", "kmp.jar").inOrder()
+	}
+
+	@Test
+	fun `a module that is not JSON stops the conversion`() {
+		val bad = dir("g/x/bad/1").put("bad-1.module", "not json")
+
+		val e = assertThrows(IllegalStateException::class.java) { renameFilesToModuleUrls(tmp.root.toPath()) }
+		assertThat(e).hasMessageThat().contains(bad.path)
 	}
 
 	@Test
