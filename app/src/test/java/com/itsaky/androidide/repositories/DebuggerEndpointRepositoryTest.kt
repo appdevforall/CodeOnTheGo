@@ -41,6 +41,7 @@ class DebuggerEndpointRepositoryTest {
 				room.debuggerEndpointDao(),
 				CoroutineScope(Dispatchers.IO),
 				clock = { 1234L },
+				isInstalled = { true },
 				announce = { announced += it },
 			)
 	}
@@ -132,6 +133,7 @@ class DebuggerEndpointRepositoryTest {
 			room.debuggerEndpointDao(),
 			CoroutineScope(Dispatchers.IO),
 			clock = { now.get() },
+			isInstalled = { true },
 			announce = { announced += it },
 		)
 
@@ -324,6 +326,7 @@ class DebuggerEndpointRepositoryTest {
 						room.debuggerEndpointDao(),
 						CoroutineScope(Dispatchers.IO),
 						clock = { 1234L },
+						isInstalled = { true },
 						announce = { id ->
 							// The running app replies at once, the tightest case: before anything after the request runs.
 							runBlocking {
@@ -449,7 +452,12 @@ class DebuggerEndpointRepositoryTest {
 				{ android.database.SQLException("generic") },
 			)) {
 				val failing =
-					DebuggerEndpointRepository(ThrowingDao(error), CoroutineScope(Dispatchers.IO), announce = { announced += it })
+					DebuggerEndpointRepository(
+						ThrowingDao(error),
+						CoroutineScope(Dispatchers.IO),
+						isInstalled = { true },
+						announce = { announced += it },
+					)
 
 				assertThat(failing.recordInstalled("com.example", "/p/a")).isFalse()
 				assertThat(failing.recordLaunched("com.example", "/p/a")).isFalse()
@@ -464,11 +472,166 @@ class DebuggerEndpointRepositoryTest {
 			DebuggerEndpointRepository(
 				ThrowingDao { kotlinx.coroutines.CancellationException("cancelled") },
 				CoroutineScope(Dispatchers.IO),
+				isInstalled = { true },
 				announce = {},
 			)
 
 		val result = runCatching { runBlocking { failing.storeEndpoint("com.example", endpoint) } }
 
 		assertThat(result.exceptionOrNull()).isInstanceOf(kotlinx.coroutines.CancellationException::class.java)
+	}
+
+	@Test
+	fun `reported endpoints are found through a non-canonical path and unreported apps are left out`() =
+		runBlocking<Unit> {
+			val dir =
+				java.nio.file.Files
+					.createTempDirectory("proj")
+					.toFile()
+			try {
+				addProject(dir.canonicalPath)
+				assertThat(repository.recordInstalled("com.example.reported", dir.canonicalPath)).isTrue()
+				assertThat(repository.recordInstalled("com.example.silent", dir.canonicalPath)).isTrue()
+				assertThat(repository.storeEndpoint("com.example.reported", endpoint)).isTrue()
+
+				val endpoints = repository.reportedEndpoints(File(dir, "../" + dir.name))
+
+				assertThat(endpoints.map { it.applicationId }).containsExactly("com.example.reported")
+				val e = endpoints.single()
+				assertThat(e.port).isEqualTo(5555)
+				assertThat(e.token).isEqualTo("tok-en_1")
+				assertThat(e.updatedAtMillis).isEqualTo(1234L)
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `an app that has not reported is dropped without asking whether it is installed, a binder call`() =
+		runBlocking<Unit> {
+			val dir =
+				java.nio.file.Files
+					.createTempDirectory("proj")
+					.toFile()
+			try {
+				addProject(dir.canonicalPath)
+				val asked = CopyOnWriteArrayList<String>()
+				val counting =
+					DebuggerEndpointRepository(
+						room.debuggerEndpointDao(),
+						CoroutineScope(Dispatchers.IO),
+						clock = { 1234L },
+						isInstalled = {
+							asked += it
+							true
+						},
+						announce = {},
+					)
+				assertThat(counting.recordInstalled("com.example.reported", dir.canonicalPath)).isTrue()
+				assertThat(counting.recordInstalled("com.example.silent", dir.canonicalPath)).isTrue()
+				assertThat(counting.storeEndpoint("com.example.reported", endpoint)).isTrue()
+
+				assertThat(counting.reportedEndpoints(dir).map { it.applicationId }).containsExactly("com.example.reported")
+				assertThat(asked).containsExactly("com.example.reported")
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `an app that is no longer installed is left out and installed ones are returned`() =
+		runBlocking<Unit> {
+			val dir =
+				java.nio.file.Files
+					.createTempDirectory("proj")
+					.toFile()
+			try {
+				addProject(dir.canonicalPath)
+				val installed = setOf("com.example.alive")
+				val pruning =
+					DebuggerEndpointRepository(
+						room.debuggerEndpointDao(),
+						CoroutineScope(Dispatchers.IO),
+						clock = { 1234L },
+						isInstalled = { it in installed },
+						announce = {},
+					)
+				for (id in listOf("com.example.alive", "com.example.gone")) {
+					assertThat(pruning.recordInstalled(id, dir.canonicalPath)).isTrue()
+					assertThat(pruning.storeEndpoint(id, endpoint)).isTrue()
+				}
+
+				val endpoints = pruning.reportedEndpoints(dir)
+
+				assertThat(endpoints.map { it.applicationId }).containsExactly("com.example.alive")
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `an app reinstalled from its project is left out until its new process reports`() =
+		runBlocking<Unit> {
+			val dir = newProject()
+			try {
+				assertThat(repository.recordInstalled("com.example", dir.canonicalPath)).isTrue()
+				assertThat(repository.storeEndpoint("com.example", endpoint)).isTrue()
+				repository.notePendingInstall(1, dir, "com.example")
+
+				// The app is still installed, so only the clear keeps a build without the SQLite debugger out.
+				repository.confirmInstall(1, "com.example")!!.join()
+				assertThat(repository.reportedEndpoints(dir)).isEmpty()
+
+				assertThat(repository.storeEndpoint("com.example", DebuggerEndpointValidation.Endpoint("new-tok_2", 6666))).isTrue()
+				assertThat(repository.reportedEndpoints(dir).map { it.token to it.port }).containsExactly("new-tok_2" to 6666)
+			} finally {
+				dir.delete()
+			}
+		}
+
+	@Test
+	fun `each project gets only its own apps, also through a symlinked path, and an app moved away leaves the old one`() =
+		runBlocking<Unit> {
+			val a =
+				java.nio.file.Files
+					.createTempDirectory("projA")
+					.toFile()
+			val b =
+				java.nio.file.Files
+					.createTempDirectory("projB")
+					.toFile()
+			val link = File(a.parentFile, a.name + "-link")
+			java.nio.file.Files
+				.createSymbolicLink(link.toPath(), a.toPath())
+			try {
+				addProject(a.canonicalPath)
+				addProject(b.canonicalPath)
+				assertThat(repository.recordInstalled("com.example.a", a.canonicalPath)).isTrue()
+				assertThat(repository.recordInstalled("com.example.b", b.canonicalPath)).isTrue()
+				assertThat(repository.storeEndpoint("com.example.a", DebuggerEndpointValidation.Endpoint("tok-a", 1111))).isTrue()
+				assertThat(repository.storeEndpoint("com.example.b", DebuggerEndpointValidation.Endpoint("tok-b", 2222))).isTrue()
+
+				assertThat(repository.reportedEndpoints(a).map { it.applicationId }).containsExactly("com.example.a")
+				assertThat(repository.reportedEndpoints(b).map { it.applicationId }).containsExactly("com.example.b")
+				assertThat(repository.reportedEndpoints(link).map { it.token }).containsExactly("tok-a")
+
+				// The app is now built by project b: a no longer lists it, and its token was cleared.
+				assertThat(repository.recordInstalled("com.example.a", b.canonicalPath)).isTrue()
+				assertThat(repository.reportedEndpoints(a)).isEmpty()
+				assertThat(repository.reportedEndpoints(b).map { it.applicationId }).containsExactly("com.example.b")
+			} finally {
+				link.delete()
+				a.delete()
+				b.delete()
+			}
+		}
+
+	@Test
+	fun `the package manager check tells installed from missing apps`() {
+		val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+		val packageManager = app.packageManager
+
+		assertThat(DebuggerEndpointRepository.isPackageInstalled(packageManager, app.packageName)).isTrue()
+		assertThat(DebuggerEndpointRepository.isPackageInstalled(packageManager, "com.example.not.installed")).isFalse()
 	}
 }

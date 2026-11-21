@@ -35,6 +35,30 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.48 — unreleased
+- **added — Find the SQLite debugger of the open project's apps** _(ADFA-7139)_ **[verified]**
+  `DebuggerEndpointService.getEndpoints()` returns an unmodifiable `List<DebuggerEndpoint>`, one per app of the open
+  project that has reported to the IDE: `applicationId`, `port` (on `127.0.0.1`), `token` (the bearer
+  token the server requires) and `updatedAtMillis`. The list is empty, never null, when no project is
+  open in the editor (the home screen, even right after a project was closed) or no app has reported. Port and token change every time the app starts, so call again after a
+  refused connection or a 401/403. An app that was uninstalled is left out, but one whose process died stays
+  listed until it reports again (`updatedAtMillis` is when it last reported). The call reads the IDE's database: use a background thread. It needs
+  the new `debugger.endpoints` permission (`PluginPermission.DEBUGGER_ENDPOINTS`) and throws
+  `SecurityException` without it. The token is the server's only credential, so a plugin holding the
+  permission can query the databases of the open project's apps (read-only in this version; a later
+  version may allow writes). The call throws `IllegalStateException` on the main thread, when the database
+  cannot be read, or when the IDE could not set up access to the endpoints at startup (neither failure is
+  reported as an empty list). Once the plugin is disabled
+  or unloaded, a call throws `java.util.concurrent.CancellationException` until it is enabled again, as
+  `IdeTerminalService` calls do. The method declares `InterruptedException`, thrown with the thread's
+  interrupt status set again when the caller is interrupted during the read. Plugins run in Code on the
+  Go's process, so the permission declares intent and cannot stop reflection, as with `IdeLogService`
+  below, and does not stop a plugin from taking another plugin's service from
+  `PluginManager.getInstance().getLoadedPlugin(id).context.services` or `PluginFragmentHelper.getServiceRegistry`
+  (tracked in ADFA-7194). Floor `plugin.min_ide_version`
+  at `26.48`: an IDE of 26.47 or older rejects the unknown `debugger.endpoints` permission when it
+  validates the manifest, so it refuses to install a plugin that declares it.
+
 ### 26.43 — unreleased
 - **breaking — JavaScript highlighting and the IDE's grammar names are the IDE's** _(ADFA-7084)_
   The IDE now highlights `js`, `mjs`, `cjs` and `jsx` itself. A `LanguageDefinition` can still

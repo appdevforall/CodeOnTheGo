@@ -83,7 +83,7 @@ class InstallationResultReceiverTest {
 		dao: DebuggerEndpointDao = room.debuggerEndpointDao(),
 		scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
 	): DebuggerEndpointRepository {
-		val repository = DebuggerEndpointRepository(dao, scope, announce = {})
+		val repository = DebuggerEndpointRepository(dao, scope, isInstalled = { true }, announce = {})
 		if (GlobalContext.getOrNull() != null) stopKoin()
 		startKoin { modules(module { single { repository } }) }
 		return repository
