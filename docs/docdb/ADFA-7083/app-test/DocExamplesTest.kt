@@ -3,12 +3,14 @@
 package docexamples
 
 import android.content.Context
+import androidx.room.withTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.requery.android.database.sqlite.SQLiteCustomExtension
 import io.requery.android.database.sqlite.SQLiteDatabase
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -87,6 +89,68 @@ class DocExamplesTest {
 			assertEquals(4, again.products().slugs().size)
 		} finally {
 			again.close()
+		}
+	}
+
+	private fun ProductDatabase.count(): Int =
+		openHelper.writableDatabase.query("SELECT count(*) FROM Product").use { it.moveToFirst(); it.getInt(0) }
+
+	// Runs, inside a transaction that transaction() opens, an insert and then an UPDATE whose
+	// JavaScript never ends, which cancelAll() stops. Returns the row count the transaction saw
+	// after the UPDATE failed, the UPDATE's error, and the row count after the transaction.
+	private fun cancelledWrite(db: ProductDatabase, transaction: (block: () -> Unit) -> Unit): Triple<Int, String, Int> {
+		val stopped = AtomicBoolean(false)
+		val canceller = Thread {
+			Thread.sleep(300)
+			while (!stopped.get()) {
+				SqliteJs.cancelAll()
+				Thread.sleep(10)
+			}
+		}
+		canceller.start()
+		var inside = -1
+		var message = ""
+		try {
+			transaction {
+				val raw = db.openHelper.writableDatabase
+				raw.execSQL("INSERT INTO Product (name, price) VALUES ('Extra', 1.0)")
+				try {
+					raw.execSQL("UPDATE Product SET price = spin()")
+					stopped.set(true)
+					fail("the UPDATE ended without an error")
+				} catch (e: Exception) {
+					stopped.set(true)
+					message = e.message ?: e.toString()
+					inside = db.count()
+					throw e
+				}
+			}
+		} catch (e: Exception) {
+			// the block's error leaves the transaction, as the page says to let it
+		} finally {
+			stopped.set(true)
+			canceller.join()
+		}
+		return Triple(inside, message, db.count())
+	}
+
+	@Test
+	fun aStoppedWriteLeavesItsTransactionOpenAndRoomRollsItBack() = runBlocking {
+		context.deleteDatabase("products.db")
+		val db = openProductDatabase(context)
+		try {
+			db.products().insert(sample)
+			for (how in listOf("withTransaction", "runInTransaction")) {
+				val (inside, message, after) = cancelledWrite(db) { block ->
+					if (how == "withTransaction") runBlocking(Dispatchers.IO) { db.withTransaction { block() } }
+					else db.runInTransaction { block() }
+				}
+				assertTrue("$how: $message", message.contains("interrupted"))
+				assertEquals("$how: the transaction stayed open, with its earlier insert", 5, inside)
+				assertEquals("$how: Room rolled the transaction back", 4, after)
+			}
+		} finally {
+			db.close()
 		}
 	}
 

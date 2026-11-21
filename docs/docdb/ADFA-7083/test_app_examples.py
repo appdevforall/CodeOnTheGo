@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Checks the examples of the app pages (pages/sqlite-js-app-*.md).
 
-- Every ```gradle example must be lines of the template's app/build.gradle.kts, in order.
+- Every ```gradle example must be lines of the template's app/build.gradle.kts, in order. A
+  dependency the example writes as "group:name:version" matches the template's line that
+  names the same one through its version catalog (libs.some.name).
 - Every ```kotlin example is compiled, as written: the examples go, in page order, into one
   file of a project made from the JavaScript in SQLite template, which is then built with
   the sqlite-js AAR under test. app-test/DocExamplesTest.kt, an instrumented test that
@@ -16,8 +18,9 @@ Usage:
   python3 test_app_examples.py WORK_DIR
 
 DEV_ASSETS is a checkout of appdevforall/dev-assets: its templates/JavaScriptInSQLite and
-scripts/render-template.py are used. WORK_DIR is made, or emptied. The build downloads what
-Gradle has not cached. Prints TAP. Exits 0 only if every check passes.
+scripts/render-template.py are used. WORK_DIR is made; one that exists is emptied only if an
+earlier run of this script made it, and is otherwise refused unless it is empty. The build
+downloads what Gradle has not cached. Prints TAP. Exits 0 only if every check passes.
 """
 import glob
 import os
@@ -32,6 +35,8 @@ EXT = os.environ.get("EXT", "sqlite-js")
 GRADLE = os.environ.get("GRADLE", "gradle")
 DEVICE = os.environ.get("DEVICE") == "1"
 PACKAGE = "docexamples"
+# Marks a WORK_DIR as this script's, so that a later run may empty it.
+MARKER = ".test_app_examples"
 # What the examples use. An example shows no imports: the pages name the packages.
 IMPORTS = """
 import android.content.Context
@@ -115,6 +120,17 @@ def in_order(lines, text):
     return None
 
 
+def catalog(project):
+    """The version catalog's libraries: accessor (libs.androidx.core) -> "group:name:version"."""
+    text = open(os.path.join(project, "gradle", "libs.versions.toml"), encoding="utf-8").read()
+    versions = dict(re.findall(r'^([\w-]+) = "([^"]*)"', text[:text.index("[libraries]")], re.M))
+    found = {}
+    for alias, group, name, ref in re.findall(
+            r'^([\w-]+) = \{ group = "([^"]*)", name = "([^"]*)", version\.ref = "([^"]*)" \}', text, re.M):
+        found["libs." + alias.replace("-", ".")] = "%s:%s:%s" % (group, name, versions[ref])
+    return found
+
+
 def kotlin_strings(kotlin):
     """The SQL statements in the examples' string literals: ("create" or "query", sql)."""
     found = []
@@ -145,8 +161,14 @@ def main():
         sys.exit(__doc__)
     work, assets = os.path.abspath(sys.argv[1]), os.environ["DEV_ASSETS"]
     project = os.path.join(work, "project")
-    shutil.rmtree(work, ignore_errors=True)
-    os.makedirs(work)
+    if os.path.isdir(work) and os.listdir(work):
+        if not os.path.isfile(os.path.join(work, MARKER)):
+            sys.exit("%s is not empty, and this script did not make it: give another WORK_DIR" % work)
+        shutil.rmtree(work)
+    elif os.path.exists(work) and not os.path.isdir(work):
+        sys.exit("%s is not a directory" % work)
+    os.makedirs(work, exist_ok=True)
+    open(os.path.join(work, MARKER), "w").close()
     subprocess.run([sys.executable, os.path.join(assets, "scripts", "render-template.py"),
                     os.path.join(assets, "templates"), "JavaScriptInSQLite", project, "kotlin"],
                    check=True, stdout=subprocess.DEVNULL)
@@ -154,6 +176,9 @@ def main():
 
     build_file = os.path.join(project, "app", "build.gradle.kts")
     build_text = open(build_file, encoding="utf-8").read()
+    # as the example may write them: with the coordinates in place of the catalog's accessor
+    for accessor, coordinates in catalog(project).items():
+        build_text = build_text.replace("(%s)" % accessor, '("%s")' % coordinates)
     for page, k, block in blocks("gradle"):
         missing = in_order(block.split("\n"), build_text)
         check(missing is None, "%s gradle example %d is in the template's app/build.gradle.kts" % (page, k),

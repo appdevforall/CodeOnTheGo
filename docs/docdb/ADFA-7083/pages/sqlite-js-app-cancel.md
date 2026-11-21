@@ -6,7 +6,7 @@ parent: sqlite-js-app-top.html
 prev: sqlite-js-app-database.html
 ---
 
-`SqliteJs.cancelAll()` stops a JavaScript function that never returns. Nothing else in an app can: cancelling a coroutine does not stop the query, and neither Room nor Android can interrupt SQLite while a JavaScript function runs. Until the function stops, its query keeps one database connection busy.
+`SqliteJs.cancelAll()` stops a JavaScript function that never returns. Cancelling a coroutine does not stop it, and neither does Room or Android's own way to cancel a query. Until the function stops, its query keeps one database connection busy.
 
 Call `cancelAll()` only when you know that a runaway function is running, for example from a **Cancel** button. It interrupts more than one query, as this page explains.
 
@@ -16,9 +16,19 @@ Call `cancelAll()` only when you know that a runaway function is running, for ex
 
 - Each call into JavaScript that it stops fails with the error `interrupted`. JavaScript cannot catch this error.
 - The connection of each such call is interrupted too. Any other statement in progress on that connection also stops.
-- If it stops an `INSERT`, `UPDATE` or `DELETE` inside a transaction that your code began, SQLite can roll the whole transaction back. Do not catch the error and go on inside the transaction. Let the transaction fail, then run all of it again.
 
 So a query that you did not mean to stop can fail too, if it was running JavaScript at that moment. Run it again.
+
+## A stopped statement inside a transaction
+
+When `cancelAll()` stops a function that an `INSERT`, `UPDATE` or `DELETE` called, that statement fails, and SQLite undoes the changes of that statement only. The transaction stays open, with the changes made before the statement.
+
+So roll the transaction back, and run all of it again:
+
+- Room's `withTransaction` and `runInTransaction` roll back when their block throws. Let the error leave the block.
+- If your code began the transaction itself with `BEGIN`, run `ROLLBACK`.
+
+In one case SQLite rolls the whole transaction back by itself: when the interrupt of the connection, not the function's error, ends the statement. That happens to a statement that sorts with a JavaScript collation. `ROLLBACK` then fails, because no transaction is open.
 
 ## What cancelAll() does not stop
 

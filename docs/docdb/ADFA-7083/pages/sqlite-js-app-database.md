@@ -39,16 +39,19 @@ android {
 dependencies {
     implementation(files("libs/sqlite-js.aar"))
     implementation(files("libs/sqlite-android.aar"))
-    implementation(libs.androidx.core)
+    implementation("androidx.core:core:1.15.0")
 }
 ```
 
 - `minSdk = 26`: sqlite-js needs Android 8.0 or later.
 - `abiFilters`: the two libraries are built for ARM devices only, so the app is too.
 - `useLegacyPackaging = true`: **do not remove this.** SQLite loads sqlite-js from a file. This setting makes Android copy the app's native libraries to files when it installs the app. Without it, they stay inside the APK, and SQLite finds no file to load.
-- `libs/sqlite-js.aar` is sqlite-js. `libs/sqlite-android.aar` is an SQLite that can load it. `sqlite-android` needs `androidx.core`.
+- `libs/sqlite-js.aar` is sqlite-js. It needs no other library.
+- `libs/sqlite-android.aar` is an SQLite that can load sqlite-js: version 3.49.0 of `sqlite-android`, from the requery project, with its ARM libraries only. It needs `androidx.core`, which the last line adds, and `androidx.sqlite`, which Room brings.
 
-To use sqlite-js in another app, copy both `.aar` files from a project made with the template into that app's `app/libs` folder, and add these settings. Add Room as the template's `app/build.gradle.kts` does.
+A project made with the template has both `.aar` files in its `app/libs` folder. To use sqlite-js in another app, copy both files from there into that app's `app/libs` folder, and add these settings. The template writes the `androidx.core` line with a name from its version catalog, `libs.androidx.core`. The line above works in any project.
+
+The examples below also need Room, its KSP compiler, and coroutines. The template's `app/build.gradle.kts` and `gradle/libs.versions.toml` list them. It uses Room 2.8.4.
 
 ## Two ways to load sqlite-js
 
@@ -200,4 +203,4 @@ Room does not check a query that has the annotation, so a mistake in its SQL sho
 
 Change its code in your app. The next time the app starts, `storeFunctions` replaces the stored function, and every connection that Room then opens gets the new one.
 
-To remove a function, delete its row from `js_functions`, for example with `DELETE FROM js_functions WHERE name = 'spin'`, on the connection that stores your functions.
+To remove a function, take it out of `FUNCTIONS`, or `storeFunctions` stores it again. Also delete its row from `js_functions`, for example with `DELETE FROM js_functions WHERE name = 'spin'`, on the connection that stores your functions. A connection that is already open keeps the function until it closes.
