@@ -2476,20 +2476,32 @@ abstract class ProjectHandlerActivity :
 								?: (result.cause as? SocketException?).let { err ->
 									val msg = err?.message ?: ""
 									when {
-										msg.contains("EPERM") ->
+										msg.contains("EPERM") -> {
 											getString(string.debugger_error_errno_eperm, getString(string.app_name))
-										msg.contains("ECONNREFUSED") ->
+										}
+
+										msg.contains("ECONNREFUSED") -> {
 											getString(string.debugger_error_errno_econnrefused, getString(string.app_name))
-										else -> null
+										}
+
+										else -> {
+											null
+										}
 									}
 								}
 								?: (result.cause as? ErrnoException? ?: result.cause?.cause as? ErrnoException?)?.let { err ->
 									when (err.errno) {
-										OsConstants.EPERM ->
+										OsConstants.EPERM -> {
 											getString(string.debugger_error_errno_eperm, getString(string.app_name))
-										OsConstants.ECONNREFUSED ->
+										}
+
+										OsConstants.ECONNREFUSED -> {
 											getString(string.debugger_error_errno_econnrefused, getString(string.app_name))
-										else -> getString(R.string.debugger_error_errno, err.errno)
+										}
+
+										else -> {
+											getString(R.string.debugger_error_errno, err.errno)
+										}
 									}
 								}
 								?: getString(R.string.debugger_error_debugger_startup_failure, getString(R.string.app_name))

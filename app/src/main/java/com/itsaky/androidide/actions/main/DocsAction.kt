@@ -14,39 +14,40 @@ import com.itsaky.androidide.resources.R.string
 import org.adfa.constants.CONTENT_KEY
 import org.adfa.constants.CONTENT_TITLE_KEY
 
-class DocsAction(context: Context) : ActionItem {
+class DocsAction(
+	context: Context,
+) : ActionItem {
+	override val id: String = ID
 
-    override val id: String = ID
+	companion object {
+		const val ID = "ide.main.docs"
+	}
 
-    companion object {
-        const val ID = "ide.main.docs"
-    }
+	override var label: String = context.getString(R.string.btn_docs)
+	override var visible: Boolean = true
+	override var enabled: Boolean = true
+	override var icon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
+	override var requiresUIThread: Boolean = true
+	override var location: ActionItem.Location = ActionItem.Location.MAIN_SCREEN
+	override val order: Int = 7
 
-    override var label: String = context.getString(R.string.btn_docs)
-    override var visible: Boolean = true
-    override var enabled: Boolean = true
-    override var icon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_action_help_outlined)
-    override var requiresUIThread: Boolean = true
-    override var location: ActionItem.Location = ActionItem.Location.MAIN_SCREEN
-    override val order: Int = 7
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.MAIN_HELP
 
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean): String = TooltipTag.MAIN_HELP
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		if (data.get(Context::class.java) == null) {
+			markInvisible()
+		}
+	}
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
-        if (data.get(Context::class.java) == null) {
-            markInvisible()
-        }
-    }
-
-    override suspend fun execAction(data: ActionData): Any {
-        val context = data.get(Context::class.java) ?: return false
-        val intent =
-            Intent(context, HelpActivity::class.java).apply {
-                putExtra(CONTENT_KEY, context.getString(string.docs_url))
-                putExtra(CONTENT_TITLE_KEY, context.getString(string.back_to_cogo, context.getString(string.app_name)))
-            }
-        context.startActivity(intent)
-        return true
-    }
+	override suspend fun execAction(data: ActionData): Any {
+		val context = data.get(Context::class.java) ?: return false
+		val intent =
+			Intent(context, HelpActivity::class.java).apply {
+				putExtra(CONTENT_KEY, context.getString(string.docs_url))
+				putExtra(CONTENT_TITLE_KEY, context.getString(string.back_to_cogo, context.getString(string.app_name)))
+			}
+		context.startActivity(intent)
+		return true
+	}
 }

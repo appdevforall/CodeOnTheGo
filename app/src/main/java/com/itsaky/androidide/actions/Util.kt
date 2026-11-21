@@ -75,10 +75,10 @@ fun showDebuggerNotReadyMessage(context: Context): AlertDialog? =
 				System
 					.lineSeparator()
 					.repeat(2) +
-						context.getString(
-							R.string.debugger_error_suggestion_network_restriction,
-							context.getString(R.string.app_name),
-						),
+				context.getString(
+					R.string.debugger_error_suggestion_network_restriction,
+					context.getString(R.string.app_name),
+				),
 		).setPositiveButton(android.R.string.ok, null)
 		.show()
 
@@ -92,6 +92,7 @@ suspend fun handleMissingOverlayPermission(
 			PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
 				activity.flashError(activity.getString(R.string.permission_overlay_unsupported_hint))
 			}
+
 			PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
 				val intent =
 					Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
@@ -107,6 +108,7 @@ suspend fun handleMissingOverlayPermission(
 					)
 				}
 			}
+
 			else -> {}
 		}
 	}
@@ -137,7 +139,10 @@ fun showPairingDialog(
 
 	val appName = context.getString(R.string.app_name)
 	ssb.appendOrderedList(
-		*context.resources.getStringArray(R.array.debugger_setup_pairing_steps).map { it.format(appName) }.toTypedArray(),
+		*context.resources
+			.getStringArray(R.array.debugger_setup_pairing_steps)
+			.map { it.format(appName) }
+			.toTypedArray(),
 	)
 	ssb.append(System.lineSeparator())
 

@@ -105,7 +105,10 @@ class AdbPairingService : Service() {
 	): Int {
 		val notification =
 			when (intent?.action) {
-				START_ACTION -> onStart()
+				START_ACTION -> {
+					onStart()
+				}
+
 				REPLY_ACTION -> {
 					val code =
 						RemoteInput
@@ -125,7 +128,9 @@ class AdbPairingService : Service() {
 					null
 				}
 
-				else -> null
+				else -> {
+					null
+				}
 			}
 
 		if (notification == null) {
