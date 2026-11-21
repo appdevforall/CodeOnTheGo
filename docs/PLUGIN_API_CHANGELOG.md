@@ -35,6 +35,15 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.48 — unreleased
+- **added — Show the IDE's own documentation from a plugin** _(ADFA-7134)_
+  `IdeTooltipService.showTooltip(anchorView, category, tag)` now reads the IDE's documentation
+  when `category` is `ide`, `java`, `kotlin` or `xml`, for example
+  `showTooltip(view, "java", "android.widget.TextView")`. Before, every category was replaced
+  with the plugin's own, so those calls found nothing. Any other category still reads the
+  plugin's own entries, so a plugin that passes its own category under another spelling is
+  unaffected. Floor `plugin.min_ide_version` at `26.48` to rely on it.
+
 ### 26.43 — unreleased
 - **breaking — JavaScript highlighting and the IDE's grammar names are the IDE's** _(ADFA-7084)_
   The IDE now highlights `js`, `mjs`, `cjs` and `jsx` itself. A `LanguageDefinition` can still

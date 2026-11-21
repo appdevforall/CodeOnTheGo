@@ -5,13 +5,15 @@ import android.view.View
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.pluginCategory
+import com.itsaky.androidide.plugins.manager.pluginReadableCategory
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 
 /**
  * Implementation of the tooltip service for plugins.
  * Delegates to the main TooltipManager, using "plugin_<pluginId>" as the category
  * so plugin entries are stored alongside built-in documentation in documentation.db
- * without conflicting with them.
+ * without conflicting with them. A plugin may also read the IDE's own categories
+ * (ide, java, kotlin, xml), but never another plugin's.
  */
 class IdeTooltipServiceImpl(
 	private val context: Context,
@@ -37,12 +39,13 @@ class IdeTooltipServiceImpl(
 		category: String,
 		tag: String,
 	) {
+		val readable = pluginReadableCategory(pluginId, category)
 		try {
-			TooltipManager.showTooltip(resolvedContext(), anchorView, pluginCategory, tag)
+			TooltipManager.showTooltip(resolvedContext(), anchorView, readable, tag)
 		} catch (e: android.view.InflateException) {
-			android.util.Log.e("IdeTooltipService", "Failed to inflate tooltip layout: $pluginCategory.$tag", e)
+			android.util.Log.e("IdeTooltipService", "Failed to inflate tooltip layout: $readable.$tag", e)
 		} catch (e: Exception) {
-			android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $pluginCategory.$tag", e)
+			android.util.Log.e("IdeTooltipService", "Failed to show tooltip: $readable.$tag", e)
 		}
 	}
 
