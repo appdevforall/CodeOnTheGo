@@ -34,8 +34,18 @@ internal object SqliteRewriteRules {
 	const val CORE_SIGNAL = "androidx/core/os/CancellationSignal"
 	const val CONTEXT = "android/content/Context"
 
-	val COLLATE_UNICODE = Regex("COLLATE\\s+UNICODE", RegexOption.IGNORE_CASE)
-	val COLLATE_LOCALIZED = Regex("COLLATE\\s+LOCALIZED", RegexOption.IGNORE_CASE)
+	/**
+	 * A COLLATE clause names its collation after whitespace or a SQL comment, bare or quoted ("x", 'x', [x], `x`).
+	 * The word boundary keeps a custom collation such as UNICODE_CI out.
+	 */
+	private fun collateRule(name: String) =
+		Regex(
+			"COLLATE(?:\\s|/\\*.*?\\*/|--[^\\n]*(?:\\n|$))+[\"'\\[`]?$name\\b",
+			setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+		)
+
+	val COLLATE_UNICODE = collateRule("UNICODE")
+	val COLLATE_LOCALIZED = collateRule("LOCALIZED")
 
 	const val HELPER = "org/appdevforall/sqliterewrite/SqliteRewriteRuntime"
 	const val HELPER_PACKAGE_PREFIX = "org/appdevforall/sqliterewrite/"

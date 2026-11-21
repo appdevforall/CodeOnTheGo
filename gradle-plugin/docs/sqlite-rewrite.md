@@ -193,7 +193,8 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 
 - Room's `BundledSQLiteDriver` is not covered (it brings its own SQLite).
 - requery's native library is built without ICU: there is no `UNICODE` collator (a `COLLATE UNICODE` string
-  constant fails the build, see above) and `LOCALIZED` compares bytes (a warning).
+  constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, and
+  `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
 - `SupportSQLiteDatabase.execPerConnectionSQL` is unsupported (see the design change): no build failure, an
   `UnsupportedOperationException` when called.
 - Passing an Android `CursorWindow` where a (renamed) `SQLiteClosable` is expected cannot work: android's

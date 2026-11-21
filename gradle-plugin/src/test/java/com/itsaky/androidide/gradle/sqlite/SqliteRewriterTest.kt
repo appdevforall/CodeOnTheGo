@@ -1134,6 +1134,42 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `COLLATE UNICODE is found through comments and quotes, and a custom UNICODE_CI collation passes`() {
+		val forms =
+			listOf(
+				"COLLATE /* c */ UNICODE",
+				"COLLATE -- c\\n UNICODE",
+				"COLLATE \\\"UNICODE\\\"",
+				"COLLATE 'UNICODE'",
+				"COLLATE [UNICODE]",
+				"COLLATE `UNICODE`",
+			)
+		for (form in forms) {
+			val classes =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.Q",
+							"package p; public class Q { String q() { return \"SELECT * FROM t ORDER BY n $form\"; } }",
+						),
+					),
+				)
+			val e = assertThrows(SqliteRewriteException::class.java, { SqliteRewriter.rewrite(classes["p/Q"]!!) }, "form: $form")
+			assertThat(e.message).contains("COLLATE UNICODE")
+		}
+		val ok =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.Ci",
+						"package p; public class Ci { String q() { return \"SELECT * FROM t ORDER BY n COLLATE UNICODE_CI\"; } }",
+					),
+				),
+			)
+		SqliteRewriter.rewrite(ok["p/Ci"]!!)
+	}
+
+	@Test
 	fun `COLLATE LOCALIZED only warns`() {
 		val classes =
 			Compiler.compile(
