@@ -347,6 +347,7 @@ class PluginManager private constructor(
 
 	private val statePersistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 	private val statePersistMutex = Mutex()
+	private val loadMutex = Mutex()
 
 	fun setTemplateReloadListener(listener: (() -> Unit)?) {
 		this.templateReloadListener = listener
@@ -401,7 +402,14 @@ class PluginManager private constructor(
 		}
 	}
 
-	suspend fun loadPlugins() =
+	/**
+	 * Loads every plugin file of the plugins folder. Calls run one after another: they all clear
+	 * [loadFailures] and load the same files, so two overlapping ones (the app start, a first
+	 * installation, an install from the Add-ons Manager) would load a plugin twice at once.
+	 */
+	suspend fun loadPlugins() = loadMutex.withLock { loadAllPlugins() }
+
+	private suspend fun loadAllPlugins() =
 		withContext(Dispatchers.IO) {
 			logger.info("Loading plugins from directory: ${pluginsDir.absolutePath}")
 
