@@ -196,9 +196,9 @@ object SqliteRewriter {
 	 * merge of, say, an SQLiteCursor[] and a MyCursor[], its element class is the first merged value's, so only its
 	 * dimensions, and that it is not null, mean anything): a row of one is an array of the same kind, and an element of
 	 * a one-dimensional one is a [renamedCursor]. [nullConstant]: `null` on every path, which an element loaded from it
-	 * counts as, since that load throws.
+	 * counts as, since that load throws. Internal only so that [SqliteRewriterMergeTest] can build one.
 	 */
-	private class StaticCursorValue(
+	internal class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
 		val androidCursorArray: Type?,
@@ -222,6 +222,49 @@ object SqliteRewriter {
 				) *
 					31 + if (everyPathCursor) 1 else 0
 			) * 31 + renamedCursorArray.hashCode()
+	}
+
+	/**
+	 * What [implicitCursorConversions]'s interpreter answers for a merge that involves a [StaticCursorValue], or null when
+	 * it has none to give and the merge is BasicInterpreter's. A cursor-array tag survives a merge only when
+	 * both paths agree on it, except that [StaticCursorValue.renamedCursorArray] needs only the same dimensions, and `null` on
+	 * one path is neutral. Internal only so that the unit test can call it.
+	 */
+	internal fun mergeCursorValues(
+		value1: BasicValue,
+		value2: BasicValue,
+	): BasicValue? {
+		val s1 = value1 as? StaticCursorValue
+		val s2 = value2 as? StaticCursorValue
+		// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
+		if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
+			// null on one path does not hide the array on the other: `AbstractCursor[] a = null; if (b) a = p;`
+			val array =
+				when {
+					s1?.nullConstant == true -> s2?.androidCursorArray
+					s2?.nullConstant == true -> s1?.androidCursorArray
+					else -> s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray }
+				}
+			// both paths hold renamed cursor arrays of the same dimension, whichever classes: the tag keeps the dimension
+			val renamedArray =
+				when {
+					s1?.nullConstant == true -> s2?.renamedCursorArray
+					s2?.nullConstant == true -> s1?.renamedCursorArray
+					else -> s1?.renamedCursorArray?.takeIf { s2?.renamedCursorArray?.dimensions == it.dimensions }
+				}
+			val merged =
+				StaticCursorValue(
+					value1.type,
+					s1?.renamedCursor == true || s2?.renamedCursor == true,
+					array,
+					s1?.nullConstant == true && s2?.nullConstant == true,
+					// true on null, so null is neutral; a plain BasicValue (an element of an array that is not followed) is not a known cursor
+					s1?.everyPathCursor == true && s2?.everyPathCursor == true,
+					renamedArray,
+				)
+			return if (merged == value1) value1 else merged
+		}
+		return null
 	}
 
 	private class ClassRewrite(
@@ -915,39 +958,7 @@ object SqliteRewriter {
 					override fun merge(
 						value1: BasicValue,
 						value2: BasicValue,
-					): BasicValue {
-						val s1 = value1 as? StaticCursorValue
-						val s2 = value2 as? StaticCursorValue
-						// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
-						if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
-							// null on one path does not hide the array on the other: `AbstractCursor[] a = null; if (b) a = p;`
-							val array =
-								when {
-									s1?.nullConstant == true -> s2?.androidCursorArray
-									s2?.nullConstant == true -> s1?.androidCursorArray
-									else -> s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray }
-								}
-							// both paths hold renamed cursor arrays of the same dimension, whichever classes: the tag keeps the dimension
-							val renamedArray =
-								when {
-									s1?.nullConstant == true -> s2?.renamedCursorArray
-									s2?.nullConstant == true -> s1?.renamedCursorArray
-									else -> s1?.renamedCursorArray?.takeIf { s2?.renamedCursorArray?.dimensions == it.dimensions }
-								}
-							val merged =
-								StaticCursorValue(
-									value1.type,
-									s1?.renamedCursor == true || s2?.renamedCursor == true,
-									array,
-									s1?.nullConstant == true && s2?.nullConstant == true,
-									// true on null, so null is neutral; a plain BasicValue (an element of an array that is not followed) is not a known cursor
-									s1?.everyPathCursor == true && s2?.everyPathCursor == true,
-									renamedArray,
-								)
-							return if (merged == value1) value1 else merged
-						}
-						return super.merge(value1, value2)
-					}
+					): BasicValue = mergeCursorValues(value1, value2) ?: super.merge(value1, value2)
 				}
 			val frames: Array<Frame<BasicValue>?> =
 				try {
