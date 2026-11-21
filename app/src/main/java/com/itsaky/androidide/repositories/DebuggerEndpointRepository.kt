@@ -186,11 +186,11 @@ class DebuggerEndpointRepository(
 	 * the install goes on with no note; and an install not made from a project (the file tab, adb)
 	 * leaves an already-paired app listed with its dead token and port. Only the Launch action pairs
 	 * an unpaired app at the next launch from a project, keeping stored values; the automatic
-	 * post-install launch, RestartVmAction and the SQLite debugger launch never call
-	 * [recordLaunched]. Apps that are no longer installed are left out too: their stored port and
-	 * token would otherwise come back as live. An endpoint can also be stale when the app's process
-	 * has died. Unlike the writes, a read failure is thrown: the plugin API reports it rather than
-	 * answering "no apps".
+	 * post-install launch (in debug mode too), RestartVmAction and Quick Build's launch of the proxy
+	 * app never call [recordLaunched]. Apps that are no longer installed are left out too: their
+	 * stored port and token would otherwise come back as live. An endpoint can also be stale when the
+	 * app's process has died. Unlike the writes, a read failure is thrown: the plugin API reports it
+	 * rather than answering "no apps".
 	 */
 	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
 		dao.getByProjectLocation(projectDir.canonicalProjectLocation()).mapNotNull { row ->
