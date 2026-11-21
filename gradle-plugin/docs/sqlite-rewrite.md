@@ -224,9 +224,10 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   and a store whose array type differs between branches that merge is not checked (`null` on a branch counts as
   no difference). Both can still throw `ArrayStoreException`, in release builds too (the rewrite runs in every
   variant of an opted-in app). So can a store whose value is an SQLite cursor on some paths only, which logs a
-  warning and builds (see Rules): it throws when one path brings both the cursor and the array. A row loaded
-  from an `SQLiteCursor[]` (or an array of a subclass) is followed and counts as an SQLite cursor; rows of other
-  arrays are not followed, and one counts as a value that is not an SQLite cursor.
+  warning and builds (see Rules): it throws when one path brings both the cursor and the array. An element
+  loaded from an `SQLiteCursor[]` (or an array of a subclass) counts as an SQLite cursor, and a row of an
+  `SQLiteCursor[][]` is followed as an `SQLiteCursor[]`, at any depth (so `return g[0][0]` as an `AbstractCursor`
+  fails the build); rows of other arrays are not followed, and one counts as a value that is not an SQLite cursor.
 - An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
   `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
   covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,

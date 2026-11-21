@@ -2105,6 +2105,67 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `an element of a row of an SQLite cursor 2D array used as an Android cursor type without a cast fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.LoadedGrid",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class LoadedGrid {
+							AbstractCursor up(SQLiteCursor[][] g) {
+								return g[0][0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/LoadedGrid"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("up([[Landroid/database/sqlite/SQLiteCursor;)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("without a cast")
+	}
+
+	@Test
+	fun `a merged SQLite cursor array keeps its type, and null on one path does not hide it`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.MergedArray",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class MergedArray {
+							AbstractCursor orNull(SQLiteCursor[] cs, boolean b) {
+								SQLiteCursor[] m = b ? cs : null;
+								return m[0];
+							}
+							AbstractCursor either(SQLiteCursor[] cs1, SQLiteCursor[] cs2, boolean b) {
+								SQLiteCursor[] m = b ? cs1 : cs2;
+								return m[0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/MergedArray"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("orNull([Landroid/database/sqlite/SQLiteCursor;Z)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("either([Landroid/database/sqlite/SQLiteCursor;[Landroid/database/sqlite/SQLiteCursor;Z)")
+	}
+
+	@Test
 	fun `an SQLite cursor array used as an Android cursor array is not checked, and would not verify`() {
 		fun covariant(pkg: String) =
 			src(
