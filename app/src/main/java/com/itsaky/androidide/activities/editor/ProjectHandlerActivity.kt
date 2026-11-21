@@ -1452,7 +1452,7 @@ abstract class ProjectHandlerActivity :
 	 * button does, through the same action - runs Quick Build, or, while the button is greyed out,
 	 * shows why - so the line cannot promise what the button would not.
 	 */
-	protected abstract fun onQuickBuildStatusLineTapped()
+	internal abstract fun onQuickBuildStatusLineTapped()
 
 	fun appendBuildOutput(str: String) {
 		if (_binding == null || isDestroyed || isFinishing) return
