@@ -12,6 +12,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.WeakHashMap;
 
 /**
@@ -52,9 +53,10 @@ public final class SqliteRewriteRuntime {
 	private static final Map<CancellationSignal, WeakReference<CancelForwarder>> FORWARDERS = new WeakHashMap<>();
 
 	/**
-	 * Same as Context.deleteDatabase, which also returns false on any exception. requery's deleteDatabase removes the -journal, -wal, -shm and -mj files next to the file, like Android's.
+	 * Same as Context.deleteDatabase, which also returns false on any exception. requery's deleteDatabase removes the -journal, -wal, -shm and -mj files next to the file, like Android's. A null context still throws the NullPointerException the original call threw, so it is checked before the catch.
 	 */
 	public static boolean deleteDatabase(Context context, String name) {
+		Objects.requireNonNull(context);
 		try {
 			return SQLiteDatabase.deleteDatabase(context.getDatabasePath(name));
 		} catch (Exception e) {
