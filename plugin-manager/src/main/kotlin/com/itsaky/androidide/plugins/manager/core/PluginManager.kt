@@ -431,7 +431,7 @@ class PluginManager private constructor(
 			logger.info("Found ${allFiles.size} plugin files, ${pluginFiles.size} not loaded yet")
 
 			// Keep what a loaded plugin failed at (activation), which a skipped file cannot report again.
-			loadFailures.keys.removeAll { it !in loadedPlugins }
+			loadFailures.keys.removeAll { !loadedPlugins.containsKey(it) }
 
 			// Load plugins in parallel
 			val loadJobs =
