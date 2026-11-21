@@ -84,6 +84,15 @@ data class Workspace(
 
 	fun findModuleForFile(file: Path): ModuleProject? = findModuleForFile(file.toFile())
 
+	/**
+	 * Whether [file] is in a module but outside every source directory of that module's selected
+	 * variant, so language servers must not analyze it. False for a file in no module.
+	 */
+	fun isOutsideSelectedVariant(file: Path): Boolean {
+		val module = findModuleForFile(file) ?: return false
+		return module.artifactScopeOf(file) == null
+	}
+
 	@JvmOverloads
 	fun findModuleForFile(
 		file: File,
