@@ -137,4 +137,14 @@ class BundledAddonInstallerTest {
 		assertThat(result.failure).contains("../escape")
 		assertThat(pluginsDir.list()!!.toList()).isEmpty()
 	}
+
+	@Test
+	fun `a plugin whose ID is too long for a file name is reported, not thrown, and leaves no file`() {
+		val result =
+			installer(readPluginId = { "a".repeat(300) }).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("plugin"))
+
+		assertThat(result.file).isNull()
+		assertThat(result.failure).contains("too long")
+		assertThat(pluginsDir.list()!!.toList()).isEmpty()
+	}
 }

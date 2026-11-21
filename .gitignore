@@ -174,7 +174,9 @@ lsp/kotlin/src/main/resources/stdlib-index.json
 # Large asset files (bootstrap, SDK archives, databases, dependencies)
 assets/core.cgt
 assets/plugins/*.cgp
+assets/plugins/*.CGP
 assets/templates/*.cgt
+assets/templates/*.CGT
 assets/bootstrap-*.zip
 assets/android-sdk-*.zip
 assets/release/**/data/**/*.zip.br

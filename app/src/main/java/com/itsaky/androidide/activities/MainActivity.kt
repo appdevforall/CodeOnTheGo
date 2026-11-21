@@ -80,6 +80,7 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashErrorAwaitShown
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
@@ -110,6 +111,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val analyticsManager: IAnalyticsManager by inject()
 	private val recentProjectRepository: RecentProjectRepository by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var reportingBundledFailures = false
 
 	// Where the current touch on the toolbar began; null outside a touch (e.g. a TalkBack
 	// long-press), which counts as the app name.
@@ -341,23 +343,31 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	}
 
 	/**
-	 * Tells the user once which plugins bundled with the build did not start. Marking them reported
-	 * is what claims them, so a quick pause and resume cannot show the bar twice; the cost is that a
-	 * screen destroyed between the claim and the bar loses the message.
+	 * Tells the user once which plugins bundled with the build did not start. The failures are
+	 * marked reported only after the bar is shown, so a screen destroyed first reports them next
+	 * time; [reportingBundledFailures] keeps a resume during the report from starting a second one.
 	 */
 	private fun reportBundledPluginFailures() {
+		if (reportingBundledFailures) return
+		reportingBundledFailures = true
 		lifecycleScope.launch {
-			val failures =
-				withContext(Dispatchers.IO) {
-					runCatching { BundledAddonsRecord.inFilesDir(filesDir).markReported() }.getOrDefault(emptyList())
-				}
-			if (failures.isEmpty()) return@launch
-			flashError(
-				getString(
-					string.msg_bundled_plugins_failed,
-					failures.joinToString("\n") { "${it.pluginId}: ${it.message}" },
-				),
-			)
+			try {
+				val record = BundledAddonsRecord.inFilesDir(filesDir)
+				val failures =
+					withContext(Dispatchers.IO) {
+						runCatching { record.unreportedFailures() }.getOrDefault(emptyList())
+					}
+				if (failures.isEmpty()) return@launch
+				flashErrorAwaitShown(
+					getString(
+						string.msg_bundled_plugins_failed,
+						failures.joinToString("\n") { "${it.pluginId}: ${it.message}" },
+					),
+				)
+				withContext(Dispatchers.IO) { runCatching { record.markReported() } }
+			} finally {
+				reportingBundledFailures = false
+			}
 		}
 	}
 

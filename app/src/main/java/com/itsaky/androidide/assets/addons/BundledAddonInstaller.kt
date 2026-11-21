@@ -68,8 +68,13 @@ class BundledAddonInstaller(
 								null
 							} ?: throw RejectedPluginException("it has no readable manifest")
 						checkPluginId(id).onFailure { throw RejectedPluginException(it.message ?: "invalid plugin ID") }
+						val name = "${PluginBuildFiles.fileStem(id, copy)}.$PLUGIN_ARCHIVE_EXTENSION"
+						// 255 bytes is the longest file name the file system takes.
+						if (name.toByteArray(Charsets.UTF_8).size > MAX_FILE_NAME_BYTES) {
+							throw RejectedPluginException("its plugin ID is too long")
+						}
 						pluginId = id
-						"${PluginBuildFiles.fileStem(id, copy)}.$PLUGIN_ARCHIVE_EXTENSION"
+						name
 					},
 				)
 			} catch (e: RejectedPluginException) {
@@ -77,6 +82,10 @@ class BundledAddonInstaller(
 				return InstalledAddon(BundledAddonKind.PLUGIN, null, null, failure = e.message, sourceName = fileName)
 			}
 		return InstalledAddon(BundledAddonKind.PLUGIN, file, pluginId)
+	}
+
+	private companion object {
+		const val MAX_FILE_NAME_BYTES = 255
 	}
 
 	private class RejectedPluginException(

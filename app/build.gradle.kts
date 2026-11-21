@@ -725,7 +725,9 @@ fun isBundledAddon(
 	!element.isDirectory &&
 		element.relativePath.segments.size == 1 &&
 		!element.name.startsWith(".") &&
-		element.name.endsWith(".$extension", ignoreCase = true)
+		element.name.endsWith(".$extension", ignoreCase = true) &&
+		// core.cgt has its own asset entry; same rule as BundledAddons.isAddonFile.
+		!element.name.equals("core.cgt", ignoreCase = true)
 
 androidComponents.onVariants { variant ->
 	val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
@@ -1093,7 +1095,12 @@ fun createAssetsZip(arch: String) {
 		arrayOf("plugins" to "cgp", "templates" to "cgt").forEach { (dirName, extension) ->
 			sourceDir
 				.resolve(dirName)
-				.listFiles { file -> file.isFile && !file.name.startsWith(".") && file.extension.equals(extension, ignoreCase = true) }
+				.listFiles { file ->
+					file.isFile &&
+						!file.name.startsWith(".") &&
+						file.extension.equals(extension, ignoreCase = true) &&
+						!file.name.equals("core.cgt", ignoreCase = true)
+				}
 				.orEmpty()
 				.sortedBy { it.name }
 				.forEach { file ->
