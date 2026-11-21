@@ -5,6 +5,11 @@ import android.os.StatFs
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.Brotli4jLoader
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
+import com.itsaky.androidide.assets.addons.BundledAddonKind
+import com.itsaky.androidide.assets.addons.BundledAddons
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
+import com.itsaky.androidide.assets.addons.BundledAddonsState
+import com.itsaky.androidide.assets.addons.BundledEntry
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.ContainedPathResolver
 import com.itsaky.androidide.utils.ContainedPathResolver.Resolution
@@ -15,6 +20,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -68,6 +74,22 @@ object AssetsInstallationHelper {
 	private val logger = LoggerFactory.getLogger(AssetsInstallationHelper::class.java)
 	private val ASSETS_INSTALLER = AssetsInstaller.CURRENT_INSTALLER
 	const val BOOTSTRAP_ENTRY_NAME = "bootstrap.zip"
+
+	/** The entries every build installs. Add-ons a build bundles come on top, see [entriesToInstall]. */
+	internal val expectedEntries =
+		listOf(
+			GRADLE_DISTRIBUTION_ARCHIVE_NAME,
+			ANDROID_SDK_ZIP,
+			DOCUMENTATION_DB,
+			LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
+			BOOTSTRAP_ENTRY_NAME,
+			GRADLE_API_NAME_JAR_ZIP,
+			PLUGIN_ARTIFACTS_ZIP,
+			TEMPLATE_CORE_ARCHIVE,
+		)
+
+	/** [expectedEntries], then each of [bundled]; a thin build, with none, installs [expectedEntries] alone. */
+	internal fun entriesToInstall(bundled: List<BundledEntry>): List<String> = expectedEntries + bundled.map { it.entryName }
 
 	suspend fun install(
 		context: Context,
@@ -124,18 +146,6 @@ object AssetsInstallationHelper {
 
 		val buildConfig = IDEBuildConfigProvider.getInstance()
 		val cpuArch = buildConfig.cpuArch
-		val expectedEntries =
-			arrayOf(
-				GRADLE_DISTRIBUTION_ARCHIVE_NAME,
-				ANDROID_SDK_ZIP,
-				DOCUMENTATION_DB,
-				LOCAL_MAVEN_REPO_ARCHIVE_ZIP_NAME,
-				BOOTSTRAP_ENTRY_NAME,
-				GRADLE_API_NAME_JAR_ZIP,
-				PLUGIN_ARTIFACTS_ZIP,
-				TEMPLATE_CORE_ARCHIVE,
-			)
-
 		val stagingDir = Files.createTempDirectory(UUID.randomUUID().toString())
 		logger.debug("Staging directory ({}): {}", cpuArch, stagingDir)
 
@@ -160,17 +170,19 @@ object AssetsInstallationHelper {
 				logAndRethrow("I/O error during preInstall", e)
 			}
 
+			val bundledAddons = ASSETS_INSTALLER.listBundledAddons(context)
+			val entries = entriesToInstall(bundledAddons)
+
 			val entrySizes: Map<String, Long> =
-				expectedEntries.associateWith { entry ->
-					ASSETS_INSTALLER.expectedSize(entry)
-				}
+				expectedEntries.associateWith { entry -> ASSETS_INSTALLER.expectedSize(entry) } +
+					bundledAddons.associate { it.entryName to it.size }
 
 			val totalSize = entrySizes.values.sum()
 
 			val entryStatusMap = ConcurrentHashMap<String, String>()
 
 			val installerJobs =
-				expectedEntries.map { entry ->
+				entries.map { entry ->
 					async {
 						entryStatusMap[entry] = STATUS_INSTALLING
 
@@ -233,6 +245,24 @@ object AssetsInstallationHelper {
 
 			// then cancel progress updater
 			progressUpdater.cancel()
+
+			// joinAll() does not rethrow a failed child, and returns at once when they have all
+			// finished already: without this a failed copy would still get its record written.
+			ensureActive()
+
+			// Last, and only here, so a record means every file of the bundle is in place.
+			val installed = ASSETS_INSTALLER.installedAddons()
+			BundledAddonsRecord.inFilesDir(context.filesDir).write(
+				BundledAddonsState(
+					fingerprint = BundledAddons.fingerprint(bundledAddons),
+					pluginIds = installed.mapNotNull { it.pluginId }.sorted(),
+					templateFiles =
+						installed
+							.filter { it.kind == BundledAddonKind.TEMPLATE }
+							.map { it.file.name }
+							.sorted(),
+				),
+			)
 		} finally {
 			// Always run postInstall so zip/FS resources are closed (e.g. SplitAssetsInstaller.zipFile),
 			// and always clean up the staging dir -- on any exit path, including a preInstall

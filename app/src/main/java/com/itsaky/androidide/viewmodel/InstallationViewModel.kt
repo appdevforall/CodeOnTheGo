@@ -7,8 +7,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.assets.AssetsInstallationHelper
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
+import com.itsaky.androidide.assets.addons.BundledPluginStartup
 import com.itsaky.androidide.events.InstallationEvent
 import com.itsaky.androidide.models.StorageInfo
+import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.bytesToGigabytes
@@ -37,6 +40,7 @@ import kotlin.coroutines.cancellation.CancellationException
 // All-default constructor, so the default ViewModel factory still finds a no-arg one.
 class InstallationViewModel(
 	private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+	private val startBundledPlugins: suspend (Context) -> Unit = { startBundledPluginsWithManager(it) },
 ) : ViewModel() {
 	private val log = LoggerFactory.getLogger(InstallationViewModel::class.java)
 
@@ -94,6 +98,15 @@ class InstallationViewModel(
 						is AssetsInstallationHelper.Result.Success -> {
 							val distributionProvider = IJdkDistributionProvider.getInstance()
 							distributionProvider.loadDistributions()
+
+							// Plugins from the build's bundle; the setup completes whatever they do.
+							try {
+								startBundledPlugins(context)
+							} catch (e: CancellationException) {
+								throw e
+							} catch (e: Exception) {
+								log.warn("Could not start the bundled plugins", e)
+							}
 
 							_state.update { InstallationComplete }
 						}
@@ -176,4 +189,14 @@ class InstallationViewModel(
 
 			return@withContext true
 		}
+}
+
+/** Without the plugin system (not initialized yet) there is nothing to start; the files stay for the next start. */
+private suspend fun startBundledPluginsWithManager(context: Context) {
+	val manager = PluginManager.getInstance() ?: return
+	BundledPluginStartup(
+		record = BundledAddonsRecord.inFilesDir(context.filesDir),
+		reloadPlugins = { manager.loadPlugins() },
+		loadError = manager::getLoadError,
+	).start()
 }

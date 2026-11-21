@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.app.configuration.CpuArch
+import com.itsaky.androidide.assets.addons.BundledEntry
+import com.itsaky.androidide.assets.addons.InstalledAddon
 import java.nio.file.Path
 
 /**
@@ -74,4 +76,14 @@ sealed interface AssetsInstaller {
 	 * @return The expected size in bytes, or 0 if unknown.
 	 */
 	fun expectedSize(entryName: String): Long
+
+	/**
+	 * Lists the add-on files (plugins and templates) this build bundles; none for a thin build.
+	 * Call it once per installation, after [preInstall]: it also forgets the add-ons a previous
+	 * installation reported through [installedAddons].
+	 */
+	fun listBundledAddons(context: Context): List<BundledEntry>
+
+	/** The add-ons [doInstall] has put in place since [listBundledAddons]. */
+	fun installedAddons(): List<InstalledAddon>
 }

@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.annotation.WorkerThread
 import com.aayushatharva.brotli4j.decoder.BrotliInputStream
 import com.itsaky.androidide.app.configuration.CpuArch
+import com.itsaky.androidide.assets.addons.AssetManagerBundleSource
+import com.itsaky.androidide.assets.addons.BundleSource
+import com.itsaky.androidide.assets.addons.BundledAddons
 import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
@@ -169,10 +172,15 @@ data object BundledAssetsInstaller : BaseAssetsInstaller() {
 				}
 
 				else -> {
-					throw IllegalStateException("Unknown entry: $entryName")
+					if (!BundledAddons.isAddonEntry(entryName)) {
+						throw IllegalStateException("Unknown entry: $entryName")
+					}
+					assets.open(entryName).use { installBundledAddon(context, entryName, it) }
 				}
 			}
 		}
+
+	override fun bundleSource(context: Context): BundleSource = AssetManagerBundleSource(context.assets)
 
 	override fun expectedSize(entryName: String): Long =
 		when (entryName) {

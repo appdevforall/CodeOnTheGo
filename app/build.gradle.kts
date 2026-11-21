@@ -691,9 +691,48 @@ val quickBuildDaemonZip =
 		}
 	}
 
+// A fat build bundles add-ons: the *.cgp files of assets/plugins and the *.cgt files of
+// assets/templates, put in the APK assets as plugins/<name> and templates/<name>. A folder that is
+// missing or empty bundles nothing, and the build is the thin one. Plugin files keep their names:
+// the installer names each after the plugin ID in its manifest, which Gradle does not read.
+abstract class StageBundledAddons : DefaultTask() {
+	@get:InputFiles
+	@get:PathSensitive(PathSensitivity.NAME_ONLY)
+	abstract val pluginFiles: ConfigurableFileCollection
+
+	@get:InputFiles
+	@get:PathSensitive(PathSensitivity.NAME_ONLY)
+	abstract val templateFiles: ConfigurableFileCollection
+
+	@get:OutputDirectory
+	abstract val outputDirectory: DirectoryProperty
+
+	@TaskAction
+	fun stage() {
+		val out = outputDirectory.get().asFile
+		out.deleteRecursively()
+		out.mkdirs()
+		pluginFiles.files.filter { !it.name.startsWith(".") }.forEach { it.copyTo(File(out, "plugins/${it.name}")) }
+		templateFiles.files.filter { !it.name.startsWith(".") }.forEach { it.copyTo(File(out, "templates/${it.name}")) }
+	}
+}
+
 androidComponents.onVariants { variant ->
 	val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
 	val flavorName = variant.flavorName!!
+
+	if (hasBundledAssets(variant)) {
+		val stageBundledAddons =
+			tasks.register<StageBundledAddons>("stage${variantName}BundledAddons") {
+				pluginFiles.from(fileTree(rootProject.file("assets/plugins")) { include("*.cgp") })
+				templateFiles.from(fileTree(rootProject.file("assets/templates")) { include("*.cgt") })
+				outputDirectory.set(layout.buildDirectory.dir("intermediates/bundled-addons/${variant.name}"))
+			}
+		variant.sources.assets?.addGeneratedSourceDirectory(
+			stageBundledAddons,
+			StageBundledAddons::outputDirectory,
+		)
+	}
 
 	val copyRuntimeAar =
 		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildRuntimeAar") {
@@ -1037,6 +1076,21 @@ fun createAssetsZip(arch: String) {
 			zipOut.putNextEntry(ZipEntry(entryName))
 			filePath.inputStream().use { input -> input.copyTo(zipOut) }
 			zipOut.closeEntry()
+		}
+
+		// Add-ons of a fat build, as plugins/<name> and templates/<name>; none in a thin one.
+		arrayOf("plugins" to "cgp", "templates" to "cgt").forEach { (dirName, extension) ->
+			sourceDir
+				.resolve(dirName)
+				.listFiles { file -> file.isFile && !file.name.startsWith(".") && file.extension.equals(extension, ignoreCase = true) }
+				.orEmpty()
+				.sortedBy { it.name }
+				.forEach { file ->
+					project.logger.lifecycle("Zipping bundled add-on $dirName/${file.name} from ${file.absolutePath}")
+					zipOut.putNextEntry(ZipEntry("$dirName/${file.name}"))
+					file.inputStream().use { input -> input.copyTo(zipOut) }
+					zipOut.closeEntry()
+				}
 		}
 	}
 	project.logger.lifecycle("Created ${zipFile.name} at ${zipFile.parentFile.absolutePath}")

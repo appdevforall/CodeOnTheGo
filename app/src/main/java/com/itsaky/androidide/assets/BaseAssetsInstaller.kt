@@ -1,17 +1,54 @@
 package com.itsaky.androidide.assets
 
 import android.content.Context
+import com.itsaky.androidide.assets.addons.BundleSource
+import com.itsaky.androidide.assets.addons.BundledAddonInstaller
+import com.itsaky.androidide.assets.addons.BundledAddons
+import com.itsaky.androidide.assets.addons.BundledEntry
+import com.itsaky.androidide.assets.addons.InstalledAddon
+import com.itsaky.androidide.plugins.manager.loaders.PluginLoader
 import com.itsaky.androidide.utils.Environment
 import com.termux.shared.termux.TermuxConstants
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.InputStream
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.system.measureTimeMillis
 
 abstract class BaseAssetsInstaller : AssetsInstaller {
 	private val logger = LoggerFactory.getLogger(BaseAssetsInstaller::class.java)
+	private val installedByEntry = ConcurrentHashMap<String, InstalledAddon>()
+
+	/** Where this installer's bundled add-ons are read from. */
+	protected abstract fun bundleSource(context: Context): BundleSource
+
+	override fun listBundledAddons(context: Context): List<BundledEntry> {
+		installedByEntry.clear()
+		return BundledAddons.list(bundleSource(context))
+	}
+
+	override fun installedAddons(): List<InstalledAddon> = installedByEntry.values.toList()
+
+	/** Installs the bundled add-on [entryName] (`plugins/<file>` or `templates/<file>`) read from [input]. */
+	protected fun installBundledAddon(
+		context: Context,
+		entryName: String,
+		input: InputStream,
+	) {
+		val (kind, fileName) =
+			BundledAddons.parse(entryName) ?: throw IllegalStateException("Unknown entry: $entryName")
+		val installer =
+			BundledAddonInstaller(
+				// The folder PluginManager loads from.
+				pluginsDir = File(context.filesDir, "plugins"),
+				templatesDir = Environment.TEMPLATES_DIR,
+				readPluginId = { PluginLoader(context, it).getPluginMetadata()?.id },
+			)
+		installedByEntry[entryName] = installer.install(kind, fileName, input)
+	}
 
 	override suspend fun postInstall(
 		context: Context,

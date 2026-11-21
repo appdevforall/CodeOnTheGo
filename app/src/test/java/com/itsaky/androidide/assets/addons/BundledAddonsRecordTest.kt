@@ -1,0 +1,136 @@
+package com.itsaky.androidide.assets.addons
+
+import com.google.common.truth.Truth.assertThat
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+
+class BundledAddonsRecordTest {
+	@get:Rule
+	val tempFolder = TemporaryFolder()
+
+	private lateinit var file: File
+	private lateinit var record: BundledAddonsRecord
+
+	private val state =
+		BundledAddonsState(
+			fingerprint = "abc123",
+			pluginIds = listOf("com.example.one", "com.example.two"),
+			templateFiles = listOf("starter.cgt"),
+		)
+
+	@Before
+	fun setUp() {
+		file = File(tempFolder.root, "files/bundled_addons.properties")
+		record = BundledAddonsRecord(file)
+	}
+
+	@Test
+	fun `no file reads as no record`() {
+		assertThat(record.read()).isNull()
+		assertThat(record.unreportedFailures()).isEmpty()
+		assertThat(record.markReported()).isEmpty()
+	}
+
+	@Test
+	fun `a written record reads back`() {
+		record.write(state)
+
+		assertThat(BundledAddonsRecord(file).read()).isEqualTo(state)
+	}
+
+	@Test
+	fun `a thin record reads back with an empty bundle`() {
+		val thin = BundledAddonsState(fingerprint = BundledAddons.fingerprint(emptyList()))
+
+		record.write(thin)
+
+		assertThat(record.read()).isEqualTo(thin)
+	}
+
+	@Test
+	fun `writing replaces the whole record and leaves no temporary file`() {
+		record.write(state)
+		record.recordFailures(mapOf("com.example.one" to "boom"))
+
+		val next = BundledAddonsState(fingerprint = "def456", pluginIds = listOf("com.example.three"))
+		record.write(next)
+
+		assertThat(record.read()).isEqualTo(next)
+		assertThat(file.parentFile!!.list()!!.toList()).containsExactly(file.name)
+	}
+
+	@Test
+	fun `an unreadable file reads as no record`() {
+		file.parentFile!!.mkdirs()
+		file.writeText("pluginX=\\u12")
+
+		assertThat(record.read()).isNull()
+	}
+
+	@Test
+	fun `a file without a fingerprint reads as no record`() {
+		file.parentFile!!.mkdirs()
+		file.writeText("plugin.0=com.example.one\n")
+
+		assertThat(record.read()).isNull()
+	}
+
+	@Test
+	fun `failures are stored unreported and kept with the bundle`() {
+		record.write(state)
+
+		record.recordFailures(linkedMapOf("com.example.one" to "boom", "com.example.two" to "bang"))
+
+		assertThat(record.unreportedFailures())
+			.containsExactly(
+				BundledPluginFailure("com.example.one", "boom", reported = false),
+				BundledPluginFailure("com.example.two", "bang", reported = false),
+			).inOrder()
+		assertThat(record.read()!!.copy(failures = emptyList())).isEqualTo(state)
+	}
+
+	@Test
+	fun `failures with odd characters survive`() {
+		record.write(state)
+		val message = "line one\nline two = \"quoted\" \\ back: é"
+
+		record.recordFailures(mapOf("com.example.one" to message))
+
+		assertThat(record.unreportedFailures().single().message).isEqualTo(message)
+	}
+
+	@Test
+	fun `markReported hands the failures out once`() {
+		record.write(state)
+		record.recordFailures(mapOf("com.example.one" to "boom"))
+
+		val first = record.markReported()
+		val second = record.markReported()
+
+		assertThat(first).containsExactly(BundledPluginFailure("com.example.one", "boom", reported = false))
+		assertThat(second).isEmpty()
+		assertThat(record.unreportedFailures()).isEmpty()
+		assertThat(record.read()!!.failures).containsExactly(BundledPluginFailure("com.example.one", "boom", reported = true))
+	}
+
+	@Test
+	fun `a new failure after a report is unreported again`() {
+		record.write(state)
+		record.recordFailures(mapOf("com.example.one" to "boom"))
+		record.markReported()
+
+		record.recordFailures(mapOf("com.example.two" to "bang"))
+
+		assertThat(record.unreportedFailures()).containsExactly(BundledPluginFailure("com.example.two", "bang", reported = false))
+	}
+
+	@Test
+	fun `recording failures without a record does nothing`() {
+		record.recordFailures(mapOf("com.example.one" to "boom"))
+
+		assertThat(file.exists()).isFalse()
+	}
+}

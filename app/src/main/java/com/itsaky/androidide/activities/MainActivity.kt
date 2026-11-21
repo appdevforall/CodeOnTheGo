@@ -47,6 +47,7 @@ import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
@@ -336,6 +337,28 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		super.onResume()
 		MainScreenActions.register(this)
 		feedbackButtonManager?.loadFabPosition()
+		reportBundledPluginFailures()
+	}
+
+	/**
+	 * Tells the user once which plugins bundled with the build did not start. Marking them reported
+	 * is what claims them, so a quick pause and resume cannot show the bar twice; the cost is that a
+	 * screen destroyed between the claim and the bar loses the message.
+	 */
+	private fun reportBundledPluginFailures() {
+		lifecycleScope.launch {
+			val failures =
+				withContext(Dispatchers.IO) {
+					runCatching { BundledAddonsRecord.inFilesDir(filesDir).markReported() }.getOrDefault(emptyList())
+				}
+			if (failures.isEmpty()) return@launch
+			flashError(
+				getString(
+					string.msg_bundled_plugins_failed,
+					failures.joinToString("\n") { "${it.pluginId}: ${it.message}" },
+				),
+			)
+		}
 	}
 
 	override fun onPause() {

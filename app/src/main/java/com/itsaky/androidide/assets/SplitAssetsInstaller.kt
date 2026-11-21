@@ -3,6 +3,9 @@ package com.itsaky.androidide.assets
 import android.content.Context
 import androidx.annotation.WorkerThread
 import com.itsaky.androidide.app.configuration.CpuArch
+import com.itsaky.androidide.assets.addons.BundleSource
+import com.itsaky.androidide.assets.addons.BundledAddons
+import com.itsaky.androidide.assets.addons.ZipBundleSource
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.Environment
 import com.itsaky.androidide.utils.TerminalInstaller
@@ -174,13 +177,18 @@ data object SplitAssetsInstaller : BaseAssetsInstaller() {
 							}
 
 							else -> {
-								throw IllegalStateException("Unknown entry: $entryName")
+								if (!BundledAddons.isAddonEntry(entryName)) {
+									throw IllegalStateException("Unknown entry: $entryName")
+								}
+								installBundledAddon(context, entryName, zipInput)
 							}
 						}
 					}
 				}
 			logger.info("Extraction of '{}' completed in {}ms", entry.name, time)
 		}
+
+	override fun bundleSource(context: Context): BundleSource = ZipBundleSource(zipFile)
 
 	override suspend fun postInstall(
 		context: Context,
