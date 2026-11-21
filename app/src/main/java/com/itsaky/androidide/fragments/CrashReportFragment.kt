@@ -40,6 +40,7 @@ import com.itsaky.androidide.utils.resolveAttr
 
 class CrashReportFragment : Fragment() {
 
+    @Suppress("ktlint:standard:backing-property-naming")
     private var _binding: LayoutCrashReportBinding? = null
     private val binding get() = _binding!!
 

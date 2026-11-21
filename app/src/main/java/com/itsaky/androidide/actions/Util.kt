@@ -74,7 +74,11 @@ fun showDebuggerNotReadyMessage(context: Context): AlertDialog? =
 			context.getString(R.string.debugger_not_ready) +
 				System
 					.lineSeparator()
-					.repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction, context.getString(R.string.app_name)),
+					.repeat(2) +
+						context.getString(
+							R.string.debugger_error_suggestion_network_restriction,
+							context.getString(R.string.app_name),
+						),
 		).setPositiveButton(android.R.string.ok, null)
 		.show()
 

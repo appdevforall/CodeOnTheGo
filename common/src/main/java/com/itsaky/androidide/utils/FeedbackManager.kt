@@ -83,8 +83,8 @@ object FeedbackManager {
 			}.setPositiveButton(R.string.send_email) { dialog, _ ->
 				val intent =
 					Intent(Intent.ACTION_SENDTO).apply {
-						data =
-							"mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject, context.getString(R.string.app_name))}".toUri()
+						val subject = context.getString(R.string.feedback_email_subject, context.getString(R.string.app_name))
+						data = "mailto:$EMAIL_SUPPORT?subject=$subject".toUri()
 					}
 				context.startActivity(intent)
 				dialog.dismiss()

@@ -94,7 +94,12 @@ class AutomationEndToEndTest : TestCase() {
 									}
 									description {
 										isVisible()
-										hasText(targetContext.getString(item.description, targetContext.getString(com.itsaky.androidide.R.string.app_name)))
+										hasText(
+											targetContext.getString(
+												item.description,
+												targetContext.getString(com.itsaky.androidide.R.string.app_name),
+											),
+										)
 									}
 									grantButton {
 										isVisible()
