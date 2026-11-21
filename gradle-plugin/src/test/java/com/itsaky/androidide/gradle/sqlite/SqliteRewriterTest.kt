@@ -2133,7 +2133,38 @@ class SqliteRewriterTest {
 	}
 
 	@Test
-	fun `a merged SQLite cursor array keeps its type, and null on one path does not hide it`() {
+	fun `an element loaded from an SQLite cursor 3D array used as an Android cursor type without a cast fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.LoadedCube",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class LoadedCube {
+							AbstractCursor up(SQLiteCursor[][][] t) {
+								return t[0][0][0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		// each row is followed as an array one dimension smaller, at any depth, not only for an SQLiteCursor[][]
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/LoadedCube"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("up([[[Landroid/database/sqlite/SQLiteCursor;)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("without a cast")
+	}
+
+	// a regression guard: this passed before rows of an SQLiteCursor[][] were followed too, when the tag was true or false
+	// and a merge already kept it; it checks that the tag, now an array type, is still kept for a one-dimensional array
+	@Test
+	fun `regression guard - a merged SQLite cursor array still counts, and null on one path does not hide it`() {
 		val classes =
 			Compiler.compile(
 				listOf(
