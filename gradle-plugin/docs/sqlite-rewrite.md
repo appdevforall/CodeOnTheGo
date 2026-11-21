@@ -72,7 +72,8 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).
   The same conversion without a cast fails too: a value declared `SQLiteCursor`, or a subclass, returned, passed,
   called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
-  { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
+  { return c; }`). A row loaded from an `SQLiteCursor[]` (or an array of a subclass) counts the same way
+  (`AbstractCursor up(SQLiteCursor[] cs) { return cs[0]; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
   into an array of those types (`AbstractCursor[] a; a[0] = c;`), which would throw `ArrayStoreException`: the
   array must be one on every path to the store where it is not `null`, from a parameter, field, call or `new`, or
   loaded from an array of them (`AbstractCursor[][] g; g[0][0] = c;`), and the value an SQLite cursor on every path
@@ -208,8 +209,11 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   The plugin logs why and the build is a normal one. The IDE does not provision Quick Build for such a project
   either (`GradleQuickBuildProvisioner.sqliteDebuggerRefusal`): it shows `quick_build_disabled_sqlite_debugger`, which
   says Quick Build is off while the SQLite debugger is on. The editor's status line then reads
-  `quick_build_status_off_sqlite_debugger`, and a tap on it, like a tap on the Quick Build button, shows that
-  message again.
+  `quick_build_status_off_sqlite_debugger`, and a tap on it does what a tap on the Quick Build button does: it
+  shows that message again, or, while the button is greyed out (a release variant, a plugin project), why it is.
+- The array-store check is path-insensitive, so it gives a false positive when the cursor is null on exactly the path where
+  the array is set (`a = null; c = null; if (b) a = p; else c = query(); a[0] = c` fails the build although the store
+  never runs with both set).
 - Classes loaded by name (`Class.forName`, reflection, strings naming `android.database.sqlite.*`) are not
   rewritten. A string constant that names one of the renamed classes (dots or slashes, `$` or `.` before a nested
   class, alone or in a type descriptor) logs a warning with class, method and line, in the classes the fail rule
@@ -220,8 +224,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   and a store whose array type differs between branches that merge is not checked (`null` on a branch counts as
   no difference). Both can still throw `ArrayStoreException`, in release builds too (the rewrite runs in every
   variant of an opted-in app). So can a store whose value is an SQLite cursor on some paths only, which logs a
-  warning and builds (see Rules): it throws when one path brings both the cursor and the array. Cursors loaded from
-  arrays are not followed: one counts as a value that is not an SQLite cursor.
+  warning and builds (see Rules): it throws when one path brings both the cursor and the array. A row loaded
+  from an `SQLiteCursor[]` (or an array of a subclass) is followed and counts as an SQLite cursor; rows of other
+  arrays are not followed, and one counts as a value that is not an SQLite cursor.
 - An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
   `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
   covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,

@@ -2039,6 +2039,72 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a store of an element loaded from an SQLite cursor array still fails the build when the other path is an SQLite cursor`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.LoadedElement",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class LoadedElement {
+							void loaded(AbstractCursor[] a, SQLiteCursor c, SQLiteCursor[] cs, boolean b) {
+								Object[] arr = a;
+								arr[0] = b ? c : cs[0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/LoadedElement"]!!, hierarchy, warn = warnings::add)
+			}
+		// cs[0] is an SQLite cursor, so the value is one on every path, and the store throws ArrayStoreException when cs[0] is taken
+		assertThat(e.message).contains("an SQLite cursor stored into an array of android.database.AbstractCursor;")
+		assertThat(warnings).isEmpty()
+	}
+
+	@Test
+	fun `a row of an SQLite cursor array used as an Android cursor type without a cast fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.LoadedRow",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class LoadedRow {
+							AbstractCursor up(SQLiteCursor[] cs) {
+								return cs[0];
+							}
+							int arg(SQLiteCursor[] cs) {
+								return count(cs[0]);
+							}
+							static int count(AbstractCursor c) {
+								return c.getCount();
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/LoadedRow"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("up([Landroid/database/sqlite/SQLiteCursor;)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("arg([Landroid/database/sqlite/SQLiteCursor;)I")
+		assertThat(e.message).contains("without a cast")
+	}
+
+	@Test
 	fun `an SQLite cursor array used as an Android cursor array is not checked, and would not verify`() {
 		fun covariant(pkg: String) =
 			src(
