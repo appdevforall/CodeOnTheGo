@@ -35,3 +35,28 @@ internal fun bindStatusLineTap(
 	// A null command keeps the default click; only the spoken label is replaced.
 	ViewCompat.replaceAccessibilityAction(statusText, AccessibilityActionCompat.ACTION_CLICK, actionLabel, null)
 }
+
+/**
+ * Keeps the status line's tap with the text it was bound for. [bind] remembers the text on the line,
+ * and [onTextWritten] drops the tap when other text replaces it, whoever wrote that text (a refused
+ * Quick Build's tap must not stay on the indexing line the view model writes next). The same text
+ * written again, as the status observer does after the refusal, keeps the tap.
+ */
+internal class StatusLineTapBinding(
+	private val statusText: TextView,
+) {
+	private var boundText: String? = null
+
+	fun bind(
+		actionLabel: CharSequence?,
+		onTap: (() -> Unit)?,
+	) {
+		boundText = if (onTap == null) null else statusText.text?.toString().orEmpty()
+		bindStatusLineTap(statusText, actionLabel, onTap)
+	}
+
+	fun onTextWritten(text: CharSequence) {
+		val bound = boundText ?: return
+		if (text.toString() != bound) bind(null, null)
+	}
+}
