@@ -1100,8 +1100,7 @@ fun createAssetsZip(arch: String) {
 						!file.name.startsWith(".") &&
 						file.extension.equals(extension, ignoreCase = true) &&
 						!file.name.equals("core.cgt", ignoreCase = true)
-				}
-				.orEmpty()
+				}.orEmpty()
 				.sortedBy { it.name }
 				.forEach { file ->
 					project.logger.lifecycle("Zipping bundled add-on $dirName/${file.name} from ${file.absolutePath}")
