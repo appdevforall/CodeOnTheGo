@@ -1,14 +1,13 @@
 {
   "lockfile-version": 1,
   "manifest": {
-    "schema-version": "1.11.0",
+    "version": 1,
     "install": {
       "android-studio-tools": {
         "pkg-path": "android-studio-tools"
       },
       "awscli2": {
-        "pkg-path": "awscli2",
-        "outputs": "all"
+        "pkg-path": "awscli2"
       },
       "gh": {
         "pkg-path": "gh"
