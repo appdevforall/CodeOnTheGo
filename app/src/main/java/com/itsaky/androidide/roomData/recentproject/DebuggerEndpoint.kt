@@ -17,7 +17,7 @@ import androidx.room.PrimaryKey
  * result that arrives after Code on the Go restarted, and an install by the intent-based fallback
  * installer (on MIUI, or when debugFallbackInstaller is set; Run installs too), which never calls
  * beforeCommit and has no session or result. Only the Launch action (LaunchAppAction) pairs an
- * unpaired app installed by the last five, at the next launch from a project, and keeps an
+ * unpaired app installed by any of the six, at the next launch from a project, and keeps an
  * already-paired app's stored values; the automatic post-install launch
  * (BaseEditorActivity.doLaunchApp, in debug mode too), RestartVmAction and Quick Build's launch of
  * the proxy app never call recordLaunched. Other installs keep them too: recordInstalled returns
