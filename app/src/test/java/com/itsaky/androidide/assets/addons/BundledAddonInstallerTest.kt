@@ -42,20 +42,20 @@ class BundledAddonInstallerTest {
 	fun `a plugin is installed as pluginId-hash dot cgp`() {
 		val installed = installer().install(BundledAddonKind.PLUGIN, "whatever.cgp", bytes("plugin bytes"))
 
-		val expectedStem = PluginBuildFiles.fileStem("com.example.plugin", installed.file)
-		assertThat(installed.file.name).isEqualTo("$expectedStem.cgp")
-		assertThat(installed.file.name).startsWith("com.example.plugin-")
-		assertThat(installed.file.parentFile).isEqualTo(pluginsDir)
-		assertThat(installed.file.readText()).isEqualTo("plugin bytes")
+		val expectedStem = PluginBuildFiles.fileStem("com.example.plugin", installed.file!!)
+		assertThat(installed.file!!.name).isEqualTo("$expectedStem.cgp")
+		assertThat(installed.file!!.name).startsWith("com.example.plugin-")
+		assertThat(installed.file!!.parentFile).isEqualTo(pluginsDir)
+		assertThat(installed.file!!.readText()).isEqualTo("plugin bytes")
 		assertThat(installed.pluginId).isEqualTo("com.example.plugin")
-		assertThat(pluginsDir.list()!!.toList()).containsExactly(installed.file.name)
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(installed.file!!.name)
 	}
 
 	@Test
 	fun `the same plugin bytes always get the same name and another build another one`() {
-		val first = installer().install(BundledAddonKind.PLUGIN, "a.cgp", bytes("one")).file.name
-		val again = installer().install(BundledAddonKind.PLUGIN, "a.cgp", bytes("one")).file.name
-		val other = installer().install(BundledAddonKind.PLUGIN, "a.cgp", bytes("two")).file.name
+		val first = installer().install(BundledAddonKind.PLUGIN, "a.cgp", bytes("one")).file!!.name
+		val again = installer().install(BundledAddonKind.PLUGIN, "a.cgp", bytes("one")).file!!.name
+		val other = installer().install(BundledAddonKind.PLUGIN, "a.cgp", bytes("two")).file!!.name
 
 		assertThat(again).isEqualTo(first)
 		assertThat(other).isNotEqualTo(first)
@@ -65,8 +65,8 @@ class BundledAddonInstallerTest {
 	fun `a template is installed under its bundled name`() {
 		val installed = installer().install(BundledAddonKind.TEMPLATE, "starter.cgt", bytes("template bytes"))
 
-		assertThat(installed.file).isEqualTo(File(templatesDir, "starter.cgt"))
-		assertThat(installed.file.readText()).isEqualTo("template bytes")
+		assertThat(installed.file!!).isEqualTo(File(templatesDir, "starter.cgt"))
+		assertThat(installed.file!!.readText()).isEqualTo("template bytes")
 		assertThat(installed.pluginId).isNull()
 		assertThat(templatesDir.list()!!.toList()).containsExactly("starter.cgt")
 	}
@@ -105,20 +105,32 @@ class BundledAddonInstallerTest {
 	}
 
 	@Test
-	fun `a plugin without a readable manifest is refused and leaves no file`() {
-		assertThrows(IOException::class.java) {
-			installer(readPluginId = { null }).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("not a plugin"))
-		}
+	fun `a plugin without a readable manifest is reported, not thrown, and leaves no file`() {
+		val result = installer(readPluginId = { null }).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("not a plugin"))
 
+		assertThat(result.file).isNull()
+		assertThat(result.pluginId).isNull()
+		assertThat(result.sourceName).isEqualTo("a.cgp")
+		assertThat(result.failure).isNotNull()
 		assertThat(pluginsDir.list()!!.toList()).isEmpty()
 	}
 
 	@Test
-	fun `a plugin whose ID is a path is refused and leaves no file`() {
-		assertThrows(IllegalArgumentException::class.java) {
-			installer(readPluginId = { "../escape" }).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("plugin"))
-		}
+	fun `a plugin whose manifest reader throws is reported, not thrown`() {
+		val result =
+			installer(readPluginId = { throw IllegalStateException("bad zip") })
+				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("not a plugin"))
 
+		assertThat(result.failure).isNotNull()
+		assertThat(pluginsDir.list()!!.toList()).isEmpty()
+	}
+
+	@Test
+	fun `a plugin whose ID is a path is reported, not thrown, and leaves no file`() {
+		val result = installer(readPluginId = { "../escape" }).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("plugin"))
+
+		assertThat(result.file).isNull()
+		assertThat(result.failure).contains("../escape")
 		assertThat(pluginsDir.list()!!.toList()).isEmpty()
 	}
 }

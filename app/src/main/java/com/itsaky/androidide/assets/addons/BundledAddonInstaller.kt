@@ -7,11 +7,17 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 
-/** An add-on file that reached its folder. [pluginId] is set for a plugin. */
+/**
+ * A bundled add-on after installation. [pluginId] is set for a plugin that reached its folder. A
+ * plugin whose manifest names no valid ID has no [file] and carries a [failure] instead, with the
+ * bundled file name in [sourceName]: it is reported to the user, and must not fail the setup.
+ */
 data class InstalledAddon(
 	val kind: BundledAddonKind,
-	val file: File,
+	val file: File?,
 	val pluginId: String?,
+	val failure: String? = null,
+	val sourceName: String? = null,
 )
 
 /**
@@ -34,28 +40,40 @@ class BundledAddonInstaller(
 		input: InputStream,
 	): InstalledAddon =
 		when (kind) {
-			BundledAddonKind.PLUGIN -> installPlugin(input)
+			BundledAddonKind.PLUGIN -> installPlugin(fileName, input)
 			BundledAddonKind.TEMPLATE -> {
 				val file = AtomicFiles.writeInto(templatesDir, { input.copyToFile(it) }, { fileName })
 				InstalledAddon(kind, file, null)
 			}
 		}
 
-	private fun installPlugin(input: InputStream): InstalledAddon {
+	private fun installPlugin(
+		fileName: String,
+		input: InputStream,
+	): InstalledAddon {
 		var pluginId: String? = null
 		val file =
-			AtomicFiles.writeInto(
-				pluginsDir,
-				{ input.copyToFile(it) },
-				{ copy ->
-					val id = readPluginId(copy) ?: throw IOException("Bundled plugin has no readable manifest")
-					checkPluginId(id).getOrThrow()
-					pluginId = id
-					"${PluginBuildFiles.fileStem(id, copy)}.$PLUGIN_ARCHIVE_EXTENSION"
-				},
-			)
+			try {
+				AtomicFiles.writeInto(
+					pluginsDir,
+					{ input.copyToFile(it) },
+					{ copy ->
+						val id = runCatching { readPluginId(copy) }.getOrNull() ?: throw RejectedPluginException("it has no readable manifest")
+						checkPluginId(id).onFailure { throw RejectedPluginException(it.message ?: "invalid plugin ID") }
+						pluginId = id
+						"${PluginBuildFiles.fileStem(id, copy)}.$PLUGIN_ARCHIVE_EXTENSION"
+					},
+				)
+			} catch (e: RejectedPluginException) {
+				// writeInto has deleted the scratch copy. A write error (disk full) still propagates.
+				return InstalledAddon(BundledAddonKind.PLUGIN, null, null, failure = e.message, sourceName = fileName)
+			}
 		return InstalledAddon(BundledAddonKind.PLUGIN, file, pluginId)
 	}
+
+	private class RejectedPluginException(
+		message: String,
+	) : IOException(message)
 
 	private fun InputStream.copyToFile(dest: File) {
 		dest.outputStream().use { out -> copyTo(out) }

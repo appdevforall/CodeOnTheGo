@@ -77,13 +77,15 @@ class BundledAddonsRecord(
 	}
 
 	/**
-	 * Stores [failures] (plugin ID to message) as unreported, replacing any earlier ones.
+	 * Stores [failures] (plugin ID to message) as unreported. A failure already recorded under
+	 * another key (a plugin rejected while copying) is kept; one under the same key is replaced.
 	 * Does nothing when there is no record: failures belong to an installed bundle.
 	 */
 	@Synchronized
 	fun recordFailures(failures: Map<String, String>) {
 		val state = read() ?: return
-		write(state.copy(failures = failures.map { (id, message) -> BundledPluginFailure(id, message) }))
+		val kept = state.failures.filterNot { it.pluginId in failures }
+		write(state.copy(failures = kept + failures.map { (id, message) -> BundledPluginFailure(id, message) }))
 	}
 
 	/** The failures the user has not been told about, in the order recorded. */

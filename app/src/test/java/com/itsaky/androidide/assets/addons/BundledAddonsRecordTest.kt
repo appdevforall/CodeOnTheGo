@@ -128,6 +128,18 @@ class BundledAddonsRecordTest {
 	}
 
 	@Test
+	fun `recording load failures keeps failures recorded under other keys`() {
+		record.write(state.copy(failures = listOf(BundledPluginFailure("broken.cgp", "it has no readable manifest"))))
+
+		record.recordFailures(mapOf("com.example.one" to "boom"))
+
+		assertThat(record.unreportedFailures()).containsExactly(
+			BundledPluginFailure("broken.cgp", "it has no readable manifest"),
+			BundledPluginFailure("com.example.one", "boom"),
+		)
+	}
+
+	@Test
 	fun `recording failures without a record does nothing`() {
 		record.recordFailures(mapOf("com.example.one" to "boom"))
 

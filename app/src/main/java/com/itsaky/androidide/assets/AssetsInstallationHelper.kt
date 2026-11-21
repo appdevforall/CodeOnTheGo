@@ -10,6 +10,7 @@ import com.itsaky.androidide.assets.addons.BundledAddons
 import com.itsaky.androidide.assets.addons.BundledAddonsRecord
 import com.itsaky.androidide.assets.addons.BundledAddonsState
 import com.itsaky.androidide.assets.addons.BundledEntry
+import com.itsaky.androidide.assets.addons.BundledPluginFailure
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.ContainedPathResolver
 import com.itsaky.androidide.utils.ContainedPathResolver.Resolution
@@ -259,8 +260,13 @@ object AssetsInstallationHelper {
 					templateFiles =
 						installed
 							.filter { it.kind == BundledAddonKind.TEMPLATE }
-							.map { it.file.name }
+							.mapNotNull { it.file?.name }
 							.sorted(),
+					// Plugins rejected while copying; the main screen reports them with load failures.
+					failures =
+						installed
+							.mapNotNull { addon -> addon.failure?.let { BundledPluginFailure(addon.sourceName ?: "?", it) } }
+							.sortedBy { it.pluginId },
 				),
 			)
 		} finally {
