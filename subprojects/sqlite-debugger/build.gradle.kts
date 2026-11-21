@@ -34,6 +34,10 @@ android {
 		targetCompatibility = JavaVersion.VERSION_1_8
 	}
 
+	testOptions {
+		unitTests.isIncludeAndroidResources = true
+	}
+
 	buildFeatures {
 		viewBinding = false
 		buildConfig = false
@@ -67,4 +71,6 @@ dependencies {
 	testImplementation(libs.org.json)
 	testImplementation(libs.tests.junit)
 	testImplementation(libs.tests.google.truth)
+	testImplementation(libs.tests.robolectric)
+	testImplementation(libs.tests.androidx.test.core)
 }

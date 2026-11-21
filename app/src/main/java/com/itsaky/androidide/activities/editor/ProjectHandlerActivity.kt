@@ -18,6 +18,7 @@
 package com.itsaky.androidide.activities.editor
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.system.ErrnoException
 import android.system.OsConstants
@@ -93,6 +94,7 @@ import com.itsaky.androidide.quickbuild.QuickBuildStatusTracker
 import com.itsaky.androidide.quickbuild.QuickBuildWontStayUpRestart
 import com.itsaky.androidide.quickbuild.quickBuildStatusBarUpdate
 import com.itsaky.androidide.quickbuild.resolve
+import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.repositories.PluginRepository
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.search.replace.ReplaceCoordinator
@@ -183,6 +185,7 @@ abstract class ProjectHandlerActivity :
 	ReplaceHost {
 	protected val buildVariantsViewModel by viewModels<BuildVariantsViewModel>()
 	private val pluginRepository: PluginRepository by inject()
+	private val debuggerEndpointRepository: DebuggerEndpointRepository by inject()
 
 	protected var mSearchingProgress: ProgressSheet? = null
 	protected var mFindInProjectDialog: AlertDialog? = null
@@ -282,6 +285,28 @@ abstract class ProjectHandlerActivity :
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
 
 		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
+
+		/**
+		 * Reads the applicationId from the archive, or null when it cannot be read. Catches only
+		 * [Exception] and [LinkageError], like the rest of the plugin stack, so a VirtualMachineError
+		 * (OutOfMemoryError while the package manager parses the APK) still crashes.
+		 */
+		internal fun apkApplicationId(
+			packageManager: PackageManager,
+			apk: File,
+		): String? {
+			val packageName =
+				try {
+					packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName
+				} catch (e: Exception) {
+					logger.warn("Could not read the applicationId of {}", apk, e)
+					null
+				} catch (e: LinkageError) {
+					logger.warn("Could not read the applicationId of {}", apk, e)
+					null
+				}
+			return packageName?.takeIf { it.isNotBlank() }
+		}
 	}
 
 	abstract fun doCloseAll()
@@ -719,17 +744,33 @@ abstract class ProjectHandlerActivity :
 	 *
 	 * @param apk the built APK; parsed with the package manager, so it must exist on disk.
 	 */
-	private fun apkApplicationId(apk: File): String? =
-		runCatching { packageManager.getPackageArchiveInfo(apk.absolutePath, 0)?.packageName }
-			.onFailure { logger.warn("Could not read the applicationId of {}", apk, it) }
-			.getOrNull()
-			?.takeIf { it.isNotBlank() }
+	private fun apkApplicationId(apk: File): String? = apkApplicationId(packageManager, apk)
+
+	/**
+	 * Notes the install of [apk] as the open project's for the SQLite debugger pairing (ADFA-7137), or null when no
+	 * project is open. It runs on the install's IO thread before the session is committed, and
+	 * InstallationResultReceiver pairs the app when that session succeeds. When the APK's application ID cannot be
+	 * read, nothing is noted, and the app's next launch from the project pairs it. Captures no Activity: the install
+	 * outlives a recreated one.
+	 */
+	private fun pendingInstallNote(apk: File): ((sessionId: Int) -> Unit)? {
+		val projectDirPath = IProjectManager.getInstance().projectDirPath
+		if (projectDirPath.isBlank()) return null
+		val projectDir = File(projectDirPath)
+		val repository = debuggerEndpointRepository
+		val packageManager = applicationContext.packageManager
+		return { sessionId ->
+			apkApplicationId(packageManager, apk)?.let { repository.notePendingInstall(sessionId, projectDir, it) }
+		}
+	}
 
 	private fun doInstallApk(state: BuildState.AwaitingInstall) {
 		apkInstallationViewModel.installApk(
 			context = this,
 			apk = state.apkFile,
 			launchInDebugMode = state.launchInDebugMode,
+			beforeCommit = pendingInstallNote(state.apkFile),
+			onCommitFailed = debuggerEndpointRepository::discardPendingInstall,
 		)
 
 		if (state.launchProfilerAfterInstall) {

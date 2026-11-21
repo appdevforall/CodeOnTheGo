@@ -38,7 +38,7 @@ If none of these hold, use Room. "It's a small table" or "I already know SQL" ar
 
 The tooltips and in-app/plugin-help rows, plus the local web server's Tier 3 serving, all read `documentation.db` — see [docs/documentation-database.md](../documentation-database.md) for its schema and consumers.
 
-The **Recent Projects** feature (`app/.../roomData/recentproject/`, `RecentProjectRoomDatabase`, `@Database version = 4`) is **not** an exception — it uses Room and is the reference example of the default. Extend it (and add new persistence) the same way.
+The **Recent Projects** feature (`app/.../roomData/recentproject/`, `RecentProjectRoomDatabase`, `@Database version = 6`, which also holds `debugger_endpoint_table`, keyed by application ID with a foreign key to `recent_project_table.location`) is **not** an exception — it uses Room and is the reference example of the default. Extend it (and add new persistence) the same way.
 
 > Note: the `androidx.room:*` strings in `editor`'s `GroovyAutoComplete` are autocomplete suggestions for the *user's* code, not CoGo persistence.
 

@@ -7,9 +7,11 @@ import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.editor.language.outline.OutlineProvider
 import com.itsaky.androidide.editor.language.outline.TreeSitterOutlineProvider
 import com.itsaky.androidide.git.core.GitCredentialsManager
+import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.repositories.RecentProjectRepository
 import com.itsaky.androidide.repositories.RecentProjectRepositoryImpl
 import com.itsaky.androidide.roomData.recentproject.RecentProjectRoomDatabase
+import com.itsaky.androidide.sqlitedebugger.DebuggerEndpointAnnounce
 import com.itsaky.androidide.viewmodel.CloneRepositoryViewModel
 import com.itsaky.androidide.viewmodel.GitBottomSheetViewModel
 import com.itsaky.androidide.viewmodel.MainViewModel
@@ -55,6 +57,19 @@ val coreModule =
 
 		single {
 			get<RecentProjectRoomDatabase>().recentProjectDao()
+		}
+
+		single {
+			get<RecentProjectRoomDatabase>().debuggerEndpointDao()
+		}
+
+		single {
+			val context = androidContext()
+			DebuggerEndpointRepository(
+				get(),
+				get(named(APPLICATION_SCOPE)),
+				announce = { DebuggerEndpointAnnounce.send(context, it) },
+			)
 		}
 
 		single<RecentProjectRepository> {
