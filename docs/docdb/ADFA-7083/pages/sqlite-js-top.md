@@ -65,6 +65,8 @@ SELECT t, slugify(t) FROM titles;
 
 A function you create lasts until you close `sqlite3`. To keep your functions in the database, see [sqlite-js function reference](sqlite-js-functions.html).
 
+These pages are about `sqlite3` in Terminal. To use JavaScript functions in the database of an app that you build, see [JavaScript in SQLite for apps](sqlite-js-app-top.html).
+
 ## Stay safe
 
 - **Load sqlite-js only for databases you trust.** A database can store JavaScript, and `js_init_table(1)` runs it with your access. Through `db.exec`, that code can run any SQL, including `readfile()` and `writefile()`, which read and write your files.
@@ -77,5 +79,6 @@ A function you create lasts until you close `sqlite3`. To keep your functions in
 - [sqlite-js function reference](sqlite-js-functions.html): every function, with arguments, results and errors.
 - [JavaScript in sqlite-js](sqlite-js-javascript.html): how SQL values and JavaScript values convert, what the engine supports, and the limits.
 - [JavaScript basics](javascript-intro.html): a short introduction for new JavaScript users.
+- [JavaScript in SQLite for apps](sqlite-js-app-top.html): call JavaScript functions from the database of an app that you build with Code on the Go.
 
 sqlite-js is developed on GitHub, in the project sqliteai/sqlite-js, under the Apache License 2.0. Version 1.4.0 and later include fixes from App Dev For All, described in the reference.

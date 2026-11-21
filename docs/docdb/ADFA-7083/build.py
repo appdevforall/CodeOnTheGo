@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the ADFA-7083 documentation pages.
+"""Builds the documentation pages of this folder (ADFA-7083, ADFA-7243, ADFA-7247).
 
 Reads pages/*.md and writes one JSON file per page into the output directory,
 in the shape documentation.db stores for the Help+Manual pages (templateId
@@ -21,6 +21,8 @@ A page is Markdown, a small subset of it, after a front matter block:
 Supported: `##` and `###` headings, paragraphs, `-` and `1.` lists, `>` notes,
 pipe tables, fenced code blocks, `code`, **bold** and [links](page.html). A link to
 an http(s) address is shown as text, because the documentation stays on the device.
+The word after a code block's opening fence (`sql`, `kotlin`, `gradle`, `text`) is
+for the tests, which run or compile the block: the page shows every block the same.
 """
 import html
 import json
@@ -30,8 +32,12 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# Pages of the existing help that these pages hang under, outermost first.
-ROOT_TRAIL = [("cogo-top.html", "Code on the Go"), ("terminal-top.html", "Terminal")]
+# Pages of the existing help that these pages hang under: file -> (title, parent).
+EXISTING = {
+    "cogo-top.html": ("Code on the Go", None),
+    "terminal-top.html": ("Terminal", "cogo-top.html"),
+    "project-create-new.html": ("Create a new project", "cogo-top.html"),
+}
 
 P_STYLE = {
     "p_Normal": "",
@@ -160,16 +166,16 @@ def main():
         if name.endswith(".md"):
             meta, md = read_page(os.path.join(HERE, "pages", name))
             pages[meta["file"]] = (meta, md)
-    titles = dict(ROOT_TRAIL)
+    titles = {f: title for f, (title, _) in EXISTING.items()}
     titles.update({f: m["title"] for f, (m, _) in pages.items()})
-    parents = {f: m["parent"] for f, (m, _) in pages.items()}
+    parents = {f: parent for f, (_, parent) in EXISTING.items()}
+    parents.update({f: m["parent"] for f, (m, _) in pages.items()})
 
     for file, (meta, md) in pages.items():
         trail, p = [], meta["parent"]
-        while p in titles and p != "cogo-top.html":
+        while p is not None:  # a parent that is neither a page here nor in EXISTING is a KeyError
             trail.insert(0, p)
-            p = parents.get(p, "terminal-top.html" if p != "terminal-top.html" else "cogo-top.html")
-        trail.insert(0, "cogo-top.html")
+            p = parents[p]
         crumbs = " &gt; ".join('<a href="%s">%s</a>' % (f, esc(titles[f])) for f in trail)
         facts = {
             "file": file,
