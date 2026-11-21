@@ -175,11 +175,21 @@ class DebuggerEndpointRepository(
 	 * up by the canonical path, as the pairing stores it; an app is left out until it reports again
 	 * only when a Run install from ProjectHandlerActivity cleared its endpoint (a success result that
 	 * names the package and arrives in the same Code on the Go process). An app installed by Quick
-	 * Build, by a Run install with no project open or whose APK's application ID could not be read, by a
-	 * success result with no package name, or by a result that arrived after Code on the Go restarted
-	 * keeps its old token and port until it reports, so it can be listed with a dead endpoint. Apps that
-	 * are no longer installed are left out too: their stored port and token would otherwise come back as
-	 * live. An endpoint can also be stale when the app's process has died. Unlike the writes, a read failure is thrown: the plugin API reports it rather than answering "no apps".
+	 * Build, by a Run install with no project open or whose APK's application ID could not be read,
+	 * by a success result with no package name, by a result that arrived after Code on the Go
+	 * restarted, or by the intent-based fallback installer (on MIUI, or when debugFallbackInstaller is
+	 * set; Run installs too, and it never calls beforeCommit or has a session or result) keeps its old
+	 * token and port until it reports, so it can be listed with a dead endpoint. So can an app whose
+	 * install did not clear them for another reason: [recordInstalled] returns false and keeps the old
+	 * values when the project has no recent-project row or the write fails; a result that names a
+	 * different package is dropped without clearing; a beforeCommit that throws is logged and the
+	 * install goes on with no note; and an install not made from a project (the file tab, adb) leaves
+	 * an already-paired app listed with its dead token and port. Only the Launch action pairs an
+	 * unpaired app at the next launch from a project, keeping stored values; the automatic post-install
+	 * launch, RestartVmAction and the SQLite debugger launch never call [recordLaunched]. Apps that are no longer installed
+	 * are left out too: their stored port and token would otherwise come back as live. An endpoint can
+	 * also be stale when the app's process has died. Unlike the writes, a read failure is thrown: the
+	 * plugin API reports it rather than answering "no apps".
 	 */
 	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
 		dao.getByProjectLocation(projectDir.canonicalProjectLocation()).mapNotNull { row ->
