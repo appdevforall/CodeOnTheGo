@@ -113,7 +113,7 @@ file that defines the property decides). Commenting the line out can expose anot
   write a lambda (its body is an ordinary call, which the rules handle). The rules are not applied to the
   handle itself: it cannot be redirected in place, and its descriptor is fixed by the call site.
 - Frames: `COPY_FRAMES`, AGP's default. The one change that breaks them is a retyped
-  `SQLiteCursorDriver.query` implementation, whose `String[]` parameter becomes `Object[]` while its body, and
+  `SQLiteCursorDriver.query` implementation (a class that also declares the `Object[]` overload fails the build: the retype would give it two identical methods), whose `String[]` parameter becomes `Object[]` while its body, and
   the full frames copied from it, still say `String[]`. For each non-abstract method whose descriptor is retyped
   that way, the rewriter inserts `ALOAD n; CHECKCAST [Ljava/lang/String;; ASTORE n` at method entry, so the body
   stays valid, and writes every frame of that method in full (compressed frames are relative to the implicit first

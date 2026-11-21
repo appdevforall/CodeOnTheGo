@@ -291,7 +291,13 @@ object SqliteRewriter {
 				}
 				if (policy.fail) bypassedOverride(m)?.let { violations += it }
 				if (policy.redirect && m.name == Rules.DRIVER_QUERY_NAME && m.desc == Rules.DRIVER_QUERY_DESC) {
-					retypeParameters(m, Rules.DRIVER_QUERY_NEW_DESC)
+					if (cn.methods.any { it !== m && it.name == m.name && it.desc == Rules.DRIVER_QUERY_NEW_DESC }) {
+						// Retyping would leave two methods with one name and descriptor, which D8 rejects without a class or line.
+						violations += "method '${m.name}${m.desc}' and '${m.name}${Rules.DRIVER_QUERY_NEW_DESC}' are both declared; " +
+							"the rewrite retypes the first to the second's descriptor, so the class would declare it twice"
+					} else {
+						retypeParameters(m, Rules.DRIVER_QUERY_NEW_DESC)
+					}
 				}
 				rewriteMethod(m)
 			}

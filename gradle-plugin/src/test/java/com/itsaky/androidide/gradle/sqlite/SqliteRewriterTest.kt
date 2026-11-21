@@ -1044,6 +1044,32 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a driver that declares both query overloads fails with its class and method, before D8 would`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.TwoQueries",
+						"""
+						package p;
+						import android.database.Cursor;
+						import android.database.sqlite.*;
+						public abstract class TwoQueries implements SQLiteCursorDriver {
+							public Cursor query(SQLiteDatabase.CursorFactory f, String[] args) { return null; }
+							public Cursor query(SQLiteDatabase.CursorFactory f, Object[] args) { return null; }
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/TwoQueries"]!!) }
+		val message = e.message!!
+		assertThat(message).contains("p.TwoQueries")
+		assertThat(message).contains("method 'query")
+		assertThat(message).contains("are both declared")
+	}
+
+	@Test
 	fun `a cursor driver that uses its String array parameter verifies and links, with every kind of frame`() {
 		val out =
 			transform(
