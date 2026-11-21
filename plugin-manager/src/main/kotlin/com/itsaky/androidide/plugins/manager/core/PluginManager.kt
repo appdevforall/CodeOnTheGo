@@ -1167,6 +1167,14 @@ class PluginManager private constructor(
 		// The services outlive a disable, which closed the terminal and SQLite debugger endpoint services.
 		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
 		loadedPlugin.context.debuggerEndpointService()?.reopen()
+		// An unload that ran since the lookup above already closed these services; close them again.
+		// Enable, disable and unload are still not serialized with each other (out of scope here).
+		if (loadedPlugins[pluginId] !== loadedPlugin) {
+			loadedPlugin.context.debuggerEndpointService()?.close()
+			(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.cancelAll()
+			logger.warn("Plugin $pluginId was unloaded while it was being enabled; not activating it")
+			return false
+		}
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
