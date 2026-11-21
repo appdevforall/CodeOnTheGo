@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.text.SpannableStringBuilder
+import android.text.TextUtils
 import com.itsaky.androidide.resources.R
 import org.slf4j.LoggerFactory
 
@@ -21,7 +22,7 @@ object OverlayPermissionGuide {
 		message.appendOrderedList(
 			*context.resources
 				.getStringArray(R.array.overlay_restricted_settings_steps)
-				.map { it.format(appName) }
+				.map { it.format(TextUtils.htmlEncode(appName)) }
 				.toTypedArray(),
 		)
 

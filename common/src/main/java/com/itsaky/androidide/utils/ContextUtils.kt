@@ -35,6 +35,7 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import android.provider.Settings
 import android.util.TypedValue
+import androidx.annotation.StringRes
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import org.slf4j.LoggerFactory
@@ -105,6 +106,18 @@ fun Context.dpToPx(dp: Float): Int = (dp * resources.displayMetrics.density + 0.
  * Converts an sp value to pixels, using this context's display metrics.
  */
 fun Context.spToPx(sp: Float): Int = (sp * resources.displayMetrics.scaledDensity + 0.5f).toInt()
+
+/**
+ * Returns the string [id], formatted with [appName] only if it takes the app name (`%1$s`). Any other
+ * string is returned as is, so a literal `%` in it cannot crash the formatter.
+ */
+fun Context.getStringWithAppName(
+	@StringRes id: Int,
+	appName: String,
+): String {
+	val raw = getString(id)
+	return if (raw.contains("%1\$s")) getString(id, appName) else raw
+}
 
 /**
  * Copies [text] to the system clipboard, under the given [label].

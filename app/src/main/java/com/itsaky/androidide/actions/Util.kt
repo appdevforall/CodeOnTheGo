@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.SpannableStringBuilder
+import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
@@ -138,16 +139,17 @@ fun showPairingDialog(
 	ssb.append(System.lineSeparator())
 
 	val appName = context.getString(R.string.app_name)
+	val htmlAppName = TextUtils.htmlEncode(appName)
 	ssb.appendOrderedList(
 		*context.resources
 			.getStringArray(R.array.debugger_setup_pairing_steps)
-			.map { it.format(appName) }
+			.map { it.format(htmlAppName) }
 			.toTypedArray(),
 	)
 	ssb.append(System.lineSeparator())
 
 	ssb.appendHtmlWithLinks(
-		context.getString(R.string.debugger_setup_description_footer, appName),
+		context.getString(R.string.debugger_setup_description_footer, htmlAppName),
 		launchHelp,
 	)
 

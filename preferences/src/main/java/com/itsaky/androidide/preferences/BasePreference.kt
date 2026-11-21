@@ -22,6 +22,7 @@ import android.graphics.PorterDuff.Mode.SRC_ATOP
 import android.graphics.PorterDuffColorFilter
 import androidx.core.content.ContextCompat
 import androidx.preference.Preference
+import com.itsaky.androidide.utils.getStringWithAppName
 import com.itsaky.androidide.utils.resolveAttr
 
 /**
@@ -36,8 +37,8 @@ abstract class BasePreference : IPreference() {
 		val pref = onCreatePreference(context)
 		pref.key = this.key
 		val appName = context.getString(R.string.app_name)
-		pref.title = context.getString(this.title, appName)
-		this.summary?.let { pref.summary = context.getString(it, appName) }
+		pref.title = context.getStringWithAppName(this.title, appName)
+		this.summary?.let { pref.summary = context.getStringWithAppName(it, appName) }
 
 		pref.isIconSpaceReserved = this.icon != null
 		this.icon?.let {

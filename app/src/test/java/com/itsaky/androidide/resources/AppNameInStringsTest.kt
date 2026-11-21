@@ -73,7 +73,7 @@ class AppNameInStringsTest {
 		val defaults = entries(defaultFile).associate { it.key to it.text }
 		for ((key, position) in NAME_POSITION) {
 			val text = defaults[key] ?: error("values/strings.xml has no $key")
-			assertThat(positions(text)).contains(position)
+			assertThat(positions(text)).contains("${position}s")
 		}
 	}
 
@@ -109,16 +109,17 @@ class AppNameInStringsTest {
 		assertThat(bad).isEmpty()
 	}
 
-	private fun positions(text: String): Set<Int> =
+	/** Each numbered argument as index plus conversion, so `%1$s` and `%1$d` differ. */
+	private fun positions(text: String): Set<String> =
 		NUMBERED_ARGUMENT
 			.findAll(text)
-			.map { it.groupValues[1].toInt() }
+			.map { it.groupValues[1] + it.groupValues[2] }
 			.toSet()
 
 	private companion object {
 		const val APP_NAME = "code on the go"
 
-		val NUMBERED_ARGUMENT = Regex("%(\\d+)\\$[a-zA-Z]")
+		val NUMBERED_ARGUMENT = Regex("%(\\d+)\\$([a-zA-Z])")
 		val BARE_ARGUMENT = Regex("%[sd]")
 
 		/**

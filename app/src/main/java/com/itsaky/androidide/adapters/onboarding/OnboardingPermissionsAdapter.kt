@@ -29,6 +29,7 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.databinding.LayoutOnboardingPermissionItemBinding
 import com.itsaky.androidide.models.OnboardingPermissionItem
 import com.itsaky.androidide.utils.dpToPx
+import com.itsaky.androidide.utils.getStringWithAppName
 
 /**
  * @author Akash Yadav
@@ -68,7 +69,7 @@ class OnboardingPermissionsAdapter(
 
 		binding.infoContent.apply {
 			title.setText(permission.title)
-			description.setText(context.getString(permission.description, context.getString(R.string.app_name)))
+			description.setText(context.getStringWithAppName(permission.description, context.getString(R.string.app_name)))
 			title.setTextColor(if (permission.isSupportedOnDevice) holder.titleColor else holder.disabledTitleColor)
 			description.setTextColor(if (permission.isSupportedOnDevice) holder.descriptionColor else holder.disabledDescriptionColor)
 		}
