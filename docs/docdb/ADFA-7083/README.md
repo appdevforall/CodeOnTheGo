@@ -9,12 +9,12 @@ Four Help+Manual style pages for `documentation.db`, in the `i/` set, reached fr
 | JavaScript in sqlite-js | `i/sqlite-js-javascript.html` |
 | JavaScript basics | `i/javascript-intro.html` |
 
-They document the terminal package ([ADFA-7081](https://appdevforall.atlassian.net/browse/ADFA-7081)), sqlite-js 1.4.2 and later: upstream's 1.4.0 and 1.4.2 releases merged our fixes. Apps built with Code on the Go ([ADFA-7082](https://appdevforall.atlassian.net/browse/ADFA-7082)) are not covered yet.
+They document the terminal package ([ADFA-7081](https://appdevforall.atlassian.net/browse/ADFA-7081)), sqlite-js 1.4.2 and later: upstream's 1.4.0 and 1.4.2 releases merged our fixes. They say what 1.4.4 changed ([ADFA-7243](https://appdevforall.atlassian.net/browse/ADFA-7243)): a `js_create_` function fails when it cannot store the function. Apps built with Code on the Go ([ADFA-7082](https://appdevforall.atlassian.net/browse/ADFA-7082)) are not covered yet.
 
 - `pages/*.md`: the source, a small Markdown subset (see `build.py`).
 - `build.py OUT_DIR`: turns each page into the JSON facts that `helpmanual-topic.peb` renders.
 - `apply.py DB`: adds the pages to a `documentation.db` in one transaction, compressed against its `CompressionDictionary`, and appends a section with a link to `i/terminal-top.html`. It handles both forms of that page: a template context (JSON), as in databases up to `wholedb` 2026-10-16, and a finished Help+Manual page (HTML), as from 2026-11-02. A database of the second form also stores `i/jstopics/terminal-top.js`, which the help viewer loads to move between pages, and the section goes into it too. A second run changes nothing. It refuses a database that declares a version below 2. Run it on a copy first; the master is edited by a `docdb-studio` maintainer. Needs the `brotli` command.
-- `test_examples.py`: runs every ` ```sql ` example against a real `sqlite3` with sqlite-js loaded, runs again each one that creates nothing, as a reader would, and checks that links, including each page's parent, prev and next, resolve: `SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so python3 test_examples.py`.
+- `test_examples.py`: runs every ` ```sql ` example against a real `sqlite3` with sqlite-js loaded, runs again each one that creates nothing, as a reader would, and checks that links, including each page's parent, prev and next, resolve. An example's `-- Error:` line names an error that its statement must report. Run it against sqlite-js 1.4.4: `SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so python3 test_examples.py`.
 - `CLAIMS.md`: every factual claim in the pages, and how each was checked.
 
 ## Not done here
