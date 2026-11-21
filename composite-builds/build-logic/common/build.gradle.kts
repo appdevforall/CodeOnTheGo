@@ -23,4 +23,7 @@ plugins {
 
 dependencies {
 	api(gradleApi())
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }
