@@ -2070,6 +2070,41 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a row of an SQLite cursor array used as an Android cursor type without a cast fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.LoadedRow",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class LoadedRow {
+							AbstractCursor up(SQLiteCursor[] cs) {
+								return cs[0];
+							}
+							int arg(SQLiteCursor[] cs) {
+								return count(cs[0]);
+							}
+							static int count(AbstractCursor c) {
+								return c.getCount();
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/LoadedRow"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("up([Landroid/database/sqlite/SQLiteCursor;)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("arg([Landroid/database/sqlite/SQLiteCursor;)I")
+		assertThat(e.message).contains("without a cast")
+	}
+
+	@Test
 	fun `an SQLite cursor array used as an Android cursor array is not checked, and would not verify`() {
 		fun covariant(pkg: String) =
 			src(

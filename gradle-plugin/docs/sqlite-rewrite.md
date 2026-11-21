@@ -72,7 +72,8 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).
   The same conversion without a cast fails too: a value declared `SQLiteCursor`, or a subclass, returned, passed,
   called on, stored in a field, or held in a local as one of those three types (`AbstractCursor up(SQLiteCursor c)
-  { return c; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
+  { return c; }`). A row loaded from an `SQLiteCursor[]` (or an array of a subclass) counts the same way
+  (`AbstractCursor up(SQLiteCursor[] cs) { return cs[0]; }`). javac writes no `CHECKCAST` for it, and the renamed class would not verify. So does storing one
   into an array of those types (`AbstractCursor[] a; a[0] = c;`), which would throw `ArrayStoreException`: the
   array must be one on every path to the store where it is not `null`, from a parameter, field, call or `new`, or
   loaded from an array of them (`AbstractCursor[][] g; g[0][0] = c;`), and the value an SQLite cursor on every path
@@ -223,8 +224,9 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   and a store whose array type differs between branches that merge is not checked (`null` on a branch counts as
   no difference). Both can still throw `ArrayStoreException`, in release builds too (the rewrite runs in every
   variant of an opted-in app). So can a store whose value is an SQLite cursor on some paths only, which logs a
-  warning and builds (see Rules): it throws when one path brings both the cursor and the array. Cursors loaded from
-  arrays are not followed: one counts as a value that is not an SQLite cursor.
+  warning and builds (see Rules): it throws when one path brings both the cursor and the array. A row loaded
+  from an `SQLiteCursor[]` (or an array of a subclass) is followed and counts as an SQLite cursor; rows of other
+  arrays are not followed, and one counts as a value that is not an SQLite cursor.
 - An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
   `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
   covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,
