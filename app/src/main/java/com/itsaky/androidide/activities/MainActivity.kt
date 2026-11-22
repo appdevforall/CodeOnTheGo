@@ -47,6 +47,7 @@ import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.assets.addons.BundleSyncAtStart
 import com.itsaky.androidide.assets.addons.BundledAddonsRecord
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
@@ -82,6 +83,7 @@ import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashErrorAwaitShown
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.flashProgress
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
 import com.itsaky.androidide.utils.resolveDeepLinkProject
@@ -94,6 +96,8 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_D
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
@@ -347,12 +351,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 * marked reported only once the bar has finished appearing, so a screen that goes away first
 	 * reports them next time; [reportingBundledFailures] keeps a resume during the report from
 	 * starting a second one.
+	 *
+	 * Waits for the start-up bundle check first, showing a progress bar while it installs a new
+	 * bundle (ADFA-7239), so the failures of that bundle are recorded before they are read.
 	 */
 	private fun reportBundledPluginFailures() {
 		if (reportingBundledFailures) return
 		reportingBundledFailures = true
 		lifecycleScope.launch {
 			try {
+				awaitBundleSync()
 				val record = BundledAddonsRecord.inFilesDir(filesDir)
 				val failures =
 					withContext(Dispatchers.IO) {
@@ -370,6 +378,18 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			} finally {
 				reportingBundledFailures = false
 			}
+		}
+	}
+
+	private suspend fun awaitBundleSync() {
+		val syncState = BundleSyncAtStart.state
+		syncState.first { it != BundleSyncAtStart.State.CHECKING }
+		if (syncState.value != BundleSyncAtStart.State.SYNCING) return
+		val bar = this@MainActivity.flashProgress { message(getString(string.msg_updating_bundled_addons)) }
+		try {
+			syncState.first { it == BundleSyncAtStart.State.IDLE }
+		} finally {
+			withContext(NonCancellable + Dispatchers.Main) { bar.dismiss() }
 		}
 	}
 

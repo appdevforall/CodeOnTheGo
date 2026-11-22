@@ -12,6 +12,9 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.api.LogsProvider
+import com.itsaky.androidide.assets.addons.BundleSyncAtStart
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
+import com.itsaky.androidide.assets.addons.BundledPluginStartup
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
@@ -379,14 +382,28 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			setupPluginServices()
 			setupPluginInflationErrorHandler()
 
-			// Load plugins asynchronously
+			// Load plugins asynchronously. The build's bundled add-ons are applied first, so the
+			// synced set loads once (ADFA-7239).
+			BundleSyncAtStart.begin()
 			GlobalScope.launch {
 				try {
-					pluginManager?.loadPlugins()
+					val manager = pluginManager
+					val synced = manager != null && withContext(Dispatchers.IO) { BundleSyncAtStart.run(application, manager) }
+					manager?.loadPlugins()
+					if (synced && manager != null) {
+						// Plugins are loaded already; this only records the bundled ones that failed.
+						BundledPluginStartup(
+							record = BundledAddonsRecord.inFilesDir(application.filesDir),
+							reloadPlugins = {},
+							loadError = manager::getLoadError,
+						).start()
+					}
 					EditorDecorationBridge.init()
 					logger.info("Plugin system initialized successfully")
 				} catch (e: Exception) {
 					logger.error("Failed to load plugins", e)
+				} finally {
+					BundleSyncAtStart.end()
 				}
 			}
 		} catch (e: Exception) {

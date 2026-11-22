@@ -33,6 +33,11 @@ class BundledAddonInstaller(
 	private val pluginsDir: File,
 	private val templatesDir: File,
 	private val readPluginId: (File) -> String?,
+	/**
+	 * Called with a valid plugin ID just before its copy is moved into place. A sync removes the
+	 * installed builds of that ID here, so the new one does not sit beside them.
+	 */
+	private val beforePluginMove: (pluginId: String) -> Unit = {},
 ) {
 	fun install(
 		kind: BundledAddonKind,
@@ -73,6 +78,7 @@ class BundledAddonInstaller(
 						if (name.toByteArray(Charsets.UTF_8).size > MAX_FILE_NAME_BYTES) {
 							throw RejectedPluginException("its plugin ID is too long")
 						}
+						beforePluginMove(id)
 						pluginId = id
 						name
 					},
