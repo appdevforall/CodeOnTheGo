@@ -36,7 +36,11 @@ abstract class AdapterViewAdapter<T : AdapterView<*>> : ViewGroupAdapter<T>() {
 
 	override fun applyBasic(view: IView) {
 		super.applyBasic(view)
-		(view.view as AdapterView<Adapter>).adapter = newSimpleAdapter(view.view.context)
+		// The adapter type argument is erased, so no cast can check it. The ArrayAdapter below is both a
+		// ListAdapter and a SpinnerAdapter, which every platform AdapterView accepts.
+		@Suppress("UNCHECKED_CAST")
+		val adapterView = view.view as AdapterView<Adapter>
+		adapterView.adapter = newSimpleAdapter(view.view.context)
 		if (view is ViewGroupImpl) {
 			view.childrenModifiable = false
 		}

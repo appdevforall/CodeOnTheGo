@@ -642,14 +642,13 @@ object JavaParserUtils {
 		return methodDeclaration
 	}
 
+	// NodeList.getFirst() returns an Optional and clashes with List.getFirst(), so Kotlin deprecates it.
+	// These use the stdlib first() after an emptiness check instead.
 	fun getFirstArrayType(type: Type): Type {
 		if (type.isTypeParameter) {
 			val typeParameter = type.asTypeParameter()
 			if (typeParameter!!.typeBound.isNonEmpty) {
-				val first = typeParameter.typeBound.first
-				if (first!!.isPresent) {
-					return ArrayType(first.get())
-				}
+				return ArrayType(typeParameter.typeBound.first())
 			}
 		}
 		return type
@@ -659,10 +658,7 @@ object JavaParserUtils {
 		if (type.isTypeParameter) {
 			val typeParameter = type.asTypeParameter()
 			if (typeParameter!!.typeBound.isNonEmpty) {
-				val first = typeParameter.typeBound.first
-				if (first!!.isPresent) {
-					return first.get()
-				}
+				return typeParameter.typeBound.first()
 			}
 		}
 		if (!type.isClassOrInterfaceType) {
@@ -674,22 +670,17 @@ object JavaParserUtils {
 			return type
 		}
 
-		val first = typeArguments.get().first
-		if (!first!!.isPresent || !first.get().isTypeParameter) {
+		val first = typeArguments.get().first()
+		if (!first.isTypeParameter) {
 			return type
 		}
 
-		val typeBound = first.get().asTypeParameter().typeBound
+		val typeBound = first.asTypeParameter().typeBound
 		if (!typeBound!!.isNonEmpty) {
 			return type
 		}
 
-		val first1 = typeBound.first
-		if (!first1!!.isPresent) {
-			return type
-		}
-
-		type.asClassOrInterfaceType().setTypeArguments(first1.get())
+		type.asClassOrInterfaceType().setTypeArguments(typeBound.first())
 		return type
 	}
 

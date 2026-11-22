@@ -836,11 +836,19 @@ private fun KaSession.implicitReceiverLambdaFor(reference: KtSimpleNameExpressio
 		// Defensive only. A compound assignment (`n += 1` inside `apply { }`) redirects to the whole
 		// compound access, but the resolver flags that redirect and still hands back a plain variable
 		// access, so the branch above already catches it in this version.
-		val applied =
-			call?.successfulCallOrNull<KaCallableMemberCall<*, *>>()?.partiallyAppliedSymbol
-				?: call?.successfulCallOrNull<KaCompoundVariableAccessCall>()?.variableCall?.partiallyAppliedSymbol
-				?: call?.successfulCallOrNull<KaCompoundArrayAccessCall>()?.getterCall?.partiallyAppliedSymbol
-		receiverLambda(applied?.dispatchReceiver) ?: receiverLambda(applied?.extensionReceiver)
+		// The variable and getter calls carry their receivers themselves; their partiallyAppliedSymbol is
+		// deprecated.
+		val receivers =
+			call?.successfulCallOrNull<KaCallableMemberCall<*, *>>()?.partiallyAppliedSymbol?.let {
+				it.dispatchReceiver to it.extensionReceiver
+			}
+				?: call?.successfulCallOrNull<KaCompoundVariableAccessCall>()?.variableCall?.let {
+					it.dispatchReceiver to it.extensionReceiver
+				}
+				?: call?.successfulCallOrNull<KaCompoundArrayAccessCall>()?.getterCall?.let {
+					it.dispatchReceiver to it.extensionReceiver
+				}
+		receiverLambda(receivers?.first) ?: receiverLambda(receivers?.second)
 	}.getOrNull()
 
 private fun receiverLambda(receiver: KaReceiverValue?): KtFunctionLiteral? = lambdaOwning((receiver as? KaImplicitReceiverValue)?.symbol)
