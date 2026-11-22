@@ -36,11 +36,13 @@ internal object SqliteRewriteRules {
 
 	/**
 	 * A COLLATE clause names its collation after whitespace or a SQL comment, bare or quoted ("x", 'x', [x], `x`).
-	 * The word boundary keeps a custom collation such as UNICODE_CI out.
+	 * A bare name keeps a word boundary; a quoted or bracketed name must be followed at once by its closing
+	 * character. Both keep a custom collation such as UNICODE_CI or "UNICODE-CI" out.
 	 */
 	private fun collateRule(name: String) =
 		Regex(
-			"COLLATE(?:\\s|/\\*.*?\\*/|--[^\\n]*(?:\\n|$))+[\"'\\[`]?$name\\b",
+			"COLLATE(?:\\s|/\\*.*?\\*/|--[^\\n]*(?:\\n|$))+" +
+				"(?:$name\\b|\"$name\"|'$name'|\\[$name]|`$name`)",
 			setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
 		)
 

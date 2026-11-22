@@ -1183,16 +1183,60 @@ class SqliteRewriterTest {
 			val e = assertThrows(SqliteRewriteException::class.java, { SqliteRewriter.rewrite(classes["p/Q"]!!) }, "form: $form")
 			assertThat(e.message).contains("COLLATE UNICODE")
 		}
-		val ok =
-			Compiler.compile(
-				listOf(
-					src(
-						"p.Ci",
-						"package p; public class Ci { String q() { return \"SELECT * FROM t ORDER BY n COLLATE UNICODE_CI\"; } }",
+		for (custom in listOf("UNICODE_CI", "\\\"UNICODE-CI\\\"", "[UNICODE-CI]", "\\\"UNICODE_CI\\\"", "'UNICODE-CI'", "`UNICODE-CI`")) {
+			val ok =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.Ci",
+							"package p; public class Ci { String q() { return \"SELECT * FROM t ORDER BY n COLLATE $custom\"; } }",
+						),
 					),
-				),
+				)
+			SqliteRewriter.rewrite(ok["p/Ci"]!!)
+		}
+	}
+
+	@Test
+	fun `COLLATE LOCALIZED is found through comments and quotes, and a custom name only passes`() {
+		val forms =
+			listOf(
+				"COLLATE localized",
+				"COLLATE /* c */ LOCALIZED",
+				"COLLATE -- c\\n LOCALIZED",
+				"COLLATE \\\"LOCALIZED\\\"",
+				"COLLATE 'LOCALIZED'",
+				"COLLATE [LOCALIZED]",
+				"COLLATE `LOCALIZED`",
 			)
-		SqliteRewriter.rewrite(ok["p/Ci"]!!)
+		for (form in forms) {
+			val classes =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.L",
+							"package p; public class L { String q() { return \"SELECT * FROM t ORDER BY n $form\"; } }",
+						),
+					),
+				)
+			val warnings = mutableListOf<String>()
+			SqliteRewriter.rewrite(classes["p/L"]!!, warn = { warnings += it })
+			assertThat(warnings).hasSize(1)
+		}
+		for (custom in listOf("LOCALIZED_CI", "\\\"LOCALIZED-CI\\\"", "[LOCALIZED-CI]", "\\\"LOCALIZED_CI\\\"")) {
+			val classes =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.L",
+							"package p; public class L { String q() { return \"SELECT * FROM t ORDER BY n COLLATE $custom\"; } }",
+						),
+					),
+				)
+			val warnings = mutableListOf<String>()
+			SqliteRewriter.rewrite(classes["p/L"]!!, warn = { warnings += it })
+			assertThat(warnings).isEmpty()
+		}
 	}
 
 	@Test
