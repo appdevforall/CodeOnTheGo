@@ -133,12 +133,16 @@ final class CancellableQuery<T> {
     }
 
     /**
-     * Whether the query has ended, and with it the loop of cancel(), whose
-     * last cancelAll() could otherwise stop a query started after this one.
+     * Whether the query has ended and the loop of cancel() can call
+     * cancelAll() no more. A late call could stop a query started after this.
      */
     boolean isDone() {
+        // The query first: a loop recorded after this finds it ended, and stops.
+        if (!running.isDone()) {
+            return false;
+        }
         Future<?> loop = stopping;
-        return running.isDone() && (loop == null || loop.isDone());
+        return loop == null || loop.isDone();
     }
 
     /** Stops the query's JavaScript. Returns at once. */
@@ -160,7 +164,7 @@ final class CancellableQuery<T> {
                 }
             }
         }, null);
-        // Recorded before it can run, so that isDone() never misses it.
+        // Recorded before it runs, so a loop that isDone() does not see has yet to look at the query.
         stopping = loop;
         THREADS.execute(loop);
     }
@@ -197,4 +201,4 @@ final class RunawayQuery {
 }
 ```
 
-Its `start()`, like the Kotlin one, does nothing until the query it started earlier has ended, along with the loop of its `cancel()`. So `cancel()` always cancels that query, and no late `cancelAll()` of it reaches the next one. This `RunawayQuery` never reads the query's result, so it does not notice a query that fails. To read a result, or learn of a failure, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.
+Its `start()`, like the Kotlin one, does nothing until the query it started earlier has ended and the loop of its `cancel()` can call `cancelAll()` no more. So `cancel()` always cancels that query, and no late `cancelAll()` of it reaches the next one. This `RunawayQuery` never reads the query's result, so it does not notice a query that fails. To read a result, or learn of a failure, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.
