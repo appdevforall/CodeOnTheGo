@@ -12,6 +12,7 @@ import io.requery.android.database.sqlite.SQLiteDatabase
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
@@ -69,9 +70,9 @@ class DocExamplesTest {
 			assertEquals(2.225, products.medianPrice()!!, 1e-9)
 
 			// cancellable(): cancelling the coroutine stops JavaScript that never ends
-			withTimeout(10_000) {
+			withTimeout(120_000) {
 				val runaway = launch { cancellable { products.spin() } }
-				delay(500)
+				awaitSpin(true)
 				assertTrue("spin is still running", runaway.isActive)
 				runaway.cancelAndJoin()
 			}
@@ -79,9 +80,12 @@ class DocExamplesTest {
 			// RunawayQuery, as a Cancel button would use it; the database works afterwards
 			val runaway = RunawayQuery(CoroutineScope(Dispatchers.Default), products)
 			runaway.start()
-			delay(500)
+			awaitSpin(true)
 			runaway.cancel()
-			withTimeout(10_000) { assertEquals(4, cancellable { products.slugs() }.size) }
+			// its cancelAll() calls end with its query; a moment more, so that none reaches slugs()
+			awaitSpin(false)
+			delay(300)
+			withTimeout(60_000) { assertEquals(4, cancellable { products.slugs() }.size) }
 		} finally {
 			db.close()
 		}
@@ -105,8 +109,11 @@ class DocExamplesTest {
 	// after the UPDATE failed, the UPDATE's error, and the row count after the transaction.
 	private fun cancelledWrite(db: ProductDatabase, transaction: (block: () -> Unit) -> Unit): Triple<Int, String, Int> {
 		val stopped = AtomicBoolean(false)
+		// cancels only once the plain INSERT has returned, so that no cancel can reach it; a cancel
+		// before the UPDATE's JavaScript starts does nothing, so it is called until the UPDATE ends
+		val inserted = CountDownLatch(1)
 		val canceller = Thread {
-			Thread.sleep(300)
+			inserted.await()
 			while (!stopped.get()) {
 				SqliteJs.cancelAll()
 				Thread.sleep(10)
@@ -118,7 +125,11 @@ class DocExamplesTest {
 		try {
 			transaction {
 				val raw = db.openHelper.writableDatabase
-				raw.execSQL("INSERT INTO Product (name, price) VALUES ('Extra', 1.0)")
+				try {
+					raw.execSQL("INSERT INTO Product (name, price) VALUES ('Extra', 1.0)")
+				} finally {
+					inserted.countDown()
+				}
 				try {
 					raw.execSQL("UPDATE Product SET price = spin()")
 					stopped.set(true)
@@ -134,6 +145,7 @@ class DocExamplesTest {
 			// the block's error leaves the transaction, as the page says to let it
 		} finally {
 			stopped.set(true)
+			inserted.countDown()
 			canceller.join()
 		}
 		return Triple(inside, message, db.count())
@@ -159,11 +171,20 @@ class DocExamplesTest {
 		}
 	}
 
-	// whether some thread is in sqlite-android's native code that runs a statement
-	private fun aThreadRunsAStatement(): Boolean =
+	// whether a thread is in sqlite-android's native code for the DAO's spin() query, and for no
+	// other statement: the stack must have Room's generated spin() too
+	private fun spinIsRunning(): Boolean =
 		Thread.getAllStackTraces().values.any { stack ->
-			stack.any { it.className.endsWith(".SQLiteConnection") && it.methodName.startsWith("nativeExecute") }
+			stack.any { it.className.endsWith(".SQLiteConnection") && it.methodName.startsWith("nativeExecute") } &&
+				stack.any { it.className.endsWith("ProductDao_Impl") && it.methodName.contains("spin") }
 		}
+
+	// waits until spin() is, or is no longer, running in SQLite
+	private suspend fun awaitSpin(running: Boolean) {
+		withTimeout(60_000) {
+			while (spinIsRunning() != running) delay(20)
+		}
+	}
 
 	// cancellable() drops a result that arrives after the cancel: the Java CancellableQuery keeps it
 	@Test
@@ -179,14 +200,19 @@ class DocExamplesTest {
 				throw e
 			}
 		}
-		// the query is running, so cancellable() is waiting for it, or about to
-		withContext(Dispatchers.IO) { entered.await() }
-		delay(200)
-		job.cancel()
-		// cancellable() goes on calling cancelAll() until the query ends: it ends when released
-		delay(200)
-		assertTrue("cancellable() waits for the query to end", !job.isCompleted)
-		release.countDown()
+		try {
+			// the query is running, so cancellable() is waiting for it, or about to
+			val running = withContext(Dispatchers.IO) { entered.await(60, TimeUnit.SECONDS) }
+			assertTrue("the query started", running)
+			delay(200)
+			job.cancel()
+			// cancellable() goes on calling cancelAll() until the query ends: it ends when released
+			delay(200)
+			assertTrue("cancellable() waits for the query to end", !job.isCompleted)
+		} finally {
+			// whatever failed above, the query ends, and with it cancellable()'s cancelAll() calls
+			release.countDown()
+		}
 		withTimeout(60_000) { job.join() }
 		assertTrue("ended as cancelled, without the 7: ${ended.get()}", ended.get()?.exceptionOrNull() is CancellationException)
 	}
@@ -259,24 +285,26 @@ class DocExamplesTest {
 			val plain = CoroutineScope(Dispatchers.Default).launch {
 				ended.set(runCatching { db.products().spin() })
 			}
-			// cancel only once a thread is inside SQLite for the query: a cancel before the query
-			// started would end the job at once, and prove nothing
-			withTimeout(60_000) {
-				while (!aThreadRunsAStatement()) delay(20)
-			}
-			plain.cancel()
-			// spin() never returns, so no wait is too short for this check: it fails only if the
-			// cancel ended the query
-			delay(2000)
-			Log.i("DocExamples", "2 s after a plain cancel of spin(): job completed = ${plain.isCompleted}")
-			assertTrue("a plain cancel left spin() running", !plain.isCompleted && ended.get() == null)
-			// only cancelAll() ends it, and it ends as a failure, not with a value
-			withTimeout(60_000) {
-				while (!plain.isCompleted) {
-					SqliteJs.cancelAll()
-					delay(10)
+			try {
+				// cancel only once spin() is running in SQLite: a cancel before the query started
+				// would end the job at once, and prove nothing
+				awaitSpin(true)
+				plain.cancel()
+				// spin() never returns, so no wait is too short for this check: it fails only if
+				// the cancel ended the query
+				delay(2000)
+				Log.i("DocExamples", "2 s after a plain cancel of spin(): job completed = ${plain.isCompleted}")
+				assertTrue("a plain cancel left spin() running", !plain.isCompleted && ended.get() == null)
+			} finally {
+				// only cancelAll() ends it; also after a failure above, or spin() would run on
+				withTimeout(60_000) {
+					while (!plain.isCompleted) {
+						SqliteJs.cancelAll()
+						delay(10)
+					}
 				}
 			}
+			// it ended as a failure, not with a value
 			assertTrue("spin() ended by failing: ${ended.get()}", ended.get()?.isFailure == true)
 			// spin() keeps its connection busy until cancelAll() stops it: the database answers again
 			repeat(20) { SqliteJs.cancelAll(); delay(10) }

@@ -58,6 +58,32 @@ public class JavaDocExamplesTest {
 		return "";
 	}
 
+	// whether a thread is in sqlite-android's native code for the DAO's spin() query, and for no
+	// other statement: the stack must have Room's generated spin() too
+	private static boolean spinIsRunning() {
+		for (StackTraceElement[] stack : Thread.getAllStackTraces().values()) {
+			boolean inSqlite = false;
+			boolean inSpin = false;
+			for (StackTraceElement frame : stack) {
+				inSqlite |= frame.getClassName().endsWith(".SQLiteConnection") && frame.getMethodName().startsWith("nativeExecute");
+				inSpin |= frame.getClassName().endsWith("ProductDao_Impl") && frame.getMethodName().contains("spin");
+			}
+			if (inSqlite && inSpin) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// waits until spin() is, or is no longer, running in SQLite
+	private static void awaitSpin(boolean running) throws InterruptedException {
+		long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+		while (spinIsRunning() != running) {
+			assertTrue("spin() running = " + running + " within 60 s", System.nanoTime() < end);
+			Thread.sleep(20);
+		}
+	}
+
 	// what get() throws, on another thread so that a get() that never returns fails the test
 	private static Throwable thrownByGet(CancellableQuery<?> query) throws Exception {
 		ExecutorService waiter = Executors.newSingleThreadExecutor();
@@ -96,7 +122,7 @@ public class JavaDocExamplesTest {
 
 			// cancel() stops JavaScript that never ends, and get() then reports a cancel
 			CancellableQuery<Integer> spin = new CancellableQuery<>(products::spin);
-			Thread.sleep(500);
+			awaitSpin(true);
 			spin.cancel();
 			spin.cancel();
 			Throwable thrown = thrownByGet(spin);
@@ -133,9 +159,11 @@ public class JavaDocExamplesTest {
 			RunawayQuery runaway = new RunawayQuery(products);
 			runaway.cancel();
 			runaway.start();
-			Thread.sleep(500);
+			awaitSpin(true);
 			runaway.cancel();
-			Thread.sleep(500);
+			// its cancelAll() calls end with its query; a moment more, so that none reaches slugs()
+			awaitSpin(false);
+			Thread.sleep(300);
 			assertEquals(4, products.slugs().size());
 
 			// a write stopped inside runInTransaction: Room rolls the transaction back
@@ -150,6 +178,8 @@ public class JavaDocExamplesTest {
 			Thread.sleep(500);
 			write.cancel();
 			assertTrue(thrownByGet(write) instanceof CancellationException);
+			// a moment, so that the last cancelAll() of that cancel cannot reach slugs()
+			Thread.sleep(300);
 			assertEquals(4, products.slugs().size());
 		} finally {
 			db.close();
