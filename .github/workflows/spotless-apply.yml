@@ -60,14 +60,25 @@ jobs:
         run: |
           flox activate -d flox/base -- ./gradlew spotlessApply --no-daemon
 
+      # flox activate can rewrite the tracked environment files under flox/ (schema upgrade,
+      # relock), which do not belong in a formatting commit (ADFA-7244). Drop them, then commit
+      # only file types Spotless formats, and fail on anything else rather than sweep it in.
       - name: Commit and push
         run: |
+          git restore -- flox/
           if git diff --quiet; then
             echo "::notice::Already formatted. Nothing to commit."
             exit 0
           fi
+          unexpected=$(git diff --name-only | grep -vE '\.(java|kt|kts|xml)$|(^|/)\.gitignore$' || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::spotlessApply changed files Spotless does not format; not committing:"
+            echo "$unexpected"
+            exit 1
+          fi
           git config user.name "ADFA"
           git config user.email "dev-team@appdevforall.org"
-          git commit -am "style: spotless reformat, no functional change"
+          git add -u
+          git commit -m "style: spotless reformat, no functional change"
           git push origin "HEAD:refs/heads/$BRANCH"
           echo "::notice::Pushed $(git rev-parse --short HEAD) to $BRANCH."
