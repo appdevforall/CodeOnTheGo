@@ -147,7 +147,7 @@ final class CancellableQuery<T> {
         if (running.isDone() || !cancelled.compareAndSet(false, true)) {
             return;
         }
-        stopping = THREADS.submit(() -> {
+        FutureTask<Void> loop = new FutureTask<>(() -> {
             // Future.cancel() could not stop the JavaScript. Only cancelAll() can.
             while (!running.isDone()) {
                 SqliteJs.cancelAll();
@@ -159,7 +159,10 @@ final class CancellableQuery<T> {
                     // the loop ends when the query has ended
                 }
             }
-        });
+        }, null);
+        // Recorded before it can run, so that isDone() never misses it.
+        stopping = loop;
+        THREADS.execute(loop);
     }
 }
 ```
