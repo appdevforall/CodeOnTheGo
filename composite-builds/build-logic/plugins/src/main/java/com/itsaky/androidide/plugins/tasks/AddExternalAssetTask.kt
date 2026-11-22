@@ -90,7 +90,7 @@ abstract class AddExternalAssetTask : DefaultTask() {
 			url = source.url.toURL(),
 			destination = dest,
 			sha256Checksum = source.sha256Checksum,
-			logger = project.logger,
+			logger = this@AddExternalAssetTask.logger,
 		)
 
 		return dest

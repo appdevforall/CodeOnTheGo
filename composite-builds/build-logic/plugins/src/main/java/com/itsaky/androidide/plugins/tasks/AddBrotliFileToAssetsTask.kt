@@ -48,6 +48,6 @@ abstract class AddBrotliFileToAssetsTask : AddFileToAssetsTask() {
 
 		val end = System.nanoTime()
 		val durationMs = (end - start) / (1_000_000)
-		project.logger.lifecycle("brotli time: ${durationMs}ms")
+		logger.lifecycle("brotli time: ${durationMs}ms")
 	}
 }

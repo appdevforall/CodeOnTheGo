@@ -39,6 +39,9 @@ abstract class GradleWrapperGeneratorTask : DefaultTask() {
 	@get:OutputDirectory
 	abstract val outputDirectory: DirectoryProperty
 
+	// Read while configuring: Task.project is deprecated at execution time.
+	private val offline = project.gradle.startParameter.isOffline
+
 	// TODO change gradle version to constants.LOCAL_GRADLE_DISTRIBUTION_VERSION
 	@TaskAction
 	fun generateGradleWrapperZip() {
@@ -68,7 +71,7 @@ abstract class GradleWrapperGeneratorTask : DefaultTask() {
 		generator.gradleVersion = GRADLE_DISTRIBUTION_VERSION
 		generator.distributionType = Wrapper.DistributionType.BIN
 
-		generator.generate(project)
+		generator.generate(offline)
 
 		// Archive all generated files
 		ZipOutputStream(destFile.outputStream().buffered()).use { zipOut ->

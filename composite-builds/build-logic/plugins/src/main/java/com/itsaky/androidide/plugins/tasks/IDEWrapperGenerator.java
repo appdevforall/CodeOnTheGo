@@ -48,7 +48,6 @@ import javax.inject.Inject;
 import kotlin.io.FilesKt;
 import org.gradle.api.GradleException;
 import org.gradle.api.Incubating;
-import org.gradle.api.Project;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.api.internal.file.FileLookup;
 import org.gradle.api.tasks.Optional;
@@ -393,8 +392,7 @@ public class IDEWrapperGenerator {
 		throw new UnsupportedOperationException();
 	}
 
-	void generate(Project project) {
-		final var isOffline = project.getGradle().getStartParameter().isOffline();
+	void generate(boolean isOffline) {
 		File jarFileDestination = getJarFile();
 		File unixScript = getScriptFile();
 		File propertiesFile = getPropertiesFile();
