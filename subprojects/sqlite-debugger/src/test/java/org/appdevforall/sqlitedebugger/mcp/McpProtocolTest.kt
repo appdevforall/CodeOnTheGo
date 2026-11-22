@@ -566,4 +566,63 @@ class McpProtocolTest {
 			assertTrue(line, line.startsWith("HTTP/1.1 401"))
 		}
 	}
+
+	/** Sends [head] then [bodyBytes] of body in one burst and reads the whole reply, as a client that writes before it reads. */
+	private fun burst(
+		port: Int,
+		head: String,
+		bodyBytes: Int,
+	): String =
+		Socket("127.0.0.1", port).use { c ->
+			c.soTimeout = 5000
+			c.getOutputStream().apply {
+				write(head.toByteArray(Charsets.ISO_8859_1))
+				write(ByteArray(bodyBytes) { 'x'.code.toByte() })
+				flush()
+			}
+			c.getInputStream().readBytes().toString(Charsets.UTF_8)
+		}
+
+	@Test fun aRefusalReachesAClientThatAlreadySentPartOfTheBody() {
+		val port = startServer()
+		repeat(20) {
+			// 401: refused before the body is read, with 48 KiB of it still on the way or in the socket
+			val noToken = "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: 49152\r\n\r\n"
+			assertTrue(burst(port, noToken, 49152).startsWith("HTTP/1.1 401"))
+			// 413: the declared length is over the limit, so the body is never read
+			val tooBig =
+				"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer $token\r\n" +
+					"Content-Type: application/json\r\nContent-Length: ${McpHttp.MAX_BODY_BYTES + 1}\r\n\r\n"
+			assertTrue(burst(port, tooBig, 49152).startsWith("HTTP/1.1 413"))
+		}
+	}
+
+	@Test fun aRefusalDoesNotHoldTheServerThreadForAClientThatKeepsSending() {
+		val port = startServer()
+		Socket("127.0.0.1", port).use { c ->
+			c.soTimeout = 5000
+			val out = c.getOutputStream()
+			out.write("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1000000\r\n\r\n".toByteArray())
+			out.flush()
+			// the reply comes and then the server closes within its bound, although this client never stops
+			val sender =
+				Thread {
+					try {
+						while (true) {
+							out.write(ByteArray(1024))
+							out.flush()
+							Thread.sleep(20)
+						}
+					} catch (ignored: Exception) {
+					}
+				}
+			sender.isDaemon = true
+			sender.start()
+			val started = System.nanoTime()
+			val text = c.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text.startsWith("HTTP/1.1 401"))
+			val ms = (System.nanoTime() - started) / 1_000_000
+			assertTrue("the connection took $ms ms to end", ms < 2_000)
+		}
+	}
 }

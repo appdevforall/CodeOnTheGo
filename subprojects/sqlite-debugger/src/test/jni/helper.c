@@ -42,3 +42,10 @@ JNIEXPORT jint JNICALL Java_Helper_denyTransactions(JNIEnv *e, jclass c, jlong d
 	(void)c;
 	return sqlite3_set_authorizer((sqlite3 *)(intptr_t)db, deny ? deny_transactions : 0, 0);
 }
+
+// The app's busy timeout; requery sets 2500 ms on every app connection.
+JNIEXPORT jint JNICALL Java_Helper_busyTimeout(JNIEnv *e, jclass c, jlong db, jint ms) {
+	(void)e;
+	(void)c;
+	return sqlite3_busy_timeout((sqlite3 *)(intptr_t)db, ms);
+}

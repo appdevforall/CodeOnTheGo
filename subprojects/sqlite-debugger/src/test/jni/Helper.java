@@ -6,5 +6,7 @@ public class Helper {
 
 	static native int close(long db);
 
+	static native int busyTimeout(long db, int ms);
+
 	static native int denyTransactions(long db, boolean deny);
 }

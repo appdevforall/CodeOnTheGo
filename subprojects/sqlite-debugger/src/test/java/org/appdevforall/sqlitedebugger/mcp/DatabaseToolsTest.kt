@@ -92,6 +92,24 @@ class DatabaseToolsTest {
 		list.forEach { assertTrue(it.name, it.describe().getJSONObject("annotations").getBoolean("readOnlyHint")) }
 	}
 
+	@Test fun everyToolThatRunsAStatementSaysAStatementOnANonWalDatabaseStopsAfterOneAndAHalfSeconds() {
+		val list = tools.tools().associateBy { it.name }
+		listOf("get_schema", "query", "explain_query_plan", "get_stats", "integrity_check").forEach { name ->
+			val d = list.getValue(name).describe().getString("description")
+			assertTrue("$name: $d", d.contains("not in WAL mode a statement is stopped after 1.5 s"))
+			assertTrue("$name: $d", d.contains("WAL mode has no such limit"))
+		}
+		assertTrue(
+			list
+				.getValue("integrity_check")
+				.describe()
+				.getString("description")
+				.contains("will stop early"),
+		)
+		// the text has to say what the C constant is (the unit tests run in the module's folder)
+		assertTrue(File("src/main/cpp/sqlitedbg.h").readText().contains("#define SQLITEDBG_SERVER_NON_WAL_MS 1500\n"))
+	}
+
 	@Test fun listDatabasesGroupsByPathAndSkipsEmpty() {
 		engine.appConnections += listOf(conn(1, "/data/a.db"), conn(2, "/data/a.db"), conn(3, ""), conn(4, "/data/b.db"))
 		val dbs = ok("list_databases").getJSONArray("databases")
@@ -99,6 +117,35 @@ class DatabaseToolsTest {
 		assertEquals("/data/a.db", dbs.getJSONObject(0).getString("path"))
 		assertEquals(2, dbs.getJSONObject(0).getInt("connections"))
 		assertTrue(dbs.getJSONObject(1).getBoolean("available"))
+	}
+
+	@Test fun listDatabasesCallsAPathAvailableOnlyWhileAnAppConnectionIsNotClosing() {
+		engine.appConnections +=
+			listOf(
+				conn(1, "/data/a.db", closing = true),
+				conn(2, "/data/a.db", closing = true),
+				conn(3, "/data/b.db", closing = true),
+				conn(4, "/data/b.db"),
+			)
+		val dbs = ok("list_databases").getJSONArray("databases")
+		assertEquals(2, dbs.length())
+		assertEquals("/data/a.db", dbs.getJSONObject(0).getString("path"))
+		assertFalse("every connection to a.db is closing", dbs.getJSONObject(0).getBoolean("available"))
+		assertEquals(2, dbs.getJSONObject(0).getInt("connections"))
+		assertTrue("b.db has one connection that is not closing", dbs.getJSONObject(1).getBoolean("available"))
+	}
+
+	@Test fun theUnknownDatabaseErrorListsNoPathWhoseConnectionsAreAllClosing() {
+		engine.appConnections += listOf(conn(1, "/data/a.db", closing = true), conn(2, "/data/b.db"))
+		val r = runTool(tools, "query", db("/data/a.db").put("sql", "select 1"))
+		assertTrue(r.toString(), r.getBoolean("isError"))
+		assertEquals(
+			listOf("/data/b.db"),
+			r.getJSONObject("structuredContent").getJSONArray("available").let { a ->
+				(0 until a.length()).map { a.getString(it) }
+			},
+		)
+		assertTrue(engine.openedServerConnections.isEmpty())
 	}
 
 	@Test fun listDatabasesAddsUnopenedFilesButNotSideFiles() {
@@ -652,6 +699,16 @@ class DatabaseToolsTest {
 		assertTrue(seenSql.contains("SELECT COUNT(*) FROM \"a\"\"b\""))
 		assertTrue(seenSql.any { it.contains("FROM sqlite_master") })
 		assertTrue(seenSql.none { it.contains("sqlite_schema") })
+	}
+
+	@Test fun getStatsKeepsUserTablesThatOnlyLookLikeTheReservedPrefix() {
+		engine.appConnections += conn(1, "/data/a.db")
+		answerWith("SELECT name" to QueryResult(listOf("name"), listOf(listOf("sqlitecache")), 0, false))
+		val r = ok("get_stats", db())
+		// "_" is a wildcard in LIKE: without the escape, sqlitecache would be left out of the listing
+		val listing = seenSql.single { it.contains("FROM sqlite_master") }
+		assertTrue(listing, listing.contains("NOT LIKE 'sqlite\\_%' ESCAPE '\\'"))
+		assertTrue(r.getJSONObject("row_counts").has("sqlitecache"))
 	}
 
 	@Test fun getStatsSkipsCountsFromTenTables() {

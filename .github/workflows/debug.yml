@@ -204,6 +204,13 @@ jobs:
         run: |
           flox activate -d flox/base -- ./gradlew :plugin-api:testDebugUnitTest --no-daemon
 
+      # The SQLite debugger's Kotlin tests (EventDecoder, McpProtocol, McpHttp, DatabaseTools). Its own
+      # workflow, test-sqlite-debugger.yml, runs only test.sh (the C and JNI tests) on ubuntu-latest. Like
+      # :plugin-api it has no product flavors, so the task is testDebugUnitTest.
+      - name: Run sqlite-debugger unit tests
+        run: |
+          flox activate -d flox/base -- ./gradlew :subprojects:sqlite-debugger:testDebugUnitTest --no-daemon
+
       # Combined with a compile task on purpose: spotlessCheck alone never pulls a
       # source-tree-writing task into the graph, so the implicit-dependency failure ADFA-5244 fixed
       # cannot reproduce in a standalone run. Without this step a regression of that exclude is
