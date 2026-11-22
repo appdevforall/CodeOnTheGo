@@ -197,11 +197,13 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
 - Four rare false positives of the checks, each rejected on purpose rather than proven safe:
   - a custom `CursorFactory` that returns a non-requery cursor, then a cast to an Android cursor class, is rejected
-    (the cast check follows the static type from a renamed owner; a cast through `Cursor` or an `instanceof` guard avoids it);
+    (the cast check follows the static type from a renamed owner, and the taint passes through every `CHECKCAST`, so a cast through `Cursor` does not avoid it;
+    an `instanceof` guard of the cast's type on the same local does, on every path to the cast);
   - the `COLLATE` rule matches any string constant on purpose (Room's generated SQL), so a quoted literal or a log
     message that contains the phrase is a false positive;
   - an `instanceof` proof covers the checked local only, not a copy of it;
-  - a subclass that declares its own version of a member requery lacks is still rejected, because the check works on class names.
+  - a call to a member requery lacks, made on a subclass that declares its own version of that member, is still rejected,
+    because the check matches the member's name and descriptor on the call's owner class and its renamed ancestors, not the declaration it resolves to.
 - `SupportSQLiteDatabase.execPerConnectionSQL` is unsupported (see the design change): no build failure, an
   `UnsupportedOperationException` when called.
 - Passing an Android `CursorWindow` where a (renamed) `SQLiteClosable` is expected cannot work: android's
@@ -254,8 +256,10 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - Compile-time constants are copied into callers, so uses of `NO_LOCALIZED_COLLATORS`, `JOURNAL_MODE_*` or `SYNC_MODE_*` are
   not visible to the fail rule. `NO_LOCALIZED_COLLATORS` is dropped by the flag translation.
 - The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
-- A direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor` that overrides a member requery lacks is not
-  reported.
+- The declaration of an override of a member requery lacks, in a direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor`,
+  is not reported by itself: the rules check calls and field accesses, not declarations. The exceptions are the
+  `SQLiteQueryBuilder.query` override with a `CancellationSignal` and the `Context` database methods, which fail (see above).
+  A call to that override on the subclass is still rejected (see the false positive above).
 - On a `SQLiteCursor` subclass whose class the build cannot resolve, `getWindow()` is not detected, and
   `setWindow(CursorWindow)` and `mWindow` only log a warning; each fails at run time. `getWindow()` is not in the rule
   table, and failing every unresolved member that names a `CursorWindow` would fail ordinary apps (android's kept
