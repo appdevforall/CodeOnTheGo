@@ -95,6 +95,15 @@ class McpHttp(
 		 */
 		const val HEAD_DEADLINE_MS = 5_000
 
+		/** After a refusal, the most input discarded before the connection closes (see finishReply). */
+		private const val REFUSAL_DRAIN_BYTES = 64 * 1024
+
+		/** After a refusal, the longest wait for the client to finish or close, on a connection's own thread. */
+		private const val REFUSAL_DRAIN_MS = 500
+
+		/** The same on the accept thread, which every new client waits behind. */
+		private const val REFUSAL_DRAIN_MS_ACCEPT = 100
+
 		/** After a failed accept the loop sleeps this long, doubling up to the maximum while failures continue. */
 		const val ACCEPT_BACKOFF_MIN_MS = 100L
 		const val ACCEPT_BACKOFF_MAX_MS = 2_000L
@@ -199,6 +208,8 @@ class McpHttp(
 				try {
 					c.soTimeout = 1000
 					respond(c.getOutputStream(), 503, rpcError("Too many connections at once; try again."), emptyMap(), close = true)
+					// This is the accept thread: a short bound, so a client that never closes cannot hold up the accept loop.
+					finishReply(c, REFUSAL_DRAIN_BYTES, REFUSAL_DRAIN_MS_ACCEPT)
 				} catch (ignored: IOException) {
 				}
 				close(c)
@@ -207,7 +218,7 @@ class McpHttp(
 			clients += c
 			thread(name = "mcp-connection", isDaemon = true) {
 				try {
-					serve(c)
+					if (serve(c)) finishReply(c, REFUSAL_DRAIN_BYTES, REFUSAL_DRAIN_MS)
 				} catch (ignored: IOException) {
 					// The client went away.
 				} catch (t: Throwable) {
@@ -222,7 +233,12 @@ class McpHttp(
 		}
 	}
 
-	private fun serve(c: Socket) {
+	/**
+	 * Serves the connection until it closes. Returns true when the last thing done was a reply that
+	 * may have left part of the request unread (a refusal or an HTTP error), so the caller must
+	 * [finishReply] before closing.
+	 */
+	private fun serve(c: Socket): Boolean {
 		c.soTimeout = IDLE_TIMEOUT_MS
 		c.tcpNoDelay = true
 		val input = BufferedInputStream(c.getInputStream())
@@ -236,25 +252,26 @@ class McpHttp(
 						// Between requests the client may idle; the head's clock starts at its first byte.
 						c.soTimeout = IDLE_TIMEOUT_MS
 						input.mark(1)
-						if (input.read() < 0) return
+						if (input.read() < 0) return false
 						input.reset()
 						headStart = System.currentTimeMillis()
 					}
 					first = false
-					val head = readHead(input, c, headStart + headDeadlineMs) ?: return
+					val head = readHead(input, c, headStart + headDeadlineMs) ?: return false
 					// Refuse before reading a body, so an unauthenticated client never gets that far.
-					if (!allowed(head, out)) return
+					if (!allowed(head, out)) return true
 					c.soTimeout = IDLE_TIMEOUT_MS
 					head.body = readBody(input, head.headers)
 					head
 				} catch (e: SocketTimeoutException) {
-					return
+					return false
 				} catch (e: HttpError) {
 					respond(out, e.status, rpcError(e.message ?: "Bad request."), emptyMap(), close = true)
-					return
+					return true
 				}
-			if (!handle(req, out)) return
+			if (!handle(req, out)) return false
 		}
+		return false
 	}
 
 	/** Host, Origin, path and token. Answers and returns false when the request is refused; the connection then closes. */
@@ -521,6 +538,37 @@ class McpHttp(
 			Thread.sleep(ms)
 		} catch (e: InterruptedException) {
 			Thread.currentThread().interrupt()
+		}
+	}
+
+	/**
+	 * Ends a connection after a reply was written while part of the request may be unread. Closing a
+	 * socket with unread input makes the system send a TCP reset, which can destroy the reply before
+	 * the client reads it. So: send FIN with [Socket.shutdownOutput], read and discard what the client
+	 * still sends, and let the caller close. The wait is bounded by [maxBytes] and [maxMs] in all, so a
+	 * client that is slow or sends without end cannot hold the thread.
+	 */
+	private fun finishReply(
+		s: Socket,
+		maxBytes: Int,
+		maxMs: Int,
+	) {
+		try {
+			s.shutdownOutput()
+			val deadline = System.nanoTime() + maxMs * 1_000_000L
+			val input = s.getInputStream()
+			val scratch = ByteArray(4096)
+			var total = 0
+			while (total < maxBytes) {
+				val left = (deadline - System.nanoTime()) / 1_000_000L
+				if (left <= 0) break
+				s.soTimeout = left.toInt()
+				val n = input.read(scratch)
+				if (n < 0) break
+				total += n
+			}
+		} catch (ignored: IOException) {
+			// A timeout, a reset or a client that left: the reply has had its chance.
 		}
 	}
 
