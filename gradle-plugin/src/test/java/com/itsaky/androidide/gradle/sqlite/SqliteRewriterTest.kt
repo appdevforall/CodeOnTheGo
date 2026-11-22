@@ -436,7 +436,8 @@ class SqliteRewriterTest {
 		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Lib"]!!, hierarchy) }
 		val lastLine = e.message!!.lines().last()
 		assertThat(lastLine).contains("in a library")
-		assertThat(lastLine).contains("comment out cogo.sqliteDebugger=true in gradle.properties")
+		assertThat(lastLine).contains("set cogo.sqliteDebugger=false in the gradle.properties that defines it, or in one read earlier")
+		assertThat(lastLine).contains("Gradle user home, then the app module, then the root")
 	}
 
 	@Test
@@ -1043,6 +1044,32 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a driver that declares both query overloads fails with its class and method, before D8 would`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.TwoQueries",
+						"""
+						package p;
+						import android.database.Cursor;
+						import android.database.sqlite.*;
+						public abstract class TwoQueries implements SQLiteCursorDriver {
+							public Cursor query(SQLiteDatabase.CursorFactory f, String[] args) { return null; }
+							public Cursor query(SQLiteDatabase.CursorFactory f, Object[] args) { return null; }
+						}
+						""",
+					),
+				),
+			)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/TwoQueries"]!!) }
+		val message = e.message!!
+		assertThat(message).contains("p.TwoQueries")
+		assertThat(message).contains("method 'query")
+		assertThat(message).contains("are both declared")
+	}
+
+	@Test
 	fun `a cursor driver that uses its String array parameter verifies and links, with every kind of frame`() {
 		val out =
 			transform(
@@ -1129,7 +1156,87 @@ class SqliteRewriterTest {
 		assertThat(message).contains("direct()Ljava/lang/String; (line ")
 		assertThat(message).contains("viaConstant()Ljava/lang/String; (line ")
 		assertThat(message).contains("COLLATE UNICODE")
-		assertThat(message).doesNotContain("fine")
+		assertThat(message).doesNotContain("fine()")
+	}
+
+	@Test
+	fun `COLLATE UNICODE is found through comments and quotes, and a custom UNICODE_CI collation passes`() {
+		val forms =
+			listOf(
+				"COLLATE /* c */ UNICODE",
+				"COLLATE -- c\\n UNICODE",
+				"COLLATE \\\"UNICODE\\\"",
+				"COLLATE 'UNICODE'",
+				"COLLATE [UNICODE]",
+				"COLLATE `UNICODE`",
+			)
+		for (form in forms) {
+			val classes =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.Q",
+							"package p; public class Q { String q() { return \"SELECT * FROM t ORDER BY n $form\"; } }",
+						),
+					),
+				)
+			val e = assertThrows(SqliteRewriteException::class.java, { SqliteRewriter.rewrite(classes["p/Q"]!!) }, "form: $form")
+			assertThat(e.message).contains("COLLATE UNICODE")
+		}
+		for (custom in listOf("UNICODE_CI", "\\\"UNICODE-CI\\\"", "[UNICODE-CI]", "\\\"UNICODE_CI\\\"", "'UNICODE-CI'", "`UNICODE-CI`")) {
+			val ok =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.Ci",
+							"package p; public class Ci { String q() { return \"SELECT * FROM t ORDER BY n COLLATE $custom\"; } }",
+						),
+					),
+				)
+			SqliteRewriter.rewrite(ok["p/Ci"]!!)
+		}
+	}
+
+	@Test
+	fun `COLLATE LOCALIZED is found through comments and quotes, and a custom name only passes`() {
+		val forms =
+			listOf(
+				"COLLATE localized",
+				"COLLATE /* c */ LOCALIZED",
+				"COLLATE -- c\\n LOCALIZED",
+				"COLLATE \\\"LOCALIZED\\\"",
+				"COLLATE 'LOCALIZED'",
+				"COLLATE [LOCALIZED]",
+				"COLLATE `LOCALIZED`",
+			)
+		for (form in forms) {
+			val classes =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.L",
+							"package p; public class L { String q() { return \"SELECT * FROM t ORDER BY n $form\"; } }",
+						),
+					),
+				)
+			val warnings = mutableListOf<String>()
+			SqliteRewriter.rewrite(classes["p/L"]!!, warn = { warnings += it })
+			assertThat(warnings).hasSize(1)
+		}
+		for (custom in listOf("LOCALIZED_CI", "\\\"LOCALIZED-CI\\\"", "[LOCALIZED-CI]", "\\\"LOCALIZED_CI\\\"")) {
+			val classes =
+				Compiler.compile(
+					listOf(
+						src(
+							"p.L",
+							"package p; public class L { String q() { return \"SELECT * FROM t ORDER BY n COLLATE $custom\"; } }",
+						),
+					),
+				)
+			val warnings = mutableListOf<String>()
+			SqliteRewriter.rewrite(classes["p/L"]!!, warn = { warnings += it })
+			assertThat(warnings).isEmpty()
+		}
 	}
 
 	@Test
@@ -2102,6 +2209,203 @@ class SqliteRewriterTest {
 		assertThat(e.message).contains("up([Landroid/database/sqlite/SQLiteCursor;)Landroid/database/AbstractCursor;")
 		assertThat(e.message).contains("arg([Landroid/database/sqlite/SQLiteCursor;)I")
 		assertThat(e.message).contains("without a cast")
+	}
+
+	@Test
+	fun `an element of a row of an SQLite cursor 2D array used as an Android cursor type without a cast fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.LoadedGrid",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class LoadedGrid {
+							AbstractCursor up(SQLiteCursor[][] g) {
+								return g[0][0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/LoadedGrid"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("up([[Landroid/database/sqlite/SQLiteCursor;)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("without a cast")
+	}
+
+	@Test
+	fun `an element loaded from an SQLite cursor 3D array used as an Android cursor type without a cast fails the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.LoadedCube",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class LoadedCube {
+							AbstractCursor up(SQLiteCursor[][][] t) {
+								return t[0][0][0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		// each row is followed as an array one dimension smaller, at any depth, not only for an SQLiteCursor[][]
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/LoadedCube"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("up([[[Landroid/database/sqlite/SQLiteCursor;)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("without a cast")
+	}
+
+	// a regression guard: this passed before rows of an SQLiteCursor[][] were followed too, when the tag was true or false
+	// and a merge already kept it; it checks that the tag, now an array type, is still kept for a one-dimensional array
+	@Test
+	fun `regression guard - a merged SQLite cursor array still counts, and null on one path does not hide it`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.MergedArray",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class MergedArray {
+							AbstractCursor orNull(SQLiteCursor[] cs, boolean b) {
+								SQLiteCursor[] m = b ? cs : null;
+								return m[0];
+							}
+							AbstractCursor either(SQLiteCursor[] cs1, SQLiteCursor[] cs2, boolean b) {
+								SQLiteCursor[] m = b ? cs1 : cs2;
+								return m[0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/MergedArray"]!!, hierarchy)
+			}
+		assertThat(e.message).contains("orNull([Landroid/database/sqlite/SQLiteCursor;Z)Landroid/database/AbstractCursor;")
+		assertThat(e.message).contains("either([Landroid/database/sqlite/SQLiteCursor;[Landroid/database/sqlite/SQLiteCursor;Z)")
+	}
+
+	@Test
+	fun `a store of an element of a merged SQLite cursor array and subclass array still fails the build, in one and two dimensions`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.MyCursor",
+						"""
+						package p;
+						import android.database.sqlite.*;
+						public class MyCursor extends SQLiteCursor {
+							public MyCursor(SQLiteCursorDriver d, String t, SQLiteQuery q) { super(d, t, q); }
+						}
+						""",
+					),
+					src(
+						"p.MixedArrays",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class MixedArrays {
+							void flat(AbstractCursor[] a, SQLiteCursor[] cs, MyCursor[] mcs, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? cs : mcs)[0];
+							}
+							void grid(AbstractCursor[] a, SQLiteCursor[][] g, MyCursor[][] mg, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? g : mg)[0][0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val withSubclass =
+			ClassHierarchy { name ->
+				if (name == "p/MyCursor") {
+					listOf(A + "SQLiteCursor", "android/database/AbstractWindowedCursor", "java/lang/Object")
+				} else {
+					null
+				}
+			}
+		val warnings = mutableListOf<String>()
+		val e =
+			assertThrows(SqliteRewriteException::class.java) {
+				SqliteRewriter.rewrite(classes["p/MixedArrays"]!!, withSubclass, warn = warnings::add)
+			}
+		// the element is an SQLite cursor on every path, whichever of the two array types is taken, so these fail, not warn
+		assertThat(e.message).contains("flat(")
+		assertThat(e.message).contains("grid(")
+		assertThat(e.message).contains("an SQLite cursor stored into an array of android.database.AbstractCursor;")
+		assertThat(warnings).isEmpty()
+	}
+
+	@Test
+	fun `an element of an SQLite cursor array merged with an Object array or a 2D one does not fail the build`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UnfollowedMerges",
+						"""
+						package p;
+						import android.database.*;
+						import android.database.sqlite.*;
+						public class UnfollowedMerges {
+							void cursorsOrObjects(AbstractCursor[] a, SQLiteCursor[] cs, Object[] os, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? cs : os)[0];
+							}
+							void objectsOrCursors(AbstractCursor[] a, SQLiteCursor[] cs, Object[] os, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? os : cs)[0];
+							}
+							void cursorsOrGrid(AbstractCursor[] a, SQLiteCursor[] cs, SQLiteCursor[][] g, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? cs : g)[0];
+							}
+							void gridOrCursors(AbstractCursor[] a, SQLiteCursor[] cs, SQLiteCursor[][] g, boolean b) {
+								Object[] arr = a;
+								arr[0] = (b ? g : cs)[0];
+							}
+						}
+						""",
+					),
+				),
+			)
+		val warnings = mutableListOf<String>()
+		// on one path the array is not an SQLite cursor array of the same dimension, so the merge drops the tag and the
+		// element is not followed: no exception. Both orders, since a merge keeps the first merged value's tag, so only
+		// objectsOrCursors and gridOrCursors fail the build if that check is lost
+		SqliteRewriter.rewrite(classes["p/UnfollowedMerges"]!!, hierarchy, warn = warnings::add)
+		// the analysis visits the SQLiteCursor[] path first in these two and has already seen its element as an SQLite
+		// cursor; the element after the merge is not one, so the store's value is one on some paths only, which warns
+		val some =
+			"is an SQLite cursor on some paths only; requery's SQLiteCursor is not one, so the store may throw " +
+				"ArrayStoreException at run time when the value is an SQLite cursor"
+		assertThat(warnings)
+			.containsExactly(
+				"p.UnfollowedMerges.objectsOrCursors (line 12): the value stored into an array of android.database.AbstractCursor $some",
+				"p.UnfollowedMerges.gridOrCursors (line 20): the value stored into an array of android.database.AbstractCursor $some",
+			).inOrder()
 	}
 
 	@Test

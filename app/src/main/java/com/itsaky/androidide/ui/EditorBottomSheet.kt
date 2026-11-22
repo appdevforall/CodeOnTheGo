@@ -124,6 +124,7 @@ class EditorBottomSheet
 		 * back to fit once the build ends.
 		 */
 		private var statusHeightRatchet = false
+		private val statusTap by lazy { StatusLineTapBinding(binding.buildStatus.statusText) }
 
 		/**
 		 * The part of the sheet above the header: its status-bar top padding and the divider row.
@@ -752,6 +753,8 @@ class EditorBottomSheet
 					it.statusText.gravity = gravity
 					it.statusText.text = text
 				}
+				// A tap belongs to the text it was bound for; other text, from any writer, is plain.
+				statusTap.onTextWritten(text)
 				// A longer line can take more rows than the last one did, so the header has to be
 				// re-measured against the new text rather than against the dimen.
 				post { refreshCollapsedHeight() }
@@ -769,7 +772,7 @@ class EditorBottomSheet
 			actionLabel: CharSequence?,
 			onTap: (() -> Unit)?,
 		) {
-			bindStatusLineTap(binding.buildStatus.statusText, actionLabel, onTap)
+			statusTap.bind(actionLabel, onTap)
 		}
 
 		/**

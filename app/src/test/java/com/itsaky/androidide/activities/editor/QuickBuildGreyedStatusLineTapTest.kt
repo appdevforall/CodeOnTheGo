@@ -78,10 +78,7 @@ class QuickBuildGreyedStatusLineTapTest {
 
 	/** What the bottom sheet's status line calls when the user taps it. */
 	private fun tapStatusLine() {
-		EditorHandlerActivity::class.java
-			.getDeclaredMethod("onQuickBuildStatusLineTapped")
-			.apply { isAccessible = true }
-			.invoke(activity)
+		activity.onQuickBuildStatusLineTapped()
 	}
 
 	@Test

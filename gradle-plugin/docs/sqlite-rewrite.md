@@ -37,7 +37,9 @@ with an actionable message when the variant's runtime classpath has no
 `androidx/core/os/CancellationSignal.class`.
 
 The property is required because requery reaches apps only through `libs/`. Without it the rewritten classes
-cannot load, so the transform runs only on projects that opted in. Commenting the line out turns it off.
+cannot load, so the transform runs only on projects that opted in. To turn it off, set `cogo.sqliteDebugger=false` in
+the file that defines it, or in one read earlier (Gradle user home, then the app module, then the root: the first
+file that defines the property decides). Commenting the line out can expose another file's `true`.
 
 ## Rules
 
@@ -85,7 +87,7 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
   compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together, with
-  the way out for a library class, which the user cannot change: comment out `cogo.sqliteDebugger=true`. A platform method outside the renamed set whose
+  the way out for a library class, which the user cannot change: set `cogo.sqliteDebugger=false` in the file that defines it, or in one read earlier. A platform method outside the renamed set whose
   descriptor mentions a renamed class (found with javap over android.jar: the other `DatabaseUtils` methods
   `blobFileDescriptorForQuery` and `bindObjectToProgram`, `DatabaseUtils$InsertHelper`, `OpenParams`
   accessors) cannot link once the descriptor is renamed, so a call to one that is not redirected above fails
@@ -111,7 +113,7 @@ cannot load, so the transform runs only on projects that opted in. Commenting th
   write a lambda (its body is an ordinary call, which the rules handle). The rules are not applied to the
   handle itself: it cannot be redirected in place, and its descriptor is fixed by the call site.
 - Frames: `COPY_FRAMES`, AGP's default. The one change that breaks them is a retyped
-  `SQLiteCursorDriver.query` implementation, whose `String[]` parameter becomes `Object[]` while its body, and
+  `SQLiteCursorDriver.query` implementation (a class that also declares the `Object[]` overload fails the build: the retype would give it two identical methods), whose `String[]` parameter becomes `Object[]` while its body, and
   the full frames copied from it, still say `String[]`. For each non-abstract method whose descriptor is retyped
   that way, the rewriter inserts `ALOAD n; CHECKCAST [Ljava/lang/String;; ASTORE n` at method entry, so the body
   stays valid, and writes every frame of that method in full (compressed frames are relative to the implicit first
@@ -191,7 +193,17 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 
 - Room's `BundledSQLiteDriver` is not covered (it brings its own SQLite).
 - requery's native library is built without ICU: there is no `UNICODE` collator (a `COLLATE UNICODE` string
-  constant fails the build, see above) and `LOCALIZED` compares bytes (a warning).
+  constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, and
+  `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
+- Four rare false positives of the checks, each rejected on purpose rather than proven safe:
+  - a custom `CursorFactory` that returns a non-requery cursor, then a cast to an Android cursor class, is rejected
+    (the cast check follows the static type from a renamed owner, and the taint passes through every `CHECKCAST`, so a cast through `Cursor` does not avoid it;
+    an `instanceof` guard of the cast's type on the same local does, on every path to the cast);
+  - the `COLLATE` rule matches any string constant on purpose (Room's generated SQL), so a quoted literal or a log
+    message that contains the phrase is a false positive;
+  - an `instanceof` proof covers the checked local only, not a copy of it;
+  - a call to a member requery lacks, made on a subclass that declares its own version of that member, is still rejected,
+    because the check matches the member's name and descriptor on the call's owner class and its renamed ancestors, not the declaration it resolves to.
 - `SupportSQLiteDatabase.execPerConnectionSQL` is unsupported (see the design change): no build failure, an
   `UnsupportedOperationException` when called.
 - Passing an Android `CursorWindow` where a (renamed) `SQLiteClosable` is expected cannot work: android's
@@ -224,9 +236,13 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   and a store whose array type differs between branches that merge is not checked (`null` on a branch counts as
   no difference). Both can still throw `ArrayStoreException`, in release builds too (the rewrite runs in every
   variant of an opted-in app). So can a store whose value is an SQLite cursor on some paths only, which logs a
-  warning and builds (see Rules): it throws when one path brings both the cursor and the array. A row loaded
-  from an `SQLiteCursor[]` (or an array of a subclass) is followed and counts as an SQLite cursor; rows of other
-  arrays are not followed, and one counts as a value that is not an SQLite cursor.
+  warning and builds (see Rules): it throws when one path brings both the cursor and the array. An element
+  loaded from an `SQLiteCursor[]` (or an array of a subclass) counts as an SQLite cursor, and a row of an
+  `SQLiteCursor[][]` is followed as an `SQLiteCursor[]`, at any depth (so `return g[0][0]` as an `AbstractCursor`
+  fails the build); rows of other arrays are not followed, and one counts as a value that is not an SQLite cursor.
+  That includes an array that is an `SQLiteCursor[]` on one branch only (an `Object[]` or an `SQLiteCursor[][]` on
+  the other), except that when the analysis reaches the `SQLiteCursor[]` branch first, its row still counts as an
+  SQLite cursor on some paths, so storing it logs that warning; with the branches swapped it logs nothing.
 - An array of `SQLiteCursor`, or of a subclass, used without a cast as an array of `AbstractCursor`,
   `AbstractWindowedCursor` or `CrossProcessCursor` (`AbstractCursor[] a = new SQLiteCursor[1];`; arrays are
   covariant) is not reported. After the rename it is an array of requery's `SQLiteCursor`, which is none of those,
@@ -236,12 +252,15 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - The `AbstractWindowedCursor` check follows the cursor through locals and the stack only. A cast of a
   cursor that reached the method through a field, a parameter or another call is not seen (the app throws
   `ClassCastException` at run time), and a cast of a cursor from an SQLite API to a type that is not an
-  SQLite cursor cannot be a false positive.
+  SQLite cursor is a false positive only when a custom `CursorFactory` returns a non-requery cursor (the first
+  of the four false positives above).
 - Compile-time constants are copied into callers, so uses of `NO_LOCALIZED_COLLATORS`, `JOURNAL_MODE_*` or `SYNC_MODE_*` are
   not visible to the fail rule. `NO_LOCALIZED_COLLATORS` is dropped by the flag translation.
 - The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
-- A direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor` that overrides a member requery lacks is not
-  reported.
+- The declaration of an override of a member requery lacks, in a direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor`,
+  is not reported by itself: the rules check calls and field accesses, not declarations. The exceptions are the
+  `SQLiteQueryBuilder.query` override with a `CancellationSignal` and the `Context` database methods, which fail (see above).
+  A call to that override on the subclass is still rejected (see the false positive above).
 - On a `SQLiteCursor` subclass whose class the build cannot resolve, `getWindow()` is not detected, and
   `setWindow(CursorWindow)` and `mWindow` only log a warning; each fails at run time. `getWindow()` is not in the rule
   table, and failing every unresolved member that names a `CursorWindow` would fail ordinary apps (android's kept

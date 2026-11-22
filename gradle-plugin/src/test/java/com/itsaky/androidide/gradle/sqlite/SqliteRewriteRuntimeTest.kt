@@ -3,8 +3,10 @@ package com.itsaky.androidide.gradle.sqlite
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.utils.FileProvider
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.lang.ref.WeakReference
+import java.lang.reflect.InvocationTargetException
 
 /**
  * The runtime helper's functions that need no device, run on the JVM from its bytecode compiled against android.jar,
@@ -79,6 +81,13 @@ class SqliteRewriteRuntimeTest {
 	}
 
 	private fun translate(flags: Int) = runtime.getMethod("translateOpenFlags", Int::class.javaPrimitiveType).invoke(null, flags) as Int
+
+	@Test
+	fun `deleteDatabase with a null context throws the NullPointerException, not false`() {
+		val method = runtime.getMethod("deleteDatabase", loader.loadClass("android.content.Context"), String::class.java)
+		val e = assertThrows(InvocationTargetException::class.java) { method.invoke(null, null, "x.db") }
+		assertThat(e.cause).isInstanceOf(NullPointerException::class.java)
+	}
 
 	private val readOnly = 1
 	private val createIfNecessary = 0x10000000

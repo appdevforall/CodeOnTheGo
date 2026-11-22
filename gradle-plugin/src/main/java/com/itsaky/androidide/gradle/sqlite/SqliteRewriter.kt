@@ -80,7 +80,9 @@ object SqliteRewriter {
 	/** The transform cannot tell an app class from a library class, so the message covers both. */
 	private const val WAY_OUT =
 		"If this class is the app's, change the code above. If it is in a library, the library cannot run on " +
-			"requery: comment out cogo.sqliteDebugger=true in gradle.properties to build without the SQLite debugger."
+			"requery: set cogo.sqliteDebugger=false in the gradle.properties that defines it, or in one read earlier " +
+			"(the first file that defines it decides: Gradle user home, then the app module, then the root), " +
+			"to build without the SQLite debugger. Commenting the line out can expose another file's true."
 
 	private val remapper =
 		object : Remapper() {
@@ -191,16 +193,20 @@ object SqliteRewriter {
 	 * A reference whose static type, on some path, is SQLiteCursor or a subclass, which the rename makes requery's
 	 * ([renamedCursor]; [everyPathCursor] when it is one on every path where it is not null, so also for `null`
 	 * itself), or, on every path where it is not null, an array of one of the Android-only cursor types, of any
-	 * dimension ([androidCursorArray], that array type). [nullConstant]: `null` on every path, which an element loaded
-	 * from it counts as, since that load throws.
+	 * dimension ([androidCursorArray], that array type), or, on every path where it is not null, an array of
+	 * SQLiteCursor or of a subclass, of any dimension ([renamedCursorArray], an array type of that dimension; after a
+	 * merge of, say, an SQLiteCursor[] and a MyCursor[], its element class is the first merged value's, so only its
+	 * dimensions, and that it is not null, mean anything): a row of one is an array of the same kind, and an element of
+	 * a one-dimensional one is a [renamedCursor]. [nullConstant]: `null` on every path, which an element loaded from it
+	 * counts as, since that load throws. Internal only so that [SqliteRewriterMergeTest] can build one.
 	 */
-	private class StaticCursorValue(
+	internal class StaticCursorValue(
 		type: Type?,
 		val renamedCursor: Boolean,
 		val androidCursorArray: Type?,
 		val nullConstant: Boolean,
 		val everyPathCursor: Boolean,
-		val renamedCursorArray: Boolean = false,
+		val renamedCursorArray: Type? = null,
 	) : BasicValue(type) {
 		// as TaintValue: Frame.merge keeps the old value when the merged one equals it
 		override fun equals(other: Any?): Boolean =
@@ -208,7 +214,7 @@ object SqliteRewriter {
 				androidCursorArray == (other as? StaticCursorValue)?.androidCursorArray &&
 				nullConstant == ((other as? StaticCursorValue)?.nullConstant ?: false) &&
 				everyPathCursor == ((other as? StaticCursorValue)?.everyPathCursor ?: false) &&
-				renamedCursorArray == ((other as? StaticCursorValue)?.renamedCursorArray ?: false)
+				renamedCursorArray == (other as? StaticCursorValue)?.renamedCursorArray
 
 		override fun hashCode(): Int =
 			(
@@ -217,7 +223,50 @@ object SqliteRewriter {
 						if (nullConstant) 1 else 0
 				) *
 					31 + if (everyPathCursor) 1 else 0
-			) * 31 + if (renamedCursorArray) 1 else 0
+			) * 31 + renamedCursorArray.hashCode()
+	}
+
+	/**
+	 * What [implicitCursorConversions]'s interpreter answers for a merge that involves a [StaticCursorValue], or null when
+	 * it has none to give and the merge is BasicInterpreter's. A cursor-array tag survives a merge only when
+	 * both paths agree on it, except that [StaticCursorValue.renamedCursorArray] needs only the same dimensions, and `null` on
+	 * one path is neutral. Internal only so that the unit test can call it.
+	 */
+	internal fun mergeCursorValues(
+		value1: BasicValue,
+		value2: BasicValue,
+	): BasicValue? {
+		val s1 = value1 as? StaticCursorValue
+		val s2 = value2 as? StaticCursorValue
+		// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
+		if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
+			// null on one path does not hide the array on the other: `AbstractCursor[] a = null; if (b) a = p;`
+			val array =
+				when {
+					s1?.nullConstant == true -> s2?.androidCursorArray
+					s2?.nullConstant == true -> s1?.androidCursorArray
+					else -> s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray }
+				}
+			// both paths hold renamed cursor arrays of the same dimension, whichever classes: the tag keeps the dimension
+			val renamedArray =
+				when {
+					s1?.nullConstant == true -> s2?.renamedCursorArray
+					s2?.nullConstant == true -> s1?.renamedCursorArray
+					else -> s1?.renamedCursorArray?.takeIf { s2?.renamedCursorArray?.dimensions == it.dimensions }
+				}
+			val merged =
+				StaticCursorValue(
+					value1.type,
+					s1?.renamedCursor == true || s2?.renamedCursor == true,
+					array,
+					s1?.nullConstant == true && s2?.nullConstant == true,
+					// true on null, so null is neutral; a plain BasicValue (an element of an array that is not followed) is not a known cursor
+					s1?.everyPathCursor == true && s2?.everyPathCursor == true,
+					renamedArray,
+				)
+			return if (merged == value1) value1 else merged
+		}
+		return null
 	}
 
 	private class ClassRewrite(
@@ -242,7 +291,13 @@ object SqliteRewriter {
 				}
 				if (policy.fail) bypassedOverride(m)?.let { violations += it }
 				if (policy.redirect && m.name == Rules.DRIVER_QUERY_NAME && m.desc == Rules.DRIVER_QUERY_DESC) {
-					retypeParameters(m, Rules.DRIVER_QUERY_NEW_DESC)
+					if (cn.methods.any { it !== m && it.name == m.name && it.desc == Rules.DRIVER_QUERY_NEW_DESC }) {
+						// Retyping would leave two methods with one name and descriptor, which D8 rejects without a class or line.
+						violations += "method '${m.name}${m.desc}' and '${m.name}${Rules.DRIVER_QUERY_NEW_DESC}' are both declared; " +
+							"the rewrite retypes the first to the second's descriptor, so the class would declare it twice"
+					} else {
+						retypeParameters(m, Rules.DRIVER_QUERY_NEW_DESC)
+					}
 				}
 				rewriteMethod(m)
 			}
@@ -856,7 +911,8 @@ object SqliteRewriter {
 		 * the store throws only on a path that brings both. Not checked: stores into a Cursor[] or Object[], allowed on
 		 * purpose although one can be such an array at run time; a store whose array type differs between the paths that
 		 * merge before it (null on a path is no difference); cursors loaded from arrays other than an SQLiteCursor[]
-		 * (a row of one is an SQLite cursor), which are not followed; an SQLiteCursor[] used as one of those types' arrays.
+		 * of any dimension (an element of a one-dimensional one is an SQLite cursor, a row of a deeper one is an array of
+		 * them), which are not followed; an SQLiteCursor[] used as one of those types' arrays.
 		 */
 		fun implicitCursorConversions(m: MethodNode): Map<AbstractInsnNode, Conversion> {
 			if (!mayConvertToAndroidCursor(m)) return emptyMap()
@@ -873,7 +929,7 @@ object SqliteRewriter {
 								androidCursorArray(type),
 								nullConstant,
 								renamed || nullConstant,
-								type != null && type.sort == Type.ARRAY && type.dimensions == 1 && isRenamedCursorType(type.elementType),
+								type?.takeIf { it.sort == Type.ARRAY && isRenamedCursorType(it.elementType) },
 							)
 						} else {
 							v
@@ -894,10 +950,15 @@ object SqliteRewriter {
 						if (insn.opcode == Opcodes.AALOAD && array != null && array.dimensions > 1) {
 							return newValue(Type.getType(array.descriptor.substring(1)))
 						}
-						// BasicInterpreter types the row as Object; a row of an SQLiteCursor[] (or of a renamed subclass's array) is an
-						// SQLite cursor on every path where it is not null
-						if (insn.opcode == Opcodes.AALOAD && (value1 as? StaticCursorValue)?.renamedCursorArray == true) {
-							return StaticCursorValue(super.binaryOperation(insn, value1, value2)?.type, true, null, false, true)
+						// BasicInterpreter types the row as Object; a row of an SQLiteCursor[][] (or of a renamed subclass's array) is
+						// an SQLiteCursor[], and an element of an SQLiteCursor[] is an SQLite cursor, on every path where it is not null
+						val renamedArray = (value1 as? StaticCursorValue)?.renamedCursorArray
+						if (insn.opcode == Opcodes.AALOAD && renamedArray != null) {
+							return if (renamedArray.dimensions > 1) {
+								newValue(Type.getType(renamedArray.descriptor.substring(1)))
+							} else {
+								StaticCursorValue(super.binaryOperation(insn, value1, value2)?.type, true, null, false, true)
+							}
 						}
 						return super.binaryOperation(insn, value1, value2)
 					}
@@ -905,38 +966,7 @@ object SqliteRewriter {
 					override fun merge(
 						value1: BasicValue,
 						value2: BasicValue,
-					): BasicValue {
-						val s1 = value1 as? StaticCursorValue
-						val s2 = value2 as? StaticCursorValue
-						// BasicInterpreter.merge answers UNINITIALIZED for values that differ in either flag
-						if ((s1 != null || s2 != null) && value1.type != null && value1.type == value2.type) {
-							// null on one path does not hide the array on the other: `AbstractCursor[] a = null; if (b) a = p;`
-							val array =
-								when {
-									s1?.nullConstant == true -> s2?.androidCursorArray
-									s2?.nullConstant == true -> s1?.androidCursorArray
-									else -> s1?.androidCursorArray?.takeIf { it == s2?.androidCursorArray }
-								}
-							val renamedArray =
-								when {
-									s1?.nullConstant == true -> s2?.renamedCursorArray == true
-									s2?.nullConstant == true -> s1?.renamedCursorArray == true
-									else -> s1?.renamedCursorArray == true && s2?.renamedCursorArray == true
-								}
-							val merged =
-								StaticCursorValue(
-									value1.type,
-									s1?.renamedCursor == true || s2?.renamedCursor == true,
-									array,
-									s1?.nullConstant == true && s2?.nullConstant == true,
-									// true on null, so null is neutral; a plain BasicValue (an element loaded from an array) is not a known cursor
-									s1?.everyPathCursor == true && s2?.everyPathCursor == true,
-									renamedArray,
-								)
-							return if (merged == value1) value1 else merged
-						}
-						return super.merge(value1, value2)
-					}
+					): BasicValue = mergeCursorValues(value1, value2) ?: super.merge(value1, value2)
 				}
 			val frames: Array<Frame<BasicValue>?> =
 				try {

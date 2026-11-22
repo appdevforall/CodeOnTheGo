@@ -6,6 +6,27 @@ import org.junit.jupiter.api.Test
 import org.objectweb.asm.Type
 
 class SqliteRewriteRulesTest {
+	/**
+	 * Rebuilds the descriptor from its parsed parts. `Type.getMethodType(d).descriptor` returns its input
+	 * unchanged, so it accepts `(Q)V`; the rebuilt string differs, or ASM throws, for a malformed one.
+	 */
+	private fun isWellFormedDescriptor(desc: String): Boolean =
+		runCatching {
+			if (desc.startsWith("(")) {
+				Type.getMethodDescriptor(Type.getReturnType(desc), *Type.getArgumentTypes(desc)) == desc
+			} else {
+				Type.getType(desc).descriptor == desc
+			}
+		}.getOrDefault(false)
+
+	@Test
+	fun `the descriptor check rejects a malformed descriptor and accepts a well-formed one`() {
+		assertThat(isWellFormedDescriptor("(Q)V")).isFalse()
+		assertThat(isWellFormedDescriptor("(Ljava/lang/String;I)V")).isTrue()
+		assertThat(isWellFormedDescriptor("Q")).isFalse()
+		assertThat(isWellFormedDescriptor("[Ljava/lang/String;")).isTrue()
+	}
+
 	@Test
 	fun `every missing member lists the exact descriptors requery lacks, each a well-formed descriptor`() {
 		// The rewriter fails a call or a field access only when its descriptor is in the entry's set, so an
@@ -13,8 +34,7 @@ class SqliteRewriteRulesTest {
 		for ((member, descs) in SqliteRewriteRules.MISSING_MEMBERS) {
 			assertWithMessage(member).that(descs).isNotEmpty()
 			for (desc in descs) {
-				val parsed = runCatching { if (desc.startsWith("(")) Type.getMethodType(desc) else Type.getType(desc) }.getOrNull()
-				assertWithMessage("$member descriptor '$desc'").that(parsed?.descriptor).isEqualTo(desc)
+				assertWithMessage("$member descriptor '$desc'").that(isWellFormedDescriptor(desc)).isTrue()
 			}
 		}
 	}
