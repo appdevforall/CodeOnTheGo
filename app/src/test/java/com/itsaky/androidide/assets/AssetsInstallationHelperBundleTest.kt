@@ -43,6 +43,15 @@ class AssetsInstallationHelperBundleTest {
 
 	@Before
 	fun setUp() {
+		// Load the brotli native for real before mocking Brotli4jLoader, as AssetsInstallationHelperTest
+		// does: a JVM whose first sight of that class is the mocked one caches "unavailable", and every
+		// later brotli test fails.
+		try {
+			Brotli4jLoader.ensureAvailability()
+		} catch (e: UnsatisfiedLinkError) {
+			println("brotli native unavailable on this host, continuing: ${e.message}")
+		}
+
 		filesDir = tempFolder.newFolder("files")
 		every { ctx.filesDir } returns filesDir
 
