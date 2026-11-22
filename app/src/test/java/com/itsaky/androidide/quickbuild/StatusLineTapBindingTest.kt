@@ -53,4 +53,33 @@ class StatusLineTapBindingTest {
 		assertThat(line.performClick()).isTrue()
 		assertThat(taps).isEqualTo(1)
 	}
+
+	@Test
+	fun `the refusal text restored after indexing is tappable again`() {
+		bindRefusal()
+
+		write("Indexing 3 of 9")
+		assertThat(line.isClickable).isFalse()
+
+		write("Quick Build: off - tap for details")
+
+		assertThat(line.isClickable).isTrue()
+		assertThat(line.isFocusable).isTrue()
+		assertThat(line.performClick()).isTrue()
+		assertThat(taps).isEqualTo(1)
+
+		write("Indexing 4 of 9")
+		assertThat(line.isClickable).isFalse()
+	}
+
+	@Test
+	fun `a binding cleared on purpose is not restored by the same text`() {
+		bindRefusal()
+		tap.bind(null, null)
+
+		write("Quick Build: off - tap for details")
+
+		assertThat(line.isClickable).isFalse()
+		assertThat(taps).isEqualTo(0)
+	}
 }

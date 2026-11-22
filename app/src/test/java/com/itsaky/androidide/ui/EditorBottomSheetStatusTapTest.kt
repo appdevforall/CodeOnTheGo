@@ -67,4 +67,17 @@ class EditorBottomSheetStatusTapTest {
 		statusText.performClick()
 		assertThat(taps).isEqualTo(1)
 	}
+
+	@Test
+	fun `the refusal text restored after indexing is tappable again through setStatus`() {
+		bindTap("Quick Build: off - tap for details")
+		sheet.setStatus("Indexing project", Gravity.START)
+		assertThat(statusText.isClickable).isFalse()
+
+		sheet.setStatus("Quick Build: off - tap for details", Gravity.START)
+
+		assertThat(statusText.isClickable).isTrue()
+		statusText.performClick()
+		assertThat(taps).isEqualTo(1)
+	}
 }
