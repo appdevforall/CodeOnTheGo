@@ -78,7 +78,7 @@ class RunawayQuery(private val scope: CoroutineScope, private val products: Prod
 
     /** Starts JavaScript that never ends, unless its earlier start still runs. */
     fun start() {
-        if (job?.isActive == true) return
+        if (job?.isCompleted == false) return
         job = scope.launch {
             cancellable { products.spin() }
         }
@@ -91,7 +91,7 @@ class RunawayQuery(private val scope: CoroutineScope, private val products: Prod
 }
 ```
 
-`start()` does nothing while the query it started earlier still runs. A second query would replace the first in `job`, and `cancel()` would no longer cancel the first.
+`start()` does nothing while the query it started earlier still runs, including the moment after `cancel()` while `cancellable()` stops it. A second query would replace the first in `job`, and `cancel()` would no longer cancel the first.
 
 `ProductDao` and its `spin()` are on the page [Set up a database with JavaScript functions](sqlite-js-app-database.html). In an activity, pass `lifecycleScope` as the scope.
 
@@ -107,6 +107,7 @@ final class CancellableQuery<T> {
 
     private final Future<T> running;
     private final AtomicBoolean cancelled = new AtomicBoolean();
+    private volatile Future<?> stopping;
 
     /** Starts the query on another thread. */
     CancellableQuery(Callable<T> query) {
@@ -131,9 +132,13 @@ final class CancellableQuery<T> {
         }
     }
 
-    /** Whether the query has ended. */
+    /**
+     * Whether the query has ended, and with it the loop of cancel(), whose
+     * last cancelAll() could otherwise stop a query started after this one.
+     */
     boolean isDone() {
-        return running.isDone();
+        Future<?> loop = stopping;
+        return running.isDone() && (loop == null || loop.isDone());
     }
 
     /** Stops the query's JavaScript. Returns at once. */
@@ -142,7 +147,7 @@ final class CancellableQuery<T> {
         if (running.isDone() || !cancelled.compareAndSet(false, true)) {
             return;
         }
-        THREADS.execute(() -> {
+        stopping = THREADS.submit(() -> {
             // Future.cancel() could not stop the JavaScript. Only cancelAll() can.
             while (!running.isDone()) {
                 SqliteJs.cancelAll();
@@ -189,4 +194,4 @@ final class RunawayQuery {
 }
 ```
 
-As in Kotlin, `start()` does nothing while the query it started earlier still runs, so that `cancel()` always cancels that query. This `RunawayQuery` never reads the query's result, so it does not notice a query that fails. To read a result, or learn of a failure, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.
+Its `start()`, like the Kotlin one, does nothing until the query it started earlier has ended, along with the loop of its `cancel()`. So `cancel()` always cancels that query, and no late `cancelAll()` of it reaches the next one. This `RunawayQuery` never reads the query's result, so it does not notice a query that fails. To read a result, or learn of a failure, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.

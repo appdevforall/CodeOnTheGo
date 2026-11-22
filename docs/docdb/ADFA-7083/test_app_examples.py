@@ -249,7 +249,8 @@ def check_sql(language, strings):
             check(False, "%s: the DAO query %r never ends" % (language, q), "%r %r" % (out, err))
         except subprocess.TimeoutExpired as e:
             # sqlite3 prints the marker before it reads the query, so the 3 s were the query's
-            started = "started" in (e.stdout or b"").decode().split("\n")
+            out = e.stdout or ""
+            started = "started" in (out.decode() if isinstance(out, bytes) else out).split("\n")
             check(started, "%s: the DAO query %r never ends (stopped after 3 s)" % (language, q),
                   "the setup before it did not end: %r" % e.stdout)
 
