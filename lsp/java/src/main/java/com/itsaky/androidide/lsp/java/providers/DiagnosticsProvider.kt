@@ -340,7 +340,5 @@ object DiagnosticsProvider {
 			Diagnostic.Kind.NOTE -> DiagnosticSeverity.INFO
 
 			Diagnostic.Kind.OTHER -> DiagnosticSeverity.HINT
-
-			else -> DiagnosticSeverity.HINT
 		}
 }

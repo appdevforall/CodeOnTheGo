@@ -65,7 +65,9 @@ object ViewFactory {
 					// ignored
 				}
 
-				clazz = clazz.superclass
+				// ViewGroup declares generateDefaultLayoutParams, so the walk stops before it runs out of
+				// superclasses.
+				clazz = checkNotNull(clazz.superclass)
 			}
 			if (method != null) {
 				method.isAccessible = true
