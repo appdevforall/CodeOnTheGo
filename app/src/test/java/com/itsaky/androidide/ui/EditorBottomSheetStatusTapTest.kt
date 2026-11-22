@@ -1,14 +1,20 @@
 package com.itsaky.androidide.ui
 
+import android.os.Looper
 import android.view.Gravity
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.fragment.app.FragmentActivity
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.R
 import com.itsaky.androidide.app.BaseApplication
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 
 /**
@@ -21,14 +27,57 @@ import org.robolectric.annotation.Config
 class EditorBottomSheetStatusTapTest {
 	open class TestApp : BaseApplication()
 
-	private val activity =
-		Robolectric
-			.buildActivity(FragmentActivity::class.java)
-			.also { it.get().setTheme(R.style.Theme_AndroidIDE) }
-			.setup()
-			.get()
+	private lateinit var controller: ActivityController<FragmentActivity>
+	private lateinit var sheet: EditorBottomSheet
+	private var savedHandler: Thread.UncaughtExceptionHandler? = null
+	private val uncaught = mutableListOf<String>()
 
-	private val sheet = EditorBottomSheet(activity)
+	@Before
+	fun setUp() {
+		// IDEApplication.onCreate chains the previous default handler into its own, so once a JVM has
+		// created two of them, an uncaught exception loops between the handlers until the heap runs
+		// out (ADFA-7259). Catch uncaught exceptions here instead. The sheet's collectors run on the
+		// main thread, so only an exception there fails the test; one from a thread another test
+		// left running is printed.
+		savedHandler = Thread.getDefaultUncaughtExceptionHandler()
+		val main = Looper.getMainLooper().thread
+		Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+			if (thread === main) {
+				uncaught += "${thread.name}: $error"
+			} else {
+				System.err.println("Uncaught on ${thread.name} during EditorBottomSheetStatusTapTest: $error")
+			}
+		}
+
+		controller = Robolectric.buildActivity(FragmentActivity::class.java)
+		val activity = controller.get()
+		activity.setTheme(R.style.Theme_AndroidIDE)
+		controller.create()
+		// The sheet's collectors start with the activity and look up its BottomSheetBehavior, so
+		// place the sheet the way content_editor.xml does before the activity starts.
+		sheet = EditorBottomSheet(activity)
+		val root = CoordinatorLayout(activity)
+		root.addView(
+			sheet,
+			CoordinatorLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT).apply {
+				behavior = EditorBottomSheetBehavior<EditorBottomSheet>(activity, null)
+			},
+		)
+		activity.setContentView(root)
+		controller
+			.start()
+			.postCreate(null)
+			.resume()
+			.visible()
+	}
+
+	@After
+	fun tearDown() {
+		controller.pause().stop().destroy()
+		Thread.setDefaultUncaughtExceptionHandler(savedHandler)
+		assertThat(uncaught).isEmpty()
+	}
+
 	private val statusText get() = sheet.binding.buildStatus.statusText
 
 	private var taps = 0
