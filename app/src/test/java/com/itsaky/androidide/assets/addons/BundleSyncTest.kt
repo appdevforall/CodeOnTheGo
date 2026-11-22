@@ -315,6 +315,19 @@ class BundleSyncTest {
 	}
 
 	@Test
+	fun `a copy that does not match the index is rejected and the installed build kept`() {
+		run(bundleA)
+		val source = FakeSource(plugins = mapOf("p1.cgp" to plugin("com.p1", "2"), "p2.cgp" to plugin("com.p2")), templates = bundleA.templates)
+		val entries = BundledAddons.list(source).map { if (it.fileName == "p1.cgp") it.copy(sha256 = "0".repeat(64)) else it }
+
+		val state = sync().sync(source, entries)
+
+		assertThat(pluginsDir.listFiles { f -> idOf(f) == "com.p1" }!!.map { it.readText() }).containsExactly(plugin("com.p1"))
+		assertThat(state.failures.map { it.pluginId }).containsExactly("p1.cgp")
+		assertThat(uninstalled).doesNotContain("com.p1")
+	}
+
+	@Test
 	fun `old failures are dropped with the old bundle`() {
 		run(FakeSource(plugins = mapOf("bad.cgp" to "no id here")))
 
