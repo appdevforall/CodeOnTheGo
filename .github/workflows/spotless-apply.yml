@@ -61,10 +61,11 @@ jobs:
           flox activate -d flox/base -- ./gradlew spotlessApply --no-daemon
 
       # flox activate can rewrite the tracked environment files under flox/ (schema upgrade,
-      # relock), which do not belong in a formatting commit (ADFA-7244). Drop them, then commit
-      # only what Spotless formats, and fail on anything else rather than sweep it in. Keep the
-      # pattern in step with the spotless block in build.gradle.kts (java, kotlin, kotlinGradle,
-      # xml, misc .gitignore, shell .githooks/** and scripts/** minus the keystore).
+      # relock), which do not belong in a formatting commit (ADFA-7244). Drop them, then fail
+      # rather than commit anything Spotless could not have done. The path pattern is a coarse
+      # guard by file type, looser than the targets in build.gradle.kts's spotless block; widen
+      # it if that block gains a new type. Spotless only edits file contents, so an added,
+      # deleted or renamed file, or a mode change, is never its own.
       - name: Commit and push
         run: |
           git restore -- flox/
@@ -72,9 +73,15 @@ jobs:
             echo "::notice::Already formatted. Nothing to commit."
             exit 0
           fi
-          unexpected=$(git diff --name-only |
-            grep -vE '\.(java|kt|kts|xml)$|(^|/)\.gitignore$|^(\.githooks|scripts)/' |
-            cat - <(git diff --name-only -- scripts/debug-keystore/adfa-keystore.jks) || true)
+          # quotePath=false: a non-ASCII name would otherwise be listed quoted and miss the pattern.
+          names() { git -c core.quotePath=false diff --name-only "$@"; }
+          unexpected=$({
+            names | grep -vE '\.(java|kt|kts|xml)$|(^|/)\.gitignore$|^(\.githooks|scripts)/' || true
+            # The shell step excludes the keystore, which the scripts/ pattern above would let through.
+            names -- scripts/debug-keystore/adfa-keystore.jks
+            names --diff-filter=ADRCTUXB
+            git -c core.quotePath=false diff --summary | grep -E '^ mode change' || true
+          } | sort -u)
           if [ -n "$unexpected" ]; then
             echo "::error::spotlessApply changed files Spotless does not format; not committing:"
             echo "$unexpected"
