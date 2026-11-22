@@ -18,6 +18,7 @@
 package com.itsaky.androidide.lsp.java.utils;
 
 import android.os.Handler;
+import android.os.Looper;
 import androidx.annotation.NonNull;
 import java.util.Objects;
 
@@ -43,7 +44,9 @@ public class AnalyzeTimer {
 	 *            The callback that will be invoked after the timer has ended.
 	 */
 	public AnalyzeTimer(@NonNull Runnable timerCallback) {
-		this.timerHandler = new Handler();
+		// Handler() is deprecated for choosing the calling thread's looper implicitly; this makes the
+		// same choice explicitly.
+		this.timerHandler = new Handler(Objects.requireNonNull(Looper.myLooper(), "AnalyzeTimer needs a thread with a Looper"));
 		this.interval = DEFAULT_INTERVAL;
 		this.timerCallback = timerCallback;
 

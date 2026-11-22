@@ -28,6 +28,7 @@ import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.itsaky.androidide.annotations.inflater.ViewAdapter
 import com.itsaky.androidide.annotations.uidesigner.IncludeInDesigner
+import com.squareup.javapoet.AnnotationSpec
 import com.squareup.javapoet.ClassName
 import com.squareup.javapoet.CodeBlock
 import com.squareup.javapoet.FieldSpec
@@ -56,7 +57,14 @@ class ViewAdapterIndexGenerator(
 	private val indexClassBuilder =
 		TypeSpec
 			.classBuilder(INDEX_CLASS_NAME)
-			.addModifiers(PUBLIC, FINAL)
+			// The index registers adapters for deprecated platform widgets (AbsoluteLayout, AnalogClock,
+			// DigitalClock) that layouts can still use.
+			.addAnnotation(
+				AnnotationSpec
+					.builder(SuppressWarnings::class.java)
+					.addMember("value", "\$S", "deprecation")
+					.build(),
+			).addModifiers(PUBLIC, FINAL)
 			.addSuperinterface(viewAdapterInterface)
 	private val indexAddStatements = CodeBlock.builder()
 
@@ -124,7 +132,7 @@ class ViewAdapterIndexGenerator(
 		)
 
 		val listOfViewAdapters =
-			ParameterizedTypeName.get(ClassName.get(java.util.List::class.java), adapterType)
+			ParameterizedTypeName.get(ClassName.get(List::class.java), adapterType)
 		val mapOfGroupToListOfViewAdapter =
 			ParameterizedTypeName.get(
 				ClassName.get(Map::class.java),

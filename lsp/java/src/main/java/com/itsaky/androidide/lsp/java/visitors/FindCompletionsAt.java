@@ -20,6 +20,7 @@ package com.itsaky.androidide.lsp.java.visitors;
 import openjdk.source.tree.CaseTree;
 import openjdk.source.tree.CompilationUnitTree;
 import openjdk.source.tree.ErroneousTree;
+import openjdk.source.tree.ExpressionTree;
 import openjdk.source.tree.IdentifierTree;
 import openjdk.source.tree.ImportTree;
 import openjdk.source.tree.MemberReferenceTree;
@@ -58,16 +59,20 @@ public class FindCompletionsAt extends TreePathScanner<TreePath, Long> {
 		// In case of an identifier tree, we have to check for both, variables and switch constants
 		// in
 		// CompletionProvider
-		if (t.getExpression() != null && !(t.getExpression() instanceof IdentifierTree)) {
-			long start = pos.getStartPosition(root, t.getExpression());
-			long end = pos.getEndPosition(root, t.getExpression());
+		// The vendored javac deprecates getExpression() and its replacement getExpressions() alike, and
+		// getLabels() is still a preview API there, so no undeprecated accessor exists.
+		@SuppressWarnings("deprecation")
+		ExpressionTree expression = t.getExpression();
+		if (expression != null && !(expression instanceof IdentifierTree)) {
+			long start = pos.getStartPosition(root, expression);
+			long end = pos.getEndPosition(root, expression);
 			if (start <= find && find <= end) {
-				return new TreePath(getCurrentPath(), t.getExpression());
+				return new TreePath(getCurrentPath(), expression);
 			}
 		}
 
 		long start = pos.getStartPosition(root, t) + "case".length();
-		long end = pos.getEndPosition(root, t.getExpression());
+		long end = pos.getEndPosition(root, expression);
 		if (start <= find && find <= end) {
 			return getCurrentPath().getParentPath();
 		}
