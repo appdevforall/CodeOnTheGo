@@ -55,8 +55,8 @@ These are outside this module and come in the PRs stacked on it:
 - Gradle plugin wiring and the build-time rewrite that adds the library to debug builds (ADFA-7138, #2262).
 - The AI-Agent-MCP side that connects to the server (ADFA-7139, #2261 and addons #166).
 
-On devices, this code has run only as part of the whole stack, on 2026-11-21:
+On devices, this module has run only as part of the whole stack, at 632bc27eb, on 2026-11-21:
 - on a Galaxy Note 20 (Android 13, arm64-v8a);
 - on a Galaxy J7 (Android 9, armeabi-v7a).
 
-On both, the server started and Code on the Go paired with the app. On the Note 20 the Agent also queried the app's database; AI-Agent-MCP needs Android 13. The results are on ADFA-7131.
+On both, the server started and Code on the Go paired with the app. On the Note 20 the Agent also queried the app's database; AI-Agent-MCP needs Android 13. The results are on ADFA-7131. The review fixes after 632bc27eb have not run on a device yet, among them the 1.5 s limit on a database not in WAL mode (df22b7aca) and draining the request before closing after an error reply (3a3d57add).
