@@ -24,6 +24,7 @@ class IdeThemeServiceImpl(
 				}
 			}
 
+			@Deprecated("Deprecated in Java")
 			override fun onLowMemory() {}
 		}
 

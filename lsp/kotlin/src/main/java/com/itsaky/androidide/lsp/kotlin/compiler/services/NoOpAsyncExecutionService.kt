@@ -1,4 +1,7 @@
-@file:Suppress("UnstableApiUsage")
+// AsyncExecutionService's abstract createExecutor, createUIExecutor and createWriteThreadExecutor return
+// the deprecated ExpirableExecutor and AppUIExecutor, and have no replacement. Implementing them is this
+// file's whole job, and only a file-level suppression reaches the imports.
+@file:Suppress("UnstableApiUsage", "DEPRECATION")
 
 package com.itsaky.androidide.lsp.kotlin.compiler.services
 
@@ -33,6 +36,7 @@ import java.util.function.Consumer
 internal class NoOpAsyncExecutionService : AsyncExecutionService() {
 	private val executor: AppUIExecutor = NoOpAppUIExecutor()
 
+	@Deprecated("Deprecated in Java")
 	override fun createExecutor(backgroundExecutor: Executor): ExpirableExecutor = NoOpExpirableExecutor(backgroundExecutor)
 
 	override fun createUIExecutor(modalityState: ModalityState): AppUIExecutor = executor
@@ -43,10 +47,13 @@ internal class NoOpAsyncExecutionService : AsyncExecutionService() {
 }
 
 private class NoOpAppUIExecutor : AppUIExecutor {
+	@Deprecated("Deprecated in Java")
 	override fun later(): AppUIExecutor = this
 
+	@Deprecated("Deprecated in Java")
 	override fun withDocumentsCommitted(project: Project): AppUIExecutor = this
 
+	@Deprecated("Deprecated in Java")
 	override fun inSmartMode(project: Project): AppUIExecutor = this
 
 	override fun expireWith(disposable: Disposable): AppUIExecutor = this
