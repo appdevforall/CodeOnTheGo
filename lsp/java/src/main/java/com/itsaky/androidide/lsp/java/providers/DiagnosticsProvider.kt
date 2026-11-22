@@ -50,269 +50,297 @@ import java.util.regex.Pattern
  * @author Akash Yadav
  */
 object DiagnosticsProvider {
-  /**
-   * Finds diagnostics from the given task (only the diagnostics for the given file). The task
-   * should be a valid task.
-   *
-   * As the file might be too long, the diagnostics list must be sorted so we can quickly binary
-   * search the list when needed.
-   *
-   * @param task The compilation task to get diagnostics from.
-   * @param file The file of which the diagnostics must be extracted.
-   * @return The list of diagnostics retrieved from the task. Never null.
-   */
-  @JvmStatic
-  fun findDiagnostics(task: CompileTask, file: Path?): List<DiagnosticItem> {
-    val result = mutableListOf<DiagnosticItem>()
-    var root: CompilationUnitTree? = null
-    for (tree in task.roots) {
-      abortIfCancelled()
-      val path = Paths.get(tree.sourceFile.toUri())
-      if (isSameFile(path, file!!)) {
-        root = tree
-        break
-      }
-    }
+	/**
+	 * Finds diagnostics from the given task (only the diagnostics for the given file). The task
+	 * should be a valid task.
+	 *
+	 * As the file might be too long, the diagnostics list must be sorted so we can quickly binary
+	 * search the list when needed.
+	 *
+	 * @param task The compilation task to get diagnostics from.
+	 * @param file The file of which the diagnostics must be extracted.
+	 * @return The list of diagnostics retrieved from the task. Never null.
+	 */
+	@JvmStatic
+	fun findDiagnostics(
+		task: CompileTask,
+		file: Path?,
+	): List<DiagnosticItem> {
+		val result = mutableListOf<DiagnosticItem>()
+		var root: CompilationUnitTree? = null
+		for (tree in task.roots) {
+			abortIfCancelled()
+			val path = Paths.get(tree.sourceFile.toUri())
+			if (isSameFile(path, file!!)) {
+				root = tree
+				break
+			}
+		}
 
-    abortIfCancelled()
+		abortIfCancelled()
 
-    if (root == null) {
-      // CompilationUnitTree for the file was not found
-      // Can't do anything...
-      return result
-    }
+		if (root == null) {
+			// CompilationUnitTree for the file was not found
+			// Can't do anything...
+			return result
+		}
 
-    addCompilerErrors(task, root, result)
-    abortIfCancelled()
-    addDiagnosticsByVisiting(task, root, result)
-    abortIfCancelled()
-    return result
-  }
+		addCompilerErrors(task, root, result)
+		abortIfCancelled()
+		addDiagnosticsByVisiting(task, root, result)
+		abortIfCancelled()
+		return result
+	}
 
-  private fun addDiagnosticsByVisiting(
-    task: CompileTask,
-    root: CompilationUnitTree,
-    result: MutableList<DiagnosticItem>
-  ) {
-    val notThrown = mutableMapOf<TreePath?, String>()
-    val scanner = DiagnosticVisitor(task.task)
-    scanner.scan(root, notThrown)
-    for (unusedEl in scanner.notUsed()) {
-      warnUnused(task, unusedEl)?.also { result.add(it) }
-    }
-    
-    for (location in notThrown.keys) {
-      result.add(warnNotThrown(task, notThrown[location], location!!))
-    }
+	private fun addDiagnosticsByVisiting(
+		task: CompileTask,
+		root: CompilationUnitTree,
+		result: MutableList<DiagnosticItem>,
+	) {
+		val notThrown = mutableMapOf<TreePath?, String>()
+		val scanner = DiagnosticVisitor(task.task)
+		scanner.scan(root, notThrown)
+		for (unusedEl in scanner.notUsed()) {
+			warnUnused(task, unusedEl)?.also { result.add(it) }
+		}
 
-    for (path in scanner.emptyBlocks.keys) {
-      result.add(warnEmptyBlock(task, path, scanner.emptyBlocks[path]!!))
-    }
-  }
+		for (location in notThrown.keys) {
+			result.add(warnNotThrown(task, notThrown[location], location!!))
+		}
 
-  private fun warnEmptyBlock(task: CompileTask, path: TreePath, name: String): DiagnosticItem {
-    val trees = Trees.instance(task.task)
-    val thisTree = path.leaf
-    val code = EMPTY_BLOCK
+		for (path in scanner.emptyBlocks.keys) {
+			result.add(warnEmptyBlock(task, path, scanner.emptyBlocks[path]!!))
+		}
+	}
 
-    val root = task.root()
-    val lines = task.root().lineMap
-    val positions = trees.sourcePositions
-    val start = positions.getStartPosition(root, thisTree)
-    val end = positions.getEndPosition(root, thisTree)
-    return DiagnosticItem(
-      source = "",
-      code = code.id,
-      message = "'$name' statement has empty body",
-      severity = WARNING,
-      range =
-        Range(getPosition(start, lines), getPosition(end, lines)).apply {
-          this.start.index = start.toInt()
-          this.end.index = end.toInt()
-        }
-    )
-  }
+	private fun warnEmptyBlock(
+		task: CompileTask,
+		path: TreePath,
+		name: String,
+	): DiagnosticItem {
+		val trees = Trees.instance(task.task)
+		val thisTree = path.leaf
+		val code = EMPTY_BLOCK
 
-  private fun addCompilerErrors(
-    task: CompileTask,
-    root: CompilationUnitTree,
-    result: MutableList<DiagnosticItem>
-  ) {
-    for (diagnostic in task.diagnostics) {
-      if (diagnostic.source == null || diagnostic.source!!.toUri() != root.sourceFile.toUri()) {
-        continue
-      }
-      if (diagnostic.startPosition == -1L || diagnostic.endPosition == -1L) {
-        continue
-      }
-      result.add(asDiagnosticItem(diagnostic, root.lineMap))
-    }
-  }
+		val root = task.root()
+		val lines = task.root().lineMap
+		val positions = trees.sourcePositions
+		val start = positions.getStartPosition(root, thisTree)
+		val end = positions.getEndPosition(root, thisTree)
+		return DiagnosticItem(
+			source = "",
+			code = code.id,
+			message = "'$name' statement has empty body",
+			severity = WARNING,
+			range =
+				Range(getPosition(start, lines), getPosition(end, lines)).apply {
+					this.start.index = start.toInt()
+					this.end.index = end.toInt()
+				},
+		)
+	}
 
-  private fun warnNotThrown(task: CompileTask, name: String?, path: TreePath): DiagnosticItem {
-    val trees = Trees.instance(task.task)
-    val pos = trees.sourcePositions
-    val root = path.compilationUnit
-    val lines = root.lineMap
-    val start = pos.getStartPosition(root, path.leaf)
-    val end = pos.getEndPosition(root, path.leaf)
-    return DiagnosticItem(
-      message = String.format("'%s' is not thrown in the body of the method", name),
-      range =
-        Range(getPosition(start, lines), getPosition(end, lines)).apply {
-          this.start.index = start.toInt()
-          this.end.index = end.toInt()
-        },
-      code = UNUSED_THROWS.id,
-      severity = DiagnosticSeverity.INFO,
-      source = ""
-    )
-  }
+	private fun addCompilerErrors(
+		task: CompileTask,
+		root: CompilationUnitTree,
+		result: MutableList<DiagnosticItem>,
+	) {
+		for (diagnostic in task.diagnostics) {
+			if (diagnostic.source == null || diagnostic.source!!.toUri() != root.sourceFile.toUri()) {
+				continue
+			}
+			if (diagnostic.startPosition == -1L || diagnostic.endPosition == -1L) {
+				continue
+			}
+			result.add(asDiagnosticItem(diagnostic, root.lineMap))
+		}
+	}
 
-  private fun warnUnused(task: CompileTask, unusedEl: Element): DiagnosticItem? {
-    val trees = Trees.instance(task.task)
-    val path = trees.getPath(unusedEl) ?: throw RuntimeException("$unusedEl has no path")
-    val root = path.compilationUnit
-    val leaf = path.leaf
-    val pos = trees.sourcePositions
-    var start = pos.getStartPosition(root, leaf).toInt()
-    var end = pos.getEndPosition(root, leaf).toInt()
+	private fun warnNotThrown(
+		task: CompileTask,
+		name: String?,
+		path: TreePath,
+	): DiagnosticItem {
+		val trees = Trees.instance(task.task)
+		val pos = trees.sourcePositions
+		val root = path.compilationUnit
+		val lines = root.lineMap
+		val start = pos.getStartPosition(root, path.leaf)
+		val end = pos.getEndPosition(root, path.leaf)
+		return DiagnosticItem(
+			message = String.format("'%s' is not thrown in the body of the method", name),
+			range =
+				Range(getPosition(start, lines), getPosition(end, lines)).apply {
+					this.start.index = start.toInt()
+					this.end.index = end.toInt()
+				},
+			code = UNUSED_THROWS.id,
+			severity = DiagnosticSeverity.INFO,
+			source = "",
+		)
+	}
 
-    if (leaf is VariableTree) {
-      val offset = pos.getEndPosition(root, leaf.type).toInt()
-      if (offset != -1) {
-        start = offset
-      }
-    }
+	private fun warnUnused(
+		task: CompileTask,
+		unusedEl: Element,
+	): DiagnosticItem? {
+		val trees = Trees.instance(task.task)
+		val path = trees.getPath(unusedEl) ?: throw RuntimeException("$unusedEl has no path")
+		val root = path.compilationUnit
+		val leaf = path.leaf
+		val pos = trees.sourcePositions
+		var start = pos.getStartPosition(root, leaf).toInt()
+		var end = pos.getEndPosition(root, leaf).toInt()
 
-    val file = Paths.get(root.sourceFile.toUri())
-    val contents = FileManager.getDocumentContents(file)
-    var name = unusedEl.simpleName
-    if (name.contentEquals("<init>")) {
-      name = unusedEl.enclosingElement.simpleName
-    }
+		if (leaf is VariableTree) {
+			val offset = pos.getEndPosition(root, leaf.type).toInt()
+			if (offset != -1) {
+				start = offset
+			}
+		}
 
-    val region = try {
-      contents.subSequence(start, end)
-    } catch (err: IndexOutOfBoundsException) {
-      // might happen if the file contents were changed after the file was compiled for analysis
-      return null
-    }
+		val file = Paths.get(root.sourceFile.toUri())
+		val contents = FileManager.getDocumentContents(file)
+		var name = unusedEl.simpleName
+		if (name.contentEquals("<init>")) {
+			name = unusedEl.enclosingElement.simpleName
+		}
 
-    val matcher = Pattern.compile("\\b$name\\b").matcher(region)
-    if (matcher.find()) {
-      start += matcher.start()
-      end = start + name.length
-    }
+		val region =
+			try {
+				contents.subSequence(start, end)
+			} catch (err: IndexOutOfBoundsException) {
+				// might happen if the file contents were changed after the file was compiled for analysis
+				return null
+			}
 
-    val message = String.format("'%s' is not used", name)
-    val code: DiagnosticCode
-    val severity: DiagnosticSeverity
-    when (leaf) {
-      is VariableTree -> {
-        when (path.parentPath.leaf) {
-          is MethodTree -> {
-            code = DiagnosticCode.UNUSED_PARAM
-            severity = DiagnosticSeverity.HINT
-          }
-          is BlockTree -> {
-            code = DiagnosticCode.UNUSED_LOCAL
-            severity = DiagnosticSeverity.INFO
-          }
-          is ClassTree -> {
-            code = DiagnosticCode.UNUSED_FIELD
-            severity = DiagnosticSeverity.INFO
-          }
-          else -> {
-            code = DiagnosticCode.UNUSED_OTHER
-            severity = DiagnosticSeverity.HINT
-          }
-        }
-      }
-      is MethodTree -> {
-        code = DiagnosticCode.UNUSED_METHOD
-        severity = DiagnosticSeverity.INFO
-      }
-      is ClassTree -> {
-        code = DiagnosticCode.UNUSED_CLASS
-        severity = DiagnosticSeverity.INFO
-      }
-      else -> {
-        code = DiagnosticCode.UNUSED_OTHER
-        severity = DiagnosticSeverity.INFO
-      }
-    }
+		val matcher = Pattern.compile("\\b$name\\b").matcher(region)
+		if (matcher.find()) {
+			start += matcher.start()
+			end = start + name.length
+		}
 
-    return asDiagnosticItem(severity, code.id, message, start.toLong(), end.toLong(), root)
-  }
+		val message = String.format("'%s' is not used", name)
+		val code: DiagnosticCode
+		val severity: DiagnosticSeverity
+		when (leaf) {
+			is VariableTree -> {
+				when (path.parentPath.leaf) {
+					is MethodTree -> {
+						code = DiagnosticCode.UNUSED_PARAM
+						severity = DiagnosticSeverity.HINT
+					}
 
-  private fun asDiagnosticItem(
-    severity: DiagnosticSeverity,
-    code: String,
-    message: String,
-    start: Long,
-    end: Long,
-    root: CompilationUnitTree
-  ): DiagnosticItem {
-    return DiagnosticItem(
-      message = message,
-      code = code,
-      severity = severity,
-      range =
-        Range(getPosition(start, root.lineMap), getPosition(end, root.lineMap)).apply {
-          this.start.index = start.toInt()
-          this.end.index = end.toInt()
-        },
-      source = ""
-    )
-  }
+					is BlockTree -> {
+						code = DiagnosticCode.UNUSED_LOCAL
+						severity = DiagnosticSeverity.INFO
+					}
 
-  private fun asDiagnosticItem(
-    diagnostic: Diagnostic<out JavaFileObject?>,
-    lines: LineMap
-  ): DiagnosticItem {
-    abortIfCancelled()
-    val result =
-      DiagnosticItem(
-        range = getDiagnosticRange(diagnostic, lines),
-        severity = severityFor(diagnostic.kind),
-        code = diagnostic.code,
-        message = diagnostic.getMessage(Locale.getDefault()),
-        source = ""
-      )
-    result.range.start.index = diagnostic.startPosition.toInt()
-    result.range.end.index = diagnostic.endPosition.toInt()
-    result.extra = diagnostic
-    return result
-  }
+					is ClassTree -> {
+						code = DiagnosticCode.UNUSED_FIELD
+						severity = DiagnosticSeverity.INFO
+					}
 
-  private fun getDiagnosticRange(
-    diagnostic: Diagnostic<out JavaFileObject?>,
-    lines: LineMap
-  ): Range {
-    abortIfCancelled()
-    val start = getPosition(diagnostic.startPosition, lines)
-    val end = getPosition(diagnostic.endPosition, lines)
-    return Range(start, end)
-  }
+					else -> {
+						code = DiagnosticCode.UNUSED_OTHER
+						severity = DiagnosticSeverity.HINT
+					}
+				}
+			}
 
-  private fun getPosition(position: Long, lines: LineMap): com.itsaky.androidide.models.Position {
-    abortIfCancelled()
-    // decrement the numbers
-    // to convert 1-based indexes to 0-based
-    val line = (lines.getLineNumber(position) - 1).toInt()
-    val column = (lines.getColumnNumber(position) - 1).toInt()
-    return com.itsaky.androidide.models.Position(line, column)
-  }
+			is MethodTree -> {
+				code = DiagnosticCode.UNUSED_METHOD
+				severity = DiagnosticSeverity.INFO
+			}
 
-  private fun severityFor(kind: Diagnostic.Kind): DiagnosticSeverity {
-    return when (kind) {
-      Diagnostic.Kind.ERROR -> DiagnosticSeverity.ERROR
-      Diagnostic.Kind.WARNING,
-      Diagnostic.Kind.MANDATORY_WARNING -> WARNING
-      Diagnostic.Kind.NOTE -> DiagnosticSeverity.INFO
-      Diagnostic.Kind.OTHER -> DiagnosticSeverity.HINT
-      else -> DiagnosticSeverity.HINT
-    }
-  }
+			is ClassTree -> {
+				code = DiagnosticCode.UNUSED_CLASS
+				severity = DiagnosticSeverity.INFO
+			}
+
+			else -> {
+				code = DiagnosticCode.UNUSED_OTHER
+				severity = DiagnosticSeverity.INFO
+			}
+		}
+
+		return asDiagnosticItem(severity, code.id, message, start.toLong(), end.toLong(), root)
+	}
+
+	private fun asDiagnosticItem(
+		severity: DiagnosticSeverity,
+		code: String,
+		message: String,
+		start: Long,
+		end: Long,
+		root: CompilationUnitTree,
+	): DiagnosticItem =
+		DiagnosticItem(
+			message = message,
+			code = code,
+			severity = severity,
+			range =
+				Range(getPosition(start, root.lineMap), getPosition(end, root.lineMap)).apply {
+					this.start.index = start.toInt()
+					this.end.index = end.toInt()
+				},
+			source = "",
+		)
+
+	private fun asDiagnosticItem(
+		diagnostic: Diagnostic<out JavaFileObject?>,
+		lines: LineMap,
+	): DiagnosticItem {
+		abortIfCancelled()
+		val result =
+			DiagnosticItem(
+				range = getDiagnosticRange(diagnostic, lines),
+				severity = severityFor(diagnostic.kind),
+				code = diagnostic.code,
+				message = diagnostic.getMessage(Locale.getDefault()),
+				source = "",
+			)
+		result.range.start.index = diagnostic.startPosition.toInt()
+		result.range.end.index = diagnostic.endPosition.toInt()
+		result.extra = diagnostic
+		return result
+	}
+
+	private fun getDiagnosticRange(
+		diagnostic: Diagnostic<out JavaFileObject?>,
+		lines: LineMap,
+	): Range {
+		abortIfCancelled()
+		val start = getPosition(diagnostic.startPosition, lines)
+		val end = getPosition(diagnostic.endPosition, lines)
+		return Range(start, end)
+	}
+
+	private fun getPosition(
+		position: Long,
+		lines: LineMap,
+	): com.itsaky.androidide.models.Position {
+		abortIfCancelled()
+		// decrement the numbers
+		// to convert 1-based indexes to 0-based
+		val line = (lines.getLineNumber(position) - 1).toInt()
+		val column = (lines.getColumnNumber(position) - 1).toInt()
+		return com.itsaky.androidide.models
+			.Position(line, column)
+	}
+
+	private fun severityFor(kind: Diagnostic.Kind): DiagnosticSeverity =
+		when (kind) {
+			Diagnostic.Kind.ERROR -> DiagnosticSeverity.ERROR
+
+			Diagnostic.Kind.WARNING,
+			Diagnostic.Kind.MANDATORY_WARNING,
+			-> WARNING
+
+			Diagnostic.Kind.NOTE -> DiagnosticSeverity.INFO
+
+			Diagnostic.Kind.OTHER -> DiagnosticSeverity.HINT
+
+			else -> DiagnosticSeverity.HINT
+		}
 }
