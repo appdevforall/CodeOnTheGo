@@ -88,6 +88,86 @@ public class JniQueryTest {
 		return new HashSet<>(Arrays.asList(v));
 	}
 
+	/** Reads t four times over: far longer than the cap, and it holds the lock from its first step. */
+	static final String LONG_READ = "SELECT count(*) FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0";
+
+	/** The outcome of a long server read run on its own thread. */
+	static class Ran {
+		volatile String message;
+		volatile int code;
+		volatile long ms;
+	}
+
+	static Thread longRead(long h, long deadline, Ran out) {
+		Thread th = new Thread(() -> {
+			long t = System.currentTimeMillis();
+			try {
+				query(h, LONG_READ, new Object[0], 0, 100, 4096, 1024, MAX, deadline);
+			} catch (DebugEngineException e) {
+				out.code = e.sqliteCode;
+				out.message = e.getMessage();
+			}
+			out.ms = System.currentTimeMillis() - t;
+		});
+		th.start();
+		return th;
+	}
+
+	/**
+	 * ADFA-7136 acceptance criterion 5: on a database not in WAL mode, a long read does not hold up the
+	 * app's commit past requery's 2500 ms busy timeout. And a WAL database keeps the call's deadline.
+	 */
+	static void nonWalCap(Path dir, String delPath) throws Exception {
+		// DELETE mode: the app writes while the server read runs, with requery's busy timeout
+		long app = Helper.open(delPath);
+		eq(Helper.busyTimeout(app, 2500), 0, "the app's busy timeout");
+		long srv = NativeBridge.openServer(delPath.getBytes(StandardCharsets.UTF_8), false);
+		Ran del = new Ran();
+		// 8 s stands in for the 50 s call deadline: without the cap the app's commit fails at 2.5 s, and this ends
+		Thread th = longRead(srv, System.currentTimeMillis() + 8000, del);
+		Thread.sleep(300);
+		long t0 = System.currentTimeMillis();
+		eq(Helper.exec(app, "INSERT INTO t(id) VALUES(5001)"), 0, "the app commits during a long read of a non-WAL database");
+		long commitMs = System.currentTimeMillis() - t0;
+		th.join();
+		check(commitMs < 2500, "the commit waited " + commitMs + " ms, under the busy timeout");
+		eq(del.code, 9, "the long read was interrupted: SQLITE_INTERRUPT");
+		check(del.message != null && del.message.contains("not in WAL mode") && del.message.contains("LIMIT"),
+				"the message says why and what to do: " + del.message);
+		check(del.ms >= 1400 && del.ms < 2500, "the read stopped after " + del.ms + " ms, near the 1500 ms cap");
+		eq(q(srv, "SELECT count(*) FROM t WHERE id = 5001").rows.get(0)[0], 1L, "the commit is visible, the connection usable");
+		Helper.exec(app, "DELETE FROM t WHERE id = 5001");
+		// a call whose own deadline is shorter than the cap keeps its own message
+		Ran shorter = new Ran();
+		longRead(srv, System.currentTimeMillis() + 400, shorter).join();
+		eq(shorter.code, 9, "a 400 ms deadline: SQLITE_INTERRUPT");
+		check(shorter.message != null && shorter.message.contains("time limit") && !shorter.message.contains("WAL"),
+				"the call's own deadline is reported as such: " + shorter.message);
+		NativeBridge.close(srv);
+		Helper.close(app);
+
+		// WAL mode: no cap, the call's deadline (3.5 s here) is what stops the read, and the app is never held up
+		String walPath = dir.resolve("wal.db").toString();
+		long walApp = Helper.open(walPath);
+		eq(Helper.exec(walApp, "PRAGMA journal_mode=WAL"), 0, "WAL on");
+		eq(Helper.exec(walApp, "CREATE TABLE t(id INTEGER)"), 0, "create in WAL");
+		eq(Helper.exec(walApp, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<300) INSERT INTO t SELECT x FROM c"), 0,
+				"insert in WAL");
+		long walSrv = NativeBridge.openServer(walPath.getBytes(StandardCharsets.UTF_8), false);
+		Ran wal = new Ran();
+		Thread wt = longRead(walSrv, System.currentTimeMillis() + 3500, wal);
+		Thread.sleep(300);
+		long w0 = System.currentTimeMillis();
+		eq(Helper.exec(walApp, "INSERT INTO t(id) VALUES(5001)"), 0, "the app commits during a long read of a WAL database");
+		check(System.currentTimeMillis() - w0 < 500, "the WAL commit did not wait");
+		wt.join();
+		eq(wal.code, 9, "the WAL read ended at its deadline: SQLITE_INTERRUPT");
+		check(wal.message != null && wal.message.contains("time limit") && !wal.message.contains("WAL"), "the WAL message: " + wal.message);
+		check(wal.ms >= 3000 && wal.ms < 5000, "the WAL read ran " + wal.ms + " ms, past the non-WAL cap");
+		NativeBridge.close(walSrv);
+		Helper.close(walApp);
+	}
+
 	public static void main(String[] a) throws Exception {
 		System.loadLibrary("sqlite3x");
 		System.loadLibrary("sqlitedbg");
@@ -283,6 +363,8 @@ public class JniQueryTest {
 		Helper.exec(app, "DELETE FROM t WHERE id = 4246");
 		NativeBridge.close(w);
 		Helper.exec(app, "DELETE FROM t WHERE id = 4245");
+
+		nonWalCap(dir, path);
 
 		try {
 			NativeBridge.openServer(dir.resolve("none.db").toString().getBytes(StandardCharsets.UTF_8), false);
