@@ -20,6 +20,9 @@ class BundleSyncTest {
 	private lateinit var record: BundledAddonsRecord
 	private val uninstalled = mutableListOf<String>()
 
+	/** IDs whose files the fake uninstall cannot delete, like a failed delete on the device. */
+	private val undeletable = mutableSetOf<String>()
+
 	@Before
 	fun setUp() {
 		pluginsDir = tempFolder.newFolder("plugins")
@@ -38,14 +41,16 @@ class BundleSyncTest {
 	/** Deletes every plugin file of [pluginId], as PluginManager.uninstallPlugin does. */
 	private fun uninstall(pluginId: String) {
 		uninstalled += pluginId
+		if (pluginId in undeletable) return
 		pluginsDir.listFiles { f -> f.name.endsWith(".cgp") && idOf(f) == pluginId }?.forEach { it.delete() }
 	}
 
 	private fun sync(): BundleSync =
 		BundleSync(
 			record = record,
-			installer = BundledAddonInstaller(pluginsDir, templatesDir, ::idOf, beforePluginMove = ::uninstall),
+			pluginsDir = pluginsDir,
 			templatesDir = templatesDir,
+			readPluginId = ::idOf,
 			uninstallPlugin = ::uninstall,
 		)
 
@@ -210,6 +215,91 @@ class BundleSyncTest {
 
 		assertThat(record.read()).isEqualTo(before)
 		assertThat(sync().isNeeded(BundledAddons.list(bundleB))).isTrue()
+	}
+
+	@Test
+	fun `a plugin whose build did not change is not uninstalled, so it keeps its state`() {
+		run(bundleA)
+		val p1Before = pluginsDir.listFiles { f -> idOf(f) == "com.p1" }!!.single()
+		uninstalled.clear()
+
+		run(FakeSource(plugins = bundleA.plugins, templates = bundleA.templates + ("t9.cgt" to "t9")))
+
+		assertThat(uninstalled).isEmpty()
+		assertThat(pluginsDir.listFiles { f -> idOf(f) == "com.p1" }!!.map { it.name }).containsExactly(p1Before.name)
+	}
+
+	@Test
+	fun `a changed build is installed through uninstall, which clears the old one's state`() {
+		run(bundleA)
+		uninstalled.clear()
+
+		run(bundleB)
+
+		// com.p2 changed build; com.p1 left the bundle.
+		assertThat(uninstalled).containsExactly("com.p2", "com.p1")
+	}
+
+	@Test
+	fun `an older build that cannot be deleted fails the sync and keeps the old record`() {
+		val before = run(bundleA)
+		undeletable += "com.p2"
+
+		assertThrows(IOException::class.java) { run(bundleB) }
+
+		assertThat(record.read()).isEqualTo(before)
+		// The new build never landed beside the old one.
+		assertThat(pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!.map { it.readText() }).containsExactly(plugin("com.p2"))
+	}
+
+	@Test
+	fun `a sync cut short converges at the next run`() {
+		run(bundleA)
+		assertThrows(IOException::class.java) {
+			run(FakeSource(plugins = bundleB.plugins, templates = bundleB.templates, failOn = "p3.cgp"))
+		}
+
+		val state = run(bundleB)
+
+		assertThat(installedPluginIds()).containsExactly("com.p2", "com.p3")
+		assertThat(templateNames()).containsExactly("t2.cgt")
+		assertThat(record.read()).isEqualTo(state)
+	}
+
+	@Test
+	fun `a missing record over user add-ons removes nothing of theirs`() {
+		userPlugin("com.u1")
+		userTemplate("ut1.cgt")
+
+		run(bundleA)
+
+		assertThat(installedPluginIds()).containsExactly("com.p1", "com.p2", "com.u1")
+		assertThat(templateNames()).containsExactly("t1.cgt", "ut1.cgt")
+		assertThat(uninstalled).isEmpty()
+	}
+
+	@Test
+	fun `a debug build whose assets zip is gone does not sync at all`() {
+		var ran = false
+
+		val result =
+			BundleSyncAtStart.withBundleSource(
+				release = false,
+				splitZip = File(tempFolder.root, "assets-arm64-v8a.zip"),
+				assets = { error("a debug build reads no APK assets") },
+			) { ran = true }
+
+		assertThat(result).isNull()
+		assertThat(ran).isFalse()
+	}
+
+	@Test
+	fun `a release build reads the APK assets`() {
+		val source = FakeSource()
+
+		val result = BundleSyncAtStart.withBundleSource(true, File(tempFolder.root, "absent.zip"), { source }) { it }
+
+		assertThat(result).isSameInstanceAs(source)
 	}
 
 	@Test

@@ -100,6 +100,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.slf4j.LoggerFactory
@@ -383,7 +384,11 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	private suspend fun awaitBundleSync() {
 		val syncState = BundleSyncAtStart.state
-		syncState.first { it != BundleSyncAtStart.State.CHECKING }
+		// The screen can resume before the plugin system starts. If it never does (a failed
+		// start-up that is retried later), stop waiting and report what is recorded.
+		withTimeoutOrNull(BUNDLE_SYNC_START_TIMEOUT_MS) {
+			syncState.first { it != BundleSyncAtStart.State.NOT_STARTED && it != BundleSyncAtStart.State.CHECKING }
+		} ?: return
 		if (syncState.value != BundleSyncAtStart.State.SYNCING) return
 		val bar = this@MainActivity.flashProgress { message(getString(string.msg_updating_bundled_addons)) }
 		try {
@@ -865,5 +870,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	companion object {
 		private const val KEY_CONSUMED_DEEP_LINK_REQUESTS = "consumedDeepLinkRequests"
 		private const val KEY_UNRESOLVED_DEEP_LINK_REQUESTS = "unresolvedDeepLinkRequests"
+
+		/** How long the main screen waits for the plugin system to begin its bundle check. */
+		private const val BUNDLE_SYNC_START_TIMEOUT_MS = 30_000L
 	}
 }

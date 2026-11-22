@@ -411,6 +411,8 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		} catch (e: Exception) {
 			Sentry.captureException(e)
 			logger.error("Failed to initialize plugin system", e)
+			// No start-up coroutine will end the bundle check, so the main screen must not wait for it.
+			BundleSyncAtStart.end()
 		}
 	}
 
