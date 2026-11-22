@@ -654,6 +654,16 @@ class DatabaseToolsTest {
 		assertTrue(seenSql.none { it.contains("sqlite_schema") })
 	}
 
+	@Test fun getStatsKeepsUserTablesThatOnlyLookLikeTheReservedPrefix() {
+		engine.appConnections += conn(1, "/data/a.db")
+		answerWith("SELECT name" to QueryResult(listOf("name"), listOf(listOf("sqlitecache")), 0, false))
+		val r = ok("get_stats", db())
+		// "_" is a wildcard in LIKE: without the escape, sqlitecache would be left out of the listing
+		val listing = seenSql.single { it.contains("FROM sqlite_master") }
+		assertTrue(listing, listing.contains("NOT LIKE 'sqlite\\_%' ESCAPE '\\'"))
+		assertTrue(r.getJSONObject("row_counts").has("sqlitecache"))
+	}
+
 	@Test fun getStatsSkipsCountsFromTenTables() {
 		engine.appConnections += conn(1, "/data/a.db")
 		answerWith("SELECT name" to QueryResult(listOf("name"), (1..10).map { listOf("t$it") }, 0, false))

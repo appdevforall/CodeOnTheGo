@@ -416,7 +416,7 @@ class DatabaseTools(
 			runChecked(
 				call,
 				path,
-				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name",
 				emptyList(),
 				0,
 				limits,
