@@ -739,8 +739,8 @@ androidComponents.onVariants { variant ->
 				// Top-level files only, extension in any case, as the debug zip takes them.
 				pluginFiles.from(fileTree(rootProject.file("assets/plugins")) { include { isBundledAddon(it, "cgp") } })
 				templateFiles.from(fileTree(rootProject.file("assets/templates")) { include { isBundledAddon(it, "cgt") } })
-				outputDirectory.set(layout.buildDirectory.dir("intermediates/bundled-addons/${variant.name}"))
 			}
+		// AGP sets the task's outputDirectory: build/generated/assets/<task name>.
 		variant.sources.assets?.addGeneratedSourceDirectory(
 			stageBundledAddons,
 			StageBundledAddons::outputDirectory,
