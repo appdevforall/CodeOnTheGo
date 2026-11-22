@@ -100,7 +100,7 @@ KOTLIN_ONLY = {
     ],
     "gradle.properties": [r"^# Kotlin code style.*\nkotlin\.code\.style=official\n"],
 }
-# What may not be left in those files. The version catalog, gradle/libs.versions.toml, is not
+# What may not be left in those files or in settings.gradle.kts. The version catalog, gradle/libs.versions.toml, is not
 # checked: its entries declare nothing until a build file names them.
 KOTLIN_WORDS = re.compile(r"kotlin|ksp|ktx|coroutines", re.I)
 JAVA_IMPORTS = """
@@ -134,9 +134,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.appdevforall.sqlitejs.SqliteJs;
 """
-# Added to the project's app/build.gradle.kts for the instrumented test. Its own application
-# id, so that the
-# test never replaces an app made from the template on the device.
+# Added to the project's app/build.gradle.kts for the instrumented test. Its own
+# application id, so that the test never replaces an app made from the template on the device.
 DEVICE_BUILD = """
 android {
     defaultConfig {
@@ -273,13 +272,16 @@ def java_project(work, assets):
             text, count = re.subn(pattern, "", text, flags=re.M | re.S if pattern.startswith(r"\A") else re.M)
             if count != 1:
                 sys.exit("%s: expected exactly one match of %s, found %d" % (name, pattern, count))
-        left = [l for l in text.split("\n") if KOTLIN_WORDS.search(l)]
-        if left:
-            sys.exit("%s of the Java project still names Kotlin: %r" % (name, left))
         if name.startswith("app"):
             text += "\n".join(b for _, _, b in blocks("gradle-java")) + DEVICE_BUILD % ".java"
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
+    # checked as the build will read them, with everything added
+    for name in list(KOTLIN_ONLY) + ["settings.gradle.kts"]:
+        text = open(os.path.join(project, name), encoding="utf-8").read()
+        left = [l for l in text.split("\n") if KOTLIN_WORDS.search(l)]
+        if left:
+            sys.exit("%s of the Java project still names Kotlin: %r" % (name, left))
     source = os.path.join(project, "app", "src", "main", "java", PACKAGE)
     os.makedirs(source)
     for page, k, block in blocks("java"):

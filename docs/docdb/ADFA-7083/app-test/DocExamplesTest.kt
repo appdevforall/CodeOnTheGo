@@ -11,8 +11,10 @@ import io.requery.android.database.sqlite.SQLiteCustomExtension
 import io.requery.android.database.sqlite.SQLiteDatabase
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -157,6 +159,38 @@ class DocExamplesTest {
 		}
 	}
 
+	// whether some thread is in sqlite-android's native code that runs a statement
+	private fun aThreadRunsAStatement(): Boolean =
+		Thread.getAllStackTraces().values.any { stack ->
+			stack.any { it.className.endsWith(".SQLiteConnection") && it.methodName.startsWith("nativeExecute") }
+		}
+
+	// cancellable() drops a result that arrives after the cancel: the Java CancellableQuery keeps it
+	@Test
+	fun cancellableDropsAResultThatArrivesAfterTheCancel() = runBlocking {
+		val entered = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val ended = AtomicReference<Result<Int>?>(null)
+		val job = CoroutineScope(Dispatchers.Default).launch {
+			try {
+				ended.set(Result.success(cancellable { entered.countDown(); release.await(); 7 }))
+			} catch (e: CancellationException) {
+				ended.set(Result.failure(e))
+				throw e
+			}
+		}
+		// the query is running, so cancellable() is waiting for it, or about to
+		withContext(Dispatchers.IO) { entered.await() }
+		delay(200)
+		job.cancel()
+		// cancellable() goes on calling cancelAll() until the query ends: it ends when released
+		delay(200)
+		assertTrue("cancellable() waits for the query to end", !job.isCompleted)
+		release.countDown()
+		withTimeout(60_000) { job.join() }
+		assertTrue("ended as cancelled, without the 7: ${ended.get()}", ended.get()?.exceptionOrNull() is CancellationException)
+	}
+
 	// What Room reports when SQLite has already rolled the transaction back (a write whose
 	// collation is stopped ends with SQLITE_INTERRUPT), and that cancelling a coroutine without
 	// cancellable() does not end a query that never returns.
@@ -174,8 +208,11 @@ class DocExamplesTest {
 			db.products().insert(sample)
 			for (how in listOf("withTransaction", "runInTransaction")) {
 				val stopped = AtomicBoolean(false)
+				// cancels only once the plain INSERT has returned, so that no cancel can reach it;
+				// a cancel before the collation starts does nothing, so it is called until the end
+				val inserted = CountDownLatch(1)
 				val canceller = Thread {
-					Thread.sleep(300)
+					inserted.await()
 					while (!stopped.get()) {
 						SqliteJs.cancelAll()
 						Thread.sleep(10)
@@ -185,7 +222,11 @@ class DocExamplesTest {
 				var inner = "none"
 				val block = {
 					val raw = db.openHelper.writableDatabase
-					raw.execSQL("INSERT INTO Product (name, price) VALUES ('Extra', 1.0)")
+					try {
+						raw.execSQL("INSERT INTO Product (name, price) VALUES ('Extra', 1.0)")
+					} finally {
+						inserted.countDown()
+					}
 					try {
 						raw.execSQL("INSERT INTO Product (name, price) SELECT name, price FROM Product ORDER BY name COLLATE spin_collation")
 					} catch (e: Exception) {
@@ -203,6 +244,7 @@ class DocExamplesTest {
 					"${e.javaClass.name}: ${e.message}"
 				} finally {
 					stopped.set(true)
+					inserted.countDown()
 					canceller.join()
 				}
 				Log.i("DocExamples", "collation write in $how: statement threw [$inner], $how threw [$outer]")
@@ -217,7 +259,11 @@ class DocExamplesTest {
 			val plain = CoroutineScope(Dispatchers.Default).launch {
 				ended.set(runCatching { db.products().spin() })
 			}
-			delay(500)
+			// cancel only once a thread is inside SQLite for the query: a cancel before the query
+			// started would end the job at once, and prove nothing
+			withTimeout(60_000) {
+				while (!aThreadRunsAStatement()) delay(20)
+			}
 			plain.cancel()
 			// spin() never returns, so no wait is too short for this check: it fails only if the
 			// cancel ended the query

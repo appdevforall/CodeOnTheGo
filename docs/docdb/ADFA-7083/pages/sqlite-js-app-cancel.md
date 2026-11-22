@@ -66,7 +66,7 @@ suspend fun <T> cancellable(query: suspend () -> T): T = coroutineScope {
 }
 ```
 
-Once the coroutine is cancelled, `cancellable()` ends as cancelled, whatever the query did. A query that fails with an error of its own at about that moment is reported as cancelled too, and its error is not kept.
+If the coroutine is cancelled while `cancellable()` waits for the query, `cancellable()` ends as cancelled, and the query's result or error is dropped. So a query that fails with an error of its own at about that moment is reported as cancelled too.
 
 Wrap only a query that may need stopping, and cancel its coroutine from your **Cancel** button:
 
@@ -94,7 +94,7 @@ Do not wrap every query in `cancellable()`. A coroutine can be cancelled for man
 
 ## Cancel in Java, with a thread
 
-Java has no coroutines. This class does the same work as `cancellable()`. It runs the query on a thread of its own. Its `cancel()` calls `cancelAll()` again and again, 10 milliseconds apart, until the query has ended, and returns at once, so you can call it from a button.
+Java has no coroutines. This class does the same work as `cancellable()`, with one difference: a result that arrives after `cancel()` is not dropped, and `get()` returns it. It runs the query on a thread of its own. Its `cancel()` calls `cancelAll()` again and again, 10 milliseconds apart, until the query has ended, and returns at once, so you can call it from a button.
 
 ```java
 final class CancellableQuery<T> {
