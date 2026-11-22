@@ -92,6 +92,24 @@ class DatabaseToolsTest {
 		list.forEach { assertTrue(it.name, it.describe().getJSONObject("annotations").getBoolean("readOnlyHint")) }
 	}
 
+	@Test fun everyToolThatRunsAStatementSaysAStatementOnANonWalDatabaseStopsAfterOneAndAHalfSeconds() {
+		val list = tools.tools().associateBy { it.name }
+		listOf("get_schema", "query", "explain_query_plan", "get_stats", "integrity_check").forEach { name ->
+			val d = list.getValue(name).describe().getString("description")
+			assertTrue("$name: $d", d.contains("not in WAL mode a statement is stopped after 1.5 s"))
+			assertTrue("$name: $d", d.contains("WAL mode has no such limit"))
+		}
+		assertTrue(
+			list
+				.getValue("integrity_check")
+				.describe()
+				.getString("description")
+				.contains("will stop early"),
+		)
+		// the text has to say what the C constant is (the unit tests run in the module's folder)
+		assertTrue(File("src/main/cpp/sqlitedbg.h").readText().contains("#define SQLITEDBG_SERVER_NON_WAL_MS 1500\n"))
+	}
+
 	@Test fun listDatabasesGroupsByPathAndSkipsEmpty() {
 		engine.appConnections += listOf(conn(1, "/data/a.db"), conn(2, "/data/a.db"), conn(3, ""), conn(4, "/data/b.db"))
 		val dbs = ok("list_databases").getJSONArray("databases")

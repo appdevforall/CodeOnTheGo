@@ -52,6 +52,7 @@ class DatabaseTools(
 		 * client's 60 s limit, so a query never holds the lock after the client has stopped waiting.
 		 */
 		const val DEADLINE_MS = 50_000L
+		private const val DEADLINE_SECONDS = DEADLINE_MS / 1000
 		const val EVENT_BATCH_BYTES = 256 * 1024
 		const val MAX_TABLES_FOR_COUNTS = 10
 
@@ -62,6 +63,14 @@ class DatabaseTools(
 		private val SIDE_FILE_SUFFIXES = listOf("-wal", "-shm", "-journal")
 
 		const val PAGING_NOTE = "Paging re-runs the query for each page, so a later page can differ if the data changed."
+
+		/**
+		 * Said by every tool that runs a statement. The limit itself is enforced in C (SQLITEDBG_SERVER_NON_WAL_MS in
+		 * sqlitedbg.h, which says why); this text must follow it.
+		 */
+		const val NON_WAL_NOTE =
+			"On a database that is not in WAL mode a statement is stopped after 1.5 s, so a long read does not block the app's " +
+				"own writes; use a narrower query or a LIMIT. A database in WAL mode has no such limit (the call's $DEADLINE_SECONDS s applies)."
 
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
@@ -208,7 +217,7 @@ class DatabaseTools(
 					"${MAX_TOTAL_BYTES / MAX_SCHEMA_SQL_BYTES} statements of ${MAX_SCHEMA_SQL_BYTES / 1024} KiB). There is no offset: " +
 					"to read the rest, page through sqlite_master with query (ORDER BY type, name, the order get_schema uses), " +
 					"and read a statement longer than its $MAX_TEXT_BYTES-byte TEXT limit in parts with substr " +
-					"(it counts characters, not bytes).",
+					"(it counts characters, not bytes). $NON_WAL_NOTE",
 				databaseSchema(),
 			) { call, args -> getSchema(call, args) },
 			tool(
@@ -218,7 +227,7 @@ class DatabaseTools(
 					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
 					"comes back whole. Use offset to page. " +
-					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead.",
+					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
@@ -230,7 +239,7 @@ class DatabaseTools(
 			tool(
 				"explain_query_plan",
 				"Explain a query plan",
-				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. $APP_FUNCTIONS_NOTE.",
+				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. $APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters."),
@@ -241,7 +250,7 @@ class DatabaseTools(
 				"get_stats",
 				"Get statistics",
 				"Returns page_count, page_size, freelist_count, and the row count of each table when the database has fewer than " +
-					"$MAX_TABLES_FOR_COUNTS tables.",
+					"$MAX_TABLES_FOR_COUNTS tables. $NON_WAL_NOTE",
 				databaseSchema(),
 			) { call, args -> getStats(call, args) },
 			tool(
@@ -252,7 +261,8 @@ class DatabaseTools(
 					"NOT NULL virtual generated column calls a function the app adds to its own connections. A full integrity_check " +
 					"also fails on an index on such an expression and on a partial index whose WHERE calls one; " +
 					"quick_check does not fail on those two, so use it then. " +
-					"Views, triggers and other generated columns do not make either fail.",
+					"Views, triggers and other generated columns do not make either fail. $NON_WAL_NOTE " +
+					"A full integrity_check of a big database that is not in WAL mode will stop early with that error.",
 				databaseSchema("full" to prop("boolean", "Run the full integrity_check. Default false."), required = emptyList()),
 			) { call, args -> integrityCheck(call, args) },
 			tool(
