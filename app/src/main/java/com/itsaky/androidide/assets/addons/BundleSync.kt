@@ -53,16 +53,20 @@ class BundleSync(
 		val pluginIds = installed.mapNotNull { it.pluginId }.toSet()
 		val templateFiles = installed.filter { it.kind == BundledAddonKind.TEMPLATE }.mapNotNull { it.file?.name }.toSet()
 
-		old
-			?.pluginIds
-			.orEmpty()
-			.filterNot { it in pluginIds }
-			.forEach(uninstallPlugin)
-		old
-			?.templateFiles
-			.orEmpty()
-			.filterNot { it in templateFiles }
-			.forEach { name -> File(templatesDir, name).takeIf { it.parentFile == templatesDir }?.delete() }
+		// A rejected copy is not known by ID, so it may be a recorded add-on the new bundle still has:
+		// removing by the old record would then delete a working build. Keep the old ones instead.
+		if (installed.none { it.failure != null }) {
+			old
+				?.pluginIds
+				.orEmpty()
+				.filterNot { it in pluginIds }
+				.forEach(uninstallPlugin)
+			old
+				?.templateFiles
+				.orEmpty()
+				.filterNot { it in templateFiles }
+				.forEach { name -> File(templatesDir, name).takeIf { it.parentFile == templatesDir }?.delete() }
+		}
 
 		val state =
 			BundledAddonsState(

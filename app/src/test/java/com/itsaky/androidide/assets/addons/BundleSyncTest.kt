@@ -303,6 +303,18 @@ class BundleSyncTest {
 	}
 
 	@Test
+	fun `a rejected copy keeps the old bundled add-ons instead of removing them`() {
+		run(bundleA)
+		val corrupted = FakeSource(plugins = mapOf("p1.cgp" to "no id here", "p2.cgp" to plugin("com.p2")), templates = mapOf())
+
+		val state = run(corrupted)
+
+		assertThat(installedPluginIds()).containsExactly("com.p1", "com.p2")
+		assertThat(templateNames()).containsExactly("t1.cgt")
+		assertThat(state.failures.map { it.pluginId }).containsExactly("p1.cgp")
+	}
+
+	@Test
 	fun `old failures are dropped with the old bundle`() {
 		run(FakeSource(plugins = mapOf("bad.cgp" to "no id here")))
 
