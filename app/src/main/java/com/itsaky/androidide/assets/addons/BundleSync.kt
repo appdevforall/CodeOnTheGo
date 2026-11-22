@@ -46,7 +46,11 @@ class BundleSync(
 		val pluginIds = installed.mapNotNull { it.pluginId }.toSet()
 		val templateFiles = installed.filter { it.kind == BundledAddonKind.TEMPLATE }.mapNotNull { it.file?.name }.toSet()
 
-		old?.pluginIds.orEmpty().filterNot { it in pluginIds }.forEach(uninstallPlugin)
+		old
+			?.pluginIds
+			.orEmpty()
+			.filterNot { it in pluginIds }
+			.forEach(uninstallPlugin)
 		old
 			?.templateFiles
 			.orEmpty()
