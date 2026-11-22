@@ -135,10 +135,20 @@ void sqlitedbg_set_client_connected(int connected);
 
 #define SQLITEDBG_SERVER_BUSY_MS 3000
 
+// The longest a server statement may run on a database that is not in WAL mode (rollback journal,
+// also "memory" and "off"). Such a statement holds a SHARED lock from its first step to its end, and
+// the app's COMMIT waits for it in the app's busy handler: requery's busy timeout is 2500 ms
+// (BUSY_TIMEOUT_MS in android_database_SQLiteConnection.cpp, requery/sqlite-android 3.49.0, copied from
+// AOSP). The cap sits below that, with margin for the busy handler's back-off and the app's own work, so
+// a long read never makes the app's commit fail with "database is locked" (ADFA-7136 acceptance
+// criterion 5). A WAL database needs no cap: readers and the writer do not block each other.
+#define SQLITEDBG_SERVER_NON_WAL_MS 1500
+
 // Opens path for the server with the same SQLite the app uses: SQLITE_OPEN_READONLY unless
 // writable, PRAGMA query_only when read-only, and an authorizer that refuses ordinary writes when
-// read-only, and also BEGIN, SAVEPOINT, PRAGMA locking_mode and PRAGMA busy_timeout: a client must not
-// be able to hold a lock on the app's database. The process-wide PRAGMAs hard_heap_limit, soft_heap_limit and
+// read-only, and also BEGIN, SAVEPOINT, PRAGMA locking_mode and PRAGMA busy_timeout: a client cannot
+// hold a lock across statements. Within one statement a lock is held while it runs, so the JNI query
+// path stops a statement on a database that is not in WAL mode after SQLITEDBG_SERVER_NON_WAL_MS. The process-wide PRAGMAs hard_heap_limit, soft_heap_limit and
 // temp_store_directory are refused too: they would change the app's own connections. Read-only mode guards against accidents; it is not a security boundary (ADFA-7131,
 // D11). Never traced and never listed. The caller owns *db and closes it with sqlite3_close_v2.
 // A server connection, unlike an app connection, may use a progress handler (for time limits).

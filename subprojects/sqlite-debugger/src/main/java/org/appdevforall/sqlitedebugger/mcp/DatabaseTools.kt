@@ -52,6 +52,7 @@ class DatabaseTools(
 		 * client's 60 s limit, so a query never holds the lock after the client has stopped waiting.
 		 */
 		const val DEADLINE_MS = 50_000L
+		private const val DEADLINE_SECONDS = DEADLINE_MS / 1000
 		const val EVENT_BATCH_BYTES = 256 * 1024
 		const val MAX_TABLES_FOR_COUNTS = 10
 
@@ -62,6 +63,14 @@ class DatabaseTools(
 		private val SIDE_FILE_SUFFIXES = listOf("-wal", "-shm", "-journal")
 
 		const val PAGING_NOTE = "Paging re-runs the query for each page, so a later page can differ if the data changed."
+
+		/**
+		 * Said by every tool that runs a statement. The limit itself is enforced in C (SQLITEDBG_SERVER_NON_WAL_MS in
+		 * sqlitedbg.h, which says why); this text must follow it.
+		 */
+		const val NON_WAL_NOTE =
+			"On a database that is not in WAL mode a statement is stopped after 1.5 s, so a long read does not block the app's " +
+				"own writes; use a narrower query or a LIMIT. A database in WAL mode has no such limit (the call's $DEADLINE_SECONDS s applies)."
 
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
@@ -208,7 +217,7 @@ class DatabaseTools(
 					"${MAX_TOTAL_BYTES / MAX_SCHEMA_SQL_BYTES} statements of ${MAX_SCHEMA_SQL_BYTES / 1024} KiB). There is no offset: " +
 					"to read the rest, page through sqlite_master with query (ORDER BY type, name, the order get_schema uses), " +
 					"and read a statement longer than its $MAX_TEXT_BYTES-byte TEXT limit in parts with substr " +
-					"(it counts characters, not bytes).",
+					"(it counts characters, not bytes). $NON_WAL_NOTE",
 				databaseSchema(),
 			) { call, args -> getSchema(call, args) },
 			tool(
@@ -218,7 +227,7 @@ class DatabaseTools(
 					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
 					"comes back whole. Use offset to page. " +
-					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead.",
+					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
@@ -230,7 +239,7 @@ class DatabaseTools(
 			tool(
 				"explain_query_plan",
 				"Explain a query plan",
-				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. $APP_FUNCTIONS_NOTE.",
+				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. $APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters."),
@@ -241,7 +250,7 @@ class DatabaseTools(
 				"get_stats",
 				"Get statistics",
 				"Returns page_count, page_size, freelist_count, and the row count of each table when the database has fewer than " +
-					"$MAX_TABLES_FOR_COUNTS tables.",
+					"$MAX_TABLES_FOR_COUNTS tables. $NON_WAL_NOTE",
 				databaseSchema(),
 			) { call, args -> getStats(call, args) },
 			tool(
@@ -252,7 +261,8 @@ class DatabaseTools(
 					"NOT NULL virtual generated column calls a function the app adds to its own connections. A full integrity_check " +
 					"also fails on an index on such an expression and on a partial index whose WHERE calls one; " +
 					"quick_check does not fail on those two, so use it then. " +
-					"Views, triggers and other generated columns do not make either fail.",
+					"Views, triggers and other generated columns do not make either fail. $NON_WAL_NOTE " +
+					"A full integrity_check of a big database that is not in WAL mode will stop early with that error.",
 				databaseSchema("full" to prop("boolean", "Run the full integrity_check. Default false."), required = emptyList()),
 			) { call, args -> integrityCheck(call, args) },
 			tool(
@@ -303,13 +313,14 @@ class DatabaseTools(
 
 	private fun listDatabases(): JSONObject {
 		val connections = engine.connections()
-		val byPath = LinkedHashMap<String, MutableList<Long>>()
-		for (c in connections) if (c.path.isNotEmpty()) byPath.getOrPut(c.path) { mutableListOf() } += c.id
+		val byPath = LinkedHashMap<String, MutableList<AppConnection>>()
+		for (c in connections) if (c.path.isNotEmpty()) byPath.getOrPut(c.path) { mutableListOf() } += c
 		// The folder may be reached through a link (/data/user/0/<pkg> and /data/data/<pkg>), so match resolved paths.
 		val openCanonical = byPath.keys.map { canonical(it) }.toSet()
 		val list = JSONArray()
-		for ((path, ids) in byPath) {
-			list.put(JSONObject().put("path", path).put("available", true).put("connections", ids.size))
+		for ((path, conns) in byPath) {
+			// Same rule as runChecked: a path whose app connections are all closing is not available.
+			list.put(JSONObject().put("path", path).put("available", conns.any { !it.closing }).put("connections", conns.size))
 		}
 		databaseDir?.listFiles()?.sortedBy { it.name }?.forEach { f ->
 			if (!f.isFile || SIDE_FILE_SUFFIXES.any { f.name.endsWith(it) }) return@forEach
@@ -416,7 +427,7 @@ class DatabaseTools(
 			runChecked(
 				call,
 				path,
-				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name",
 				emptyList(),
 				0,
 				limits,
@@ -541,7 +552,12 @@ class DatabaseTools(
 		return path
 	}
 
-	private fun knownPaths(live: List<AppConnection>) = live.map { it.path }.filter { it.isNotEmpty() }.distinct()
+	private fun knownPaths(live: List<AppConnection>) =
+		live
+			.filter { !it.closing }
+			.map { it.path }
+			.filter { it.isNotEmpty() }
+			.distinct()
 
 	private fun unknownDatabase(
 		path: String,
@@ -577,7 +593,7 @@ class DatabaseTools(
 						.getOrPut(path) {
 							// checkedPath looked at an earlier snapshot: the app may have closed, or begun closing, its
 							// last connection to this path since, and the server never opens a database the app doesn't
-							// have open. A closing connection is still listed, so knownPaths alone would let it through.
+							// have open. knownPaths skips closing connections too; this re-check covers the gap since its snapshot.
 							val ids = live.filter { it.path == path && !it.closing }.map { it.id }.toSet()
 							if (ids.isEmpty()) throw unknownDatabase(path, knownPaths(live))
 							CachedConnection(engine.openServerConnection(path, writable = false), ids)

@@ -197,7 +197,21 @@ static void bridge_close(JNIEnv *env, jclass cls, jlong handle) {
 typedef struct deadline {
 	int64_t at_ms;
 	int hit;
+	int capped;  // at_ms is the non-WAL cap, earlier than the call's own deadline
 } deadline;
+
+// Whether the database is in WAL mode. PRAGMA journal_mode without a value only reads the mode. Any
+// failure counts as not WAL, which is the safe answer: the statement then gets the short cap.
+static int is_wal_mode(sqlite3 *db) {
+	sqlite3_stmt *st = NULL;
+	int wal = 0;
+	if (sqlite3_prepare_v2(db, "PRAGMA journal_mode", -1, &st, NULL) == SQLITE_OK && sqlite3_step(st) == SQLITE_ROW) {
+		const unsigned char *mode = sqlite3_column_text(st, 0);
+		wal = mode && sqlite3_stricmp((const char *)mode, "wal") == 0;
+	}
+	sqlite3_finalize(st);
+	return wal;
+}
 
 static int progress_cb(void *p) {
 	deadline *d = (deadline *)p;
@@ -342,7 +356,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	jobjectArray result = NULL;
 	jlong *cut_cells = NULL;  // row * columns + column of each cut cell
 	size_t cut_n = 0, cut_cap = 0;
-	deadline dl = {(int64_t)deadline_ms, 0};
+	deadline dl = {(int64_t)deadline_ms, 0, 0};
 	int handler_set = 0;
 	const char *message = NULL;
 	int rc;
@@ -359,6 +373,18 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	if (rc != SQLITE_OK) {
 		throw_engine(env, rc, message ? message : sqlite3_errmsg(db));
 		return NULL;
+	}
+
+	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
+	// that is not in WAL mode: it holds a SHARED lock until the statement ends, and the app's commit gives
+	// up after requery's 2500 ms busy timeout (see SQLITEDBG_SERVER_NON_WAL_MS). The mode is read per call.
+	if (now_ms() + SQLITEDBG_SERVER_NON_WAL_MS < dl.at_ms && !is_wal_mode(db)) {
+		// counted from here, after the mode check, which can wait on the app's lock
+		int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
+		if (cap_at < dl.at_ms) {
+			dl.at_ms = cap_at;
+			dl.capped = 1;
+		}
 	}
 
 	// SQLite checks the handler every 1000 virtual machine steps and stops the statement when it
@@ -446,7 +472,14 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		row_count++;
 	}
 	if (!has_more && rc != SQLITE_DONE) {
-		if (dl.hit && rc == SQLITE_INTERRUPT) throw_engine(env, SQLITE_INTERRUPT, "the query ran past its time limit");
+		if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {
+			char msg[256];
+			snprintf(msg, sizeof msg,
+			         "the statement was stopped after %.1f s: this database is not in WAL mode, so a longer read would "
+			         "block the app's own writes. Use a narrower query or a LIMIT; a database in WAL mode has no such limit",
+			         SQLITEDBG_SERVER_NON_WAL_MS / 1000.0);
+			throw_engine(env, SQLITE_INTERRUPT, msg);
+		} else if (dl.hit && rc == SQLITE_INTERRUPT) throw_engine(env, SQLITE_INTERRUPT, "the query ran past its time limit");
 		else throw_engine(env, rc, sqlite3_errmsg(db));
 		goto done;
 	}

@@ -9,10 +9,12 @@ import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.plugins.IPlugin
 import com.itsaky.androidide.plugins.PluginContext
 import com.itsaky.androidide.plugins.PluginLogger
+import com.itsaky.androidide.plugins.ServiceRegistry
 import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.services.DebuggerEndpoint
 import com.itsaky.androidide.plugins.services.DebuggerEndpointService
+import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.utils.Environment
@@ -291,6 +293,57 @@ class PluginManagerDebuggerEndpointTest {
 		}
 	}
 
+	@Test
+	fun `a plugin unloaded while it is being enabled is not reactivated and its service stays closed`() {
+		val service = load("reader", "debugger.endpoints", CountingActivationPlugin::class.java)
+		openInEditor(project)
+		assertThat(pluginManager().disablePlugin("reader")).isTrue()
+		CountingActivationPlugin.activations = 0
+		// enablePlugin reopens the terminal service first: an unload there is the interleaving of a second thread.
+		interceptServices("reader") { requested ->
+			if (requested == IdeTerminalService::class.java) assertThat(pluginManager().unloadPlugin("reader")).isTrue()
+		}
+
+		assertThat(pluginManager().enablePlugin("reader")).isFalse()
+
+		assertThat(pluginManager().getLoadedPlugin("reader")).isNull()
+		assertThat(CountingActivationPlugin.activations).isEqualTo(0)
+		assertThrows(CancellationException::class.java) { offMainThread { service.getEndpoints() } }
+		assertThat(asked).isEmpty()
+	}
+
+	/** Runs [onGet] first, once, on the first services.get of [id]'s loaded plugin, which stays in place otherwise. */
+	private fun interceptServices(
+		id: String,
+		onGet: (Class<*>) -> Unit,
+	) {
+		val manager = pluginManager()
+
+		@Suppress("UNCHECKED_CAST")
+		val loaded =
+			PluginManager::class.java
+				.getDeclaredField("loadedPlugins")
+				.apply { isAccessible = true }
+				.get(manager) as MutableMap<String, LoadedPlugin>
+		val original = checkNotNull(loaded[id])
+		var armed = true
+		val registry =
+			object : ServiceRegistry by original.context.services {
+				override fun <T> get(serviceClass: Class<T>): T? {
+					if (armed) {
+						armed = false
+						onGet(serviceClass)
+					}
+					return original.context.services.get(serviceClass)
+				}
+			}
+		val context =
+			object : PluginContext by original.context {
+				override val services = registry
+			}
+		loaded[id] = original.copy(context = context)
+	}
+
 	/** What opening [dir] leaves behind: the project path and the last opened project, and an editor showing it. */
 	private fun openInEditor(dir: File) {
 		ProjectManagerImpl.getInstance().projectPath = dir.absolutePath
@@ -421,6 +474,19 @@ class PluginManagerDebuggerEndpointTest {
 	/** initialize() succeeds, activate() throws. */
 	class FailingActivationPlugin : ContextKeepingPlugin() {
 		override fun activate(): Boolean = error("activate failed")
+	}
+
+	/** Counts activate() calls. */
+	class CountingActivationPlugin : ContextKeepingPlugin() {
+		override fun activate(): Boolean {
+			activations++
+			return true
+		}
+
+		companion object {
+			@Volatile
+			var activations = 0
+		}
 	}
 
 	/** Loads and activates, then deactivate() throws. */
