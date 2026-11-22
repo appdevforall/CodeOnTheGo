@@ -303,13 +303,14 @@ class DatabaseTools(
 
 	private fun listDatabases(): JSONObject {
 		val connections = engine.connections()
-		val byPath = LinkedHashMap<String, MutableList<Long>>()
-		for (c in connections) if (c.path.isNotEmpty()) byPath.getOrPut(c.path) { mutableListOf() } += c.id
+		val byPath = LinkedHashMap<String, MutableList<AppConnection>>()
+		for (c in connections) if (c.path.isNotEmpty()) byPath.getOrPut(c.path) { mutableListOf() } += c
 		// The folder may be reached through a link (/data/user/0/<pkg> and /data/data/<pkg>), so match resolved paths.
 		val openCanonical = byPath.keys.map { canonical(it) }.toSet()
 		val list = JSONArray()
-		for ((path, ids) in byPath) {
-			list.put(JSONObject().put("path", path).put("available", true).put("connections", ids.size))
+		for ((path, conns) in byPath) {
+			// Same rule as runChecked: a path whose app connections are all closing is not available.
+			list.put(JSONObject().put("path", path).put("available", conns.any { !it.closing }).put("connections", conns.size))
 		}
 		databaseDir?.listFiles()?.sortedBy { it.name }?.forEach { f ->
 			if (!f.isFile || SIDE_FILE_SUFFIXES.any { f.name.endsWith(it) }) return@forEach
@@ -541,7 +542,12 @@ class DatabaseTools(
 		return path
 	}
 
-	private fun knownPaths(live: List<AppConnection>) = live.map { it.path }.filter { it.isNotEmpty() }.distinct()
+	private fun knownPaths(live: List<AppConnection>) =
+		live
+			.filter { !it.closing }
+			.map { it.path }
+			.filter { it.isNotEmpty() }
+			.distinct()
 
 	private fun unknownDatabase(
 		path: String,
@@ -577,7 +583,7 @@ class DatabaseTools(
 						.getOrPut(path) {
 							// checkedPath looked at an earlier snapshot: the app may have closed, or begun closing, its
 							// last connection to this path since, and the server never opens a database the app doesn't
-							// have open. A closing connection is still listed, so knownPaths alone would let it through.
+							// have open. knownPaths skips closing connections too; this re-check covers the gap since its snapshot.
 							val ids = live.filter { it.path == path && !it.closing }.map { it.id }.toSet()
 							if (ids.isEmpty()) throw unknownDatabase(path, knownPaths(live))
 							CachedConnection(engine.openServerConnection(path, writable = false), ids)

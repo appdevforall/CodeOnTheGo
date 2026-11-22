@@ -101,6 +101,35 @@ class DatabaseToolsTest {
 		assertTrue(dbs.getJSONObject(1).getBoolean("available"))
 	}
 
+	@Test fun listDatabasesCallsAPathAvailableOnlyWhileAnAppConnectionIsNotClosing() {
+		engine.appConnections +=
+			listOf(
+				conn(1, "/data/a.db", closing = true),
+				conn(2, "/data/a.db", closing = true),
+				conn(3, "/data/b.db", closing = true),
+				conn(4, "/data/b.db"),
+			)
+		val dbs = ok("list_databases").getJSONArray("databases")
+		assertEquals(2, dbs.length())
+		assertEquals("/data/a.db", dbs.getJSONObject(0).getString("path"))
+		assertFalse("every connection to a.db is closing", dbs.getJSONObject(0).getBoolean("available"))
+		assertEquals(2, dbs.getJSONObject(0).getInt("connections"))
+		assertTrue("b.db has one connection that is not closing", dbs.getJSONObject(1).getBoolean("available"))
+	}
+
+	@Test fun theUnknownDatabaseErrorListsNoPathWhoseConnectionsAreAllClosing() {
+		engine.appConnections += listOf(conn(1, "/data/a.db", closing = true), conn(2, "/data/b.db"))
+		val r = runTool(tools, "query", db("/data/a.db").put("sql", "select 1"))
+		assertTrue(r.toString(), r.getBoolean("isError"))
+		assertEquals(
+			listOf("/data/b.db"),
+			r.getJSONObject("structuredContent").getJSONArray("available").let { a ->
+				(0 until a.length()).map { a.getString(it) }
+			},
+		)
+		assertTrue(engine.openedServerConnections.isEmpty())
+	}
+
 	@Test fun listDatabasesAddsUnopenedFilesButNotSideFiles() {
 		val d =
 			kotlin.io.path
