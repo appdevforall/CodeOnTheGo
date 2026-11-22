@@ -317,7 +317,11 @@ class BundleSyncTest {
 	@Test
 	fun `a copy that does not match the index is rejected and the installed build kept`() {
 		run(bundleA)
-		val source = FakeSource(plugins = mapOf("p1.cgp" to plugin("com.p1", "2"), "p2.cgp" to plugin("com.p2")), templates = bundleA.templates)
+		val source =
+			FakeSource(
+				plugins = mapOf("p1.cgp" to plugin("com.p1", "2"), "p2.cgp" to plugin("com.p2")),
+				templates = bundleA.templates,
+			)
 		val entries = BundledAddons.list(source).map { if (it.fileName == "p1.cgp") it.copy(sha256 = "0".repeat(64)) else it }
 
 		val state = sync().sync(source, entries)
