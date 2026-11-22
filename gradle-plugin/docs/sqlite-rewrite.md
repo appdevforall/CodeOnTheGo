@@ -252,7 +252,8 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - The `AbstractWindowedCursor` check follows the cursor through locals and the stack only. A cast of a
   cursor that reached the method through a field, a parameter or another call is not seen (the app throws
   `ClassCastException` at run time), and a cast of a cursor from an SQLite API to a type that is not an
-  SQLite cursor cannot be a false positive.
+  SQLite cursor is a false positive only when a custom `CursorFactory` returns a non-requery cursor (the first
+  of the four false positives above).
 - Compile-time constants are copied into callers, so uses of `NO_LOCALIZED_COLLATORS`, `JOURNAL_MODE_*` or `SYNC_MODE_*` are
   not visible to the fail rule. `NO_LOCALIZED_COLLATORS` is dropped by the flag translation.
 - The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
