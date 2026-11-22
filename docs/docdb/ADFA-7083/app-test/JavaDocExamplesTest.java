@@ -58,9 +58,10 @@ public class JavaDocExamplesTest {
 		return "";
 	}
 
-	// whether a thread is in sqlite-android's native code for the DAO's spin() query, and for no
+	// how many threads are in sqlite-android's native code for the DAO's spin() query, and for no
 	// other statement: the stack must have Room's generated spin() too
-	private static boolean spinIsRunning() {
+	private static int spinsRunning() {
+		int running = 0;
 		for (StackTraceElement[] stack : Thread.getAllStackTraces().values()) {
 			boolean inSqlite = false;
 			boolean inSpin = false;
@@ -69,10 +70,14 @@ public class JavaDocExamplesTest {
 				inSpin |= frame.getClassName().endsWith("ProductDao_Impl") && frame.getMethodName().contains("spin");
 			}
 			if (inSqlite && inSpin) {
-				return true;
+				running++;
 			}
 		}
-		return false;
+		return running;
+	}
+
+	private static boolean spinIsRunning() {
+		return spinsRunning() > 0;
 	}
 
 	// waits until spin() is, or is no longer, running in SQLite
@@ -122,8 +127,11 @@ public class JavaDocExamplesTest {
 
 			// cancel() stops JavaScript that never ends, and get() then reports a cancel
 			CancellableQuery<Integer> spin = new CancellableQuery<>(products::spin);
-			awaitSpin(true);
-			spin.cancel();
+			try {
+				awaitSpin(true);
+			} finally {
+				spin.cancel();
+			}
 			spin.cancel();
 			Throwable thrown = thrownByGet(spin);
 			assertTrue(String.valueOf(thrown), thrown instanceof CancellationException);
@@ -144,8 +152,9 @@ public class JavaDocExamplesTest {
 				canceller.submit(waiting::cancel).get(60, TimeUnit.SECONDS);
 			} finally {
 				canceller.shutdownNow();
+				// also after a failure above, so that the query and the loop of its cancel() end
+				latch.countDown();
 			}
-			latch.countDown();
 			assertEquals(Integer.valueOf(7), waiting.get());
 
 			// a query that fails by itself is not reported as cancelled
@@ -159,14 +168,29 @@ public class JavaDocExamplesTest {
 			RunawayQuery runaway = new RunawayQuery(products);
 			runaway.cancel();
 			runaway.start();
-			awaitSpin(true);
-			runaway.cancel();
+			try {
+				awaitSpin(true);
+				// a second start() while the query runs starts no second query. A second spin()
+				// reaches SQLite within milliseconds, so none in 2 s means there is none. (After
+				// cancel(), a second query could not be told apart: its cancel() loop would stop
+				// the first spin() too, since cancelAll() stops all JavaScript.)
+				runaway.start();
+				long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+				while (System.nanoTime() < end) {
+					assertTrue("a second spin() is running", spinsRunning() < 2);
+					Thread.sleep(20);
+				}
+			} finally {
+				runaway.cancel();
+			}
 			// its cancelAll() calls end with its query; a moment more, so that none reaches slugs()
 			awaitSpin(false);
 			Thread.sleep(300);
 			assertEquals(4, products.slugs().size());
 
-			// a write stopped inside runInTransaction: Room rolls the transaction back
+			// a write stopped inside runInTransaction: Room rolls the transaction back. cancel() calls
+			// cancelAll() until the write ends, so it need not wait for the UPDATE to start: the
+			// insert before it runs no JavaScript, and cancelAll() stops nothing else
 			CancellableQuery<Object> write = new CancellableQuery<>(() -> {
 				db.runInTransaction(() -> {
 					db.getOpenHelper().getWritableDatabase()
@@ -175,9 +199,12 @@ public class JavaDocExamplesTest {
 				});
 				return null;
 			});
-			Thread.sleep(500);
 			write.cancel();
-			assertTrue(thrownByGet(write) instanceof CancellationException);
+			thrown = thrownByGet(write);
+			assertTrue(String.valueOf(thrown), thrown instanceof CancellationException);
+			// the cancel stopped the UPDATE's JavaScript: the write did not fail for another reason
+			assertTrue(String.valueOf(thrown.getCause()),
+					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
 			// a moment, so that the last cancelAll() of that cancel cannot reach slugs()
 			Thread.sleep(300);
 			assertEquals(4, products.slugs().size());

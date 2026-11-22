@@ -18,8 +18,10 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -78,13 +80,20 @@ class DocExamplesTest {
 			}
 
 			// RunawayQuery, as a Cancel button would use it; the database works afterwards
-			val runaway = RunawayQuery(CoroutineScope(Dispatchers.Default), products)
+			val scope = CoroutineScope(Dispatchers.Default + Job())
+			val runaway = RunawayQuery(scope, products)
 			runaway.start()
-			awaitSpin(true)
-			runaway.cancel()
-			// its cancelAll() calls end with its query; a moment more, so that none reaches slugs()
-			awaitSpin(false)
-			delay(300)
+			try {
+				awaitSpin(true)
+				// a second start() while the query runs starts no second query
+				runaway.start()
+				assertEquals(1, scope.coroutineContext.job.children.count())
+			} finally {
+				runaway.cancel()
+				// its job ends only once cancellable()'s cancelAll() calls have ended, so that none
+				// reaches slugs()
+				withTimeout(60_000) { scope.coroutineContext.job.children.forEach { it.join() } }
+			}
 			withTimeout(60_000) { assertEquals(4, cancellable { products.slugs() }.size) }
 		} finally {
 			db.close()
@@ -294,7 +303,7 @@ class DocExamplesTest {
 				// the cancel ended the query
 				delay(2000)
 				Log.i("DocExamples", "2 s after a plain cancel of spin(): job completed = ${plain.isCompleted}")
-				assertTrue("a plain cancel left spin() running", !plain.isCompleted && ended.get() == null)
+				assertTrue("a plain cancel left spin() running in SQLite", spinIsRunning() && !plain.isCompleted && ended.get() == null)
 			} finally {
 				// only cancelAll() ends it; also after a failure above, or spin() would run on
 				withTimeout(60_000) {

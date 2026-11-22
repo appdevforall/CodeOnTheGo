@@ -12,8 +12,9 @@ give the same output.
 
 A `-- Error: text` line says that the statement above it fails, with a message
 that contains the text. A session must report exactly the errors its examples
-name, in order, and no others. sqlite3 reads the examples from its standard
-input, where, as when a reader types them, it goes on after an error.
+name, in order, each at the line where that statement starts, and no others.
+sqlite3 reads the examples from its standard input, where, as when a reader
+types them, it goes on after an error.
 
 The ```kotlin and ```gradle examples of the app pages are checked by
 test_app_examples.py.
@@ -24,6 +25,7 @@ Prints TAP. Exits 0 only if every example passes.
 import glob
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 
@@ -41,23 +43,56 @@ BOUNDARY = "test_examples: run under test"
 # What sqlite3 prints on standard error for a failed statement, across its versions:
 # "Runtime error near line 3: ...", "Parse error near line 3: ..." or "Error: near line 3: ...".
 ERROR_LINE = re.compile(r"^(Runtime error|Parse error|Error)\b")
+# The line of its standard input where the failed input starts, in each of those forms.
+NEAR_LINE = re.compile(r"near line (\d+):")
 
 
 def run(sql):
     """Runs sql in one session; returns the lines it printed, the errors it reported, its
     standard error and its exit code."""
-    r = subprocess.run([SQLITE3, "-batch", "-noheader", "-cmd", '.load "%s"' % EXT, ":memory:"],
+    # -init: none of the settings of the user's ~/.sqliterc, such as .bail on
+    r = subprocess.run([SQLITE3, "-batch", "-noheader", "-init", os.devnull, "-cmd", '.load "%s"' % EXT, ":memory:"],
                        input=sql + "\n", capture_output=True, text=True, timeout=60)
     out = r.stdout.rstrip("\n").split("\n") if r.stdout.strip() else []
     return out, [l for l in r.stderr.split("\n") if ERROR_LINE.match(l)], r.stderr, r.returncode
 
 
 def split(block):
-    """An example's SQL, the output lines it must end with, and the errors it must report."""
-    notes = [m.group(1) for m in re.finditer(r"^-- ?(.*)$", block, re.M)]
-    errors = [n[len("Error: "):] for n in notes if n.startswith("Error: ")]
-    want = [n for n in notes if not n.startswith("Error: ")]
-    return "\n".join(l for l in block.split("\n") if not l.startswith("--")), want, errors
+    """An example's SQL; the output lines it must end with; and the errors it must report, each
+    as its text and the line of the SQL, from 0, where the statement above its note starts.
+
+    sqlite3 reports an error at the line where the input it was running starts: the first line
+    that is not blank after the last complete statement, or a line starting with a dot command."""
+    lines, want, errors = [], [], []
+    pending, start, last = "", None, None
+    for line in block.split("\n"):
+        if line.startswith("--"):
+            note = re.match(r"^-- ?(.*)$", line).group(1)
+            if note.startswith("Error: "):
+                errors.append((note[len("Error: "):], last))
+            else:
+                want.append(note)
+            continue
+        if not pending and line.strip():
+            start = len(lines)
+        lines.append(line)
+        if start is not None and not pending and line.startswith("."):
+            last, start = start, None
+        elif start is not None:
+            pending += line + "\n"
+            if sqlite3.complete_statement(pending):
+                last, pending, start = start, "", None
+    return "\n".join(lines), want, errors
+
+
+def at(errors, first):
+    """The errors, each with the line of standard input, from 1, where its statement starts, for
+    SQL whose first line is line first."""
+    return [(text, first + line) for text, line in errors]
+
+
+def lines(sql):
+    return sql.count("\n") + 1
 
 
 def main():
@@ -71,11 +106,14 @@ def main():
         for k, block in enumerate(re.findall(r"^```sql\n(.*?)^```", text, re.M | re.S), 1):
             sql, want, errors = split(block)
             mark = "SELECT '%s';" % BOUNDARY
-            runs = [("", "\n".join(earlier + [mark, sql]), earlier_errors + errors)]
+            # the line of standard input, from 1, where this example starts in each run
+            before = sum(lines(e) for e in earlier)
+            runs = [("", "\n".join(earlier + [mark, sql]), earlier_errors + at(errors, before + 2))]
             if not MAKES_SOMETHING.search(sql):
-                runs.append((" run again", "\n".join(earlier + [sql, mark, sql]), earlier_errors + errors + errors))
+                runs.append((" run again", "\n".join(earlier + [sql, mark, sql]),
+                             earlier_errors + at(errors, before + 1) + at(errors, before + lines(sql) + 2)))
             earlier.append(sql)
-            earlier_errors += errors
+            earlier_errors += at(errors, before + 1)
             for label, all_sql, want_errors in runs:
                 n += 1
                 out, got_errors, stderr, code = run(all_sql)
@@ -85,7 +123,8 @@ def main():
                 ok = (code == (1 if want_errors else 0)
                       and BOUNDARY in out and (not want or got[-len(want):] == want)
                       and len(got_errors) == len(want_errors)
-                      and all(w in g for w, g in zip(want_errors, got_errors)))
+                      and all(w in g and NEAR_LINE.search(g) and int(NEAR_LINE.search(g).group(1)) == n
+                              for (w, n), g in zip(want_errors, got_errors)))
                 print("%s %d - %s example %d%s" % ("ok" if ok else "not ok", n, name, k, label))
                 if not ok:
                     failed += 1

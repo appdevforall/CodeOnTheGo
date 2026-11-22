@@ -28,12 +28,14 @@ So roll the transaction back, and run all of it again:
 - Room's `withTransaction` and `runInTransaction` roll back when their block throws. Let the error leave the block.
 - If your code began the transaction itself with `BEGIN`, run `ROLLBACK`.
 
-In one case SQLite rolls the whole transaction back by itself: when the interrupt of the connection, not the function's error, ends the statement. That happens to a statement that sorts with a JavaScript collation. The transaction is then already gone:
+In one case SQLite rolls the whole transaction back by itself: when the interrupt of the connection, not the function's error, ends an `INSERT`, `UPDATE` or `DELETE`. That happens to one that sorts with a JavaScript collation, such as `INSERT ... SELECT ... ORDER BY name COLLATE ...`. The transaction is then already gone:
 
 - `ROLLBACK` fails with `cannot rollback - no transaction is active`.
 - Room's own rollback fails the same way. `withTransaction` and `runInTransaction` then throw that error, not the `interrupted` error.
 
 Treat either error the same way: the transaction is gone, so run all of it again.
+
+A `SELECT` that `cancelAll()` stops never ends the transaction, even one that sorts with a JavaScript collation. The changes made before it stay in the transaction until you commit it or roll it back.
 
 ## What cancelAll() does not stop
 
@@ -74,8 +76,9 @@ Wrap only a query that may need stopping, and cancel its coroutine from your **C
 class RunawayQuery(private val scope: CoroutineScope, private val products: ProductDao) {
     private var job: Job? = null
 
-    /** Starts JavaScript that never ends. */
+    /** Starts JavaScript that never ends, unless its earlier start still runs. */
     fun start() {
+        if (job?.isActive == true) return
         job = scope.launch {
             cancellable { products.spin() }
         }
@@ -87,6 +90,8 @@ class RunawayQuery(private val scope: CoroutineScope, private val products: Prod
     }
 }
 ```
+
+`start()` does nothing while the query it started earlier still runs. A second query would replace the first in `job`, and `cancel()` would no longer cancel the first.
 
 `ProductDao` and its `spin()` are on the page [Set up a database with JavaScript functions](sqlite-js-app-database.html). In an activity, pass `lifecycleScope` as the scope.
 
@@ -126,6 +131,11 @@ final class CancellableQuery<T> {
         }
     }
 
+    /** Whether the query has ended. */
+    boolean isDone() {
+        return running.isDone();
+    }
+
     /** Stops the query's JavaScript. Returns at once. */
     void cancel() {
         // A query that has ended keeps its result. A second call starts no second loop.
@@ -162,8 +172,11 @@ final class RunawayQuery {
         this.products = products;
     }
 
-    /** Starts JavaScript that never ends. */
+    /** Starts JavaScript that never ends, unless its earlier start still runs. */
     void start() {
+        if (query != null && !query.isDone()) {
+            return;
+        }
         query = new CancellableQuery<>(products::spin);
     }
 
@@ -176,4 +189,4 @@ final class RunawayQuery {
 }
 ```
 
-This `RunawayQuery` never reads the query's result, so it does not notice a query that fails. To read a result, or learn of a failure, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.
+As in Kotlin, `start()` does nothing while the query it started earlier still runs, so that `cancel()` always cancels that query. This `RunawayQuery` never reads the query's result, so it does not notice a query that fails. To read a result, or learn of a failure, call `get()` on a thread other than the main thread: it waits until the query has ended. As in Kotlin, use `CancellableQuery` only for a query that may need stopping.

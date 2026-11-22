@@ -245,10 +245,13 @@ def check_sql(language, strings):
           % (language, len(ending)), "%r %r" % (got, err))
     for q in endless:
         try:
-            out, err = sqlite("\n".join(setup + [q + ";"]), timeout=3)
+            out, err = sqlite("\n".join(setup + ["SELECT 'started';", q + ";"]), timeout=3)
             check(False, "%s: the DAO query %r never ends" % (language, q), "%r %r" % (out, err))
-        except subprocess.TimeoutExpired:
-            check(True, "%s: the DAO query %r never ends (stopped after 3 s)" % (language, q))
+        except subprocess.TimeoutExpired as e:
+            # sqlite3 prints the marker before it reads the query, so the 3 s were the query's
+            started = "started" in (e.stdout or b"").decode().split("\n")
+            check(started, "%s: the DAO query %r never ends (stopped after 3 s)" % (language, q),
+                  "the setup before it did not end: %r" % e.stdout)
 
 
 def java_project(work, assets):
@@ -286,7 +289,9 @@ def java_project(work, assets):
     os.makedirs(source)
     for page, k, block in blocks("java"):
         name = re.search(r"^(?:(?:public|final|abstract)\s+)*(?:class|interface)\s+(\w+)", block, re.M).group(1)
-        with open(os.path.join(source, name + ".java"), "w", encoding="utf-8") as f:
+        if os.path.exists(os.path.join(source, name + ".java")):
+            sys.exit("%s, java example %d: an earlier example already starts with class %s" % (page, k, name))
+        with open(os.path.join(source, name + ".java"), "x", encoding="utf-8") as f:
             f.write("package %s;\n%s\n%s" % (PACKAGE, JAVA_IMPORTS, block))
     test_dir = os.path.join(project, "app", "src", "androidTest", "java", PACKAGE)
     os.makedirs(test_dir)
@@ -295,7 +300,8 @@ def java_project(work, assets):
 
 
 def sqlite(sql, timeout=60):
-    r = subprocess.run([SQLITE3, "-batch", "-noheader", "-cmd", '.load "%s"' % EXT, ":memory:"],
+    # -init: none of the settings of the user's ~/.sqliterc, such as .bail on
+    r = subprocess.run([SQLITE3, "-batch", "-noheader", "-init", os.devnull, "-cmd", '.load "%s"' % EXT, ":memory:"],
                        input=sql + "\n", capture_output=True, text=True, timeout=timeout)
     return r.stdout.strip().split("\n"), r.stderr.strip()
 
@@ -308,9 +314,10 @@ def gradle(project, *tasks):
 def main():
     if len(sys.argv) != 2 or not os.environ.get("DEV_ASSETS") or not os.environ.get("AAR"):
         sys.exit(__doc__)
-    if os.path.islink(sys.argv[1]):
-        sys.exit("%s is a symbolic link: give a directory" % sys.argv[1])
     work, assets = os.path.abspath(sys.argv[1]), os.environ["DEV_ASSETS"]
+    # checked once normalized: "link/" names the directory the link points to, "link" the link
+    if os.path.islink(work):
+        sys.exit("%s is a symbolic link: give a directory" % sys.argv[1])
     project = os.path.join(work, "project")
     if os.path.isdir(work) and os.listdir(work):
         if not os.path.isfile(os.path.join(work, MARKER)):

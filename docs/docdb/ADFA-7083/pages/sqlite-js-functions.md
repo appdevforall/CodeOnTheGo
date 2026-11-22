@@ -149,7 +149,9 @@ If the table `js_functions` exists but sqlite-js cannot write the new function t
 - The database is read-only: you opened it with `sqlite3 -readonly` or `.open --readonly`, or `PRAGMA query_only` is on. The reason is `attempt to write a readonly database`.
 - Another program is writing to the database. The reason is `database is locked`.
 
-After this error, the function still works until you close `sqlite3`. It is not in `js_functions`, so `js_init_table(1)` does not create it in your next session.
+After this error, the function still works until you close `sqlite3`. It is not stored, so `js_init_table(1)` in your next session does not create it. If `js_functions` already held a function of that name, it still holds that one, and `js_init_table(1)` creates that older version.
+
+A `js_functions` table that `js_init_table()` did not make, and that lacks one of its columns, gives no error: the `js_create_` function returns `0` and stores nothing.
 
 ```sql
 PRAGMA query_only = ON;
