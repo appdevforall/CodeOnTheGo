@@ -262,7 +262,7 @@ object AssetsInstallationHelper {
 							.filter { it.kind == BundledAddonKind.TEMPLATE }
 							.mapNotNull { it.file?.name }
 							.sorted(),
-					// Plugins rejected while copying; the main screen reports them with load failures.
+					// Add-ons rejected while copying; the main screen reports them with load failures.
 					failures =
 						installed
 							.mapNotNull { addon -> addon.failure?.let { BundledPluginFailure(addon.sourceName ?: "?", it) } }

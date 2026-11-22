@@ -1,6 +1,7 @@
 package com.itsaky.androidide.assets.addons
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.assets.AssetsInstallationHelper
 import org.adfa.constants.ANDROID_SDK_ZIP
 import org.adfa.constants.DOCUMENTATION_DB
@@ -23,7 +24,10 @@ class BundledAddonsTest {
 
 	private class FakeSource(
 		private val files: Map<String, Map<String, Long>>,
+		private val indexText: String? = null,
 	) : BundleSource {
+		override fun index() = indexText
+
 		override fun names(dir: String) = files[dir]?.keys?.toList().orEmpty()
 
 		override fun size(
@@ -40,7 +44,37 @@ class BundledAddonsTest {
 	private fun source(
 		plugins: Map<String, Long> = emptyMap(),
 		templates: Map<String, Long> = emptyMap(),
-	) = FakeSource(mapOf("plugins" to plugins, "templates" to templates))
+		index: String? = null,
+	) = FakeSource(mapOf("plugins" to plugins, "templates" to templates), index)
+
+	/** A source with only an index: asking it for a folder, a size or a file fails the test. */
+	private class IndexOnlySource(
+		private val indexText: String,
+	) : BundleSource {
+		override fun names(dir: String): List<String> = throw AssertionError("listed $dir")
+
+		override fun size(
+			dir: String,
+			name: String,
+		): Long = throw AssertionError("sized $dir/$name")
+
+		override fun open(
+			dir: String,
+			name: String,
+		): InputStream = throw AssertionError("opened $dir/$name")
+
+		override fun index() = indexText
+	}
+
+	private val shaA = "a".repeat(64)
+	private val shaB = "b".repeat(64)
+	private val shaT = "c".repeat(64)
+
+	private fun line(
+		entryName: String,
+		size: Long,
+		sha256: String,
+	) = "$entryName\t$size\t$sha256\n"
 
 	@Test
 	fun `a thin bundle lists nothing`() {
@@ -186,6 +220,91 @@ class BundledAddonsTest {
 					BundledEntry(BundledAddonKind.TEMPLATE, "t.cgt", 7L),
 				).inOrder()
 			assertThat(ZipBundleSource(zip).open("plugins", "a.cgp").use { it.readBytes() }).hasLength(5)
+		}
+	}
+
+	@Test
+	fun `an index lists the bundle without listing, sizing or opening an add-on`() {
+		val index = line("plugins/b.cgp", 20L, shaB) + line("templates/t.cgt", 30L, shaT) + line("plugins/a.cgp", 10L, shaA)
+
+		assertThat(BundledAddons.list(IndexOnlySource(index)))
+			.containsExactly(
+				BundledEntry(BundledAddonKind.PLUGIN, "a.cgp", 10L, shaA),
+				BundledEntry(BundledAddonKind.PLUGIN, "b.cgp", 20L, shaB),
+				BundledEntry(BundledAddonKind.TEMPLATE, "t.cgt", 30L, shaT),
+			).inOrder()
+	}
+
+	@Test
+	fun `an empty index is a thin bundle`() {
+		assertThat(BundledAddons.list(IndexOnlySource(""))).isEmpty()
+		assertThat(BundledAddons.list(IndexOnlySource("\n"))).isEmpty()
+	}
+
+	@Test
+	fun `the fingerprint notices new content at the same name and size`() {
+		val old = BundledAddons.list(IndexOnlySource(line("plugins/a.cgp", 10L, shaA)))
+		val rebuilt = BundledAddons.list(IndexOnlySource(line("plugins/a.cgp", 10L, shaB)))
+
+		assertThat(BundledAddons.fingerprint(rebuilt)).isNotEqualTo(BundledAddons.fingerprint(old))
+		assertThat(BundledAddons.fingerprint(old)).isNotEqualTo(BundledAddons.fingerprint(emptyList()))
+	}
+
+	@Test
+	fun `a malformed index leaves the folders to decide`() {
+		val folders = listOf(BundledEntry(BundledAddonKind.PLUGIN, "a.cgp", 10L))
+		val malformed =
+			listOf(
+				"plugins/a.cgp\t10\n",
+				"plugins/a.cgp\t10\t$shaA\textra\n",
+				"plugins/a.cgp\tten\t$shaA\n",
+				"plugins/a.cgp\t-1\t$shaA\n",
+				"plugins/a.cgp\t10\t${shaA.uppercase()}\n",
+				"plugins/a.cgp\t10\t${shaA.drop(1)}\n",
+				line("other/a.cgp", 10L, shaA),
+				line("plugins/nested/a.cgp", 10L, shaA),
+				line("plugins/.hidden.cgp", 10L, shaA),
+				line("templates/$TEMPLATE_CORE_ARCHIVE", 10L, shaA),
+				line("plugins/a.cgp", 10L, shaA) + line("plugins/a.cgp", 10L, shaB),
+			)
+
+		malformed.forEach { index ->
+			assertWithMessage(index).that(BundledAddons.list(source(plugins = mapOf("a.cgp" to 10L), index = index))).isEqualTo(folders)
+		}
+	}
+
+	@Test
+	fun `a bundle without an index is listed from its folders, without hashes`() {
+		val entries = BundledAddons.list(source(plugins = mapOf("a.cgp" to 10L)))
+
+		assertThat(entries).containsExactly(BundledEntry(BundledAddonKind.PLUGIN, "a.cgp", 10L))
+		assertThat(entries.single().sha256).isNull()
+	}
+
+	@Test
+	fun `a zip source reads its index, and has none without the entry`() {
+		val indexed = tempFolder.newFile("indexed.zip")
+		ZipOutputStream(indexed.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("plugins/a.cgp"))
+			zip.write(ByteArray(5))
+			zip.closeEntry()
+			zip.putNextEntry(ZipEntry(BundledAddons.INDEX_FILE))
+			zip.write(line("plugins/a.cgp", 5L, shaA).toByteArray())
+			zip.closeEntry()
+		}
+		val plain = tempFolder.newFile("plain.zip")
+		ZipOutputStream(plain.outputStream()).use { zip ->
+			zip.putNextEntry(ZipEntry("plugins/a.cgp"))
+			zip.write(ByteArray(5))
+			zip.closeEntry()
+		}
+
+		ZipFile(indexed).use { zip ->
+			assertThat(BundledAddons.list(ZipBundleSource(zip))).containsExactly(BundledEntry(BundledAddonKind.PLUGIN, "a.cgp", 5L, shaA))
+		}
+		ZipFile(plain).use { zip ->
+			assertThat(ZipBundleSource(zip).index()).isNull()
+			assertThat(BundledAddons.list(ZipBundleSource(zip))).containsExactly(BundledEntry(BundledAddonKind.PLUGIN, "a.cgp", 5L))
 		}
 	}
 

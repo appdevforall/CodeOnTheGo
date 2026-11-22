@@ -47,7 +47,7 @@ class BundleSync(
 
 		val installed =
 			entries.map { entry ->
-				source.open(entry.kind.dir, entry.fileName).use { installer.install(entry.kind, entry.fileName, it) }
+				source.open(entry.kind.dir, entry.fileName).use { installer.install(entry.kind, entry.fileName, it, entry.sha256) }
 			}
 
 		val pluginIds = installed.mapNotNull { it.pluginId }.toSet()

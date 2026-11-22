@@ -6,11 +6,14 @@ import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.security.DigestInputStream
+import java.security.MessageDigest
 
 /**
  * A bundled add-on after installation. [pluginId] is set for a plugin that reached its folder. A
- * plugin whose manifest names no valid ID has no [file] and carries a [failure] instead, with the
- * bundled file name in [sourceName]: it is reported to the user, and must not fail the setup.
+ * plugin whose manifest names no valid ID, or an add-on whose content differs from the bundle
+ * index, has no [file] and carries a [failure] instead, with the bundled file name in
+ * [sourceName]: it is reported to the user, and must not fail the setup.
  */
 data class InstalledAddon(
 	val kind: BundledAddonKind,
@@ -40,25 +43,47 @@ class BundledAddonInstaller(
 	 */
 	private val beforePluginMove: (pluginId: String, fileName: String) -> Unit = { _, _ -> },
 ) {
+	/**
+	 * Copies [input] into place. With [sha256] (hex, from the bundle index), a copy whose content
+	 * differs is rejected like an unreadable plugin: reported, not thrown, and nothing replaced.
+	 */
 	fun install(
 		kind: BundledAddonKind,
 		fileName: String,
 		input: InputStream,
-	): InstalledAddon =
-		when (kind) {
+		sha256: String? = null,
+	): InstalledAddon {
+		val digest = sha256?.let { MessageDigest.getInstance("SHA-256") }
+		val source = digest?.let { DigestInputStream(input, it) } ?: input
+		val checkContent = {
+			if (digest != null && digest.digest().toHex() != sha256) {
+				throw RejectedAddonException("its content does not match the bundle index")
+			}
+		}
+		return when (kind) {
 			BundledAddonKind.PLUGIN -> {
-				installPlugin(fileName, input)
+				installPlugin(fileName, source, checkContent)
 			}
 
 			BundledAddonKind.TEMPLATE -> {
-				val file = AtomicFiles.writeInto(templatesDir, { input.copyToFile(it) }, { fileName })
-				InstalledAddon(kind, file, null)
+				try {
+					val file =
+						AtomicFiles.writeInto(templatesDir, { source.copyToFile(it) }, {
+							checkContent()
+							fileName
+						})
+					InstalledAddon(kind, file, null)
+				} catch (e: RejectedAddonException) {
+					InstalledAddon(kind, null, null, failure = e.message, sourceName = fileName)
+				}
 			}
 		}
+	}
 
 	private fun installPlugin(
 		fileName: String,
 		input: InputStream,
+		checkContent: () -> Unit,
 	): InstalledAddon {
 		var pluginId: String? = null
 		val file =
@@ -67,24 +92,25 @@ class BundledAddonInstaller(
 					pluginsDir,
 					{ input.copyToFile(it) },
 					{ copy ->
+						checkContent()
 						val id =
 							try {
 								readPluginId(copy)
 							} catch (e: Exception) {
 								null
-							} ?: throw RejectedPluginException("it has no readable manifest")
-						checkPluginId(id).onFailure { throw RejectedPluginException(it.message ?: "invalid plugin ID") }
+							} ?: throw RejectedAddonException("it has no readable manifest")
+						checkPluginId(id).onFailure { throw RejectedAddonException(it.message ?: "invalid plugin ID") }
 						val name = "${PluginBuildFiles.fileStem(id, copy)}.$PLUGIN_ARCHIVE_EXTENSION"
 						// 255 bytes is the longest file name the file system takes.
 						if (name.toByteArray(Charsets.UTF_8).size > MAX_FILE_NAME_BYTES) {
-							throw RejectedPluginException("its plugin ID is too long")
+							throw RejectedAddonException("its plugin ID is too long")
 						}
 						beforePluginMove(id, name)
 						pluginId = id
 						name
 					},
 				)
-			} catch (e: RejectedPluginException) {
+			} catch (e: RejectedAddonException) {
 				// writeInto has deleted the scratch copy. A write error (disk full) still propagates.
 				return InstalledAddon(BundledAddonKind.PLUGIN, null, null, failure = e.message, sourceName = fileName)
 			}
@@ -95,9 +121,11 @@ class BundledAddonInstaller(
 		const val MAX_FILE_NAME_BYTES = 255
 	}
 
-	private class RejectedPluginException(
+	private class RejectedAddonException(
 		message: String,
 	) : IOException(message)
+
+	private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 
 	private fun InputStream.copyToFile(dest: File) {
 		dest.outputStream().use { out -> copyTo(out) }

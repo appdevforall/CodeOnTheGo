@@ -11,6 +11,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.security.MessageDigest
 
 class BundledAddonInstallerTest {
 	@get:Rule
@@ -32,6 +33,9 @@ class BundledAddonInstallerTest {
 	) = BundledAddonInstaller(pluginsDir, templatesDir, readPluginId)
 
 	private fun bytes(text: String): InputStream = ByteArrayInputStream(text.toByteArray())
+
+	private fun sha256(text: String): String =
+		MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
 
 	/** Delivers [first], then fails, like a copy cut short. */
 	private fun failingAfter(first: String): InputStream =
@@ -84,6 +88,56 @@ class BundledAddonInstallerTest {
 
 		assertThat(File(templatesDir, "starter.cgt").readText()).isEqualTo("new")
 		assertThat(templatesDir.list()!!.toList()).containsExactly("starter.cgt")
+	}
+
+	@Test
+	fun `a plugin whose content matches its index hash is installed`() {
+		val installed = installer().install(BundledAddonKind.PLUGIN, "a.cgp", bytes("plugin bytes"), sha256("plugin bytes"))
+
+		assertThat(installed.failure).isNull()
+		assertThat(installed.file!!.readText()).isEqualTo("plugin bytes")
+	}
+
+	@Test
+	fun `a plugin whose content differs from its index hash is reported, not thrown, and leaves no file`() {
+		var manifestRead = false
+		val installed =
+			installer(readPluginId = {
+				manifestRead = true
+				"com.example.plugin"
+			}).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("tampered"), sha256("plugin bytes"))
+
+		assertThat(installed.file).isNull()
+		assertThat(installed.pluginId).isNull()
+		assertThat(installed.sourceName).isEqualTo("a.cgp")
+		assertThat(installed.failure).contains("does not match the bundle index")
+		assertThat(manifestRead).isFalse()
+		assertThat(pluginsDir.list()!!.toList()).isEmpty()
+	}
+
+	@Test
+	fun `a template whose content differs from its index hash is reported and keeps the old one`() {
+		templatesDir.mkdirs()
+		File(templatesDir, "starter.cgt").writeText("old")
+
+		val installed = installer().install(BundledAddonKind.TEMPLATE, "starter.cgt", bytes("tampered"), sha256("new"))
+
+		assertThat(installed.file).isNull()
+		assertThat(installed.sourceName).isEqualTo("starter.cgt")
+		assertThat(installed.failure).contains("does not match the bundle index")
+		assertThat(templatesDir.list()!!.toList()).containsExactly("starter.cgt")
+		assertThat(File(templatesDir, "starter.cgt").readText()).isEqualTo("old")
+	}
+
+	@Test
+	fun `a template whose content matches its index hash replaces the old one`() {
+		templatesDir.mkdirs()
+		File(templatesDir, "starter.cgt").writeText("old")
+
+		val installed = installer().install(BundledAddonKind.TEMPLATE, "starter.cgt", bytes("new"), sha256("new"))
+
+		assertThat(installed.failure).isNull()
+		assertThat(File(templatesDir, "starter.cgt").readText()).isEqualTo("new")
 	}
 
 	@Test

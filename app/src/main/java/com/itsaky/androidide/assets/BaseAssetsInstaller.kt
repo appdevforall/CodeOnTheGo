@@ -22,12 +22,18 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
 	private val logger = LoggerFactory.getLogger(BaseAssetsInstaller::class.java)
 	private val installedByEntry = ConcurrentHashMap<String, InstalledAddon>()
 
+	// Content hashes from the bundle index, by entry name, for the copies to check.
+	private val sha256ByEntry = ConcurrentHashMap<String, String>()
+
 	/** Where this installer's bundled add-ons are read from. */
 	protected abstract fun bundleSource(context: Context): BundleSource
 
 	override fun listBundledAddons(context: Context): List<BundledEntry> {
 		installedByEntry.clear()
-		return BundledAddons.list(bundleSource(context))
+		sha256ByEntry.clear()
+		return BundledAddons.list(bundleSource(context)).onEach { entry ->
+			entry.sha256?.let { sha256ByEntry[entry.entryName] = it }
+		}
 	}
 
 	override fun installedAddons(): List<InstalledAddon> = installedByEntry.values.toList()
@@ -47,7 +53,7 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
 				templatesDir = Environment.TEMPLATES_DIR,
 				readPluginId = { PluginLoader(context, it).getPluginMetadata()?.id },
 			)
-		installedByEntry[entryName] = installer.install(kind, fileName, input)
+		installedByEntry[entryName] = installer.install(kind, fileName, input, sha256ByEntry[entryName])
 	}
 
 	override suspend fun postInstall(

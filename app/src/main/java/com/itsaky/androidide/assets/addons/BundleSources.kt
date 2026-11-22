@@ -19,7 +19,8 @@ class AssetManagerBundleSource(
 		try {
 			assets.openFd("$dir/$name").use { it.length }
 		} catch (e: IOException) {
-			// openFd refuses an asset the APK stores compressed; count the bytes instead.
+			// openFd refuses an asset the APK stores compressed; count the bytes instead. Only a bundle
+			// without an index asks for sizes, and every release build writes one.
 			assets.open("$dir/$name").use { input -> input.countBytes() }
 		}
 
@@ -27,6 +28,13 @@ class AssetManagerBundleSource(
 		dir: String,
 		name: String,
 	): InputStream = assets.open("$dir/$name")
+
+	override fun index(): String? =
+		try {
+			assets.open(BundledAddons.INDEX_FILE).bufferedReader().use { it.readText() }
+		} catch (e: FileNotFoundException) {
+			null
+		}
 }
 
 /** The bundle of a debug build: `plugins/<name>` and `templates/<name>` entries of the split assets zip. */
@@ -51,6 +59,9 @@ class ZipBundleSource(
 		dir: String,
 		name: String,
 	): InputStream = zip.getInputStream(entry(dir, name))
+
+	override fun index(): String? =
+		zip.getEntry(BundledAddons.INDEX_FILE)?.let { entry -> zip.getInputStream(entry).bufferedReader().use { it.readText() } }
 
 	private fun entry(
 		dir: String,
