@@ -66,6 +66,8 @@ suspend fun <T> cancellable(query: suspend () -> T): T = coroutineScope {
 }
 ```
 
+Once the coroutine is cancelled, `cancellable()` ends as cancelled, whatever the query did. A query that fails with an error of its own at about that moment is reported as cancelled too, and its error is not kept.
+
 Wrap only a query that may need stopping, and cancel its coroutine from your **Cancel** button:
 
 ```kotlin
@@ -107,9 +109,9 @@ final class CancellableQuery<T> {
     }
 
     /**
-     * Waits until the query has ended, and returns its result. Throws
-     * CancellationException if cancel() stopped the query, so that it ends as
-     * cancelled, not as failed. The exception's cause is the query's own error.
+     * Waits until the query has ended, and returns its result. If the query
+     * failed after cancel() was called, throws CancellationException, with the
+     * query's own error as its cause.
      */
     T get() throws ExecutionException, InterruptedException {
         try {
@@ -146,6 +148,8 @@ final class CancellableQuery<T> {
     }
 }
 ```
+
+A query that fails after `cancel()` was called is reported as cancelled, whatever made it fail. So a query that fails with an error of its own at about that moment is reported as cancelled too. The `CancellationException` keeps that error as its cause.
 
 Cancel it from your **Cancel** button:
 

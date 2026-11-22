@@ -17,6 +17,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -96,15 +97,30 @@ public class JavaDocExamplesTest {
 			// cancel() stops JavaScript that never ends, and get() then reports a cancel
 			CancellableQuery<Integer> spin = new CancellableQuery<>(products::spin);
 			Thread.sleep(500);
-			long start = System.nanoTime();
 			spin.cancel();
 			spin.cancel();
-			assertTrue("cancel() returns at once", System.nanoTime() - start < 50_000_000);
 			Throwable thrown = thrownByGet(spin);
 			assertTrue(String.valueOf(thrown), thrown instanceof CancellationException);
 			// the query's own error is its cause
 			assertTrue(String.valueOf(thrown.getCause()),
 					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
+
+			// cancel() does not wait for the query: this one cannot end until the latch opens, so
+			// a cancel() that waited would never return. A query that ends with a result after
+			// the cancel gives that result.
+			CountDownLatch latch = new CountDownLatch(1);
+			CancellableQuery<Integer> waiting = new CancellableQuery<>(() -> {
+				latch.await();
+				return 7;
+			});
+			ExecutorService canceller = Executors.newSingleThreadExecutor();
+			try {
+				canceller.submit(waiting::cancel).get(60, TimeUnit.SECONDS);
+			} finally {
+				canceller.shutdownNow();
+			}
+			latch.countDown();
+			assertEquals(Integer.valueOf(7), waiting.get());
 
 			// a query that fails by itself is not reported as cancelled
 			CancellableQuery<Integer> broken = new CancellableQuery<>(() -> {

@@ -13,25 +13,28 @@
   in a second project: the template without its Kotlin sources and activity and without
   the Kotlin-only lines of its build files (KOTLIN_ONLY), with the ```gradle-java examples
   added to its app/build.gradle.kts, so that Room's annotation processor builds the Java
-  database with the page's Java settings and nothing Kotlin beside them. app-test/JavaDocExamplesTest.java is
-  compiled with them, and runs with DEVICE=1.
+  database with the page's Java settings and nothing Kotlin beside them: the script stops
+  if the project's build files still name Kotlin, KSP, a -ktx library or coroutines.
+  app-test/JavaDocExamplesTest.java is compiled with them, and runs with DEVICE=1.
 - The SQL in the Kotlin and Java examples, the statements that create the JavaScript
   functions and the DAO queries, runs on this host in sqlite3 with sqlite-js loaded.
 
 Usage:
   DEV_ASSETS=/path/to/dev-assets AAR=/path/to/sqlite-js.aar ANDROID_HOME=/path/to/sdk \\
-  SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so [GRADLE=gradle] [DEVICE=1] \\
+  SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so [GRADLE=gradle] [GRADLE_ARGS="..."] [DEVICE=1] \\
   python3 test_app_examples.py WORK_DIR
 
 DEV_ASSETS is a checkout of appdevforall/dev-assets: its templates/JavaScriptInSQLite and
 scripts/render-template.py are used. WORK_DIR is made; one that exists is emptied only if an
 earlier run of this script made it, and is otherwise refused unless it is empty; a symbolic
-link is refused. The build
-downloads what Gradle has not cached. Prints TAP. Exits 0 only if every check passes.
+link is refused. GRADLE_ARGS replaces the options Gradle runs with, by default --no-daemon
+and a 2 GB heap. The build downloads what Gradle has not cached. Prints TAP. Exits 0 only
+if every check passes.
 """
 import glob
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -40,6 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SQLITE3 = os.environ.get("SQLITE3", "sqlite3")
 EXT = os.environ.get("EXT", "sqlite-js")
 GRADLE = os.environ.get("GRADLE", "gradle")
+GRADLE_ARGS = shlex.split(os.environ.get("GRADLE_ARGS", "--no-daemon -Dorg.gradle.jvmargs=-Xmx2g"))
 DEVICE = os.environ.get("DEVICE") == "1"
 PACKAGE = "docexamples"
 # Marks a WORK_DIR as this script's, so that a later run may empty it.
@@ -73,10 +77,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.appdevforall.sqlitejs.SqliteJs
 """
-# What the Java project drops from the template's build files: each must match exactly one
-# line (the last, exactly one block), so that a changed template stops the test.
+# What the Java project drops from the template's build files: each must match exactly once,
+# so that a changed template stops the test.
 KOTLIN_ONLY = {
-    "build.gradle.kts": [r"^\s*alias\(libs\.plugins\.ksp\) apply false\n"],
+    "build.gradle.kts": [
+        # the Kotlin compiler for AGP, with its comment
+        r"\A// AGP 9 compiles Kotlin itself.*?^buildscript \{\n.*?^\}\n\n",
+        r"^\s*alias\(libs\.plugins\.ksp\) apply false\n",
+    ],
     os.path.join("app", "build.gradle.kts"): [
         r"^\s*alias\(libs\.plugins\.ksp\)\n",
         r"^\s*ksp\(libs\.androidx\.room\.compiler\)\n",
@@ -84,8 +92,17 @@ KOTLIN_ONLY = {
         r"^\s*implementation\(libs\.androidx\.lifecycle\.runtime\.ktx\)\n",
         r"^\s*implementation\(libs\.kotlinx\.coroutines\.android\)\n",
         r"^kotlin \{\n\s*compilerOptions \{\n.*\n\s*\}\n\}\n",
+        # the kotlin-stdlib versions it forces
+        r"^    configurations\.all \{\n\s*resolutionStrategy \{\n(?:\s*force\(.*\n){3}\s*\}\n    \}\n",
+        # packaging rules for the metadata files of Kotlin Multiplatform libraries
+        r"^\s*excludes\.add\(\"META-INF/kotlinx_coroutines_core\.version\"\)\n",
+        r"^\s*// Kotlin Multiplatform libraries.*\n(?:\s*//.*\n)*(?:\s*(?:pickFirsts|merges)\.add\(.*\n)+",
     ],
+    "gradle.properties": [r"^# Kotlin code style.*\nkotlin\.code\.style=official\n"],
 }
+# What may not be left in those files. The version catalog, gradle/libs.versions.toml, is not
+# checked: its entries declare nothing until a build file names them.
+KOTLIN_WORDS = re.compile(r"kotlin|ksp|ktx|coroutines", re.I)
 JAVA_IMPORTS = """
 import android.content.Context;
 import android.database.Cursor;
@@ -117,7 +134,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.appdevforall.sqlitejs.SqliteJs;
 """
-# Added to the project's app/build.gradle.kts for the instrumented test. Its own application id, so that the
+# Added to the project's app/build.gradle.kts for the instrumented test. Its own application
+# id, so that the
 # test never replaces an app made from the template on the device.
 DEVICE_BUILD = """
 android {
@@ -252,9 +270,12 @@ def java_project(work, assets):
         path = os.path.join(project, name)
         text = open(path, encoding="utf-8").read()
         for pattern in patterns:
-            text, count = re.subn(pattern, "", text, flags=re.M)
+            text, count = re.subn(pattern, "", text, flags=re.M | re.S if pattern.startswith(r"\A") else re.M)
             if count != 1:
                 sys.exit("%s: expected exactly one match of %s, found %d" % (name, pattern, count))
+        left = [l for l in text.split("\n") if KOTLIN_WORDS.search(l)]
+        if left:
+            sys.exit("%s of the Java project still names Kotlin: %r" % (name, left))
         if name.startswith("app"):
             text += "\n".join(b for _, _, b in blocks("gradle-java")) + DEVICE_BUILD % ".java"
         with open(path, "w", encoding="utf-8") as f:
@@ -278,8 +299,8 @@ def sqlite(sql, timeout=60):
 
 
 def gradle(project, *tasks):
-    return subprocess.run([GRADLE, "--no-daemon", "-Dorg.gradle.jvmargs=-Xmx2g", "--console=plain", "-q"]
-                          + list(tasks), cwd=project, capture_output=True, text=True)
+    return subprocess.run([GRADLE] + GRADLE_ARGS + ["--console=plain", "-q"] + list(tasks),
+                          cwd=project, capture_output=True, text=True)
 
 
 def main():

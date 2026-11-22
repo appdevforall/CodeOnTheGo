@@ -12,6 +12,7 @@ import io.requery.android.database.sqlite.SQLiteDatabase
 import io.requery.android.database.sqlite.SQLiteDatabaseConfiguration
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -156,9 +157,9 @@ class DocExamplesTest {
 		}
 	}
 
-	// What the page leaves open, logged for CLAIMS.md: what Room reports when SQLite has already
-	// rolled the transaction back (a write whose collation is stopped ends with SQLITE_INTERRUPT),
-	// and whether cancelling a coroutine without cancellable() ends a query that never returns.
+	// What Room reports when SQLite has already rolled the transaction back (a write whose
+	// collation is stopped ends with SQLITE_INTERRUPT), and that cancelling a coroutine without
+	// cancellable() does not end a query that never returns.
 	@Test
 	fun whatRoomDoesWhenSqliteRolledBackAndWhenAPlainCoroutineIsCancelled() = runBlocking {
 		context.deleteDatabase("products.db")
@@ -205,23 +206,32 @@ class DocExamplesTest {
 					canceller.join()
 				}
 				Log.i("DocExamples", "collation write in $how: statement threw [$inner], $how threw [$outer]")
-				assertTrue("$how: the statement failed: $inner", inner != "none")
-				assertTrue("$how: the block's failure left $how: $outer", outer != "none")
+				assertTrue("$how: the statement was interrupted: $inner", inner.contains("interrupted"))
+				assertTrue("$how: Room's rollback failed: $outer", outer.contains("cannot rollback"))
 				assertEquals("$how: nothing of the transaction is kept", 4, db.count())
 			}
 
-			// in a scope of its own: its failure, once cancelAll() stops it, is not this test's
-			val plain = CoroutineScope(Dispatchers.Default).launch { runCatching { db.products().spin() } }
+			// A plain cancel, without cancellable(). In a scope of its own: its failure, once
+			// cancelAll() stops it, is not this test's.
+			val ended = AtomicReference<Result<Int?>?>(null)
+			val plain = CoroutineScope(Dispatchers.Default).launch {
+				ended.set(runCatching { db.products().spin() })
+			}
 			delay(500)
 			plain.cancel()
-			delay(1000)
-			Log.i("DocExamples", "1 s after a plain cancel of spin(): job completed = ${plain.isCompleted}")
-			withTimeout(10_000) {
+			// spin() never returns, so no wait is too short for this check: it fails only if the
+			// cancel ended the query
+			delay(2000)
+			Log.i("DocExamples", "2 s after a plain cancel of spin(): job completed = ${plain.isCompleted}")
+			assertTrue("a plain cancel left spin() running", !plain.isCompleted && ended.get() == null)
+			// only cancelAll() ends it, and it ends as a failure, not with a value
+			withTimeout(60_000) {
 				while (!plain.isCompleted) {
 					SqliteJs.cancelAll()
 					delay(10)
 				}
 			}
+			assertTrue("spin() ended by failing: ${ended.get()}", ended.get()?.isFailure == true)
 			// spin() keeps its connection busy until cancelAll() stops it: the database answers again
 			repeat(20) { SqliteJs.cancelAll(); delay(10) }
 			assertEquals(4, db.count())
