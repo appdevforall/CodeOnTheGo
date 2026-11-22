@@ -49,7 +49,14 @@ The layout of `sqlitedbg_event_record` lives in `sqlitedbg.h`. The JNI layer han
 
 ## Not done yet
 
-- Broadcasting the port and token to Code on the Go (ADFA-7137). `DebuggerStartup` only keeps them in `DebuggerStartup.port` and `endpointToken` and logs the port, never the token.
-- Gradle plugin wiring and the build-time rewrite that adds the library to debug builds (ADFA-7138).
-- The AI-Agent-MCP side that connects to the server (ADFA-7139).
-- A device run of the current code. The device results on ADFA-7135 (statements captured on both ABIs, the overhead) predate the review fixes.
+These are outside this module and come in the PRs stacked on it:
+
+- Broadcasting the port and token to Code on the Go (ADFA-7137, #2260). Here `DebuggerStartup` only keeps them in `DebuggerStartup.port` and `endpointToken` and logs the port, never the token.
+- Gradle plugin wiring and the build-time rewrite that adds the library to debug builds (ADFA-7138, #2262).
+- The AI-Agent-MCP side that connects to the server (ADFA-7139, #2261 and addons #166).
+
+On devices, this code has run only as part of the whole stack, on 2026-11-21:
+- on a Galaxy Note 20 (Android 13, arm64-v8a);
+- on a Galaxy J7 (Android 9, armeabi-v7a).
+
+On both, the server started and Code on the Go paired with the app. On the Note 20 the Agent also queried the app's database; AI-Agent-MCP needs Android 13. The results are on ADFA-7131.
