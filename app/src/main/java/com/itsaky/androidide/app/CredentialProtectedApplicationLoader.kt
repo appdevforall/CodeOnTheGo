@@ -388,15 +388,17 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			GlobalScope.launch {
 				try {
 					val manager = pluginManager
-					val synced = manager != null && withContext(Dispatchers.IO) { BundleSyncAtStart.run(application, manager) }
-					manager?.loadPlugins()
-					if (synced && manager != null) {
-						// Plugins are loaded already; this only records the bundled ones that failed.
-						BundledPluginStartup(
-							record = BundledAddonsRecord.inFilesDir(application.filesDir),
-							reloadPlugins = {},
-							loadError = manager::getLoadError,
-						).start()
+					if (manager != null) {
+						val synced = withContext(Dispatchers.IO) { BundleSyncAtStart.run(application, manager) }
+						manager.loadPlugins()
+						if (synced) {
+							// Plugins are loaded already; this only records the bundled ones that failed.
+							BundledPluginStartup(
+								record = BundledAddonsRecord.inFilesDir(application.filesDir),
+								reloadPlugins = {},
+								loadError = manager::getLoadError,
+							).start()
+						}
 					}
 					EditorDecorationBridge.init()
 					logger.info("Plugin system initialized successfully")
