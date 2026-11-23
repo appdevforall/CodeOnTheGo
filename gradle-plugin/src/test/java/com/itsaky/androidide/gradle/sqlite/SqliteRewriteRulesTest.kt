@@ -101,4 +101,31 @@ class SqliteRewriteRulesTest {
 			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE /* c */ NOCASE")).isFalse()
 		}
 	}
+
+	@Test
+	fun `long comments and whitespace before the name do not overflow the stack`() {
+		val long = "x".repeat(100_000)
+		for ((name, rule) in collations) {
+			val matches =
+				mapOf(
+					"block comment" to "SELECT 'a' COLLATE /*$long*/ $name",
+					"block comment of stars" to "SELECT 'a' COLLATE /*${"*a".repeat(50_000)}*/ $name",
+					"whitespace" to "SELECT 'a' COLLATE${" ".repeat(100_000)}$name",
+					"line comment" to "SELECT 'a' COLLATE --$long\n$name",
+					"many comments" to "SELECT 'a' COLLATE${" /**/".repeat(20_000)} $name",
+				)
+			for ((form, sql) in matches) {
+				assertWithMessage("$name, $form").that(rule.containsMatchIn(sql)).isTrue()
+			}
+			val misses =
+				mapOf(
+					"block comment, then NOCASE" to "SELECT 'a' COLLATE /*$long*/ NOCASE",
+					"unterminated block comment" to "SELECT 'a' COLLATE /*$long $name",
+					"whitespace, then NOCASE" to "SELECT 'a' COLLATE${" ".repeat(100_000)}NOCASE",
+				)
+			for ((form, sql) in misses) {
+				assertWithMessage("$name, $form").that(rule.containsMatchIn(sql)).isFalse()
+			}
+		}
+	}
 }
