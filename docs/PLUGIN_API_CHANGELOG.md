@@ -35,6 +35,20 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.48 — unreleased
+- **added — Hear the editor open and close a project, and save a file** _(ADFA-3570)_ **[verified]**
+  `IdeProjectService.addProjectLifecycleListener(ProjectLifecycleListener)` calls
+  `onProjectOpened(projectDir)` when the editor starts opening a project (its sync does not wait
+  for listeners), and
+  `onProjectClosed(projectDir)` when it closes one; a re-sync is not another open, and switching
+  projects reports the close first. `IdeEditorService.addFileSaveListener(FileSaveListener)` calls
+  `onFileSaved(file)` after each file the editor writes, whoever asked for the save. Both need
+  `filesystem.read`. Calls arrive in order on one background thread shared by every plugin, so
+  return quickly. The IDE drops the listeners when the plugin is disabled or unloads, so register
+  them from `activate()`. A listener added while a project is open hears `onProjectOpened` for it
+  first. Paths are canonical, except one the IDE cannot resolve (`getCanonicalFile()` fails),
+  which is absolute instead. Floor `plugin.min_ide_version` at `26.48` to use them.
+
 ### 26.43 — unreleased
 - **breaking — A `ShellCommand` stops at its timeout or `cancel()`, with every process it started** _(ADFA-7178)_
   A timeout used to wait for the command to exit, and a stop killed only the command's own
