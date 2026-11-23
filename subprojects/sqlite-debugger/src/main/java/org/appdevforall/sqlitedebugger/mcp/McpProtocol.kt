@@ -6,8 +6,9 @@ import org.json.JSONTokener
 
 /**
  * A tool an MCP client can call. [run] gets the call's arguments (an empty object when none were
- * sent) and returns what happened, as JSON; it throws [McpToolError] for a failure the client
- * should read, such as "a person is needed".
+ * sent) and the time limit of its POST (see [McpProtocol.postTimeLimitMs]; null when there is none),
+ * and returns what happened, as JSON; it throws [McpToolError] for a failure the client should
+ * read, such as "a person is needed".
  */
 class McpTool(
 	val name: String,
@@ -16,7 +17,7 @@ class McpTool(
 	val inputSchema: JSONObject = JSONObject().put("type", "object").put("properties", JSONObject()).put("additionalProperties", false),
 	/** Only reports; changes nothing. Shown to clients as a hint, not relied on. */
 	val readOnly: Boolean = true,
-	val run: (JSONObject) -> JSONObject,
+	val run: (args: JSONObject, deadlineMs: Long?) -> JSONObject,
 ) {
 	fun describe(): JSONObject =
 		JSONObject()
@@ -54,6 +55,13 @@ class McpProtocol(
 	private val serverVersion: String,
 	private val newSessionId: () -> String,
 	private val maxSessions: Int = 16,
+	/**
+	 * How long one POST may spend in tools, from when [post] starts. Every tool call of a batch gets the same
+	 * deadline (start plus this, by [clock]), so a batch of slow calls cannot hold the tools past what its
+	 * client waits for. null: no limit is set, and a tool applies its own.
+	 */
+	private val postTimeLimitMs: Long? = null,
+	private val clock: () -> Long = System::currentTimeMillis,
 ) {
 	companion object {
 		/** Newest first: offered when a client asks for a version this server doesn't know. */
@@ -102,6 +110,7 @@ class McpProtocol(
 		sessionId: String?,
 		versionHeader: String?,
 	): Reply {
+		val deadline = postTimeLimitMs?.let { clock() + it }
 		val parsed =
 			try {
 				JSONTokener(body).nextValue()
@@ -142,7 +151,7 @@ class McpProtocol(
 				if (chars >= MAX_BATCH_REPLY_CHARS) {
 					skipped(message)
 				} else {
-					handle(message)
+					handle(message, deadline)
 				}
 			if (reply == null) continue
 			// The size is counted as the reply is made, because it all stays in memory until the batch is sent.
@@ -206,7 +215,10 @@ class McpProtocol(
 	}
 
 	/** One message of a POST; null when it needs no answer. */
-	private fun handle(raw: Any?): JSONObject? {
+	private fun handle(
+		raw: Any?,
+		deadline: Long?,
+	): JSONObject? {
 		val m = raw as? JSONObject ?: return error(null, INVALID_REQUEST, "Each message must be a JSON object.")
 		val hasId = m.has("id")
 		val id = m.opt("id")
@@ -222,7 +234,7 @@ class McpProtocol(
 		return when (method) {
 			"ping" -> ok(id, JSONObject())
 			"tools/list" -> ok(id, JSONObject().put("tools", JSONArray().also { a -> tools.forEach { a.put(it.describe()) } }))
-			"tools/call" -> call(id, m.opt("params"))
+			"tools/call" -> call(id, m.opt("params"), deadline)
 			else -> error(id, METHOD_NOT_FOUND, "Unknown method \"$method\".")
 		}
 	}
@@ -230,6 +242,7 @@ class McpProtocol(
 	private fun call(
 		id: Any,
 		rawParams: Any?,
+		deadline: Long?,
 	): JSONObject {
 		val params = rawParams as? JSONObject ?: return error(id, INVALID_PARAMS, "tools/call needs params, with the tool's name.")
 		val name = params.opt("name") as? String ?: return error(id, INVALID_PARAMS, "tools/call needs the tool's name.")
@@ -242,7 +255,7 @@ class McpProtocol(
 			}
 		val result =
 			try {
-				val out = tool.run(args)
+				val out = tool.run(args, deadline)
 				JSONObject().put("content", JSONArray().put(text(out.toString()))).put("structuredContent", out).put("isError", false)
 			} catch (e: McpToolError) {
 				JSONObject().put("content", JSONArray().put(text(e.message ?: "The tool failed."))).put("isError", true).also { r ->

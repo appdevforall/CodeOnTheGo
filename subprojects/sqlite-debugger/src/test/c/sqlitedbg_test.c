@@ -78,6 +78,7 @@ typedef struct batch {
 	ev *events;
 	size_t count;
 	uint64_t next, dropped;
+	int reset;
 } batch;
 
 static void batch_free(batch *b) { free(b->events); }
@@ -93,8 +94,9 @@ static void read_all(uint64_t after, batch *b) {
 	b->count = r.count;
 	b->next = r.next;
 	b->dropped = r.dropped;
+	b->reset = r.reset;
 	size_t off = 0;
-	uint64_t prev = after;
+	uint64_t prev = r.reset ? 0 : after;
 	for (size_t i = 0; i < r.count; i++) {
 		const sqlitedbg_event_record *rec = (const sqlitedbg_event_record *)(void *)(buf + off);
 		CHECK(rec->record_bytes >= sizeof *rec);
@@ -452,6 +454,42 @@ static void test_burst(void) {
 	CHECK_EQ(got, 50 * 10 * 2);
 }
 
+static void test_cursor_reset(void) {
+	exec_ok(g_main, "SELECT 1");
+	batch b;
+	read_all(0, &b);
+	const uint64_t newest = b.next;
+	const size_t stored = b.count;
+	CHECK(newest > 1);
+	CHECK_EQ(b.reset, 0);
+	batch_free(&b);
+
+	// caught up: the newest seq is a valid cursor
+	read_all(newest, &b);
+	CHECK_EQ(b.reset, 0);
+	CHECK_EQ(b.count, 0);
+	CHECK_EQ(b.next, newest);
+	batch_free(&b);
+
+	// one past the newest, and far past it, cannot be a cursor of this process: read from the start
+	const uint64_t past[] = {newest + 1, newest + 1000, UINT64_MAX};
+	for (size_t i = 0; i < sizeof past / sizeof past[0]; i++) {
+		read_all(past[i], &b);
+		CHECK_EQ(b.reset, 1);
+		CHECK_EQ(b.count, stored);
+		CHECK_EQ(b.next, newest);
+		CHECK_EQ(b.dropped + b.count, newest);
+		batch_free(&b);
+	}
+
+	// the first event made after a reset is read normally by the cursor the reset gave
+	exec_ok(g_main, "SELECT 2");
+	read_all(newest, &b);
+	CHECK_EQ(b.reset, 0);
+	CHECK_EQ(b.count, 2);
+	batch_free(&b);
+}
+
 static void test_close_and_list(void) {
 	listing l;
 	size_t before = list_conns(&l);
@@ -477,6 +515,14 @@ static void test_close_and_list(void) {
 	CHECK_EQ(b.events[0].conn, id);
 	CHECK_EQ(b.events[0].sql_bytes, 0);
 	batch_free(&b);
+
+	// the failed close left the connection open: a statement on it clears closing, a second failed close sets it
+	exec_ok(c, "SELECT 1");
+	list_conns(&l);
+	CHECK_EQ(find_conn(&l, id)->closing, 0);
+	CHECK_EQ(sqlite3_close(c), SQLITE_BUSY);
+	list_conns(&l);
+	CHECK_EQ(find_conn(&l, id)->closing, 1);
 
 	// the app retries once the statement is gone
 	sqlite3_finalize(st);
@@ -1032,6 +1078,8 @@ int main(int argc, char **argv) {
 		test_truncation();
 		printf("# burst\n");
 		test_burst();
+		printf("# cursor reset\n");
+		test_cursor_reset();
 		printf("# close and list\n");
 		test_close_and_list();
 		printf("# init failure\n");

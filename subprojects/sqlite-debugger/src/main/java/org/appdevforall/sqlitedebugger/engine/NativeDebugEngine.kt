@@ -1,11 +1,15 @@
 package org.appdevforall.sqlitedebugger.engine
 
+import java.util.UUID
+
 /**
  * [DebugEngine] over the JNI layer of libsqlitedbg.so. Needs requery's libsqlite3x.so in the process:
  * the extension runs inside it, on connections it opens after [install]. Call [install] before
  * anything else; the native state is per process, so every instance shares it.
  */
 class NativeDebugEngine : DebugEngine {
+	override val runId: String get() = RUN_ID
+
 	/**
 	 * Loads requery's SQLite and the debugger's library and registers the extension. Connections
 	 * opened before this are never seen, so call it as early as the process allows. Calling it
@@ -54,9 +58,14 @@ class NativeDebugEngine : DebugEngine {
 		maxBytes: Int,
 	): EventBatch {
 		val buffer = ByteArray(maxBytes.coerceIn(1, MAX_READ_BYTES))
-		val out = LongArray(3)
+		val out = LongArray(4)
 		NativeBridge.readEvents(after, buffer, out)
-		return EventBatch(events = EventDecoder.decode(buffer, out[2].toInt()), next = out[0], dropped = out[1])
+		return EventBatch(
+			events = EventDecoder.decode(buffer, out[2].toInt()),
+			next = out[0],
+			dropped = out[1],
+			reset = out[3] != 0L,
+		)
 	}
 
 	override fun setClientConnected(connected: Boolean) = NativeBridge.setClientConnected(connected)
@@ -125,6 +134,9 @@ class NativeDebugEngine : DebugEngine {
 	private companion object {
 		const val META_PER_CONNECTION = 5
 		const val MAX_READ_BYTES = 16 shl 20
+
+		/** Random per process, as the event numbers restart at 1 in each; shared by every instance, like the native state. */
+		val RUN_ID: String = UUID.randomUUID().toString()
 
 		val lock = Any()
 		var installed = false
