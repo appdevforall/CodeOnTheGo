@@ -56,7 +56,6 @@ import com.itsaky.androidide.ui.compose.templates.TemplateManagerScreen
 import com.itsaky.androidide.ui.models.AddonFileKind
 import com.itsaky.androidide.ui.models.DownloadPickerUiState
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
-import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.getFileName
@@ -254,7 +253,8 @@ fun ManagerScreen(
 		// A .cgp only reaches this ViewModel via the routing above, which sends plugins down the
 		// PickedUri path instead - so this is defensive, not a live path.
 		onForwardPlugin = { filePath -> pluginViewModel.onPendingInstallFile(filePath) },
-		onFinish = { templateViewModel.onEvent(TemplateManagerUiEvent.LoadTemplates) },
+		// The Templates tab reloads from TemplateCollectionRepository.installs, so nothing to do.
+		onFinish = {},
 	)
 
 	Scaffold(
