@@ -482,6 +482,109 @@ class DatabaseToolsTest {
 		return result!!
 	}
 
+	/**
+	 * [engine] with queries that each take [runMs] of the fake clock, as the native one stops a query at its deadline
+	 * and refuses to start one past it. [started] lists the queries that began.
+	 */
+	private fun slowQueries(
+		runMs: Long,
+		started: MutableList<String>,
+	) = object : DebugEngine by engine {
+		override fun openServerConnection(
+			path: String,
+			writable: Boolean,
+		) = engine.openServerConnection(path, writable).let { c ->
+			object : ServerConnection by c {
+				override fun query(
+					sql: String,
+					args: List<Any?>,
+					offset: Long,
+					limits: QueryLimits,
+					deadlineMillis: Long,
+				): QueryResult {
+					if (now >= deadlineMillis) {
+						throw DebugEngineException(DebugEngineException.SQLITE_INTERRUPT, "the time limit passed before the query started")
+					}
+					started += sql
+					if (now + runMs >= deadlineMillis) {
+						now = deadlineMillis
+						throw DebugEngineException(DebugEngineException.SQLITE_INTERRUPT, "the query ran past its time limit")
+					}
+					now += runMs
+					return c.query(sql, args, offset, limits, deadlineMillis)
+				}
+			}
+		}
+	}
+
+	private fun post(
+		t: DatabaseTools,
+		vararg sql: String,
+	): JSONArray {
+		val protocol = McpProtocol(t.tools(), "test", { "s" }, 4, DatabaseTools.DEADLINE_MS) { now }
+		val session = protocol.post(initBody(), null, null).headers[McpProtocol.SESSION_HEADER]!!
+		val batch = JSONArray()
+		sql.forEachIndexed { i, text ->
+			val args = db().put("sql", text)
+			val params = JSONObject().put("name", "query").put("arguments", args)
+			batch.put(
+				JSONObject()
+					.put("jsonrpc", "2.0")
+					.put("id", i)
+					.put("method", "tools/call")
+					.put("params", params),
+			)
+		}
+		return JSONArray(protocol.post(batch.toString(), session, null).body!!)
+	}
+
+	private fun initBody() =
+		JSONObject()
+			.put("jsonrpc", "2.0")
+			.put("id", 1)
+			.put("method", "initialize")
+			.put("params", JSONObject().put("protocolVersion", "2025-06-18"))
+			.toString()
+
+	private fun resultText(reply: JSONObject) =
+		reply
+			.getJSONObject("result")
+			.getJSONArray("content")
+			.getJSONObject(0)
+			.getString("text")
+
+	@Test fun aBatchOfSlowCallsEndsWithinOneDeadlineAndTheLateCallsFailAtOnce() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val started = mutableListOf<String>()
+		val t = DatabaseTools(slowQueries(20_000, started), dir, { now })
+		val start = now
+		val replies = post(t, "q1", "q2", "q3", "q4", "q5")
+		assertEquals("one deadline for the POST, not one per call", DatabaseTools.DEADLINE_MS, now - start)
+		assertEquals(listOf("q1", "q2", "q3"), started) // q3 ran into the deadline; q4 and q5 never started
+		assertFalse(replies.getJSONObject(1).getJSONObject("result").getBoolean("isError"))
+		assertEquals("the query ran past its time limit", resultText(replies.getJSONObject(2)))
+		for (i in 3..4) {
+			assertTrue(replies.getJSONObject(i).getJSONObject("result").getBoolean("isError"))
+			assertEquals("the time limit passed before the query started", resultText(replies.getJSONObject(i)))
+		}
+	}
+
+	@Test fun aSingleCallKeepsItsOwnFullDeadlineAndEachPostStartsANewOne() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val started = mutableListOf<String>()
+		val t = DatabaseTools(slowQueries(20_000, started), dir, { now })
+		val start = now
+		assertFalse(post(t, "q1").getJSONObject(0).getJSONObject("result").getBoolean("isError"))
+		assertEquals(20_000, now - start)
+		assertFalse("a new POST has a new deadline", post(t, "q2").getJSONObject(0).getJSONObject("result").getBoolean("isError"))
+		assertEquals(40_000, now - start)
+		val slow = DatabaseTools(slowQueries(DatabaseTools.DEADLINE_MS + 1, started), dir, { now })
+		val before = now
+		val r = post(slow, "q3").getJSONObject(0)
+		assertEquals("the query ran past its time limit", resultText(r))
+		assertEquals(DatabaseTools.DEADLINE_MS, now - before)
+	}
+
 	private val answersEmpty: () -> QueryResult = { QueryResult(emptyList(), emptyList(), 0, false) }
 
 	private val ranPastItsLimit: () -> QueryResult = {

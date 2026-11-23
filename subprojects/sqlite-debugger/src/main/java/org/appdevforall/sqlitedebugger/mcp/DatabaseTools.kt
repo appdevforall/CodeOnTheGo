@@ -21,9 +21,12 @@ import java.util.TimerTask
  *
  * One lock guards the cached server connections and every query, so tool calls run one at a time:
  * a slow query (up to [DEADLINE_MS]) makes the others wait. That is accepted: the debugger serves
- * one agent, and a connection per call would open the app's file many times over. A tool call's
- * time limit starts when the call begins, so its waits for the lock count and the server gives up
- * before the client does; a call that waited at least half its time limit says so in its error.
+ * one agent, and a connection per call would open the app's file many times over. The time limit
+ * belongs to the POST ([McpProtocol] passes it in): it starts when the POST is handled and is shared
+ * by every call of a batch, so waits for the lock count and the server gives up before the client
+ * does; a call that waited at least half the limit says so in its error. A call that starts after
+ * the limit fails at once, as the engine refuses to start a query past its deadline; the tools that
+ * run no SQL (list_databases, list_connections, get_events) still answer, as they are quick.
  */
 class DatabaseTools internal constructor(
 	private val engine: DebugEngine,
@@ -55,8 +58,9 @@ class DatabaseTools internal constructor(
 		const val MAX_TOTAL_BYTES = 4 * 1024 * 1024
 
 		/**
-		 * A tool call's time limit, from when the call begins, waits for the lock included: below the
-		 * client's 60 s limit, so a query never holds the lock after the client has stopped waiting.
+		 * The time limit of a POST, from when it is handled, waits for the lock included and shared by every call
+		 * of a batch: below the client's 60 s limit, so a query never holds the lock after the client has stopped
+		 * waiting. A call made outside a POST that sets a limit starts its own.
 		 */
 		const val DEADLINE_MS = 50_000L
 		private const val DEADLINE_SECONDS = DEADLINE_MS / 1000
@@ -83,7 +87,7 @@ class DatabaseTools internal constructor(
 		 */
 		const val NON_WAL_NOTE =
 			"On a database that is not in WAL mode a statement is stopped after 1.5 s, so a long read does not block the app's " +
-				"own writes; use a narrower query or a LIMIT. A database in WAL mode has no such limit (the call's $DEADLINE_SECONDS s applies)."
+				"own writes; use a narrower query or a LIMIT. A database in WAL mode has no such limit (the $DEADLINE_SECONDS s limit applies)."
 
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
@@ -151,9 +155,11 @@ class DatabaseTools internal constructor(
 		val appConnectionIds: Set<Long>,
 	)
 
-	/** One tool call: its deadline, set when it begins, and the time it has spent waiting for [lock]. */
-	private inner class Call {
-		val deadline = clock() + DEADLINE_MS
+	/** One tool call: its deadline, the POST's (or its own when none was set), and the time it has spent waiting for [lock]. */
+	private inner class Call(
+		postDeadline: Long?,
+	) {
+		val deadline = postDeadline ?: (clock() + DEADLINE_MS)
 		var waitedMs = 0L
 
 		fun <T> locked(block: () -> T): T {
@@ -308,8 +314,8 @@ class DatabaseTools internal constructor(
 		description: String,
 		inputSchema: JSONObject = JSONObject().put("type", "object").put("properties", JSONObject()).put("additionalProperties", false),
 		run: (Call, JSONObject) -> JSONObject,
-	) = McpTool(name, title, description, inputSchema, readOnly = true, run = { args ->
-		val call = Call()
+	) = McpTool(name, title, description, inputSchema, readOnly = true, run = { args, deadline ->
+		val call = Call(deadline)
 		call.locked { expireIdleClientLocked() }
 		run(call, args)
 	})
