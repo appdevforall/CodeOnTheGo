@@ -482,6 +482,109 @@ class DatabaseToolsTest {
 		return result!!
 	}
 
+	/**
+	 * [engine] with queries that each take [runMs] of the fake clock, as the native one stops a query at its deadline
+	 * and refuses to start one past it. [started] lists the queries that began.
+	 */
+	private fun slowQueries(
+		runMs: Long,
+		started: MutableList<String>,
+	) = object : DebugEngine by engine {
+		override fun openServerConnection(
+			path: String,
+			writable: Boolean,
+		) = engine.openServerConnection(path, writable).let { c ->
+			object : ServerConnection by c {
+				override fun query(
+					sql: String,
+					args: List<Any?>,
+					offset: Long,
+					limits: QueryLimits,
+					deadlineMillis: Long,
+				): QueryResult {
+					if (now >= deadlineMillis) {
+						throw DebugEngineException(DebugEngineException.SQLITE_INTERRUPT, "the time limit passed before the query started")
+					}
+					started += sql
+					if (now + runMs >= deadlineMillis) {
+						now = deadlineMillis
+						throw DebugEngineException(DebugEngineException.SQLITE_INTERRUPT, "the query ran past its time limit")
+					}
+					now += runMs
+					return c.query(sql, args, offset, limits, deadlineMillis)
+				}
+			}
+		}
+	}
+
+	private fun post(
+		t: DatabaseTools,
+		vararg sql: String,
+	): JSONArray {
+		val protocol = McpProtocol(t.tools(), "test", { "s" }, 4, DatabaseTools.DEADLINE_MS) { now }
+		val session = protocol.post(initBody(), null, null).headers[McpProtocol.SESSION_HEADER]!!
+		val batch = JSONArray()
+		sql.forEachIndexed { i, text ->
+			val args = db().put("sql", text)
+			val params = JSONObject().put("name", "query").put("arguments", args)
+			batch.put(
+				JSONObject()
+					.put("jsonrpc", "2.0")
+					.put("id", i)
+					.put("method", "tools/call")
+					.put("params", params),
+			)
+		}
+		return JSONArray(protocol.post(batch.toString(), session, null).body!!)
+	}
+
+	private fun initBody() =
+		JSONObject()
+			.put("jsonrpc", "2.0")
+			.put("id", 1)
+			.put("method", "initialize")
+			.put("params", JSONObject().put("protocolVersion", "2025-06-18"))
+			.toString()
+
+	private fun resultText(reply: JSONObject) =
+		reply
+			.getJSONObject("result")
+			.getJSONArray("content")
+			.getJSONObject(0)
+			.getString("text")
+
+	@Test fun aBatchOfSlowCallsEndsWithinOneDeadlineAndTheLateCallsFailAtOnce() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val started = mutableListOf<String>()
+		val t = DatabaseTools(slowQueries(20_000, started), dir, { now })
+		val start = now
+		val replies = post(t, "q1", "q2", "q3", "q4", "q5")
+		assertEquals("one deadline for the POST, not one per call", DatabaseTools.DEADLINE_MS, now - start)
+		assertEquals(listOf("q1", "q2", "q3"), started) // q3 ran into the deadline; q4 and q5 never started
+		assertFalse(replies.getJSONObject(1).getJSONObject("result").getBoolean("isError"))
+		assertEquals("the query ran past its time limit", resultText(replies.getJSONObject(2)))
+		for (i in 3..4) {
+			assertTrue(replies.getJSONObject(i).getJSONObject("result").getBoolean("isError"))
+			assertEquals("the time limit passed before the query started", resultText(replies.getJSONObject(i)))
+		}
+	}
+
+	@Test fun aSingleCallKeepsItsOwnFullDeadlineAndEachPostStartsANewOne() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val started = mutableListOf<String>()
+		val t = DatabaseTools(slowQueries(20_000, started), dir, { now })
+		val start = now
+		assertFalse(post(t, "q1").getJSONObject(0).getJSONObject("result").getBoolean("isError"))
+		assertEquals(20_000, now - start)
+		assertFalse("a new POST has a new deadline", post(t, "q2").getJSONObject(0).getJSONObject("result").getBoolean("isError"))
+		assertEquals(40_000, now - start)
+		val slow = DatabaseTools(slowQueries(DatabaseTools.DEADLINE_MS + 1, started), dir, { now })
+		val before = now
+		val r = post(slow, "q3").getJSONObject(0)
+		assertEquals("the query ran past its time limit", resultText(r))
+		assertEquals(DatabaseTools.DEADLINE_MS, now - before)
+	}
+
 	private val answersEmpty: () -> QueryResult = { QueryResult(emptyList(), emptyList(), 0, false) }
 
 	private val ranPastItsLimit: () -> QueryResult = {
@@ -574,6 +677,68 @@ class DatabaseToolsTest {
 		assertFalse(row.getJSONObject(0).getBoolean("truncated"))
 		assertTrue(row.getJSONObject(1).getBoolean("truncated"))
 		assertEquals(1, r.getInt("truncated_cells"))
+	}
+
+	private fun cutCells(r: JSONObject): List<Pair<Int, Int>> =
+		r.getJSONArray("truncated_cell_indexes").let { a ->
+			(0 until a.length()).map { a.getJSONArray(it).let { p -> p.getInt(0) to p.getInt(1) } }
+		}
+
+	@Test fun queryListsExactlyTheCutCellsTextAndBlobAlike() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val cutText = "x".repeat(DatabaseTools.MAX_TEXT_BYTES)
+		val cutBlob = ByteArray(DatabaseTools.MAX_BLOB_BYTES)
+		engine.answer = { _, _, _, _ ->
+			QueryResult(
+				listOf("a", "b", "c"),
+				listOf(listOf(cutText, "short", cutText), listOf("short", cutBlob, 5L), listOf("short", "short", "short")),
+				3,
+				false,
+				setOf(0L, 2L, 4L),
+			)
+		}
+		val r = ok("query", db().put("sql", "x"))
+		assertEquals(listOf(0 to 0, 0 to 2, 1 to 1), cutCells(r))
+		assertEquals(3, r.getInt("truncated_cells"))
+		val rows = r.getJSONArray("rows")
+		assertEquals("a TEXT cell stays a string", cutText, rows.getJSONArray(0).get(0))
+		assertTrue(rows.getJSONArray(1).getJSONObject(1).getBoolean("truncated"))
+	}
+
+	@Test fun queryListsNoCutCellsWhenNothingWasCut() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.answer = { _, _, _, _ -> QueryResult(listOf("a"), listOf(listOf("x")), 0, false) }
+		val r = ok("query", db().put("sql", "x"))
+		assertEquals(0, r.getJSONArray("truncated_cell_indexes").length())
+		assertEquals(0, r.getInt("truncated_cells"))
+	}
+
+	@Test fun explainAndIntegrityCheckListCutCellsAndGetSchemaDoesNot() {
+		engine.appConnections += conn(1, "/data/a.db")
+		answerWith(
+			"EXPLAIN" to
+				QueryResult(listOf("id", "parent", "notused", "detail"), listOf(listOf(2L, 0L, 0L, "SCAN t")), 1, false, setOf(3L)),
+			"PRAGMA quick_check" to QueryResult(listOf("quick_check"), listOf(listOf("ok"), listOf("bad")), 1, false, setOf(1L)),
+			"SELECT type" to
+				QueryResult(listOf("type", "name", "tbl_name", "sql"), listOf(listOf("table", "t", "t", "CREATE")), 1, false, setOf(3L)),
+		)
+		val plan = ok("explain_query_plan", db().put("sql", "select 1"))
+		assertEquals(listOf(0 to 3), cutCells(plan))
+		assertEquals(1, plan.getInt("truncated_cells"))
+		val check = ok("integrity_check", db())
+		assertEquals(listOf(1 to 0), cutCells(check))
+		assertEquals(1, check.getInt("truncated_cells"))
+		val schema = ok("get_schema", db())
+		assertFalse("each entry says whether it was cut", schema.has("truncated_cell_indexes"))
+		assertTrue(schema.getJSONArray("tables").getJSONObject(0).getBoolean("truncated"))
+	}
+
+	@Test fun theToolDescriptionsExplainTheCutCellList() {
+		val byName = tools.tools().associateBy { it.name }
+		for (name in listOf("query", "explain_query_plan", "integrity_check", "get_schema")) {
+			assertTrue(name, byName.getValue(name).description.contains("truncated_cell_indexes"))
+		}
+		assertTrue(byName.getValue("query").description.contains("a cut BLOB is in the list too"))
 	}
 
 	@Test fun aResultStopsAtTheTotalBudgetAndPages() {
@@ -756,6 +921,87 @@ class DatabaseToolsTest {
 		assertFalse(engine.clientConnected)
 	}
 
+	private fun seqs(r: JSONObject) = r.getJSONArray("events").let { a -> (0 until a.length()).map { a.getJSONObject(it).getLong("seq") } }
+
+	private fun addStatements(count: Int) = repeat(count) { engine.addEvent(EventKind.STATEMENT, "select ${it + 1}") }
+
+	@Test fun getEventsCarriesTheRunAndNoResetForACaughtUpCursor() {
+		addStatements(3)
+		val t = tools
+		val first = ok("get_events", t = t)
+		assertEquals(engine.runId, first.getString("run"))
+		assertFalse(first.getBoolean("reset"))
+		assertEquals(listOf(1L, 2L, 3L), seqs(first))
+		val caughtUp = ok("get_events", JSONObject().put("after", first.getLong("next")).put("run", first.getString("run")), t)
+		assertFalse("after equal to the newest seq is a reader that kept up", caughtUp.getBoolean("reset"))
+		assertEquals(emptyList<Long>(), seqs(caughtUp))
+		assertEquals(3, caughtUp.getInt("next"))
+		engine.addEvent(EventKind.STATEMENT, "select 4")
+		val more = ok("get_events", JSONObject().put("after", 3).put("run", engine.runId), t)
+		assertFalse(more.getBoolean("reset"))
+		assertEquals(listOf(4L), seqs(more))
+		t.onServerStopped()
+	}
+
+	@Test fun getEventsWithAnotherRunReadsFromTheStartAndSaysReset() {
+		addStatements(3)
+		val t = tools
+		val r = ok("get_events", JSONObject().put("after", 3).put("run", "a-run-of-an-earlier-process"), t)
+		assertTrue(r.getBoolean("reset"))
+		assertEquals("read as if after were 0", listOf(1L, 2L, 3L), seqs(r))
+		assertEquals(engine.runId, r.getString("run"))
+		t.onServerStopped()
+	}
+
+	@Test fun getEventsWithACursorPastTheNewestSaysResetEvenWithoutARun() {
+		addStatements(3)
+		val t = tools
+		val r = ok("get_events", JSONObject().put("after", 4), t)
+		assertTrue(r.getBoolean("reset"))
+		assertEquals(listOf(1L, 2L, 3L), seqs(r))
+		assertEquals(3, r.getInt("next"))
+		t.onServerStopped()
+	}
+
+	@Test fun anAgentWithACursorFromBeforeAnAppRestartIsToldAndReadsTheNewProcessFromTheStart() {
+		addStatements(5)
+		val t = tools
+		val before = ok("get_events", t = t)
+		val oldRun = before.getString("run")
+		assertEquals(5, before.getInt("next"))
+		engine.restartProcess("run-2")
+		addStatements(2)
+		val withRun = ok("get_events", JSONObject().put("after", 5).put("run", oldRun), t)
+		assertTrue(withRun.getBoolean("reset"))
+		assertEquals("run-2", withRun.getString("run"))
+		assertEquals(listOf(1L, 2L), seqs(withRun))
+		val withoutRun = ok("get_events", JSONObject().put("after", 5), t)
+		assertTrue("past the new process's newest seq (2)", withoutRun.getBoolean("reset"))
+		assertEquals(listOf(1L, 2L), seqs(withoutRun))
+		val next = ok("get_events", JSONObject().put("after", withRun.getLong("next")).put("run", withRun.getString("run")), t)
+		assertFalse("the cursor and run from the reset are valid", next.getBoolean("reset"))
+		assertEquals(emptyList<Long>(), seqs(next))
+		t.onServerStopped()
+	}
+
+	@Test fun getEventsRunMustBeAString() {
+		val r = runTool(tools, "get_events", JSONObject().put("run", 5))
+		assertEquals("run must be a string.", errorText(r))
+	}
+
+	@Test fun getEventsDescribesRunAndReset() {
+		val tool = tools.tools().single { it.name == "get_events" }
+		assertTrue(tool.description.contains("Pass the returned next as after and the returned run as run"))
+		assertTrue(tool.description.contains("reset true means the app restarted"))
+		assertTrue(
+			tool
+				.describe()
+				.getJSONObject("inputSchema")
+				.getJSONObject("properties")
+				.has("run"),
+		)
+	}
+
 	@Test fun aServerConnectionIsDroppedWhenTheAppRecreatesTheDatabase() {
 		engine.appConnections += conn(1, "/data/a.db")
 		val t = tools
@@ -811,6 +1057,71 @@ class DatabaseToolsTest {
 		t.expireIdleClient() // what the timer calls when no tool call comes
 		assertFalse(engine.clientConnected)
 		t.onServerStopped()
+	}
+
+	private class FakeIdleScheduler : IdleScheduler {
+		class Check(
+			val task: Runnable,
+		) {
+			var done = false
+		}
+
+		val checks = mutableListOf<Check>()
+		val pending get() = checks.filter { !it.done }
+
+		override fun schedule(
+			delayMs: Long,
+			task: Runnable,
+		): () -> Unit {
+			val check = Check(task)
+			checks += check
+			return { check.done = true }
+		}
+
+		fun runPending() {
+			val check = pending.single()
+			check.done = true
+			check.task.run()
+		}
+	}
+
+	@Test fun onlyOneIdleCheckIsPendingAcrossExpireAndReconnectCycles() {
+		val scheduler = FakeIdleScheduler()
+		val t = DatabaseTools(engine, dir, { now }, scheduler)
+		ok("get_events", t = t)
+		assertEquals(1, scheduler.pending.size)
+		repeat(3) { cycle ->
+			// the check finds the client still connected and reschedules itself
+			now += 15_000
+			scheduler.runPending()
+			assertTrue(engine.clientConnected)
+			assertEquals("cycle $cycle: after the check rescheduled", 1, scheduler.pending.size)
+			// a tool call expires the client, and get_events reconnects while a check is still pending
+			now += 61_000
+			ok("list_connections", t = t)
+			assertFalse(engine.clientConnected)
+			ok("get_events", t = t)
+			assertTrue(engine.clientConnected)
+			assertEquals("cycle $cycle: after the reconnect", 1, scheduler.pending.size)
+		}
+		now += 61_000
+		scheduler.runPending() // expires the client and does not reschedule
+		assertFalse(engine.clientConnected)
+		assertEquals(0, scheduler.pending.size)
+		ok("get_events", t = t)
+		assertEquals(1, scheduler.pending.size)
+		t.onServerStopped()
+		assertEquals("stopping the server cancels the check", 0, scheduler.pending.size)
+	}
+
+	@Test fun aCheckThatWasRunningWhenTheServerStoppedDoesNotReschedule() {
+		val scheduler = FakeIdleScheduler()
+		val t = DatabaseTools(engine, dir, { now }, scheduler)
+		ok("get_events", t = t)
+		val running = scheduler.pending.single()
+		t.onServerStopped()
+		running.task.run()
+		assertEquals(0, scheduler.pending.size)
 	}
 
 	@Test fun stoppingTheServerClosesServerConnections() {

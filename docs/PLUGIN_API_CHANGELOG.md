@@ -58,6 +58,18 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   (tracked in ADFA-7194). Floor `plugin.min_ide_version`
   at `26.48`: an IDE of 26.47 or older rejects the unknown `debugger.endpoints` permission when it
   validates the manifest, so it refuses to install a plugin that declares it.
+- **added — Hear the editor open and close a project, and save a file** _(ADFA-3570)_ **[verified]**
+  `IdeProjectService.addProjectLifecycleListener(ProjectLifecycleListener)` calls
+  `onProjectOpened(projectDir)` when the editor starts opening a project (its sync does not wait
+  for listeners), and
+  `onProjectClosed(projectDir)` when it closes one; a re-sync is not another open, and switching
+  projects reports the close first. `IdeEditorService.addFileSaveListener(FileSaveListener)` calls
+  `onFileSaved(file)` after each file the editor writes, whoever asked for the save. Both need
+  `filesystem.read`. Calls arrive in order on one background thread shared by every plugin, so
+  return quickly. The IDE drops the listeners when the plugin is disabled or unloads, so register
+  them from `activate()`. A listener added while a project is open hears `onProjectOpened` for it
+  first. Paths are canonical, except one the IDE cannot resolve (`getCanonicalFile()` fails),
+  which is absolute instead. Floor `plugin.min_ide_version` at `26.48` to use them.
 
 ### 26.43 — unreleased
 - **breaking — JavaScript highlighting and the IDE's grammar names are the IDE's** _(ADFA-7084)_

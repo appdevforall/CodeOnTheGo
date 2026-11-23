@@ -350,8 +350,6 @@ class McpHttp(
 		return send(reply.status, reply.body, reply.headers)
 	}
 
-	// ---------------------------------------------------------------- checks
-
 	/** 127.0.0.1 or localhost, on any port: adb forward may bring the request in from another port. */
 	private fun hostAllowed(host: String?): Boolean {
 		val h = host?.trim()?.lowercase() ?: return false
@@ -375,8 +373,6 @@ class McpHttp(
 		if (!h.regionMatches(0, "Bearer ", 0, 7, ignoreCase = true)) return false
 		return MessageDigest.isEqual(h.substring(7).trim().toByteArray(Charsets.UTF_8), expected.toByteArray(Charsets.UTF_8))
 	}
-
-	// ---------------------------------------------------------------- reading and writing HTTP
 
 	/** The head of one request (no body yet), or null if the connection closed before one began. */
 	private fun readHead(

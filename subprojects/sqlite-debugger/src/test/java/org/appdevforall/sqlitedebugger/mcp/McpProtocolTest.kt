@@ -17,13 +17,13 @@ import java.net.Socket
  */
 class McpProtocolTest {
 	private var sessionNumber = 0
-	private val echo = McpTool("echo", "Echo", "Returns its arguments.") { args -> JSONObject().put("got", args) }
+	private val echo = McpTool("echo", "Echo", "Returns its arguments.") { args, _ -> JSONObject().put("got", args) }
 	private val needsPerson =
-		McpTool("needs_person", "Needs a person", "Always says a person is needed.", readOnly = false) { _ ->
+		McpTool("needs_person", "Needs a person", "Always says a person is needed.", readOnly = false) { _, _ ->
 			throw McpToolError("A person is needed: tap Allow on the sharing phone.", JSONObject().put("person_needed", true))
 		}
-	private val crashes = McpTool("crashes", "Crashes", "Throws an unexpected exception.") { _ -> throw IllegalStateException("boom") }
-	private val linkFails = McpTool("link_fails", "Link fails", "Throws an Error.") { _ -> throw UnsatisfiedLinkError("no library") }
+	private val crashes = McpTool("crashes", "Crashes", "Throws an unexpected exception.") { _, _ -> throw IllegalStateException("boom") }
+	private val linkFails = McpTool("link_fails", "Link fails", "Throws an Error.") { _, _ -> throw UnsatisfiedLinkError("no library") }
 
 	private fun protocol(maxSessions: Int = 16) =
 		McpProtocol(listOf(echo, needsPerson, crashes, linkFails), "test", { "s${++sessionNumber}" }, maxSessions)
@@ -68,8 +68,6 @@ class McpProtocolTest {
 		assertEquals(200, r.status)
 		return JSONObject(r.body!!)
 	}
-
-	// ---------------------------------------------------------------- the protocol
 
 	@Test fun initializeAgreesVersionAndStartsSession() {
 		val p = protocol()
@@ -224,6 +222,40 @@ class McpProtocolTest {
 		assertEquals(2, replies.getJSONObject(1).getInt("id"))
 	}
 
+	@Test fun everyToolCallOfABatchGetsTheDeadlineOfItsPostAndANewPostGetsANewOne() {
+		var now = 5_000L
+		val seen = mutableListOf<Long?>()
+		val slow =
+			McpTool("slow", "Slow", "Takes 400 ms.") { _, deadline ->
+				seen += deadline
+				now += 400
+				JSONObject()
+			}
+		val p = McpProtocol(listOf(slow), "test", { "s" }, postTimeLimitMs = 1_000, clock = { now })
+		val s = p.post(initBody(), null, null).headers[McpProtocol.SESSION_HEADER]!!
+		val callSlow = JSONObject().put("name", "slow")
+		val batch = JSONArray()
+		repeat(3) { batch.put(request(it, "tools/call", callSlow)) }
+		p.post(batch.toString(), s, null)
+		assertEquals(listOf<Long?>(6_000, 6_000, 6_000), seen)
+		seen.clear()
+		p.post(request(9, "tools/call", callSlow).toString(), s, null)
+		assertEquals("a later POST starts its own", listOf<Long?>(now - 400 + 1_000), seen)
+	}
+
+	@Test fun withoutAPostTimeLimitToolsGetNoDeadline() {
+		val seen = mutableListOf<Long?>()
+		val probe =
+			McpTool("probe", "Probe", "Records its deadline.") { _, deadline ->
+				seen += deadline
+				JSONObject()
+			}
+		val p = McpProtocol(listOf(probe), "test", { "s" })
+		val s = p.post(initBody(), null, null).headers[McpProtocol.SESSION_HEADER]!!
+		p.post(request(1, "tools/call", JSONObject().put("name", "probe")).toString(), s, null)
+		assertEquals(listOf<Long?>(null), seen)
+	}
+
 	@Test fun batchOverTheMessageLimitIsRefusedWholeAndRunsNothing() {
 		val p = protocol()
 		val s = session(p)
@@ -293,8 +325,6 @@ class McpProtocolTest {
 		assertEquals(0, p.sessionCount())
 		assertEquals(404, p.post(request(1, "ping").toString(), s, null).status)
 	}
-
-	// ---------------------------------------------------------------- the HTTP side
 
 	private val token = "secret-token"
 	private var server: McpHttp? = null

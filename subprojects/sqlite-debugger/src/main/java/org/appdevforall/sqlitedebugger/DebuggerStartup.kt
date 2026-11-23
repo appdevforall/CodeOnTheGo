@@ -54,7 +54,7 @@ class DebuggerStartup : ContentProvider() {
 	) {
 		val tools = DatabaseTools(engine, databaseDir)
 		val token = McpHttp.newToken()
-		val protocol = McpProtocol(tools.tools(), "1", { UUID.randomUUID().toString() })
+		val protocol = McpProtocol(tools.tools(), "1", { UUID.randomUUID().toString() }, postTimeLimitMs = DatabaseTools.DEADLINE_MS)
 		val http = McpHttp(protocol, { token }, log = { Log.w(TAG, it) })
 		http.start()
 		port = http.boundPort

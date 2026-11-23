@@ -8,12 +8,21 @@ import java.io.Closeable
  * block briefly and must not run on the main thread.
  */
 interface DebugEngine {
+	/**
+	 * An opaque string that stays the same for the life of the app process and differs in each process
+	 * (random, never repeated after a restart). The event numbers start again at 1 in a new process, so a
+	 * client keeps this with its [EventBatch.next] to tell a cursor of an earlier process from one of this.
+	 */
+	val runId: String
+
 	/** The app's connections SQLite has not yet freed, oldest first. Server connections are not listed. */
 	fun connections(): List<AppConnection>
 
 	/**
 	 * Events with [Event.seq] greater than [after], oldest first, up to about [maxBytes] of
-	 * native records. Pass [EventBatch.next] as [after] next time; start from 0.
+	 * native records. Pass [EventBatch.next] as [after] next time; start from 0. An [after] at or past the
+	 * next number to be assigned cannot be a cursor of this process: the read starts from 0 and
+	 * [EventBatch.reset] is true.
 	 */
 	fun readEvents(
 		after: Long,
@@ -106,6 +115,8 @@ data class EventBatch(
 	val next: Long,
 	/** Events after the requested cursor that left the buffer before they were read. */
 	val dropped: Long,
+	/** The requested cursor was past every event number this process has assigned, so the read started from 0. */
+	val reset: Boolean = false,
 )
 
 data class QueryLimits(
