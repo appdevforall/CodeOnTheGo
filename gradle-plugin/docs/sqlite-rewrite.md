@@ -74,7 +74,7 @@ file that defines the property decides). Commenting the line out can expose anot
   renamed class against requery), SQL text with `COLLATE UNICODE` (any case or whitespace, in any string
   constant, which covers Room's generated `_Impl` classes: requery's native SQLite has no ICU, so the collation
   does not exist), any use of
-  `SQLiteDatabase.OpenParams`, a call that passes android's `CursorWindow` to a renamed class (calls on
+  `SQLiteDatabase.OpenParams` (an array of it too, of any dimension: `new OpenParams[1][1]`, a cast to `OpenParams[]`), a call that passes android's `CursorWindow` to a renamed class (calls on
   `CursorWindow` itself are fine), and a cast of
   an SQLite cursor to `android.database.AbstractWindowedCursor`, `AbstractCursor` or `CrossProcessCursor`
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).

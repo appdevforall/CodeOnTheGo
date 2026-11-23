@@ -1020,6 +1020,60 @@ class SqliteRewriterTest {
 		assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Fields"]!!, hierarchy) }
 	}
 
+	private fun openParamsArrayFailure(body: String): String {
+		val classes =
+			Compiler.compile(
+				listOf(src("p.Arrays", "package p; import android.database.sqlite.*; public class Arrays { $body }")),
+			)
+		return assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/Arrays"]!!, hierarchy) }.message!!
+	}
+
+	@Test
+	fun `a two-dimensional OpenParams array returned as Object fails (MULTIANEWARRAY)`() {
+		val message = openParamsArrayFailure("Object go() { return new SQLiteDatabase.OpenParams[1][1]; }")
+		assertThat(message).contains("OpenParams, which requery lacks")
+		assertThat(message).contains("go()Ljava/lang/Object; (line 1)")
+	}
+
+	@Test
+	fun `a cast to an OpenParams array fails`() {
+		val message = openParamsArrayFailure("Object go(Object o) { return (SQLiteDatabase.OpenParams[]) o; }")
+		assertThat(message).contains("OpenParams, which requery lacks")
+	}
+
+	@Test
+	fun `a two-dimensional OpenParams ANEWARRAY fails`() {
+		val message = openParamsArrayFailure("Object go() { return new SQLiteDatabase.OpenParams[1][]; }")
+		assertThat(message).contains("OpenParams, which requery lacks")
+	}
+
+	@Test
+	fun `an instanceof test on an OpenParams array fails`() {
+		val message = openParamsArrayFailure("boolean go(Object o) { return o instanceof SQLiteDatabase.OpenParams[][]; }")
+		assertThat(message).contains("OpenParams, which requery lacks")
+	}
+
+	@Test
+	fun `arrays of a supported type still pass`() {
+		val out =
+			transform(
+				src(
+					"p.Ok",
+					"""
+					package p;
+					import android.database.sqlite.*;
+					public class Ok {
+						Object two() { return new SQLiteDatabase[1][1]; }
+						Object one() { return new SQLiteDatabase[1]; }
+						Object cast(Object o) { return (SQLiteDatabase[]) o; }
+						Object strings() { return new String[1][1]; }
+					}
+					""",
+				),
+			)
+		assertThat(out).containsKey("p/Ok")
+	}
+
 	@Test
 	fun `androidx core's SQLiteCursorCompat helper is rewritten but never fails the build`() {
 		val classes =

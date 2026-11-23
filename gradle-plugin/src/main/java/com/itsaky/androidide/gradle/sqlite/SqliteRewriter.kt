@@ -482,6 +482,10 @@ object SqliteRewriter {
 						typeInsn(m, insn, line, tainted)
 					}
 
+					is MultiANewArrayInsnNode -> {
+						if (insn.desc.contains(Rules.OPEN_PARAMS)) violate(m, line, "OpenParams, which requery lacks")
+					}
+
 					is LdcInsnNode -> {
 						(insn.cst as? Type)?.let {
 							if (it.descriptor.contains(Rules.OPEN_PARAMS)) violate(m, line, "OpenParams, which requery lacks")
@@ -632,7 +636,8 @@ object SqliteRewriter {
 			line: Int,
 			tainted: Set<AbstractInsnNode>,
 		) {
-			if (t.desc.startsWith(Rules.OPEN_PARAMS)) {
+			// contains, not startsWith: an array type's descriptor starts with '[' (CHECKCAST, INSTANCEOF, ANEWARRAY of arrays)
+			if (t.desc.contains(Rules.OPEN_PARAMS)) {
 				violate(m, line, "OpenParams, which requery lacks")
 			}
 			if (t.opcode == Opcodes.CHECKCAST && t.desc in Rules.ANDROID_ONLY_CURSOR_TYPES && t in tainted) {
