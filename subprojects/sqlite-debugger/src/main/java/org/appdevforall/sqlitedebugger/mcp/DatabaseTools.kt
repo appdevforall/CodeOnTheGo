@@ -21,16 +21,26 @@ import java.util.TimerTask
  *
  * One lock guards the cached server connections and every query, so tool calls run one at a time:
  * a slow query (up to [DEADLINE_MS]) makes the others wait. That is accepted: the debugger serves
- * one agent, and a connection per call would open the app's file many times over. A tool call's
- * time limit starts when the call begins, so its waits for the lock count and the server gives up
- * before the client does; a call that waited at least half its time limit says so in its error.
+ * one agent, and a connection per call would open the app's file many times over. The time limit
+ * belongs to the POST ([McpProtocol] passes it in): it starts when the POST is handled and is shared
+ * by every call of a batch, so waits for the lock count and the server gives up before the client
+ * does; a call that waited at least half the limit says so in its error. A call that starts after
+ * the limit fails at once, as the engine refuses to start a query past its deadline; the tools that
+ * run no SQL (list_databases, list_connections, get_events) still answer, as they are quick.
  */
-class DatabaseTools(
+class DatabaseTools internal constructor(
 	private val engine: DebugEngine,
 	/** The app's database folder, to list files no connection has opened; null on the JVM. */
-	private val databaseDir: File? = null,
-	private val clock: () -> Long = System::currentTimeMillis,
+	private val databaseDir: File?,
+	private val clock: () -> Long,
+	private val idleScheduler: IdleScheduler,
 ) {
+	constructor(
+		engine: DebugEngine,
+		databaseDir: File? = null,
+		clock: () -> Long = System::currentTimeMillis,
+	) : this(engine, databaseDir, clock, TimerIdleScheduler())
+
 	companion object {
 		const val DEFAULT_MAX_ROWS = 100
 		const val MAX_ROWS = 1000
@@ -48,8 +58,9 @@ class DatabaseTools(
 		const val MAX_TOTAL_BYTES = 4 * 1024 * 1024
 
 		/**
-		 * A tool call's time limit, from when the call begins, waits for the lock included: below the
-		 * client's 60 s limit, so a query never holds the lock after the client has stopped waiting.
+		 * The time limit of a POST, from when it is handled, waits for the lock included and shared by every call
+		 * of a batch: below the client's 60 s limit, so a query never holds the lock after the client has stopped
+		 * waiting. A call made outside a POST that sets a limit starts its own.
 		 */
 		const val DEADLINE_MS = 50_000L
 		private const val DEADLINE_SECONDS = DEADLINE_MS / 1000
@@ -64,13 +75,19 @@ class DatabaseTools(
 
 		const val PAGING_NOTE = "Paging re-runs the query for each page, so a later page can differ if the data changed."
 
+		/** Said by the tools that return cells whose TEXT and BLOB values the server can cut. */
+		private const val CUT_CELLS_NOTE =
+			"truncated_cells counts the cut cells and truncated_cell_indexes lists each as [row, column], both from 0 and " +
+				"the row relative to the rows returned; a TEXT cell has no marker of its own, and a cut BLOB is in the list too " +
+				"(it also has truncated true)."
+
 		/**
 		 * Said by every tool that runs a statement. The limit itself is enforced in C (SQLITEDBG_SERVER_NON_WAL_MS in
 		 * sqlitedbg.h, which says why); this text must follow it.
 		 */
 		const val NON_WAL_NOTE =
 			"On a database that is not in WAL mode a statement is stopped after 1.5 s, so a long read does not block the app's " +
-				"own writes; use a narrower query or a LIMIT. A database in WAL mode has no such limit (the call's $DEADLINE_SECONDS s applies)."
+				"own writes; use a narrower query or a LIMIT. A database in WAL mode has no such limit (the $DEADLINE_SECONDS s limit applies)."
 
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
@@ -129,7 +146,8 @@ class DatabaseTools(
 	private val serverConnections = HashMap<String, CachedConnection>()
 	private var clientConnected = false
 	private var lastEventsCallMs = 0L
-	private var idleTimer: Timer? = null
+	private var cancelIdleCheck: (() -> Unit)? = null
+	private var idleCheckGeneration = 0
 
 	/** A server connection and the ids of the app connections to its path when it was opened. */
 	private class CachedConnection(
@@ -137,9 +155,11 @@ class DatabaseTools(
 		val appConnectionIds: Set<Long>,
 	)
 
-	/** One tool call: its deadline, set when it begins, and the time it has spent waiting for [lock]. */
-	private inner class Call {
-		val deadline = clock() + DEADLINE_MS
+	/** One tool call: its deadline, the POST's (or its own when none was set), and the time it has spent waiting for [lock]. */
+	private inner class Call(
+		postDeadline: Long?,
+	) {
+		val deadline = postDeadline ?: (clock() + DEADLINE_MS)
 		var waitedMs = 0L
 
 		fun <T> locked(block: () -> T): T {
@@ -156,8 +176,7 @@ class DatabaseTools(
 		synchronized(lock) {
 			serverConnections.values.forEach { runCatching { it.connection.close() } }
 			serverConnections.clear()
-			idleTimer?.cancel()
-			idleTimer = null
+			cancelPendingIdleCheck()
 			if (clientConnected) {
 				clientConnected = false
 				engine.setClientConnected(false)
@@ -179,19 +198,24 @@ class DatabaseTools(
 		}
 	}
 
+	/** Cancels the pending check, and a check already running no longer reschedules. [lock] held. */
+	private fun cancelPendingIdleCheck() {
+		idleCheckGeneration++
+		cancelIdleCheck?.invoke()
+		cancelIdleCheck = null
+	}
+
+	/** At most one check is pending: each one cancels the one before it. [lock] held. */
 	private fun scheduleIdleCheck() {
-		val timer = idleTimer ?: Timer("sqlite-debugger-idle", true).also { idleTimer = it }
-		timer.schedule(
-			object : TimerTask() {
-				override fun run() {
-					expireIdleClient()
-					synchronized(lock) {
-						if (clientConnected && idleTimer === timer) scheduleIdleCheck()
-					}
+		cancelPendingIdleCheck()
+		val generation = idleCheckGeneration
+		cancelIdleCheck =
+			idleScheduler.schedule(EVENTS_IDLE_MS / 4) {
+				expireIdleClient()
+				synchronized(lock) {
+					if (clientConnected && idleCheckGeneration == generation) scheduleIdleCheck()
 				}
-			},
-			EVENTS_IDLE_MS / 4,
-		)
+			}
 	}
 
 	fun tools(): List<McpTool> =
@@ -212,7 +236,8 @@ class DatabaseTools(
 				"Get schema",
 				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_master. " +
 					"A CREATE statement is cut at ${MAX_SCHEMA_SQL_BYTES / 1024} KiB: its entry then has truncated true, and " +
-					"truncated_cells counts the cut values. The top-level truncated is true when anything was cut or entries were left " +
+					"truncated_cells counts the cut values (there is no truncated_cell_indexes: the entry says which). " +
+					"The top-level truncated is true when anything was cut or entries were left " +
 					"out: past the first $MAX_ROWS, or past about ${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (about " +
 					"${MAX_TOTAL_BYTES / MAX_SCHEMA_SQL_BYTES} statements of ${MAX_SCHEMA_SQL_BYTES / 1024} KiB). There is no offset: " +
 					"to read the rest, page through sqlite_master with query (ORDER BY type, name, the order get_schema uses), " +
@@ -224,7 +249,8 @@ class DatabaseTools(
 				"query",
 				"Run a query",
 				"Runs one read-only SQL statement. Returns at most max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS); " +
-					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. A result also stops at about " +
+					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES: $CUT_CELLS_NOTE " +
+					"A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
 					"comes back whole. Use offset to page. " +
 					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
@@ -239,7 +265,8 @@ class DatabaseTools(
 			tool(
 				"explain_query_plan",
 				"Explain a query plan",
-				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. $APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
+				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. " +
+					"A cell cut at $MAX_TEXT_BYTES bytes is listed as in query: $CUT_CELLS_NOTE $APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters."),
@@ -257,7 +284,9 @@ class DatabaseTools(
 				"integrity_check",
 				"Check integrity",
 				"Runs PRAGMA quick_check, or the slower PRAGMA integrity_check when full is true. " +
-					"ok is true when SQLite reports no problem. Both checks fail with \"unknown function\" when a CHECK constraint or a " +
+					"ok is true when SQLite reports no problem. A message cut at $MAX_TEXT_BYTES bytes is listed as in query " +
+					"(truncated_cells, truncated_cell_indexes: [message index, 0]). " +
+					"Both checks fail with \"unknown function\" when a CHECK constraint or a " +
 					"NOT NULL virtual generated column calls a function the app adds to its own connections. A full integrity_check " +
 					"also fails on an index on such an expression and on a partial index whose WHERE calls one; " +
 					"quick_check does not fail on those two, so use it then. " +
@@ -268,14 +297,23 @@ class DatabaseTools(
 			tool(
 				"get_events",
 				"Get SQL events",
-				"Returns the SQL the app ran, oldest first, after the cursor. Pass the returned next as after to continue; " +
-					"dropped counts events that left the buffer unread. The first call starts recording bound values into the SQL; " +
+				"Returns the SQL the app ran, oldest first, after the cursor. Pass the returned next as after and the returned run " +
+					"as run to continue; dropped counts events that left the buffer unread. reset true means the app restarted " +
+					"(run differs, or after is past the newest event), and events are read from the start. " +
+					"The first call starts recording bound values into the SQL; " +
 					"that stops ${EVENTS_IDLE_MS / 1000} s after the last get_events call, so call it at least that often while watching.",
 				JSONObject()
 					.put("type", "object")
 					.put("additionalProperties", false)
-					.put("properties", JSONObject().put("after", prop("integer", "Cursor: the next from the last call. Default 0.")))
-					.put("required", JSONArray()),
+					.put(
+						"properties",
+						JSONObject()
+							.put("after", prop("integer", "Cursor: the next from the last call. Default 0."))
+							.put(
+								"run",
+								prop("string", "The run from the last call. If it differs from the current, the read starts from 0."),
+							),
+					).put("required", JSONArray()),
 			) { _, args -> getEvents(args) },
 		)
 
@@ -285,8 +323,8 @@ class DatabaseTools(
 		description: String,
 		inputSchema: JSONObject = JSONObject().put("type", "object").put("properties", JSONObject()).put("additionalProperties", false),
 		run: (Call, JSONObject) -> JSONObject,
-	) = McpTool(name, title, description, inputSchema, readOnly = true, run = { args ->
-		val call = Call()
+	) = McpTool(name, title, description, inputSchema, readOnly = true, run = { args, deadline ->
+		val call = Call(deadline)
 		call.locked { expireIdleClientLocked() }
 		run(call, args)
 	})
@@ -404,7 +442,10 @@ class DatabaseTools(
 				0,
 				QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
 			)
-		return JSONObject().put("plan", rowsAsObjects(result))
+		return JSONObject()
+			.put("plan", rowsAsObjects(result))
+			.put("truncated_cells", result.truncatedCells)
+			.put("truncated_cell_indexes", truncatedCellIndexes(result))
 	}
 
 	private fun getStats(
@@ -475,10 +516,19 @@ class DatabaseTools(
 			.put("check", if (full) "integrity_check" else "quick_check")
 			.put("ok", messages == listOf("ok"))
 			.put("messages", JSONArray(messages))
+			.put("truncated_cells", result.truncatedCells)
+			.put("truncated_cell_indexes", truncatedCellIndexes(result))
 	}
 
 	private fun getEvents(args: JSONObject): JSONObject {
 		val after = intArg(args, "after", 0, 0, Long.MAX_VALUE)
+		val run =
+			when (val v = args.opt("run")) {
+				null, JSONObject.NULL -> null
+				is String -> v
+				else -> throw McpToolError("run must be a string.")
+			}
+		val otherRun = run != null && run != engine.runId
 		synchronized(lock) {
 			lastEventsCallMs = clock()
 			if (!clientConnected) {
@@ -489,7 +539,7 @@ class DatabaseTools(
 		}
 		val batch =
 			try {
-				engine.readEvents(after, EVENT_BATCH_BYTES)
+				engine.readEvents(if (otherRun) 0 else after, EVENT_BATCH_BYTES)
 			} catch (e: DebugEngineException) {
 				throw engineError(e)
 			}
@@ -508,7 +558,12 @@ class DatabaseTools(
 					.put("expanded", e.expanded),
 			)
 		}
-		return JSONObject().put("next", encodeLong(batch.next)).put("dropped", encodeLong(batch.dropped)).put("events", events)
+		return JSONObject()
+			.put("run", engine.runId)
+			.put("reset", otherRun || batch.reset)
+			.put("next", encodeLong(batch.next))
+			.put("dropped", encodeLong(batch.dropped))
+			.put("events", events)
 	}
 
 	private fun encodeResult(
@@ -527,7 +582,17 @@ class DatabaseTools(
 				.put("offset", encodeLong(offset))
 				.put("has_more", result.hasMore)
 				.put("truncated_cells", result.truncatedCells)
+				.put("truncated_cell_indexes", truncatedCellIndexes(result))
 		if (result.hasMore) out.put("next_offset", encodeLong(offset + result.rows.size))
+		return out
+	}
+
+	/** The cut cells as `[row, column]` pairs, the row relative to the rows in [result]. */
+	private fun truncatedCellIndexes(result: QueryResult): JSONArray {
+		val out = JSONArray()
+		val columns = result.columns.size.toLong()
+		if (columns == 0L) return out
+		for (i in result.truncatedCellIndexes.sorted()) out.put(JSONArray().put((i / columns).toInt()).put((i % columns).toInt()))
 		return out
 	}
 
@@ -680,5 +745,31 @@ class DatabaseTools(
 				else -> throw McpToolError("args[$i] must be null, a number or a string.")
 			}
 		}
+	}
+}
+
+/** Runs the idle check later; a test seam, the real one is [TimerIdleScheduler]. */
+internal fun interface IdleScheduler {
+	/** Runs [task] once after [delayMs]; the result cancels it. */
+	fun schedule(
+		delayMs: Long,
+		task: Runnable,
+	): () -> Unit
+}
+
+/** One daemon timer thread per pending check, ended by its cancel. */
+private class TimerIdleScheduler : IdleScheduler {
+	override fun schedule(
+		delayMs: Long,
+		task: Runnable,
+	): () -> Unit {
+		val timer = Timer("sqlite-debugger-idle", true)
+		timer.schedule(
+			object : TimerTask() {
+				override fun run() = task.run()
+			},
+			delayMs,
+		)
+		return { timer.cancel() }
 	}
 }
