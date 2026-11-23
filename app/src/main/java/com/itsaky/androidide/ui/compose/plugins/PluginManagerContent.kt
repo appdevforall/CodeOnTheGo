@@ -177,7 +177,7 @@ fun PluginManagerContent(
 					}
 
 					is PluginManagerUiEffect.ShowDisableConfirmation -> {
-						dialogState = PluginManagerDialogState.DisableConfirm(effect.plugin.metadata.id)
+						dialogState = PluginManagerDialogState.DisableConfirm(effect.pluginId)
 					}
 
 					is PluginManagerUiEffect.ShowRestartPrompt -> {
@@ -275,16 +275,14 @@ fun PluginManagerContent(
 		}
 
 		is PluginManagerDialogState.DisableConfirm -> {
-			val plugin = uiState.plugins.firstOrNull { it.metadata.id == dialog.pluginId }
-			if (plugin != null) {
-				DisableBundledPluginDialog(
-					onConfirm = {
-						viewModel.confirmDisablePlugin(plugin.metadata.id)
-						dialogState = PluginManagerDialogState.None
-					},
-					onDismiss = { dialogState = PluginManagerDialogState.None },
-				)
-			}
+			// Needs only the ID, so it shows even while the plugin list reloads.
+			DisableBundledPluginDialog(
+				onConfirm = {
+					viewModel.confirmDisablePlugin(dialog.pluginId)
+					dialogState = PluginManagerDialogState.None
+				},
+				onDismiss = { dialogState = PluginManagerDialogState.None },
+			)
 		}
 
 		is PluginManagerDialogState.Details -> {

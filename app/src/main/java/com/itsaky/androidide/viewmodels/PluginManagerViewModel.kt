@@ -47,7 +47,7 @@ class PluginManagerViewModel(
 	// Gradle's offline mode (Build & Run preferences). A function so tests need no preferences.
 	private val isOfflineModeEnabled: () -> Boolean,
 	// Whether the plugin came with the app (ADFA-7240). Reads a file, so it is called from IO only.
-	private val isBundledPlugin: (String) -> Boolean = { false },
+	private val isBundledPlugin: (String) -> Boolean,
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "PluginManagerViewModel"
@@ -269,13 +269,12 @@ class PluginManagerViewModel(
 
 	/**
 	 * A plugin that came with the app asks for confirmation first; any other disables at once.
-	 * A plugin missing from the loaded list is disabled directly, as before.
+	 * Decided by ID, not by the loaded list, so a list being reloaded cannot skip the warning.
 	 */
 	private fun showDisableConfirmationIfBundled(pluginId: String) {
-		val plugin = _uiState.value.plugins.find { it.metadata.id == pluginId }
 		viewModelScope.launch {
-			if (plugin != null && withContext(Dispatchers.IO) { isBundledPlugin(pluginId) }) {
-				_uiEffect.send(PluginManagerUiEffect.ShowDisableConfirmation(plugin))
+			if (withContext(Dispatchers.IO) { isBundledPlugin(pluginId) }) {
+				_uiEffect.send(PluginManagerUiEffect.ShowDisableConfirmation(pluginId))
 			} else {
 				confirmDisablePlugin(pluginId)
 			}

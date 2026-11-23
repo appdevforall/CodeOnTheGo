@@ -69,7 +69,7 @@ class TemplateManagerViewModelTest {
 		runTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(listOf(item))
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			assertThat(viewModel.uiState.value.isLoading).isFalse()
@@ -81,7 +81,7 @@ class TemplateManagerViewModelTest {
 		runTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.onEvent(TemplateManagerUiEvent.InstallTemplate(item))
@@ -97,7 +97,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 			coEvery { repository.installTemplate(item) } returns Result.success(Unit)
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmInstallTemplate(item, deleteSourceAfterInstall = false)
@@ -113,7 +113,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.installTemplate(item) } returns Result.success(Unit)
 			coEvery { repository.deleteDownloadFile(item) } returns Result.success(Unit)
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmInstallTemplate(item, deleteSourceAfterInstall = true)
@@ -132,7 +132,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.installTemplate(item) } returns Result.success(Unit)
 			coEvery { repository.deleteDownloadFile(item) } returns Result.failure(java.io.IOException("ro"))
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmInstallTemplate(item, deleteSourceAfterInstall = true)
@@ -149,7 +149,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 			coEvery { repository.installTemplate(item) } returns Result.failure(java.io.IOException("boom"))
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmInstallTemplate(item, deleteSourceAfterInstall = true)
@@ -173,7 +173,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 			coEvery { repository.installTemplate(item) } returns Result.success(Unit)
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmInstallTemplate(item, deleteSourceAfterInstall = false)
@@ -191,7 +191,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 			coEvery { repository.installTemplate(item) } returns Result.failure(java.io.IOException("boom"))
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmInstallTemplate(item, deleteSourceAfterInstall = false)
@@ -210,13 +210,14 @@ class TemplateManagerViewModelTest {
 			// assertion below, rather than throwing inside the coroutine and hanging first().
 			coEvery { repository.uninstallTemplate(installedItem) } returns Result.success(Unit)
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.onEvent(TemplateManagerUiEvent.UninstallTemplate(installedItem))
 			advanceUntilIdle()
 
-			assertThat(viewModel.uiEffect.first()).isEqualTo(TemplateManagerUiEffect.ShowUninstallConfirmation(installedItem))
+			assertThat(viewModel.uiEffect.first())
+				.isEqualTo(TemplateManagerUiEffect.ShowUninstallConfirmation(installedItem, bundled = false))
 			coVerify(exactly = 0) { repository.uninstallTemplate(any()) }
 		}
 
@@ -277,7 +278,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 			coEvery { repository.uninstallTemplate(installedItem) } returns Result.success(Unit)
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmUninstallTemplate(installedItem)
@@ -295,7 +296,7 @@ class TemplateManagerViewModelTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
 			coEvery { repository.uninstallTemplate(installedItem) } returns Result.failure(java.io.IOException("boom"))
 
-			val viewModel = TemplateManagerViewModel(repository)
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
 			advanceUntilIdle()
 
 			viewModel.confirmUninstallTemplate(installedItem)

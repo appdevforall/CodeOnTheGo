@@ -26,7 +26,7 @@ import kotlinx.coroutines.withContext
 class TemplateManagerViewModel(
 	private val templateRepository: TemplateRepository,
 	// Whether an installed template file (by file name) came with the app (ADFA-7240). Reads a file, so IO only.
-	private val isBundledTemplate: (String) -> Boolean = { false },
+	private val isBundledTemplate: (String) -> Boolean,
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "TemplateManagerViewModel"

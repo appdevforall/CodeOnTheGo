@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeout
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,6 +61,7 @@ class PluginManagerViewModelTest {
 		filesDir = File("/tmp"),
 		connectivityObserver = connectivityObserver,
 		isOfflineModeEnabled = { offlineMode },
+		isBundledPlugin = { false },
 	)
 
 	@Test
@@ -145,26 +145,23 @@ class PluginManagerViewModelBundledTest {
 			coEvery { disablePlugin(any()) } returns Result.success(true)
 		}
 
-	private fun TestScope.viewModel(isBundledPlugin: ((String) -> Boolean)? = null): PluginManagerViewModel {
-		val connectivity = FakeConnectivityObserver(initialValue = true)
+	private fun TestScope.viewModel(isBundledPlugin: (String) -> Boolean): PluginManagerViewModel {
 		val viewModel =
-			if (isBundledPlugin == null) {
-				PluginManagerViewModel(pluginRepository, mockk(relaxed = true), File("/tmp"), connectivity, { false })
-			} else {
-				PluginManagerViewModel(
-					pluginRepository,
-					mockk(relaxed = true),
-					File("/tmp"),
-					connectivity,
-					{ false },
-					isBundledPlugin,
-				)
-			}
+			PluginManagerViewModel(
+				pluginRepository,
+				mockk(relaxed = true),
+				File("/tmp"),
+				FakeConnectivityObserver(initialValue = true),
+				{ false },
+				isBundledPlugin,
+			)
 		advanceUntilIdle()
 		return viewModel
 	}
 
-	private suspend fun PluginManagerViewModel.firstEffect() = withTimeout(5_000) { uiEffect.first() }
+	// No withTimeout: the bundled check runs on Dispatchers.IO, outside runTest's virtual time, and a
+	// virtual-time timeout could fire before it returns.
+	private suspend fun PluginManagerViewModel.firstEffect() = uiEffect.first()
 
 	@Test
 	fun uninstall_bundledPlugin_sendsBundledTrue() =
@@ -189,24 +186,13 @@ class PluginManagerViewModelBundledTest {
 		}
 
 	@Test
-	fun uninstall_withoutABundledLambda_isNotBundled() =
-		runTest {
-			val viewModel = viewModel()
-
-			viewModel.onEvent(PluginManagerUiEvent.UninstallPlugin("bundled.plugin"))
-
-			assertThat(viewModel.firstEffect())
-				.isEqualTo(PluginManagerUiEffect.ShowUninstallConfirmation(bundledPlugin, bundled = false))
-		}
-
-	@Test
 	fun disable_bundledPlugin_asksFirstAndDoesNotDisable() =
 		runTest {
 			val viewModel = viewModel { it == "bundled.plugin" }
 
 			viewModel.onEvent(PluginManagerUiEvent.DisablePlugin("bundled.plugin"))
 
-			assertThat(viewModel.firstEffect()).isEqualTo(PluginManagerUiEffect.ShowDisableConfirmation(bundledPlugin))
+			assertThat(viewModel.firstEffect()).isEqualTo(PluginManagerUiEffect.ShowDisableConfirmation("bundled.plugin"))
 			coVerify(exactly = 0) { pluginRepository.disablePlugin(any()) }
 		}
 
@@ -219,17 +205,6 @@ class PluginManagerViewModelBundledTest {
 
 			assertThat(viewModel.firstEffect()).isInstanceOf(PluginManagerUiEffect.ShowSuccess::class.java)
 			coVerify(exactly = 1) { pluginRepository.disablePlugin("user.plugin") }
-		}
-
-	@Test
-	fun disable_withoutABundledLambda_disablesAtOnce() =
-		runTest {
-			val viewModel = viewModel()
-
-			viewModel.onEvent(PluginManagerUiEvent.DisablePlugin("bundled.plugin"))
-
-			assertThat(viewModel.firstEffect()).isInstanceOf(PluginManagerUiEffect.ShowSuccess::class.java)
-			coVerify(exactly = 1) { pluginRepository.disablePlugin("bundled.plugin") }
 		}
 
 	@Test

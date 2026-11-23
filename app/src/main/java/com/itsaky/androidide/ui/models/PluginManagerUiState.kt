@@ -128,12 +128,12 @@ sealed class PluginManagerUiEffect {
 	/** [bundled]: the plugin came with the app (ADFA-7240), so the dialog warns about removing it. */
 	data class ShowUninstallConfirmation(
 		val plugin: PluginInfo,
-		val bundled: Boolean = false,
+		val bundled: Boolean,
 	) : PluginManagerUiEffect()
 
 	/** Sent instead of disabling at once, for a plugin that came with the app (ADFA-7240). */
 	data class ShowDisableConfirmation(
-		val plugin: PluginInfo,
+		val pluginId: String,
 	) : PluginManagerUiEffect()
 
 	object ShowRestartPrompt : PluginManagerUiEffect()
