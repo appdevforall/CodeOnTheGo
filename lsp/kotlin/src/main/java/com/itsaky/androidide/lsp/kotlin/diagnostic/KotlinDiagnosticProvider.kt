@@ -1,6 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.diagnostic
 
-import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.utils.toRange
@@ -24,7 +24,7 @@ import java.nio.file.Path
 private val logger = LoggerFactory.getLogger("KotlinDiagnosticProvider")
 
 internal data class KotlinDiagnosticExtra<out ActionT : DiagnosticAction>(
-	val compilationEnv: CompilationEnvironment,
+	val compilationEnv: AbstractCompilationEnvironment,
 	val action: ActionT,
 )
 
@@ -42,11 +42,25 @@ internal sealed interface DiagnosticAction {
 	data object NullSafetyFix : DiagnosticAction
 }
 
-context(env: CompilationEnvironment)
+/** What one diagnostics run for a file produced. */
+internal sealed interface DiagnosticsOutcome {
+	/** The diagnostics of the file's current text. */
+	data class Collected(
+		val result: DiagnosticResult,
+	) : DiagnosticsOutcome
+
+	/** The document changed while the run was in progress, so its diagnostics describe replaced text. */
+	data object Superseded : DiagnosticsOutcome
+
+	/** The file could not be analyzed: it is not accessible, or analysis failed. */
+	data object Unavailable : DiagnosticsOutcome
+}
+
+context(env: AbstractCompilationEnvironment)
 internal fun collectDiagnosticsFor(
 	file: Path,
 	cancelChecker: ICancelChecker,
-): DiagnosticResult {
+): DiagnosticsOutcome {
 	try {
 		logger.info("analyzing file: {}", file)
 		return doAnalyze(file, cancelChecker)
@@ -56,16 +70,16 @@ internal fun collectDiagnosticsFor(
 			throw err
 		}
 		logger.error("an error occurred analyzing file: {}", file, err)
-		return DiagnosticResult.NO_UPDATE
+		return DiagnosticsOutcome.Unavailable
 	}
 }
 
 @OptIn(KaExperimentalApi::class)
-context(env: CompilationEnvironment)
+context(env: AbstractCompilationEnvironment)
 private fun doAnalyze(
 	file: Path,
 	cancelChecker: ICancelChecker,
-): DiagnosticResult {
+): DiagnosticsOutcome {
 	/*
 	 * Diagnostics yield to completion but preempt indexing. The wrapped checker turns a scheduler
 	 * preemption into an AnalysisPreemptedException, which CompilationEnvironment's fileAnalyzer catches
@@ -142,22 +156,15 @@ private fun doAnalyze(
 		}
 
 	if (result != null) {
-		return result
+		return DiagnosticsOutcome.Collected(result)
 	}
 
 	if (superseded) {
 		logger.debug("dropping superseded diagnostics for {}", file)
-		/*
-		 * On the debounced path this is a self-send: doAnalyze runs as fileAnalyzer's own action, so the
-		 * send reads to the worker as a newer key and cancels the run it came from. Deliberate - the
-		 * reschedule still lands, and the only casualty is the NO_UPDATE publish below, which had nothing
-		 * to say anyway. Reached from KotlinLanguageServer.analyze() instead, it is a plain reschedule.
-		 */
-		env.fileAnalyzer.schedule(file)
-	} else {
-		logger.warn("File {} is not accessible", file)
+		return DiagnosticsOutcome.Superseded
 	}
-	return DiagnosticResult.NO_UPDATE
+	logger.warn("File {} is not accessible", file)
+	return DiagnosticsOutcome.Unavailable
 }
 
 private fun KaDiagnosticWithPsi<*>.toDiagnosticItem(): DiagnosticItem {
