@@ -23,6 +23,7 @@ import com.itsaky.androidide.javac.services.fs.CacheFSInfoSingleton
 import com.itsaky.androidide.lookup.Lookup
 import com.itsaky.androidide.project.Common
 import com.itsaky.androidide.project.GradleModels
+import com.itsaky.androidide.projects.models.ArtifactScope
 import com.itsaky.androidide.projects.models.DEFAULT_COMPILER_SETTINGS
 import com.itsaky.androidide.projects.models.bootClassPaths
 import com.itsaky.androidide.projects.util.BootClasspathProvider
@@ -33,6 +34,7 @@ import com.itsaky.androidide.utils.StopWatch
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.pathString
 
 /**
@@ -69,15 +71,89 @@ abstract class ModuleProject(
 		val COMPLETION_MODULE_KEY = Lookup.Key<ModuleProject>()
 	}
 
+	/** The Java classes main code compiles against: this module's and its compile dependencies' sources. */
 	@JvmField
 	val compileJavaSourceClasses = SourceClassTrie()
 
+	// Each scope's trie holds the main sources too, so a test compilation reads one trie, as main does.
+	private val testJavaSourceClasses = ConcurrentHashMap<ArtifactScope, SourceClassTrie>()
+
+	/** The Java classes [scope] compiles against. */
+	fun javaSourceClasses(scope: ArtifactScope): SourceClassTrie =
+		if (scope == ArtifactScope.Main) {
+			compileJavaSourceClasses
+		} else {
+			testJavaSourceClasses.computeIfAbsent(scope) { SourceClassTrie() }
+		}
+
+	/** The scopes of this module other than [ArtifactScope.Main]. */
+	private fun nonMainScopes(): List<ArtifactScope> = getArtifactScopes().filter { it != ArtifactScope.Main }
+
 	/**
-	 * Get the source directories of this module (non-transitive i.e for this module only).
+	 * The scope whose own source directories hold [file], in [getArtifactScopes] order. Null when
+	 * [file] is instead in a source set this module has that the selected variant does not compile
+	 * (`src/release` while `debug` is selected): it gets no analysis. Any other file is main's.
+	 */
+	fun artifactScopeOf(file: Path): ArtifactScope? {
+		getArtifactScopes()
+			.firstOrNull { scope -> getSourceDirectories(scope).any { file.startsWith(it.toPath()) } }
+			?.let { return it }
+		return if (getKnownSourceSetDirectories().any { file.startsWith(it.toPath()) }) null else ArtifactScope.Main
+	}
+
+	/** The source set dirs this module has for any variant; empty when the build model lists none. */
+	protected open fun getKnownSourceSetDirectories(): Set<File> = emptySet()
+
+	fun artifactScopeOf(file: File): ArtifactScope? = artifactScopeOf(file.toPath())
+
+	/**
+	 * The tries a Java [file] belongs in, each with the source root to index it under: a main source
+	 * goes in main's trie and every other scope's, any other source in the trie of each scope that
+	 * sees a scope holding its dir (a test fixture goes in the fixtures' and every test scope's).
+	 * Empty when the file is in no source directory.
+	 */
+	fun javaSourceClassesFor(file: File): List<Pair<SourceClassTrie, Path>> {
+		findSourceRoot(file)?.let { root ->
+			return listOf(compileJavaSourceClasses to root) +
+				nonMainScopes()
+					.filter { getSourceDirectories(it).isNotEmpty() }
+					.map { javaSourceClasses(it) to root }
+		}
+		val path = file.toPath()
+		// Every matching scope, not the first: a dir such as src/sharedTest can be in both.
+		val scopes = nonMainScopes()
+		return scopes.mapNotNull { scope ->
+			scopes
+				.filter(scope::sees)
+				.flatMap(::getSourceDirectories)
+				.firstOrNull { path.startsWith(it.toPath()) }
+				?.let { javaSourceClasses(scope) to it.toPath() }
+		}
+	}
+
+	/** Every Java source trie of this module, for removing a file that may be in any of them. */
+	fun allJavaSourceClasses(): List<SourceClassTrie> = listOf(compileJavaSourceClasses) + testJavaSourceClasses.values
+
+	/**
+	 * The scopes of this module's selected variant: [ArtifactScope.Main] first, then the others
+	 * the module has.
+	 */
+	abstract fun getArtifactScopes(): List<ArtifactScope>
+
+	/**
+	 * Get the main source directories of this module (non-transitive i.e for this module only).
 	 *
 	 * @return The source directories.
 	 */
-	abstract fun getSourceDirectories(): Set<File>
+	fun getSourceDirectories(): Set<File> = getSourceDirectories(ArtifactScope.Main)
+
+	/**
+	 * Get the source directories of this module's [scope] (non-transitive). Non-main scopes are
+	 * kept out of main's, so neither main code nor dependent modules see test code.
+	 *
+	 * @return The source directories, or an empty set if the module has no such scope.
+	 */
+	abstract fun getSourceDirectories(scope: ArtifactScope): Set<File>
 
 	/**
 	 * Get the source directories with compile scope. This must include source directories of
@@ -86,6 +162,47 @@ abstract class ModuleProject(
 	 * @return The source directories.
 	 */
 	abstract fun getCompileSourceDirectories(): Set<File>
+
+	/**
+	 * Get the classpaths that [scope] sources compile against. For a non-main scope: everything in
+	 * [getCompileClasspaths] plus that scope's own dependencies.
+	 *
+	 * @param excludeSourceGeneratedClassPath See [getCompileClasspaths].
+	 * @return The compile classpaths, or an empty set if the module has no such scope.
+	 */
+	abstract fun getCompileClasspaths(
+		scope: ArtifactScope,
+		excludeSourceGeneratedClassPath: Boolean = false,
+	): Set<File>
+
+	/**
+	 * Get the module projects [scope] compiles against, transitively. For a non-main scope: main's,
+	 * plus those only that scope depends on, such as `testImplementation(project(":lib"))`. Never
+	 * this module.
+	 */
+	abstract fun getCompileModuleProjects(scope: ArtifactScope): List<ModuleProject>
+
+	/**
+	 * The source directories [scope] compiles against. For main, [getCompileSourceDirectories]; for
+	 * any other scope: main's, this module's sources of every scope [scope] sees (itself and test
+	 * fixtures), and the sources of the modules only that scope depends on.
+	 */
+	fun getCompileSourceDirectories(scope: ArtifactScope): Set<File> =
+		if (scope == ArtifactScope.Main) {
+			getCompileSourceDirectories()
+		} else {
+			getCompileSourceDirectories() +
+				nonMainScopes().filter(scope::sees).flatMap(::getSourceDirectories) +
+				getCompileModuleProjects(scope).flatMap { it.getSourceDirectories() } +
+				getTestFixturesModuleProjects(scope).flatMap { it.getSourceDirectories(ArtifactScope.TestFixtures) }
+		}
+
+	/**
+	 * The other modules whose test fixtures [scope] compiles against, such as `:lib` for
+	 * `testImplementation(testFixtures(project(":lib")))`. Their main sources come through
+	 * [getCompileModuleProjects].
+	 */
+	open fun getTestFixturesModuleProjects(scope: ArtifactScope): List<ModuleProject> = emptyList()
 
 	/**
 	 * Get the classpaths for this module project. The returned list always included the
@@ -210,7 +327,11 @@ abstract class ModuleProject(
 	 * @param file The file to find the source root for.
 	 * @return The source root (directory) of the given file, or `null` if not found.
 	 */
-	fun findSourceRoot(file: File): Path? = getCompileSourceDirectories().find { file.path.startsWith(it.path) }?.toPath()
+	fun findSourceRoot(file: File): Path? {
+		// Path.startsWith matches whole directories: src/main/javaTest is not under src/main/java.
+		val path = file.toPath()
+		return getCompileSourceDirectories().map(File::toPath).find { path.startsWith(it) }
+	}
 
 	/** Indexes the source files' classes and prepares the classpaths for the compiler. */
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
@@ -237,34 +358,51 @@ abstract class ModuleProject(
 
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
 	fun indexSources() {
-		this.compileJavaSourceClasses.clear()
+		allJavaSourceClasses().forEach { it.clear() }
 
 		val watch = StopWatch("Indexing sources")
-		var count = 0
-		getCompileSourceDirectories().forEach {
-			val sourceDir = it.toPath()
-			it
-				.walk()
-				.filter { file -> file.isFile && file.exists() && DocumentUtils.isJavaFile(file.toPath()) }
-				.map { file -> file.toPath() }
-				.forEach { file ->
-					this.compileJavaSourceClasses.append(file, sourceDir)
-					count++
-				}
+		val mainSources = javaSourcesIn(getCompileSourceDirectories())
+		mainSources.forEach { (file, root) -> compileJavaSourceClasses.append(file, root) }
+
+		var count = mainSources.size
+		for (scope in nonMainScopes()) {
+			if (getSourceDirectories(scope).isEmpty()) {
+				continue
+			}
+			val trie = javaSourceClasses(scope)
+			val testSources = javaSourcesIn(getCompileSourceDirectories(scope) - getCompileSourceDirectories())
+			(mainSources + testSources).forEach { (file, root) -> trie.append(file, root) }
+			count += testSources.size
 		}
 
 		watch.log()
 		log.debug("Found {} source files.", count)
 	}
 
+	/** Every Java file under [dirs], paired with the directory it was found under. */
+	private fun javaSourcesIn(dirs: Collection<File>): List<Pair<Path, Path>> =
+		dirs.flatMap { dir ->
+			val root = dir.toPath()
+			dir
+				.walk()
+				.filter { file -> file.isFile && file.exists() && DocumentUtils.isJavaFile(file.toPath()) }
+				.map { file -> file.toPath() to root }
+				.toList()
+		}
+
 	fun getSourceFilesInDir(dir: Path): List<SourceNode> = this.compileJavaSourceClasses.getSourceFilesInDir(dir)
 
-	fun packageNameOrEmpty(file: Path?): String {
+	/** The package of [file] as [scope]'s compilation sees it. */
+	@JvmOverloads
+	fun packageNameOrEmpty(
+		file: Path?,
+		scope: ArtifactScope = ArtifactScope.Main,
+	): String {
 		if (file == null) {
 			return ""
 		}
 
-		val sourceNode = searchSourceFileRelatively(file)
+		val sourceNode = searchSourceFileRelatively(file, scope)
 		if (sourceNode != null) {
 			return sourceNode.packageName
 		}
@@ -272,8 +410,12 @@ abstract class ModuleProject(
 		return ""
 	}
 
-	private fun searchSourceFileRelatively(file: Path?): SourceNode? {
-		for (source in getCompileSourceDirectories().map(File::toPath)) {
+	private fun searchSourceFileRelatively(
+		file: Path?,
+		scope: ArtifactScope,
+	): SourceNode? {
+		val roots = getCompileSourceDirectories(scope)
+		for (source in roots.map(File::toPath)) {
 			val relative = source.relativize(file)
 			if (relative.pathString.contains("..")) {
 				// This is most probably not the one we're expecting
@@ -283,7 +425,7 @@ abstract class ModuleProject(
 			var name = relative.pathString.substringBeforeLast(".java")
 			name = name.replace('/', '.')
 
-			val node = this.compileJavaSourceClasses.findNode(name)
+			val node = javaSourceClasses(scope).findNode(name)
 			if (node != null && node is SourceNode) {
 				return node
 			}
@@ -315,8 +457,12 @@ abstract class ModuleProject(
 		return ""
 	}
 
-	fun listClassesFromSourceDirs(packageName: String): List<SourceNode> =
-		compileJavaSourceClasses
+	@JvmOverloads
+	fun listClassesFromSourceDirs(
+		packageName: String,
+		scope: ArtifactScope = ArtifactScope.Main,
+	): List<SourceNode> =
+		javaSourceClasses(scope)
 			.findInPackage(packageName)
 			.filterIsInstance<SourceNode>()
 
