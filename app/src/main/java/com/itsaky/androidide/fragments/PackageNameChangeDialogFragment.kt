@@ -4,7 +4,9 @@ import android.app.Dialog
 import android.os.Bundle
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.setFragmentResult
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.R
 import com.itsaky.androidide.utils.DialogUtils
@@ -32,11 +34,14 @@ class PackageNameChangeDialogFragment : DialogFragment() {
 			.setMessage(R.string.package_name_change_message)
 			.setPositiveButton(R.string.learn_more) { _, _ ->
 				// TODO - Navigate to "Learn More" screen; do not dismiss
-			}.setNegativeButton(R.string.msg_got_it) { _, _ -> }
-			.create()
+				setFragmentResult(REQUEST_KEY, bundleOf())
+			}.setNegativeButton(R.string.msg_got_it) { _, _ ->
+				setFragmentResult(REQUEST_KEY, bundleOf())
+			}.create()
 	}
 
 	companion object {
 		const val TAG = "PackageNameChangeDialog"
+		const val REQUEST_KEY = "package_name_change_dialog_dismissed"
 	}
 }

@@ -217,9 +217,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// rather than just checking deepLinkRequest != null is what tells a genuinely new/not-yet-acted-
 		// on request apart from the system redelivering the same original launch Intent verbatim after
 		// this same request was already fully handled (see consumedDeepLinkRequests' own docs).
+		supportFragmentManager.setFragmentResultListener(
+			PackageNameChangeDialogFragment.REQUEST_KEY,
+			this,
+		) { _, _ ->
+			openLastProject()
+		}
+
 		if (deepLinkRequest != null && deepLinkRequest !in consumedDeepLinkRequests) {
 			handleDeepLinkRequest(deepLinkRequest)
-		} else if (savedInstanceState == null) {
+		} else if (savedInstanceState == null && !shouldDisplayPackageNameChangeDialog()) {
 			openLastProject()
 		}
 
@@ -267,10 +274,6 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		val comparisonDate = java.util.Calendar.getInstance()
 		if (comparisonDate.after(targetDate)) {
 			showWarningDialog()
-		}
-
-		if (savedInstanceState == null) {
-			displayPackageNameChangeInfo()
 		}
 	}
 
@@ -333,15 +336,17 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
-	private fun displayPackageNameChangeInfo() {
-		if (BuildConfig.APPLICATION_ID != "org.appdevforall.codeonthego" &&
-			supportFragmentManager.findFragmentByTag(PackageNameChangeDialogFragment.TAG) == null
-		) {
+	private fun shouldDisplayPackageNameChangeDialog(): Boolean {
+		if (BuildConfig.APPLICATION_ID == "org.appdevforall.codeonthego") {
+			return false
+		}
+		if (supportFragmentManager.findFragmentByTag(PackageNameChangeDialogFragment.TAG) == null) {
 			PackageNameChangeDialogFragment().show(
 				supportFragmentManager,
 				PackageNameChangeDialogFragment.TAG,
 			)
 		}
+		return true
 	}
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
