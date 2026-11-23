@@ -69,7 +69,7 @@ abstract class BaseJavaCodeAction : EditorActionItem {
 		val module = IProjectManager.getInstance().findModuleForFile(file, false)
 
 		visible = isJava
-		enabled = isJava && module != null
+		enabled = isJava && module != null && module.artifactScopeOf(file) != null
 	}
 
 	fun performCodeAction(
@@ -110,7 +110,7 @@ abstract class BaseJavaCodeAction : EditorActionItem {
 		requireNotNull(module) {
 			"Cannot get compiler instance. Unable to find module for file: ${requireFile().name}"
 		}
-		return JavaCompilerProvider.get(module)
+		return JavaCompilerProvider.get(module, requireFile())
 	}
 }
 

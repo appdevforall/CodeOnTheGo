@@ -9,10 +9,11 @@ import com.itsaky.androidide.lsp.kotlin.compiler.modules.asFlatSequence
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.AnalysisApiServiceProviders
 import com.itsaky.androidide.lsp.kotlin.compiler.registrar.LspAnalysisApiServiceRegistrar
-import com.itsaky.androidide.lsp.kotlin.compiler.services.ProjectStructureProvider
 import com.itsaky.androidide.lsp.kotlin.compiler.services.ResolutionScopeProvider
+import com.itsaky.androidide.lsp.kotlin.diagnostic.DiagnosticsOutcome
 import com.itsaky.androidide.lsp.kotlin.diagnostic.collectDiagnosticsFor
-import com.itsaky.androidide.lsp.kotlin.utils.SymbolVisibilityChecker
+import com.itsaky.androidide.lsp.models.DiagnosticResult
+import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.projects.FileManager
 import com.itsaky.androidide.utils.KeyedDebouncingAction
 import io.sentry.Sentry
@@ -122,9 +123,10 @@ internal class CompilationEnvironment(
 	val generatedIndex: JvmSymbolIndex?
 		get() = ktProject.generatedIndex
 
-	val symbolVisibilityChecker: SymbolVisibilityChecker by lazy {
-		SymbolVisibilityChecker(ProjectStructureProvider.getInstance(project))
-	}
+	// Source first, library last: one shared cap across the indexes means whichever is queried last
+	// loses when the cap binds, and a project symbol is likelier to be the one being reached for.
+	override val unimportedSymbolIndexes: List<JvmSymbolIndex>
+		get() = listOfNotNull(sourceIndex, generatedIndex, libraryIndex)
 
 	var languageClient: ILanguageClient?
 		get() = _languageClient
@@ -198,7 +200,7 @@ internal class CompilationEnvironment(
 				debounceDuration = DEFAULT_FILE_MOD_EVENT_DEBOUNCE_DURATION,
 			) { path, cancelChecker ->
 				try {
-					val result = collectDiagnosticsFor(path, cancelChecker)
+					val result = diagnosticsFor(path, cancelChecker)
 					withContext(Dispatchers.Main.immediate) {
 						languageClient?.publishDiagnostics(result)
 					}
@@ -219,6 +221,32 @@ internal class CompilationEnvironment(
 				ktSymbolIndex.refreshCurrentKtFile(path)
 			}
 	}
+
+	/** The diagnostics of [path]; a run the document superseded is scheduled again and reports nothing. */
+	fun diagnosticsFor(
+		path: Path,
+		cancelChecker: ICancelChecker,
+	): DiagnosticResult =
+		when (val outcome = collectDiagnosticsFor(path, cancelChecker)) {
+			is DiagnosticsOutcome.Collected -> {
+				outcome.result
+			}
+
+			DiagnosticsOutcome.Superseded -> {
+				/*
+				 * On the debounced path this is a self-send: this runs as fileAnalyzer's own action, so the
+				 * send reads to the worker as a newer key and cancels the run it came from. Deliberate - the
+				 * reschedule still lands, and the only casualty is the NO_UPDATE publish, which had nothing
+				 * to say anyway. Reached from KotlinLanguageServer.analyze() instead, it is a plain reschedule.
+				 */
+				fileAnalyzer.schedule(path)
+				DiagnosticResult.NO_UPDATE
+			}
+
+			DiagnosticsOutcome.Unavailable -> {
+				DiagnosticResult.NO_UPDATE
+			}
+		}
 
 	fun refreshSources() {
 		Sentry.addBreadcrumb("refreshSources (env=$name, modules=${modules.size})")

@@ -7,6 +7,10 @@ import com.itsaky.androidide.templates.impl.zip.ZipTemplateReader
 import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -62,6 +66,11 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 
 		private fun installLock(baseName: String): Mutex = installLocks.computeIfAbsent(baseName.lowercase()) { Mutex() }
 	}
+
+	// No replay: a list loaded after an install already includes it. DROP_OLDEST keeps
+	// tryEmit() from ever failing; collectors only need to know that something changed.
+	private val _installs = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+	override val installs: SharedFlow<Unit> = _installs.asSharedFlow()
 
 	override suspend fun inspectCollection(candidateFile: File): Result<TemplateCollectionRepository.CollectionInfo> =
 		withContext(Dispatchers.IO) {
@@ -215,6 +224,7 @@ class TemplateCollectionRepositoryImpl : TemplateCollectionRepository {
 					if (!candidateFile.delete()) {
 						log.warn("Installed but failed to delete source temp file: {}", candidateFile.name)
 					}
+					_installs.tryEmit(Unit)
 					Unit
 				}.onFailure { exception ->
 					if (exception is CancellationException) throw exception

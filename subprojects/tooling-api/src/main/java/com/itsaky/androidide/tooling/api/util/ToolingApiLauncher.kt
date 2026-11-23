@@ -77,6 +77,7 @@ import com.itsaky.androidide.tooling.events.work.WorkItemOperationResult
 import com.itsaky.androidide.tooling.events.work.WorkItemProgressEvent
 import com.itsaky.androidide.tooling.events.work.WorkItemStartEvent
 import org.eclipse.lsp4j.jsonrpc.Launcher
+import org.eclipse.lsp4j.jsonrpc.MessageConsumer
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -219,7 +220,8 @@ object ToolingApiLauncher {
 		`in`: InputStream?,
 		out: OutputStream?,
 		executorService: ExecutorService = Executors.newCachedThreadPool(),
-	): Launcher<Any> = newIoLauncher(arrayOf(client), arrayOf(IToolingApiServer::class.java), `in`, out, executorService)
+		wrapMessages: (MessageConsumer) -> MessageConsumer = { it },
+	): Launcher<Any> = newIoLauncher(arrayOf(client), arrayOf(IToolingApiServer::class.java), `in`, out, executorService, wrapMessages)
 
 	fun newIoLauncher(
 		locals: Array<Any>,
@@ -227,12 +229,14 @@ object ToolingApiLauncher {
 		`in`: InputStream?,
 		out: OutputStream?,
 		executorService: ExecutorService = Executors.newCachedThreadPool(),
+		wrapMessages: (MessageConsumer) -> MessageConsumer = { it },
 	): Launcher<Any> =
 		Launcher
 			.Builder<Any>()
 			.setInput(`in`)
 			.setOutput(out)
 			.setExecutorService(executorService)
+			.wrapMessages { consumer -> wrapMessages(consumer) }
 			.setLocalServices(listOf(*locals))
 			.setRemoteInterfaces(listOf(*remotes))
 			.configureGson { configureGson(it) }
