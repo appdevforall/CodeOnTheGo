@@ -556,9 +556,9 @@ class GradleQuickBuildProvisioner(
 	}
 
 	/**
-	 * The refusal for a project with `cogo.sqliteDebugger=true`, or null. It reads the app modules'
-	 * own `gradle.properties` only for the modules [projectManager] knows, which is none before the
-	 * sync publishes the model, so it decides only once the model is published.
+	 * The refusal for a module with `cogo.sqliteDebugger=true` in force, or null. The module and its
+	 * parent projects come from [projectManager], which knows none before the sync publishes the
+	 * model, so it decides only once the model is published.
 	 */
 	private fun sqliteDebuggerRefusal(
 		projectManager: IProjectManager,
@@ -566,7 +566,7 @@ class GradleQuickBuildProvisioner(
 	): ProxyAppBuildResult.Refused? {
 		if (!isSqliteDebuggerOn(projectManager, projectRoot)) return null
 		log.info(
-			"Quick Build is not provisioned: {} is true in the Gradle user home's, an app module's or the project's gradle.properties",
+			"Quick Build is not provisioned: {} is true for the module it builds (Gradle user home, module, parent projects or root)",
 			GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
 		)
 		return ProxyAppBuildResult.Refused
@@ -599,31 +599,46 @@ class GradleQuickBuildProvisioner(
 				?: manager.getAndroidModules().firstOrNull()
 
 		/**
-		 * Whether a Quick Build tap now would be refused because the project turns the SQLite
-		 * debugger on, read as [provision] reads it before staging: false while the project model is
-		 * not published, when the provisioner decides only after the sync. For a tap to read before it
-		 * asks to replace the installed app: the refusal comes before anything is staged or installed,
-		 * so there is no replacement to ask about.
+		 * Whether a Quick Build tap now would be refused because the module Quick Build builds has the
+		 * SQLite debugger opt-in in force, read as [provision] reads it before staging: false while the
+		 * project model is not published, when the provisioner decides only after the sync. For a tap
+		 * to read before it asks to replace the installed app: the refusal comes before anything is
+		 * staged or installed, so there is no replacement to ask about.
 		 */
 		fun refusesForSqliteDebugger(projectManager: IProjectManager = IProjectManager.getInstance()): Boolean =
 			projectManager.workspace != null && isSqliteDebuggerOn(projectManager)
 
 		/**
-		 * Whether `cogo.sqliteDebugger=true` is in force for [projectManager]'s project. Every app
-		 * module's gradle.properties is read, although Quick Build builds only the first app module:
-		 * the opt-in is decided per project, and the first file that defines the property decides it
-		 * (the Gradle user home, then the modules in order, then the root), so a module's `false`
-		 * overrides a root `true` as it does in Gradle.
+		 * Whether `cogo.sqliteDebugger=true` is in force for the module Quick Build builds
+		 * ([quickBuildModule]), as Gradle decides it for that module: the Gradle user home, then the
+		 * module's `gradle.properties`, then each parent project's, then the root's, the first that
+		 * defines the property winning. Another app module's file does not count, since Gradle skips
+		 * Quick Build per module. Parent projects come from the project model, which lists every Gradle
+		 * project; one it lacks is taken from the module's directory layout (see
+		 * [QuickBuildProjectSupport.propertyDirs]). With no Android module there is no module to ask,
+		 * so only the Gradle user home and the root are read.
 		 */
 		private fun isSqliteDebuggerOn(
 			projectManager: IProjectManager,
 			projectRoot: File = File(projectManager.projectDirPath),
-		): Boolean =
-			QuickBuildProjectSupport.isSqliteDebuggerEnabled(
-				projectRoot,
-				Environment.GRADLE_USER_HOME,
-				projectManager.getAndroidAppModules().map { File(it.projectDirPath) },
-			)
+		): Boolean {
+			val module = quickBuildModule(projectManager)
+			val projectDirs =
+				if (module == null) {
+					listOf(projectRoot)
+				} else {
+					QuickBuildProjectSupport.propertyDirs(
+						projectRoot,
+						module.path,
+						File(module.projectDirPath),
+						projectManager.workspace
+							?.subProjects
+							.orEmpty()
+							.associate { it.path to File(it.projectDirPath) },
+					)
+				}
+			return QuickBuildProjectSupport.isSqliteDebuggerEnabled(Environment.GRADLE_USER_HOME, projectDirs)
+		}
 
 		/**
 		 * The Build Variants selection Quick Build would build right now, or null when the

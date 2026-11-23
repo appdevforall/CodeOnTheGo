@@ -148,7 +148,7 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 		}
 
 	@Test
-	fun `an opt-in in a module that a sync publishes during the staging is refused`() =
+	fun `an opt-in in the app module that a sync publishes as the first one during the staging is refused`() =
 		runTest {
 			val app = moduleDir()
 			val feature = File(projectRoot, "feature").apply { mkdirs() }
@@ -159,7 +159,7 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 			val project =
 				ResyncingProjectManager(
 					FakeProjectManager(projectRoot, appModules = listOf(appModule)),
-					FakeProjectManager(projectRoot, appModules = listOf(appModule, featureModule)),
+					FakeProjectManager(projectRoot, appModules = listOf(featureModule, appModule)),
 				)
 
 			val outcome =
@@ -169,7 +169,7 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 					buildService = gradle,
 					projectManager = project,
 					// The model was already published, so the first check read the old modules; the module with the
-					// opt-in appears only after it.
+					// opt-in appears only after it, ahead of :app, the module Quick Build then builds.
 					stage = { _, _ -> project.resynced = true },
 				).provision()
 

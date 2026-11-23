@@ -77,34 +77,67 @@ object QuickBuildProjectSupport {
 	fun isSqliteDebuggerEnabled(gradleProperties: String?): Boolean = gradleProperties != null && propertyValue(gradleProperties) == "true"
 
 	/**
-	 * Whether the project opts in to `cogo.sqliteDebugger=true`, in which case Quick Build must not
-	 * provision it: the Gradle plugin moves such a project to requery and never applies Quick Build
-	 * to it, so a build would succeed and end in a "variant setup missing" message that blames the
-	 * variant. Decided per project, from all app modules (see [moduleDirs]).
+	 * The directories whose `gradle.properties` Gradle's `findProperty` reads for the project at
+	 * [modulePath], nearest first: the module's own directory, each parent project's, then the root.
+	 * A project inherits its parent's properties, so `:group:app` sees `:group`'s file before the
+	 * root's.
 	 *
-	 * Reads the opt-in from the same files the Gradle plugin's `findProperty` sees in
-	 * Code on the Go's builds: the Gradle user home `gradle.properties` (`GRADLE_USER_HOME`, which
-	 * overrides the project files), the app module's, and the root's. Gradle loads a
+	 * A parent's directory comes from [projectDirs] (Gradle path to directory, from the project
+	 * model, which lists the projects that have no Android plugin as well). A parent the model
+	 * lacks is taken from the default layout: the module's directory walked up one level per path
+	 * segment, which is wrong for a `projectDir` that `settings.gradle` has remapped.
+	 *
+	 * @param projectRoot the root project's directory, always last.
+	 * @param modulePath the module's Gradle path, such as `:group:app`.
+	 * @param moduleDir the module's own directory.
+	 */
+	fun propertyDirs(
+		projectRoot: File,
+		modulePath: String,
+		moduleDir: File,
+		projectDirs: Map<String, File> = emptyMap(),
+	): List<File> {
+		val segments = modulePath.split(':').filter { it.isNotEmpty() }
+		val dirs = LinkedHashSet<File>()
+		dirs += moduleDir
+		var walked: File? = moduleDir
+		for (depth in segments.size - 1 downTo 1) {
+			walked = walked?.parentFile
+			(projectDirs[":" + segments.take(depth).joinToString(":")] ?: walked)?.let(dirs::add)
+		}
+		dirs += projectRoot
+		return dirs.toList()
+	}
+
+	/**
+	 * Whether the module whose directories are [projectDirs] opts in to `cogo.sqliteDebugger=true`,
+	 * in which case Quick Build must not provision it: the Gradle plugin moves such a module to
+	 * requery and never applies Quick Build to it, so a build would succeed and end in a "variant
+	 * setup missing" message that blames the variant. Decided for the module Quick Build builds
+	 * alone, as Gradle decides it: another app module's value does not matter.
+	 *
+	 * Reads the files the Gradle plugin's `findProperty` sees for that module in Code on the Go's
+	 * builds, and the first one that defines the property decides: the Gradle user home
+	 * `gradle.properties` (`GRADLE_USER_HOME`, which overrides the project files), then [projectDirs]
+	 * in order (see [propertyDirs]: the module, its parent projects, the root). Gradle loads a
 	 * `gradle.properties` from every project directory into that project, and a subproject also
-	 * inherits its parent's properties, so the first of these that defines the property wins.
-	 * `-P` arguments are not read: Code on the Go passes none for this property.
+	 * inherits its parent's properties. `-P` arguments are not read: Code on the Go passes none for
+	 * this property.
 	 *
 	 * A file that cannot be read is reported to [onReadFailure] and counts as not defining it.
 	 *
-	 * @param moduleDirs the directories of the app modules the plugin is applied to.
+	 * @param gradleUserHome the Gradle user home, or null when there is none.
+	 * @param projectDirs the module's directory, its parents', and the root's, nearest first.
 	 */
 	fun isSqliteDebuggerEnabled(
-		projectRoot: File,
 		gradleUserHome: File?,
-		moduleDirs: List<File> = emptyList(),
+		projectDirs: List<File>,
 		onReadFailure: (File, Throwable) -> Unit = { file, error ->
 			log.warn("Cannot read {}; treating it as not defining the SQLite debugger opt-in", file, error)
 		},
 		readText: (File) -> String = File::readText,
 	): Boolean {
-		val files =
-			listOfNotNull(gradleUserHome) + moduleDirs + projectRoot
-		for (entry in files) {
+		for (entry in listOfNotNull(gradleUserHome) + projectDirs) {
 			val file = File(entry, "gradle.properties")
 			val text =
 				try {

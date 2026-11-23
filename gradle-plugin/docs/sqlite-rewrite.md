@@ -9,11 +9,17 @@ run the same SQLite. User source does not change.
 
 An existing project needs:
 
-1. `cogo.sqliteDebugger=true` in `gradle.properties`. The plugin reads it with Gradle's `findProperty`, so the
-   project's root file, the app module's own `gradle.properties` and the Gradle user home's
-   (`GRADLE_USER_HOME`, `~/.gradle` under Code on the Go's home) all work, the user home first. The IDE's Quick
-   Build check (`QuickBuildProjectSupport.isSqliteDebuggerEnabled`) reads those same three files, in that order,
-   and logs a file it cannot read; it does not see `-P` arguments, which Code on the Go does not pass for this.
+1. `cogo.sqliteDebugger=true` in `gradle.properties`. The plugin reads it with Gradle's `findProperty` for each app
+   module it is applied to, so Gradle decides per module: the Gradle user home's file
+   (`GRADLE_USER_HOME`, `~/.gradle` under Code on the Go's home) first, then the module's own `gradle.properties`,
+   then each parent project's (`:group` for `:group:app`), then the root's; the first that defines the property
+   decides. Quick Build is off when the module it builds (the first app module) has the opt-in in force; another app
+   module's value does not affect Quick Build. To turn the rewrite off across a project, set
+   `cogo.sqliteDebugger=false` where the opt-in is in force for each app module, or in the Gradle user home. The
+   IDE's Quick Build check (`QuickBuildProjectSupport.isSqliteDebuggerEnabled`) reads those files for the Quick
+   Build module in that order. It takes a parent project's directory from the project model and, for a parent the
+   model lacks, from the default directory layout (it would miss a `projectDir` remapped in `settings.gradle`). It logs a
+   file it cannot read, and does not see `-P` arguments, which Code on the Go does not pass for this.
 2. requery's AAR (`sqlite-android.aar`) in the app's `libs/`, as a file dependency
    (`implementation(files("libs/sqlite-android.aar"))`), as the ADFA-7082 template does.
 3. androidx.sqlite and androidx.core on the runtime classpath (`androidx.sqlite:sqlite`, which Room, WorkManager

@@ -110,23 +110,23 @@ class QuickBuildProjectSupportTest {
 	@Test
 	fun `the root gradle properties file is read, a missing one is not an opt-in`() =
 		withDirs { root, home, _ ->
-			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home)).isFalse()
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(root))).isFalse()
 			root.props("cogo.sqliteDebugger=true\n")
-			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home)).isTrue()
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(root))).isTrue()
 		}
 
 	@Test
 	fun `the Gradle user home gradle properties opts in`() =
 		withDirs { root, home, module ->
 			home.props("cogo.sqliteDebugger=true\n")
-			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home, listOf(module))).isTrue()
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(module, root))).isTrue()
 		}
 
 	@Test
 	fun `the app module gradle properties opts in`() =
 		withDirs { root, home, module ->
 			module.props("cogo.sqliteDebugger=true\n")
-			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home, listOf(module))).isTrue()
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(module, root))).isTrue()
 		}
 
 	@Test
@@ -134,7 +134,16 @@ class QuickBuildProjectSupportTest {
 		withDirs { root, home, module ->
 			root.props("cogo.sqliteDebugger=true\n")
 			home.props("cogo.sqliteDebugger=false\n")
-			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(root, home, listOf(module))).isFalse()
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(module, root))).isFalse()
+		}
+
+	@Test
+	fun `the first directory that defines the property decides, nearest first`() =
+		withDirs { root, home, module ->
+			root.props("cogo.sqliteDebugger=true\n")
+			module.props("cogo.sqliteDebugger=false\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(module, root))).isFalse()
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(root, module))).isTrue()
 		}
 
 	@Test
@@ -144,12 +153,50 @@ class QuickBuildProjectSupportTest {
 			val failures = mutableListOf<java.io.File>()
 			val enabled =
 				QuickBuildProjectSupport.isSqliteDebuggerEnabled(
-					root,
 					home,
+					listOf(root),
 					onReadFailure = { file, _ -> failures += file },
 					readText = { throw java.io.IOException("denied") },
 				)
 			assertThat(enabled).isFalse()
 			assertThat(failures).containsExactly(java.io.File(home, "gradle.properties"))
 		}
+
+	@Test
+	fun `property dirs run from the module up through its parent projects to the root`() {
+		val root = java.io.File("/p")
+		val dirs = QuickBuildProjectSupport.propertyDirs(root, ":group:sub:app", java.io.File("/p/group/sub/app"))
+
+		assertThat(dirs)
+			.containsExactly(
+				java.io.File("/p/group/sub/app"),
+				java.io.File("/p/group/sub"),
+				java.io.File("/p/group"),
+				root,
+			).inOrder()
+	}
+
+	@Test
+	fun `a parent directory from the project model wins over the default layout`() {
+		val root = java.io.File("/p")
+		val dirs =
+			QuickBuildProjectSupport.propertyDirs(
+				root,
+				":group:app",
+				java.io.File("/elsewhere/app"),
+				mapOf(":group" to java.io.File("/elsewhere/g")),
+			)
+
+		assertThat(dirs).containsExactly(java.io.File("/elsewhere/app"), java.io.File("/elsewhere/g"), root).inOrder()
+	}
+
+	@Test
+	fun `a top-level module has only itself and the root`() {
+		val root = java.io.File("/p")
+
+		assertThat(QuickBuildProjectSupport.propertyDirs(root, ":app", java.io.File("/p/app")))
+			.containsExactly(java.io.File("/p/app"), root)
+			.inOrder()
+		assertThat(QuickBuildProjectSupport.propertyDirs(root, ":", root)).containsExactly(root)
+	}
 }

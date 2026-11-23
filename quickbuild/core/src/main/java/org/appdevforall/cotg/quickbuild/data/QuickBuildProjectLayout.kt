@@ -115,9 +115,12 @@ class QuickBuildProjectLayout(
 	 *   builds, and each module the scan finds up to [MODULE_SCAN_MAX_DEPTH] levels below the root),
 	 *   and the Gradle user home's `gradle.properties`, listed unconditionally - only the existing
 	 *   ones are polled. So turning `QuickBuildProjectSupport.isSqliteDebuggerEnabled`'s opt-in on
-	 *   in one of those files invalidates a live session. Another app module nested deeper is read
-	 *   at the next proxy app build (a provision or a rebaseline), but its `gradle.properties` is
-	 *   not watched, so turning the opt-in on there does not end a running session.
+	 *   in one of those files invalidates a live session. A parent project's `gradle.properties` is
+	 *   watched only when its directory holds a build script, so turning the opt-in on in one that
+	 *   does not leaves a running session up until the next proxy app build. Another app module
+	 *   nested deeper is read at the next proxy app build (a provision or a rebaseline), but its
+	 *   `gradle.properties` is not watched, so turning the opt-in on there does not end a running
+	 *   session.
 	 */
 	fun watchedFiles(): List<File> =
 		listOfNotNull(
