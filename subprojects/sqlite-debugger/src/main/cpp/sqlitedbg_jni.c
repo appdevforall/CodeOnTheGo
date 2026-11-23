@@ -156,8 +156,8 @@ static void bridge_read_events(JNIEnv *env, jclass cls, jlong after, jbyteArray 
 	sqlitedbg_read_events((uint64_t)after, tmp, (size_t)cap, &r);
 	(*env)->SetByteArrayRegion(env, buf, 0, (jsize)r.bytes, (const jbyte *)tmp);
 	free(tmp);
-	jlong values[3] = {(jlong)r.next, (jlong)r.dropped, (jlong)r.bytes};
-	(*env)->SetLongArrayRegion(env, out, 0, 3, values);
+	jlong values[4] = {(jlong)r.next, (jlong)r.dropped, (jlong)r.bytes, (jlong)r.reset};
+	(*env)->SetLongArrayRegion(env, out, 0, 4, values);
 }
 
 static void bridge_set_client_connected(JNIEnv *env, jclass cls, jboolean connected) {

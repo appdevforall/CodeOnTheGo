@@ -13,7 +13,7 @@ internal object NativeBridge {
 	@JvmStatic
 	external fun connections(): Array<Any?>
 
-	/** Fills [buf] with records after [after]; [out] gets next, dropped and the bytes written. */
+	/** Fills [buf] with records after [after]; [out] (4 longs) gets next, dropped, the bytes written and reset (0 or 1). */
 	@JvmStatic
 	external fun readEvents(
 		after: Long,

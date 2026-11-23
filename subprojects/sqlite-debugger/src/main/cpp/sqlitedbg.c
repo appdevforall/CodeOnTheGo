@@ -349,11 +349,18 @@ size_t sqlitedbg_each_connection(void (*fn)(void *context, const sqlitedbg_conne
 }
 
 void sqlitedbg_read_events(uint64_t after, void *out, size_t out_bytes, sqlitedbg_read_result *result) {
-	result->next = after;
 	result->dropped = 0;
 	result->bytes = 0;
 	result->count = 0;
+	result->reset = 0;
 	pthread_mutex_lock(&g_lock);
+	// seq restarts at 1 in every process, so a cursor at or past the next seq to be assigned comes from an
+	// earlier process (or is made up): read from the start, and say so.
+	if (after >= g_next_seq) {
+		result->reset = 1;
+		after = 0;
+	}
+	result->next = after;
 	if (g_ring) {
 		uint64_t oldest = oldest_seq();
 		if (oldest > after && oldest - after > 1) {

@@ -921,6 +921,87 @@ class DatabaseToolsTest {
 		assertFalse(engine.clientConnected)
 	}
 
+	private fun seqs(r: JSONObject) = r.getJSONArray("events").let { a -> (0 until a.length()).map { a.getJSONObject(it).getLong("seq") } }
+
+	private fun addStatements(count: Int) = repeat(count) { engine.addEvent(EventKind.STATEMENT, "select ${it + 1}") }
+
+	@Test fun getEventsCarriesTheRunAndNoResetForACaughtUpCursor() {
+		addStatements(3)
+		val t = tools
+		val first = ok("get_events", t = t)
+		assertEquals(engine.runId, first.getString("run"))
+		assertFalse(first.getBoolean("reset"))
+		assertEquals(listOf(1L, 2L, 3L), seqs(first))
+		val caughtUp = ok("get_events", JSONObject().put("after", first.getLong("next")).put("run", first.getString("run")), t)
+		assertFalse("after equal to the newest seq is a reader that kept up", caughtUp.getBoolean("reset"))
+		assertEquals(emptyList<Long>(), seqs(caughtUp))
+		assertEquals(3, caughtUp.getInt("next"))
+		engine.addEvent(EventKind.STATEMENT, "select 4")
+		val more = ok("get_events", JSONObject().put("after", 3).put("run", engine.runId), t)
+		assertFalse(more.getBoolean("reset"))
+		assertEquals(listOf(4L), seqs(more))
+		t.onServerStopped()
+	}
+
+	@Test fun getEventsWithAnotherRunReadsFromTheStartAndSaysReset() {
+		addStatements(3)
+		val t = tools
+		val r = ok("get_events", JSONObject().put("after", 3).put("run", "a-run-of-an-earlier-process"), t)
+		assertTrue(r.getBoolean("reset"))
+		assertEquals("read as if after were 0", listOf(1L, 2L, 3L), seqs(r))
+		assertEquals(engine.runId, r.getString("run"))
+		t.onServerStopped()
+	}
+
+	@Test fun getEventsWithACursorPastTheNewestSaysResetEvenWithoutARun() {
+		addStatements(3)
+		val t = tools
+		val r = ok("get_events", JSONObject().put("after", 4), t)
+		assertTrue(r.getBoolean("reset"))
+		assertEquals(listOf(1L, 2L, 3L), seqs(r))
+		assertEquals(3, r.getInt("next"))
+		t.onServerStopped()
+	}
+
+	@Test fun anAgentWithACursorFromBeforeAnAppRestartIsToldAndReadsTheNewProcessFromTheStart() {
+		addStatements(5)
+		val t = tools
+		val before = ok("get_events", t = t)
+		val oldRun = before.getString("run")
+		assertEquals(5, before.getInt("next"))
+		engine.restartProcess("run-2")
+		addStatements(2)
+		val withRun = ok("get_events", JSONObject().put("after", 5).put("run", oldRun), t)
+		assertTrue(withRun.getBoolean("reset"))
+		assertEquals("run-2", withRun.getString("run"))
+		assertEquals(listOf(1L, 2L), seqs(withRun))
+		val withoutRun = ok("get_events", JSONObject().put("after", 5), t)
+		assertTrue("past the new process's newest seq (2)", withoutRun.getBoolean("reset"))
+		assertEquals(listOf(1L, 2L), seqs(withoutRun))
+		val next = ok("get_events", JSONObject().put("after", withRun.getLong("next")).put("run", withRun.getString("run")), t)
+		assertFalse("the cursor and run from the reset are valid", next.getBoolean("reset"))
+		assertEquals(emptyList<Long>(), seqs(next))
+		t.onServerStopped()
+	}
+
+	@Test fun getEventsRunMustBeAString() {
+		val r = runTool(tools, "get_events", JSONObject().put("run", 5))
+		assertEquals("run must be a string.", errorText(r))
+	}
+
+	@Test fun getEventsDescribesRunAndReset() {
+		val tool = tools.tools().single { it.name == "get_events" }
+		assertTrue(tool.description.contains("Pass the returned next as after and the returned run as run"))
+		assertTrue(tool.description.contains("reset true means the app restarted"))
+		assertTrue(
+			tool
+				.describe()
+				.getJSONObject("inputSchema")
+				.getJSONObject("properties")
+				.has("run"),
+		)
+	}
+
 	@Test fun aServerConnectionIsDroppedWhenTheAppRecreatesTheDatabase() {
 		engine.appConnections += conn(1, "/data/a.db")
 		val t = tools

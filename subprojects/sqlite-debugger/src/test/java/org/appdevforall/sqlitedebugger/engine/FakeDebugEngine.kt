@@ -12,6 +12,16 @@ class FakeDebugEngine(
 ) : DebugEngine {
 	val appConnections = mutableListOf<AppConnection>()
 
+	override var runId = "run-1"
+		private set
+
+	/** What a new app process looks like to a client: another [runId], and the event numbers start again at 1. */
+	fun restartProcess(newRunId: String) {
+		runId = newRunId
+		buffered.clear()
+		lastSeq = 0
+	}
+
 	/** Events still in the buffer, oldest first; [lastSeq] counts every event made. */
 	private val buffered = ArrayDeque<Event>()
 	private var lastSeq = 0L
@@ -52,6 +62,8 @@ class FakeDebugEngine(
 		after: Long,
 		maxBytes: Int,
 	): EventBatch {
+		val reset = after >= lastSeq + 1
+		if (reset) return readEvents(0, maxBytes).copy(reset = true)
 		val oldest = buffered.firstOrNull()?.seq ?: (lastSeq + 1)
 		val dropped = (oldest - 1 - after).coerceAtLeast(0)
 		val events = mutableListOf<Event>()

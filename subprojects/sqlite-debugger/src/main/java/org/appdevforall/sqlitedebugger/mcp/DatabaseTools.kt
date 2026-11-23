@@ -297,14 +297,23 @@ class DatabaseTools internal constructor(
 			tool(
 				"get_events",
 				"Get SQL events",
-				"Returns the SQL the app ran, oldest first, after the cursor. Pass the returned next as after to continue; " +
-					"dropped counts events that left the buffer unread. The first call starts recording bound values into the SQL; " +
+				"Returns the SQL the app ran, oldest first, after the cursor. Pass the returned next as after and the returned run " +
+					"as run to continue; dropped counts events that left the buffer unread. reset true means the app restarted " +
+					"(run differs, or after is past the newest event), and events are read from the start. " +
+					"The first call starts recording bound values into the SQL; " +
 					"that stops ${EVENTS_IDLE_MS / 1000} s after the last get_events call, so call it at least that often while watching.",
 				JSONObject()
 					.put("type", "object")
 					.put("additionalProperties", false)
-					.put("properties", JSONObject().put("after", prop("integer", "Cursor: the next from the last call. Default 0.")))
-					.put("required", JSONArray()),
+					.put(
+						"properties",
+						JSONObject()
+							.put("after", prop("integer", "Cursor: the next from the last call. Default 0."))
+							.put(
+								"run",
+								prop("string", "The run from the last call. If it differs from the current, the read starts from 0."),
+							),
+					).put("required", JSONArray()),
 			) { _, args -> getEvents(args) },
 		)
 
@@ -513,6 +522,13 @@ class DatabaseTools internal constructor(
 
 	private fun getEvents(args: JSONObject): JSONObject {
 		val after = intArg(args, "after", 0, 0, Long.MAX_VALUE)
+		val run =
+			when (val v = args.opt("run")) {
+				null, JSONObject.NULL -> null
+				is String -> v
+				else -> throw McpToolError("run must be a string.")
+			}
+		val otherRun = run != null && run != engine.runId
 		synchronized(lock) {
 			lastEventsCallMs = clock()
 			if (!clientConnected) {
@@ -523,7 +539,7 @@ class DatabaseTools internal constructor(
 		}
 		val batch =
 			try {
-				engine.readEvents(after, EVENT_BATCH_BYTES)
+				engine.readEvents(if (otherRun) 0 else after, EVENT_BATCH_BYTES)
 			} catch (e: DebugEngineException) {
 				throw engineError(e)
 			}
@@ -542,7 +558,12 @@ class DatabaseTools internal constructor(
 					.put("expanded", e.expanded),
 			)
 		}
-		return JSONObject().put("next", encodeLong(batch.next)).put("dropped", encodeLong(batch.dropped)).put("events", events)
+		return JSONObject()
+			.put("run", engine.runId)
+			.put("reset", otherRun || batch.reset)
+			.put("next", encodeLong(batch.next))
+			.put("dropped", encodeLong(batch.dropped))
+			.put("events", events)
 	}
 
 	private fun encodeResult(

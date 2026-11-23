@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 // The interface version. Raise it when anything below changes shape.
-#define SQLITEDBG_INTERFACE_VERSION 1
+#define SQLITEDBG_INTERFACE_VERSION 2
 
 // sqlite3_auto_extension's type. On a device the JNI layer looks it up in libsqlite3x.so with
 // dlsym (requery exports every sqlite3_ function); host tests pass SQLite's own.
@@ -122,9 +122,15 @@ typedef struct sqlitedbg_read_result {
     size_t bytes;
     // Records written to out.
     size_t count;
+    // 1 if `after` was at or past the next seq to be assigned, which no cursor of this process can be: it
+    // comes from an earlier process (seq restarts at 1 in each) or was made up. The read then ran as if
+    // `after` were 0, and next and dropped refer to that read. 0 otherwise, including `after` equal to
+    // the newest seq (a reader that is caught up).
+    int reset;
 } sqlitedbg_read_result;
 
-// Copies out the events with seq > after, oldest first, as whole records, until out is full.
+// Copies out the events with seq > after, oldest first, as whole records, until out is full. An
+// `after` that is not a seq this process has assigned (see sqlitedbg_read_result.reset) reads from 0.
 // The copy is made under the extension's lock with no SQLite call, so it never waits on a
 // statement. A record larger than out_bytes is never split: an out smaller than one record of
 // max_sql_bytes may return count 0 with events still waiting. Never fails.
