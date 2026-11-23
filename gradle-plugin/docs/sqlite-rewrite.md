@@ -123,8 +123,8 @@ file that defines the property decides). Commenting the line out can expose anot
   the full frames copied from it, still say `String[]`. For each non-abstract method whose descriptor is retyped
   that way, the rewriter inserts `ALOAD n; CHECKCAST [Ljava/lang/String;; ASTORE n` at method entry, so the body
   stays valid, and writes every frame of that method in full (compressed frames are relative to the implicit first
-  frame, which now has the wide type). A driver that is handed an `Object[]` with an element that is not a
-  `String` throws `ClassCastException` on entry; requery's own drivers pass strings.
+  frame, which now has the wide type). A driver that is handed an array whose run-time class is not
+  `String[]` (an `Object[]`, even one that holds only strings) throws `ClassCastException` on entry; requery's own drivers pass strings.
   The mode is per variant, but `COPY_FRAMES` cannot weaken another instrumentation in the same build (Hilt, Firebase,
   an app's own `transformClassesWith`) that needs frames computed: `setAsmFramesComputationMode` keeps the highest
   mode any plugin asks for (AGP 7.3.0, 8.8.2 and 9.3.1 compare the enum ordinals; checked with javap), and
@@ -221,6 +221,12 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   - an `instanceof` proof covers the checked local only, not a copy of it;
   - a call to a member requery lacks, made on a subclass that declares its own version of that member, is still rejected,
     because the check matches the member's name and descriptor on the call's owner class and its renamed ancestors, not the declaration it resolves to.
+- An inherited `query(CursorFactory, Object[])` is not checked. The build fails when a class declares both `query`
+  overloads, but it looks only at the methods the class declares. If a superclass declares `query(CursorFactory,
+  Object[])` (a method the subclass can override), the retyped `query(CursorFactory, String[])` gets the same name and
+  descriptor and overrides it. A call through the superclass type then runs the driver's method (if it is not
+  abstract), whose entry `CHECKCAST [Ljava/lang/String;` throws `ClassCastException` unless the argument's run-time class is `String[]`, where
+  before the rewrite the superclass's method ran. Read from `retypeParameters` and the duplicate check, not run.
 - `SupportSQLiteDatabase.execPerConnectionSQL` is unsupported (see the design change): no build failure, an
   `UnsupportedOperationException` when called.
 - Passing an Android `CursorWindow` where a (renamed) `SQLiteClosable` is expected cannot work: android's
