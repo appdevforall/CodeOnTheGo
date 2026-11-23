@@ -10,7 +10,8 @@ import java.lang.reflect.InvocationTargetException
 
 /**
  * The runtime helper's functions that need no device, run on the JVM from its bytecode compiled against android.jar,
- * with Android's CancellationSignal replaced by a copy of its listener logic (android.jar's methods only throw).
+ * with Android's CancellationSignal replaced by a copy of its listener logic (android.jar's methods only throw), and
+ * Context, ApplicationInfo and Build.VERSION replaced by fakes that hold what the checks read.
  */
 class SqliteRewriteRuntimeTest {
 	private val loader: ClassLoader by lazy {
@@ -25,6 +26,9 @@ class SqliteRewriteRuntimeTest {
 				listOf(
 					JavaSource("org.appdevforall.sqliterewrite.SqliteRewriteRuntime", source),
 					JavaSource("android.os.CancellationSignal", ANDROID_SIGNAL),
+					JavaSource("android.content.Context", FAKE_CONTEXT),
+					JavaSource("android.content.pm.ApplicationInfo", FAKE_APPLICATION_INFO),
+					JavaSource("android.os.Build", FAKE_BUILD),
 				),
 				listOf(TestJars.androidJar, TestJars.androidxCoreJar),
 			)
@@ -170,6 +174,103 @@ class SqliteRewriteRuntimeTest {
 		assertWithMessage("a query converted after the forwarder was collected").that(isCanceled(converted)).isTrue()
 	}
 
+	private val worldReadable = 1
+	private val worldWriteable = 2
+	private val enableWal = 8
+
+	private fun fakeContext(targetSdk: Int): Any {
+		val context = loader.loadClass("android.content.Context").getConstructor().newInstance()
+		val info = loader.loadClass("android.content.pm.ApplicationInfo").getConstructor().newInstance()
+		info.javaClass.getField("targetSdkVersion").setInt(info, targetSdk)
+		context.javaClass.getField("info").set(context, info)
+		context.javaClass.getField("dbPath").set(context, java.io.File(System.getProperty("java.io.tmpdir"), "rewrite-runtime-test.db"))
+		return context
+	}
+
+	private fun pathCalls(context: Any) = context.javaClass.getField("pathCalls").getInt(context)
+
+	/** Calls the helper's 4-argument or 5-argument openOrCreateDatabase on a device whose API level is [sdk]. */
+	private fun openOrCreate(
+		context: Any,
+		mode: Int,
+		sdk: Int = 34,
+		withHandler: Boolean = false,
+	) {
+		val versionClass = loader.loadClass("android.os.Build\$VERSION")
+		val sdkField = versionClass.getField("SDK_INT")
+		val saved = sdkField.getInt(null)
+		sdkField.setInt(null, sdk)
+		try {
+			val contextClass = loader.loadClass("android.content.Context")
+			val factory = loader.loadClass("android.database.sqlite.SQLiteDatabase\$CursorFactory")
+			if (withHandler) {
+				runtime
+					.getMethod(
+						"openOrCreateDatabase",
+						contextClass,
+						String::class.java,
+						Int::class.javaPrimitiveType,
+						factory,
+						loader.loadClass("android.database.DatabaseErrorHandler"),
+					).invoke(null, context, "x.db", mode, null, null)
+			} else {
+				runtime
+					.getMethod("openOrCreateDatabase", contextClass, String::class.java, Int::class.javaPrimitiveType, factory)
+					.invoke(null, context, "x.db", mode, null)
+			}
+		} finally {
+			sdkField.setInt(null, saved)
+		}
+	}
+
+	/** The failure of the call, unwrapped. Past the checks the call reaches android.jar's SQLiteDatabase, whose stub throws "Stub!". */
+	private fun failureOf(block: () -> Unit): Throwable? =
+		try {
+			block()
+			null
+		} catch (e: InvocationTargetException) {
+			e.cause
+		}
+
+	@Test
+	fun `a world-access mode throws SecurityException before the path is resolved when the app targets API 24 or later`() {
+		for (withHandler in listOf(false, true)) {
+			for ((mode, message) in listOf(
+				worldReadable to "MODE_WORLD_READABLE no longer supported",
+				worldWriteable to "MODE_WORLD_WRITEABLE no longer supported",
+				(worldReadable or worldWriteable) to "MODE_WORLD_READABLE no longer supported",
+				(worldWriteable or enableWal) to "MODE_WORLD_WRITEABLE no longer supported",
+			)) {
+				val context = fakeContext(targetSdk = 24)
+				val failure = failureOf { openOrCreate(context, mode, withHandler = withHandler) }
+				assertWithMessage("mode $mode, handler $withHandler").that(failure).isInstanceOf(SecurityException::class.java)
+				assertThat(failure).hasMessageThat().isEqualTo(message)
+				assertWithMessage("getDatabasePath calls").that(pathCalls(context)).isEqualTo(0)
+			}
+		}
+	}
+
+	@Test
+	fun `MODE_PRIVATE and the WAL flag still open, and an app that targets an older API or a device before API 24 gets no exception`() {
+		val cases =
+			listOf(
+				Triple(0, 34, 30),
+				Triple(enableWal, 34, 30),
+				Triple(worldReadable or worldWriteable, 34, 23),
+				Triple(worldReadable, 23, 30),
+				Triple(worldWriteable, 23, 30),
+			)
+		for ((mode, sdk, target) in cases) {
+			val context = fakeContext(targetSdk = target)
+			val failure = failureOf { openOrCreate(context, mode, sdk = sdk) }
+			// past the checks the call reaches android.jar's stub
+			assertWithMessage("mode $mode, device API $sdk, target $target").that(failure).isInstanceOf(RuntimeException::class.java)
+			assertWithMessage("mode $mode, device API $sdk, target $target").that(failure).isNotInstanceOf(SecurityException::class.java)
+			assertThat(failure).hasMessageThat().isEqualTo("Stub!")
+			assertWithMessage("getDatabasePath calls").that(pathCalls(context)).isEqualTo(1)
+		}
+	}
+
 	private companion object {
 		/** Android's listener rules: one listener, a new one runs at once on a cancelled signal, the same one does not. */
 		val ANDROID_SIGNAL =
@@ -198,6 +299,30 @@ class SqliteRewriteRuntimeTest {
 				}
 				public interface OnCancelListener { void onCancel(); }
 			}
+			""".trimIndent()
+
+		val FAKE_CONTEXT =
+			"""
+			package android.content;
+			public class Context {
+				public android.content.pm.ApplicationInfo info;
+				public java.io.File dbPath;
+				public int pathCalls;
+				public android.content.pm.ApplicationInfo getApplicationInfo() { return info; }
+				public java.io.File getDatabasePath(String name) { pathCalls++; return dbPath; }
+			}
+			""".trimIndent()
+
+		val FAKE_APPLICATION_INFO =
+			"""
+			package android.content.pm;
+			public class ApplicationInfo { public int targetSdkVersion; }
+			""".trimIndent()
+
+		val FAKE_BUILD =
+			"""
+			package android.os;
+			public class Build { public static class VERSION { public static int SDK_INT = 34; } }
 			""".trimIndent()
 	}
 }

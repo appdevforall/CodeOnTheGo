@@ -71,4 +71,34 @@ class SqliteRewriteRulesTest {
 			"mWindowLandroid/database/CursorWindow;",
 		)
 	}
+
+	private val collations =
+		mapOf("UNICODE" to SqliteRewriteRules.COLLATE_UNICODE, "LOCALIZED" to SqliteRewriteRules.COLLATE_LOCALIZED)
+
+	@Test
+	fun `COLLATE accepts a quoted or bracketed name right after the keyword, a bare name needs a separator`() {
+		for ((name, rule) in collations) {
+			val quoted = listOf("COLLATE\"$name\"", "COLLATE'$name'", "COLLATE[$name]", "COLLATE`$name`", "collate\"${name.lowercase()}\"")
+			for (form in quoted) {
+				assertWithMessage(form).that(rule.containsMatchIn("SELECT 'a' $form")).isTrue()
+			}
+			for (form in listOf("COLLATE$name", "COLLATE$name x", "COLLATE\"$name-CI\"", "COLLATE'${name}_CI'", "COLLATE[$name-CI]")) {
+				assertWithMessage(form).that(rule.containsMatchIn("SELECT 'a' $form")).isFalse()
+			}
+		}
+	}
+
+	@Test
+	fun `a block comment ends at its first star-slash`() {
+		for ((name, rule) in collations) {
+			// NOCASE is the collation, the name after the second comment is a column alias
+			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE /* first */ NOCASE /* second */ $name")).isFalse()
+			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE /* c */ $name")).isTrue()
+			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE/*c*/$name")).isTrue()
+			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE /* a */ /* b */ $name")).isTrue()
+			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE /* a * b */ $name")).isTrue()
+			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE -- c\n $name")).isTrue()
+			assertWithMessage(name).that(rule.containsMatchIn("SELECT 'a' COLLATE /* c */ NOCASE")).isFalse()
+		}
+	}
 }

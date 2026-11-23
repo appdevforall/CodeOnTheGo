@@ -81,7 +81,7 @@ object SqliteRewriter {
 	private const val WAY_OUT =
 		"If this class is the app's, change the code above. If it is in a library, the library cannot run on " +
 			"requery: set cogo.sqliteDebugger=false in the gradle.properties that defines it, or in one read earlier " +
-			"(the first file that defines it decides: Gradle user home, then the app module, then the root), " +
+			"(the first file that defines it decides: Gradle user home, then the app module, its parent projects, then the root), " +
 			"to build without the SQLite debugger. Commenting the line out can expose another file's true."
 
 	private val remapper =
@@ -482,6 +482,10 @@ object SqliteRewriter {
 						typeInsn(m, insn, line, tainted)
 					}
 
+					is MultiANewArrayInsnNode -> {
+						if (insn.desc.contains(Rules.OPEN_PARAMS)) violate(m, line, "OpenParams, which requery lacks")
+					}
+
 					is LdcInsnNode -> {
 						(insn.cst as? Type)?.let {
 							if (it.descriptor.contains(Rules.OPEN_PARAMS)) violate(m, line, "OpenParams, which requery lacks")
@@ -514,7 +518,11 @@ object SqliteRewriter {
 			if (Rules.COLLATE_LOCALIZED.containsMatchIn(text)) {
 				warn(
 					"${site(m, line)}: COLLATE LOCALIZED works in requery's SQLite but sorts by " +
-						"byte value (no ICU), not by the device locale",
+						"byte value (no ICU), not by the device locale. An index on a LOCALIZED column that the other engine " +
+						"built is ordered by that engine's comparator, and both engines rebuild such indexes only when the " +
+						"locale in android_metadata changes, so on an existing database an indexed lookup can miss rows. " +
+						"After the opt-in is turned on or off over existing data, run REINDEX LOCALIZED before relying on " +
+						"the indexes, or start from an empty database",
 				)
 			}
 			// A warning, not a failure: the string may only be printed. Strings are not rewritten, so a class loaded by
@@ -632,7 +640,8 @@ object SqliteRewriter {
 			line: Int,
 			tainted: Set<AbstractInsnNode>,
 		) {
-			if (t.desc.startsWith(Rules.OPEN_PARAMS)) {
+			// contains, not startsWith: an array type's descriptor starts with '[' (CHECKCAST, INSTANCEOF, ANEWARRAY of arrays)
+			if (t.desc.contains(Rules.OPEN_PARAMS)) {
 				violate(m, line, "OpenParams, which requery lacks")
 			}
 			if (t.opcode == Opcodes.CHECKCAST && t.desc in Rules.ANDROID_ONLY_CURSOR_TYPES && t in tainted) {

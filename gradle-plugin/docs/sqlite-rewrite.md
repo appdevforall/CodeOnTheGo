@@ -9,11 +9,17 @@ run the same SQLite. User source does not change.
 
 An existing project needs:
 
-1. `cogo.sqliteDebugger=true` in `gradle.properties`. The plugin reads it with Gradle's `findProperty`, so the
-   project's root file, the app module's own `gradle.properties` and the Gradle user home's
-   (`GRADLE_USER_HOME`, `~/.gradle` under Code on the Go's home) all work, the user home first. The IDE's Quick
-   Build check (`QuickBuildProjectSupport.isSqliteDebuggerEnabled`) reads those same three files, in that order,
-   and logs a file it cannot read; it does not see `-P` arguments, which Code on the Go does not pass for this.
+1. `cogo.sqliteDebugger=true` in `gradle.properties`. The plugin reads it with Gradle's `findProperty` for each app
+   module it is applied to, so Gradle decides per module: the Gradle user home's file
+   (`GRADLE_USER_HOME`, `~/.gradle` under Code on the Go's home) first, then the module's own `gradle.properties`,
+   then each parent project's (`:group` for `:group:app`), then the root's; the first that defines the property
+   decides. Quick Build is off when the module it builds (the first app module) has the opt-in in force; another app
+   module's value does not affect Quick Build. To turn the rewrite off across a project, set
+   `cogo.sqliteDebugger=false` where the opt-in is in force for each app module, or in the Gradle user home. The
+   IDE's Quick Build check (`QuickBuildProjectSupport.isSqliteDebuggerEnabled`) reads those files for the Quick
+   Build module in that order. It takes a parent project's directory from the project model and, for a parent the
+   model lacks, from the default directory layout (it would miss a `projectDir` remapped in `settings.gradle`). It logs a
+   file it cannot read, and does not see `-P` arguments, which Code on the Go does not pass for this.
 2. requery's AAR (`sqlite-android.aar`) in the app's `libs/`, as a file dependency
    (`implementation(files("libs/sqlite-android.aar"))`), as the ADFA-7082 template does.
 3. androidx.sqlite and androidx.core on the runtime classpath (`androidx.sqlite:sqlite`, which Room, WorkManager
@@ -38,8 +44,8 @@ with an actionable message when the variant's runtime classpath has no
 
 The property is required because requery reaches apps only through `libs/`. Without it the rewritten classes
 cannot load, so the transform runs only on projects that opted in. To turn it off, set `cogo.sqliteDebugger=false` in
-the file that defines it, or in one read earlier (Gradle user home, then the app module, then the root: the first
-file that defines the property decides). Commenting the line out can expose another file's `true`.
+the file that defines it, or in one read earlier (Gradle user home, then the app module, its parent projects, then
+the root: the first file that defines the property decides). Commenting the line out can expose another file's `true`.
 
 ## Rules
 
@@ -68,7 +74,7 @@ file that defines the property decides). Commenting the line out can expose anot
   renamed class against requery), SQL text with `COLLATE UNICODE` (any case or whitespace, in any string
   constant, which covers Room's generated `_Impl` classes: requery's native SQLite has no ICU, so the collation
   does not exist), any use of
-  `SQLiteDatabase.OpenParams`, a call that passes android's `CursorWindow` to a renamed class (calls on
+  `SQLiteDatabase.OpenParams` (an array of it too, of any dimension: `new OpenParams[1][1]`, a cast to `OpenParams[]`), a call that passes android's `CursorWindow` to a renamed class (calls on
   `CursorWindow` itself are fine), and a cast of
   an SQLite cursor to `android.database.AbstractWindowedCursor`, `AbstractCursor` or `CrossProcessCursor`
   (requery's cursors extend its own copies of the first two, and implement only `android.database.Cursor`).
@@ -86,7 +92,7 @@ file that defines the property decides). Commenting the line out can expose anot
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
-  compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together, with
+  compares bytes (no ICU) instead of sorting by locale, and it warns about existing indexes (see Known limits). All violations of a class are reported together, with
   the way out for a library class, which the user cannot change: set `cogo.sqliteDebugger=false` in the file that defines it, or in one read earlier. A platform method outside the renamed set whose
   descriptor mentions a renamed class (found with javap over android.jar: the other `DatabaseUtils` methods
   `blobFileDescriptorForQuery` and `bindObjectToProgram`, `DatabaseUtils$InsertHelper`, `OpenParams`
@@ -117,8 +123,8 @@ file that defines the property decides). Commenting the line out can expose anot
   the full frames copied from it, still say `String[]`. For each non-abstract method whose descriptor is retyped
   that way, the rewriter inserts `ALOAD n; CHECKCAST [Ljava/lang/String;; ASTORE n` at method entry, so the body
   stays valid, and writes every frame of that method in full (compressed frames are relative to the implicit first
-  frame, which now has the wide type). A driver that is handed an `Object[]` with an element that is not a
-  `String` throws `ClassCastException` on entry; requery's own drivers pass strings.
+  frame, which now has the wide type). A driver that is handed an array whose run-time class is not
+  `String[]` (an `Object[]`, even one that holds only strings) throws `ClassCastException` on entry; requery's own drivers pass strings.
   The mode is per variant, but `COPY_FRAMES` cannot weaken another instrumentation in the same build (Hilt, Firebase,
   an app's own `transformClassesWith`) that needs frames computed: `setAsmFramesComputationMode` keeps the highest
   mode any plugin asks for (AGP 7.3.0, 8.8.2 and 9.3.1 compare the enum ordinals; checked with javap), and
@@ -193,8 +199,19 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 
 - Room's `BundledSQLiteDriver` is not covered (it brings its own SQLite).
 - requery's native library is built without ICU: there is no `UNICODE` collator (a `COLLATE UNICODE` string
-  constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, and
+  constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, which needs no space after `COLLATE`, and
   `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
+- Existing `LOCALIZED` indexes after an engine switch. Android builds a `LOCALIZED` index with ICU's collator for the
+  device locale (AOSP android-15.0.0_r1, `register_localized_collators`: `ucol_open`, primary strength); requery's
+  collator compares bytes (not re-checked here: the claim above is from the earlier review). Both engines'
+  `SQLiteConnection.setLocaleFromConfiguration` (AOSP android-15.0.0_r1 and requery 3.49.0, read with javap) run
+  `REINDEX LOCALIZED` only when the locale in `android_metadata` differs from the configured one, and return
+  early when it matches. So when the opt-in is turned on or off over an existing database and the device locale has not changed,
+  the indexes keep the other engine's order. Searching one with a comparator that does not match its order can miss
+  rows (reasoned from that code, not run on a device). Run `REINDEX LOCALIZED` on the database under the new engine
+  before relying on those indexes (this applies when turning the opt-in off again as well), or start from an empty
+  database; if neither is possible, do not switch engines on that database. The build warns at each
+  `COLLATE LOCALIZED` string constant; a schema that comes from elsewhere (a prepackaged database file) is not seen.
 - Four rare false positives of the checks, each rejected on purpose rather than proven safe:
   - a custom `CursorFactory` that returns a non-requery cursor, then a cast to an Android cursor class, is rejected
     (the cast check follows the static type from a renamed owner, and the taint passes through every `CHECKCAST`, so a cast through `Cursor` does not avoid it;
@@ -204,6 +221,12 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   - an `instanceof` proof covers the checked local only, not a copy of it;
   - a call to a member requery lacks, made on a subclass that declares its own version of that member, is still rejected,
     because the check matches the member's name and descriptor on the call's owner class and its renamed ancestors, not the declaration it resolves to.
+- An inherited `query(CursorFactory, Object[])` is not checked. The build fails when a class declares both `query`
+  overloads, but it looks only at the methods the class declares. If a superclass declares `query(CursorFactory,
+  Object[])` (a method the subclass can override), the retyped `query(CursorFactory, String[])` gets the same name and
+  descriptor and overrides it. A call through the superclass type then runs the driver's method (if it is not
+  abstract), whose entry `CHECKCAST [Ljava/lang/String;` throws `ClassCastException` unless the argument's run-time class is `String[]`, where
+  before the rewrite the superclass's method ran. Read from `retypeParameters` and the duplicate check, not run.
 - `SupportSQLiteDatabase.execPerConnectionSQL` is unsupported (see the design change): no build failure, an
   `UnsupportedOperationException` when called.
 - Passing an Android `CursorWindow` where a (renamed) `SQLiteClosable` is expected cannot work: android's
@@ -256,7 +279,13 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   of the four false positives above).
 - Compile-time constants are copied into callers, so uses of `NO_LOCALIZED_COLLATORS`, `JOURNAL_MODE_*` or `SYNC_MODE_*` are
   not visible to the fail rule. `NO_LOCALIZED_COLLATORS` is dropped by the flag translation.
-- The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
+- The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied (Android sets 0660 with a
+  hidden API; requery's file gets whatever its open gives, not checked). The world-access bits are checked, as Android's
+  `ContextImpl.checkMode` does (AOSP android-15.0.0_r1): on Android 7 or later, an app that targets API 24 or later
+  gets `SecurityException("MODE_WORLD_READABLE no longer supported")` or `("MODE_WORLD_WRITEABLE no longer supported")`
+  before the path is resolved, from either overload. An app that targets an older API gets no exception, and no
+  world-readable or world-writable file either (Android would make one). `deleteDatabase` has no such check in
+  Android's `ContextImpl`, so the redirected one has none, and `getDatabasePath` and `databaseList` are not redirected.
 - The declaration of an override of a member requery lacks, in a direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor`,
   is not reported by itself: the rules check calls and field accesses, not declarations. The exceptions are the
   `SQLiteQueryBuilder.query` override with a `CancellationSignal` and the `Context` database methods, which fail (see above).
