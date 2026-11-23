@@ -28,7 +28,11 @@ val templateModule =
 			TemplateManagerViewModel(
 				templateRepository = get(),
 				isBundledTemplate = { fileName ->
-					BundledAddonsRecord.inFilesDir(IDEApplication.cachedFilesDir).read()?.templateFiles?.contains(fileName) == true
+					BundledAddonsRecord
+						.inFilesDir(IDEApplication.cachedFilesDir)
+						.read()
+						?.templateFiles
+						?.contains(fileName) == true
 				},
 			)
 		}

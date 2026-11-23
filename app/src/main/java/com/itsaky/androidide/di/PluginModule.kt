@@ -55,7 +55,11 @@ val pluginModule =
 				connectivityObserver = get(),
 				isOfflineModeEnabled = { BuildPreferences.isOfflineEnabled },
 				isBundledPlugin = { id ->
-					BundledAddonsRecord.inFilesDir(IDEApplication.cachedFilesDir).read()?.pluginIds?.contains(id) == true
+					BundledAddonsRecord
+						.inFilesDir(IDEApplication.cachedFilesDir)
+						.read()
+						?.pluginIds
+						?.contains(id) == true
 				},
 			)
 		}
