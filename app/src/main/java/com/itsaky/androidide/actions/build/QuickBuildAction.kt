@@ -30,6 +30,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.appdevforall.cotg.quickbuild.domain.session.QuickBuildTone
 import org.appdevforall.cotg.quickbuild.domain.session.toTone
 import org.appdevforall.cotg.quickbuild.service.session.QuickBuildSessionManager
@@ -150,10 +151,13 @@ class QuickBuildAction(
 		private val tapInFlight = AtomicBoolean(false)
 
 		/**
-		 * Runs a Quick Build tap: save the open files, confirm replacing an installed app, then
-		 * hand the tap to [sessionManager]. The toolbar button and the plugin API both start
-		 * Quick Build here, so they cannot drift apart.
+		 * Runs a Quick Build tap: save the open files, confirm replacing an installed app unless the
+		 * SQLite debugger will refuse the build, then hand the tap to [sessionManager]. The toolbar
+		 * button, the status line's "tap for details" and the plugin API all start Quick Build here,
+		 * so they cannot drift apart.
 		 *
+		 * @param refusedForSqliteDebugger read off the main thread after the save: true when the
+		 *   provisioner will refuse the build because the project turns the SQLite debugger on.
 		 * @param beforeSession asked on the main thread just before the tap reaches the session;
 		 *   false drops it, for a caller that cancelled while the tap was saving or asking.
 		 * @param onOutcome told once how the tap ended, unless the activity is destroyed or
@@ -163,6 +167,7 @@ class QuickBuildAction(
 		internal fun launchTap(
 			activity: EditorHandlerActivity,
 			sessionManager: QuickBuildSessionManager,
+			refusedForSqliteDebugger: () -> Boolean = { GradleQuickBuildProvisioner.refusesForSqliteDebugger() },
 			beforeSession: () -> Boolean = { true },
 			onOutcome: (TapOutcome) -> Unit = {},
 		): Job? {
@@ -170,13 +175,14 @@ class QuickBuildAction(
 				log.info("Quick Build: a tap is already in flight; dropping this one")
 				return null
 			}
-			return startTap(activity, sessionManager, beforeSession, onOutcome)
+			return startTap(activity, sessionManager, refusedForSqliteDebugger, beforeSession, onOutcome)
 				.also { it.invokeOnCompletion { tapInFlight.set(false) } }
 		}
 
 		private fun startTap(
 			activity: EditorHandlerActivity,
 			sessionManager: QuickBuildSessionManager,
+			refusedForSqliteDebugger: () -> Boolean,
 			beforeSession: () -> Boolean,
 			onOutcome: (TapOutcome) -> Unit,
 		): Job =
@@ -209,6 +215,19 @@ class QuickBuildAction(
 					onOutcome(TapOutcome.SAVE_FAILED)
 					return@launch
 				}
+				// Read after the save, which can write a gradle.properties the user just edited, and
+				// before the activity check, since it leaves the main thread.
+				val refused =
+					withContext(Dispatchers.IO) {
+						try {
+							refusedForSqliteDebugger()
+						} catch (e: Exception) {
+							// Unknown, so ask about the installed app as a tap always did; the provisioner
+							// still makes its own check.
+							log.warn("Quick Build: could not read the SQLite debugger opt-in; asking about the installed app", e)
+							false
+						}
+					}
 				if (activity.isDestroyed || activity.isFinishing) {
 					log.info("Quick Build: the activity went away during the save; dropping the tap")
 					onOutcome(TapOutcome.ACTIVITY_GONE)
@@ -218,7 +237,7 @@ class QuickBuildAction(
 				// project's real applicationId. If the Standard Run build currently occupies that
 				// id, a tap replaces it, so the activity confirms the clobber first and the build
 				// proceeds only on accept.
-				if (!activity.awaitQuickBuildClobberConfirmed()) {
+				if (!replaceConfirmedUnlessRefused(refused) { activity.awaitQuickBuildClobberConfirmed() }) {
 					onOutcome(TapOutcome.DECLINED)
 					return@launch
 				}
@@ -234,6 +253,21 @@ class QuickBuildAction(
 				sessionManager.onQuickBuildTapped(wroteSomething)
 				onOutcome(TapOutcome.STARTED)
 			}
+
+		/**
+		 * Whether a tap may go on to the session, as far as replacing the installed app goes. Not
+		 * asked when the SQLite debugger will refuse the build: the provisioner refuses before
+		 * anything is staged or installed, so the question would be about a replacement that cannot
+		 * happen, and its Cancel would hide the refusal that explains why Quick Build is off. The
+		 * session then shows that refusal, as the banner and as the status line's "tap for details".
+		 *
+		 * @param refused whether the SQLite debugger will refuse the build.
+		 * @param confirm asks the user, on the main thread; true to replace the installed app.
+		 */
+		internal suspend fun replaceConfirmedUnlessRefused(
+			refused: Boolean,
+			confirm: suspend () -> Boolean,
+		): Boolean = refused || confirm()
 
 		/**
 		 * The one bit the tap carries across the save/watch boundary: whether the save-all

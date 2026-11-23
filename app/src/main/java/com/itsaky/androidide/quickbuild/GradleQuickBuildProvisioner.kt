@@ -564,17 +564,7 @@ class GradleQuickBuildProvisioner(
 		projectManager: IProjectManager,
 		projectRoot: File,
 	): ProxyAppBuildResult.Refused? {
-		// Every app module's gradle.properties is read, although Quick Build builds only the first
-		// app module: the opt-in is decided per project, and the first file that defines the
-		// property decides it (the Gradle user home, then the modules in order, then the root), so
-		// a module's `false` overrides a root `true` as it does in Gradle.
-		val enabled =
-			QuickBuildProjectSupport.isSqliteDebuggerEnabled(
-				projectRoot,
-				Environment.GRADLE_USER_HOME,
-				projectManager.getAndroidAppModules().map { File(it.projectDirPath) },
-			)
-		if (!enabled) return null
+		if (!isSqliteDebuggerOn(projectManager, projectRoot)) return null
 		log.info(
 			"Quick Build is not provisioned: {} is true in the Gradle user home's, an app module's or the project's gradle.properties",
 			GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
@@ -607,6 +597,33 @@ class GradleQuickBuildProvisioner(
 		internal fun quickBuildModule(manager: IProjectManager = IProjectManager.getInstance()): AndroidModule? =
 			manager.getAndroidAppModules().firstOrNull()
 				?: manager.getAndroidModules().firstOrNull()
+
+		/**
+		 * Whether a Quick Build tap now would be refused because the project turns the SQLite
+		 * debugger on, read as [provision] reads it before staging: false while the project model is
+		 * not published, when the provisioner decides only after the sync. For a tap to read before it
+		 * asks to replace the installed app: the refusal comes before anything is staged or installed,
+		 * so there is no replacement to ask about.
+		 */
+		fun refusesForSqliteDebugger(projectManager: IProjectManager = IProjectManager.getInstance()): Boolean =
+			projectManager.workspace != null && isSqliteDebuggerOn(projectManager)
+
+		/**
+		 * Whether `cogo.sqliteDebugger=true` is in force for [projectManager]'s project. Every app
+		 * module's gradle.properties is read, although Quick Build builds only the first app module:
+		 * the opt-in is decided per project, and the first file that defines the property decides it
+		 * (the Gradle user home, then the modules in order, then the root), so a module's `false`
+		 * overrides a root `true` as it does in Gradle.
+		 */
+		private fun isSqliteDebuggerOn(
+			projectManager: IProjectManager,
+			projectRoot: File = File(projectManager.projectDirPath),
+		): Boolean =
+			QuickBuildProjectSupport.isSqliteDebuggerEnabled(
+				projectRoot,
+				Environment.GRADLE_USER_HOME,
+				projectManager.getAndroidAppModules().map { File(it.projectDirPath) },
+			)
 
 		/**
 		 * The Build Variants selection Quick Build would build right now, or null when the
