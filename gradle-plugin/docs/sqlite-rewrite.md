@@ -92,7 +92,7 @@ file that defines the property decides). Commenting the line out can expose anot
   A cast guarded by `instanceof` of the same type on the same local (`if (c instanceof X) ((X) c)`, `&&`, `?:`,
   or an early return when it is false) is not reported when the guard holds on every path to the cast: in
   `if (b || c instanceof X) ((X) c)` the cast is reached with `b` alone, so it is reported. `COLLATE LOCALIZED` only logs a warning: it works, but
-  compares bytes (no ICU) instead of sorting by locale. All violations of a class are reported together, with
+  compares bytes (no ICU) instead of sorting by locale, and it warns about existing indexes (see Known limits). All violations of a class are reported together, with
   the way out for a library class, which the user cannot change: set `cogo.sqliteDebugger=false` in the file that defines it, or in one read earlier. A platform method outside the renamed set whose
   descriptor mentions a renamed class (found with javap over android.jar: the other `DatabaseUtils` methods
   `blobFileDescriptorForQuery` and `bindObjectToProgram`, `DatabaseUtils$InsertHelper`, `OpenParams`
@@ -201,6 +201,17 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 - requery's native library is built without ICU: there is no `UNICODE` collator (a `COLLATE UNICODE` string
   constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, which needs no space after `COLLATE`, and
   `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
+- Existing `LOCALIZED` indexes after an engine switch. Android builds a `LOCALIZED` index with ICU's collator for the
+  device locale (AOSP android-15.0.0_r1, `register_localized_collators`: `ucol_open`, primary strength); requery's
+  collator compares bytes (not re-checked here: the claim above is from the earlier review). Both engines'
+  `SQLiteConnection.setLocaleFromConfiguration` (AOSP android-15.0.0_r1 and requery 3.49.0, read with javap) run
+  `REINDEX LOCALIZED` only when the locale in `android_metadata` differs from the configured one, and return
+  early when it matches. So when the opt-in is turned on or off over an existing database and the device locale has not changed,
+  the indexes keep the other engine's order. Searching one with a comparator that does not match its order can miss
+  rows (reasoned from that code, not run on a device). Run `REINDEX LOCALIZED` on the database under the new engine
+  before relying on those indexes (this applies when turning the opt-in off again as well), or start from an empty
+  database; if neither is possible, do not switch engines on that database. The build warns at each
+  `COLLATE LOCALIZED` string constant; a schema that comes from elsewhere (a prepackaged database file) is not seen.
 - Four rare false positives of the checks, each rejected on purpose rather than proven safe:
   - a custom `CursorFactory` that returns a non-requery cursor, then a cast to an Android cursor class, is rejected
     (the cast check follows the static type from a renamed owner, and the taint passes through every `CHECKCAST`, so a cast through `Cursor` does not avoid it;

@@ -1318,6 +1318,9 @@ class SqliteRewriterTest {
 		assertThat(warnings.single()).contains("p.Sorted.q")
 		assertThat(warnings.single()).contains("line ")
 		assertThat(warnings.single()).contains("byte")
+		assertThat(warnings.single()).contains("REINDEX LOCALIZED")
+		assertThat(warnings.single()).contains("indexed lookup can miss rows")
+		assertThat(warnings.single()).contains("start from an empty database")
 	}
 
 	@Test

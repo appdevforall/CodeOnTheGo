@@ -518,7 +518,11 @@ object SqliteRewriter {
 			if (Rules.COLLATE_LOCALIZED.containsMatchIn(text)) {
 				warn(
 					"${site(m, line)}: COLLATE LOCALIZED works in requery's SQLite but sorts by " +
-						"byte value (no ICU), not by the device locale",
+						"byte value (no ICU), not by the device locale. An index on a LOCALIZED column that the other engine " +
+						"built is ordered by that engine's comparator, and both engines rebuild such indexes only when the " +
+						"locale in android_metadata changes, so on an existing database an indexed lookup can miss rows. " +
+						"After the opt-in is turned on or off over existing data, run REINDEX LOCALIZED before relying on " +
+						"the indexes, or start from an empty database",
 				)
 			}
 			// A warning, not a failure: the string may only be printed. Strings are not rewritten, so a class loaded by
