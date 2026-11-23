@@ -17,7 +17,6 @@
 
 package com.itsaky.androidide.memprof
 
-import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -65,7 +64,7 @@ internal class MemprofReportWriter(
 	/** Prints the report to logcat, one line per log entry, so a reader sees the table intact. */
 	fun log() {
 		// DEBUG, not INFO: an INFO line becomes a Sentry breadcrumb, and the report is dozens of lines.
-		render().lineSequence().forEach { line -> logger.debug("MEMPROF|report| {}", line) }
+		render().lineSequence().forEach { line -> logger.d("MEMPROF|report| {}", line) }
 	}
 
 	private fun render(): String = report.render(System.currentTimeMillis(), RuntimeHeapCounters.read())
@@ -78,11 +77,11 @@ internal class MemprofReportWriter(
 			val temporary = File(target.parentFile, target.name + ".tmp")
 			temporary.writeText(text)
 			check(temporary.renameTo(target)) { "rename to $target failed" }
-		}.onFailure { failure -> logger.error("MEMPROF|report_write_failed|{}", lastWriteMs, failure) }
+		}.onFailure { failure -> logger.e("MEMPROF|report_write_failed|{}", lastWriteMs, failure) }
 	}
 
 	private companion object {
-		val logger = LoggerFactory.getLogger(MemprofReportWriter::class.java)
+		val logger = MemprofLog("MemprofReportWriter")
 
 		val io =
 			Executors.newSingleThreadExecutor { runnable ->
