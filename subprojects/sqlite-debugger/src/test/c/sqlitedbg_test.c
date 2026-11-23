@@ -478,6 +478,14 @@ static void test_close_and_list(void) {
 	CHECK_EQ(b.events[0].sql_bytes, 0);
 	batch_free(&b);
 
+	// the failed close left the connection open: a statement on it clears closing, a second failed close sets it
+	exec_ok(c, "SELECT 1");
+	list_conns(&l);
+	CHECK_EQ(find_conn(&l, id)->closing, 0);
+	CHECK_EQ(sqlite3_close(c), SQLITE_BUSY);
+	list_conns(&l);
+	CHECK_EQ(find_conn(&l, id)->closing, 1);
+
 	// the app retries once the statement is gone
 	sqlite3_finalize(st);
 	CHECK_EQ(list_conns(&l), before + 1);

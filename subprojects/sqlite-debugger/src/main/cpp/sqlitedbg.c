@@ -35,7 +35,7 @@ typedef struct conn_state {
 	uint64_t id;
 	char *path;
 	int read_only;
-	int closing;
+	int closing;  // atomic: set by the close event, cleared by a later statement event
 	int64_t opened_at_ns;
 	int64_t open_thread_id;
 } conn_state;
@@ -167,6 +167,9 @@ static int trace_cb(unsigned type, void *c, void *p, void *x) {
 	switch (type) {
 		case SQLITE_TRACE_STMT:
 		case SQLITE_TRACE_PROFILE: {
+			// SQLite fires the close event before it checks for unfinalized statements, so a close that
+			// then fails with SQLITE_BUSY leaves the connection open. A statement event proves it is.
+			if (__atomic_load_n(&cs->closing, __ATOMIC_RELAXED)) __atomic_store_n(&cs->closing, 0, __ATOMIC_RELAXED);
 			sqlite3_stmt *stmt = (sqlite3_stmt *)p;
 			const char *sql = NULL;
 			char *expanded = NULL;
@@ -198,9 +201,7 @@ static int trace_cb(unsigned type, void *c, void *p, void *x) {
 		}
 		case SQLITE_TRACE_CLOSE:
 			// The close can still fail or leave a zombie, so only mark it: xDestroy frees.
-			pthread_mutex_lock(&g_lock);
-			cs->closing = 1;
-			pthread_mutex_unlock(&g_lock);
+			__atomic_store_n(&cs->closing, 1, __ATOMIC_RELAXED);
 			add_event(SQLITEDBG_EVENT_CLOSE, cs->id, -1, 0, "", 0);
 			break;
 	}
@@ -337,7 +338,7 @@ size_t sqlitedbg_each_connection(void (*fn)(void *context, const sqlitedbg_conne
 		c.id = cs->id;
 		c.path = cs->path;
 		c.read_only = cs->read_only;
-		c.closing = cs->closing;
+		c.closing = __atomic_load_n(&cs->closing, __ATOMIC_RELAXED);
 		c.opened_at_ns = cs->opened_at_ns;
 		c.open_thread_id = cs->open_thread_id;
 		fn(context, &c);

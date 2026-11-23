@@ -57,8 +57,11 @@ typedef struct sqlitedbg_connection {
     const char *path;
     // 1 if the main database is read-only (sqlite3_db_readonly).
     int read_only;
-    // 1 once the trace "close" event has fired. The close may still fail, and the app may retry
-    // it, so the connection stays listed until SQLite frees it.
+    // 1 once the trace "close" event has fired. The close may still fail (SQLITE_BUSY with an
+    // unfinalized statement), and the app may retry it, so the connection stays listed until SQLite
+    // frees it. A later statement event on the connection resets this to 0, as it shows the close
+    // failed. A zombie left by sqlite3_close_v2 also reads 0 once a statement still pending on it
+    // runs (checked in SQLite 3.49.1), until its last statement is finalized and SQLite frees it.
     int closing;
     // CLOCK_REALTIME, nanoseconds, when the extension first saw the connection.
     int64_t opened_at_ns;
