@@ -4,11 +4,11 @@ import android.app.Dialog
 import android.os.Bundle
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.graphics.drawable.DrawableCompat
-import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.setFragmentResult
 import com.google.android.material.color.MaterialColors
 import com.itsaky.androidide.R
+import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.utils.DialogUtils
 
 class PackageNameChangeDialogFragment : DialogFragment() {
@@ -34,9 +34,10 @@ class PackageNameChangeDialogFragment : DialogFragment() {
 			.setMessage(R.string.package_name_change_message)
 			.setPositiveButton(R.string.learn_more) { _, _ ->
 				// TODO - Navigate to "Learn More" screen; do not dismiss
-				setFragmentResult(REQUEST_KEY, bundleOf())
+				setFragmentResult(REQUEST_KEY, Bundle.EMPTY)
 			}.setNegativeButton(R.string.msg_got_it) { _, _ ->
-				setFragmentResult(REQUEST_KEY, bundleOf())
+				GeneralPreferences.packageNameChangeNoticeDismissedAt = System.currentTimeMillis()
+				setFragmentResult(REQUEST_KEY, Bundle.EMPTY)
 			}.create()
 	}
 

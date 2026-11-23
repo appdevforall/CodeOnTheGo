@@ -100,6 +100,7 @@ import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
@@ -226,7 +227,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 		if (deepLinkRequest != null && deepLinkRequest !in consumedDeepLinkRequests) {
 			handleDeepLinkRequest(deepLinkRequest)
-		} else if (savedInstanceState == null && !shouldDisplayPackageNameChangeDialog()) {
+		} else if (savedInstanceState == null && !shouldShowPackageNameChangeDialog()) {
 			openLastProject()
 		}
 
@@ -336,8 +337,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		builder.show()
 	}
 
-	private fun shouldDisplayPackageNameChangeDialog(): Boolean {
-		if (BuildConfig.APPLICATION_ID == "org.appdevforall.codeonthego") {
+	private fun shouldShowPackageNameChangeDialog(): Boolean {
+		if (BuildConfig.APPLICATION_ID == "org.appdevforall.codeonthego" ||
+			System.currentTimeMillis() - GeneralPreferences.packageNameChangeNoticeDismissedAt < TimeUnit.DAYS.toMillis(7)
+		) {
 			return false
 		}
 		if (supportFragmentManager.findFragmentByTag(PackageNameChangeDialogFragment.TAG) == null) {
