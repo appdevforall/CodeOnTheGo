@@ -71,6 +71,12 @@ class DatabaseTools internal constructor(
 
 		const val PAGING_NOTE = "Paging re-runs the query for each page, so a later page can differ if the data changed."
 
+		/** Said by the tools that return cells whose TEXT and BLOB values the server can cut. */
+		private const val CUT_CELLS_NOTE =
+			"truncated_cells counts the cut cells and truncated_cell_indexes lists each as [row, column], both from 0 and " +
+				"the row relative to the rows returned; a TEXT cell has no marker of its own, and a cut BLOB is in the list too " +
+				"(it also has truncated true)."
+
 		/**
 		 * Said by every tool that runs a statement. The limit itself is enforced in C (SQLITEDBG_SERVER_NON_WAL_MS in
 		 * sqlitedbg.h, which says why); this text must follow it.
@@ -224,7 +230,8 @@ class DatabaseTools internal constructor(
 				"Get schema",
 				"Returns the tables, indexes, views and triggers of a database, with their CREATE statements, from sqlite_master. " +
 					"A CREATE statement is cut at ${MAX_SCHEMA_SQL_BYTES / 1024} KiB: its entry then has truncated true, and " +
-					"truncated_cells counts the cut values. The top-level truncated is true when anything was cut or entries were left " +
+					"truncated_cells counts the cut values (there is no truncated_cell_indexes: the entry says which). " +
+					"The top-level truncated is true when anything was cut or entries were left " +
 					"out: past the first $MAX_ROWS, or past about ${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (about " +
 					"${MAX_TOTAL_BYTES / MAX_SCHEMA_SQL_BYTES} statements of ${MAX_SCHEMA_SQL_BYTES / 1024} KiB). There is no offset: " +
 					"to read the rest, page through sqlite_master with query (ORDER BY type, name, the order get_schema uses), " +
@@ -236,7 +243,8 @@ class DatabaseTools internal constructor(
 				"query",
 				"Run a query",
 				"Runs one read-only SQL statement. Returns at most max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS); " +
-					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES. A result also stops at about " +
+					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES: $CUT_CELLS_NOTE " +
+					"A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
 					"comes back whole. Use offset to page. " +
 					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
@@ -251,7 +259,8 @@ class DatabaseTools internal constructor(
 			tool(
 				"explain_query_plan",
 				"Explain a query plan",
-				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. $APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
+				"Runs EXPLAIN QUERY PLAN on a SQL statement and returns SQLite's plan. The statement is not run. " +
+					"A cell cut at $MAX_TEXT_BYTES bytes is listed as in query: $CUT_CELLS_NOTE $APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters."),
@@ -269,7 +278,9 @@ class DatabaseTools internal constructor(
 				"integrity_check",
 				"Check integrity",
 				"Runs PRAGMA quick_check, or the slower PRAGMA integrity_check when full is true. " +
-					"ok is true when SQLite reports no problem. Both checks fail with \"unknown function\" when a CHECK constraint or a " +
+					"ok is true when SQLite reports no problem. A message cut at $MAX_TEXT_BYTES bytes is listed as in query " +
+					"(truncated_cells, truncated_cell_indexes: [message index, 0]). " +
+					"Both checks fail with \"unknown function\" when a CHECK constraint or a " +
 					"NOT NULL virtual generated column calls a function the app adds to its own connections. A full integrity_check " +
 					"also fails on an index on such an expression and on a partial index whose WHERE calls one; " +
 					"quick_check does not fail on those two, so use it then. " +
@@ -416,7 +427,10 @@ class DatabaseTools internal constructor(
 				0,
 				QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
 			)
-		return JSONObject().put("plan", rowsAsObjects(result))
+		return JSONObject()
+			.put("plan", rowsAsObjects(result))
+			.put("truncated_cells", result.truncatedCells)
+			.put("truncated_cell_indexes", truncatedCellIndexes(result))
 	}
 
 	private fun getStats(
@@ -487,6 +501,8 @@ class DatabaseTools internal constructor(
 			.put("check", if (full) "integrity_check" else "quick_check")
 			.put("ok", messages == listOf("ok"))
 			.put("messages", JSONArray(messages))
+			.put("truncated_cells", result.truncatedCells)
+			.put("truncated_cell_indexes", truncatedCellIndexes(result))
 	}
 
 	private fun getEvents(args: JSONObject): JSONObject {
@@ -539,7 +555,17 @@ class DatabaseTools internal constructor(
 				.put("offset", encodeLong(offset))
 				.put("has_more", result.hasMore)
 				.put("truncated_cells", result.truncatedCells)
+				.put("truncated_cell_indexes", truncatedCellIndexes(result))
 		if (result.hasMore) out.put("next_offset", encodeLong(offset + result.rows.size))
+		return out
+	}
+
+	/** The cut cells as `[row, column]` pairs, the row relative to the rows in [result]. */
+	private fun truncatedCellIndexes(result: QueryResult): JSONArray {
+		val out = JSONArray()
+		val columns = result.columns.size.toLong()
+		if (columns == 0L) return out
+		for (i in result.truncatedCellIndexes.sorted()) out.put(JSONArray().put((i / columns).toInt()).put((i % columns).toInt()))
 		return out
 	}
 

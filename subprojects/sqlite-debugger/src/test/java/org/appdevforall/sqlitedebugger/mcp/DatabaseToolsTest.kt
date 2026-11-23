@@ -576,6 +576,68 @@ class DatabaseToolsTest {
 		assertEquals(1, r.getInt("truncated_cells"))
 	}
 
+	private fun cutCells(r: JSONObject): List<Pair<Int, Int>> =
+		r.getJSONArray("truncated_cell_indexes").let { a ->
+			(0 until a.length()).map { a.getJSONArray(it).let { p -> p.getInt(0) to p.getInt(1) } }
+		}
+
+	@Test fun queryListsExactlyTheCutCellsTextAndBlobAlike() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val cutText = "x".repeat(DatabaseTools.MAX_TEXT_BYTES)
+		val cutBlob = ByteArray(DatabaseTools.MAX_BLOB_BYTES)
+		engine.answer = { _, _, _, _ ->
+			QueryResult(
+				listOf("a", "b", "c"),
+				listOf(listOf(cutText, "short", cutText), listOf("short", cutBlob, 5L), listOf("short", "short", "short")),
+				3,
+				false,
+				setOf(0L, 2L, 4L),
+			)
+		}
+		val r = ok("query", db().put("sql", "x"))
+		assertEquals(listOf(0 to 0, 0 to 2, 1 to 1), cutCells(r))
+		assertEquals(3, r.getInt("truncated_cells"))
+		val rows = r.getJSONArray("rows")
+		assertEquals("a TEXT cell stays a string", cutText, rows.getJSONArray(0).get(0))
+		assertTrue(rows.getJSONArray(1).getJSONObject(1).getBoolean("truncated"))
+	}
+
+	@Test fun queryListsNoCutCellsWhenNothingWasCut() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.answer = { _, _, _, _ -> QueryResult(listOf("a"), listOf(listOf("x")), 0, false) }
+		val r = ok("query", db().put("sql", "x"))
+		assertEquals(0, r.getJSONArray("truncated_cell_indexes").length())
+		assertEquals(0, r.getInt("truncated_cells"))
+	}
+
+	@Test fun explainAndIntegrityCheckListCutCellsAndGetSchemaDoesNot() {
+		engine.appConnections += conn(1, "/data/a.db")
+		answerWith(
+			"EXPLAIN" to
+				QueryResult(listOf("id", "parent", "notused", "detail"), listOf(listOf(2L, 0L, 0L, "SCAN t")), 1, false, setOf(3L)),
+			"PRAGMA quick_check" to QueryResult(listOf("quick_check"), listOf(listOf("ok"), listOf("bad")), 1, false, setOf(1L)),
+			"SELECT type" to
+				QueryResult(listOf("type", "name", "tbl_name", "sql"), listOf(listOf("table", "t", "t", "CREATE")), 1, false, setOf(3L)),
+		)
+		val plan = ok("explain_query_plan", db().put("sql", "select 1"))
+		assertEquals(listOf(0 to 3), cutCells(plan))
+		assertEquals(1, plan.getInt("truncated_cells"))
+		val check = ok("integrity_check", db())
+		assertEquals(listOf(1 to 0), cutCells(check))
+		assertEquals(1, check.getInt("truncated_cells"))
+		val schema = ok("get_schema", db())
+		assertFalse("each entry says whether it was cut", schema.has("truncated_cell_indexes"))
+		assertTrue(schema.getJSONArray("tables").getJSONObject(0).getBoolean("truncated"))
+	}
+
+	@Test fun theToolDescriptionsExplainTheCutCellList() {
+		val byName = tools.tools().associateBy { it.name }
+		for (name in listOf("query", "explain_query_plan", "integrity_check", "get_schema")) {
+			assertTrue(name, byName.getValue(name).description.contains("truncated_cell_indexes"))
+		}
+		assertTrue(byName.getValue("query").description.contains("a cut BLOB is in the list too"))
+	}
+
 	@Test fun aResultStopsAtTheTotalBudgetAndPages() {
 		engine.appConnections += conn(1, "/data/a.db")
 		val big = "x".repeat(3 * 1024 * 1024)
