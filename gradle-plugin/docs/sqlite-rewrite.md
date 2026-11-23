@@ -44,8 +44,8 @@ with an actionable message when the variant's runtime classpath has no
 
 The property is required because requery reaches apps only through `libs/`. Without it the rewritten classes
 cannot load, so the transform runs only on projects that opted in. To turn it off, set `cogo.sqliteDebugger=false` in
-the file that defines it, or in one read earlier (Gradle user home, then the app module, then the root: the first
-file that defines the property decides). Commenting the line out can expose another file's `true`.
+the file that defines it, or in one read earlier (Gradle user home, then the app module, its parent projects, then
+the root: the first file that defines the property decides). Commenting the line out can expose another file's `true`.
 
 ## Rules
 

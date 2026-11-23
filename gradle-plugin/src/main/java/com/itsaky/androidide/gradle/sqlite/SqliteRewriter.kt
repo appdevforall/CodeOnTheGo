@@ -81,7 +81,7 @@ object SqliteRewriter {
 	private const val WAY_OUT =
 		"If this class is the app's, change the code above. If it is in a library, the library cannot run on " +
 			"requery: set cogo.sqliteDebugger=false in the gradle.properties that defines it, or in one read earlier " +
-			"(the first file that defines it decides: Gradle user home, then the app module, then the root), " +
+			"(the first file that defines it decides: Gradle user home, then the app module, its parent projects, then the root), " +
 			"to build without the SQLite debugger. Commenting the line out can expose another file's true."
 
 	private val remapper =

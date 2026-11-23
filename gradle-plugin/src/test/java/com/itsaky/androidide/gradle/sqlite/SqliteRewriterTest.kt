@@ -437,7 +437,7 @@ class SqliteRewriterTest {
 		val lastLine = e.message!!.lines().last()
 		assertThat(lastLine).contains("in a library")
 		assertThat(lastLine).contains("set cogo.sqliteDebugger=false in the gradle.properties that defines it, or in one read earlier")
-		assertThat(lastLine).contains("Gradle user home, then the app module, then the root")
+		assertThat(lastLine).contains("Gradle user home, then the app module, its parent projects, then the root")
 	}
 
 	@Test
