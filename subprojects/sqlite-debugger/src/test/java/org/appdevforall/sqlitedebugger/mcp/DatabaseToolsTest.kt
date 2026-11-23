@@ -813,6 +813,71 @@ class DatabaseToolsTest {
 		t.onServerStopped()
 	}
 
+	private class FakeIdleScheduler : IdleScheduler {
+		class Check(
+			val task: Runnable,
+		) {
+			var done = false
+		}
+
+		val checks = mutableListOf<Check>()
+		val pending get() = checks.filter { !it.done }
+
+		override fun schedule(
+			delayMs: Long,
+			task: Runnable,
+		): () -> Unit {
+			val check = Check(task)
+			checks += check
+			return { check.done = true }
+		}
+
+		fun runPending() {
+			val check = pending.single()
+			check.done = true
+			check.task.run()
+		}
+	}
+
+	@Test fun onlyOneIdleCheckIsPendingAcrossExpireAndReconnectCycles() {
+		val scheduler = FakeIdleScheduler()
+		val t = DatabaseTools(engine, dir, { now }, scheduler)
+		ok("get_events", t = t)
+		assertEquals(1, scheduler.pending.size)
+		repeat(3) { cycle ->
+			// the check finds the client still connected and reschedules itself
+			now += 15_000
+			scheduler.runPending()
+			assertTrue(engine.clientConnected)
+			assertEquals("cycle $cycle: after the check rescheduled", 1, scheduler.pending.size)
+			// a tool call expires the client, and get_events reconnects while a check is still pending
+			now += 61_000
+			ok("list_connections", t = t)
+			assertFalse(engine.clientConnected)
+			ok("get_events", t = t)
+			assertTrue(engine.clientConnected)
+			assertEquals("cycle $cycle: after the reconnect", 1, scheduler.pending.size)
+		}
+		now += 61_000
+		scheduler.runPending() // expires the client and does not reschedule
+		assertFalse(engine.clientConnected)
+		assertEquals(0, scheduler.pending.size)
+		ok("get_events", t = t)
+		assertEquals(1, scheduler.pending.size)
+		t.onServerStopped()
+		assertEquals("stopping the server cancels the check", 0, scheduler.pending.size)
+	}
+
+	@Test fun aCheckThatWasRunningWhenTheServerStoppedDoesNotReschedule() {
+		val scheduler = FakeIdleScheduler()
+		val t = DatabaseTools(engine, dir, { now }, scheduler)
+		ok("get_events", t = t)
+		val running = scheduler.pending.single()
+		t.onServerStopped()
+		running.task.run()
+		assertEquals(0, scheduler.pending.size)
+	}
+
 	@Test fun stoppingTheServerClosesServerConnections() {
 		engine.appConnections += conn(1, "/data/a.db")
 		val t = tools

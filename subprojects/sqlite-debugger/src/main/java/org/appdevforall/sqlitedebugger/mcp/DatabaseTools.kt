@@ -25,12 +25,19 @@ import java.util.TimerTask
  * time limit starts when the call begins, so its waits for the lock count and the server gives up
  * before the client does; a call that waited at least half its time limit says so in its error.
  */
-class DatabaseTools(
+class DatabaseTools internal constructor(
 	private val engine: DebugEngine,
 	/** The app's database folder, to list files no connection has opened; null on the JVM. */
-	private val databaseDir: File? = null,
-	private val clock: () -> Long = System::currentTimeMillis,
+	private val databaseDir: File?,
+	private val clock: () -> Long,
+	private val idleScheduler: IdleScheduler,
 ) {
+	constructor(
+		engine: DebugEngine,
+		databaseDir: File? = null,
+		clock: () -> Long = System::currentTimeMillis,
+	) : this(engine, databaseDir, clock, TimerIdleScheduler())
+
 	companion object {
 		const val DEFAULT_MAX_ROWS = 100
 		const val MAX_ROWS = 1000
@@ -129,7 +136,8 @@ class DatabaseTools(
 	private val serverConnections = HashMap<String, CachedConnection>()
 	private var clientConnected = false
 	private var lastEventsCallMs = 0L
-	private var idleTimer: Timer? = null
+	private var cancelIdleCheck: (() -> Unit)? = null
+	private var idleCheckGeneration = 0
 
 	/** A server connection and the ids of the app connections to its path when it was opened. */
 	private class CachedConnection(
@@ -156,8 +164,7 @@ class DatabaseTools(
 		synchronized(lock) {
 			serverConnections.values.forEach { runCatching { it.connection.close() } }
 			serverConnections.clear()
-			idleTimer?.cancel()
-			idleTimer = null
+			cancelPendingIdleCheck()
 			if (clientConnected) {
 				clientConnected = false
 				engine.setClientConnected(false)
@@ -179,19 +186,24 @@ class DatabaseTools(
 		}
 	}
 
+	/** Cancels the pending check, and a check already running no longer reschedules. [lock] held. */
+	private fun cancelPendingIdleCheck() {
+		idleCheckGeneration++
+		cancelIdleCheck?.invoke()
+		cancelIdleCheck = null
+	}
+
+	/** At most one check is pending: each one cancels the one before it. [lock] held. */
 	private fun scheduleIdleCheck() {
-		val timer = idleTimer ?: Timer("sqlite-debugger-idle", true).also { idleTimer = it }
-		timer.schedule(
-			object : TimerTask() {
-				override fun run() {
-					expireIdleClient()
-					synchronized(lock) {
-						if (clientConnected && idleTimer === timer) scheduleIdleCheck()
-					}
+		cancelPendingIdleCheck()
+		val generation = idleCheckGeneration
+		cancelIdleCheck =
+			idleScheduler.schedule(EVENTS_IDLE_MS / 4) {
+				expireIdleClient()
+				synchronized(lock) {
+					if (clientConnected && idleCheckGeneration == generation) scheduleIdleCheck()
 				}
-			},
-			EVENTS_IDLE_MS / 4,
-		)
+			}
 	}
 
 	fun tools(): List<McpTool> =
@@ -680,5 +692,31 @@ class DatabaseTools(
 				else -> throw McpToolError("args[$i] must be null, a number or a string.")
 			}
 		}
+	}
+}
+
+/** Runs the idle check later; a test seam, the real one is [TimerIdleScheduler]. */
+internal fun interface IdleScheduler {
+	/** Runs [task] once after [delayMs]; the result cancels it. */
+	fun schedule(
+		delayMs: Long,
+		task: Runnable,
+	): () -> Unit
+}
+
+/** One daemon timer thread per pending check, ended by its cancel. */
+private class TimerIdleScheduler : IdleScheduler {
+	override fun schedule(
+		delayMs: Long,
+		task: Runnable,
+	): () -> Unit {
+		val timer = Timer("sqlite-debugger-idle", true)
+		timer.schedule(
+			object : TimerTask() {
+				override fun run() = task.run()
+			},
+			delayMs,
+		)
+		return { timer.cancel() }
 	}
 }
