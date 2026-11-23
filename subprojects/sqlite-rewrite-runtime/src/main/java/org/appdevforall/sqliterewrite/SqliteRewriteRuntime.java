@@ -4,6 +4,7 @@ import android.content.Context;
 import android.database.DatabaseErrorHandler;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
+import android.os.Build;
 import android.os.CancellationSignal;
 import android.text.TextUtils;
 
@@ -45,7 +46,10 @@ public final class SqliteRewriteRuntime {
 	private static final int REQUERY_OPEN_CREATE = 4;
 	private static final int REQUERY_ENABLE_WRITE_AHEAD_LOGGING = 0x20000000;
 
+	private static final int CONTEXT_MODE_WORLD_READABLE = 0x1;
+	private static final int CONTEXT_MODE_WORLD_WRITEABLE = 0x2;
 	private static final int CONTEXT_MODE_ENABLE_WRITE_AHEAD_LOGGING = 0x8;
+	private static final int ANDROID_N = 24;
 
 	/**
 	 * The listener each Android signal forwards cancellation through. Weak keys, so a signal the app dropped goes, and weak values: a WeakHashMap keeps the value of a cleared key until a later call on the map, so a strong value kept a dropped signal's forwarder alive until the next conversion. The signal's own listener field keeps its forwarder alive while the signal lives.
@@ -95,10 +99,11 @@ public final class SqliteRewriteRuntime {
 	}
 
 	/**
-	 * Context.openOrCreateDatabase without the file permission bits of {@code mode}: Android applies them with a hidden API, and the modes other than private were deprecated in API 17.
+	 * Context.openOrCreateDatabase without the file permission bits of {@code mode}: Android applies them with a hidden API, and the modes other than private were deprecated in API 17. The world-access bits are checked first, as ContextImpl.checkMode does (AOSP android-15.0.0_r1): on Android 7 or later, an app that targets API 24 or later gets a SecurityException for MODE_WORLD_READABLE or MODE_WORLD_WRITEABLE, before the database path is resolved. An app that targets an older API gets no exception here, and Android's world-readable or world-writable file is not made either.
 	 */
 	public static SQLiteDatabase openOrCreateDatabase(Context context, String name, int mode,
 			SQLiteDatabase.CursorFactory factory, DatabaseErrorHandler errorHandler) {
+		checkMode(context, mode);
 		int flags = ANDROID_CREATE_IF_NECESSARY;
 		if ((mode & CONTEXT_MODE_ENABLE_WRITE_AHEAD_LOGGING) != 0) {
 			flags |= ANDROID_ENABLE_WRITE_AHEAD_LOGGING;
@@ -184,6 +189,18 @@ public final class SqliteRewriteRuntime {
 			flags |= REQUERY_ENABLE_WRITE_AHEAD_LOGGING;
 		}
 		return flags;
+	}
+
+	private static void checkMode(Context context, int mode) {
+		if (Build.VERSION.SDK_INT >= ANDROID_N
+				&& context.getApplicationInfo().targetSdkVersion >= ANDROID_N) {
+			if ((mode & CONTEXT_MODE_WORLD_READABLE) != 0) {
+				throw new SecurityException("MODE_WORLD_READABLE no longer supported");
+			}
+			if ((mode & CONTEXT_MODE_WORLD_WRITEABLE) != 0) {
+				throw new SecurityException("MODE_WORLD_WRITEABLE no longer supported");
+			}
+		}
 	}
 
 	private SqliteRewriteRuntime() {}

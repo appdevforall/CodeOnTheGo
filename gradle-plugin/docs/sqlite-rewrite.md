@@ -273,7 +273,13 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
   of the four false positives above).
 - Compile-time constants are copied into callers, so uses of `NO_LOCALIZED_COLLATORS`, `JOURNAL_MODE_*` or `SYNC_MODE_*` are
   not visible to the fail rule. `NO_LOCALIZED_COLLATORS` is dropped by the flag translation.
-- The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied.
+- The file permission bits of the `mode` of `Context.openOrCreateDatabase` are not applied (Android sets 0660 with a
+  hidden API; requery's file gets whatever its open gives, not checked). The world-access bits are checked, as Android's
+  `ContextImpl.checkMode` does (AOSP android-15.0.0_r1): on Android 7 or later, an app that targets API 24 or later
+  gets `SecurityException("MODE_WORLD_READABLE no longer supported")` or `("MODE_WORLD_WRITEABLE no longer supported")`
+  before the path is resolved, from either overload. An app that targets an older API gets no exception, and no
+  world-readable or world-writable file either (Android would make one). `deleteDatabase` has no such check in
+  Android's `ContextImpl`, so the redirected one has none, and `getDatabasePath` and `databaseList` are not redirected.
 - The declaration of an override of a member requery lacks, in a direct subclass of `SQLiteQueryBuilder` or `SQLiteCursor`,
   is not reported by itself: the rules check calls and field accesses, not declarations. The exceptions are the
   `SQLiteQueryBuilder.query` override with a `CancellationSignal` and the `Context` database methods, which fail (see above).
