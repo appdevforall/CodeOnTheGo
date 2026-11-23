@@ -33,8 +33,9 @@ cd -- "${wd:-$HOME}" || exit 1
 # any of the command runs: eval would run the lines ahead of the error. The check has extglob on:
 # eval runs a command's lines one at a time, so a "shopt -s extglob" on one line applies to the
 # next, but -n runs nothing. The cost: an extglob pattern in a command that never turns extglob on
-# passes the check, and eval's message rejecting it quotes the line raw.
-if ! err=$(bash -O extglob -n -c "$cmd" 2>&1); then
+# passes the check, and eval's message rejecting it quotes the line raw. The command goes in on
+# stdin, as exec refuses an argument over 32 pages (128 KiB at 4 KiB pages).
+if ! err=$(bash -O extglob -n <<<"$cmd" 2>&1); then
 	while IFS= read -r line; do printf '%s\n' "${line//[[:cntrl:]]/?}"; done <<<"$err" >&2
 	exit 2
 fi

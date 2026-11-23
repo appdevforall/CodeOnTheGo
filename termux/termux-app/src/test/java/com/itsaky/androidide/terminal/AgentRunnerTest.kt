@@ -138,6 +138,19 @@ class AgentRunnerTest {
 	}
 
 	@Test
+	fun commandTooLongForOneExecArgumentRuns() {
+		val out = File(tmp.root, "out")
+		// exec refuses an argument over 32 pages: 128 KiB at 4 KiB pages, 512 KiB at 16 KiB.
+		val id = runner.prepare(": '${"a".repeat(1 shl 20)}'; touch ${out.path}", null)
+
+		val output = rawOutput(id)
+
+		// Only the exit code, as a failure message quoting the output would hold the whole command.
+		assertThat(Regex("\u001b]133;D;(\\d+);").find(output)?.groupValues?.get(1)).isEqualTo("0")
+		assertThat(out.exists()).isTrue()
+	}
+
+	@Test
 	fun carriageReturnInTheCommandCannotRewriteItsEcho() {
 		// Printed raw, the CR would return to the start of the line, and the echo would show only
 		// what follows it.
