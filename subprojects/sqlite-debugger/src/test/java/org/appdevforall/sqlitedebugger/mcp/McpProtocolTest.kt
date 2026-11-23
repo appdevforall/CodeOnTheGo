@@ -69,8 +69,6 @@ class McpProtocolTest {
 		return JSONObject(r.body!!)
 	}
 
-	// ---------------------------------------------------------------- the protocol
-
 	@Test fun initializeAgreesVersionAndStartsSession() {
 		val p = protocol()
 		val r = p.post(initBody("2025-03-26"), null, null)
@@ -293,8 +291,6 @@ class McpProtocolTest {
 		assertEquals(0, p.sessionCount())
 		assertEquals(404, p.post(request(1, "ping").toString(), s, null).status)
 	}
-
-	// ---------------------------------------------------------------- the HTTP side
 
 	private val token = "secret-token"
 	private var server: McpHttp? = null
