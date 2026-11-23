@@ -37,6 +37,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
@@ -50,6 +51,7 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
+import com.itsaky.androidide.fragments.PackageNameChangeDialogFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
@@ -266,6 +268,10 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		if (comparisonDate.after(targetDate)) {
 			showWarningDialog()
 		}
+
+		if (savedInstanceState == null) {
+			displayPackageNameChangeInfo()
+		}
 	}
 
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean =
@@ -325,6 +331,17 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// Add the "Cancel" button
 		builder.setNegativeButton(getString(R.string.url_consent_cancel), null)
 		builder.show()
+	}
+
+	private fun displayPackageNameChangeInfo() {
+		if (BuildConfig.APPLICATION_ID != "org.appdevforall.codeonthego" &&
+			supportFragmentManager.findFragmentByTag(PackageNameChangeDialogFragment.TAG) == null
+		) {
+			PackageNameChangeDialogFragment().show(
+				supportFragmentManager,
+				PackageNameChangeDialogFragment.TAG,
+			)
+		}
 	}
 
 	override fun onConfigurationChanged(newConfig: Configuration) {
