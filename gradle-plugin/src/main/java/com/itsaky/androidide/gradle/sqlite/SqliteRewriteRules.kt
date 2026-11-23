@@ -38,13 +38,14 @@ internal object SqliteRewriteRules {
 	 * A COLLATE clause names its collation after whitespace or a SQL comment, bare or quoted ("x", 'x', [x], `x`).
 	 * A quoted or bracketed name needs no separator: the quote starts a new token (`COLLATE"x"`). A bare name keeps
 	 * a separator and a word boundary, so `COLLATEUNICODE` and UNICODE_CI stay out; a quoted name must be followed
-	 * at once by its closing character, which keeps "UNICODE-CI" out.
+	 * at once by its closing character, which keeps "UNICODE-CI" out. A block comment ends at its first star-slash
+	 * (a lazy dot could run on to a later one and reach a UNICODE that follows another collation).
 	 */
 	private fun collateRule(name: String): Regex {
 		val quoted = "\"$name\"|'$name'|\\[$name]|`$name`"
 		return Regex(
-			"COLLATE(?:(?:\\s|/\\*.*?\\*/|--[^\\n]*(?:\\n|$))+(?:$name\\b|$quoted)|$quoted)",
-			setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+			"COLLATE(?:(?:\\s|/\\*(?:[^*]|\\*(?!/))*\\*/|--[^\\n]*(?:\\n|$))+(?:$name\\b|$quoted)|$quoted)",
+			setOf(RegexOption.IGNORE_CASE),
 		)
 	}
 
