@@ -269,12 +269,18 @@ class PluginManagerViewModel(
 
 	/**
 	 * A plugin that came with the app asks for confirmation first; any other disables at once.
-	 * Decided by ID, not by the loaded list, so a list being reloaded cannot skip the warning.
+	 * Decided by ID, not by the loaded list, so a list being reloaded cannot skip the warning; the
+	 * list only supplies the name, and the ID stands in when it lacks the plugin.
 	 */
 	private fun showDisableConfirmationIfBundled(pluginId: String) {
 		viewModelScope.launch {
 			if (withContext(Dispatchers.IO) { isBundledPlugin(pluginId) }) {
-				_uiEffect.send(PluginManagerUiEffect.ShowDisableConfirmation(pluginId))
+				val name =
+					_uiState.value.plugins
+						.find { it.metadata.id == pluginId }
+						?.metadata
+						?.name ?: pluginId
+				_uiEffect.send(PluginManagerUiEffect.ShowDisableConfirmation(pluginId, name))
 			} else {
 				confirmDisablePlugin(pluginId)
 			}

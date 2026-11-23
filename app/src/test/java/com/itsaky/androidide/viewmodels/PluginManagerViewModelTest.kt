@@ -130,7 +130,8 @@ class PluginManagerViewModelBundledTest {
 
 	private fun plugin(id: String) =
 		PluginInfo(
-			metadata = PluginMetadata(id, id, "1.0", "d", "a", "1.0"),
+			// A name unlike the ID, so a warning that names the plugin by ID fails.
+			metadata = PluginMetadata(id, "Name of $id", "1.0", "d", "a", "1.0"),
 			isEnabled = true,
 			isLoaded = true,
 		)
@@ -192,7 +193,20 @@ class PluginManagerViewModelBundledTest {
 
 			viewModel.onEvent(PluginManagerUiEvent.DisablePlugin("bundled.plugin"))
 
-			assertThat(viewModel.firstEffect()).isEqualTo(PluginManagerUiEffect.ShowDisableConfirmation("bundled.plugin"))
+			assertThat(viewModel.firstEffect())
+				.isEqualTo(PluginManagerUiEffect.ShowDisableConfirmation("bundled.plugin", "Name of bundled.plugin"))
+			coVerify(exactly = 0) { pluginRepository.disablePlugin(any()) }
+		}
+
+	@Test
+	fun disable_bundledPluginMissingFromTheList_asksAndNamesItById() =
+		runTest {
+			val viewModel = viewModel { true }
+
+			viewModel.onEvent(PluginManagerUiEvent.DisablePlugin("reloading.plugin"))
+
+			assertThat(viewModel.firstEffect())
+				.isEqualTo(PluginManagerUiEffect.ShowDisableConfirmation("reloading.plugin", "reloading.plugin"))
 			coVerify(exactly = 0) { pluginRepository.disablePlugin(any()) }
 		}
 

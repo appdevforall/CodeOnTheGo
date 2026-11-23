@@ -95,6 +95,7 @@ private sealed interface PluginManagerDialogState : Parcelable {
 	@Parcelize
 	data class DisableConfirm(
 		val pluginId: String,
+		val pluginName: String,
 	) : PluginManagerDialogState
 
 	@Parcelize
@@ -177,7 +178,7 @@ fun PluginManagerContent(
 					}
 
 					is PluginManagerUiEffect.ShowDisableConfirmation -> {
-						dialogState = PluginManagerDialogState.DisableConfirm(effect.pluginId)
+						dialogState = PluginManagerDialogState.DisableConfirm(effect.pluginId, effect.pluginName)
 					}
 
 					is PluginManagerUiEffect.ShowRestartPrompt -> {
@@ -275,8 +276,9 @@ fun PluginManagerContent(
 		}
 
 		is PluginManagerDialogState.DisableConfirm -> {
-			// Needs only the ID, so it shows even while the plugin list reloads.
+			// Carries its own name, so it shows even while the plugin list reloads.
 			DisableBundledPluginDialog(
+				pluginName = dialog.pluginName,
 				onConfirm = {
 					viewModel.confirmDisablePlugin(dialog.pluginId)
 					dialogState = PluginManagerDialogState.None

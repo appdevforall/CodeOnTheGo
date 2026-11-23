@@ -92,7 +92,7 @@ fun UninstallConfirmationDialog(
 		text = {
 			Text(
 				if (bundled) {
-					stringResource(R.string.msg_uninstall_bundled_plugin_confirm)
+					stringResource(R.string.msg_uninstall_bundled_plugin_confirm, plugin.metadata.name)
 				} else {
 					stringResource(R.string.msg_uninstall_plugin_confirm, plugin.metadata.name)
 				},
@@ -113,6 +113,7 @@ fun UninstallConfirmationDialog(
 /** Disabling a plugin that came with the app can break the installation (ADFA-7240). */
 @Composable
 fun DisableBundledPluginDialog(
+	pluginName: String,
 	onConfirm: () -> Unit,
 	onDismiss: () -> Unit,
 ) {
@@ -121,7 +122,7 @@ fun DisableBundledPluginDialog(
 		title = { Text(stringResource(R.string.title_disable_bundled_plugin)) },
 		text = {
 			Text(
-				stringResource(R.string.msg_disable_bundled_plugin_confirm),
+				stringResource(R.string.msg_disable_bundled_plugin_confirm, pluginName),
 				modifier = Modifier.verticalScroll(rememberScrollState()),
 			)
 		},

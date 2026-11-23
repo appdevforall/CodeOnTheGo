@@ -131,9 +131,13 @@ sealed class PluginManagerUiEffect {
 		val bundled: Boolean,
 	) : PluginManagerUiEffect()
 
-	/** Sent instead of disabling at once, for a plugin that came with the app (ADFA-7240). */
+	/**
+	 * Sent instead of disabling at once, for a plugin that came with the app (ADFA-7240).
+	 * [pluginName] is the plugin's name, or its ID when the loaded list does not have it.
+	 */
 	data class ShowDisableConfirmation(
 		val pluginId: String,
+		val pluginName: String,
 	) : PluginManagerUiEffect()
 
 	object ShowRestartPrompt : PluginManagerUiEffect()

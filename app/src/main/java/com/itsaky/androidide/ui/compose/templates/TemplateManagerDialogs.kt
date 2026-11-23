@@ -92,7 +92,7 @@ fun UninstallTemplateConfirmationDialog(
 		text = {
 			Text(
 				if (bundled) {
-					stringResource(R.string.msg_uninstall_bundled_template_confirm)
+					stringResource(R.string.msg_uninstall_bundled_template_confirm, item.displayName)
 				} else {
 					stringResource(R.string.msg_uninstall_template_confirm, item.displayName)
 				},
