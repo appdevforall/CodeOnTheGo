@@ -199,7 +199,7 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 
 - Room's `BundledSQLiteDriver` is not covered (it brings its own SQLite).
 - requery's native library is built without ICU: there is no `UNICODE` collator (a `COLLATE UNICODE` string
-  constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, and
+  constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, which needs no space after `COLLATE`, and
   `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
 - Four rare false positives of the checks, each rejected on purpose rather than proven safe:
   - a custom `CursorFactory` that returns a non-requery cursor, then a cast to an Android cursor class, is rejected

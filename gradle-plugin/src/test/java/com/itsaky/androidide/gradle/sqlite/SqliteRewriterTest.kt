@@ -1223,6 +1223,10 @@ class SqliteRewriterTest {
 				"COLLATE 'UNICODE'",
 				"COLLATE [UNICODE]",
 				"COLLATE `UNICODE`",
+				"COLLATE\\\"UNICODE\\\"",
+				"COLLATE'UNICODE'",
+				"COLLATE[UNICODE]",
+				"COLLATE`UNICODE`",
 			)
 		for (form in forms) {
 			val classes =
@@ -1262,6 +1266,10 @@ class SqliteRewriterTest {
 				"COLLATE 'LOCALIZED'",
 				"COLLATE [LOCALIZED]",
 				"COLLATE `LOCALIZED`",
+				"COLLATE\\\"LOCALIZED\\\"",
+				"COLLATE'LOCALIZED'",
+				"COLLATE[LOCALIZED]",
+				"COLLATE`LOCALIZED`",
 			)
 		for (form in forms) {
 			val classes =

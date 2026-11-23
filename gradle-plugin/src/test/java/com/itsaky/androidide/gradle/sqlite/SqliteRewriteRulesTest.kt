@@ -71,4 +71,20 @@ class SqliteRewriteRulesTest {
 			"mWindowLandroid/database/CursorWindow;",
 		)
 	}
+
+	private val collations =
+		mapOf("UNICODE" to SqliteRewriteRules.COLLATE_UNICODE, "LOCALIZED" to SqliteRewriteRules.COLLATE_LOCALIZED)
+
+	@Test
+	fun `COLLATE accepts a quoted or bracketed name right after the keyword, a bare name needs a separator`() {
+		for ((name, rule) in collations) {
+			val quoted = listOf("COLLATE\"$name\"", "COLLATE'$name'", "COLLATE[$name]", "COLLATE`$name`", "collate\"${name.lowercase()}\"")
+			for (form in quoted) {
+				assertWithMessage(form).that(rule.containsMatchIn("SELECT 'a' $form")).isTrue()
+			}
+			for (form in listOf("COLLATE$name", "COLLATE$name x", "COLLATE\"$name-CI\"", "COLLATE'${name}_CI'", "COLLATE[$name-CI]")) {
+				assertWithMessage(form).that(rule.containsMatchIn("SELECT 'a' $form")).isFalse()
+			}
+		}
+	}
 }
