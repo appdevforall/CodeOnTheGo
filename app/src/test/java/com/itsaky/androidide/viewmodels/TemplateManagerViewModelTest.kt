@@ -221,6 +221,57 @@ class TemplateManagerViewModelTest {
 		}
 
 	@Test
+	fun uninstallTemplate_installedAndInTheBundledRecord_isMarkedBundled() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+			val asked = mutableListOf<String>()
+
+			val viewModel =
+				TemplateManagerViewModel(
+					repository,
+					isBundledTemplate = { name ->
+						asked += name
+						name == "install.cgt"
+					},
+				)
+			advanceUntilIdle()
+
+			viewModel.onEvent(TemplateManagerUiEvent.UninstallTemplate(installedItem))
+
+			assertThat(viewModel.uiEffect.first())
+				.isEqualTo(TemplateManagerUiEffect.ShowUninstallConfirmation(installedItem, bundled = true))
+			assertThat(asked).containsExactly("install.cgt")
+		}
+
+	@Test
+	fun uninstallTemplate_installedButNotInTheRecord_isNotBundled() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { false })
+			advanceUntilIdle()
+
+			viewModel.onEvent(TemplateManagerUiEvent.UninstallTemplate(installedItem))
+
+			assertThat(viewModel.uiEffect.first())
+				.isEqualTo(TemplateManagerUiEffect.ShowUninstallConfirmation(installedItem, bundled = false))
+		}
+
+	@Test
+	fun uninstallTemplate_notInstalled_isNeverBundledEvenIfTheNameMatches() =
+		runTest {
+			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())
+
+			val viewModel = TemplateManagerViewModel(repository, isBundledTemplate = { true })
+			advanceUntilIdle()
+
+			viewModel.onEvent(TemplateManagerUiEvent.UninstallTemplate(item))
+
+			assertThat(viewModel.uiEffect.first())
+				.isEqualTo(TemplateManagerUiEffect.ShowUninstallConfirmation(item, bundled = false))
+		}
+
+	@Test
 	fun confirmUninstallTemplate_onSuccess_reloadsAndSendsShowSuccessEffect() =
 		runTest {
 			coEvery { repository.listTemplateFiles() } returns Result.success(emptyList())

@@ -81,19 +81,28 @@ fun UninstallTemplateConfirmationDialog(
 	item: CgtFileItem,
 	onConfirm: () -> Unit,
 	onDismiss: () -> Unit,
+	bundled: Boolean = false,
 ) {
 	AlertDialog(
 		onDismissRequest = onDismiss,
-		title = { Text(stringResource(R.string.title_uninstall_template)) },
+		title = {
+			Text(stringResource(if (bundled) R.string.title_uninstall_bundled_template else R.string.title_uninstall_template))
+		},
 		// AlertDialog's text slot does not scroll; a long file name at 2x font scale would clip.
 		text = {
 			Text(
-				stringResource(R.string.msg_uninstall_template_confirm, item.displayName),
+				if (bundled) {
+					stringResource(R.string.msg_uninstall_bundled_template_confirm)
+				} else {
+					stringResource(R.string.msg_uninstall_template_confirm, item.displayName)
+				},
 				modifier = Modifier.verticalScroll(rememberScrollState()),
 			)
 		},
 		confirmButton = {
-			TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_uninstall_template)) }
+			TextButton(onClick = onConfirm) {
+				Text(stringResource(if (bundled) R.string.action_continue else R.string.action_uninstall_template))
+			}
 		},
 		dismissButton = {
 			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }

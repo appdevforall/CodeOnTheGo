@@ -50,8 +50,10 @@ sealed class TemplateManagerUiEffect {
 		val item: CgtFileItem,
 	) : TemplateManagerUiEffect()
 
+	/** [bundled]: the template came with the app (ADFA-7240), so the dialog warns about removing it. */
 	data class ShowUninstallConfirmation(
 		val item: CgtFileItem,
+		val bundled: Boolean = false,
 	) : TemplateManagerUiEffect()
 
 	data class ShowDeleteConfirmation(

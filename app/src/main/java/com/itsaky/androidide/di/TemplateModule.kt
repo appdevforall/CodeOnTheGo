@@ -1,5 +1,7 @@
 package com.itsaky.androidide.di
 
+import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
 import com.itsaky.androidide.repositories.TemplateRepository
 import com.itsaky.androidide.repositories.TemplateRepositoryImpl
 import com.itsaky.androidide.utils.Environment
@@ -25,6 +27,9 @@ val templateModule =
 		viewModel {
 			TemplateManagerViewModel(
 				templateRepository = get(),
+				isBundledTemplate = { fileName ->
+					BundledAddonsRecord.inFilesDir(IDEApplication.cachedFilesDir).read()?.templateFiles?.contains(fileName) == true
+				},
 			)
 		}
 	}

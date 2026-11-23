@@ -10,6 +10,7 @@ import com.itsaky.androidide.templates.manager.models.displayName
 import com.itsaky.androidide.ui.models.TemplateManagerUiEffect
 import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.ui.models.TemplateManagerUiState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,12 +18,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for the Templates tab. Same UDF shape as [PluginManagerViewModel].
  */
 class TemplateManagerViewModel(
 	private val templateRepository: TemplateRepository,
+	// Whether an installed template file (by file name) came with the app (ADFA-7240). Reads a file, so IO only.
+	private val isBundledTemplate: (String) -> Boolean = { false },
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "TemplateManagerViewModel"
@@ -122,7 +126,8 @@ class TemplateManagerViewModel(
 
 	private fun showUninstallConfirmation(item: CgtFileItem) {
 		viewModelScope.launch {
-			_uiEffect.send(TemplateManagerUiEffect.ShowUninstallConfirmation(item))
+			val bundled = item.installed && withContext(Dispatchers.IO) { isBundledTemplate(item.file.name) }
+			_uiEffect.send(TemplateManagerUiEffect.ShowUninstallConfirmation(item, bundled))
 		}
 	}
 

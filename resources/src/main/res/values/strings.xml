@@ -1351,6 +1351,14 @@
 	<string name="url_discover_plugins" translatable="false">https://addons.appdevforall.org</string>
 	<string name="title_uninstall_plugin">Uninstall Plugin</string>
 	<string name="msg_uninstall_plugin_confirm">Are you sure you want to uninstall \'%1$s\'?</string>
+	<!-- Add-ons that came with the app (ADFA-7240) -->
+	<string name="title_uninstall_bundled_plugin">Remove a plugin that came with the app?</string>
+	<string name="msg_uninstall_bundled_plugin_confirm">This plugin was installed automatically. If you don\'t replace it with something equivalent, the installation will probably break.</string>
+	<string name="title_disable_bundled_plugin">Disable a plugin that came with the app?</string>
+	<string name="msg_disable_bundled_plugin_confirm">This plugin was installed automatically. If you disable it without replacing it with something equivalent, the installation will probably break.</string>
+	<string name="title_uninstall_bundled_template">Remove a template that came with the app?</string>
+	<string name="msg_uninstall_bundled_template_confirm">This template was installed automatically. If you don\'t replace it with something equivalent, the installation will probably break.</string>
+	<string name="action_continue">Continue</string>
 	<string name="label_plugin_name">Name</string>
 	<string name="label_plugin_id">Plugin ID</string>
 	<string name="label_plugin_version">Version</string>
