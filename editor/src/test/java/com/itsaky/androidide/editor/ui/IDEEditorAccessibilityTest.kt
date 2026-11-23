@@ -27,6 +27,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.app.BaseApplication
 import com.itsaky.androidide.editor.utils.EditorAccessibilitySegments
 import io.github.rosemoe.sora.widget.layout.AbstractLayout
@@ -69,11 +70,11 @@ class IDEEditorAccessibilityTest {
 	}
 
 	/**
-	 * CodeEditor measures text on a background executor, and isEditable() stays false (layoutBusy)
-	 * until a callback posted to the main looper clears it; showSoftInput() does nothing until then.
-	 * Robolectric runs that callback only when the test idles the main looper, so one idle() after
-	 * setText() races the background thread. Wait for the executor to drain and the callback to run.
-	 * Two settled polls in a row cover a task caught between leaving the queue and starting.
+	 * Sora's layout task sets layoutBusy when it starts, on a background executor, and clears it in a
+	 * callback posted to the main looper. showSoftInput() does nothing while it is set. So isEditable()
+	 * alone can read true before the task starts: wait until the executor is idle, then idle the main
+	 * looper so the callback runs. Robolectric runs that callback only when the test idles the looper.
+	 * A second settled poll makes it unlikely to miss a task that has left the queue but not yet started.
 	 */
 	private fun awaitEditorLayout() {
 		val executor =
@@ -81,14 +82,18 @@ class IDEEditorAccessibilityTest {
 				it.isAccessible = true
 				it.get(null) as ThreadPoolExecutor
 			}
-		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+		val timeoutSeconds = 10L
+		val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
 		var settledPolls = 0
 		while (true) {
 			val executorIdle = executor.queue.isEmpty() && executor.activeCount == 0
 			shadowOf(android.os.Looper.getMainLooper()).idle()
 			settledPolls = if (executorIdle && editor.isEditable) settledPolls + 1 else 0
 			if (settledPolls == 2) return
-			check(System.nanoTime() < deadline) { "Editor layout did not settle within 10 s" }
+			check(System.nanoTime() < deadline) {
+				"Editor layout did not settle within $timeoutSeconds s: queued=${executor.queue.size}, " +
+					"active=${executor.activeCount}, isEditable=${editor.isEditable}, isFormatting=${editor.isFormatting}"
+			}
 			Thread.sleep(5)
 		}
 	}
@@ -167,7 +172,7 @@ class IDEEditorAccessibilityTest {
 		editor.isDisableSoftKbdIfHardKbdAvailable = false
 		val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 		// "Editable" as CodeEditor.showSoftInput() checks it: not just the flag, also no layout in flight.
-		assertThat(editor.isEditable).isTrue()
+		assertWithMessage("editor not editable before the click (layout still busy?)").that(editor.isEditable).isTrue()
 
 		val clickHandled = editor.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
 		assertThat(clickHandled).isTrue()
