@@ -3,6 +3,7 @@ package com.itsaky.androidide.repositories
 import android.util.Log
 import com.itsaky.androidide.plugins.PluginInfo
 import com.itsaky.androidide.plugins.PluginMetadata
+import com.itsaky.androidide.plugins.manager.core.PluginBuildFiles
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import kotlinx.coroutines.Dispatchers
@@ -71,8 +72,8 @@ class PluginRepositoryImpl(
 						?: throw IllegalStateException("Plugin system not available")
 
 				Log.d(TAG, "Uninstalling plugin: $pluginId")
-				val result = manager.uninstallPlugin(pluginId)
-				result
+				// A load already under way could otherwise load the plugin again after it was removed.
+				manager.whileNotLoading { manager.uninstallPlugin(pluginId) }
 			}.onFailure { exception ->
 				Log.e(TAG, "Failed to uninstall plugin: $pluginId", exception)
 			}
@@ -135,16 +136,11 @@ class PluginRepositoryImpl(
 					}
 				}
 
-				try {
-					manager.uninstallPlugin(pluginId)
-					Log.d(TAG, "Uninstalled existing version of plugin: $pluginId")
-				} catch (e: Exception) {
-					Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
-				}
-
 				val fileExtension =
 					if (pluginFile.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)) ".$PLUGIN_ARCHIVE_EXTENSION" else ".apk"
-				val finalFileName = "${pluginId}$fileExtension"
+				// A name of its own per build: Android caches a plugin's resources, assets and native
+				// libraries by path, so the new build would otherwise run against the old one's.
+				val finalFileName = "${PluginBuildFiles.fileStem(pluginId, pluginFile)}$fileExtension"
 
 				if (!pluginsDir.exists()) {
 					pluginsDir.mkdirs()
@@ -152,13 +148,25 @@ class PluginRepositoryImpl(
 
 				val finalFile = File(pluginsDir, finalFileName)
 
-				try {
-					pluginFile.copyTo(finalFile, overwrite = true)
-					Log.d(TAG, "Plugin file copied to: ${finalFile.absolutePath}")
-					pluginFile.delete()
-				} catch (e: Exception) {
-					Log.e(TAG, "Failed to copy plugin file to plugins directory", e)
-					throw e
+				// No load may run between the unload and the copy: it could load the old file again.
+				manager.whileNotLoading {
+					try {
+						manager.uninstallPlugin(pluginId)
+						Log.d(TAG, "Uninstalled existing version of plugin: $pluginId")
+					} catch (e: Exception) {
+						Log.w(TAG, "Error uninstalling existing plugin: ${e.message}")
+					}
+					// loadPlugins() keeps a plugin that is still loaded, so the new file would never load.
+					if (manager.getPlugin(pluginId) != null) throw PluginStillLoadedException(pluginId)
+
+					try {
+						pluginFile.copyTo(finalFile, overwrite = true)
+						Log.d(TAG, "Plugin file copied to: ${finalFile.absolutePath}")
+						pluginFile.delete()
+					} catch (e: Exception) {
+						Log.e(TAG, "Failed to copy plugin file to plugins directory", e)
+						throw e
+					}
 				}
 
 				manager.loadPlugins()

@@ -1,6 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.signaturehelp
 
-import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
+import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
@@ -84,7 +84,7 @@ private val logger = LoggerFactory.getLogger("KotlinSignatureHelp")
  * Computes [SignatureHelp] for the request described by [params], using the given
  * [CompilationEnvironment] to resolve the enclosing call and analyze it.
  */
-context(env: CompilationEnvironment)
+context(env: AbstractCompilationEnvironment)
 internal suspend fun doSignatureHelp(params: SignatureHelpParams): SignatureHelp {
 	logger.debug("doSignatureHelp requested for file={} position={}", params.file, params.position)
 

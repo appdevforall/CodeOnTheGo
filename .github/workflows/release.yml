@@ -556,7 +556,7 @@ jobs:
           echo "Build folder cleanup completed"
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: command -v jq || { sudo apt-get update && sudo apt-get install -y jq; }
 
       - name: Send Rich Slack Notification
         env:

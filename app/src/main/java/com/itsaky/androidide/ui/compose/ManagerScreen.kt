@@ -56,7 +56,6 @@ import com.itsaky.androidide.ui.compose.templates.TemplateManagerScreen
 import com.itsaky.androidide.ui.models.AddonFileKind
 import com.itsaky.androidide.ui.models.DownloadPickerUiState
 import com.itsaky.androidide.ui.models.PluginManagerUiEvent
-import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.getFileName
@@ -142,7 +141,9 @@ internal class LongPressAwareClick(
  * folders button falls back to the system picker, which accepts either archive type from any
  * folder. Either way the picked file is routed by extension and the matching tab is brought
  * forward, so the result is visible where it landed. The discover-plugins action stays
- * Plugins-only: it opens a plugin catalog, which has no meaning on the Templates tab.
+ * Plugins-only: it opens a plugin catalog, which has no meaning on the Templates tab. It's also
+ * hidden while offline or in Gradle offline mode (ADFA-5646), since it opens a URL with no
+ * offline fallback.
  *
  * The system picker's launcher lives here rather than in [PluginManagerContent] because `HorizontalPager`
  * disposes the off-screen page: a launcher owned by the Plugins page would not exist while the
@@ -252,7 +253,8 @@ fun ManagerScreen(
 		// A .cgp only reaches this ViewModel via the routing above, which sends plugins down the
 		// PickedUri path instead - so this is defensive, not a live path.
 		onForwardPlugin = { filePath -> pluginViewModel.onPendingInstallFile(filePath) },
-		onFinish = { templateViewModel.onEvent(TemplateManagerUiEvent.LoadTemplates) },
+		// The Templates tab reloads from TemplateCollectionRepository.installs, so nothing to do.
+		onFinish = {},
 	)
 
 	Scaffold(
@@ -271,7 +273,10 @@ fun ManagerScreen(
 					}
 				},
 				actions = {
-					if (pagerState.currentPage == TAB_PLUGINS) {
+					// Hidden rather than disabled when offline or in offline mode (ADFA-5646): the action
+					// opens a URL with no offline fallback, and a hidden control makes that absence
+					// self-evident instead of inviting a tap that can only fail.
+					if (pagerState.currentPage == TAB_PLUGINS && pluginUiState.showDiscoverPlugins) {
 						// Not an IconButton: it appends its own clickable() after this modifier, which
 						// would compete with combinedClickable's detector for the same pointer events -
 						// see rememberLongPressInteractionSource's doc. .size(48.dp) matches

@@ -97,10 +97,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
 	override suspend fun execAction(data: ActionData): Any {
 		val range = data[com.itsaky.androidide.models.Range::class.java]!!
 		val compiler =
-			JavaCompilerProvider.get(
-				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false)
-					?: return Any(),
-			)
+			JavaCompilerProvider.forFile(data.requireFile()) ?: return Any()
 		val file = data.requirePath()
 
 		return compiler.compile(file).get { task ->
@@ -238,9 +235,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
 		checkedMethods: MutableList<MethodPtr>,
 	) {
 		val compiler =
-			JavaCompilerProvider.get(
-				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return,
-			)
+			JavaCompilerProvider.forFile(data.requireFile()) ?: return
 		val file = data.requirePath()
 
 		compiler.compile(file).run { task ->
@@ -320,9 +315,7 @@ class OverrideSuperclassMethodsAction : BaseJavaCodeAction() {
 		position: Position,
 	) {
 		val compiler =
-			JavaCompilerProvider.get(
-				IProjectManager.getInstance().findModuleForFile(data.requireFile(), false) ?: return,
-			)
+			JavaCompilerProvider.forFile(data.requireFile()) ?: return
 		val editor = data[CodeEditor::class.java]!!
 		val file = data.requirePath()
 		val text = editor.text

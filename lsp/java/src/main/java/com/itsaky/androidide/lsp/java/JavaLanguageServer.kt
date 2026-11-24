@@ -25,6 +25,7 @@ import com.itsaky.androidide.eventbus.events.editor.DocumentSelectedEvent
 import com.itsaky.androidide.javac.services.fs.CacheFSInfoSingleton
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clearCache
 import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.clearCachesForPaths
+import com.itsaky.androidide.javac.services.fs.CachingJarFileSystemProvider.closeRetired
 import com.itsaky.androidide.lsp.api.ILanguageClient
 import com.itsaky.androidide.lsp.api.ILanguageServer
 import com.itsaky.androidide.lsp.api.IServerSettings
@@ -71,6 +72,7 @@ import com.itsaky.androidide.projects.api.ModuleProject
 import com.itsaky.androidide.projects.api.Workspace
 import com.itsaky.androidide.utils.DocumentUtils
 import com.itsaky.androidide.utils.VMUtils
+import com.itsaky.androidide.zipfs2.listing.JarListingCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -174,6 +176,8 @@ class JavaLanguageServer : ILanguageServer {
 		EventBus.getDefault().unregister(this)
 		timer.cancel()
 		serverScope.cancel()
+		// Last, so a throwing listener cannot skip the rest; the listings would otherwise outlive the project.
+		JarListingCache.SHARED.clear()
 	}
 
 	override fun connectClient(client: ILanguageClient?) {
@@ -229,6 +233,9 @@ class JavaLanguageServer : ILanguageServer {
 		//    Maybe this could be improved by using data from the AndroidModule project model
 		clearCachesForPaths { path: String -> path.endsWith("/R.jar") }
 
+		// The file managers that held the superseded JAR file systems were closed above
+		closeRetired()
+
 		// Clear cached module-specific compilers
 		JavaCompilerProvider.getInstance().destroy()
 
@@ -244,7 +251,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override fun complete(params: CompletionParams?): CompletionResult {
 		val compiler = getCompiler(params!!.file)
-		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file)) {
+		if (!settings.completionsEnabled() || !completionProvider.canComplete(params.file) || isOutsideSelectedVariant(params.file)) {
 			return CompletionResult.EMPTY
 		}
 
@@ -267,7 +274,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override suspend fun findReferences(params: ReferenceParams): ReferenceResult {
 		val compiler = getCompiler(params.file)
-		return if (!settings.referencesEnabled()) {
+		return if (!settings.referencesEnabled() || isOutsideSelectedVariant(params.file)) {
 			ReferenceResult(emptyList())
 		} else {
 			ReferenceProvider(compiler, params.cancelChecker).findReferences(params)
@@ -276,7 +283,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override suspend fun findDefinition(params: DefinitionParams): DefinitionResult {
 		val compiler = getCompiler(params.file)
-		return if (!settings.definitionsEnabled()) {
+		return if (!settings.definitionsEnabled() || isOutsideSelectedVariant(params.file)) {
 			DefinitionResult(emptyList())
 		} else {
 			DefinitionProvider(compiler, settings, params.cancelChecker).findDefinition(params)
@@ -294,7 +301,7 @@ class JavaLanguageServer : ILanguageServer {
 
 	override suspend fun signatureHelp(params: SignatureHelpParams): SignatureHelp {
 		val compiler = getCompiler(params.file)
-		return if (!settings.signatureHelpEnabled()) {
+		return if (!settings.signatureHelpEnabled() || isOutsideSelectedVariant(params.file)) {
 			SignatureHelp(emptyList(), -1, -1)
 		} else {
 			SignatureProvider(compiler, params.cancelChecker).signatureHelp(params)
@@ -327,6 +334,10 @@ class JavaLanguageServer : ILanguageServer {
 		}
 	}
 
+	/** Whether [file] is in a module but not compiled by its selected variant, so it gets no analysis. */
+	private fun isOutsideSelectedVariant(file: Path): Boolean =
+		ProjectManagerImpl.getInstance().workspace?.isOutsideSelectedVariant(file) == true
+
 	@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 	fun getCompiler(file: Path?): JavaCompilerService {
 		if (!DocumentUtils.isJavaFile(file)) {
@@ -335,7 +346,7 @@ class JavaLanguageServer : ILanguageServer {
 		val module =
 			ProjectManagerImpl.getInstance().findModuleForFile(file!!)
 				?: return JavaCompilerService.NO_MODULE_COMPILER
-		return JavaCompilerProvider.get(module)
+		return JavaCompilerProvider.get(module, file)
 	}
 
 	private fun startOrRestartAnalyzeTimer() {
@@ -361,9 +372,11 @@ class JavaLanguageServer : ILanguageServer {
 		val module =
 			getInstance()
 				.findModuleForFile(event.changedFile)
-		if (module != null) {
-			val compiler = JavaCompilerProvider.get(module)
-			compiler.onDocumentChange(event)
+		val changedScope = module?.artifactScopeOf(event.changedFile)
+		if (module != null && changedScope != null) {
+			JavaCompilerProvider.getInstance().forModule(module, changedScope).onDocumentChange(event)
+			// Scopes that compile against the changed one (tests against main or fixtures) are stale now.
+			JavaCompilerProvider.getInstance().invalidateScopesSeeing(module, changedScope)
 		}
 		startOrRestartAnalyzeTimer()
 	}

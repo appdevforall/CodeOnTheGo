@@ -28,7 +28,6 @@ import com.itsaky.androidide.lsp.models.CompletionParams
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.models.Position
 import com.itsaky.androidide.progress.ICancelChecker
-import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -56,7 +55,7 @@ class MemprofReceiver : BroadcastReceiver() {
 	) {
 		val op = intent.getStringExtra(EXTRA_OP)
 		if (op == null) {
-			logger.warn("MEMPROF|error|{}|reason=missing_op", System.currentTimeMillis())
+			logger.w("MEMPROF|error|{}|reason=missing_op", System.currentTimeMillis())
 			return
 		}
 
@@ -66,7 +65,7 @@ class MemprofReceiver : BroadcastReceiver() {
 			try {
 				dispatch(op, intent)
 			} catch (failure: Throwable) {
-				logger.error("MEMPROF|error|{}|op={}", System.currentTimeMillis(), op, failure)
+				logger.e("MEMPROF|error|{}|op={}", System.currentTimeMillis(), op, failure)
 			}
 		}
 		// Nothing reads the broadcast result, and holding it through an hprof dump or repeated
@@ -111,7 +110,7 @@ class MemprofReceiver : BroadcastReceiver() {
 			"dumpat" -> {
 				val fraction = intent.getFloatExtra("fraction", 0.85f).toDouble()
 				AllocationSampler.dumpAtFraction = fraction
-				logger.info("MEMPROF|dumpat|{}|fraction={}", System.currentTimeMillis(), fraction)
+				logger.i("MEMPROF|dumpat|{}|fraction={}", System.currentTimeMillis(), fraction)
 			}
 
 			"completion" -> {
@@ -124,7 +123,7 @@ class MemprofReceiver : BroadcastReceiver() {
 			}
 
 			else -> {
-				logger.warn("MEMPROF|error|{}|reason=unknown_op|op={}", System.currentTimeMillis(), op)
+				logger.w("MEMPROF|error|{}|reason=unknown_op|op={}", System.currentTimeMillis(), op)
 			}
 		}
 	}
@@ -134,7 +133,7 @@ class MemprofReceiver : BroadcastReceiver() {
 		AllocationSampler.sampleNow("pre_hprof")
 		val started = System.currentTimeMillis()
 		Debug.dumpHprofData(target)
-		logger.info(
+		logger.i(
 			"MEMPROF|hprof|{}|path={}|durationMs={}|bytes={}",
 			System.currentTimeMillis(),
 			target,
@@ -152,19 +151,19 @@ class MemprofReceiver : BroadcastReceiver() {
 	) {
 		val source = File(file)
 		if (!source.isFile) {
-			logger.warn("MEMPROF|error|{}|reason=no_such_file|file={}", System.currentTimeMillis(), file)
+			logger.w("MEMPROF|error|{}|reason=no_such_file|file={}", System.currentTimeMillis(), file)
 			return
 		}
 
 		val serverId = serverIdFor(source)
 		if (serverId == null) {
-			logger.warn("MEMPROF|error|{}|reason=no_server_for|file={}", System.currentTimeMillis(), file)
+			logger.w("MEMPROF|error|{}|reason=no_server_for|file={}", System.currentTimeMillis(), file)
 			return
 		}
 
 		val server = ILanguageServerRegistry.default.getServer(serverId)
 		if (server == null) {
-			logger.warn("MEMPROF|error|{}|reason=server_absent|server={}", System.currentTimeMillis(), serverId)
+			logger.w("MEMPROF|error|{}|reason=server_absent|server={}", System.currentTimeMillis(), serverId)
 			return
 		}
 
@@ -183,7 +182,7 @@ class MemprofReceiver : BroadcastReceiver() {
 			val elapsed = System.currentTimeMillis() - started
 			AllocationSampler.sampleNow("post_completion_$iteration")
 
-			logger.info(
+			logger.i(
 				"MEMPROF|completion|{}|server={}|iteration={}|prefix={}|items={}|incomplete={}|durationMs={}",
 				System.currentTimeMillis(),
 				serverId,
@@ -234,7 +233,7 @@ class MemprofReceiver : BroadcastReceiver() {
 	}
 
 	companion object {
-		private val logger = LoggerFactory.getLogger(MemprofReceiver::class.java)
+		private val logger = MemprofLog("MemprofReceiver")
 		private val worker =
 			Executors.newSingleThreadExecutor { runnable ->
 				Thread(runnable, "memprof-receiver").apply { isDaemon = true }

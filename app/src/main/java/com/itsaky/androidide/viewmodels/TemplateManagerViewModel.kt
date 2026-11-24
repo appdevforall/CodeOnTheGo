@@ -10,7 +10,9 @@ import com.itsaky.androidide.templates.manager.models.displayName
 import com.itsaky.androidide.ui.models.TemplateManagerUiEffect
 import com.itsaky.androidide.ui.models.TemplateManagerUiEvent
 import com.itsaky.androidide.ui.models.TemplateManagerUiState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
  */
 class TemplateManagerViewModel(
 	private val templateRepository: TemplateRepository,
+	collectionInstalls: Flow<Unit>,
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "TemplateManagerViewModel"
@@ -34,44 +37,71 @@ class TemplateManagerViewModel(
 	private val _uiEffect = Channel<TemplateManagerUiEffect>(Channel.BUFFERED)
 	val uiEffect = _uiEffect.receiveAsFlow()
 
+	private var loadJob: Job? = null
+
 	init {
 		loadTemplates()
+		// A .cgt opened from outside the app installs in ExternalFileInstallActivity, which then
+		// finishes back to this screen without telling it (ADFA-6967). Reload on every install
+		// instead, whichever screen ran it.
+		viewModelScope.launch { collectionInstalls.collect { loadTemplates() } }
 	}
 
 	fun onEvent(event: TemplateManagerUiEvent) {
 		when (event) {
 			is TemplateManagerUiEvent.LoadTemplates -> loadTemplates()
-			is TemplateManagerUiEvent.InstallTemplate -> installTemplate(event.item)
-			is TemplateManagerUiEvent.UninstallTemplate -> uninstallTemplate(event.item)
+			is TemplateManagerUiEvent.InstallTemplate -> showInstallConfirmation(event.item)
+			is TemplateManagerUiEvent.UninstallTemplate -> showUninstallConfirmation(event.item)
 			is TemplateManagerUiEvent.DeleteDownloadFile -> showDeleteConfirmation(event.item)
 			is TemplateManagerUiEvent.ShowTemplateDetails -> showTemplateDetails(event.item)
 			is TemplateManagerUiEvent.ShowTemplateList -> showTemplateList(event.item)
 		}
 	}
 
+	/**
+	 * Scans finish in any order, so a reload cancels the scan it supersedes; otherwise an earlier
+	 * scan finishing last would overwrite the newer list (e.g. hide a collection that just
+	 * installed). The repository rethrows cancellation, so a cancelled scan never reaches the state.
+	 */
 	private fun loadTemplates() {
-		viewModelScope.launch {
-			_uiState.update { it.copy(isLoading = true) }
+		loadJob?.cancel()
+		loadJob =
+			viewModelScope.launch {
+				_uiState.update { it.copy(isLoading = true) }
 
-			templateRepository
-				.listTemplateFiles()
-				.onSuccess { items ->
-					Log.d(TAG, "Loaded ${items.size} template files")
-					_uiState.update { it.copy(isLoading = false, items = items) }
-				}.onFailure { exception ->
-					Log.e(TAG, "Failed to load template files", exception)
-					_uiState.update { it.copy(isLoading = false) }
-					_uiEffect.send(
-						TemplateManagerUiEffect.ShowError(
-							R.string.msg_template_load_failed,
-							listOf(exception.message ?: ""),
-						),
-					)
-				}
+				templateRepository
+					.listTemplateFiles()
+					.onSuccess { items ->
+						Log.d(TAG, "Loaded ${items.size} template files")
+						_uiState.update { it.copy(isLoading = false, items = items) }
+					}.onFailure { exception ->
+						Log.e(TAG, "Failed to load template files", exception)
+						_uiState.update { it.copy(isLoading = false) }
+						_uiEffect.send(
+							TemplateManagerUiEffect.ShowError(
+								R.string.msg_template_load_failed,
+								listOf(exception.message ?: ""),
+							),
+						)
+					}
+			}
+	}
+
+	private fun showInstallConfirmation(item: CgtFileItem) {
+		viewModelScope.launch {
+			_uiEffect.send(TemplateManagerUiEffect.ShowInstallConfirmation(item))
 		}
 	}
 
-	private fun installTemplate(item: CgtFileItem) {
+	/**
+	 * Installs a Downloads template (called after confirmation). Install copies, so the Downloads
+	 * original is kept unless [deleteSourceAfterInstall] - the same choice the Plugins tab offers.
+	 * A failed delete is reported but doesn't undo the install, matching the Plugins tab.
+	 */
+	fun confirmInstallTemplate(
+		item: CgtFileItem,
+		deleteSourceAfterInstall: Boolean,
+	) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository
@@ -84,6 +114,11 @@ class TemplateManagerViewModel(
 							listOf(item.displayName),
 						),
 					)
+					if (deleteSourceAfterInstall) {
+						templateRepository.deleteDownloadFile(item).onFailure {
+							_uiEffect.send(TemplateManagerUiEffect.ShowError(R.string.msg_source_delete_failed))
+						}
+					}
 					// loadTemplates() clears isLoading once the post-install rescan completes, so the
 					// indicator stays up continuously across both phases instead of flickering off
 					// between them.
@@ -101,7 +136,14 @@ class TemplateManagerViewModel(
 		}
 	}
 
-	private fun uninstallTemplate(item: CgtFileItem) {
+	private fun showUninstallConfirmation(item: CgtFileItem) {
+		viewModelScope.launch {
+			_uiEffect.send(TemplateManagerUiEffect.ShowUninstallConfirmation(item))
+		}
+	}
+
+	/** Uninstalls [item] (called after [TemplateManagerUiEffect.ShowUninstallConfirmation] is confirmed). */
+	fun confirmUninstallTemplate(item: CgtFileItem) {
 		viewModelScope.launch {
 			_uiState.update { it.copy(isLoading = true) }
 			templateRepository

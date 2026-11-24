@@ -102,6 +102,25 @@ class JarFsClasspathReaderCorruptJarTest {
 		assertThat(classes.size).isGreaterThan(100)
 	}
 
+	@Test
+	fun jarWhoseFileSystemIsNotFoundIsSkippedWithoutAbortingIndexing() {
+		// link/../found.jar exists for the OS (link -> real/sub, so link/.. is real) but not after the
+		// provider's lexical normalize, which drops "link/..": the same split a JAR deleted between
+		// the exists check and the open produces, without the timing.
+		val real = File(tmpDir, "real/sub").apply { mkdirs() }.parentFile
+		validJar.copyTo(File(real, "found.jar"))
+		val link = File(tmpDir, "link")
+		Files.createSymbolicLink(link.toPath(), File(real, "sub").toPath())
+		val vanishing = File(link, "../found.jar")
+		assertThat(vanishing.exists()).isTrue()
+
+		val reader = JarFsClasspathReader()
+		val classes = reader.listClasses(listOf(vanishing, validJar))
+
+		assertThat(classes.any { it.name == "android.content.Context" }).isTrue()
+		assertThat(reader.unreadableJars).containsExactly(vanishing)
+	}
+
 	/**
 	 * The reader must EXPOSE the skipped JARs (not just log them) so the caller can name the offending
 	 * dependency to the user and offer a recovery path (re-sync) instead of silently dropping symbols.

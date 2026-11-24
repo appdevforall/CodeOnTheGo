@@ -23,15 +23,20 @@ import static java.util.Collections.emptySet;
 import androidx.annotation.NonNull;
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import com.itsaky.androidide.javac.services.fs.AndroidFsProviderImpl;
+import com.itsaky.androidide.javac.services.fs.JarPackageProviderImpl;
 import com.itsaky.androidide.projects.api.AndroidModule;
 import com.itsaky.androidide.projects.api.ModuleProject;
 import com.itsaky.androidide.projects.models.AndroidProjectExtsKt;
+import com.itsaky.androidide.projects.models.ArtifactScope;
 import com.itsaky.androidide.projects.util.StringSearch;
 import com.itsaky.androidide.utils.ClassTrie;
 import com.itsaky.androidide.utils.Environment;
 import com.itsaky.androidide.utils.SourceClassTrie;
+import com.itsaky.androidide.zipfs2.JarPackageProvider;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,13 +48,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+import jdkx.tools.DiagnosticListener;
 import jdkx.tools.FileObject;
 import jdkx.tools.ForwardingJavaFileManager;
 import jdkx.tools.JavaFileObject;
 import jdkx.tools.StandardLocation;
-import openjdk.tools.javac.api.JavacTool;
+import openjdk.tools.javac.file.CacheFSInfo;
 import openjdk.tools.javac.file.JavacFileManager;
 import openjdk.tools.javac.util.Context;
+import openjdk.tools.javac.util.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,12 +64,13 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 
 	public static final SourceFileManager NO_MODULE;
 	private static final Logger LOG;
-	private static final Map<ModuleProject, SourceFileManager> cachedFileManagers = new ConcurrentHashMap<>();
+	// Keyed by scope as well as module: a shared entry would give main code the test classpath, or tests main's.
+	private static final Map<Key, SourceFileManager> cachedFileManagers = new ConcurrentHashMap<>();
 
 	static {
 		// Initialize LOG first to prevent NPE
 		LOG = LoggerFactory.getLogger(SourceFileManager.class);
-		NO_MODULE = new SourceFileManager(null);
+		NO_MODULE = new SourceFileManager(null, null);
 	}
 
 	public static void clearCache() {
@@ -78,26 +86,39 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 	}
 
 	public static SourceFileManager forModule(@NonNull ModuleProject project) {
+		return forModule(project, ArtifactScope.Main.INSTANCE);
+	}
+
+	/** The file manager for {@code project}'s {@code scope} sources. */
+	public static SourceFileManager forModule(@NonNull ModuleProject project, @NonNull ArtifactScope scope) {
 		Objects.requireNonNull(project);
-		return cachedFileManagers.computeIfAbsent(project, SourceFileManager::createForModule);
+		return cachedFileManagers.computeIfAbsent(new Key(project, scope), SourceFileManager::createForModule);
 	}
 
-	private static JavacFileManager createDelegateFileManager() {
-		return JavacTool.create()
-				.getStandardFileManager(msg -> LOG.debug(String.valueOf(msg)), Locale.getDefault(),
-						StandardCharsets.UTF_8);
+	/* Mirrors JavacTool.getStandardFileManager, plus the shared jar package provider. It must be in the context before the file manager is built, because the classpath archive containers are created in the constructor and read the provider only once. */
+	static JavacFileManager createDelegateFileManager() {
+		final Context context = new Context();
+		context.put(Locale.class, Locale.getDefault());
+		context.put(DiagnosticListener.class, (DiagnosticListener<JavaFileObject>) msg -> LOG.debug(String.valueOf(msg)));
+		context.put(Log.errKey, new PrintWriter(new OutputStreamWriter(System.err, StandardCharsets.UTF_8), true));
+		CacheFSInfo.preRegister(context);
+		context.put(JarPackageProvider.class, JarPackageProviderImpl.INSTANCE);
+		return new JavacFileManager(context, true, StandardCharsets.UTF_8);
 	}
 
-	private static SourceFileManager createForModule(@NonNull ModuleProject project) {
-		LOG.info("Creating source file manager instance for module: {}", project);
-		return new SourceFileManager(project);
+	private static SourceFileManager createForModule(@NonNull Key key) {
+		LOG.info("Creating source file manager instance for module: {}, test scope: {}", key.module(), key.scope());
+		return new SourceFileManager(key.module(), key.scope());
 	}
 
 	private final ModuleProject module;
 
-	private SourceFileManager(final ModuleProject module) {
+	private final ArtifactScope scope;
+
+	private SourceFileManager(final ModuleProject module, final ArtifactScope scope) {
 		super(createDelegateFileManager());
 		this.module = module;
+		this.scope = scope;
 
 		AndroidFsProviderImpl.INSTANCE.init();
 
@@ -109,7 +130,8 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 		System.setProperty(JavacConfigProvider.PROP_ANDROIDIDE_JAVA_HOME,
 				Environment.JAVA_HOME.getAbsolutePath());
 
-		setLocationLogError(StandardLocation.SOURCE_PATH, module.getCompileSourceDirectories());
+		final Set<File> sourcePath = module.getCompileSourceDirectories(scope);
+		setLocationLogError(StandardLocation.SOURCE_PATH, sourcePath);
 		setLocationLogError(StandardLocation.CLASS_PATH, configureClasspaths(module));
 		listLocations(EnumSet.of(StandardLocation.CLASS_PATH, StandardLocation.PLATFORM_CLASS_PATH));
 	}
@@ -118,7 +140,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 	public boolean contains(Location location, FileObject file) throws IOException {
 		if (location == StandardLocation.SOURCE_PATH) {
 			SourceFileObject source = (SourceFileObject) file;
-			return module.compileJavaSourceClasses.findSource(source.path) != null;
+			return module.javaSourceClasses(scope).findSource(source.path) != null;
 		} else {
 			return super.contains(location, file);
 		}
@@ -139,7 +161,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 		if (location == StandardLocation.SOURCE_PATH) {
 			String packageName = StringSearch.mostName(className);
 			String simpleClassName = StringSearch.lastName(className);
-			List<SourceClassTrie.SourceNode> classes = module != null ? module.listClassesFromSourceDirs(packageName) : emptyList();
+			List<SourceClassTrie.SourceNode> classes = module != null ? module.listClassesFromSourceDirs(packageName, scope) : emptyList();
 			for (SourceClassTrie.SourceNode node : classes) {
 				final Path path = node.getFile();
 				if (path.getFileName().toString().equals(simpleClassName + kind.extension)) {
@@ -183,7 +205,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 				return emptyList();
 			}
 
-			final ClassTrie.Node node = module.compileJavaSourceClasses.findNode(packageName);
+			final ClassTrie.Node node = module.javaSourceClasses(scope).findNode(packageName);
 			if (node == null || node.isClass()) {
 				return emptyList();
 			}
@@ -237,7 +259,7 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 			setLocationLogError(StandardLocation.PLATFORM_CLASS_PATH, AndroidProjectExtsKt.getBootClassPaths(androidModule));
 		}
 
-		return module.getCompileClasspaths();
+		return module.getCompileClasspaths(scope, false);
 	}
 
 	private void listLocations(final EnumSet<StandardLocation> locations) {
@@ -252,11 +274,13 @@ public class SourceFileManager extends ForwardingJavaFileManager<JavacFileManage
 	}
 
 	private String packageNameOrEmpty(Path file) {
-		return this.module != null ? module.packageNameOrEmpty(file) : "";
+		return this.module != null ? module.packageNameOrEmpty(file, scope) : "";
 	}
 
 	private String removeExtension(String fileName) {
 		int lastDot = fileName.lastIndexOf(".");
 		return (lastDot == -1 ? fileName : fileName.substring(0, lastDot));
 	}
+
+	private record Key(ModuleProject module, ArtifactScope scope) {}
 }

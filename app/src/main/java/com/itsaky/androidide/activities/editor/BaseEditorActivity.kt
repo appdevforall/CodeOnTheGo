@@ -1320,7 +1320,13 @@ abstract class BaseEditorActivity :
 		}
 	}
 
+	protected var isRemovingTab: Boolean = false
+
 	override fun onTabSelected(tab: Tab) {
+		if (isRemovingTab) {
+			return
+		}
+
 		val position = tab.position
 
 		content.editorContainer.displayedChild = position
@@ -1404,6 +1410,8 @@ abstract class BaseEditorActivity :
 			pluginMenuItems = pluginMenuItems,
 		)
 	}
+
+	protected abstract fun updateTabVisibility()
 
 	override fun onGroupClick(group: DiagnosticGroup?) {
 		if (group?.file?.exists() == true && FileUtils.isUtf8(group.file)) {
@@ -1720,21 +1728,8 @@ abstract class BaseEditorActivity :
 			)
 		}
 
-		editorViewModel.observeFiles(this) { files ->
-			if (this is EditorHandlerActivity) {
-				this.updateTabVisibility()
-			} else {
-				content.apply {
-					if (files.isNullOrEmpty()) {
-						tabs.visibility = View.GONE
-						viewContainer.displayedChild = 1
-					} else {
-						tabs.visibility = View.VISIBLE
-						viewContainer.displayedChild = 0
-					}
-				}
-			}
-
+		editorViewModel.observeFiles(this) {
+			updateTabVisibility()
 			invalidateOptionsMenu()
 		}
 	}
@@ -1948,7 +1943,7 @@ abstract class BaseEditorActivity :
 					content.apply {
 						val safeOffset = slideOffset.coerceAtLeast(0f)
 						val editorScale = 1 - safeOffset * (1 - EDITOR_CONTAINER_SCALE_FACTOR)
-						this.bottomSheet.onSlide(slideOffset)
+						this.bottomSheet.onSlide()
 						this.viewContainer.scaleX = editorScale
 						this.viewContainer.scaleY = editorScale
 					}
