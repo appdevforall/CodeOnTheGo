@@ -389,7 +389,9 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 				try {
 					val manager = pluginManager
 					if (manager != null) {
-						val synced = withContext(Dispatchers.IO) { BundleSyncAtStart.run(application, manager) }
+						// Under the load lock, as Add-ons Manager installs are: the sync replaces plugin files.
+						val synced =
+							manager.whileNotLoading { withContext(Dispatchers.IO) { BundleSyncAtStart.run(application, manager) } }
 						manager.loadPlugins()
 						if (synced) {
 							// Plugins are loaded already; this only records the bundled ones that failed.
