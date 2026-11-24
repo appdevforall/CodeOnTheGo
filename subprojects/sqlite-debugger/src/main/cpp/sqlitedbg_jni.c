@@ -363,16 +363,16 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 
 	if (now_ms() >= dl.at_ms) {
 		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the query started");
-		return NULL;
+		goto done;
 	}
 	jsize sql_len = (*env)->GetStringLength(env, sql);
 	const jchar *sql_chars = (*env)->GetStringChars(env, sql, NULL);
-	if (!sql_chars) return NULL;
+	if (!sql_chars) goto done;
 	rc = prepare_one(db, sql_chars, sql_len, &st, &message);
 	(*env)->ReleaseStringChars(env, sql, sql_chars);
 	if (rc != SQLITE_OK) {
 		throw_engine(env, rc, message ? message : sqlite3_errmsg(db));
-		return NULL;
+		goto done;
 	}
 
 	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
@@ -518,14 +518,22 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	if ((*vm)->GetEnv(vm, (void **)&env, JNI_VERSION_1_6) != JNI_OK) return JNI_ERR;
 
 	g_object = global_class(env, "java/lang/Object");
+	if (!g_object) return JNI_ERR;
 	g_string = global_class(env, "java/lang/String");
+	if (!g_string) return JNI_ERR;
 	g_array_list = global_class(env, "java/util/ArrayList");
+	if (!g_array_list) return JNI_ERR;
 	g_long = global_class(env, "java/lang/Long");
+	if (!g_long) return JNI_ERR;
 	g_double = global_class(env, "java/lang/Double");
+	if (!g_double) return JNI_ERR;
 	g_exception = global_class(env, EXCEPTION_CLASS);
+	if (!g_exception) return JNI_ERR;
 	jstring utf8 = (*env)->NewStringUTF(env, "UTF-8");
-	if (!g_object || !g_string || !g_array_list || !g_long || !g_double || !g_exception || !utf8) return JNI_ERR;
+	if (!utf8) return JNI_ERR;
 	g_utf8_name = (jstring)(*env)->NewGlobalRef(env, utf8);
+	(*env)->DeleteLocalRef(env, utf8);
+	if (!g_utf8_name) return JNI_ERR;
 
 	g_string_from_bytes = (*env)->GetMethodID(env, g_string, "<init>", "([BLjava/lang/String;)V");
 	g_list_init = (*env)->GetMethodID(env, g_array_list, "<init>", "()V");
