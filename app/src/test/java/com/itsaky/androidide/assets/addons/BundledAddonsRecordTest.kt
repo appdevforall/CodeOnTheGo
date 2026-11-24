@@ -31,7 +31,7 @@ class BundledAddonsRecordTest {
 	fun `no file reads as no record`() {
 		assertThat(record.read()).isNull()
 		assertThat(record.unreportedFailures()).isEmpty()
-		assertThat(record.markReported()).isEmpty()
+		assertThat(record.markReported(listOf(BundledPluginFailure("com.example.one", "boom")))).isEmpty()
 	}
 
 	@Test
@@ -107,8 +107,9 @@ class BundledAddonsRecordTest {
 		record.write(state)
 		record.recordFailures(mapOf("com.example.one" to "boom"))
 
-		val first = record.markReported()
-		val second = record.markReported()
+		val told = record.unreportedFailures()
+		val first = record.markReported(told)
+		val second = record.markReported(told)
 
 		assertThat(first).containsExactly(BundledPluginFailure("com.example.one", "boom", reported = false))
 		assertThat(second).isEmpty()
@@ -120,11 +121,36 @@ class BundledAddonsRecordTest {
 	fun `a new failure after a report is unreported again`() {
 		record.write(state)
 		record.recordFailures(mapOf("com.example.one" to "boom"))
-		record.markReported()
+		record.markReported(record.unreportedFailures())
 
 		record.recordFailures(mapOf("com.example.two" to "bang"))
 
 		assertThat(record.unreportedFailures()).containsExactly(BundledPluginFailure("com.example.two", "bang", reported = false))
+	}
+
+	@Test
+	fun `markReported leaves a failure recorded after the told ones were read`() {
+		record.write(state)
+		record.recordFailures(mapOf("com.example.one" to "boom"))
+		val told = record.unreportedFailures()
+
+		record.recordFailures(mapOf("com.example.two" to "bang"))
+		val marked = record.markReported(told)
+
+		assertThat(marked).containsExactly(BundledPluginFailure("com.example.one", "boom"))
+		assertThat(record.unreportedFailures()).containsExactly(BundledPluginFailure("com.example.two", "bang"))
+	}
+
+	@Test
+	fun `markReported leaves a failure recorded again with another message`() {
+		record.write(state)
+		record.recordFailures(mapOf("com.example.one" to "boom"))
+		val told = record.unreportedFailures()
+
+		record.recordFailures(mapOf("com.example.one" to "bang"))
+		record.markReported(told)
+
+		assertThat(record.unreportedFailures()).containsExactly(BundledPluginFailure("com.example.one", "bang"))
 	}
 
 	@Test
