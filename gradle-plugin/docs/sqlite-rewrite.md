@@ -12,8 +12,8 @@ An existing project needs:
 1. `cogo.sqliteDebugger=true` in `gradle.properties`. The plugin reads it with Gradle's `findProperty` for each app
    module it is applied to, so Gradle decides per module: the Gradle user home's file
    (`GRADLE_USER_HOME`, `~/.gradle` under Code on the Go's home) first, then the module's own `gradle.properties`,
-   then each parent project's (`:group` for `:group:app`), then the root's; the first that defines the property
-   decides. Quick Build is off when the module it builds (the first app module) has the opt-in in force; another app
+   then the root's, then each parent project's (`:group` for `:group:app`), nearest first; the first that defines the
+   property decides. The root's value outranks every parent's, as Gradle resolves it. Quick Build is off when the module it builds (the first app module) has the opt-in in force; another app
    module's value does not affect Quick Build. To turn the rewrite off across a project, set
    `cogo.sqliteDebugger=false` where the opt-in is in force for each app module, or in the Gradle user home. The
    IDE's Quick Build check (`QuickBuildProjectSupport.isSqliteDebuggerEnabled`) reads those files for the Quick
@@ -44,8 +44,8 @@ with an actionable message when the variant's runtime classpath has no
 
 The property is required because requery reaches apps only through `libs/`. Without it the rewritten classes
 cannot load, so the transform runs only on projects that opted in. To turn it off, set `cogo.sqliteDebugger=false` in
-the file that defines it, or in one read earlier (Gradle user home, then the app module, its parent projects, then
-the root: the first file that defines the property decides). Commenting the line out can expose another file's `true`.
+the file that defines it, or in one read earlier (Gradle user home, then the app module, the root, then
+its parent projects: the first file that defines the property decides). Commenting the line out can expose another file's `true`.
 
 ## Rules
 

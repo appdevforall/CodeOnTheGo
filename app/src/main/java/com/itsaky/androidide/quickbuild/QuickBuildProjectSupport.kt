@@ -78,16 +78,16 @@ object QuickBuildProjectSupport {
 
 	/**
 	 * The directories whose `gradle.properties` Gradle's `findProperty` reads for the project at
-	 * [modulePath], nearest first: the module's own directory, each parent project's, then the root.
-	 * A project inherits its parent's properties, so `:group:app` sees `:group`'s file before the
-	 * root's.
+	 * [modulePath], in Gradle's precedence: the module's own directory, the root's, then each parent
+	 * project's, nearest first. Gradle gives the root's value precedence over every parent's, so for
+	 * `:group:app` the root's file comes before `:group`'s.
 	 *
 	 * A parent's directory comes from [projectDirs] (Gradle path to directory, from the project
 	 * model, which lists the projects that have no Android plugin as well). A parent the model
 	 * lacks is taken from the default layout: the module's directory walked up one level per path
 	 * segment, which is wrong for a `projectDir` that `settings.gradle` has remapped.
 	 *
-	 * @param projectRoot the root project's directory, always last.
+	 * @param projectRoot the root project's directory, second after the module's.
 	 * @param modulePath the module's Gradle path, such as `:group:app`.
 	 * @param moduleDir the module's own directory.
 	 */
@@ -100,12 +100,12 @@ object QuickBuildProjectSupport {
 		val segments = modulePath.split(':').filter { it.isNotEmpty() }
 		val dirs = LinkedHashSet<File>()
 		dirs += moduleDir
+		dirs += projectRoot
 		var walked: File? = moduleDir
 		for (depth in segments.size - 1 downTo 1) {
 			walked = walked?.parentFile
 			(projectDirs[":" + segments.take(depth).joinToString(":")] ?: walked)?.let(dirs::add)
 		}
-		dirs += projectRoot
 		return dirs.toList()
 	}
 
@@ -119,15 +119,15 @@ object QuickBuildProjectSupport {
 	 * Reads the files the Gradle plugin's `findProperty` sees for that module in Code on the Go's
 	 * builds, and the first one that defines the property decides: the Gradle user home
 	 * `gradle.properties` (`GRADLE_USER_HOME`, which overrides the project files), then [projectDirs]
-	 * in order (see [propertyDirs]: the module, its parent projects, the root). Gradle loads a
+	 * in order (see [propertyDirs]: the module, the root, then its parent projects). Gradle loads a
 	 * `gradle.properties` from every project directory into that project, and a subproject also
-	 * inherits its parent's properties. `-P` arguments are not read: Code on the Go passes none for
+	 * inherits its parents' properties, the root's before any other parent's. `-P` arguments are not read: Code on the Go passes none for
 	 * this property.
 	 *
 	 * A file that cannot be read is reported to [onReadFailure] and counts as not defining it.
 	 *
 	 * @param gradleUserHome the Gradle user home, or null when there is none.
-	 * @param projectDirs the module's directory, its parents', and the root's, nearest first.
+	 * @param projectDirs the module's directory, the root's, then its parents', in [propertyDirs]' order.
 	 */
 	fun isSqliteDebuggerEnabled(
 		gradleUserHome: File?,

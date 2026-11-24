@@ -163,17 +163,51 @@ class QuickBuildProjectSupportTest {
 		}
 
 	@Test
-	fun `property dirs run from the module up through its parent projects to the root`() {
+	fun `property dirs run module, root, then parent projects nearest first`() {
 		val root = java.io.File("/p")
 		val dirs = QuickBuildProjectSupport.propertyDirs(root, ":group:sub:app", java.io.File("/p/group/sub/app"))
 
 		assertThat(dirs)
 			.containsExactly(
 				java.io.File("/p/group/sub/app"),
+				root,
 				java.io.File("/p/group/sub"),
 				java.io.File("/p/group"),
-				root,
 			).inOrder()
+	}
+
+	@Test
+	fun `the root's value outranks a parent project's, as Gradle resolves it`() {
+		val base =
+			java.nio.file.Files
+				.createTempDirectory("qb-order")
+				.toFile()
+		try {
+			val root = base.resolve("root").apply { mkdirs() }
+			val group = root.resolve("group").apply { mkdirs() }
+			val module = group.resolve("app").apply { mkdirs() }
+			val home = base.resolve("home").apply { mkdirs() }
+			val dirs = QuickBuildProjectSupport.propertyDirs(root, ":group:app", module)
+
+			root.props("cogo.sqliteDebugger=false\n")
+			group.props("cogo.sqliteDebugger=true\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, dirs)).isFalse()
+
+			root.props("cogo.sqliteDebugger=true\n")
+			group.props("cogo.sqliteDebugger=false\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, dirs)).isTrue()
+
+			module.props("cogo.sqliteDebugger=false\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, dirs)).isFalse()
+
+			module.resolve("gradle.properties").delete()
+			root.resolve("gradle.properties").delete()
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, dirs)).isFalse()
+			group.props("cogo.sqliteDebugger=true\n")
+			assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, dirs)).isTrue()
+		} finally {
+			base.deleteRecursively()
+		}
 	}
 
 	@Test
@@ -187,7 +221,7 @@ class QuickBuildProjectSupportTest {
 				mapOf(":group" to java.io.File("/elsewhere/g")),
 			)
 
-		assertThat(dirs).containsExactly(java.io.File("/elsewhere/app"), java.io.File("/elsewhere/g"), root).inOrder()
+		assertThat(dirs).containsExactly(java.io.File("/elsewhere/app"), root, java.io.File("/elsewhere/g")).inOrder()
 	}
 
 	@Test

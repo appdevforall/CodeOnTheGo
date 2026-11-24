@@ -566,7 +566,7 @@ class GradleQuickBuildProvisioner(
 	): ProxyAppBuildResult.Refused? {
 		if (!isSqliteDebuggerOn(projectManager, projectRoot)) return null
 		log.info(
-			"Quick Build is not provisioned: {} is true for the module it builds (Gradle user home, module, parent projects or root)",
+			"Quick Build is not provisioned: {} is true for the module it builds (Gradle user home, module, root or parent projects)",
 			GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
 		)
 		return ProxyAppBuildResult.Refused
@@ -611,8 +611,8 @@ class GradleQuickBuildProvisioner(
 		/**
 		 * Whether `cogo.sqliteDebugger=true` is in force for the module Quick Build builds
 		 * ([quickBuildModule]), as Gradle decides it for that module: the Gradle user home, then the
-		 * module's `gradle.properties`, then each parent project's, then the root's, the first that
-		 * defines the property winning. Another app module's file does not count, since Gradle skips
+		 * module's `gradle.properties`, then the root's, then each parent project's nearest first, the
+		 * first that defines the property winning. Another app module's file does not count, since Gradle skips
 		 * Quick Build per module. Parent projects come from the project model, which lists every Gradle
 		 * project; one it lacks is taken from the module's directory layout (see
 		 * [QuickBuildProjectSupport.propertyDirs]). With no Android module there is no module to ask,

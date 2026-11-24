@@ -192,11 +192,21 @@ class QuickBuildTapSqliteDebuggerCheckTest {
 		}
 
 	@Test
-	fun `a parent's false overrides the root's true`() =
+	fun `the root's true outranks a parent's false, as Gradle resolves it`() =
 		runTest {
 			projectRoot.props("cogo.sqliteDebugger=true\n")
 			val project = projectOf(":group:app")
 			dir("group").props("cogo.sqliteDebugger=false\n")
+
+			assertTapAndProvisionerAgree(project, refused = true)
+		}
+
+	@Test
+	fun `the root's false outranks a parent's true, as Gradle resolves it`() =
+		runTest {
+			projectRoot.props("cogo.sqliteDebugger=false\n")
+			val project = projectOf(":group:app")
+			dir("group").props("cogo.sqliteDebugger=true\n")
 
 			assertTapAndProvisionerAgree(project, refused = false)
 		}
