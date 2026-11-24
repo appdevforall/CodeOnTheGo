@@ -164,7 +164,9 @@ void sqlitedbg_set_client_connected(int connected);
 // The connection waits up to SQLITEDBG_SERVER_BUSY_MS for a lock the app holds (rollback-journal mode)
 // and then reports SQLITE_BUSY.
 // Returns SQLITE_MISUSE before any app connection has opened (the extension then has no SQLite
-// API to call), or what sqlite3_open_v2 returns.
+// API to call), or what sqlite3_open_v2 returns. A failure after the open (PRAGMA query_only, the
+// authorizer or the busy timeout) closes the connection, sets *db to NULL and returns that code, as
+// does a failed open: *db is non-NULL only with SQLITE_OK.
 int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db);
 
 // Ends a transaction left open on a server connection with ROLLBACK, which the read-only authorizer
