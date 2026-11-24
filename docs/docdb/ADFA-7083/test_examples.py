@@ -57,33 +57,59 @@ def run(sql):
     return out, [l for l in r.stderr.split("\n") if ERROR_LINE.match(l)], r.stderr, r.returncode
 
 
-def all_whitespace(line):
-    """Whether sqlite3 skips this line when no statement is pending: it holds only blanks and
-    comments, a /* */ comment only if it ends on the line (shell.c's _all_whitespace)."""
-    i = 0
-    while i < len(line):
-        if line[i].isspace():
+HAS_DARK, ENDING_SEMI = 1, 2
+BLANK = " \t\n\v\f\r"
+
+
+def quickscan(line, state):
+    """sqlite3's shell quickscan() (3.46.1, src/shell.c.in): scans one line, resuming from state,
+    and returns the new state. A state is (flags, wait): HAS_DARK once the input has had anything
+    but blanks, comments and ';'; ENDING_SEMI while its last such thing is a ';'; and wait, the
+    character that ends the quote or /* comment the line ends inside, or ""."""
+    flags, wait = state
+    i, n = 0, len(line)
+    while i < n:
+        c = line[i]
+        i += 1
+        if wait == "*":
+            if c == "*" and line[i:i + 1] == "/":
+                i += 1
+                wait = ""
+        elif wait:
+            if c == wait:
+                if c != "]" and line[i:i + 1] == c:
+                    i += 1  # a doubled quote
+                else:
+                    wait = ""
+        elif c in BLANK:
+            pass
+        elif c == "-" and line[i:i + 1] == "-":
+            break  # the rest of the line is a comment
+        elif c == ";":
+            flags |= ENDING_SEMI
+        elif c == "/" and line[i:i + 1] == "*":
             i += 1
-        elif line.startswith("/*", i):
-            end = line.find("*/", i + 2)
-            if end < 0:
-                return False
-            i = end + 2
-        elif line.startswith("--", i):
-            return True
+            wait = "*"
+        elif c in "[`'\"":
+            wait = "]" if c == "[" else c
+            flags = HAS_DARK
         else:
-            return False
-    return True
+            flags = (flags & ~ENDING_SEMI) | HAS_DARK
+    return flags, wait
 
 
 def split(block):
     """An example's SQL; the output lines it must end with; and the errors it must report, each
     as its text and the line of the SQL, from 0, where the statement above its note starts.
 
-    sqlite3 reports an error at the line where the input it was running starts: the first line
-    that is not blank after the last complete statement, or a line starting with a dot command."""
+    sqlite3 reports an error at the line where the input it was running starts. Its shell
+    (process_input() in 3.46.1) swallows a line that holds only blanks and comments, as
+    quickscan() reads it, and a dot command or a '#' line, when no input is pending; and drops
+    pending input that has become only blanks and comments, such as a /* */ comment over several
+    lines. A statement therefore starts at the first line after the last complete statement that
+    is none of these. Not modelled: a line '/' or 'go' that ends a statement."""
     lines, want, errors = [], [], []
-    pending, start, last = "", None, None
+    pending, start, last, state = "", None, None, (0, "")
     for line in block.split("\n"):
         if line.startswith("--"):
             note = re.match(r"^-- ?(.*)$", line).group(1)
@@ -94,15 +120,25 @@ def split(block):
             else:
                 want.append(note)
             continue
-        if not pending and not all_whitespace(line):
-            start = len(lines)
         lines.append(line)
-        if start is not None and not pending and line.startswith("."):
-            last, start = start, None
-        elif start is not None:
-            pending += line + "\n"
-            if sqlite3.complete_statement(pending):
-                last, pending, start = start, "", None
+        state = quickscan(line, state)
+        flags, wait = state
+        plain_white = not wait and not flags & HAS_DARK
+        if not pending:
+            if plain_white:
+                state = (0, "")
+                continue
+            if line[:1] in (".", "#"):
+                if line.startswith("."):
+                    last = len(lines) - 1
+                state = (0, "")
+                continue
+            start = len(lines) - 1
+        pending += line + "\n"
+        if not wait and flags & ENDING_SEMI and sqlite3.complete_statement(pending):
+            last, pending, start, state = start, "", None, (0, "")
+        elif plain_white:
+            pending, start, state = "", None, (0, "")
     return "\n".join(lines), want, errors
 
 

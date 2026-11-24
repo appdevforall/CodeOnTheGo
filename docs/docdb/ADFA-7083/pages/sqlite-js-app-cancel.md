@@ -28,14 +28,14 @@ So roll the transaction back, and run all of it again:
 - Room's `withTransaction` and `runInTransaction` roll back when their block throws. Let the error leave the block.
 - If your code began the transaction itself with `BEGIN`, run `ROLLBACK`.
 
-In one case SQLite rolls the whole transaction back by itself: when the interrupt of the connection, not the function's error, ends an `INSERT`, `UPDATE` or `DELETE`. That happens to one that sorts with a JavaScript collation, such as `INSERT ... SELECT ... ORDER BY name COLLATE ...`. The transaction is then already gone:
+In one case SQLite rolls the whole transaction back by itself: when the interrupt of the connection, not the function's error, ends a statement that writes, such as an `INSERT`, `UPDATE`, `DELETE` or `CREATE INDEX`. That happens to one that sorts or compares with a JavaScript collation, such as `INSERT ... SELECT ... ORDER BY name COLLATE ...`. The transaction is then already gone:
 
 - `ROLLBACK` fails with `cannot rollback - no transaction is active`.
 - Room's own rollback fails the same way. `withTransaction` and `runInTransaction` then throw that error, not the `interrupted` error.
 
 Treat either error the same way: the transaction is gone, so run all of it again.
 
-A `SELECT` that `cancelAll()` stops does not end the transaction, even one that sorts with a JavaScript collation. The changes made before it stay in the transaction until you commit it or roll it back. One exception: when the `SELECT`'s JavaScript runs an `INSERT`, `UPDATE` or `DELETE` through `db.exec`, and the cancel stops that write in a JavaScript collation, the transaction is gone, as above.
+A `SELECT` that `cancelAll()` stops does not end the transaction, even one that sorts with a JavaScript collation. The changes made before it stay in the transaction until you commit it or roll it back. One exception: when the `SELECT`'s JavaScript runs a statement that writes through `db.exec`, and the cancel stops that statement in a JavaScript collation, the transaction is gone, as above.
 
 ## What cancelAll() does not stop
 

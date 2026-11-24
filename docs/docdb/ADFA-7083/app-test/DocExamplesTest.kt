@@ -151,10 +151,13 @@ class DocExamplesTest {
 	private fun ProductDatabase.count(): Int =
 		openHelper.writableDatabase.query("SELECT count(*) FROM Product").use { it.moveToFirst(); it.getInt(0) }
 
+	// what cancelledWrite() saw: the row count inside the transaction after the UPDATE failed, the
+	// UPDATE's error, the row count after the transaction, and the error that left it, if any
+	private data class CancelledWrite(val inside: Int, val message: String, val after: Int, val left: Exception?)
+
 	// Runs, inside a transaction that transaction() opens, an insert and then an UPDATE whose
-	// JavaScript never ends, which cancelAll() stops. Returns the row count the transaction saw
-	// after the UPDATE failed, the UPDATE's error, and the row count after the transaction.
-	private fun cancelledWrite(db: ProductDatabase, transaction: (block: () -> Unit) -> Unit): Triple<Int, String, Int> {
+	// JavaScript never ends, which cancelAll() stops.
+	private fun cancelledWrite(db: ProductDatabase, transaction: (block: () -> Unit) -> Unit): CancelledWrite {
 		val stopped = AtomicBoolean(false)
 		// cancels only once the plain INSERT has returned, so that no cancel can reach it; a cancel
 		// before the UPDATE's JavaScript starts does nothing, so it is called until the UPDATE ends
@@ -198,7 +201,7 @@ class DocExamplesTest {
 			inserted.countDown()
 			canceller.join()
 		}
-		return Triple(inside, if (left == null) message else "$message; left the transaction: $left", db.count())
+		return CancelledWrite(inside, message, db.count(), left)
 	}
 
 	@Test
@@ -208,13 +211,14 @@ class DocExamplesTest {
 		try {
 			db.products().insert(sample)
 			for (how in listOf("withTransaction", "runInTransaction")) {
-				val (inside, message, after) = cancelledWrite(db) { block ->
+				val (inside, message, after, left) = cancelledWrite(db) { block ->
 					if (how == "withTransaction") runBlocking(Dispatchers.IO) { db.withTransaction { block() } }
 					else db.runInTransaction { block() }
 				}
-				assertTrue("$how: $message", message.contains("interrupted"))
-				assertEquals("$how: the transaction stayed open, with its earlier insert ($message)", 5, inside)
-				assertEquals("$how: Room rolled the transaction back ($message)", 4, after)
+				val seen = "the UPDATE's error: $message; the error that left the transaction: $left"
+				assertTrue("$how: $seen", message.contains("interrupted"))
+				assertEquals("$how: the transaction stayed open, with its earlier insert ($seen)", 5, inside)
+				assertEquals("$how: Room rolled the transaction back ($seen)", 4, after)
 			}
 		} finally {
 			db.close()

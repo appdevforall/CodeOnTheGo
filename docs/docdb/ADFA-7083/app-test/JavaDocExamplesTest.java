@@ -156,6 +156,7 @@ public class JavaDocExamplesTest {
 			CancellableQuery<List<String>> ended = new CancellableQuery<>(products::slugs);
 			assertEquals(4, ended.get().size());
 			ended.cancel();
+			awaitDone(ended);
 			assertEquals(4, ended.get().size());
 
 			// cancel() stops JavaScript that never ends, and get() then reports a cancel
@@ -167,11 +168,11 @@ public class JavaDocExamplesTest {
 			}
 			spin.cancel();
 			Throwable thrown = thrownByGet(spin);
+			awaitDone(spin);
 			assertTrue(String.valueOf(thrown), thrown instanceof CancellationException);
 			// the query's own error is its cause
 			assertTrue(String.valueOf(thrown.getCause()),
 					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
-			awaitDone(spin);
 
 			// cancel() does not wait for the query: this one cannot end until the latch opens, so
 			// a cancel() that waited would never return. A query that ends with a result after
@@ -236,11 +237,11 @@ public class JavaDocExamplesTest {
 			});
 			write.cancel();
 			thrown = thrownByGet(write);
+			awaitDone(write);
 			assertTrue(String.valueOf(thrown), thrown instanceof CancellationException);
 			// the cancel stopped the UPDATE's JavaScript: the write did not fail for another reason
 			assertTrue(String.valueOf(thrown.getCause()),
 					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
-			awaitDone(write);
 			assertEquals(4, products.slugs().size());
 		} finally {
 			db.close();
