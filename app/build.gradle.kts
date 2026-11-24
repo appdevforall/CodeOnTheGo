@@ -700,6 +700,34 @@ val quickBuildDaemonZip =
 // Beside them goes the bundle index, bundled-addons.tsv (BundledAddons.INDEX_FILE): one line per
 // add-on, "<dir>/<name>\t<size>\t<sha256>", empty in a thin build. The app lists and fingerprints
 // the bundle from it, so it opens no add-on at start-up and notices a rebuild of the same size.
+// The one copy of the add-on file rule and the index format, for the release staging task and the
+// debug zip alike. The app's side is BundledAddons (INDEX_FILE, isAddonFile, parseIndex): an index
+// it rejects silently loses every copy's SHA-256 check, so these must not drift.
+object BundledAddonFiles {
+	const val INDEX_FILE = "bundled-addons.tsv"
+
+	/** Each bundled folder with the extension of its add-ons, plugins first. */
+	val DIRS = listOf("plugins" to "cgp", "templates" to "cgt")
+
+	/** A file named [name] is a bundled add-on: not hidden, [extension] in any case, not core.cgt. */
+	fun isAddonName(
+		name: String,
+		extension: String,
+	): Boolean =
+		!name.startsWith(".") &&
+			name.endsWith(".$extension", ignoreCase = true) &&
+			// core.cgt has its own asset entry; same rule as BundledAddons.isAddonFile.
+			!name.equals("core.cgt", ignoreCase = true)
+
+	/** The index line of the add-on [name] in [dir]: "<dir>/<name>\t<size>\t<sha256 hex>\n". */
+	fun indexLine(
+		dir: String,
+		name: String,
+		size: Long,
+		sha256: ByteArray,
+	): String = "$dir/$name\t$size\t${sha256.joinToString("") { "%02x".format(it) }}\n"
+}
+
 abstract class StageBundledAddons : DefaultTask() {
 	@get:InputFiles
 	@get:PathSensitive(PathSensitivity.NAME_ONLY)
@@ -726,7 +754,7 @@ abstract class StageBundledAddons : DefaultTask() {
 			.filter { !it.name.startsWith(".") }
 			.sortedBy { it.name }
 			.forEach { index.append(stage(it, "templates", out)) }
-		File(out, "bundled-addons.tsv").writeText(index.toString())
+		File(out, BundledAddonFiles.INDEX_FILE).writeText(index.toString())
 	}
 
 	/** Copies [file] into [dir] of [out], hashing it on the way, and returns its index line. */
@@ -741,7 +769,7 @@ abstract class StageBundledAddons : DefaultTask() {
 		file.inputStream().use { input ->
 			DigestOutputStream(dest.outputStream(), digest).use { output -> input.copyTo(output) }
 		}
-		return "$dir/${file.name}\t${dest.length()}\t${digest.digest().joinToString("") { "%02x".format(it) }}\n"
+		return BundledAddonFiles.indexLine(dir, file.name, dest.length(), digest.digest())
 	}
 }
 
@@ -752,10 +780,7 @@ fun isBundledAddon(
 ): Boolean =
 	!element.isDirectory &&
 		element.relativePath.segments.size == 1 &&
-		!element.name.startsWith(".") &&
-		element.name.endsWith(".$extension", ignoreCase = true) &&
-		// core.cgt has its own asset entry; same rule as BundledAddons.isAddonFile.
-		!element.name.equals("core.cgt", ignoreCase = true)
+		BundledAddonFiles.isAddonName(element.name, extension)
 
 androidComponents.onVariants { variant ->
 	val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
@@ -1122,15 +1147,11 @@ fun createAssetsZip(arch: String) {
 		// Add-ons of a fat build, as plugins/<name> and templates/<name>; none in a thin one. Then the
 		// bundle index, as StageBundledAddons writes it for a release build.
 		val index = StringBuilder()
-		arrayOf("plugins" to "cgp", "templates" to "cgt").forEach { (dirName, extension) ->
+		BundledAddonFiles.DIRS.forEach { (dirName, extension) ->
 			sourceDir
 				.resolve(dirName)
-				.listFiles { file ->
-					file.isFile &&
-						!file.name.startsWith(".") &&
-						file.extension.equals(extension, ignoreCase = true) &&
-						!file.name.equals("core.cgt", ignoreCase = true)
-				}.orEmpty()
+				.listFiles { file -> file.isFile && BundledAddonFiles.isAddonName(file.name, extension) }
+				.orEmpty()
 				.sortedBy { it.name }
 				.forEach { file ->
 					project.logger.lifecycle("Zipping bundled add-on $dirName/${file.name} from ${file.absolutePath}")
@@ -1138,10 +1159,10 @@ fun createAssetsZip(arch: String) {
 					zipOut.putNextEntry(ZipEntry("$dirName/${file.name}"))
 					file.inputStream().use { input -> DigestInputStream(input, digest).copyTo(zipOut) }
 					zipOut.closeEntry()
-					index.append("$dirName/${file.name}\t${file.length()}\t${digest.digest().joinToString("") { "%02x".format(it) }}\n")
+					index.append(BundledAddonFiles.indexLine(dirName, file.name, file.length(), digest.digest()))
 				}
 		}
-		zipOut.putNextEntry(ZipEntry("bundled-addons.tsv"))
+		zipOut.putNextEntry(ZipEntry(BundledAddonFiles.INDEX_FILE))
 		zipOut.write(index.toString().toByteArray(Charsets.UTF_8))
 		zipOut.closeEntry()
 	}
