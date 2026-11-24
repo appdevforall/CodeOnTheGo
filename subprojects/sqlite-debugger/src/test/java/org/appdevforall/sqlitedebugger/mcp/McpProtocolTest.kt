@@ -519,12 +519,105 @@ class McpProtocolTest {
 		val s = McpHttp(protocol(), { token }, port = 0, socketFactory = { flaky })
 		s.start()
 		server = s
-		Thread.sleep(1_200) // 100 + 200 + 400 ms of sleeps, then the fourth failure sleeps 800 ms
+		// 100 + 200 + 400 ms of sleeps, then the fourth failure sleeps 800 ms, then the fifth accept succeeds and waits
+		val giveUp =
+			System.nanoTime() +
+				java.util.concurrent.TimeUnit.SECONDS
+					.toNanos(10)
+		while (attempts.size < failures + 1) {
+			assertTrue("attempts so far: ${attempts.size}", System.nanoTime() < giveUp)
+			Thread.sleep(10)
+		}
+		val seen = synchronized(attempts) { attempts.toList() }
 		// a spinning loop would have made thousands of attempts by now
-		assertTrue("attempts so far: ${attempts.size}", attempts.size in 4..6)
-		val gaps = attempts.zipWithNext { a, b -> (b - a) / 1_000_000 }
-		assertTrue("gaps $gaps", gaps[0] >= 90 && gaps[1] >= 190 && gaps[2] >= 390)
+		assertTrue("attempts so far: ${seen.size}", seen.size in (failures + 1)..(failures + 2))
+		val gaps = seen.zipWithNext { a, b -> (b - a) / 1_000_000 }
+		assertTrue("gaps $gaps", gaps[0] >= 90 && gaps[1] >= 190 && gaps[2] >= 390 && gaps[3] >= 790)
 		assertEquals(200, http(s.boundPort, "POST", headers = auth, body = initBody()).status)
+	}
+
+	/** Opens a connection, writes [head] and flushes it, and passes the socket on; the body is the test's to send. */
+	private fun <T> rawPost(
+		port: Int,
+		extra: String,
+		bodyBytes: Int,
+		use: (Socket) -> T,
+	): T =
+		Socket("127.0.0.1", port).use { s ->
+			s.soTimeout = 5000
+			val head =
+				"POST ${McpHttp.PATH} HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nConnection: close\r\n" +
+					"Content-Type: application/json\r\nContent-Length: $bodyBytes\r\n$extra\r\n"
+			s.getOutputStream().apply {
+				write(head.toByteArray(Charsets.ISO_8859_1))
+				flush()
+			}
+			use(s)
+		}
+
+	@Test fun httpAnswers100ContinueBeforeTheBodyWhenAsked() {
+		val port = startServer()
+		val body = initBody().toByteArray(Charsets.UTF_8)
+		rawPost(port, "Authorization: Bearer $token\r\nExpect: 100-Continue\r\n", body.size) { s ->
+			val interim = "HTTP/1.1 100 Continue\r\n\r\n"
+			s.soTimeout = 2000
+			assertEquals(interim, s.getInputStream().readNBytes(interim.length).toString(Charsets.ISO_8859_1))
+			s.soTimeout = 5000
+			s.getOutputStream().apply {
+				write(body)
+				flush()
+			}
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 200"))
+		}
+	}
+
+	@Test fun httpSendsNoInterimReplyWithoutExpect() {
+		val port = startServer()
+		val body = initBody().toByteArray(Charsets.UTF_8)
+		rawPost(port, "Authorization: Bearer $token\r\n", body.size) { s ->
+			s.getOutputStream().apply {
+				write(body)
+				flush()
+			}
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 200"))
+			assertFalse(text, text.contains("100 Continue"))
+		}
+	}
+
+	@Test fun httpRefusalBeforeTheBodySendsOnlyItsFinalReply() {
+		val port = startServer()
+		// a wrong token, and a body over the limit: each is refused before the body, with no interim reply
+		for ((extra, size, status) in listOf(
+			Triple("Authorization: Bearer wrong\r\nExpect: 100-continue\r\n", 10, 401),
+			Triple("Authorization: Bearer $token\r\nExpect: 100-continue\r\n", McpHttp.MAX_BODY_BYTES + 1, 413),
+		)) {
+			rawPost(port, extra, size) { s ->
+				val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+				assertTrue(text, text.startsWith("HTTP/1.1 $status"))
+				assertFalse(text, text.contains("100 Continue"))
+			}
+		}
+	}
+
+	@Test fun httpChunkedBodyThatEndsInTheTrailerSectionIsA400() {
+		val port = startServer()
+		val body = initBody()
+		Socket("127.0.0.1", port).use { s ->
+			s.soTimeout = 5000
+			val request =
+				"POST ${McpHttp.PATH} HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nConnection: close\r\n" +
+					"Authorization: Bearer $token\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n" +
+					"${body.toByteArray().size.toString(16)}\r\n$body\r\n0\r\n"
+			s.getOutputStream().apply {
+				write(request.toByteArray(Charsets.UTF_8))
+				flush()
+			}
+			s.shutdownOutput()
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 400"))
+		}
 	}
 
 	@Test fun httpSessionThenDelete() {

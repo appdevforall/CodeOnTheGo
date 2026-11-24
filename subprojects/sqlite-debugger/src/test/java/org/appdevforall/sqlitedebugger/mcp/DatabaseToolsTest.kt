@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class DatabaseToolsTest {
@@ -146,6 +147,7 @@ class DatabaseToolsTest {
 			},
 		)
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun listDatabasesAddsUnopenedFilesButNotSideFiles() {
@@ -230,6 +232,7 @@ class DatabaseToolsTest {
 			assertTrue(name, missing.getBoolean("isError"))
 		}
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun aQueryRefusesAPathWhoseLastAppConnectionClosedAfterTheFirstCheck() {
@@ -260,6 +263,7 @@ class DatabaseToolsTest {
 				.startsWith("Unknown database"),
 		)
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun aQueryRefusesAPathWhoseLastAppConnectionBeganClosingAfterTheFirstCheck() {
@@ -288,12 +292,14 @@ class DatabaseToolsTest {
 				.startsWith("Unknown database"),
 		)
 		assertEquals(emptyList<Pair<String, Boolean>>(), engine.openedServerConnections)
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun emptyPathOfAnInMemoryConnectionIsNotOpenable() {
 		engine.appConnections += conn(1, "")
 		assertTrue(runTool(tools, "get_stats", db("")).getBoolean("isError"))
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun queryOpensReadOnlyAndPages() {
@@ -354,6 +360,7 @@ class DatabaseToolsTest {
 		bad("sql" to "x", "args" to "nope")
 		bad("sql" to "x", "args" to JSONArray().put(JSONObject()))
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun queryBindsArgsByType() {
@@ -468,17 +475,26 @@ class DatabaseToolsTest {
 		}
 		val t = DatabaseTools(nativeDeadline(time::get), null, time::get)
 		val slow = Thread({ ok("query", db().put("sql", "slow"), t) }, "dbtools-slow")
-		slow.start()
-		holding.await()
 		var result: JSONObject? = null
 		val queued = Thread({ result = runTool(t, name, args) }, "dbtools-queued")
-		queued.start()
-		// BLOCKED is a wait to enter a monitor; the slow call holds the tools' lock, and has already loaded every class on the path
-		while (queued.state != Thread.State.BLOCKED) Thread.sleep(5)
-		time.addAndGet(waitMs)
-		release.countDown()
-		queued.join()
-		slow.join()
+		try {
+			slow.start()
+			assertTrue("the slow call never reached the engine", holding.await(10, TimeUnit.SECONDS))
+			queued.start()
+			// BLOCKED is a wait to enter a monitor; the slow call holds the tools' lock, and has already loaded every class on the path
+			val giveUp = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+			while (queued.state != Thread.State.BLOCKED) {
+				assertTrue("the queued call never blocked on the lock: ${queued.state}", System.nanoTime() < giveUp)
+				Thread.sleep(5)
+			}
+			time.addAndGet(waitMs)
+		} finally {
+			release.countDown()
+			queued.takeIf { it.state != Thread.State.NEW }?.join(10_000)
+			slow.takeIf { it.state != Thread.State.NEW }?.join(10_000)
+		}
+		assertFalse("the queued call did not finish", queued.isAlive)
+		assertFalse("the slow call did not finish", slow.isAlive)
 		return result!!
 	}
 
@@ -883,6 +899,17 @@ class DatabaseToolsTest {
 		assertFalse(r.has("row_counts"))
 		assertTrue(r.has("row_counts_skipped"))
 		assertTrue(seenSql.none { it.startsWith("SELECT COUNT") })
+	}
+
+	@Test fun getStatsSaysAtLeastWhenTheTableListHitTheCap() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val names = (1..DatabaseTools.MAX_ROWS + 5).map { listOf("t$it") }
+		answerWith("SELECT name" to QueryResult(listOf("name"), names, 0, false))
+		val capped = ok("get_stats", db()).getString("row_counts_skipped")
+		assertTrue(capped, capped.startsWith("The database has at least ${DatabaseTools.MAX_ROWS} tables;"))
+		answerWith("SELECT name" to QueryResult(listOf("name"), names.take(DatabaseTools.MAX_ROWS - 1), 0, false))
+		val exact = ok("get_stats", db()).getString("row_counts_skipped")
+		assertTrue(exact, exact.startsWith("The database has ${DatabaseTools.MAX_ROWS - 1} tables;"))
 	}
 
 	@Test fun integrityCheckIsQuickUnlessAskedForFull() {

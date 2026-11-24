@@ -31,6 +31,10 @@ class FakeDebugEngine(
 
 	val openedServerConnections = mutableListOf<Pair<String, Boolean>>()
 
+	/** How many times the server asked to open one, counted before any refusal: [openedServerConnections] holds only successes. */
+	var openAttempts = 0
+		private set
+
 	/** How many server connections were closed. */
 	var closedServerConnections = 0
 		private set
@@ -87,6 +91,7 @@ class FakeDebugEngine(
 		path: String,
 		writable: Boolean,
 	): ServerConnection {
+		openAttempts++
 		if (appConnections.isEmpty()) {
 			throw DebugEngineException(DebugEngineException.SQLITE_MISUSE, "no app connection has opened yet")
 		}
