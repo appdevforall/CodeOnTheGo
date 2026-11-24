@@ -78,16 +78,20 @@ class QuickBuildProjectSupportTest {
 	}
 
 	@Test
-	fun `gradle properties decide the opt-in as the Gradle plugin does`() {
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("org.gradle.jvmargs=-Xmx2g\ncogo.sqliteDebugger=true\n")).isTrue()
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebugger = true")).isTrue()
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("#cogo.sqliteDebugger=true")).isFalse()
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebugger=false")).isFalse()
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebugger=TRUE")).isFalse()
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("cogo.sqliteDebuggerX=true")).isFalse()
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled("")).isFalse()
-		assertThat(QuickBuildProjectSupport.isSqliteDebuggerEnabled(null as String?)).isFalse()
-	}
+	fun `gradle properties decide the opt-in as the Gradle plugin does`() =
+		withDirs { root, home, _ ->
+			fun enabledBy(text: String): Boolean {
+				root.props(text)
+				return QuickBuildProjectSupport.isSqliteDebuggerEnabled(home, listOf(root), readText = { it.readText() })
+			}
+			assertThat(enabledBy("org.gradle.jvmargs=-Xmx2g\ncogo.sqliteDebugger=true\n")).isTrue()
+			assertThat(enabledBy("cogo.sqliteDebugger = true")).isTrue()
+			assertThat(enabledBy("#cogo.sqliteDebugger=true")).isFalse()
+			assertThat(enabledBy("cogo.sqliteDebugger=false")).isFalse()
+			assertThat(enabledBy("cogo.sqliteDebugger=TRUE")).isFalse()
+			assertThat(enabledBy("cogo.sqliteDebuggerX=true")).isFalse()
+			assertThat(enabledBy("")).isFalse()
+		}
 
 	private fun withDirs(block: (root: java.io.File, home: java.io.File, module: java.io.File) -> Unit) {
 		val base =

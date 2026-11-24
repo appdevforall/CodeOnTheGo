@@ -69,14 +69,6 @@ object QuickBuildProjectSupport {
 		}
 
 	/**
-	 * Whether one `gradle.properties` text opts in, decided as the Gradle plugin does: the value is
-	 * exactly `true`.
-	 *
-	 * @param gradleProperties the file's text, or null when there is none.
-	 */
-	fun isSqliteDebuggerEnabled(gradleProperties: String?): Boolean = gradleProperties != null && propertyValue(gradleProperties) == "true"
-
-	/**
 	 * The directories whose `gradle.properties` Gradle's `findProperty` reads for the project at
 	 * [modulePath], in Gradle's precedence: the module's own directory, the root's, then each parent
 	 * project's, nearest first. Gradle gives the root's value precedence over every parent's, so for
