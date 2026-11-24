@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class DatabaseToolsTest {
@@ -474,17 +475,26 @@ class DatabaseToolsTest {
 		}
 		val t = DatabaseTools(nativeDeadline(time::get), null, time::get)
 		val slow = Thread({ ok("query", db().put("sql", "slow"), t) }, "dbtools-slow")
-		slow.start()
-		holding.await()
 		var result: JSONObject? = null
 		val queued = Thread({ result = runTool(t, name, args) }, "dbtools-queued")
-		queued.start()
-		// BLOCKED is a wait to enter a monitor; the slow call holds the tools' lock, and has already loaded every class on the path
-		while (queued.state != Thread.State.BLOCKED) Thread.sleep(5)
-		time.addAndGet(waitMs)
-		release.countDown()
-		queued.join()
-		slow.join()
+		try {
+			slow.start()
+			assertTrue("the slow call never reached the engine", holding.await(10, TimeUnit.SECONDS))
+			queued.start()
+			// BLOCKED is a wait to enter a monitor; the slow call holds the tools' lock, and has already loaded every class on the path
+			val giveUp = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+			while (queued.state != Thread.State.BLOCKED) {
+				assertTrue("the queued call never blocked on the lock: ${queued.state}", System.nanoTime() < giveUp)
+				Thread.sleep(5)
+			}
+			time.addAndGet(waitMs)
+		} finally {
+			release.countDown()
+			queued.takeIf { it.state != Thread.State.NEW }?.join(10_000)
+			slow.takeIf { it.state != Thread.State.NEW }?.join(10_000)
+		}
+		assertFalse("the queued call did not finish", queued.isAlive)
+		assertFalse("the slow call did not finish", slow.isAlive)
 		return result!!
 	}
 
