@@ -74,6 +74,7 @@ import com.itsaky.androidide.plugins.extensions.ProjectSearchExtension
 import com.itsaky.androidide.plugins.extensions.ProjectSearchRequest
 import com.itsaky.androidide.plugins.extensions.ProjectSearchResult
 import com.itsaky.androidide.plugins.extensions.ProjectSearchSection
+import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.projects.IProjectManager
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
@@ -94,6 +95,7 @@ import com.itsaky.androidide.quickbuild.QuickBuildWontStayUpRestart
 import com.itsaky.androidide.quickbuild.quickBuildStatusBarUpdate
 import com.itsaky.androidide.quickbuild.resolve
 import com.itsaky.androidide.repositories.PluginRepository
+import com.itsaky.androidide.repositories.PluginStillLoadedException
 import com.itsaky.androidide.resources.R.string
 import com.itsaky.androidide.search.replace.ReplaceCoordinator
 import com.itsaky.androidide.search.replace.ReplaceHost
@@ -282,6 +284,9 @@ abstract class ProjectHandlerActivity :
 		const val STATE_KEY_SHOULD_INITIALIZE = "ide.editor.isInitializing"
 
 		private const val PLUGIN_SEARCH_TIMEOUT_SECONDS = 10L
+
+		// Pairs each editor's plugin open report with its close; see initializeProject.
+		private val pluginProjectLock = Any()
 	}
 
 	abstract fun doCloseAll()
@@ -1156,10 +1161,14 @@ abstract class ProjectHandlerActivity :
 					showRestartPrompt(this@ProjectHandlerActivity)
 				}.onFailure { error ->
 					flashError(
-						getString(
-							string.msg_plugin_install_failed,
-							error.message ?: "Unknown error",
-						),
+						if (error is PluginStillLoadedException) {
+							getString(string.msg_plugin_install_still_loaded, error.pluginId)
+						} else {
+							getString(
+								string.msg_plugin_install_failed,
+								error.message ?: "Unknown error",
+							)
+						},
 					)
 				}
 			setStatus("")
@@ -1191,6 +1200,15 @@ abstract class ProjectHandlerActivity :
 	}
 
 	private fun closeProjectSession() {
+		// Only the live editor's teardown reports the close; a doomed instance (onPause) does not.
+		synchronized(pluginProjectLock) {
+			editorViewModel.pluginOpenedProjectDir?.let { dir ->
+				// Reporting to plugins must never stop the editor's teardown.
+				runCatching { PluginWorkspaceEvents.getInstance().projectClosed(dir) }
+					.onFailure { logger.error("Failed to report a project close to plugins", it) }
+			}
+			editorViewModel.pluginOpenedProjectDir = null
+		}
 		stopLanguageServers()
 		closeProjectState()
 	}
@@ -1590,6 +1608,19 @@ abstract class ProjectHandlerActivity :
 			log.error("GradleProject directory does not exist. Cannot initialize project")
 			handleMissingProjectDirectory(projectDir)
 			return@launch
+		}
+		// As the editor starts opening the project; the sync below does not wait for listeners.
+		// A re-sync of the same project is not reported again. Not from an editor already tearing
+		// down: a late initialize after its close was reported would reopen a closed project.
+		// Under the lock the close takes: this runs on Dispatchers.Default and can race onPause's
+		// teardown, which would otherwise read no open project between the report and the record.
+		synchronized(pluginProjectLock) {
+			if (!isDestroying && !isFinishing) {
+				// The directory as plugins heard it, so the close compares it without touching the disk.
+				runCatching { PluginWorkspaceEvents.getInstance().projectOpened(projectDir) }
+					.onSuccess { editorViewModel.pluginOpenedProjectDir = it }
+					.onFailure { logger.error("Failed to report a project open to plugins", it) }
+			}
 		}
 
 		val needsSync =

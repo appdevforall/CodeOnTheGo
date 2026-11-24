@@ -57,6 +57,7 @@ import org.jetbrains.kotlin.utils.exceptions.KotlinExceptionWithAttachments
 import org.slf4j.LoggerFactory
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException
+import java.nio.file.Path
 import java.time.Instant
 import kotlin.io.path.pathString
 
@@ -77,6 +78,23 @@ internal fun Throwable.isMissingClasspathFile(): Boolean =
 	generateSequence(this) { it.cause }
 		.take(32)
 		.any { it is NoSuchFileException || it is FileNotFoundException }
+
+/**
+ * This resolver's answer, or null when it throws: e.g. the path's last refresh failed, so its future
+ * completed exceptionally. Callers run outside any catch on a scope with no exception handler.
+ */
+private fun ((Path, KtFile) -> Boolean).orNull(
+	path: Path,
+	ktFile: KtFile,
+): Boolean? =
+	try {
+		invoke(path, ktFile)
+	} catch (e: CancellationException) {
+		throw e
+	} catch (e: Throwable) {
+		logger.warn("Could not tell which instance FIR resolves {} to", path, e)
+		null
+	}
 
 internal fun KtFile.toMetadata(
 	project: Project,
@@ -102,7 +120,9 @@ internal fun KtFile.toMetadata(
  * Indexes [ktFile]'s declarations into [symbolsIndex] and records it in [fileIndex].
  *
  * Returns true only when it wrote the file's symbols; false when the file was unchanged, could not
- * be analyzed, or an index was closed.
+ * be analyzed, is not the instance FIR resolves its path to, or an index was closed.
+ *
+ * [resolvesTo] tells whether FIR resolves a path to a given instance. It must not block or refresh.
  */
 @OptIn(UnpinnedAnalysis::class)
 internal suspend fun indexSourceFile(
@@ -111,6 +131,7 @@ internal suspend fun indexSourceFile(
 	fileIndex: KtFileMetadataIndex,
 	symbolsIndex: JvmSymbolIndex,
 	cancelChecker: ICancelChecker,
+	resolvesTo: (Path, KtFile) -> Boolean,
 ): Boolean {
 	// Indexing runs at the lowest priority, yielding to completion and diagnostics. Wrapping the checker
 	// lets the scheduler preempt an in-progress pass; the preemption surfaces as AnalysisPreemptedException
@@ -127,7 +148,17 @@ internal suspend fun indexSourceFile(
 	val newFile =
 		project.read {
 			if (project.isDisposed) return@read null
-			ktFile.toMetadata(project, isIndexed = true)
+			val metadata = ktFile.toMetadata(project, isIndexed = true)
+			/*
+			 * FIR resolves an open path to its newest parse, so analysing any other instance (the disk copy
+			 * on a full pass, or an edit's superseded parse) finds no FIR for its declarations (ADFA-5763).
+			 * Skip it: the refresh that produced the newer instance queued that instance's own pass.
+			 */
+			if (resolvesTo.orNull(Path.of(metadata.filePath), ktFile) != true) {
+				logger.debug("Skipping {}: FIR resolves its path to another instance", metadata.filePath)
+				return@read null
+			}
+			metadata
 		} ?: return false
 	val existingFile = fileIndex.get(newFile.filePath)
 	checker.abortIfCancelled()
@@ -163,7 +194,7 @@ internal suspend fun indexSourceFile(
 						object : KtTreeVisitorVoid() {
 							override fun visitDeclaration(dcl: KtDeclaration) {
 								checker.abortIfCancelled()
-								val symbol = with(session) { analyzeDeclaration(newFile.filePath, dcl) }
+								val symbol = with(session) { analyzeDeclaration(newFile.filePath, dcl, resolvesTo) }
 								checker.abortIfCancelled()
 								symbol?.let { list.add(it) }
 								super.visitDeclaration(dcl)
@@ -195,6 +226,7 @@ internal suspend fun indexSourceFile(
 private fun KaSession.analyzeDeclaration(
 	filePath: String,
 	dcl: KtDeclaration,
+	resolvesTo: (Path, KtFile) -> Boolean,
 ): JvmSymbol? {
 	dcl.name ?: return null
 	return runCatching {
@@ -216,6 +248,8 @@ private fun KaSession.analyzeDeclaration(
 		Sentry.captureException(err) { scope ->
 			scope.apply {
 				setExtra("fpth", filePath)
+				// False means the instance was superseded mid-pass; true means the failure has another cause.
+				setTag("instanceMatches", resolvesTo.orNull(Path.of(filePath), dcl.containingKtFile)?.toString() ?: "unknown")
 				setExtra("dcl", dcl.name)
 				setExtra("dcl.dbg", dcl.getDebugText())
 				setExtra(
