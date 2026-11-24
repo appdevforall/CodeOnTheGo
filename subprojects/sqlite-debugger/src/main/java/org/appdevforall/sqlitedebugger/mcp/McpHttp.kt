@@ -465,7 +465,7 @@ class McpHttp(
 				// Trailers, if any, up to a blank line.
 				var lines = 0
 				while (true) {
-					val t = shortLine(input, 1024) ?: break
+					val t = shortLine(input, 1024) ?: throw HttpError(400, "The request ended early.")
 					if (t.isEmpty()) break
 					if (++lines > 32) throw HttpError(431, "Too many trailers.")
 				}

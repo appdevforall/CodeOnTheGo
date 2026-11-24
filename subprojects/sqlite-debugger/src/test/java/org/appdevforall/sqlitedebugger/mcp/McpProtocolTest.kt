@@ -592,6 +592,25 @@ class McpProtocolTest {
 		}
 	}
 
+	@Test fun httpChunkedBodyThatEndsInTheTrailerSectionIsA400() {
+		val port = startServer()
+		val body = initBody()
+		Socket("127.0.0.1", port).use { s ->
+			s.soTimeout = 5000
+			val request =
+				"POST ${McpHttp.PATH} HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nConnection: close\r\n" +
+					"Authorization: Bearer $token\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n" +
+					"${body.toByteArray().size.toString(16)}\r\n$body\r\n0\r\n"
+			s.getOutputStream().apply {
+				write(request.toByteArray(Charsets.UTF_8))
+				flush()
+			}
+			s.shutdownOutput()
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 400"))
+		}
+	}
+
 	@Test fun httpSessionThenDelete() {
 		val port = startServer()
 		val s = http(port, "POST", headers = auth, body = initBody()).headers["mcp-session-id"]!!
