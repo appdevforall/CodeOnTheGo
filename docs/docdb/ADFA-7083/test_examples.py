@@ -107,7 +107,9 @@ def split(block):
     quickscan() reads it, and a dot command or a '#' line, when no input is pending; and drops
     pending input that has become only blanks and comments, such as a /* */ comment over several
     lines. A statement therefore starts at the first line after the last complete statement that
-    is none of these. Not modelled: a line '/' or 'go' that ends a statement."""
+    is none of these. Not modelled: a line '/' or 'go' that ends a statement, and a statement left
+    unfinished at the end of an example, which sqlite3 runs at the end of its input. Either makes
+    the check fail, never pass."""
     lines, want, errors = [], [], []
     pending, start, last, state = "", None, None, (0, "")
     for line in block.split("\n"):

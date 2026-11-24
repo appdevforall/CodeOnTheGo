@@ -40,9 +40,11 @@ EXISTING = {
     "project-create-new.html": ("Create a new project", "cogo-top.html"),
 }
 
-# Lets a word or code token longer than the line break anywhere, so that no line runs off a
-# phone's screen, which would make the whole page scroll sideways. word-break: break-word also
-# lets a table cell narrow past a long token in WebView 77, which has no overflow-wrap: anywhere.
+# overflow-wrap: break-word lets a word or code token longer than the line break where it must,
+# so that no line runs off a phone's screen, which would make the whole page scroll sideways.
+# word-break: break-word adds nothing outside a table (WebView 77 has no overflow-wrap: anywhere);
+# it is kept because it was on when the pages were checked on a device. Table cells get
+# overflow-wrap only: see CELL.
 WRAP = "overflow-wrap: break-word; word-break: break-word;"
 
 P_STYLE = {
