@@ -166,9 +166,10 @@ data class RequestLookup(
  * the write lock, so a block decoded from one database is never served from another. A file
  * rewritten in place before the swap check notices is caught by keying on the file's state: each
  * cached block (see [decodedBlock]), and what the file's version and dictionary said (see
- * [FileBound]). Compiled templates and template names are not keyed so, as that would mean
- * clearing the engine's caches under the read lock or keying them in the loader; until the swap
- * check reopens the file, they are the old file's.
+ * [FileBound]). A row, a block or a template whose read spans a rewrite fails, rather than being
+ * decoded by what the other file said. Compiled templates and template names are not keyed so, as
+ * that would mean clearing the engine's caches under the read lock or keying them in the loader;
+ * until the swap check reopens the file, they are the old file's.
  *
  * @param decodeTemplate Turns a `Templates` row's bytes into the template's text, given the codec
  * for the database it came from. A seam for `:common`'s tests only, which have no brotli4j desktop
@@ -260,11 +261,11 @@ class DocumentationContentSource internal constructor(
 	// The loader reads Templates rows, so a template can reference another one (ADFA-5405). It also
 	// makes the engine's own cache the compiled-template cache, keyed by name: a partial pulled in
 	// by several pages is compiled once, and dropping a database means invalidating that cache too.
-	// A compressed row is decoded with the active database's codec, the one its Content rows use.
-	// Both are the file's as it is now, which a rewrite in place may have changed since the page's row.
+	// A compressed row is decoded with the codec its Content rows use, for the file's state before
+	// the row was read; a template whose file changed by the end of its decode fails rather than
+	// being compiled and cached from one file's row decoded as another's.
 	private val templateLoader =
-		DatabaseTemplateLoader({ database }) { database, body ->
-			val file = activeFileState()
+		DatabaseTemplateLoader({ database }, ::activeFileState) { database, body, file ->
 			if (templatesCompressed(database, file)) decodeTemplate(codec(database, file), body) else body
 		}
 
@@ -700,6 +701,8 @@ class DocumentationContentSource internal constructor(
 	/**
 	 * A row's content: its chunks joined, and Brotli-decoded when its content type says so, with the
 	 * codec for [file], the active file's state before the row was read.
+	 *
+	 * @throws IllegalStateException When the file changed during the read: see [decodedBlock].
 	 */
 	private fun decodeRow(
 		database: SQLiteDatabase,
@@ -709,7 +712,11 @@ class DocumentationContentSource internal constructor(
 		file: FileState,
 	): ByteArray {
 		val chunks = readChunks(database, path, firstChunk)
-		return if (compression == "brotli") decompressBrotli(database, chunks, file) else joinChunks(chunks)
+		val bytes = if (compression == "brotli") decompressBrotli(database, chunks, file) else joinChunks(chunks)
+		// A rewrite since [file] was taken makes the row the new file's, decoded with the old file's
+		// codec, which can succeed with wrong bytes; a chunked row can even be part of each.
+		checkFileUnchanged(file, path)
+		return bytes
 	}
 
 	/**

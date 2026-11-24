@@ -8,6 +8,7 @@ import com.itsaky.androidide.utils.BrotliDictionaryCodec
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
@@ -19,6 +20,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 
 /**
  * Covers the pipeline both documentation transports read through (ADFA-5176): what a lookup reports,
@@ -992,6 +994,121 @@ class DocumentationContentSourceTest {
 		verify(exactly = 2) { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) }
 		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
 			.isEqualTo("before")
+	}
+
+	// The rewrite lands after the read took the file's state and primed the old file's dictionary,
+	// and before the row's query: the row is the new file's. Decoded with the old dictionary, it can
+	// come out as other bytes without failing (see BrotliDictionaryCodec.decompress), so it must not
+	// be served. The rewrite check is a minute off, so the handle is not reopened in between.
+	@Test
+	fun `a brotli row read across a rewrite in place fails rather than decoding with the old file's dictionary`() {
+		assertBrotliRowReadAcrossRewrite(declaredMajorVersion = 3)
+	}
+
+	// The same row in a version 4 file, which has no block item and so is decoded as its own content.
+	@Test
+	fun `a version 4 brotli row with no block item read across a rewrite in place fails the same way`() {
+		assertBrotliRowReadAcrossRewrite(declaredMajorVersion = 4)
+	}
+
+	private fun assertBrotliRowReadAcrossRewrite(declaredMajorVersion: Int) {
+		decodesBrotliAsStored()
+		val old =
+			database(
+				contentCursor(bytes = "old page".toByteArray(), compression = "brotli"),
+				declaredMajorVersion,
+				dictionary = "old-file-dictionary".toByteArray(),
+			)
+		val new =
+			database(
+				contentCursor(bytes = "new page".toByteArray(), compression = "brotli"),
+				declaredMajorVersion,
+				dictionary = "new-file-dictionary".toByteArray(),
+			)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			rewrittenInPlace(old, new) { it.contains("FROM   Content") }
+		val source = source(debugCheckIntervalMs = 60_000)
+
+		val failed = source.lookup("a/page.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause)
+			.hasMessageThat()
+			.isEqualTo("The documentation database changed while 'a/page.html' was read")
+		// The next read takes the new state, so it loads the new file's dictionary for the new row.
+		assertThat(text(source.lookup("a/page.html"))).isEqualTo("new page")
+		verify(exactly = 1) { old.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null) }
+		verify(exactly = 1) { new.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null) }
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
+	// The template's row is read before the rewrite and decoded after it. By the file's state at the
+	// decode, the old file's template would be decoded with the new file's dictionary, then compiled
+	// and cached for every page after it.
+	@Test
+	fun `a template read across a rewrite in place fails its page, and is not cached for the next`() {
+		val stored = "Hello {{ who }}!".reversed()
+		val database = templatedDatabase("page.peb" to stored)
+		var rewritten = false
+		every { database.rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("page.peb")) } answers {
+			mockk(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns stored.toByteArray()
+				// Closed once its row is read, and before the loader decodes it.
+				every { close() } answers {
+					if (!rewritten) rewriteInstalledFile()
+					rewritten = true
+				}
+			}
+		}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source(debugCheckIntervalMs = 60_000, decode = reversing)
+
+		val failed = source.lookup("k/html/basic-syntax.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause).isInstanceOf(TemplateRenderException::class.java)
+		assertThat(failed.cause)
+			.hasMessageThat()
+			.isEqualTo("The documentation database changed while template 'page.peb' was read")
+		assertThat(text(source.lookup("k/html/basic-syntax.html"))).isEqualTo("Hello Kotlin!")
+		verify(exactly = 2) { database.rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("page.peb")) }
+	}
+
+	/** An installer's rewrite of the installed file in place, which moves its length and modification time. */
+	private fun rewriteInstalledFile() {
+		installedFile.writeText("rewritten in place")
+		installedFile.setLastModified(installedFile.lastModified() + 60_000)
+	}
+
+	/**
+	 * The installed file's one handle, reading [before] until the first query [rewritesOn] matches,
+	 * and [after] from that query on: the file is rewritten in place just before that query runs.
+	 */
+	private fun rewrittenInPlace(
+		before: SQLiteDatabase,
+		after: SQLiteDatabase,
+		rewritesOn: (String) -> Boolean,
+	): SQLiteDatabase {
+		var current = before
+		return mockk(relaxed = true) {
+			every { rawQuery(any(), any()) } answers {
+				val sql = firstArg<String>()
+				if (current !== after && rewritesOn(sql)) {
+					rewriteInstalledFile()
+					current = after
+				}
+				current.rawQuery(sql, secondArg<Array<String>?>())
+			}
+		}
+	}
+
+	/** Brotli rows decode to their stored bytes, whatever the dictionary: :common's tests have no brotli4j native. */
+	private fun decodesBrotliAsStored() {
+		mockkConstructor(BrotliDictionaryCodec::class)
+		every { anyConstructed<BrotliDictionaryCodec>().decompress(any()) } answers
+			{ firstArg<InputStream>().use { it.readBytes() } }
 	}
 
 	@Test

@@ -37,17 +37,59 @@ class DatabaseTemplateLoaderTest {
 				}
 		}
 
-	// Rows here are stored as their text, so the decode is the identity unless a test says otherwise.
+	// Rows here are stored as their text, so the decode is the identity unless a test says otherwise,
+	// and the database never changes under a read unless a test says so.
 	private fun loader(
 		database: SQLiteDatabase?,
 		decode: (SQLiteDatabase, ByteArray) -> ByteArray = { _, body -> body },
-	) = DatabaseTemplateLoader({ database }, decode)
+	) = DatabaseTemplateLoader({ database }, { Unit }) { db, body, _ -> decode(db, body) }
 
 	@Test
 	fun `a name resolves to its template row`() {
 		val reader = loader(database("nav.peb" to "[nav]")).getReader("nav.peb")
 
 		assertThat(reader.readText()).isEqualTo("[nav]")
+	}
+
+	// The content source's state is the file's length and modification time; an installer's rewrite
+	// in place moves both. The row may then be one file's and the decode by the other's.
+	@Test
+	fun `a template whose database changed while it was read fails by name, rather than reaching the engine`() {
+		val states = ArrayDeque(listOf("before", "after"))
+		val loader =
+			DatabaseTemplateLoader({ database("nav.peb" to "[nav]") }, { states.removeFirst() }) { _, body, _ -> body }
+
+		val thrown = assertThrows(LoaderException::class.java) { loader.getReader("nav.peb") }
+
+		assertThat(thrown.pebbleMessage).isEqualTo("The documentation database changed while template 'nav.peb' was read")
+	}
+
+	// Before the query, so a rewrite between the row and the state is not missed; after the decode,
+	// so one during the decode is not either. The decode goes by the state from before the read.
+	@Test
+	fun `the state is taken before the row is read and again after it is decoded, which goes by the first`() {
+		val events = mutableListOf<String>()
+		val stored = database("nav.peb" to "[nav]")
+		val database =
+			mockk<SQLiteDatabase>(relaxed = true) {
+				every { rawQuery(any(), any()) } answers {
+					events += "query"
+					stored.rawQuery(firstArg(), secondArg<Array<String>?>())
+				}
+			}
+
+		fun state(): Int {
+			events += "state"
+			return 1
+		}
+		val loader =
+			DatabaseTemplateLoader({ database }, ::state) { _, body, decodedIn ->
+				events += "decode in $decodedIn"
+				body
+			}
+
+		assertThat(loader.getReader("nav.peb").readText()).isEqualTo("[nav]")
+		assertThat(events).containsExactly("state", "query", "decode in 1", "state").inOrder()
 	}
 
 	// From documentation version 3 a row holds the template Brotli-compressed, so Pebble has to be
