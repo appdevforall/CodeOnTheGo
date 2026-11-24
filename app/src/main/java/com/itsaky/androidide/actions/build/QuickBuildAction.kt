@@ -261,6 +261,10 @@ class QuickBuildAction(
 		 * happen, and its Cancel would hide the refusal that explains why Quick Build is off. The
 		 * session then shows that refusal, as the banner and as the status line's "tap for details".
 		 *
+		 * Skipping the question relies on the provisioner reading the same model and files moments
+		 * later. A change in between (a sync, or an edit to gradle.properties) could install over
+		 * the app without asking.
+		 *
 		 * @param refused whether the SQLite debugger will refuse the build.
 		 * @param confirm asks the user, on the main thread; true to replace the installed app.
 		 */
