@@ -45,6 +45,7 @@ class IndexWorkerDisposalTest : KtLspTest() {
 					fileIndex = fileIndex(),
 					sourceIndex = jvmIndex(),
 					scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+					resolvesTo = env.ktSymbolIndex::resolvesTo,
 				)
 
 			/*
