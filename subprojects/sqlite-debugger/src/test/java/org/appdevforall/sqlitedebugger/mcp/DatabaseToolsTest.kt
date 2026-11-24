@@ -146,6 +146,7 @@ class DatabaseToolsTest {
 			},
 		)
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun listDatabasesAddsUnopenedFilesButNotSideFiles() {
@@ -230,6 +231,7 @@ class DatabaseToolsTest {
 			assertTrue(name, missing.getBoolean("isError"))
 		}
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun aQueryRefusesAPathWhoseLastAppConnectionClosedAfterTheFirstCheck() {
@@ -260,6 +262,7 @@ class DatabaseToolsTest {
 				.startsWith("Unknown database"),
 		)
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun aQueryRefusesAPathWhoseLastAppConnectionBeganClosingAfterTheFirstCheck() {
@@ -288,12 +291,14 @@ class DatabaseToolsTest {
 				.startsWith("Unknown database"),
 		)
 		assertEquals(emptyList<Pair<String, Boolean>>(), engine.openedServerConnections)
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun emptyPathOfAnInMemoryConnectionIsNotOpenable() {
 		engine.appConnections += conn(1, "")
 		assertTrue(runTool(tools, "get_stats", db("")).getBoolean("isError"))
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun queryOpensReadOnlyAndPages() {
@@ -354,6 +359,7 @@ class DatabaseToolsTest {
 		bad("sql" to "x", "args" to "nope")
 		bad("sql" to "x", "args" to JSONArray().put(JSONObject()))
 		assertTrue(engine.openedServerConnections.isEmpty())
+		assertEquals(0, engine.openAttempts)
 	}
 
 	@Test fun queryBindsArgsByType() {
