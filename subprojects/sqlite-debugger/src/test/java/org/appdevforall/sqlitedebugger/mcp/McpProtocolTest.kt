@@ -519,11 +519,20 @@ class McpProtocolTest {
 		val s = McpHttp(protocol(), { token }, port = 0, socketFactory = { flaky })
 		s.start()
 		server = s
-		Thread.sleep(1_200) // 100 + 200 + 400 ms of sleeps, then the fourth failure sleeps 800 ms
+		// 100 + 200 + 400 ms of sleeps, then the fourth failure sleeps 800 ms, then the fifth accept succeeds and waits
+		val giveUp =
+			System.nanoTime() +
+				java.util.concurrent.TimeUnit.SECONDS
+					.toNanos(10)
+		while (attempts.size < failures + 1) {
+			assertTrue("attempts so far: ${attempts.size}", System.nanoTime() < giveUp)
+			Thread.sleep(10)
+		}
+		val seen = synchronized(attempts) { attempts.toList() }
 		// a spinning loop would have made thousands of attempts by now
-		assertTrue("attempts so far: ${attempts.size}", attempts.size in 4..6)
-		val gaps = attempts.zipWithNext { a, b -> (b - a) / 1_000_000 }
-		assertTrue("gaps $gaps", gaps[0] >= 90 && gaps[1] >= 190 && gaps[2] >= 390)
+		assertTrue("attempts so far: ${seen.size}", seen.size in (failures + 1)..(failures + 2))
+		val gaps = seen.zipWithNext { a, b -> (b - a) / 1_000_000 }
+		assertTrue("gaps $gaps", gaps[0] >= 90 && gaps[1] >= 190 && gaps[2] >= 390 && gaps[3] >= 790)
 		assertEquals(200, http(s.boundPort, "POST", headers = auth, body = initBody()).status)
 	}
 
