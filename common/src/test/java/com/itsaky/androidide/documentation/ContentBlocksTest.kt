@@ -22,9 +22,13 @@ class ContentBlocksTest {
 		assertThat(slice(offset = 11, length = 5)).isEqualTo("third")
 	}
 
+	// Sliced as it is, an item of no bytes would be served as an empty page with a 200.
 	@Test
-	fun `an empty item at the end of the block is empty`() {
-		assertThat(slice(offset = block.size.toLong(), length = 0)).isEmpty()
+	fun `an empty item is rejected, not served as an empty page`() {
+		for (offset in listOf(0L, 5L, block.size.toLong())) {
+			val e = assertThrows(IllegalStateException::class.java) { slice(offset = offset, length = 0) }
+			assertThat(e).hasMessageThat().isEqualTo("Item [$offset, +0) in content block 9 is empty")
+		}
 	}
 
 	@Test

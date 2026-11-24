@@ -27,8 +27,8 @@ import android.database.sqlite.SQLiteDatabase
  * SQLite INTEGERs, and an offset past [Int.MAX_VALUE] would otherwise wrap and slice the wrong bytes
  * without an error.
  *
- * @throws IllegalStateException When the range is not inside [block], which means the database is
- * corrupt.
+ * @throws IllegalStateException When the range is not inside [block], or is empty, which means the
+ * database is corrupt.
  */
 internal fun sliceBlockItem(
 	block: ByteArray,
@@ -39,6 +39,9 @@ internal fun sliceBlockItem(
 	check(offset >= 0 && length >= 0 && offset <= block.size - length) {
 		"Item [$offset, +$length) is outside content block $blockId, which decodes to ${block.size} bytes"
 	}
+	// Sliced, it would be served as an empty page with a 200. Every blocked row is Brotli, and an
+	// empty Brotli row fails too (see DocumentationContentSource.rowBytes).
+	check(length > 0) { "Item [$offset, +0) in content block $blockId is empty" }
 	return block.copyOfRange(offset.toInt(), (offset + length).toInt())
 }
 

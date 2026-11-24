@@ -158,7 +158,7 @@ data class RequestLookup(
  * From documentation version 4 (ADFA-6683) some pages are stored up to 64 to a Brotli block: such a
  * row's own content is empty, and its bytes are a slice of the decoded block, which is then served
  * exactly as a decoded row would be. A block that is missing or does not decode, or an item outside
- * its block, fails the page. Below 4 every row holds its own content, whatever tables the file has.
+ * its block or of zero length, fails the page. Below 4 every row holds its own content, whatever tables the file has.
  *
  * Thread-safe: [lookup] and [withDatabase] hold a read lock for the whole read, and the swap takes
  * the write lock, since swapping closes the handle a reader could be using. Readers never block
