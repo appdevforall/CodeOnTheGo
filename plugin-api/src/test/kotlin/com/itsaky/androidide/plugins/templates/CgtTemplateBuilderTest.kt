@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.templates
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -68,6 +69,20 @@ class CgtTemplateBuilderTest {
 
 		assertThat(cgt.length()).isEqualTo(before)
 		assertThat(entry(cgt, "TestApp/data.bin")).isEqualTo(byteArrayOf(4, 5, 7))
+	}
+
+	@Test
+	fun buildingOverAnUnreadableFileWritesIt() {
+		val dir = tmp.newFolder()
+		val cgt = template().build(dir)
+		cgt.writeBytes(ByteArray(cgt.length().toInt()))
+		assertThat(cgt.setReadable(false)).isTrue()
+		assumeFalse("root can read any file", cgt.canRead())
+
+		template().build(dir)
+
+		assertThat(cgt.setReadable(true)).isTrue()
+		assertThat(cgt.readBytes().contentEquals(template().build(tmp.newFolder()).readBytes())).isTrue()
 	}
 
 	private fun template(data: ByteArray = byteArrayOf(4, 5, 6)) =

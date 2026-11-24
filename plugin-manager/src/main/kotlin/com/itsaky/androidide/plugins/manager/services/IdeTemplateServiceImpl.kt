@@ -92,6 +92,7 @@ class IdeTemplateServiceImpl(
 		try {
 			isFile && length() == other.length() && sameBytes(this, other)
 		} catch (e: IOException) {
+			log.debug("Cannot compare {} with {}, so it is copied", this, other, e)
 			false
 		}
 
@@ -111,7 +112,8 @@ class IdeTemplateServiceImpl(
 					}
 					n = a.read(bufA)
 				}
-				true
+				// y may have grown since its length was read.
+				b.read() == -1
 			}
 		}
 

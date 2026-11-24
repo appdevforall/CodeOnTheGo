@@ -1,6 +1,7 @@
 package com.itsaky.androidide.plugins.templates
 
 import com.itsaky.androidide.plugins.PluginContext
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -125,9 +126,11 @@ class CgtTemplateBuilder(
 
 	/**
 	 * Writes the template to `<outputDir>/<name>.cgt`, where `<name>` is the template name's
-	 * letters and digits, and returns that file. The same template always gives the same bytes,
-	 * and a file that already holds them is left untouched, so its modification time shows when
-	 * the template last changed, not when it was last built.
+	 * letters and digits, and returns that file. On one device, building the same template again
+	 * gives the same bytes, and a file that already holds them is left untouched, so its
+	 * modification time shows when the template last changed, not when it was last built.
+	 *
+	 * @throws IllegalArgumentException if the template name has no letter or digit.
 	 */
 	fun build(outputDir: File): File {
 		outputDir.mkdirs()
@@ -357,6 +360,7 @@ class CgtTemplateBuilder(
 		try {
 			isFile && length() == bytes.size.toLong() && readBytes().contentEquals(bytes)
 		} catch (e: IOException) {
+			log.debug("Cannot read {}, so it is written again", this, e)
 			false
 		}
 
@@ -383,6 +387,7 @@ class CgtTemplateBuilder(
 	)
 
 	companion object {
+		private val log = LoggerFactory.getLogger(CgtTemplateBuilder::class.java)
 		private val DIR_NAME_REGEX = Regex("[^\\p{L}\\p{N}]")
 
 		// 1980-02-01 00:00 local time, the time Gradle gives entries of reproducible archives.

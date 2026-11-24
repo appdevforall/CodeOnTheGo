@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.itsaky.androidide.plugins.PluginPermission
 import com.itsaky.androidide.utils.Environment
 import org.junit.After
+import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,6 +80,21 @@ class IdeTemplateServiceImplRegisterTest {
 		assertThat(service.registerTemplate(cgt)).isTrue()
 
 		assertThat(File(templates, "plugin_com.example.my_Starter.cgt").readBytes()).isEqualTo(bytes)
+	}
+
+	@Test
+	fun registeringOverAnUnreadableCopyReplacesIt() {
+		val cgt = File(pluginDir, "Starter.cgt").apply { writeText("v1") }
+		val service = service()
+		service.registerTemplate(cgt)
+		val copy = File(templates, "plugin_com.example.my_Starter.cgt")
+		assertThat(copy.setReadable(false)).isTrue()
+		assumeFalse("root can read any file", copy.canRead())
+
+		cgt.writeText("v2")
+		assertThat(service.registerTemplate(cgt)).isTrue()
+
+		assertThat(copy.readText()).isEqualTo("v2")
 	}
 
 	@Test
