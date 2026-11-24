@@ -49,6 +49,7 @@ import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.assets.addons.BundleSyncAtStart
 import com.itsaky.androidide.assets.addons.BundledAddonsRecord
+import com.itsaky.androidide.assets.addons.reportFailures
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
@@ -81,7 +82,7 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
-import com.itsaky.androidide.utils.flashErrorAwaitShown
+import com.itsaky.androidide.utils.flashErrorTracked
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.flashProgress
 import com.itsaky.androidide.utils.hasVisibleDialog
@@ -349,8 +350,9 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	/**
 	 * Tells the user once which plugins bundled with the build did not start. The failures are
-	 * marked reported only once the bar has finished appearing, so a screen that goes away first
-	 * reports them next time; [reportingBundledFailures] keeps a resume during the report from
+	 * marked reported only when the user dismisses the bar ([reportFailures]); a screen that goes
+	 * away first, as a font scale change recreates it, shows them again next time. The report runs
+	 * until the dismissal, and [reportingBundledFailures] keeps a resume during the report from
 	 * starting a second one.
 	 *
 	 * Waits for the start-up bundle check first, showing a progress bar while it installs a new
@@ -363,19 +365,14 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			try {
 				awaitBundleSync()
 				val record = BundledAddonsRecord.inFilesDir(filesDir)
-				val failures =
-					withContext(Dispatchers.IO) {
-						runCatching { record.unreportedFailures() }.getOrDefault(emptyList())
-					}
-				if (failures.isEmpty()) return@launch
-				val shown =
-					this@MainActivity.flashErrorAwaitShown(
+				record.reportFailures { failures ->
+					flashErrorTracked(
 						getString(
 							string.msg_bundled_plugins_failed,
 							failures.joinToString("\n") { "${it.pluginId}: ${it.message}" },
 						),
 					)
-				if (shown) withContext(Dispatchers.IO) { runCatching { record.markReported() } }
+				}
 			} finally {
 				reportingBundledFailures = false
 			}
