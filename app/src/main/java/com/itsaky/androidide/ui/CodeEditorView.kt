@@ -56,6 +56,7 @@ import com.itsaky.androidide.lsp.java.JavaLanguageServer
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
 import com.itsaky.androidide.lsp.xml.XMLLanguageServer
 import com.itsaky.androidide.models.Range
+import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.preferences.internal.EditorPreferences
 import com.itsaky.androidide.syntax.colorschemes.SchemeAndroidIDE
 import com.itsaky.androidide.tasks.cancelIfActive
@@ -415,8 +416,17 @@ class CodeEditorView(
 			_binding?.rwProgress?.isVisible = false
 		}
 
-		markUnmodified()
-		notifySaved()
+		try {
+			markUnmodified()
+			notifySaved()
+		} finally {
+			// Here, not from DocumentSaveEvent: the editor also posts that on every Enter, with nothing
+			// written. After markUnmodified(), so a listener asking whether the file is modified hears
+			// no; in finally, because that throws once the tab is closed mid-save, though the file is
+			// written. A failure here must not fail the save.
+			runCatching { PluginWorkspaceEvents.getInstance().fileSaved(file) }
+				.onFailure { log.error("Failed to report a save to plugins", it) }
+		}
 
 		return true
 	}
