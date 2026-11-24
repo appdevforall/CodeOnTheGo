@@ -50,26 +50,13 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 		}
 
 		target.run {
-			val isLogSenderEnabled = findProperty(PROPERTY_LOG_SENDER_ENABLED) == "true"
-			if (isLogSenderEnabled) {
-				pluginManager.apply(LogSenderPlugin::class.java)
-			}
-
-			val isJdwpEnabled = findProperty(PROPERTY_JDWP_ENABLED) == "true"
-			if (isJdwpEnabled) {
-				pluginManager.apply(JdwpPlugin::class.java)
-			}
-
-			val isProfileableEnabled = findProperty(PROPERTY_PROFILEABLE_ENABLED) == "true"
-			if (isProfileableEnabled) {
-				pluginManager.apply(ProfilerPlugin::class.java)
-			}
-
-			val isQuickBuildEnabled = findProperty(PROPERTY_QUICK_BUILD_ENABLED) == "true"
-			if (isQuickBuildEnabled) {
-				// By name, not ::class: Quick Build classes load (and touch newer AGP APIs)
-				// only when the property enables them - see QUICK_BUILD_PLUGIN_CLASS.
-				pluginManager.apply(Class.forName(QUICK_BUILD_PLUGIN_CLASS))
+			// Gradle decorates a plugin class before calling apply(), which resolves every type in
+			// its method signatures (compiled lambdas included). Each sub-plugin carries AGP types
+			// there, so on a project without AGP (a build-logic java-library in an included build)
+			// decoration throws before the sub-plugin's own APP_PLUGIN guard can decline
+			// (ADFA-6110). Check here, before any sub-plugin class is handed to Gradle.
+			if (plugins.hasPlugin(APP_PLUGIN)) {
+				applyApplicationPlugins()
 			}
 
 			tasks.configureEach { task ->
@@ -81,6 +68,30 @@ class AndroidIDEGradlePlugin : Plugin<Project> {
 					task.doLast { it.logger.lifecycle(message) }
 				}
 			}
+		}
+	}
+
+	private fun Project.applyApplicationPlugins() {
+		val isLogSenderEnabled = findProperty(PROPERTY_LOG_SENDER_ENABLED) == "true"
+		if (isLogSenderEnabled) {
+			pluginManager.apply(LogSenderPlugin::class.java)
+		}
+
+		val isJdwpEnabled = findProperty(PROPERTY_JDWP_ENABLED) == "true"
+		if (isJdwpEnabled) {
+			pluginManager.apply(JdwpPlugin::class.java)
+		}
+
+		val isProfileableEnabled = findProperty(PROPERTY_PROFILEABLE_ENABLED) == "true"
+		if (isProfileableEnabled) {
+			pluginManager.apply(ProfilerPlugin::class.java)
+		}
+
+		val isQuickBuildEnabled = findProperty(PROPERTY_QUICK_BUILD_ENABLED) == "true"
+		if (isQuickBuildEnabled) {
+			// By name, not ::class: Quick Build classes load (and touch newer AGP APIs)
+			// only when the property enables them - see QUICK_BUILD_PLUGIN_CLASS.
+			pluginManager.apply(Class.forName(QUICK_BUILD_PLUGIN_CLASS))
 		}
 	}
 }
