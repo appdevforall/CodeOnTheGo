@@ -291,6 +291,7 @@ public class JniQueryTest {
 		eq(codeOf(srv, "SELECT 1", new Object[] {1L}, FAR), 25, "an arg for no parameter: SQLITE_RANGE");
 		try {
 			query(srv, "SELECT ?, ?", new Object[] {1L}, 0, 100, 4096, 1024, MAX, FAR);
+			check(false, "a statement with two parameters and one argument ran");
 		} catch (DebugEngineException e) {
 			check(e.getMessage().contains("2 parameter") && e.getMessage().contains("1 argument"), "the message names both counts: " + e.getMessage());
 		}
