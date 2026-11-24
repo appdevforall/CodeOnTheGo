@@ -1,14 +1,25 @@
 // The "app" side of the JNI test: plain sqlite3 calls into libsqlite3x.so, as requery's do.
 #include <jni.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "sqlite3.h"
 
-JNIEXPORT jlong JNICALL Java_Helper_open(JNIEnv *e, jclass c, jstring p) {
+// The path arrives as UTF-8 bytes and is opened as such, as sqlitedbg_open_server's path is: a
+// GetStringUTFChars path would be modified UTF-8. Returns 0 when sqlite3_open fails.
+JNIEXPORT jlong JNICALL Java_Helper_openBytes(JNIEnv *e, jclass c, jbyteArray p) {
 	(void)c;
-	const char *s = (*e)->GetStringUTFChars(e, p, 0);
+	jsize n = (*e)->GetArrayLength(e, p);
+	char *s = malloc((size_t)n + 1);
+	if (!s) return 0;
+	(*e)->GetByteArrayRegion(e, p, 0, n, (jbyte *)s);
+	s[n] = 0;
 	sqlite3 *db = 0;
-	sqlite3_open(s, &db);
-	(*e)->ReleaseStringUTFChars(e, p, s);
+	int rc = sqlite3_open(s, &db);
+	free(s);
+	if (rc != SQLITE_OK) {
+		sqlite3_close(db);
+		return 0;
+	}
 	return (jlong)(intptr_t)db;
 }
 
