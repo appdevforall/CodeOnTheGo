@@ -2,6 +2,8 @@
 public class Helper {
 	static native long open(String path);
 
+	static native int autocommit(long db);
+
 	static native int exec(long db, String sql);
 
 	static native int close(long db);

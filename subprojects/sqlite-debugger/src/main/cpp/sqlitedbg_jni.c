@@ -363,16 +363,16 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 
 	if (now_ms() >= dl.at_ms) {
 		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the query started");
-		return NULL;
+		goto done;
 	}
 	jsize sql_len = (*env)->GetStringLength(env, sql);
 	const jchar *sql_chars = (*env)->GetStringChars(env, sql, NULL);
-	if (!sql_chars) return NULL;
+	if (!sql_chars) goto done;
 	rc = prepare_one(db, sql_chars, sql_len, &st, &message);
 	(*env)->ReleaseStringChars(env, sql, sql_chars);
 	if (rc != SQLITE_OK) {
 		throw_engine(env, rc, message ? message : sqlite3_errmsg(db));
-		return NULL;
+		goto done;
 	}
 
 	// Every server tool runs its statements here, so this is the one place that bounds a read on a database

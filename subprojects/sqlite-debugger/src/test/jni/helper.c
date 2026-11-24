@@ -49,3 +49,10 @@ JNIEXPORT jint JNICALL Java_Helper_busyTimeout(JNIEnv *e, jclass c, jlong db, ji
 	(void)c;
 	return sqlite3_busy_timeout((sqlite3 *)(intptr_t)db, ms);
 }
+
+// sqlite3_get_autocommit: 1 when no transaction is open.
+JNIEXPORT jint JNICALL Java_Helper_autocommit(JNIEnv *e, jclass c, jlong db) {
+	(void)e;
+	(void)c;
+	return sqlite3_get_autocommit((sqlite3 *)(intptr_t)db);
+}
