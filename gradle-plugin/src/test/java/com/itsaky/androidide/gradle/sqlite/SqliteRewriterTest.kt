@@ -1654,6 +1654,56 @@ class SqliteRewriterTest {
 	}
 
 	@Test
+	fun `a static call on an unresolvable owner is not a Context call, a virtual one still fails`() {
+		val classes =
+			Compiler.compile(
+				listOf(
+					src(
+						"p.UsesStatic",
+						"""
+						package p;
+						public class UsesStatic {
+							boolean go() { return com.vendor.Store.deleteDatabase("n"); }
+						}
+						""",
+					),
+					src(
+						"p.UsesVirtual",
+						"""
+						package p;
+						public class UsesVirtual {
+							boolean go(com.vendor.Dyn d) { return d.deleteDatabase("n"); }
+						}
+						""",
+					),
+					// left out of the hierarchy, as a library missing from the classpath is
+					src(
+						"com.vendor.Store",
+						"""
+						package com.vendor;
+						public class Store {
+							public static boolean deleteDatabase(String n) { return true; }
+						}
+						""",
+					),
+					src(
+						"com.vendor.Dyn",
+						"""
+						package com.vendor;
+						public class Dyn {
+							public boolean deleteDatabase(String n) { return true; }
+						}
+						""",
+					),
+				),
+			)
+		// INVOKESTATIC com/vendor/Store.deleteDatabase(Ljava/lang/String;)Z
+		SqliteRewriter.rewrite(classes["p/UsesStatic"]!!, hierarchy)
+		val e = assertThrows(SqliteRewriteException::class.java) { SqliteRewriter.rewrite(classes["p/UsesVirtual"]!!, hierarchy) }
+		assertThat(e.message).contains("com/vendor/Dyn.deleteDatabase is a Context database method")
+	}
+
+	@Test
 	fun `an unresolvable owner whose member names no SQLite type only warns`() {
 		val classes =
 			Compiler.compile(

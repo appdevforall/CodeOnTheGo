@@ -711,7 +711,8 @@ object SqliteRewriter {
 						"super.$name on a Context cannot be redirected to requery; call it on this or on a Context instead",
 					)
 				}
-				if (superTypes(owner) == null && owner !in Rules.CONTEXT_FAMILY) {
+				// Context is a class: only a virtual call can reach it, so a static or interface call on an owner we cannot resolve is not one
+				if (opcode == Opcodes.INVOKEVIRTUAL && superTypes(owner) == null && owner !in Rules.CONTEXT_FAMILY) {
 					return Action.Fail(
 						"$owner.$name is a Context database method if $owner is a Context, " +
 							"but $owner cannot be resolved, so it cannot be redirected to requery",
