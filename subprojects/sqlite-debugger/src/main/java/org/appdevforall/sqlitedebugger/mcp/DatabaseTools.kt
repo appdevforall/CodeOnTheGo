@@ -86,8 +86,9 @@ class DatabaseTools internal constructor(
 		 * sqlitedbg.h, which says why); this text must follow it.
 		 */
 		const val NON_WAL_NOTE =
-			"On a database that is not in WAL mode a statement is stopped after 1.5 s, so a long read does not block the app's " +
-				"own writes; use a narrower query or a LIMIT. A database in WAL mode has no such limit (the $DEADLINE_SECONDS s limit applies)."
+			"On a database that is not in WAL mode a statement is stopped after 1.5 s (best effort: it can run up to about 3 s " +
+				"longer), so a long read does not block the app's own writes; use a narrower query or a LIMIT. A database in " +
+				"WAL mode has no such limit (the $DEADLINE_SECONDS s limit applies, also best effort)."
 
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
