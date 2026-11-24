@@ -3,6 +3,7 @@ package com.itsaky.androidide.assets.addons
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_ARCHIVE_EXTENSION
 import org.adfa.constants.TEMPLATE_CORE_ARCHIVE
+import org.slf4j.LoggerFactory
 import java.io.InputStream
 import java.security.MessageDigest
 
@@ -49,6 +50,8 @@ interface BundleSource {
 }
 
 object BundledAddons {
+	private val logger = LoggerFactory.getLogger(BundledAddons::class.java)
+
 	/**
 	 * The bundle index, written by the build beside `plugins/` and `templates/`: one line per add-on,
 	 * `<entryName>\t<size>\t<sha256 hex>`. A thin build writes it empty. With it, listing the bundle
@@ -72,7 +75,13 @@ object BundledAddons {
 	 * before the index, the folders are listed and each file's size read: other files in the folders,
 	 * and any path below them, are not add-ons.
 	 */
-	fun list(source: BundleSource): List<BundledEntry> = source.index()?.let(::parseIndex) ?: listFolders(source)
+	fun list(source: BundleSource): List<BundledEntry> {
+		val index = source.index()
+		index?.let(::parseIndex)?.let { return it }
+		// A present but rejected index loses every copy's SHA-256 check, so say so.
+		if (index != null) logger.warn("Bundle index {} is not valid; listing the folders without content checks", INDEX_FILE)
+		return listFolders(source)
+	}
 
 	/**
 	 * The entries of an index, in [list]'s order, or null when any line is malformed, names no add-on
