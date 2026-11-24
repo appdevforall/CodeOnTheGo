@@ -40,15 +40,25 @@ EXISTING = {
     "project-create-new.html": ("Create a new project", "cogo-top.html"),
 }
 
+# Lets a word or code token longer than the line break anywhere, so that no line runs off a
+# phone's screen, which would make the whole page scroll sideways. word-break: break-word also
+# lets a table cell narrow past a long token in WebView 77, which has no overflow-wrap: anywhere.
+WRAP = "overflow-wrap: break-word; word-break: break-word;"
+
 P_STYLE = {
-    "p_Normal": "",
-    "li": "text-indent: 0; padding-left: 1.2500rem; margin-left: 1.3125rem;",
-    "code": "margin: 0.1875rem 0.0625rem 0.1875rem 1.2500rem; white-space: pre-wrap;",
-    "note": "margin-left: 1.2500rem; padding-left: 0.5000rem; border-left: 0.1875rem solid #999999;",
-    "h2": "page-break-after: avoid;",
-    "h3": "page-break-after: avoid;",
+    "p_Normal": WRAP,
+    "li": "text-indent: 0; padding-left: 1.2500rem; margin-left: 1.3125rem; " + WRAP,
+    "code": "margin: 0.1875rem 0.0625rem 0.1875rem 1.2500rem; white-space: pre-wrap; " + WRAP,
+    "note": "margin-left: 1.2500rem; padding-left: 0.5000rem; border-left: 0.1875rem solid #999999; " + WRAP,
+    "h2": "page-break-after: avoid; " + WRAP,
+    "h3": "page-break-after: avoid; " + WRAP,
 }
-CELL = "border: 1px solid #999999; padding: 0.2500rem 0.5000rem; text-align: left; vertical-align: top;"
+# Tables are laid out fixed at the page's width (see table()), so a cell's column width does not
+# grow with its longest word, and overflow-wrap breaks only a word that does not fit the column.
+# word-break: break-word is left out: in an automatic layout it let a narrow column break short
+# words ("Lice" / "nse") at double font size.
+CELL = ("border: 1px solid #999999; padding: 0.2500rem 0.5000rem; text-align: left; vertical-align: top; "
+        "overflow-wrap: break-word;")
 
 
 def esc(s):
@@ -79,7 +89,7 @@ def inline(s):
 
 
 def paragraph(text):
-    return '<p class="p_Normal">%s</p>' % inline(text)
+    return '<p class="p_Normal" style="%s">%s</p>' % (P_STYLE["p_Normal"], inline(text))
 
 
 def list_item(marker, text):
@@ -98,7 +108,9 @@ def table(rows):
     def cells(row):
         return [c.strip() for c in row.strip().strip("|").split("|")]
     head, body = cells(rows[0]), [cells(r) for r in rows[2:]]
-    out = ['<table style="border-collapse: collapse; margin: 0.3125rem 0 0.5000rem 0;"><tr>']
+    # fixed layout: without it, a long word or code token in a cell widened its column past a
+    # phone's screen at double font size, and the page scrolled sideways
+    out = ['<table style="border-collapse: collapse; margin: 0.3125rem 0 0.5000rem 0; table-layout: fixed; width: 100%;"><tr>']
     out += ['<th style="%s">%s</th>' % (CELL, inline(c)) for c in head]
     out.append("</tr>")
     for row in body:
