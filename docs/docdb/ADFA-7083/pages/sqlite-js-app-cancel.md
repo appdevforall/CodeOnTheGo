@@ -35,7 +35,7 @@ In one case SQLite rolls the whole transaction back by itself: when the interrup
 
 Treat either error the same way: the transaction is gone, so run all of it again.
 
-A `SELECT` that `cancelAll()` stops never ends the transaction, even one that sorts with a JavaScript collation. The changes made before it stay in the transaction until you commit it or roll it back.
+A `SELECT` that `cancelAll()` stops does not end the transaction, even one that sorts with a JavaScript collation. The changes made before it stay in the transaction until you commit it or roll it back. One exception: when the `SELECT`'s JavaScript runs an `INSERT`, `UPDATE` or `DELETE` through `db.exec`, and the cancel stops that write in a JavaScript collation, the transaction is gone, as above.
 
 ## What cancelAll() does not stop
 
@@ -103,7 +103,7 @@ class RunawayQuery(
 
 `start()` does nothing while the query it started earlier still runs, including the moment after `cancel()` while `cancellable()` stops it. A second query would replace the first in `job`, and `cancel()` would no longer cancel the first.
 
-Keep the `catch`. `cancellable()` throws the query's own error, and an error that leaves a coroutine of `lifecycleScope` ends the app. This query can fail even though its JavaScript never ends: when another `cancellable()` is cancelled, its `cancelAll()` stops this query too, with the error `interrupted`. `onError` gets the error, on the main thread when the scope is `lifecycleScope`, so it can show it. A `CancellationException` is thrown again, so that `cancel()` still cancels the job.
+Keep the `catch`. `cancellable()` throws the query's own error, and an error that leaves a coroutine of `lifecycleScope` ends the app. This query can fail even though its JavaScript never ends: when another `cancellable()` is cancelled, its `cancelAll()` stops this query too, with the error `interrupted`. `onError` gets the error, on the main thread when the scope is `lifecycleScope`, so it can show it. The `CancellationException` catch comes first and throws it again, so that a cancel is not handed to `onError`: a `CancellationException` is also an `Exception`.
 
 `ProductDao` and its `spin()` are on the page [Set up a database with JavaScript functions](sqlite-js-app-database.html). In an activity, pass `lifecycleScope` as the scope.
 

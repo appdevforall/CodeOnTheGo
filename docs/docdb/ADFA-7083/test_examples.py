@@ -57,6 +57,25 @@ def run(sql):
     return out, [l for l in r.stderr.split("\n") if ERROR_LINE.match(l)], r.stderr, r.returncode
 
 
+def all_whitespace(line):
+    """Whether sqlite3 skips this line when no statement is pending: it holds only blanks and
+    comments, a /* */ comment only if it ends on the line (shell.c's _all_whitespace)."""
+    i = 0
+    while i < len(line):
+        if line[i].isspace():
+            i += 1
+        elif line.startswith("/*", i):
+            end = line.find("*/", i + 2)
+            if end < 0:
+                return False
+            i = end + 2
+        elif line.startswith("--", i):
+            return True
+        else:
+            return False
+    return True
+
+
 def split(block):
     """An example's SQL; the output lines it must end with; and the errors it must report, each
     as its text and the line of the SQL, from 0, where the statement above its note starts.
@@ -75,7 +94,7 @@ def split(block):
             else:
                 want.append(note)
             continue
-        if not pending and line.strip():
+        if not pending and not all_whitespace(line):
             start = len(lines)
         lines.append(line)
         if start is not None and not pending and line.startswith("."):

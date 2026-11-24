@@ -126,17 +126,22 @@ class DocExamplesTest {
 			val scope = CoroutineScope(Dispatchers.Default + Job())
 			val failed = CompletableDeferred<Exception>()
 			val runaway = RunawayQuery(scope, products) { failed.complete(it) }
-			runaway.start()
-			awaitSpin(true)
-			val error = withTimeout(60_000) {
-				while (!failed.isCompleted) {
-					SqliteJs.cancelAll()
-					delay(10)
+			try {
+				runaway.start()
+				awaitSpin(true)
+				val error = withTimeout(60_000) {
+					while (!failed.isCompleted) {
+						SqliteJs.cancelAll()
+						delay(10)
+					}
+					failed.await()
 				}
-				failed.await()
+				assertTrue("onError got: $error", error.message.orEmpty().contains("interrupted"))
+			} finally {
+				// also after a failure above, or spin() would run on into the next test
+				runaway.cancel()
+				withTimeout(60_000) { scope.coroutineContext.job.children.forEach { it.join() } }
 			}
-			assertTrue("onError got: $error", error.message.orEmpty().contains("interrupted"))
-			withTimeout(60_000) { scope.coroutineContext.job.children.forEach { it.join() } }
 			assertEquals(4, products.slugs().size)
 		} finally {
 			db.close()
@@ -164,6 +169,7 @@ class DocExamplesTest {
 		canceller.start()
 		var inside = -1
 		var message = ""
+		var left: Exception? = null
 		try {
 			transaction {
 				val raw = db.openHelper.writableDatabase
@@ -184,15 +190,15 @@ class DocExamplesTest {
 				}
 			}
 		} catch (e: Exception) {
-			// the block's error leaves the transaction, as the page says to let it. One from before the
-			// UPDATE leaves message empty: keep it, so that the assertions name it
-			if (message.isEmpty()) message = "failed before the UPDATE: $e"
+			// the block's error leaves the transaction, as the page says to let it. Kept, so that the
+			// assertions name an error from before the UPDATE, from count() or from the rollback
+			left = e
 		} finally {
 			stopped.set(true)
 			inserted.countDown()
 			canceller.join()
 		}
-		return Triple(inside, message, db.count())
+		return Triple(inside, if (left == null) message else "$message; left the transaction: $left", db.count())
 	}
 
 	@Test
@@ -207,8 +213,8 @@ class DocExamplesTest {
 					else db.runInTransaction { block() }
 				}
 				assertTrue("$how: $message", message.contains("interrupted"))
-				assertEquals("$how: the transaction stayed open, with its earlier insert", 5, inside)
-				assertEquals("$how: Room rolled the transaction back", 4, after)
+				assertEquals("$how: the transaction stayed open, with its earlier insert ($message)", 5, inside)
+				assertEquals("$how: Room rolled the transaction back ($message)", 4, after)
 			}
 		} finally {
 			db.close()

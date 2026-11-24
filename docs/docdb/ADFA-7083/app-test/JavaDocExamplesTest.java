@@ -89,6 +89,16 @@ public class JavaDocExamplesTest {
 		}
 	}
 
+	// waits for isDone(): true once the query and the loop of its cancel() have ended, so that no
+	// cancelAll() of that cancel reaches the next query
+	private static void awaitDone(CancellableQuery<?> query) throws InterruptedException {
+		long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+		while (!query.isDone()) {
+			assertTrue("the query and its cancel() loop ended within 60 s", System.nanoTime() < end);
+			Thread.sleep(10);
+		}
+	}
+
 	// waits until no thread runs the loop of a CancellableQuery's cancel(), which calls cancelAll().
 	// RunawayQuery keeps its CancellableQuery to itself, so the loop is found by its stack: a frame
 	// of CancellableQuery, or of the class D8 may make of its lambda. Call it only when no other
@@ -161,6 +171,7 @@ public class JavaDocExamplesTest {
 			// the query's own error is its cause
 			assertTrue(String.valueOf(thrown.getCause()),
 					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
+			awaitDone(spin);
 
 			// cancel() does not wait for the query: this one cannot end until the latch opens, so
 			// a cancel() that waited would never return. A query that ends with a result after
@@ -179,6 +190,7 @@ public class JavaDocExamplesTest {
 				latch.countDown();
 			}
 			assertEquals(Integer.valueOf(7), waiting.get());
+			awaitDone(waiting);
 
 			// a query that fails by itself is not reported as cancelled
 			CancellableQuery<Integer> broken = new CancellableQuery<>(() -> {
@@ -228,12 +240,7 @@ public class JavaDocExamplesTest {
 			// the cancel stopped the UPDATE's JavaScript: the write did not fail for another reason
 			assertTrue(String.valueOf(thrown.getCause()),
 					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
-			// isDone() once that cancel's loop has ended, so that no cancelAll() of it reaches slugs()
-			long done = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
-			while (!write.isDone()) {
-				assertTrue("the write's cancel() loop ended within 60 s", System.nanoTime() < done);
-				Thread.sleep(10);
-			}
+			awaitDone(write);
 			assertEquals(4, products.slugs().size());
 		} finally {
 			db.close();
