@@ -291,6 +291,7 @@ public class JniQueryTest {
 		eq(codeOf(srv, "SELECT 1", new Object[] {1L}, FAR), 25, "an arg for no parameter: SQLITE_RANGE");
 		try {
 			query(srv, "SELECT ?, ?", new Object[] {1L}, 0, 100, 4096, 1024, MAX, FAR);
+			check(false, "a statement with two parameters and one argument ran");
 		} catch (DebugEngineException e) {
 			check(e.getMessage().contains("2 parameter") && e.getMessage().contains("1 argument"), "the message names both counts: " + e.getMessage());
 		}
@@ -361,6 +362,27 @@ public class JniQueryTest {
 		eq(refusal(w, "SELECT 1"), null, "the next query rolls it back");
 		eq(Helper.exec(app, "INSERT INTO t(id) VALUES(4246)"), 0, "the app can write again");
 		Helper.exec(app, "DELETE FROM t WHERE id = 4246");
+
+		// the backstop also runs when the query fails before it starts: a transaction opened outside the
+		// query path (sqlite3_exec on the handle, as above) is rolled back by each early return
+		String[][] early = {{"SELEKT 1", "1"}, {"SELECT 1; SELECT 2", "1"}, {"SELECT 1\0", "1"}, {"SELECT * FROM no_such_table", "1"}};
+		for (String[] c : early) {
+			eq(Helper.exec(w, "BEGIN IMMEDIATE"), 0, "a transaction opened outside the query path before " + c[0]);
+			eq(Helper.autocommit(w), 0, "it is open");
+			eq(codeOf(w, c[0], new Object[0], FAR), Integer.parseInt(c[1]), "the original error is kept: " + c[0]);
+			eq(Helper.autocommit(w), 1, "rolled back after a failed prepare: " + c[0]);
+		}
+		eq(Helper.exec(w, "BEGIN IMMEDIATE"), 0, "a transaction opened outside the query path before a past deadline");
+		eq(codeOf(w, "SELECT 1", new Object[0], System.currentTimeMillis() - 1), 9, "a deadline already past: SQLITE_INTERRUPT");
+		eq(Helper.autocommit(w), 1, "rolled back after a deadline already past");
+		// a rollback that fails does not replace the original error
+		eq(Helper.exec(w, "BEGIN IMMEDIATE"), 0, "a transaction opened outside the query path, rollback to be refused");
+		eq(Helper.denyTransactions(w, true), 0, "an authorizer that refuses ROLLBACK, again");
+		eq(refusal(w, "SELEKT 1").startsWith("1 "), true, "the syntax error, not the rollback failure, is reported");
+		eq(Helper.autocommit(w), 0, "the refused rollback left it open");
+		eq(Helper.denyTransactions(w, false), 0, "the authorizer cleared, again");
+		eq(refusal(w, "SELECT 1"), null, "the next query rolls it back, again");
+		eq(Helper.autocommit(w), 1, "closed");
 		NativeBridge.close(w);
 		Helper.exec(app, "DELETE FROM t WHERE id = 4245");
 

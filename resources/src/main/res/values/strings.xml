@@ -1888,5 +1888,9 @@
 	<string name="cd_outline_kind_element">Element</string>
     <string name="initialize_git_repository">Initialize Git Repository</string>
     <string name="git_init_failed">Failed to initialize Git repository</string>
+    <string name="msg_got_it">Got it</string>
+	<string name="package_name_change_title">App update notice</string>
+	<string name="package_name_change_message">Code on the Go’s package name will soon change. With this change, Android will treat the new version as a separate app, so this version won’t be updated. After the change, all your projects will still be in the CodeOnTheGoProjects folder.</string>
+	<string name="package_name_change_learn_more_url" translatable="false">https://appdevforall.org/cogos-package-name-will-change-in-december/</string>
 </resources>
 
