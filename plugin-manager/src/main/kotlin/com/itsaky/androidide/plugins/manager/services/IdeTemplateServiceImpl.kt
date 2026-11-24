@@ -37,6 +37,12 @@ class IdeTemplateServiceImpl(
 
 		val destFile = File(Environment.TEMPLATES_DIR, prefixedName(cgtFile.name))
 		return try {
+			// Plugins register their templates on every activation. An identical copy is left
+			// alone, and the template list has nothing new to reload (ADFA-7287).
+			if (destFile.hasSameContentAs(cgtFile)) {
+				log.debug("Plugin $pluginId template unchanged: ${destFile.name}")
+				return true
+			}
 			cgtFile.copyTo(destFile, overwrite = true)
 			log.info("Plugin $pluginId registered template: ${destFile.name}")
 			runCatching { onTemplatesChanged() }
@@ -76,6 +82,8 @@ class IdeTemplateServiceImpl(
 	}
 
 	private fun otherPluginIds() = loadedPluginIds() - pluginId
+
+	private fun File.hasSameContentAs(other: File) = isFile && length() == other.length() && readBytes().contentEquals(other.readBytes())
 
 	override fun reloadTemplates() {
 		onTemplatesChanged()

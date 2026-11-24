@@ -1,8 +1,11 @@
 package com.itsaky.androidide.plugins.templates
 
 import com.itsaky.androidide.plugins.PluginContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
+import java.util.Calendar
+import java.util.GregorianCalendar
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -125,7 +128,8 @@ class CgtTemplateBuilder(
 		require(dirName.isNotBlank()) { "Template name must contain at least one letter or digit" }
 		val outputFile = File(outputDir, "$dirName.cgt")
 
-		ZipOutputStream(outputFile.outputStream()).use { zip ->
+		val bytes = ByteArrayOutputStream()
+		ZipOutputStream(bytes).use { zip ->
 			writeIndex(zip, dirName)
 			writeMetadata(zip, dirName)
 			writeThumbnail(zip, dirName)
@@ -134,6 +138,12 @@ class CgtTemplateBuilder(
 			writeBinaryFiles(zip, dirName)
 		}
 
+		// Plugins build their templates on every activation, so leave an identical file alone
+		// rather than rewrite it at each start (ADFA-7287).
+		val cgt = bytes.toByteArray()
+		if (!outputFile.hasContent(cgt)) {
+			outputFile.writeBytes(cgt)
+		}
 		return outputFile
 	}
 
@@ -287,7 +297,7 @@ class CgtTemplateBuilder(
 		dirName: String,
 	) {
 		val thumbBytes = thumbnail ?: return
-		zip.putNextEntry(ZipEntry("$dirName/template/thumb.png"))
+		zip.putNextEntry(entry("$dirName/template/thumb.png"))
 		zip.write(thumbBytes)
 		zip.closeEntry()
 	}
@@ -315,7 +325,7 @@ class CgtTemplateBuilder(
 		dirName: String,
 	) {
 		for (file in binaryFiles) {
-			zip.putNextEntry(ZipEntry("$dirName/${file.path}"))
+			zip.putNextEntry(entry("$dirName/${file.path}"))
 			zip.write(file.bytes)
 			zip.closeEntry()
 		}
@@ -326,10 +336,16 @@ class CgtTemplateBuilder(
 		path: String,
 		content: String,
 	) {
-		zip.putNextEntry(ZipEntry(path))
+		zip.putNextEntry(entry(path))
 		zip.write(content.toByteArray(Charsets.UTF_8))
 		zip.closeEntry()
 	}
+
+	// An entry without a time gets the current one, which would make every build of the same
+	// template differ.
+	private fun entry(path: String) = ZipEntry(path).apply { time = fixedEntryTime() }
+
+	private fun File.hasContent(bytes: ByteArray) = isFile && length() == bytes.size.toLong() && readBytes().contentEquals(bytes)
 
 	private data class TextParam(
 		val label: String,
@@ -355,5 +371,10 @@ class CgtTemplateBuilder(
 
 	companion object {
 		private val DIR_NAME_REGEX = Regex("[^\\p{L}\\p{N}]")
+
+		// 1980-02-01 00:00 local time, the time Gradle gives entries of reproducible archives.
+		// ZipEntry stores local DOS time, so taking it in the current zone stores the same time in
+		// every zone. February rather than January keeps it after the DOS epoch (1980-01-01).
+		internal fun fixedEntryTime() = GregorianCalendar(1980, Calendar.FEBRUARY, 1).timeInMillis
 	}
 }
