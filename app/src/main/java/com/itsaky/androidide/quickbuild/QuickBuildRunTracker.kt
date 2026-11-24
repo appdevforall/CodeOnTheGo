@@ -20,11 +20,13 @@ import org.appdevforall.cotg.quickbuild.domain.session.SessionFailure
  * @param start the status when the plugin asked, before the tap saves: a build the save itself
  *   starts carries the plugin's changes, so it is this tap's result.
  * @param startedAtMillis when the plugin asked, for [QuickBuildResult.Reloaded.durationMillis].
+ * @param refusalReason the text for a start Quick Build declined on purpose ([QuickBuildResult.Refused]).
  * @param buildOutput the Build Output pane's text, attached to a failure.
  */
 internal class QuickBuildRunTracker(
 	private val start: QuickBuildStatus,
 	private val startedAtMillis: Long,
+	private val refusalReason: () -> String = { "Quick Build did not start." },
 	private val buildOutput: () -> String?,
 ) {
 	/** A proxy app build ran, so the landing relaunched the app. */
@@ -122,7 +124,8 @@ internal class QuickBuildRunTracker(
 
 			is QuickBuildStatus.Hidden -> {
 				if (status.lastStartFailed && moved) {
-					return failed("Quick Build could not start.")
+					// A refusal is Quick Build declining the project, not a fault the plugin must report.
+					return if (status.startRefused) QuickBuildResult.Refused(refusalReason()) else failed("Quick Build could not start.")
 				}
 				// A stop during the first build drops the session.
 				if (sawWork) return QuickBuildResult.Cancelled

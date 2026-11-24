@@ -195,6 +195,21 @@ class PluginQuickBuildCoordinatorTest {
 		}
 
 	@Test
+	fun `a start the SQLite debugger refuses reaches the plugin as Refused, not Failed`() =
+		runTest {
+			val idle = QuickBuildStatus.Hidden()
+			val status = MutableStateFlow<QuickBuildStatus>(idle)
+			val tracker = QuickBuildRunTracker(idle, 0L, { "off while the SQLite debugger is on" }) { null }
+
+			val result = trackAsync(status, tracker)
+			runCurrent()
+			status.value = QuickBuildStatus.Hidden(lastStartFailed = true, startRefused = true)
+			runCurrent()
+
+			assertThat(result.await()).isEqualTo(QuickBuildResult.Refused("off while the SQLite debugger is on"))
+		}
+
+	@Test
 	fun `a throw while following the run fails it instead of escaping`() =
 		runTest {
 			val status = MutableStateFlow<QuickBuildStatus>(upToDate)

@@ -10,7 +10,10 @@ import org.junit.Test
 
 /** How one plugin-started Quick Build's result is read off the session's status (ADFA-6493). */
 class QuickBuildRunTrackerTest {
-	private fun tracker(start: QuickBuildStatus) = QuickBuildRunTracker(start, startedAtMillis = 1_000L, buildOutput = { "the log" })
+	private fun tracker(start: QuickBuildStatus) =
+		QuickBuildRunTracker(start, startedAtMillis = 1_000L, refusalReason = {
+			"off while the SQLite debugger is on"
+		}, buildOutput = { "the log" })
 
 	/** Feeds [statuses] in order; the result of the last one, or null if none settled. */
 	private fun QuickBuildRunTracker.run(vararg statuses: QuickBuildStatus): QuickBuildResult? {
@@ -158,6 +161,16 @@ class QuickBuildRunTrackerTest {
 		val result = tracker.run(QuickBuildStatus.Provisioning(), QuickBuildStatus.Hidden(lastStartFailed = true))
 
 		assertThat(result).isEqualTo(QuickBuildResult.Failed("Quick Build could not start.", "the log"))
+	}
+
+	@Test
+	fun `a refused start is Refused with the refusal's reason, not a failure`() {
+		val hidden = QuickBuildStatus.Hidden(lastStartFailed = true, startRefused = true)
+		val tracker = tracker(QuickBuildStatus.Hidden())
+
+		val result = tracker.run(QuickBuildStatus.Provisioning(), hidden)
+
+		assertThat(result).isEqualTo(QuickBuildResult.Refused("off while the SQLite debugger is on"))
 	}
 
 	@Test

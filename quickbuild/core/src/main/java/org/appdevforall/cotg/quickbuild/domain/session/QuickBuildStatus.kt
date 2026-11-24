@@ -16,11 +16,12 @@ sealed interface QuickBuildStatus {
 	 * No session - nothing in progress to narrate.
 	 *
 	 * @property lastStartFailed the last session start failed
-	 *   ([QuickBuildSessionState.Idle.lastStartFailed]), so the bolt keeps the error tone until
+	 *   ([QuickBuildSessionState.Idle.lastStartFailed]), so the bolt keeps the error tone (unless [startRefused]) until
 	 *   the next tap or save; carried here because a failed start rests in Hidden and the tone
 	 *   is derived from status alone.
 	 * @property startRefused that failed start was Quick Build deliberately declining the project
-	 *   ([QuickBuildSessionState.Idle.startRefused]), not a fault; surfaces word it differently.
+	 *   ([QuickBuildSessionState.Idle.startRefused]), not a fault: the tone is
+	 *   [QuickBuildTone.SLOW] rather than ERROR, and a plugin's run ends as a refusal.
 	 */
 	data class Hidden(
 		val lastStartFailed: Boolean = false,
