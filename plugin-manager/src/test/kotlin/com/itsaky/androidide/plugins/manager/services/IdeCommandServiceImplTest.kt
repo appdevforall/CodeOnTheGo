@@ -21,7 +21,13 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 class IdeCommandServiceImplTest {
 	@get:Rule
@@ -66,7 +72,9 @@ class IdeCommandServiceImplTest {
 		while (readerThreads().isNotEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(10)
 	}
 
-	private fun service(processGroups: ProcessGroups = hostGroups) =
+	private fun service(processGroups: ProcessGroups = hostGroups) = serviceFinding { processGroups }
+
+	private fun serviceFinding(processGroups: () -> ProcessGroups) =
 		IdeCommandServiceImpl(
 			pluginId = "test.plugin",
 			permissions = setOf(PluginPermission.SYSTEM_COMMANDS),
@@ -104,6 +112,17 @@ class IdeCommandServiceImplTest {
 	}
 
 	private fun CommandExecution.awaitWithin(ms: Long): CommandResult = runBlocking { withTimeout(ms) { await() } }
+
+	/** [service]'s running-command count once it is [expected], or as it stands after [ms]. */
+	private fun countWithin(
+		service: IdeCommandServiceImpl,
+		expected: Int,
+		ms: Long,
+	): Int {
+		val deadline = System.currentTimeMillis() + ms
+		while (service.getRunningCommandCount() != expected && System.currentTimeMillis() < deadline) Thread.sleep(10)
+		return service.getRunningCommandCount()
+	}
 
 	/** The [count] process ids the command wrote to [pidFile], once it has written them. */
 	private fun pids(count: Int): List<Int> {
@@ -231,10 +250,9 @@ class IdeCommandServiceImplTest {
 					starting.countDown()
 					release.await()
 					// Returns once the command has started a child, so that a stop must reach both.
-					ProcessBuilder(SETSID, "sh", "-c", script, "sh", pidFile.path).start().also { pids(2) }
+					val process = ProcessBuilder(SETSID, "sh", "-c", script, "sh", pidFile.path).start().also { pids(2) }
+					StartedCommand(process, grouped = true, hostGroups)
 				},
-				grouped = true,
-				processGroups = hostGroups,
 				timeoutMs = 60_000,
 			)
 		execution.start {}
@@ -257,7 +275,7 @@ class IdeCommandServiceImplTest {
 
 		assertThat(readersGoneWithin(1_000)).isTrue()
 		assertThat(goneWithin(pids, 1_000)).isTrue()
-		assertThat(service.getRunningCommandCount()).isEqualTo(0)
+		assertThat(countWithin(service, 0, 1_000)).isEqualTo(0)
 	}
 
 	@Test
@@ -268,9 +286,10 @@ class IdeCommandServiceImplTest {
 		val execution =
 			CommandExecutionImpl(
 				"test",
-				ProcessBuilder(SETSID, "sh", "-c", script, "sh", pidFile.path, releaseFile.path)::start,
-				grouped = true,
-				processGroups = hostGroups,
+				{
+					val process = ProcessBuilder(SETSID, "sh", "-c", script, "sh", pidFile.path, releaseFile.path).start()
+					StartedCommand(process, grouped = true, hostGroups)
+				},
 				timeoutMs = 2_000,
 				outputGraceMs = 3_000,
 			)
@@ -339,6 +358,7 @@ class IdeCommandServiceImplTest {
 		while (service.getRunningCommandCount() > 0 && System.currentTimeMillis() < deadline) Thread.sleep(10)
 		val cancelled = List(3) { service.executeCommand(shell("sleep 600"), 60_000) }
 		cancelled.forEach { service.cancelCommand(it.executionId) }
+		cancelled.forEach { it.awaitWithin(5_000) }
 
 		assertThat(service.getRunningCommandCount()).isEqualTo(0)
 		assertThat(service.executeCommand(shell("true"), 5_000).awaitWithin(5_000)).isInstanceOf(CommandResult.Success::class.java)
@@ -368,6 +388,182 @@ class IdeCommandServiceImplTest {
 		}
 
 		assertThat(running).containsExactly(0, 0)
+	}
+
+	@Test
+	fun `a cancelled command keeps its slot until it has stopped`() {
+		assumeHostTools()
+		val stopping = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val service = service(ProcessGroups(SETSID, holdingTerm(stopping, release)))
+		val commands = List(3) { service.executeCommand(shell(STARTED_SLEEP), 60_000) }
+		// Started, so that the cancel has a group to stop.
+		pids(3)
+
+		commands[0].cancel()
+		try {
+			assertThat(stopping.await(5, TimeUnit.SECONDS)).isTrue()
+			assertThrows(IllegalStateException::class.java) { service.executeCommand(shell("true"), 5_000) }
+		} finally {
+			release.countDown()
+		}
+
+		assertThat(commands[0].awaitWithin(5_000)).isInstanceOf(CommandResult.Cancelled::class.java)
+		assertThat(service.executeCommand(shell("true"), 5_000).awaitWithin(5_000)).isInstanceOf(CommandResult.Success::class.java)
+		commands.drop(1).forEach {
+			it.cancel()
+			it.awaitWithin(5_000)
+		}
+	}
+
+	@Test
+	fun `cancelAllCommands frees each slot only once its command has stopped`() {
+		assumeHostTools()
+		val stopping = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val service = service(ProcessGroups(SETSID, holdingTerm(stopping, release)))
+		val command = service.executeCommand(shell(STARTED_SLEEP), 60_000)
+		pids(1)
+
+		service.cancelAllCommands()
+		try {
+			assertThat(stopping.await(5, TimeUnit.SECONDS)).isTrue()
+			assertThat(service.getRunningCommandCount()).isEqualTo(1)
+		} finally {
+			release.countDown()
+		}
+
+		command.awaitWithin(5_000)
+		assertThat(service.getRunningCommandCount()).isEqualTo(0)
+	}
+
+	@Test
+	fun `a command cancelled before its coroutine runs still frees its slot and completes`() {
+		val freed = AtomicBoolean(false)
+		val execution = CommandExecutionImpl("test", { throw AssertionError("started a cancelled command") }, timeoutMs = 5_000)
+
+		// What a cancel landing between start() and the coroutine's first run leads to: no body runs.
+		execution.cancel()
+		execution.start { freed.set(true) }
+
+		assertThat(execution.awaitWithin(1_000)).isInstanceOf(CommandResult.Cancelled::class.java)
+		assertThat(freed.get()).isTrue()
+	}
+
+	/** Signals as [hostSignal] does, but holds the first TERM until [release]. */
+	private fun holdingTerm(
+		stopping: CountDownLatch,
+		release: CountDownLatch,
+	): (Int, GroupSignal) -> Boolean =
+		{ pgid, signal ->
+			if (signal == GroupSignal.TERM) {
+				stopping.countDown()
+				release.await()
+			}
+			hostSignal(pgid, signal)
+		}
+
+	@Test
+	fun `an Error starting a command fails it and frees its slot without escaping`() {
+		val service = serviceFinding { throw LinkageError("no setsid for this test") }
+
+		val (result, uncaught) = catchingUncaught { service.executeCommand(shell("true"), 5_000).awaitWithin(5_000) }
+
+		assertThat((result as CommandResult.Failure).error).isEqualTo("Unexpected error: no setsid for this test")
+		assertThat(service.getRunningCommandCount()).isEqualTo(0)
+		assertThat(uncaught).isEmpty()
+	}
+
+	@Test
+	fun `a command whose stop throws still completes and frees its slot`() {
+		assumeHostTools()
+		val service = service(ProcessGroups(SETSID) { _, _ -> throw SecurityException("no signals for this test") })
+
+		val (result, _) =
+			catchingUncaught { service.executeCommand(shell(STARTED_SLEEP), 300).awaitWithin(5_000) }
+
+		assertThat((result as CommandResult.Failure).error).isEqualTo("Unexpected error: no signals for this test")
+		assertThat(service.getRunningCommandCount()).isEqualTo(0)
+	}
+
+	/** [block]'s result, and what reached the default uncaught-exception handler meanwhile. */
+	private fun <T> catchingUncaught(block: () -> T): Pair<T, List<Throwable>> {
+		val uncaught = Collections.synchronizedList(mutableListOf<Throwable>())
+		val previous = Thread.getDefaultUncaughtExceptionHandler()
+		Thread.setDefaultUncaughtExceptionHandler { _, e -> uncaught += e }
+		try {
+			return block() to uncaught.toList()
+		} finally {
+			Thread.setDefaultUncaughtExceptionHandler(previous)
+		}
+	}
+
+	@Test
+	fun `setsid is looked for as a shell command starts, not as the plugin loads or on the caller's thread`() {
+		assumeHostTools()
+		val looks = AtomicInteger()
+		val looking = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val service =
+			serviceFinding {
+				looks.incrementAndGet()
+				looking.countDown()
+				release.await()
+				hostGroups
+			}
+		assertThat(looks.get()).isEqualTo(0)
+
+		val execution = AtomicReference<CommandExecution>()
+		val caller = thread { execution.set(service.executeCommand(shell("true"), 5_000)) }
+		try {
+			caller.join(2_000)
+			assertThat(execution.get()).isNotNull()
+			assertThat(looking.await(5, TimeUnit.SECONDS)).isTrue()
+		} finally {
+			release.countDown()
+		}
+
+		assertThat(execution.get().awaitWithin(5_000)).isInstanceOf(CommandResult.Success::class.java)
+		assertThat(looks.get()).isEqualTo(1)
+	}
+
+	@Test
+	fun `finding no setsid is checked again once the Terminal's setsid can run`() {
+		val terminalSetsid = File(tmp.newFolder("terminal-bin"), "setsid")
+		var found: String? = null
+		val looks = AtomicInteger()
+		val find = {
+			looks.incrementAndGet()
+			found
+		}
+
+		assertThat(ProcessGroups.android(terminalSetsid, find).isolate(listOf(SH), null).grouped).isFalse()
+		ProcessGroups.android(terminalSetsid, find)
+		assertThat(looks.get()).isEqualTo(2)
+
+		terminalSetsid.writeText("#!/bin/sh\nexec \"\$@\"\n")
+		terminalSetsid.setExecutable(true)
+		found = terminalSetsid.path
+		val groups = ProcessGroups.android(terminalSetsid, find)
+
+		assertThat(groups.isolate(listOf(SH), null).grouped).isTrue()
+		assertThat(ProcessGroups.android(terminalSetsid, find)).isSameInstanceAs(groups)
+		assertThat(looks.get()).isEqualTo(3)
+	}
+
+	@Test
+	fun `finding no setsid while the Terminal's can run is kept`() {
+		val terminalSetsid =
+			File(tmp.newFolder("terminal-bin"), "setsid").apply {
+				writeText("#!/bin/sh\n\"\$@\" &\nexit 0\n")
+				setExecutable(true)
+			}
+		val looks = AtomicInteger()
+
+		val groups = ProcessGroups.android(terminalSetsid) { null.also { looks.incrementAndGet() } }
+
+		assertThat(ProcessGroups.android(terminalSetsid) { null.also { looks.incrementAndGet() } }).isSameInstanceAs(groups)
+		assertThat(looks.get()).isEqualTo(1)
 	}
 
 	@Test
@@ -518,5 +714,8 @@ class IdeCommandServiceImplTest {
 			"sleep 600 & echo \$! >> \"\$1\"; (sleep 600 & echo \$! >> \"\$1\"); " +
 				"echo \$\$ >> \"\$1\"; sleep 600 & echo \$! >> \"\$1\"; wait"
 		const val CHILDREN_SCRIPT_PIDS = 4
+
+		/** Writes its process id to `$1`, then sleeps. */
+		const val STARTED_SLEEP = "echo \$\$ >> \"\$1\"; exec sleep 600"
 	}
 }

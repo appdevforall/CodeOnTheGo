@@ -39,7 +39,9 @@ class IdeCommandServiceImpl internal constructor(
 	private val projectRootProvider: () -> File?,
 	private val appFilesDir: File,
 	private val gradleTaskRunner: GradleTaskRunner = GradleTaskRunner(IdeBuildServiceImpl.getInstance()::startTasks),
-	private val processGroups: ProcessGroups = ProcessGroups.android(File(appFilesDir, "usr/bin/setsid")),
+	// Called as each shell command starts, never here: finding a usable setsid runs it, which a
+	// plugin that runs no shell command should not pay for as it loads.
+	private val processGroups: () -> ProcessGroups = { ProcessGroups.android(File(appFilesDir, "usr/bin/setsid")) },
 ) : IdeCommandService {
 	private val runningCommands = ConcurrentHashMap<String, RunningCommand>()
 
@@ -68,19 +70,28 @@ class IdeCommandServiceImpl internal constructor(
 						} catch (e: IOException) {
 							return RejectedCommandExecution(executionId, "Invalid working directory: ${e.message}")
 						}
-					val command = processGroups.isolate(listOf(spec.executable) + spec.arguments, workDir)
 					val processBuilder =
 						try {
-							shellProcess(command.command, spec.environment, workDir)
+							shellProcess(listOf(spec.executable) + spec.arguments, spec.environment, workDir)
 						} catch (e: IllegalArgumentException) {
 							return RejectedCommandExecution(executionId, "Invalid environment: ${e.message}")
 						}
-					CommandExecutionImpl(executionId, processBuilder::start, command.grouped, processGroups, timeoutMs)
+					CommandExecutionImpl(executionId, { startInGroup(processBuilder, workDir) }, timeoutMs)
 				}
 			}
 		runningCommands[executionId] = execution
 		execution.start { runningCommands.remove(executionId) }
 		return execution
+	}
+
+	/** Run by the command's coroutine, so that finding a usable setsid never holds up the caller. */
+	private fun startInGroup(
+		processBuilder: ProcessBuilder,
+		workDir: File?,
+	): StartedCommand {
+		val groups = processGroups()
+		val command = groups.isolate(processBuilder.command(), workDir)
+		return StartedCommand(processBuilder.command(command.command).start(), command.grouped, groups)
 	}
 
 	private fun shellProcess(
@@ -97,7 +108,7 @@ class IdeCommandServiceImpl internal constructor(
 
 	override fun isCommandRunning(executionId: String): Boolean = runningCommands[executionId]?.isRunning() == true
 
-	// onComplete removes the entry: a GradleTask stays running until Gradle has stopped.
+	// onComplete removes the entry: a command keeps its slot until it has stopped.
 	override fun cancelCommand(executionId: String): Boolean =
 		runningCommands[executionId]?.let {
 			it.cancel()
@@ -106,11 +117,9 @@ class IdeCommandServiceImpl internal constructor(
 
 	override fun getRunningCommandCount(): Int = runningCommands.size
 
+	// As with cancelCommand, each command frees its slot once it has stopped.
 	fun cancelAllCommands() {
-		runningCommands.entries.removeAll { (_, execution) ->
-			execution.cancel()
-			true
-		}
+		runningCommands.values.forEach { it.cancel() }
 	}
 
 	private fun requirePermission() {
@@ -134,8 +143,15 @@ class IdeCommandServiceImpl internal constructor(
 	}
 }
 
+/** A started shell command: its process, which leads a group of its own if [grouped], and what stops it. */
+internal class StartedCommand(
+	val process: Process,
+	val grouped: Boolean,
+	val processGroups: ProcessGroups,
+)
+
 internal interface RunningCommand : CommandExecution {
-	/** Starts the command; [onComplete] runs once it ends or is cancelled. */
+	/** Starts the command; [onComplete] runs once it has ended, or has stopped after a cancel. */
 	fun start(onComplete: () -> Unit)
 
 	fun isRunning(): Boolean
@@ -146,16 +162,15 @@ internal interface RunningCommand : CommandExecution {
  * nothing it started is left running and no thread is left reading its output, with two
  * exceptions. A command that exits on its own with its output closed may leave a process behind on
  * purpose, as `nohup server >log 2>&1 &` does. And a process that left the group with its own
- * `setsid` is not stopped; on a desktop JVM, its reader is not freed either.
+ * `setsid` is not stopped; on a desktop JVM, its reader is not freed either. Its slot is freed, and
+ * [await] returns, only once that is done.
  *
- * @param startProcess starts the process, which is the leader of its own process group if [grouped].
+ * @param startCommand starts the process, on the command's coroutine.
  * @param outputGraceMs how long output may stay open once the command has exited.
  */
 internal class CommandExecutionImpl(
 	override val executionId: String,
-	private val startProcess: () -> Process,
-	private val grouped: Boolean,
-	private val processGroups: ProcessGroups,
+	private val startCommand: () -> StartedCommand,
 	private val timeoutMs: Long,
 	private val outputGraceMs: Long = OUTPUT_GRACE_MS,
 ) : RunningCommand {
@@ -166,83 +181,101 @@ internal class CommandExecutionImpl(
 	@Volatile
 	private var process: Process? = null
 
+	@Volatile
+	private var startTime = 0L
+
+	@Volatile
+	private var result: CommandResult? = null
+
 	// Appended to by the reader threads, read by whichever thread ends the command.
 	private val stdoutBuilder = StringBuilder()
 	private val stderrBuilder = StringBuilder()
 
-	// Also run by cancel(): a cancel landing before the launched body starts skips its call.
-	@Volatile
-	private var onComplete: () -> Unit = {}
-
 	override val output: Flow<CommandOutput> = outputChannel.receiveAsFlow()
 
 	override fun start(onComplete: () -> Unit) {
-		this.onComplete = onComplete
-		scope.launch {
-			val startTime = System.currentTimeMillis()
-			var started: Process? = null
-			var readers = emptyList<Job>()
-			var exitCode: Int? = null
-			var outputClosed = false
-			var cancelled = false
-			var error: Exception? = null
-			try {
-				withTimeoutOrNull(timeoutMs) {
-					// Recorded before the next suspension point, so that a cancel() landing while
-					// startProcess() ran, when there was no process yet to stop, has the finally below
-					// stop it (ADFA-7109).
-					val proc = startProcess()
-					started = proc
-					process = proc
-					readers = listOf(readLines(proc.inputStream, isStdErr = false), readLines(proc.errorStream, isStdErr = true))
-					// Interruptible, so that the timeout and cancel() end the wait at once.
-					runInterruptible { proc.waitFor() }
-				}
-				// Read from the process, not the block's result: one that exits just as the time runs
-				// out ended on its own.
-				exitCode = started?.takeUnless { it.isAlive }?.exitValue()
-				if (exitCode != null) {
-					// Not under the timeout: the command has ended. A background child can hold the
-					// output open long after that, and is then stopped below. Unless no reader was in
-					// read() yet when the command exited: Process then drains the pipe and closes its
-					// end (ProcessPipeInputStream.processExited), so the output looks closed.
-					outputClosed = withTimeoutOrNull(outputGraceMs) { readers.joinAll() } != null
-				}
-			} catch (e: CancellationException) {
-				cancelled = true
-			} catch (e: Exception) {
-				error = e
-			} finally {
-				withContext(NonCancellable) {
-					started?.let { proc ->
-						if (exitCode == null || !outputClosed) processGroups.stop(proc, grouped)
-						// Ends the reads of any process that escaped the group or outlived the kill.
-						// A desktop JVM, where the unit tests run, does not wake a read on close.
-						closeQuietly(proc.inputStream, proc.errorStream, proc.outputStream)
-					}
-					withTimeoutOrNull(READERS_STOP_MS) { readers.joinAll() }
-				}
-			}
-
+		startTime = System.currentTimeMillis()
+		val job = scope.launch { result = runCommand() }
+		// However the coroutine ends: also when a cancel() before it ran skipped its body, or when
+		// stopping the command threw.
+		job.invokeOnCompletion { cause ->
 			val stdout = snapshot(stdoutBuilder)
 			val stderr = snapshot(stderrBuilder)
-			val duration = System.currentTimeMillis() - startTime
-			val result =
-				when {
-					error != null -> CommandResult.Failure(-1, stdout, stderr, "Unexpected error: ${error.message}", duration)
-					exitCode == 0 -> CommandResult.Success(0, stdout, stderr, duration)
-					exitCode != null -> CommandResult.Failure(exitCode, stdout, stderr, null, duration)
-					cancelled -> CommandResult.Cancelled(stdout, stderr)
-					else -> CommandResult.Failure(-1, stdout, stderr, "Command timed out after ${timeoutMs}ms", duration)
-				}
-			exitCode?.let { outputChannel.trySend(CommandOutput.ExitCode(it)) }
 			outputChannel.close()
 			// First, so that a caller resuming from await() finds the slot free.
 			onComplete()
-			// cancel() has already completed it with Cancelled.
-			resultDeferred.complete(result)
+			resultDeferred.complete(
+				result ?: when (cause) {
+					is CancellationException -> CommandResult.Cancelled(stdout, stderr)
+					else -> CommandResult.Failure(-1, stdout, stderr, "Unexpected error: ${cause?.message}", duration())
+				},
+			)
 		}
 	}
+
+	private suspend fun runCommand(): CommandResult {
+		var started: StartedCommand? = null
+		var readers = emptyList<Job>()
+		var exitCode: Int? = null
+		var outputClosed = false
+		var cancelled = false
+		var error: Throwable? = null
+		try {
+			withTimeoutOrNull(timeoutMs) {
+				// Recorded before the next suspension point, so that a cancel() landing while
+				// startCommand() ran, when there was no process yet to stop, has the finally below
+				// stop it (ADFA-7109).
+				val command = startCommand()
+				started = command
+				process = command.process
+				readers =
+					listOf(
+						readLines(command.process.inputStream, isStdErr = false),
+						readLines(command.process.errorStream, isStdErr = true),
+					)
+				// Interruptible, so that the timeout and cancel() end the wait at once.
+				runInterruptible { command.process.waitFor() }
+			}
+			// Read from the process, not the block's result: one that exits just as the time runs
+			// out ended on its own.
+			exitCode = started?.process?.takeUnless { it.isAlive }?.exitValue()
+			if (exitCode != null) {
+				// Not under the timeout: the command has ended. A background child can hold the
+				// output open long after that, and is then stopped below. Unless no reader was in
+				// read() yet when the command exited: Process then drains the pipe and closes its
+				// end (ProcessPipeInputStream.processExited), so the output looks closed.
+				outputClosed = withTimeoutOrNull(outputGraceMs) { readers.joinAll() } != null
+			}
+		} catch (e: CancellationException) {
+			cancelled = true
+		} catch (e: Throwable) {
+			// An Error too, as stage's runCatching did: it ends the command, not the IDE.
+			error = e
+		} finally {
+			withContext(NonCancellable) {
+				started?.let { command ->
+					if (exitCode == null || !outputClosed) command.processGroups.stop(command.process, command.grouped)
+					// Ends the reads of any process that escaped the group or outlived the kill.
+					// A desktop JVM, where the unit tests run, does not wake a read on close.
+					closeQuietly(command.process.inputStream, command.process.errorStream, command.process.outputStream)
+				}
+				withTimeoutOrNull(READERS_STOP_MS) { readers.joinAll() }
+			}
+		}
+
+		val stdout = snapshot(stdoutBuilder)
+		val stderr = snapshot(stderrBuilder)
+		exitCode?.let { outputChannel.trySend(CommandOutput.ExitCode(it)) }
+		return when {
+			error != null -> CommandResult.Failure(-1, stdout, stderr, "Unexpected error: ${error.message}", duration())
+			exitCode == 0 -> CommandResult.Success(0, stdout, stderr, duration())
+			exitCode != null -> CommandResult.Failure(exitCode, stdout, stderr, null, duration())
+			cancelled -> CommandResult.Cancelled(stdout, stderr)
+			else -> CommandResult.Failure(-1, stdout, stderr, "Command timed out after ${timeoutMs}ms", duration())
+		}
+	}
+
+	private fun duration() = System.currentTimeMillis() - startTime
 
 	private fun readLines(
 		stream: InputStream,
@@ -271,12 +304,7 @@ internal class CommandExecutionImpl(
 
 	override fun cancel() {
 		outputChannel.close()
-		// First, so that a caller resuming from await() finds the slot free.
-		onComplete()
-		if (resultDeferred.isActive) {
-			resultDeferred.complete(CommandResult.Cancelled(snapshot(stdoutBuilder), snapshot(stderrBuilder)))
-		}
-		// The command's coroutine stops the process and its group as it ends.
+		// The command's coroutine stops the process and its group, then frees the slot and completes.
 		scope.cancel()
 	}
 

@@ -89,11 +89,25 @@ internal class ProcessGroups(
 		/**
 		 * Android's toybox `setsid`, or else [terminalSetsid], the util-linux one the Terminal installs,
 		 * whichever first runs commands in place (see [usableSetsid]); and `kill(2)` through [Os].
-		 * Checked once per [terminalSetsid].
+		 * Checked once per [terminalSetsid], unless neither works while [terminalSetsid] cannot run
+		 * yet: the Terminal installs it at first-run setup, possibly after plugins have run commands,
+		 * and where toybox's forks (Android 11) it is the only one that works.
 		 */
 		fun android(terminalSetsid: File): ProcessGroups =
-			android.computeIfAbsent(terminalSetsid.path) {
-				ProcessGroups(usableSetsid(listOf(ANDROID_SETSID, terminalSetsid.path), ANDROID_SH), ::osSignal)
+			android(terminalSetsid) { usableSetsid(listOf(ANDROID_SETSID, terminalSetsid.path), ANDROID_SH) }
+
+		/** [android], with [findSetsid] in place of checking the candidates. */
+		internal fun android(
+			terminalSetsid: File,
+			findSetsid: () -> String?,
+		): ProcessGroups =
+			android[terminalSetsid.path] ?: synchronized(android) {
+				android[terminalSetsid.path] ?: run {
+					val setsid = findSetsid()
+					val groups = ProcessGroups(setsid, ::osSignal)
+					if (setsid != null || terminalSetsid.canExecute()) android[terminalSetsid.path] = groups
+					groups
+				}
 			}
 
 		private fun osSignal(
