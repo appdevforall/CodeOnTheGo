@@ -205,7 +205,7 @@ fun Activity.flashSuccess(
 
 fun Activity.flashError(
 	@StringRes msg: Int,
-) = showFlashBar(msg, IconType.ERROR)
+) = flashError(getString(msg))
 
 fun Activity.flashInfo(
 	@StringRes msg: Int,
