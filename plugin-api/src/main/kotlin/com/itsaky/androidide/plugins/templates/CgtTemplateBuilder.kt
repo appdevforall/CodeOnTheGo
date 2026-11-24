@@ -3,6 +3,7 @@ package com.itsaky.androidide.plugins.templates
 import com.itsaky.androidide.plugins.PluginContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.util.Calendar
 import java.util.GregorianCalendar
@@ -122,6 +123,12 @@ class CgtTemplateBuilder(
 		binaryFiles.add(BinaryFileEntry(sanitizePath(path), bytes))
 	}
 
+	/**
+	 * Writes the template to `<outputDir>/<name>.cgt`, where `<name>` is the template name's
+	 * letters and digits, and returns that file. The same template always gives the same bytes,
+	 * and a file that already holds them is left untouched, so its modification time shows when
+	 * the template last changed, not when it was last built.
+	 */
 	fun build(outputDir: File): File {
 		outputDir.mkdirs()
 		val dirName = templateName.replace(DIR_NAME_REGEX, "")
@@ -345,7 +352,13 @@ class CgtTemplateBuilder(
 	// template differ.
 	private fun entry(path: String) = ZipEntry(path).apply { time = fixedEntryTime() }
 
-	private fun File.hasContent(bytes: ByteArray) = isFile && length() == bytes.size.toLong() && readBytes().contentEquals(bytes)
+	// A file that can't be read counts as different, so the write is tried.
+	private fun File.hasContent(bytes: ByteArray): Boolean =
+		try {
+			isFile && length() == bytes.size.toLong() && readBytes().contentEquals(bytes)
+		} catch (e: IOException) {
+			false
+		}
 
 	private data class TextParam(
 		val label: String,

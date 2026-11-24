@@ -6,7 +6,9 @@ import com.itsaky.androidide.plugins.services.IdeTemplateService
 import com.itsaky.androidide.plugins.templates.CgtTemplateBuilder
 import com.itsaky.androidide.utils.Environment
 import org.slf4j.LoggerFactory
+import java.io.DataInputStream
 import java.io.File
+import java.io.IOException
 
 class IdeTemplateServiceImpl(
 	private val pluginId: String,
@@ -18,6 +20,7 @@ class IdeTemplateServiceImpl(
 		private val log = LoggerFactory.getLogger(IdeTemplateServiceImpl::class.java)
 		private const val PLUGIN_PREFIX = "plugin_"
 		private const val CGT_EXTENSION = "cgt"
+		private const val COMPARE_CHUNK = 8192
 	}
 
 	private fun prefixedName(fileName: String): String = "${PLUGIN_PREFIX}${pluginId}_$fileName"
@@ -38,9 +41,9 @@ class IdeTemplateServiceImpl(
 		val destFile = File(Environment.TEMPLATES_DIR, prefixedName(cgtFile.name))
 		return try {
 			// Plugins register their templates on every activation. An identical copy is left
-			// alone, and the template list has nothing new to reload (ADFA-7287).
+			// alone, and there is no change to report (ADFA-7287).
 			if (destFile.hasSameContentAs(cgtFile)) {
-				log.debug("Plugin $pluginId template unchanged: ${destFile.name}")
+				log.debug("Plugin {} template unchanged: {}", pluginId, destFile.name)
 				return true
 			}
 			cgtFile.copyTo(destFile, overwrite = true)
@@ -83,7 +86,34 @@ class IdeTemplateServiceImpl(
 
 	private fun otherPluginIds() = loadedPluginIds() - pluginId
 
-	private fun File.hasSameContentAs(other: File) = isFile && length() == other.length() && readBytes().contentEquals(other.readBytes())
+	// Compared in chunks, not read whole: a plugin may register a template of any size, such as one
+	// built from the user's project. A failed read counts as a difference, so the copy is made.
+	private fun File.hasSameContentAs(other: File): Boolean =
+		try {
+			isFile && length() == other.length() && sameBytes(this, other)
+		} catch (e: IOException) {
+			false
+		}
+
+	private fun sameBytes(
+		x: File,
+		y: File,
+	): Boolean =
+		DataInputStream(x.inputStream().buffered()).use { a ->
+			DataInputStream(y.inputStream().buffered()).use { b ->
+				val bufA = ByteArray(COMPARE_CHUNK)
+				val bufB = ByteArray(COMPARE_CHUNK)
+				var n = a.read(bufA)
+				while (n != -1) {
+					b.readFully(bufB, 0, n)
+					for (i in 0 until n) {
+						if (bufA[i] != bufB[i]) return false
+					}
+					n = a.read(bufA)
+				}
+				true
+			}
+		}
 
 	override fun reloadTemplates() {
 		onTemplatesChanged()

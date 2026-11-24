@@ -15,7 +15,7 @@ import java.io.File
 
 /**
  * Plugins register their templates on every activation (ADFA-7287). Registering an unchanged
- * template must leave the registered copy alone and not reload the template list.
+ * template must leave the registered copy alone and report no change.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -50,7 +50,7 @@ class IdeTemplateServiceImplRegisterTest {
 		assertThat(service.registerTemplate(cgt)).isTrue()
 
 		assertWithMessage("the identical copy was written again").that(copy.lastModified()).isEqualTo(old)
-		assertWithMessage("template list reloads").that(reloads).isEqualTo(1)
+		assertWithMessage("change reports").that(reloads).isEqualTo(1)
 	}
 
 	@Test
@@ -63,7 +63,22 @@ class IdeTemplateServiceImplRegisterTest {
 		assertThat(service.registerTemplate(cgt)).isTrue()
 
 		assertThat(File(templates, "plugin_com.example.my_Starter.cgt").readText()).isEqualTo("v2")
-		assertWithMessage("template list reloads").that(reloads).isEqualTo(2)
+		assertWithMessage("change reports").that(reloads).isEqualTo(2)
+	}
+
+	@Test
+	fun registeringATemplateChangedOnlyInItsLastByteReplacesTheCopy() {
+		// Longer than one comparison chunk, so the difference is in a later chunk.
+		val bytes = ByteArray(20_000) { it.toByte() }
+		val cgt = File(pluginDir, "Starter.cgt").apply { writeBytes(bytes) }
+		val service = service()
+		service.registerTemplate(cgt)
+
+		bytes[bytes.lastIndex] = (bytes.last() + 1).toByte()
+		cgt.writeBytes(bytes)
+		assertThat(service.registerTemplate(cgt)).isTrue()
+
+		assertThat(File(templates, "plugin_com.example.my_Starter.cgt").readBytes()).isEqualTo(bytes)
 	}
 
 	@Test
