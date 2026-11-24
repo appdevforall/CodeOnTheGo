@@ -72,6 +72,7 @@ class IndexWorkerPhaseLifecycleTest {
 			fileIndex = fileIndex,
 			sourceIndex = sourceIndex,
 			scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+			resolvesTo = { _, _ -> true },
 		)
 	}
 
@@ -203,7 +204,7 @@ class IndexWorkerPhaseLifecycleTest {
 			mockPsiManager(ktFile = mockk())
 			mockkStatic("com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexerKt")
 			var attempts = 0
-			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } answers {
+			coEvery { indexSourceFile(any(), any(), any(), any(), any(), any()) } answers {
 				if (++attempts == 1) throw AnalysisPreemptedException()
 				sink.events += "indexed retry"
 				true
@@ -237,7 +238,7 @@ class IndexWorkerPhaseLifecycleTest {
 		runBlocking {
 			Memprof.sink = sink
 			mockkStatic("com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexerKt")
-			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } answers {
+			coEvery { indexSourceFile(any(), any(), any(), any(), any(), any()) } answers {
 				sink.events += "indexed edit"
 				true
 			}
@@ -267,7 +268,7 @@ class IndexWorkerPhaseLifecycleTest {
 			Memprof.sink = sink
 			mockPsiManager(ktFile = mockk())
 			mockkStatic("com.itsaky.androidide.lsp.kotlin.compiler.index.SourceFileIndexerKt")
-			coEvery { indexSourceFile(any(), any(), any(), any(), any()) } returns false
+			coEvery { indexSourceFile(any(), any(), any(), any(), any(), any()) } returns false
 			val worker = worker()
 
 			worker.submitCommand(IndexCommand.SourceScanningStarted(pass = 1))
