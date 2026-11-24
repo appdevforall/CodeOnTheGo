@@ -93,8 +93,9 @@ class BundledPluginStartupTest {
 			writeBundle("a")
 			startup(loadError = { "boom" }).start()
 
-			val first = record.markReported()
-			val second = record.markReported()
+			val told = record.unreportedFailures()
+			val first = record.markReported(told)
+			val second = record.markReported(told)
 
 			assertThat(first.map { it.pluginId }).containsExactly("a")
 			assertThat(second).isEmpty()

@@ -93,13 +93,17 @@ class BundledAddonsRecord(
 	@Synchronized
 	fun unreportedFailures(): List<BundledPluginFailure> = read()?.failures.orEmpty().filterNot { it.reported }
 
-	/** Marks every recorded failure as told, and returns those that were not before. */
+	/**
+	 * Marks [told] as told, and returns those that were not before. A failure recorded since [told]
+	 * was read, or recorded again with another message, stays unreported.
+	 */
 	@Synchronized
-	fun markReported(): List<BundledPluginFailure> {
+	fun markReported(told: Collection<BundledPluginFailure>): List<BundledPluginFailure> {
 		val state = read() ?: return emptyList()
-		val pending = state.failures.filterNot { it.reported }
+		val keys = told.mapTo(HashSet()) { it.pluginId to it.message }
+		val pending = state.failures.filter { !it.reported && (it.pluginId to it.message) in keys }
 		if (pending.isNotEmpty()) {
-			write(state.copy(failures = state.failures.map { it.copy(reported = true) }))
+			write(state.copy(failures = state.failures.map { if (it in pending) it.copy(reported = true) else it }))
 		}
 		return pending
 	}
