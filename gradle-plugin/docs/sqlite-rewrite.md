@@ -198,6 +198,11 @@ dependency, and runs the script on both APKs. The release must pass. The debug A
 ## Known limits
 
 - Room's `BundledSQLiteDriver` is not covered (it brings its own SQLite).
+- `androidTest` classes are not rewritten: `SqliteRewritePlugin` registers the transform on each variant's
+  `instrumentation` only, not on `variant.androidTest`'s (read from the code, not run). An instrumented test that
+  calls app code with SQLite types in its signatures (for example `val db: SQLiteDatabase = MyHelper(ctx).writableDatabase`)
+  keeps the platform descriptor, while the rewritten app class has requery's, so it can fail to link with a
+  `NoSuchMethodError` (not run).
 - requery's native library is built without ICU: there is no `UNICODE` collator (a `COLLATE UNICODE` string
   constant fails the build, see above; the clause is found through whitespace, SQL comments and a quoted name, which needs no space after `COLLATE`, and
   `UNICODE_CI` is a different collation and passes) and `LOCALIZED` compares bytes (a warning).
