@@ -261,7 +261,15 @@ class McpHttp(
 					// Refuse before reading a body, so an unauthenticated client never gets that far.
 					if (!allowed(head, out)) return true
 					c.soTimeout = IDLE_TIMEOUT_MS
-					head.body = readBody(input, head.headers)
+					head.body =
+						readBody(input, head.headers) {
+							// RFC 9110 10.1.1: a client that sent Expect: 100-continue waits for this before
+							// the body. HTTP/1.0 requests are ignored, as the RFC says.
+							if (head.version != "HTTP/1.0" && head.headers["expect"].equals("100-continue", ignoreCase = true)) {
+								out.write("HTTP/1.1 100 Continue\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+								out.flush()
+							}
+						}
 					head
 				} catch (e: SocketTimeoutException) {
 					return false
@@ -426,16 +434,19 @@ class McpHttp(
 	private fun readBody(
 		input: InputStream,
 		h: Map<String, String>,
+		beforeRead: () -> Unit,
 	): ByteArray {
 		val te = h["transfer-encoding"]
 		if (te != null) {
 			if (!te.equals("chunked", ignoreCase = true)) throw HttpError(501, "Transfer-Encoding $te isn't supported.")
 			if (h.containsKey("content-length")) throw HttpError(400, "Both Content-Length and Transfer-Encoding were sent.")
+			beforeRead()
 			return readChunked(input)
 		}
 		val len = h["content-length"] ?: return ByteArray(0)
 		val n = len.toLongOrNull()?.takeIf { it >= 0 } ?: throw HttpError(400, "Content-Length isn't a number.")
 		if (n > MAX_BODY_BYTES) throw HttpError(413, "The request is larger than ${MAX_BODY_BYTES / 1024} KB.")
+		if (n > 0) beforeRead()
 		return readExactly(input, n.toInt())
 	}
 

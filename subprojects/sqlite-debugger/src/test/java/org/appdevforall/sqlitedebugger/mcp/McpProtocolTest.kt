@@ -527,6 +527,71 @@ class McpProtocolTest {
 		assertEquals(200, http(s.boundPort, "POST", headers = auth, body = initBody()).status)
 	}
 
+	/** Opens a connection, writes [head] and flushes it, and passes the socket on; the body is the test's to send. */
+	private fun <T> rawPost(
+		port: Int,
+		extra: String,
+		bodyBytes: Int,
+		use: (Socket) -> T,
+	): T =
+		Socket("127.0.0.1", port).use { s ->
+			s.soTimeout = 5000
+			val head =
+				"POST ${McpHttp.PATH} HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nConnection: close\r\n" +
+					"Content-Type: application/json\r\nContent-Length: $bodyBytes\r\n$extra\r\n"
+			s.getOutputStream().apply {
+				write(head.toByteArray(Charsets.ISO_8859_1))
+				flush()
+			}
+			use(s)
+		}
+
+	@Test fun httpAnswers100ContinueBeforeTheBodyWhenAsked() {
+		val port = startServer()
+		val body = initBody().toByteArray(Charsets.UTF_8)
+		rawPost(port, "Authorization: Bearer $token\r\nExpect: 100-Continue\r\n", body.size) { s ->
+			val interim = "HTTP/1.1 100 Continue\r\n\r\n"
+			s.soTimeout = 2000
+			assertEquals(interim, s.getInputStream().readNBytes(interim.length).toString(Charsets.ISO_8859_1))
+			s.soTimeout = 5000
+			s.getOutputStream().apply {
+				write(body)
+				flush()
+			}
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 200"))
+		}
+	}
+
+	@Test fun httpSendsNoInterimReplyWithoutExpect() {
+		val port = startServer()
+		val body = initBody().toByteArray(Charsets.UTF_8)
+		rawPost(port, "Authorization: Bearer $token\r\n", body.size) { s ->
+			s.getOutputStream().apply {
+				write(body)
+				flush()
+			}
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 200"))
+			assertFalse(text, text.contains("100 Continue"))
+		}
+	}
+
+	@Test fun httpRefusalBeforeTheBodySendsOnlyItsFinalReply() {
+		val port = startServer()
+		// a wrong token, and a body over the limit: each is refused before the body, with no interim reply
+		for ((extra, size, status) in listOf(
+			Triple("Authorization: Bearer wrong\r\nExpect: 100-continue\r\n", 10, 401),
+			Triple("Authorization: Bearer $token\r\nExpect: 100-continue\r\n", McpHttp.MAX_BODY_BYTES + 1, 413),
+		)) {
+			rawPost(port, extra, size) { s ->
+				val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+				assertTrue(text, text.startsWith("HTTP/1.1 $status"))
+				assertFalse(text, text.contains("100 Continue"))
+			}
+		}
+	}
+
 	@Test fun httpSessionThenDelete() {
 		val port = startServer()
 		val s = http(port, "POST", headers = auth, body = initBody()).headers["mcp-session-id"]!!
