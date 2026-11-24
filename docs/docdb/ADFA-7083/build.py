@@ -21,8 +21,9 @@ A page is Markdown, a small subset of it, after a front matter block:
 Supported: `##` and `###` headings, paragraphs, `-` and `1.` lists, `>` notes,
 pipe tables, fenced code blocks, `code`, **bold** and [links](page.html). A link to
 an http(s) address is shown as text, because the documentation stays on the device.
-The word after a code block's opening fence (`sql`, `kotlin`, `gradle`, `text`) is
-for the tests, which run or compile the block: the page shows every block the same.
+The word after a code block's opening fence (`sql`, `kotlin`, `java`, `gradle`,
+`gradle-java`, `text`) is for the tests, which run or compile the block: the page
+shows every block the same.
 """
 import html
 import json

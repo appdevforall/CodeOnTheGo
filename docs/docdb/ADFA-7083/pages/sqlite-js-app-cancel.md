@@ -73,14 +73,24 @@ If the coroutine is cancelled while `cancellable()` waits for the query, `cancel
 Wrap only a query that may need stopping, and cancel its coroutine from your **Cancel** button:
 
 ```kotlin
-class RunawayQuery(private val scope: CoroutineScope, private val products: ProductDao) {
+class RunawayQuery(
+    private val scope: CoroutineScope,
+    private val products: ProductDao,
+    private val onError: (Exception) -> Unit,
+) {
     private var job: Job? = null
 
     /** Starts JavaScript that never ends, unless its earlier start still runs. */
     fun start() {
         if (job?.isCompleted == false) return
         job = scope.launch {
-            cancellable { products.spin() }
+            try {
+                cancellable { products.spin() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onError(e)
+            }
         }
     }
 
@@ -92,6 +102,8 @@ class RunawayQuery(private val scope: CoroutineScope, private val products: Prod
 ```
 
 `start()` does nothing while the query it started earlier still runs, including the moment after `cancel()` while `cancellable()` stops it. A second query would replace the first in `job`, and `cancel()` would no longer cancel the first.
+
+Keep the `catch`. `cancellable()` throws the query's own error, and an error that leaves a coroutine of `lifecycleScope` ends the app. This query can fail even though its JavaScript never ends: when another `cancellable()` is cancelled, its `cancelAll()` stops this query too, with the error `interrupted`. `onError` gets the error, on the main thread when the scope is `lifecycleScope`, so it can show it. A `CancellationException` is thrown again, so that `cancel()` still cancels the job.
 
 `ProductDao` and its `spin()` are on the page [Set up a database with JavaScript functions](sqlite-js-app-database.html). In an activity, pass `lifecycleScope` as the scope.
 

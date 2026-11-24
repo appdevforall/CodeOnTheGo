@@ -16,8 +16,8 @@ name, in order, each at the line where that statement starts, and no others.
 sqlite3 reads the examples from its standard input, where, as when a reader
 types them, it goes on after an error.
 
-The ```kotlin and ```gradle examples of the app pages are checked by
-test_app_examples.py.
+The ```kotlin, ```java, ```gradle and ```gradle-java examples of the app pages are
+checked by test_app_examples.py.
 
 Usage: SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so python3 test_examples.py
 Prints TAP. Exits 0 only if every example passes.
@@ -69,6 +69,8 @@ def split(block):
         if line.startswith("--"):
             note = re.match(r"^-- ?(.*)$", line).group(1)
             if note.startswith("Error: "):
+                if last is None:
+                    raise ValueError("%r comes before any complete statement" % line)
                 errors.append((note[len("Error: "):], last))
             else:
                 want.append(note)
@@ -104,7 +106,14 @@ def main():
         name = os.path.basename(path)
         earlier, earlier_errors = [], []
         for k, block in enumerate(re.findall(r"^```sql\n(.*?)^```", text, re.M | re.S), 1):
-            sql, want, errors = split(block)
+            try:
+                sql, want, errors = split(block)
+            except ValueError as e:
+                n += 1
+                failed += 1
+                print("not ok %d - %s example %d" % (n, name, k))
+                print("#   %s" % e)
+                continue
             mark = "SELECT '%s';" % BOUNDARY
             # the line of standard input, from 1, where this example starts in each run
             before = sum(lines(e) for e in earlier)

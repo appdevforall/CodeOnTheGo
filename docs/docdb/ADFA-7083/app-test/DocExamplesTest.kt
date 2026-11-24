@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -81,7 +82,8 @@ class DocExamplesTest {
 
 			// RunawayQuery, as a Cancel button would use it; the database works afterwards
 			val scope = CoroutineScope(Dispatchers.Default + Job())
-			val runaway = RunawayQuery(scope, products)
+			val error = AtomicReference<Exception?>(null)
+			val runaway = RunawayQuery(scope, products) { error.set(it) }
 			runaway.start()
 			try {
 				awaitSpin(true)
@@ -94,6 +96,7 @@ class DocExamplesTest {
 				// reaches slugs()
 				withTimeout(60_000) { scope.coroutineContext.job.children.forEach { it.join() } }
 			}
+			assertEquals("cancel() is not an error", null, error.get())
 			withTimeout(60_000) { assertEquals(4, cancellable { products.slugs() }.size) }
 		} finally {
 			db.close()
@@ -107,6 +110,36 @@ class DocExamplesTest {
 			assertEquals(4, again.products().slugs().size)
 		} finally {
 			again.close()
+		}
+	}
+
+	// RunawayQuery hands its query's own error to onError. Uncaught, that error would end the
+	// process. Here a cancelAll() that is not RunawayQuery's stops the query, as the cancel of
+	// another cancellable() would
+	@Test
+	fun runawayQueryHandsAFailedQueryToOnError() = runBlocking {
+		context.deleteDatabase("products.db")
+		val db = openProductDatabase(context)
+		try {
+			val products = db.products()
+			products.insert(sample)
+			val scope = CoroutineScope(Dispatchers.Default + Job())
+			val failed = CompletableDeferred<Exception>()
+			val runaway = RunawayQuery(scope, products) { failed.complete(it) }
+			runaway.start()
+			awaitSpin(true)
+			val error = withTimeout(60_000) {
+				while (!failed.isCompleted) {
+					SqliteJs.cancelAll()
+					delay(10)
+				}
+				failed.await()
+			}
+			assertTrue("onError got: $error", error.message.orEmpty().contains("interrupted"))
+			withTimeout(60_000) { scope.coroutineContext.job.children.forEach { it.join() } }
+			assertEquals(4, products.slugs().size)
+		} finally {
+			db.close()
 		}
 	}
 
@@ -151,7 +184,9 @@ class DocExamplesTest {
 				}
 			}
 		} catch (e: Exception) {
-			// the block's error leaves the transaction, as the page says to let it
+			// the block's error leaves the transaction, as the page says to let it. One from before the
+			// UPDATE leaves message empty: keep it, so that the assertions name it
+			if (message.isEmpty()) message = "failed before the UPDATE: $e"
 		} finally {
 			stopped.set(true)
 			inserted.countDown()

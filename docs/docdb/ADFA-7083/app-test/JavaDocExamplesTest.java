@@ -89,6 +89,29 @@ public class JavaDocExamplesTest {
 		}
 	}
 
+	// waits until no thread runs the loop of a CancellableQuery's cancel(), which calls cancelAll().
+	// RunawayQuery keeps its CancellableQuery to itself, so the loop is found by its stack: a frame
+	// of CancellableQuery, or of the class D8 may make of its lambda. Call it only when no other
+	// thread is in a CancellableQuery (its query has ended, and nothing waits in get())
+	private static void awaitNoCancelLoop() throws InterruptedException {
+		long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+		while (cancelLoopRunning()) {
+			assertTrue("a cancel() loop still running after 60 s", System.nanoTime() < end);
+			Thread.sleep(10);
+		}
+	}
+
+	private static boolean cancelLoopRunning() {
+		for (StackTraceElement[] stack : Thread.getAllStackTraces().values()) {
+			for (StackTraceElement frame : stack) {
+				if (frame.getClassName().contains("CancellableQuery")) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	// what get() throws, on another thread so that a get() that never returns fails the test
 	private static Throwable thrownByGet(CancellableQuery<?> query) throws Exception {
 		ExecutorService waiter = Executors.newSingleThreadExecutor();
@@ -183,9 +206,9 @@ public class JavaDocExamplesTest {
 			} finally {
 				runaway.cancel();
 			}
-			// its cancelAll() calls end with its query; a moment more, so that none reaches slugs()
+			// its query has ended; then its cancel() loop, so that no cancelAll() of it reaches slugs()
 			awaitSpin(false);
-			Thread.sleep(300);
+			awaitNoCancelLoop();
 			assertEquals(4, products.slugs().size());
 
 			// a write stopped inside runInTransaction: Room rolls the transaction back. cancel() calls
@@ -205,8 +228,12 @@ public class JavaDocExamplesTest {
 			// the cancel stopped the UPDATE's JavaScript: the write did not fail for another reason
 			assertTrue(String.valueOf(thrown.getCause()),
 					thrown.getCause() != null && String.valueOf(thrown.getCause().getMessage()).contains("interrupted"));
-			// a moment, so that the last cancelAll() of that cancel cannot reach slugs()
-			Thread.sleep(300);
+			// isDone() once that cancel's loop has ended, so that no cancelAll() of it reaches slugs()
+			long done = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+			while (!write.isDone()) {
+				assertTrue("the write's cancel() loop ended within 60 s", System.nanoTime() < done);
+				Thread.sleep(10);
+			}
 			assertEquals(4, products.slugs().size());
 		} finally {
 			db.close();
