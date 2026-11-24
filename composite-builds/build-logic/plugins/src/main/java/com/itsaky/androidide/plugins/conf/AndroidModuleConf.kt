@@ -53,13 +53,17 @@ private val disableCoreLibDesugaringForModules =
 		":quickbuild:runtime",
 		// The AAR is a dependency of apps built with CoGo (ADFA-7082).
 		":subprojects:sqlite-js",
+		// Injected into debug builds of apps built with CoGo like :logsender (ADFA-7131).
+		":subprojects:sqlite-debugger",
 	)
 
 /**
  * Modules without the v7/v8 flavors: libraries for other projects, which need one artifact.
- * :subprojects:sqlite-js is an AAR for apps built with CoGo, with all the ABIs they run on.
+ * :subprojects:sqlite-js and :subprojects:sqlite-debugger are AARs for apps built with CoGo, with
+ * all the ABIs they run on.
  */
-private val modulesWithoutAbiFlavors = setOf(":plugin-api", ":subprojects:sqlite-js")
+private val modulesWithoutAbiFlavors =
+	setOf(":plugin-api", ":subprojects:sqlite-js", ":subprojects:sqlite-debugger")
 
 /**
  * The name of the build type used for automated testing.
