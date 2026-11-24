@@ -885,6 +885,17 @@ class DatabaseToolsTest {
 		assertTrue(seenSql.none { it.startsWith("SELECT COUNT") })
 	}
 
+	@Test fun getStatsSaysAtLeastWhenTheTableListHitTheCap() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val names = (1..DatabaseTools.MAX_ROWS + 5).map { listOf("t$it") }
+		answerWith("SELECT name" to QueryResult(listOf("name"), names, 0, false))
+		val capped = ok("get_stats", db()).getString("row_counts_skipped")
+		assertTrue(capped, capped.startsWith("The database has at least ${DatabaseTools.MAX_ROWS} tables;"))
+		answerWith("SELECT name" to QueryResult(listOf("name"), names.take(DatabaseTools.MAX_ROWS - 1), 0, false))
+		val exact = ok("get_stats", db()).getString("row_counts_skipped")
+		assertTrue(exact, exact.startsWith("The database has ${DatabaseTools.MAX_ROWS - 1} tables;"))
+	}
+
 	@Test fun integrityCheckIsQuickUnlessAskedForFull() {
 		engine.appConnections += conn(1, "/data/a.db")
 		answerWith("PRAGMA" to QueryResult(listOf("quick_check"), listOf(listOf("ok")), 0, false))

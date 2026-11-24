@@ -494,7 +494,9 @@ class DatabaseTools internal constructor(
 			}
 			out.put("row_counts", counts)
 		} else {
-			out.put("row_counts_skipped", "The database has ${tables.size} tables; counts are given only under $MAX_TABLES_FOR_COUNTS.")
+			// The list above stops at MAX_ROWS, so a full one is a lower bound.
+			val count = if (tables.size >= MAX_ROWS) "at least ${tables.size}" else "${tables.size}"
+			out.put("row_counts_skipped", "The database has $count tables; counts are given only under $MAX_TABLES_FOR_COUNTS.")
 		}
 		return out
 	}
