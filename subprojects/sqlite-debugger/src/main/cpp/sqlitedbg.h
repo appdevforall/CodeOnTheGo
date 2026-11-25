@@ -164,6 +164,7 @@ void sqlitedbg_set_client_connected(int connected);
 // applies a setting while it prepares the statement, unless it reads (table_info, table_xinfo, table_list,
 // index_info, index_xinfo, index_list, foreign_key_list, foreign_key_check, integrity_check, quick_check)
 // or is user_version on a writable connection.
+// A writable connection also enforces foreign keys, whatever the app's connections do.
 // Read-only also sets PRAGMA query_only and refuses every write. Within one statement a lock is held
 // while it runs, so the JNI layer stops a read on a database that is not in WAL mode, and every
 // write, after SQLITEDBG_SERVER_NON_WAL_MS. Read-only mode guards against accidents; it is not a

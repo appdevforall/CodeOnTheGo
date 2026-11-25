@@ -501,6 +501,9 @@ int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db) {
 	int rc = sqlite3_open_v2(path, db, writable ? SQLITE_OPEN_READWRITE : SQLITE_OPEN_READONLY, NULL);
 	tls_opening_server = 0;
 	if (rc == SQLITE_OK && !writable) rc = sqlite3_exec(*db, "PRAGMA query_only=1", NULL, NULL, NULL);
+	// A write must not leave orphan rows whatever the app's own connections do. db_config, not a PRAGMA:
+	// the authorizer refuses PRAGMA foreign_keys, and is not installed yet.
+	if (rc == SQLITE_OK && writable) rc = sqlite3_db_config(*db, SQLITE_DBCONFIG_ENABLE_FKEY, 1, NULL);
 	if (rc == SQLITE_OK) rc = sqlite3_set_authorizer(*db, server_authorizer, writable ? (void *)&k_writable : NULL);
 	// In rollback-journal mode a reader fails at once while the app holds a write lock. Wait a little,
 	// well under the tools' 50 s deadline; the client cannot change it (PRAGMA busy_timeout is refused).

@@ -203,6 +203,17 @@ public class JniQueryTest {
 		}
 		eq(q(r, "SELECT name FROM pragma_table_info('pc')").rows.get(0)[0], "a", "the columns of pc");
 		eq(exec(w, "DROP TABLE pc"), 0L, "drop pc");
+		// foreign keys are enforced on this connection, whatever the app's own connections do
+		eq(exec(w, "CREATE TABLE fp(id INTEGER PRIMARY KEY)"), 0L, "create fp");
+		eq(exec(w, "CREATE TABLE fc(id INTEGER PRIMARY KEY, p INTEGER REFERENCES fp(id) ON DELETE CASCADE)"), 0L, "create fc");
+		eq(exec(w, "INSERT INTO fp VALUES(1)"), 1L, "a parent");
+		eq(exec(w, "INSERT INTO fc VALUES(10, 1)"), 1L, "a child with its parent");
+		eq(execRefusal(w, "INSERT INTO fc VALUES(11, 99)"), "19 FOREIGN KEY constraint failed", "a child with no parent is refused");
+		eq(q(w, "SELECT count(*) FROM fc WHERE id = 11").rows.get(0)[0], 0L, "and nothing is written");
+		eq(exec(w, "DELETE FROM fp WHERE id = 1"), 1L, "deleting the parent: changes 1, not the cascaded rows");
+		eq(q(w, "SELECT count(*) FROM fc").rows.get(0)[0], 0L, "removes its children");
+		eq(exec(w, "DROP TABLE fc"), 0L, "drop fc");
+		eq(exec(w, "DROP TABLE fp"), 0L, "drop fp");
 		eq(execCode(w, "DELETE FROM t WHERE id = -1", new Object[0], System.currentTimeMillis() - 1), 9, "a deadline already past");
 		// a read-only connection still refuses a write through execute
 		eq(execCode(r, "INSERT INTO t(id) VALUES(6004)", new Object[0], FAR), 23, "read-only connection: SQLITE_AUTH");

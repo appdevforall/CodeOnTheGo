@@ -829,6 +829,34 @@ static void test_server_pragma_allowlist(void) {
 	CHECK_EQ(sqlite3_close(app), SQLITE_OK);
 }
 
+// ADFA-7298 review: a writable server connection enforces foreign keys, whatever the app's connection does.
+static void test_server_foreign_keys(void) {
+	char path[320];
+	snprintf(path, sizeof path, "%s/fk.db", g_dir);
+	sqlite3 *app = open_app(path);
+	// SQLite's default here (no SQLITE_DEFAULT_FOREIGN_KEYS in the build): off
+	CHECK_EQ(first_int(app, "PRAGMA foreign_keys"), 0);
+	exec_ok(app, "CREATE TABLE parent(id INTEGER PRIMARY KEY)");
+	exec_ok(app, "CREATE TABLE child(id INTEGER PRIMARY KEY, p INTEGER REFERENCES parent(id) ON DELETE CASCADE)");
+	exec_ok(app, "INSERT INTO parent VALUES(1)");
+	exec_ok(app, "INSERT INTO child VALUES(10, 1)");
+
+	sqlite3 *srv = NULL;
+	CHECK_EQ(sqlitedbg_open_server(path, 1, &srv), SQLITE_OK);
+	CHECK_EQ(first_int(srv, "PRAGMA foreign_keys"), 1);
+	CHECK_EQ(step_all(srv, "INSERT INTO child VALUES(11, 99)"), SQLITE_CONSTRAINT);
+	CHECK_EQ(first_int(app, "SELECT count(*) FROM child WHERE id = 11"), 0);
+	CHECK_EQ(step_all(srv, "DELETE FROM parent WHERE id = 1"), SQLITE_DONE);
+	CHECK_EQ(first_int(app, "SELECT count(*) FROM child"), 0);
+	// the app's own connection is untouched, and a read-only server connection does not enforce
+	CHECK_EQ(first_int(app, "PRAGMA foreign_keys"), 0);
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	CHECK_EQ(sqlitedbg_open_server(path, 0, &srv), SQLITE_OK);
+	CHECK_EQ(first_int(srv, "PRAGMA foreign_keys"), 0);
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	CHECK_EQ(sqlite3_close(app), SQLITE_OK);
+}
+
 extern int (*const sqlitedbg_test_server_authorizer)(void *, int, const char *, const char *, const char *,
                                                      const char *);  // sqlitedbg.c, built with SQLITEDBG_TEST
 
@@ -1216,6 +1244,7 @@ int main(int argc, char **argv) {
 		printf("# server holds no locks\n");
 		test_server_holds_no_locks();
 		test_server_pragma_allowlist();
+		test_server_foreign_keys();
 		test_server_ends_transaction();
 		printf("# server waits for locks\n");
 		test_server_waits_for_locks();

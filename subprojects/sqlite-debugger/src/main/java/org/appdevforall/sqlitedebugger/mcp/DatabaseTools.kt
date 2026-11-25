@@ -297,6 +297,8 @@ class DatabaseTools internal constructor(
 					"a WITHOUT ROWID table, an ignored row; rows inserted by triggers do not count). One statement per call; " +
 					"BEGIN, COMMIT, ROLLBACK and SAVEPOINT are refused, so several statements cannot be made atomic. " +
 					"A statement that does not write is refused: use query. Rows from RETURNING are not returned. " +
+					"Foreign keys are enforced here whatever the app's own connections do: ON DELETE and ON UPDATE actions " +
+					"run, and a write the app could make with foreign keys off may be refused. " +
 					"Also refused: ATTACH, every PRAGMA that takes a value except user_version (no setting can be " +
 					"changed), and PRAGMA locking_mode, busy_timeout, query_only, writable_schema, the heap limits and " +
 					"temp_store_directory in any form, as they would reach the app's own connections. $WRITE_NOTE " +
