@@ -49,6 +49,15 @@ internal object NativeBridge {
 		deadlineMillis: Long,
 	): Array<Any?>
 
+	/** `{changes}` of one statement that writes (see [ServerConnection.execute]). Throws [DebugEngineException]. */
+	@JvmStatic
+	external fun execute(
+		handle: Long,
+		sql: String,
+		args: Array<Any?>,
+		deadlineMillis: Long,
+	): LongArray
+
 	@JvmStatic
 	external fun close(handle: Long)
 }

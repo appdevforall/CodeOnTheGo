@@ -13,8 +13,12 @@ import java.util.Timer
 import java.util.TimerTask
 
 /**
- * The debugger's MCP tools, all read-only: they open server connections through [engine] with
- * `writable = false`, so SQLite's authorizer refuses a write whatever SQL a client sends. A tool
+ * The debugger's MCP tools. All but execute are read-only: they open server connections through
+ * [engine] with `writable = false`, so SQLite's authorizer refuses a write whatever SQL a client
+ * sends. execute (ADFA-7298) runs one statement that writes on a separate writable connection, in
+ * autocommit; on both, the authorizer refuses transactions and the PRAGMAs that would reach the
+ * app's own connections. Read-only was a guard against accidents, not a security boundary
+ * (ADFA-7131, D11); the client decides which tools to allow. A tool
  * names a database by the path one of the app's own connections has open; any other path is
  * refused before the engine is called (opening a file Android's SQLite has open, with the
  * extension's SQLite, can corrupt it).
@@ -90,6 +94,14 @@ class DatabaseTools internal constructor(
 				"longer), so a long read does not block the app's own writes; use a narrower query or a LIMIT. A database in " +
 				"WAL mode has no such limit (the $DEADLINE_SECONDS s limit applies, also best effort)."
 
+		/**
+		 * Said by execute. The limit is the same C constant as [NON_WAL_NOTE]'s (sqlitedbg.h), applied to every write
+		 * whatever the journal mode: a write holds the database's write lock, which the app's own writes wait for.
+		 */
+		const val WRITE_NOTE =
+			"A statement is stopped and rolled back after 1.5 s (best effort: it can run up to about 3 s longer), in every " +
+				"journal mode, so a long write does not make the app's own writes fail; change fewer rows per call."
+
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
 			"Functions the app adds to its own connections, such as sqlite-js's stored JavaScript functions, do not exist " +
@@ -145,6 +157,9 @@ class DatabaseTools internal constructor(
 
 	private val lock = Any()
 	private val serverConnections = HashMap<String, CachedConnection>()
+
+	/** execute's connections, apart from the read-only ones, so a read never runs where writes are allowed. */
+	private val writableConnections = HashMap<String, CachedConnection>()
 	private var clientConnected = false
 	private var lastEventsCallMs = 0L
 	private var cancelIdleCheck: (() -> Unit)? = null
@@ -175,8 +190,10 @@ class DatabaseTools internal constructor(
 	/** Closes the server connections and tells the engine no client is watching. Call when the server stops. */
 	fun onServerStopped() {
 		synchronized(lock) {
-			serverConnections.values.forEach { runCatching { it.connection.close() } }
-			serverConnections.clear()
+			for (cache in listOf(serverConnections, writableConnections)) {
+				cache.values.forEach { runCatching { it.connection.close() } }
+				cache.clear()
+			}
 			cancelPendingIdleCheck()
 			if (clientConnected) {
 				clientConnected = false
@@ -254,7 +271,7 @@ class DatabaseTools internal constructor(
 					"A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
 					"comes back whole. Use offset to page. " +
-					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
+					"$PAGING_NOTE Writes are refused: use execute. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
@@ -263,6 +280,26 @@ class DatabaseTools internal constructor(
 					required = listOf("sql"),
 				),
 			) { call, args -> query(call, args) },
+			tool(
+				"execute",
+				"Run a statement that writes",
+				"Runs one SQL statement that writes, such as INSERT, UPDATE, DELETE, CREATE, DROP, ALTER or a PRAGMA that " +
+					"stores a value, on the app's database, in autocommit: it is committed at once and cannot be undone. " +
+					"Returns changes, the rows the statement itself inserted, updated or deleted (not those of triggers or " +
+					"foreign key actions), and 0 for one that changes no row, such as CREATE TABLE. One statement per call; " +
+					"BEGIN, COMMIT, ROLLBACK and SAVEPOINT are refused, so several statements cannot be made atomic. " +
+					"A statement that does not write is refused: use query. Rows from RETURNING are not returned. " +
+					"Also refused: ATTACH, and PRAGMA locking_mode, busy_timeout, query_only, writable_schema, the heap limits, " +
+					"temp_store_directory, and setting journal_mode or schema_version, as they would reach the app's own " +
+					"connections. $WRITE_NOTE The app is not told about the change: a screen showing this data may stay " +
+					"stale until it reads it again. $APP_FUNCTIONS_NOTE.",
+				databaseSchema(
+					"sql" to prop("string", "The SQL statement."),
+					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
+					required = listOf("sql"),
+				),
+				readOnly = false,
+			) { call, args -> execute(call, args) },
 			tool(
 				"explain_query_plan",
 				"Explain a query plan",
@@ -323,8 +360,9 @@ class DatabaseTools internal constructor(
 		title: String,
 		description: String,
 		inputSchema: JSONObject = JSONObject().put("type", "object").put("properties", JSONObject()).put("additionalProperties", false),
+		readOnly: Boolean = true,
 		run: (Call, JSONObject) -> JSONObject,
-	) = McpTool(name, title, description, inputSchema, readOnly = true, run = { args, deadline ->
+	) = McpTool(name, title, description, inputSchema, readOnly = readOnly, destructive = !readOnly, run = { args, deadline ->
 		val call = Call(deadline)
 		call.locked { expireIdleClientLocked() }
 		run(call, args)
@@ -428,6 +466,16 @@ class DatabaseTools internal constructor(
 		val out = encodeResult(result, offset)
 		out.put("note", PAGING_NOTE)
 		return out
+	}
+
+	private fun execute(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
+		val sql = stringArg(args, "sql")
+		val bind = bindArgs(args)
+		val result = withConnection(call, checkedPath(call, args), writable = true) { it.execute(sql, bind, call.deadline) }
+		return JSONObject().put("changes", encodeLong(result.changes))
 	}
 
 	private fun explain(
@@ -651,22 +699,30 @@ class DatabaseTools internal constructor(
 		bind: List<Any?>,
 		offset: Long,
 		limits: QueryLimits,
-	): QueryResult =
+	): QueryResult = withConnection(call, path, writable = false) { it.query(sql, bind, offset, limits, call.deadline) }
+
+	/** Runs [block] on the cached server connection to [path], opened if need be, under [lock]. */
+	private fun <T> withConnection(
+		call: Call,
+		path: String,
+		writable: Boolean,
+		block: (ServerConnection) -> T,
+	): T =
 		call.locked {
 			try {
 				val live = engine.connections()
 				dropStaleServerConnections(live)
 				val conn =
-					serverConnections
+					(if (writable) writableConnections else serverConnections)
 						.getOrPut(path) {
 							// checkedPath looked at an earlier snapshot: the app may have closed, or begun closing, its
 							// last connection to this path since, and the server never opens a database the app doesn't
 							// have open. knownPaths skips closing connections too; this re-check covers the gap since its snapshot.
 							val ids = live.filter { it.path == path && !it.closing }.map { it.id }.toSet()
 							if (ids.isEmpty()) throw unknownDatabase(path, knownPaths(live))
-							CachedConnection(engine.openServerConnection(path, writable = false), ids)
+							CachedConnection(engine.openServerConnection(path, writable), ids)
 						}.connection
-				conn.query(sql, bind, offset, limits, call.deadline)
+				block(conn)
 			} catch (e: DebugEngineException) {
 				val error = engineError(e)
 				// The time limit counts the call's waits for the lock, so a quick query can run out of time
@@ -690,13 +746,15 @@ class DatabaseTools internal constructor(
 	 * has any more, or only new ones, is stale. Call with [lock] held.
 	 */
 	private fun dropStaleServerConnections(live: List<AppConnection>) {
-		val it = serverConnections.entries.iterator()
-		while (it.hasNext()) {
-			val (path, cached) = it.next()
-			val ids = live.filter { c -> c.path == path && !c.closing }.map { c -> c.id }
-			if (ids.none { id -> id in cached.appConnectionIds }) {
-				runCatching { cached.connection.close() }
-				it.remove()
+		for (cache in listOf(serverConnections, writableConnections)) {
+			val it = cache.entries.iterator()
+			while (it.hasNext()) {
+				val (path, cached) = it.next()
+				val ids = live.filter { c -> c.path == path && !c.closing }.map { c -> c.id }
+				if (ids.none { id -> id in cached.appConnectionIds }) {
+					runCatching { cached.connection.close() }
+					it.remove()
+				}
 			}
 		}
 	}

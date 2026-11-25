@@ -17,6 +17,8 @@ class McpTool(
 	val inputSchema: JSONObject = JSONObject().put("type", "object").put("properties", JSONObject()).put("additionalProperties", false),
 	/** Only reports; changes nothing. Shown to clients as a hint, not relied on. */
 	val readOnly: Boolean = true,
+	/** May delete or overwrite data. Meaningful only when not [readOnly]; a hint like it. */
+	val destructive: Boolean = false,
 	val run: (args: JSONObject, deadlineMs: Long?) -> JSONObject,
 ) {
 	fun describe(): JSONObject =
@@ -30,7 +32,7 @@ class McpTool(
 				JSONObject()
 					.put("title", title)
 					.put("readOnlyHint", readOnly)
-					.put("destructiveHint", false)
+					.put("destructiveHint", destructive)
 					.put("openWorldHint", false),
 			)
 }

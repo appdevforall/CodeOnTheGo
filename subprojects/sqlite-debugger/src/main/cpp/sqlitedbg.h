@@ -201,29 +201,34 @@ void sqlitedbg_set_row_capture(uint32_t max_rows_per_statement, uint32_t max_val
 // (BUSY_TIMEOUT_MS in android_database_SQLiteConnection.cpp, requery/sqlite-android 3.49.0, copied from
 // AOSP). The cap sits below that, with margin for the busy handler's back-off and the app's own work, so
 // a long read never makes the app's commit fail with "database is locked" (ADFA-7136 acceptance
-// criterion 5). A WAL database needs no cap: readers and the writer do not block each other.
+// criterion 5). A WAL database needs no cap for a read: readers and the writer do not block each other.
+// A write is capped in every mode: it holds the write lock, which the app's own writes wait for in the
+// same busy handler (ADFA-7298).
 #define SQLITEDBG_SERVER_NON_WAL_MS 1500
 
-// Opens path for the server with the same SQLite the app uses: SQLITE_OPEN_READONLY unless
-// writable, PRAGMA query_only when read-only, and an authorizer that refuses ordinary writes when
-// read-only, and also BEGIN, SAVEPOINT, PRAGMA locking_mode and PRAGMA busy_timeout: a client cannot
-// hold a lock across statements. Within one statement a lock is held while it runs, so the JNI query
-// path stops a statement on a database that is not in WAL mode after SQLITEDBG_SERVER_NON_WAL_MS. The process-wide PRAGMAs hard_heap_limit, soft_heap_limit and
-// temp_store_directory are refused too: they would change the app's own connections. Read-only mode guards against accidents; it is not a security boundary (ADFA-7131,
-// D11). Never traced and never listed. The caller owns *db and closes it with sqlite3_close_v2.
+// Opens path for the server with the same SQLite the app uses, SQLITE_OPEN_READONLY unless writable
+// (never SQLITE_OPEN_CREATE), with an authorizer. On every server connection it refuses BEGIN, COMMIT,
+// ROLLBACK, SAVEPOINT and RELEASE, ATTACH and DETACH, and the PRAGMAs that would reach the app rather
+// than the data: locking_mode and busy_timeout (a client could hold a lock across statements, or wait
+// on the app's for as long as it likes), the process-wide hard_heap_limit, soft_heap_limit and
+// temp_store_directory, query_only, writable_schema, and setting journal_mode or schema_version.
+// Read-only also sets PRAGMA query_only and refuses every write. Within one statement a lock is held
+// while it runs, so the JNI layer stops a read on a database that is not in WAL mode, and every
+// write, after SQLITEDBG_SERVER_NON_WAL_MS. Read-only mode guards against accidents; it is not a
+// security boundary (ADFA-7131, D11), and a writable connection can change any data the app's can.
+// Never traced and never listed. The caller owns *db and closes it with sqlite3_close_v2.
 // A server connection, unlike an app connection, may use a progress handler (for time limits).
-// The connection waits up to SQLITEDBG_SERVER_BUSY_MS for a lock the app holds (rollback-journal mode)
-// and then reports SQLITE_BUSY.
+// The connection waits up to SQLITEDBG_SERVER_BUSY_MS for a lock the app holds and then reports
+// SQLITE_BUSY.
 // Returns SQLITE_MISUSE before any app connection has opened (the extension then has no SQLite
 // API to call), or what sqlite3_open_v2 returns. A failure after the open (PRAGMA query_only, the
 // authorizer or the busy timeout) closes the connection, sets *db to NULL and returns that code, as
 // does a failed open: *db is non-NULL only with SQLITE_OK.
 int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db);
 
-// Ends a transaction left open on a server connection with ROLLBACK, which the read-only authorizer
-// lets past for this call only: a client's BEGIN, COMMIT and ROLLBACK stay refused. The JNI layer
-// calls it after every query as a backstop; nothing a client can send opens one on a read-only
-// connection. Returns SQLITE_OK when none was open or it was rolled back, else what ROLLBACK
+// Ends a transaction left open on a server connection with ROLLBACK, which the authorizer lets past
+// for this call only: a client's BEGIN, COMMIT and ROLLBACK stay refused. The JNI layer calls it after
+// every query and execute as a backstop; nothing a client can send opens one. Returns SQLITE_OK when none was open or it was rolled back, else what ROLLBACK
 // returned, and the transaction is still open.
 int sqlitedbg_end_transaction(sqlite3 *db);
 
