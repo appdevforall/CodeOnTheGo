@@ -634,6 +634,18 @@ static void test_server(void) {
 	CHECK_EQ(sqlite3_db_readonly(srv, "main"), 0);
 	CHECK_EQ(step_all(srv, "INSERT INTO t VALUES(1234)"), SQLITE_DONE);
 	CHECK_EQ(list_conns(&l), before);
+	// ADFA-7298: ordinary writes, schema changes and the PRAGMAs that only store data are allowed
+	CHECK_EQ(step_all(srv, "UPDATE t SET a=a WHERE a=1234"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "CREATE TABLE w(a)"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "CREATE INDEX wi ON w(a)"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "DROP TABLE w"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "PRAGMA user_version"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "PRAGMA table_info(t)"), SQLITE_DONE);
+	CHECK_EQ(sqlite3_get_autocommit(srv), 1);
+	// not traced, as a read-only one
+	read_all(cur, &b);
+	CHECK_EQ(b.count, 0);
+	batch_free(&b);
 	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
 	CHECK_EQ(sqlite3_prepare_v2(g_main, "SELECT count(*) FROM t WHERE a=1234", -1, &st, NULL), SQLITE_OK);
 	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
@@ -674,18 +686,28 @@ static void test_server_holds_no_locks(void) {
 		"PRAGMA soft_heap_limit=1000000000",
 		"PRAGMA soft_heap_limit",
 		"PRAGMA temp_store_directory='/tmp'",
+		// ADFA-7298: also refused on a writable connection, as they reach the app or its file format
+		"RELEASE s",
+		"ATTACH ':memory:' AS m",
+		"PRAGMA query_only=1",
+		"PRAGMA writable_schema=1",
+		"PRAGMA journal_mode=DELETE",
+		"PRAGMA schema_version=1",
 	};
-	for (size_t i = 0; i < sizeof denied / sizeof denied[0]; i++) {
+	// the same on a read-only and on a writable connection (ADFA-7298)
+	for (size_t i = 0; i < 2 * (sizeof denied / sizeof denied[0]); i++) {
+		int writable = i % 2;
+		const char *sql = denied[i / 2];
 		sqlite3 *srv = NULL;
-		CHECK_EQ(sqlitedbg_open_server(g_db_path, 0, &srv), SQLITE_OK);
-		int rc = step_all(srv, denied[i]);
-		if (rc != SQLITE_AUTH) fprintf(stderr, "not refused: %s (%d)\n", denied[i], rc);
+		CHECK_EQ(sqlitedbg_open_server(g_db_path, writable, &srv), SQLITE_OK);
+		int rc = step_all(srv, sql);
+		if (rc != SQLITE_AUTH) fprintf(stderr, "not refused (writable %d): %s (%d)\n", writable, sql, rc);
 		CHECK_EQ(rc, SQLITE_AUTH);
 		// a read on the same connection, then the app must still be able to write
 		CHECK_EQ(step_all(srv, "SELECT count(*) FROM t"), SQLITE_DONE);
 		char *err = NULL;
 		rc = sqlite3_exec(g_main, "INSERT INTO t VALUES(4242)", NULL, NULL, &err);
-		if (rc != SQLITE_OK) fprintf(stderr, "app write after \"%s\": %s\n", denied[i], err ? err : "?");
+		if (rc != SQLITE_OK) fprintf(stderr, "app write after \"%s\": %s\n", sql, err ? err : "?");
 		sqlite3_free(err);
 		CHECK_EQ(rc, SQLITE_OK);
 		exec_ok(g_main, "DELETE FROM t WHERE a=4242");

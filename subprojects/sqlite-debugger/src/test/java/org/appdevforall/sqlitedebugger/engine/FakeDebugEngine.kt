@@ -9,6 +9,8 @@ class FakeDebugEngine(
 	var answer: (path: String, writable: Boolean, sql: String, args: List<Any?>) -> QueryResult = { _, _, _, _ ->
 		QueryResult(emptyList(), emptyList(), 0, false)
 	},
+	/** Answers [ServerConnection.execute] on a writable connection; a read-only one refuses, as the authorizer does. */
+	var executeAnswer: (path: String, sql: String, args: List<Any?>) -> ExecuteResult = { _, _, _ -> ExecuteResult(0) },
 ) : DebugEngine {
 	val appConnections = mutableListOf<AppConnection>()
 
@@ -135,6 +137,16 @@ class FakeDebugEngine(
 					truncatedCells = if (all.truncatedCellIndexes.isEmpty()) all.truncatedCells else cut.size,
 					truncatedCellIndexes = cut,
 				)
+			}
+
+			override fun execute(
+				sql: String,
+				args: List<Any?>,
+				deadlineMillis: Long,
+			): ExecuteResult {
+				check(!closed) { "closed" }
+				if (!writable) throw DebugEngineException(DebugEngineException.SQLITE_AUTH, "not authorized")
+				return executeAnswer(path, sql, args)
 			}
 
 			override fun close() {
