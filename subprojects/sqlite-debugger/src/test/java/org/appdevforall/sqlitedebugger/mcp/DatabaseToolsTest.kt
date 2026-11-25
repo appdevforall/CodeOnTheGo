@@ -1163,7 +1163,7 @@ class DatabaseToolsTest {
 		val ran = mutableListOf<Pair<String, List<Any?>>>()
 		engine.executeAnswer = { _, sql, args ->
 			ran += sql to args
-			ExecuteResult(changes = 3)
+			ExecuteResult(changes = 3, lastInsertRowid = null)
 		}
 		val t = tools
 		ok("query", db().put("sql", "select 1"), t)
@@ -1178,8 +1178,21 @@ class DatabaseToolsTest {
 
 	@Test fun executeReportsChangesPastTwoToTheFiftyThirdAsAString() {
 		engine.appConnections += conn(1, "/data/a.db")
-		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1L shl 60) }
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1L shl 60, lastInsertRowid = null) }
 		assertEquals((1L shl 60).toString(), ok("execute", db().put("sql", "delete from t")).getString("changes"))
+	}
+
+	@Test fun executeReportsLastInsertRowidAsANumberOrNull() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1, lastInsertRowid = 42) }
+		val inserted = ok("execute", db().put("sql", "insert into t values (1)"))
+		assertEquals(42, inserted.getInt("last_insert_rowid"))
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1, lastInsertRowid = 1L shl 60) }
+		assertEquals((1L shl 60).toString(), ok("execute", db().put("sql", "insert into t values (1)")).getString("last_insert_rowid"))
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1, lastInsertRowid = null) }
+		val updated = ok("execute", db().put("sql", "update t set a = 1"))
+		assertTrue(updated.has("last_insert_rowid"))
+		assertTrue(updated.isNull("last_insert_rowid"))
 	}
 
 	@Test fun executeErrorsCarryTheSqliteCode() {

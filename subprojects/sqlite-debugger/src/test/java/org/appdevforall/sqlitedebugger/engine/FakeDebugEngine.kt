@@ -10,7 +10,7 @@ class FakeDebugEngine(
 		QueryResult(emptyList(), emptyList(), 0, false)
 	},
 	/** Answers [ServerConnection.execute] on a writable connection; a read-only one refuses, as the authorizer does. */
-	var executeAnswer: (path: String, sql: String, args: List<Any?>) -> ExecuteResult = { _, _, _ -> ExecuteResult(0) },
+	var executeAnswer: (path: String, sql: String, args: List<Any?>) -> ExecuteResult = { _, _, _ -> ExecuteResult(0, null) },
 ) : DebugEngine {
 	val appConnections = mutableListOf<AppConnection>()
 

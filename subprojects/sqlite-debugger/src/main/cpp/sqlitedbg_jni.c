@@ -525,9 +525,12 @@ done:
 }
 
 // Runs one statement that writes, to its end, on a writable server connection (ADFA-7298). Rows it
-// returns (RETURNING) are read and dropped. Returns {changes}: the rows the statement itself inserted,
-// updated or deleted (sqlite3_changes64), or 0 when it changed none, such as CREATE TABLE, which leaves
-// sqlite3_changes64 at the previous write's count (ADFA-7131 comment 41489).
+// returns (RETURNING) are read and dropped. Returns {changes, last_insert_rowid}: changes is the rows the
+// statement itself inserted, updated or deleted (sqlite3_changes64), or 0 when it changed none, such as
+// CREATE TABLE, which leaves sqlite3_changes64 at the previous write's count (ADFA-7131 comment 41489).
+// last_insert_rowid is the rowid of the last row the statement inserted into a rowid table, and 0 when it
+// inserted none (0 stands for null; a row inserted with rowid 0 reads as none, accepted). Inserts made
+// by a trigger do not count: SQLite restores the value when the trigger ends.
 static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args, jlong deadline_ms) {
 	(void)cls;
 	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
@@ -559,6 +562,9 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 	handler_set = 1;
 
 	sqlite3_int64 total_before = sqlite3_total_changes64(db);
+	// the connection is cached and keeps its value across statements: without this an UPDATE would
+	// report the rowid of an earlier execute's INSERT
+	sqlite3_set_last_insert_rowid(db, 0);
 	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {}
 	if (rc != SQLITE_DONE) {
 		if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {
@@ -572,9 +578,11 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 		else throw_engine(env, rc, sqlite3_errmsg(db));
 		goto done;
 	}
-	jlong changes = sqlite3_total_changes64(db) == total_before ? 0 : (jlong)sqlite3_changes64(db);
-	result = (*env)->NewLongArray(env, 1);
-	if (result) (*env)->SetLongArrayRegion(env, result, 0, 1, &changes);
+	jlong out[2];
+	out[0] = sqlite3_total_changes64(db) == total_before ? 0 : (jlong)sqlite3_changes64(db);
+	out[1] = (jlong)sqlite3_last_insert_rowid(db);
+	result = (*env)->NewLongArray(env, 2);
+	if (result) (*env)->SetLongArrayRegion(env, result, 0, 2, out);
 
 done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);

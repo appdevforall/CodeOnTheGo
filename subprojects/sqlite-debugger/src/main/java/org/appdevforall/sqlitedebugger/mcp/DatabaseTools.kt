@@ -286,7 +286,9 @@ class DatabaseTools internal constructor(
 				"Runs one SQL statement that writes, such as INSERT, UPDATE, DELETE, CREATE, DROP, ALTER or a PRAGMA that " +
 					"stores a value, on the app's database, in autocommit: it is committed at once and cannot be undone. " +
 					"Returns changes, the rows the statement itself inserted, updated or deleted (not those of triggers or " +
-					"foreign key actions), and 0 for one that changes no row, such as CREATE TABLE. One statement per call; " +
+					"foreign key actions), and 0 for one that changes no row, such as CREATE TABLE, and last_insert_rowid, " +
+					"the rowid of the last row it inserted into a rowid table, or null when it inserted none (an UPDATE, " +
+					"a WITHOUT ROWID table, an ignored row; rows inserted by triggers do not count). One statement per call; " +
 					"BEGIN, COMMIT, ROLLBACK and SAVEPOINT are refused, so several statements cannot be made atomic. " +
 					"A statement that does not write is refused: use query. Rows from RETURNING are not returned. " +
 					"Also refused: ATTACH, and PRAGMA locking_mode, busy_timeout, query_only, writable_schema, the heap limits, " +
@@ -475,7 +477,9 @@ class DatabaseTools internal constructor(
 		val sql = stringArg(args, "sql")
 		val bind = bindArgs(args)
 		val result = withConnection(call, checkedPath(call, args), writable = true) { it.execute(sql, bind, call.deadline) }
-		return JSONObject().put("changes", encodeLong(result.changes))
+		return JSONObject()
+			.put("changes", encodeLong(result.changes))
+			.put("last_insert_rowid", result.lastInsertRowid?.let { encodeLong(it) } ?: JSONObject.NULL)
 	}
 
 	private fun explain(

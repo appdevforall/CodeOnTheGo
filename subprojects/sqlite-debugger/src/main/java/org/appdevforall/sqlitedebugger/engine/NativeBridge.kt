@@ -49,7 +49,10 @@ internal object NativeBridge {
 		deadlineMillis: Long,
 	): Array<Any?>
 
-	/** `{changes}` of one statement that writes (see [ServerConnection.execute]). Throws [DebugEngineException]. */
+	/**
+	 * `{changes, last_insert_rowid}` of one statement that writes (see [ServerConnection.execute]); the
+	 * rowid is 0 when the statement inserted no row into a rowid table. Throws [DebugEngineException].
+	 */
 	@JvmStatic
 	external fun execute(
 		handle: Long,

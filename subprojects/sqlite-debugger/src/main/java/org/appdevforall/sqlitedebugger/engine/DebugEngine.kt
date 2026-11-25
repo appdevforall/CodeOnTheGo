@@ -89,6 +89,12 @@ data class ExecuteResult(
 	 * triggers or foreign key actions); 0 for a statement that changed no row, such as CREATE TABLE.
 	 */
 	val changes: Long,
+	/**
+	 * The rowid of the last row the statement inserted into a rowid table, or null when it inserted none
+	 * (an UPDATE, a WITHOUT ROWID table, `INSERT OR IGNORE` that ignored the row). Inserts made by
+	 * triggers do not count. A row inserted with rowid 0 reads as null.
+	 */
+	val lastInsertRowid: Long?,
 )
 
 data class AppConnection(

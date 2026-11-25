@@ -90,8 +90,14 @@ public class JniQueryTest {
 
 	static long exec(long h, String sql, Object... args) throws DebugEngineException {
 		long[] r = NativeBridge.execute(h, sql, args, FAR);
-		eq(r.length, 1, "execute returns {changes}");
+		eq(r.length, 2, "execute returns {changes, last_insert_rowid}");
 		return r[0];
+	}
+
+	/** The rowid execute reports, or null (0 on the wire) when the statement inserted no row. */
+	static Long rowid(long h, String sql, Object... args) throws DebugEngineException {
+		long r = NativeBridge.execute(h, sql, args, FAR)[1];
+		return r == 0 ? null : r;
 	}
 
 	static int execCode(long h, String sql, Object[] args, long deadline) {
@@ -134,6 +140,28 @@ public class JniQueryTest {
 		eq(q(r, "SELECT count(*) FROM t WHERE id IN (6002, 6003)").rows.get(0)[0], 2L, "the writes are visible to a reader");
 		eq(Helper.exec(app, "DELETE FROM t WHERE id IN (6002, 6003)"), 0, "the app's own connection writes after them");
 		eq(Helper.autocommit(app), 1, "and the app's connection is in autocommit");
+
+		// last_insert_rowid: the writable connection is cached, so SQLite's value outlives each statement
+		eq(exec(w, "CREATE TABLE lr(a UNIQUE)"), 0L, "create lr");
+		eq(exec(w, "CREATE TABLE lrw(a PRIMARY KEY) WITHOUT ROWID"), 0L, "create lrw");
+		eq(rowid(w, "INSERT INTO lr VALUES(1)"), 1L, "INSERT reports its rowid");
+		eq(rowid(w, "INSERT INTO lr VALUES(2)"), 2L, "the next INSERT reports the next rowid");
+		eq(rowid(w, "UPDATE lr SET a = a + 10"), null, "an UPDATE after INSERTs reports null, not their rowid");
+		eq(rowid(w, "INSERT INTO lr VALUES(3)"), 3L, "an INSERT again");
+		eq(rowid(w, "INSERT INTO lrw VALUES(1)"), null, "INSERT into a WITHOUT ROWID table: null, not the previous rowid");
+		eq(rowid(w, "INSERT INTO lr VALUES(4)"), 4L, "an INSERT again");
+		eq(rowid(w, "INSERT OR IGNORE INTO lr VALUES(4)"), null, "INSERT OR IGNORE that inserts nothing: null");
+		eq(rowid(w, "INSERT INTO lr VALUES(5), (6), (7)"), 7L, "a multi-row INSERT reports the last row's rowid");
+		eq(rowid(w, "DELETE FROM lr"), null, "a DELETE reports null");
+		// SQLite restores the value when a trigger ends, so inserts made only by a trigger report null
+		eq(exec(w, "CREATE TABLE lt(a)"), 0L, "create lt");
+		eq(exec(w, "CREATE TRIGGER lt_up AFTER UPDATE ON lt BEGIN INSERT INTO lr VALUES(100); END"), 0L, "create trigger");
+		eq(rowid(w, "INSERT INTO lt VALUES(1)"), 1L, "an INSERT with no trigger on it reports its rowid");
+		eq(rowid(w, "UPDATE lt SET a = 2"), null, "an UPDATE whose trigger inserts a row reports null");
+		eq(q(r, "SELECT count(*) FROM lr").rows.get(0)[0], 1L, "the trigger did insert");
+		eq(exec(w, "DROP TABLE lt"), 0L, "drop lt");
+		eq(exec(w, "DROP TABLE lr"), 0L, "drop lr");
+		eq(exec(w, "DROP TABLE lrw"), 0L, "drop lrw");
 
 		// a statement that does not write belongs to query
 		eq(execRefusal(w, "SELECT 1"), "1 the statement does not write; run it with query", "a SELECT is refused");
