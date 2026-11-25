@@ -634,7 +634,7 @@ static void test_server(void) {
 	CHECK_EQ(sqlite3_db_readonly(srv, "main"), 0);
 	CHECK_EQ(step_all(srv, "INSERT INTO t VALUES(1234)"), SQLITE_DONE);
 	CHECK_EQ(list_conns(&l), before);
-	// ADFA-7298: ordinary writes, schema changes and the PRAGMAs that only store data are allowed
+	// ADFA-7298: ordinary writes and schema changes are allowed
 	CHECK_EQ(step_all(srv, "UPDATE t SET a=a WHERE a=1234"), SQLITE_DONE);
 	CHECK_EQ(step_all(srv, "CREATE TABLE w(a)"), SQLITE_DONE);
 	CHECK_EQ(step_all(srv, "CREATE INDEX wi ON w(a)"), SQLITE_DONE);
@@ -722,6 +722,139 @@ static void test_server_holds_no_locks(void) {
 	exec_ok(g_main, "INSERT INTO t VALUES(4243)");
 	exec_ok(g_main, "DELETE FROM t WHERE a=4243");
 	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+}
+
+// The first column of the first row of a statement, or -1.
+static long long first_int(sqlite3 *db, const char *sql) {
+	sqlite3_stmt *st;
+	long long v = -1;
+	if (sqlite3_prepare_v2(db, sql, -1, &st, NULL) != SQLITE_OK) return -1;
+	if (sqlite3_step(st) == SQLITE_ROW) v = sqlite3_column_int64(st, 0);
+	sqlite3_finalize(st);
+	return v;
+}
+
+// ADFA-7298 review: SQLite applies a flag PRAGMA while it prepares the statement, so a PRAGMA with an
+// argument is refused unless it is a read of a table, an index or a check limit (or user_version on a
+// writable connection), and the setting is left as it was.
+static void test_server_pragma_allowlist(void) {
+	char path[320];
+	snprintf(path, sizeof path, "%s/pragmas.db", g_dir);
+	sqlite3 *app = open_app(path);
+	exec_ok(app, "CREATE TABLE pt(a INTEGER CHECK(a > 0))");
+	exec_ok(app, "CREATE INDEX pi ON pt(a)");
+	// settings whose value changes at prepare time, and others that only tune the connection
+	static const char *const settings[] = {
+		"PRAGMA foreign_keys = OFF",
+		"PRAGMA foreign_keys(0)",
+		"PRAGMA ignore_check_constraints = 1",
+		"PRAGMA recursive_triggers = 1",
+		"PRAGMA reverse_unordered_selects = 1",
+		"PRAGMA cache_size = 1",
+		"PRAGMA temp_store = 2",
+		"PRAGMA mmap_size = 0",
+		"PRAGMA application_id = 5",
+	};
+	static const char *const flags[] = {"foreign_keys", "ignore_check_constraints", "recursive_triggers",
+	                                    "reverse_unordered_selects", "cache_size", "temp_store", "mmap_size",
+	                                    "application_id"};
+	for (int writable = 0; writable < 2; writable++) {
+		sqlite3 *srv = NULL;
+		CHECK_EQ(sqlitedbg_open_server(path, writable, &srv), SQLITE_OK);
+		long long before[sizeof flags / sizeof flags[0]];
+		char sql[64];
+		for (size_t i = 0; i < sizeof flags / sizeof flags[0]; i++) {
+			snprintf(sql, sizeof sql, "PRAGMA %s", flags[i]);
+			before[i] = first_int(srv, sql);
+		}
+		for (size_t i = 0; i < sizeof settings / sizeof settings[0]; i++) {
+			int rc = step_all(srv, settings[i]);
+			if (rc != SQLITE_AUTH) fprintf(stderr, "not refused (writable %d): %s (%d)\n", writable, settings[i], rc);
+			CHECK_EQ(rc, SQLITE_AUTH);
+		}
+		for (size_t i = 0; i < sizeof flags / sizeof flags[0]; i++) {
+			snprintf(sql, sizeof sql, "PRAGMA %s", flags[i]);
+			long long now = first_int(srv, sql);
+			if (now != before[i]) fprintf(stderr, "changed (writable %d): %s\n", writable, flags[i]);
+			CHECK_EQ(now, before[i]);
+		}
+		if (writable) {
+			// ignore_check_constraints stayed off: a CHECK violation still fails
+			CHECK_EQ(step_all(srv, "INSERT INTO pt VALUES(-1)"), SQLITE_CONSTRAINT);
+			CHECK_EQ(step_all(srv, "INSERT INTO pt VALUES(1)"), SQLITE_DONE);
+			CHECK_EQ(step_all(srv, "DELETE FROM pt"), SQLITE_DONE);
+			// user_version is the one setting that runs
+			CHECK_EQ(step_all(srv, "PRAGMA user_version = 7"), SQLITE_DONE);
+			CHECK_EQ(first_int(srv, "PRAGMA user_version"), 7);
+			CHECK_EQ(step_all(srv, "PRAGMA user_version(0)"), SQLITE_DONE);
+		} else {
+			CHECK_EQ(step_all(srv, "PRAGMA user_version = 7"), SQLITE_AUTH);
+			CHECK_EQ(first_int(srv, "PRAGMA user_version"), 0);
+		}
+		// the reads a client needs to read a schema, with or without an argument
+		static const char *const reads[] = {
+			"PRAGMA table_info(pt)",
+			"PRAGMA table_xinfo(pt)",
+			"PRAGMA table_list(pt)",
+			"PRAGMA table_list",
+			"PRAGMA index_list(pt)",
+			"PRAGMA index_info(pi)",
+			"PRAGMA index_xinfo(pi)",
+			"PRAGMA foreign_key_list(pt)",
+			"PRAGMA foreign_key_check(pt)",
+			"PRAGMA foreign_key_check",
+			"PRAGMA quick_check",
+			"PRAGMA quick_check(5)",
+			"PRAGMA integrity_check(5)",
+			"PRAGMA main.table_info(pt)",
+			"PRAGMA foreign_keys",
+			"PRAGMA journal_mode",
+			"PRAGMA page_count",
+			"PRAGMA user_version",
+			"SELECT * FROM pragma_table_info('pt')",
+			"SELECT * FROM pragma_index_list('pt')",
+			"SELECT * FROM pragma_integrity_check",
+			"SELECT * FROM pragma_foreign_keys",
+		};
+		for (size_t i = 0; i < sizeof reads / sizeof reads[0]; i++) {
+			int rc = step_all(srv, reads[i]);
+			if (rc != SQLITE_DONE) fprintf(stderr, "read refused (writable %d): %s (%d)\n", writable, reads[i], rc);
+			CHECK_EQ(rc, SQLITE_DONE);
+		}
+		// a table-valued PRAGMA function is authorized as the PRAGMA it runs, so it cannot set one
+		CHECK(step_all(srv, "SELECT * FROM pragma_cache_size(1)") != SQLITE_DONE);
+		CHECK_EQ(first_int(srv, "PRAGMA cache_size"), before[4]);
+		CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	}
+	CHECK_EQ(sqlite3_close(app), SQLITE_OK);
+}
+
+// ADFA-7298 review: a writable server connection enforces foreign keys, whatever the app's connection does.
+static void test_server_foreign_keys(void) {
+	char path[320];
+	snprintf(path, sizeof path, "%s/fk.db", g_dir);
+	sqlite3 *app = open_app(path);
+	// SQLite's default here (no SQLITE_DEFAULT_FOREIGN_KEYS in the build): off
+	CHECK_EQ(first_int(app, "PRAGMA foreign_keys"), 0);
+	exec_ok(app, "CREATE TABLE parent(id INTEGER PRIMARY KEY)");
+	exec_ok(app, "CREATE TABLE child(id INTEGER PRIMARY KEY, p INTEGER REFERENCES parent(id) ON DELETE CASCADE)");
+	exec_ok(app, "INSERT INTO parent VALUES(1)");
+	exec_ok(app, "INSERT INTO child VALUES(10, 1)");
+
+	sqlite3 *srv = NULL;
+	CHECK_EQ(sqlitedbg_open_server(path, 1, &srv), SQLITE_OK);
+	CHECK_EQ(first_int(srv, "PRAGMA foreign_keys"), 1);
+	CHECK_EQ(step_all(srv, "INSERT INTO child VALUES(11, 99)"), SQLITE_CONSTRAINT);
+	CHECK_EQ(first_int(app, "SELECT count(*) FROM child WHERE id = 11"), 0);
+	CHECK_EQ(step_all(srv, "DELETE FROM parent WHERE id = 1"), SQLITE_DONE);
+	CHECK_EQ(first_int(app, "SELECT count(*) FROM child"), 0);
+	// the app's own connection is untouched, and a read-only server connection does not enforce
+	CHECK_EQ(first_int(app, "PRAGMA foreign_keys"), 0);
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	CHECK_EQ(sqlitedbg_open_server(path, 0, &srv), SQLITE_OK);
+	CHECK_EQ(first_int(srv, "PRAGMA foreign_keys"), 0);
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	CHECK_EQ(sqlite3_close(app), SQLITE_OK);
 }
 
 extern int (*const sqlitedbg_test_server_authorizer)(void *, int, const char *, const char *, const char *,
@@ -1110,6 +1243,8 @@ int main(int argc, char **argv) {
 		test_server();
 		printf("# server holds no locks\n");
 		test_server_holds_no_locks();
+		test_server_pragma_allowlist();
+		test_server_foreign_keys();
 		test_server_ends_transaction();
 		printf("# server waits for locks\n");
 		test_server_waits_for_locks();

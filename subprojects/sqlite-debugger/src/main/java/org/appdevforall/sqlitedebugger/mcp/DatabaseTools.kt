@@ -16,9 +16,10 @@ import java.util.TimerTask
  * The debugger's MCP tools. All but execute are read-only: they open server connections through
  * [engine] with `writable = false`, so SQLite's authorizer refuses a write whatever SQL a client
  * sends. execute (ADFA-7298) runs one statement that writes on a separate writable connection, in
- * autocommit; on both, the authorizer refuses transactions and the PRAGMAs that would reach the
- * app's own connections. Read-only was a guard against accidents, not a security boundary
- * (ADFA-7131, D11); the client decides which tools to allow. A tool
+ * autocommit; on both, the authorizer refuses transactions, the PRAGMAs that would reach the
+ * app's own connections and every PRAGMA that sets a value (user_version on the writable one excepted).
+ * Read-only was a guard against accidents, not a security boundary (ADFA-7131, D11); the client decides
+ * which tools to allow. A tool
  * names a database by the path one of the app's own connections has open; any other path is
  * refused before the engine is called (opening a file Android's SQLite has open, with the
  * extension's SQLite, can corrupt it).
@@ -118,6 +119,10 @@ class DatabaseTools internal constructor(
 				"InvalidationTracker) can show stale data, and the app's caches can keep old values, until the app queries again " +
 				"or restarts. Tell the user this; to write anyway, call execute again with acknowledge_room true. Later writes to " +
 				"this database then run without asking until the app restarts."
+
+		private const val READ_PRAGMAS_NOTE =
+			"table_info, table_xinfo, table_list, index_info, index_xinfo, index_list, foreign_key_list, " +
+				"foreign_key_check, integrity_check or quick_check (no setting can be changed)"
 
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
@@ -294,7 +299,8 @@ class DatabaseTools internal constructor(
 					"A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
 					"comes back whole. Use offset to page. " +
-					"$PAGING_NOTE Writes are refused: use execute. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
+					"$PAGING_NOTE Writes are refused: use execute. A PRAGMA with an argument is refused unless it is " +
+					"$READ_PRAGMAS_NOTE. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
@@ -306,17 +312,20 @@ class DatabaseTools internal constructor(
 			tool(
 				"execute",
 				"Run a statement that writes",
-				"Runs one SQL statement that writes, such as INSERT, UPDATE, DELETE, CREATE, DROP, ALTER or a PRAGMA that " +
-					"stores a value, on the app's database, in autocommit: it is committed at once and cannot be undone. " +
+				"Runs one SQL statement that writes, such as INSERT, UPDATE, DELETE, CREATE, DROP, ALTER or " +
+					"PRAGMA user_version = n, on the app's database, in autocommit: it is committed at once and cannot be undone. " +
 					"Returns changes, the rows the statement itself inserted, updated or deleted (not those of triggers or " +
 					"foreign key actions), and 0 for one that changes no row, such as CREATE TABLE, and last_insert_rowid, " +
 					"the rowid of the last row it inserted into a rowid table, or null when it inserted none (an UPDATE, " +
 					"a WITHOUT ROWID table, an ignored row; rows inserted by triggers do not count). One statement per call; " +
 					"BEGIN, COMMIT, ROLLBACK and SAVEPOINT are refused, so several statements cannot be made atomic. " +
 					"A statement that does not write is refused: use query. Rows from RETURNING are not returned. " +
-					"Also refused: ATTACH, and PRAGMA locking_mode, busy_timeout, query_only, writable_schema, the heap limits, " +
-					"temp_store_directory, and setting journal_mode or schema_version, as they would reach the app's own " +
-					"connections. $WRITE_NOTE The app is not told about the change: a screen showing this data may stay " +
+					"Foreign keys are enforced here whatever the app's own connections do: ON DELETE and ON UPDATE actions " +
+					"run, and a write the app could make with foreign keys off may be refused. " +
+					"Also refused: ATTACH, every PRAGMA that takes a value except user_version (no setting can be " +
+					"changed), and PRAGMA locking_mode, busy_timeout, query_only, writable_schema, the heap limits and " +
+					"temp_store_directory in any form, as they would reach the app's own connections. $WRITE_NOTE " +
+					"The app is not told about the change: a screen showing this data may stay " +
 					"stale until it reads it again. $ROOM_DESCRIPTION $APP_FUNCTIONS_NOTE.",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
