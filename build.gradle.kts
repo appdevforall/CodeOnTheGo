@@ -22,6 +22,7 @@ import com.diffplug.spotless.extra.wtp.EclipseWtpFormatterStep
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.FDroidConfig
 import com.itsaky.androidide.build.config.publishingVersion
+import com.itsaky.androidide.build.maven.renameFilesToModuleUrls
 import com.itsaky.androidide.plugins.AndroidIDEPlugin
 import com.itsaky.androidide.plugins.conf.configureAndroidModule
 import com.itsaky.androidide.plugins.conf.configureJavaModule
@@ -664,6 +665,9 @@ fun convertCacheToLocalMavenRepo(
 			Files.copy(filePath, targetFile, StandardCopyOption.REPLACE_EXISTING)
 			logger.lifecycle("Copied ${filePath.relativeTo(normalizedSource)} -> ${targetFile.relativeTo(normalizedDestination)}")
 		}
+
+	// The cache keeps a file under its .module "name"; builds ask for its "url" (ADFA-7220).
+	renameFilesToModuleUrls(normalizedDestination).forEach(logger::lifecycle)
 }
 
 fun zeroCompressMavenRepo(

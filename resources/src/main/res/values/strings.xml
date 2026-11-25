@@ -1317,6 +1317,7 @@
 	<string name="msg_restart_for_plugin_changes">Plugin changes will take effect after restarting the app. Do you want to restart now?</string>
 	<string name="btn_restart_now">Restart now</string>
 	<string name="msg_plugin_install_failed">Failed to install plugin: %1$s</string>
+	<string name="msg_plugin_install_still_loaded">Failed to install plugin: the installed version of %1$s could not be unloaded. Restart Code on the Go and try again.</string>
 	<string name="msg_plugin_signature_mismatch">\'%1$s\' was installed from a different build variant. Uninstall it before installing this version.</string>
 	<string name="msg_plugin_error_clip_label">Plugin error</string>
 	<string name="msg_plugin_file_not_found">Plugin file not found</string>
@@ -1887,5 +1888,9 @@
 	<string name="cd_outline_kind_element">Element</string>
     <string name="initialize_git_repository">Initialize Git Repository</string>
     <string name="git_init_failed">Failed to initialize Git repository</string>
+    <string name="msg_got_it">Got it</string>
+	<string name="package_name_change_title">App update notice</string>
+	<string name="package_name_change_message">Code on the Go’s package name will soon change. With this change, Android will treat the new version as a separate app, so this version won’t be updated. After the change, all your projects will still be in the CodeOnTheGoProjects folder.</string>
+	<string name="package_name_change_learn_more_url" translatable="false">https://appdevforall.org/cogos-package-name-will-change-in-december/</string>
 </resources>
 

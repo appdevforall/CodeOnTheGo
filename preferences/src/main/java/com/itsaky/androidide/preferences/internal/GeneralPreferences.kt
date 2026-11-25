@@ -33,6 +33,7 @@ object GeneralPreferences {
 	const val CONFIRM_PROJECT_OPEN = "idepref_general_confirmProjectOpen"
 	const val LAST_OPENED_PROJECT = "ide_last_project"
 	const val LOGCAT_CAPTURE_ALL = "idepref_general_logcatCaptureAll"
+	const val PACKAGE_NAME_CHANGE_NOTICE_DISMISSED_AT = "ide_packageNameChangeNoticeDismissedAt"
 
 	const val NO_OPENED_PROJECT = "<NO_OPENED_PROJECT>"
 
@@ -92,5 +93,11 @@ object GeneralPreferences {
 		get() = prefManager.getBoolean(LOGCAT_CAPTURE_ALL, false)
 		set(value) {
 			prefManager.putBoolean(LOGCAT_CAPTURE_ALL, value)
+		}
+
+	var packageNameChangeNoticeDismissedAt: Long
+		get() = prefManager.getLong(PACKAGE_NAME_CHANGE_NOTICE_DISMISSED_AT, 0L)
+		set(value) {
+			prefManager.putLong(PACKAGE_NAME_CHANGE_NOTICE_DISMISSED_AT, value)
 		}
 }
