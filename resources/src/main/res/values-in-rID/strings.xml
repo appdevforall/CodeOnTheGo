@@ -250,9 +250,9 @@
 	</plurals>
 	<string name="cd_replace_match_checkbox">Sertakan kecocokan di %1$s, baris %2$d</string>
 	<string name="cd_replace_file_checkbox">Sertakan semua kecocokan di %1$s</string>
-	<string name="msg_replace_done">Mengganti %1$d di %2$d file</string>
-	<string name="msg_replace_done_with_issues">Mengganti %1$d di %2$d file, %3$d dilewati, %4$d gagal</string>
-	<string name="msg_replace_undone">Memulihkan %1$d file</string>
+	<string name="msg_replace_done">Telah mengganti %1$d di %2$d file</string>
+	<string name="msg_replace_done_with_issues">Telah mengganti %1$d di %2$d file, %3$d dilewati, %4$d gagal</string>
+	<string name="msg_replace_undone">Telah memulihkan %1$d file</string>
 	<string name="msg_replace_busy">Penggantian masih berlangsung</string>
 	<string name="title_replace_report">Beberapa file tidak diubah</string>
 	<string name="reason_changed_since_search">berubah sejak pencarian, cari lagi</string>
@@ -444,7 +444,6 @@
 	<string name="title_format_code">Format kode</string>
 	<string name="msg_format_failed">Tidak dapat memformat file: %1$s</string>
 	<string name="msg_format_failed_unexpected">Tidak dapat memformat file. Lihat log IDE untuk detailnya.</string>
-	<string name="title_format_code">Format kode</string>
 	<string name="title_show_tooltip">Bantuan</string>
 	<string name="show_tooltip_show_more">Tampilkan selengkapnya</string>
 	<string name="faq_activity_title">Informasi lebih lanjut</string>
@@ -1387,7 +1386,7 @@
 	<string name="model_error_verification_failed">Verifikasi file model gagal.</string>
 	<string name="model_error_load_failed">Gagal memuat model \'%1$s\'.</string>
 	<string name="model_error_format_unsupported">Format model ini tidak didukung.</string>
-	<string name="model_error_embedding">Model yang dipilih, \'%1$s\', adalah model embedding yang dirancang untuk pencarian semantik dan tugas-tugas kesamaan. Model ini tidak dapat digunakan untuk obrolan atau pembuatan teks.\n\nSilakan pilih model obrolan/instruksi sebagai gantinya (misalnya, model yang memiliki kata \'obrolan\', \'instruksi\', atau \'percakapan\' dalam namanya).</string>
+	<string name="model_error_embedding">Model yang dipilih, \'%1$s\', adalah model embedding yang dirancang untuk pencarian semantik dan tugas-tugas kesamaan. Model ini tidak dapat digunakan untuk obrolan atau pembuatan teks.\n\nSilakan pilih model obrolan/instruksi sebagai gantinya (misalnya, model yang memiliki kata \'chat\', \'instruct\', atau \'conversational\' dalam namanya).</string>
 	<string name="model_error_format_onnx">Model ONNX (.onnx) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan alat konversi llama.cpp\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
 	<string name="model_error_format_pytorch">Model PyTorch (.pt, .pth, .bin) tidak didukung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_hf_to_gguf.py\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
 	<string name="model_error_format_safetensors">Model SafeTensors (.safetensors) tidak didukung secara langsung.\n\nAplikasi ini menggunakan llama.cpp yang hanya mendukung format GGUF (.gguf).\n\nUntuk menggunakan model ini:\n1. Konversikan ke format GGUF menggunakan convert_hf_to_gguf.py\n2. Atau unduh versi GGUF yang sudah dikonversi dari Hugging Face</string>
