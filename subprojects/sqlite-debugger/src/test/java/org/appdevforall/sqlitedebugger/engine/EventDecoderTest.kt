@@ -154,16 +154,19 @@ class EventDecoderTest {
 			return copy
 		}
 
-		// kept above columns; the first value (an integer) not 8 bytes; its stored bytes past the row;
+		// kept above columns; its stored bytes past the row;
 		// an unknown type in the first value's type byte (and its neighbours left alone)
 		val first = data + 8
 		for (broken in listOf(
 			patched(data + 4, 99),
-			patched(first + 4, 4),
 			patched(first + 4, 100000),
 			patched(first, 9),
 		)) {
 			assertThrows(IllegalArgumentException::class.java) { EventDecoder.decode(broken, broken.size) }
 		}
+		// stored and full both 4: the value is not cut, so it is the width check that refuses it
+		val narrow = patched(first + 4, 4).also { ByteBuffer.wrap(it).order(ByteOrder.LITTLE_ENDIAN).putInt(first + 8, 4) }
+		val e = assertThrows(IllegalArgumentException::class.java) { EventDecoder.decode(narrow, narrow.size) }
+		assertThat(e.message).contains("number 0 is 4 bytes")
 	}
 }
