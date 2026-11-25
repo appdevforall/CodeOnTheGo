@@ -169,7 +169,7 @@ class BundledAddonInstallerTest {
 		assertThat(result.file).isNull()
 		assertThat(result.pluginId).isNull()
 		assertThat(result.sourceName).isEqualTo("a.cgp")
-		assertThat(result.failure).isNotNull()
+		assertThat(result.failure).isEqualTo(BundledAddonInstaller.UNREADABLE_MANIFEST)
 		assertThat(pluginsDir.list()!!.toList()).isEmpty()
 	}
 

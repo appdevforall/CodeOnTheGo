@@ -92,7 +92,7 @@ class BundledAddonInstaller(
 								readPluginId(copy)
 							} catch (e: Exception) {
 								null
-							} ?: throw RejectedAddonException("it has no readable manifest")
+							} ?: throw RejectedAddonException(UNREADABLE_MANIFEST)
 						checkPluginId(id).onFailure { throw RejectedAddonException(it.message ?: "invalid plugin ID") }
 						val name = "${PluginBuildFiles.fileStem(id, copy)}.$PLUGIN_ARCHIVE_EXTENSION"
 						// 255 bytes is the longest file name the file system takes.
@@ -110,8 +110,12 @@ class BundledAddonInstaller(
 		return InstalledAddon(BundledAddonKind.PLUGIN, file, pluginId)
 	}
 
-	private companion object {
-		const val MAX_FILE_NAME_BYTES = 255
+	internal companion object {
+		private const val MAX_FILE_NAME_BYTES = 255
+
+		// The platform parser also refuses a plugin whose minSdkVersion is above the device's
+		// (AI-Core, 33, on Android 9), and the two cases look alike from here.
+		const val UNREADABLE_MANIFEST = "its manifest can't be read: it may need a newer version of Android, or be damaged"
 	}
 
 	private class RejectedAddonException(
