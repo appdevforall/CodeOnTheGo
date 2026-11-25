@@ -167,7 +167,7 @@ data class RequestLookup(
  * rewritten in place before the swap check notices is caught by keying on the file's state: each
  * cached block (see [decodedBlock]), and what the file's version and dictionary said (see
  * [FileBound]). A row, a block or a template whose read spans a rewrite fails, rather than being
- * decoded by what the other file said. Compiled templates and template names are not keyed so, as
+ * decoded by what the other file said, and so does a page whose render spans one. Compiled templates and template names are not keyed so, as
  * that would mean clearing the engine's caches under the read lock or keying them in the loader;
  * until the swap check reopens the file, they are the old file's.
  *
@@ -787,6 +787,8 @@ class DocumentationContentSource internal constructor(
 	 * @param path The content path associated with the rendering request.
 	 * @param file The active file's state, taken before this render's database reads.
 	 * @return The rendered template content encoded as UTF-8 bytes.
+	 * @throws IllegalStateException When the file is no longer in state [file] once the template has
+	 * rendered: see [checkFileUnchanged].
 	 */
 	private fun renderNamed(
 		database: SQLiteDatabase,
@@ -806,7 +808,11 @@ class DocumentationContentSource internal constructor(
 		val context: Map<String, Any> = gson.fromJson(contextString, templateContextType)
 
 		return try {
-			StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
+			val rendered = StringWriter().also { pebbleEngine.getTemplate(name).evaluate(it, context) }.toString().toByteArray()
+			// The loader checks only the state it takes itself, so a template it first loads after a
+			// rewrite is the new file's, which would render the old file's context without an error.
+			checkFileUnchanged(file, path)
+			rendered
 		} catch (e: PebbleException) {
 			// PebbleException formats getMessage() as "<text> (<file>:<line>)". When it carries
 			// neither -- the loader's throws, and the rendered-size limit -- that suffix is a bare

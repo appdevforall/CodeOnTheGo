@@ -1076,6 +1076,28 @@ class DocumentationContentSourceTest {
 		verify(exactly = 2) { database.rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("page.peb")) }
 	}
 
+	// The rewrite lands after the page's row is read and decoded, as its template's name is looked
+	// up, so before the loader takes the file's state. The loader then sees no change during its own
+	// read and hands the engine the new file's template, which would render the old file's context
+	// without an error.
+	@Test
+	fun `a page whose template is first loaded after a rewrite in place fails rather than mixing the two files`() {
+		val old = templatedDatabase("page.peb" to "Hello {{ who }}!")
+		val new = templatedDatabase("page.peb" to "Goodbye {{ who }}!")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			rewrittenInPlace(old, new) { it.contains("WHERE id = ?") }
+		val source = source(debugCheckIntervalMs = 60_000)
+
+		val failed = source.lookup("k/html/basic-syntax.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause)
+			.hasMessageThat()
+			.isEqualTo("The documentation database changed while 'k/html/basic-syntax.html' was read")
+		// The next read starts from the new state, and the template compiled is the new file's.
+		assertThat(text(source.lookup("k/html/basic-syntax.html"))).isEqualTo("Goodbye Kotlin!")
+	}
+
 	/** An installer's rewrite of the installed file in place, which moves its length and modification time. */
 	private fun rewriteInstalledFile() {
 		installedFile.writeText("rewritten in place")
