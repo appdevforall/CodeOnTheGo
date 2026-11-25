@@ -94,10 +94,10 @@ public class JniQueryTest {
 		return r[0];
 	}
 
-	/** The rowid execute reports, or null (0 on the wire) when the statement inserted no row. */
+	/** The rowid execute reports, or null (Long.MIN_VALUE on the wire) when the statement inserted no row. */
 	static Long rowid(long h, String sql, Object... args) throws DebugEngineException {
 		long r = NativeBridge.execute(h, sql, args, FAR)[1];
-		return r == 0 ? null : r;
+		return r == Long.MIN_VALUE ? null : r;
 	}
 
 	static int execCode(long h, String sql, Object[] args, long deadline) {
@@ -153,6 +153,10 @@ public class JniQueryTest {
 		eq(rowid(w, "INSERT OR IGNORE INTO lr VALUES(4)"), null, "INSERT OR IGNORE that inserts nothing: null");
 		eq(rowid(w, "INSERT INTO lr VALUES(5), (6), (7)"), 7L, "a multi-row INSERT reports the last row's rowid");
 		eq(rowid(w, "DELETE FROM lr"), null, "a DELETE reports null");
+		// 0 and negative rowids are rowids like any other
+		eq(rowid(w, "INSERT INTO lr(rowid, a) VALUES(0, 20)"), 0L, "an INSERT with rowid 0 reports 0, not null");
+		eq(rowid(w, "INSERT INTO lr(rowid, a) VALUES(-5, 21)"), -5L, "an INSERT with a negative rowid reports it");
+		eq(rowid(w, "DELETE FROM lr"), null, "a DELETE after them reports null");
 		// SQLite restores the value when a trigger ends, so inserts made only by a trigger report null
 		eq(exec(w, "CREATE TABLE lt(a)"), 0L, "create lt");
 		eq(exec(w, "CREATE TRIGGER lt_up AFTER UPDATE ON lt BEGIN INSERT INTO lr VALUES(100); END"), 0L, "create trigger");

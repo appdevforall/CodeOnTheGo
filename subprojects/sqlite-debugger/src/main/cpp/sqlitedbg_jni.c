@@ -8,6 +8,7 @@
 
 #include <dlfcn.h>
 #include <jni.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -528,8 +529,9 @@ done:
 // returns (RETURNING) are read and dropped. Returns {changes, last_insert_rowid}: changes is the rows the
 // statement itself inserted, updated or deleted (sqlite3_changes64), or 0 when it changed none, such as
 // CREATE TABLE, which leaves sqlite3_changes64 at the previous write's count (ADFA-7131 comment 41489).
-// last_insert_rowid is the rowid of the last row the statement inserted into a rowid table, and 0 when it
-// inserted none (0 stands for null; a row inserted with rowid 0 reads as none, accepted). Inserts made
+// last_insert_rowid is the rowid of the last row the statement inserted into a rowid table, and INT64_MIN
+// when it inserted none: SQLite never assigns that rowid itself, so only a row inserted explicitly with
+// it reads as none (accepted), while 0 and other negative rowids are reported as they are. Inserts made
 // by a trigger do not count: SQLite restores the value when the trigger ends.
 static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args, jlong deadline_ms) {
 	(void)cls;
@@ -563,8 +565,8 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 
 	sqlite3_int64 total_before = sqlite3_total_changes64(db);
 	// the connection is cached and keeps its value across statements: without this an UPDATE would
-	// report the rowid of an earlier execute's INSERT
-	sqlite3_set_last_insert_rowid(db, 0);
+	// report the rowid of an earlier execute's INSERT. Not 0, SQLite's own "none": 0 is a valid rowid.
+	sqlite3_set_last_insert_rowid(db, INT64_MIN);
 	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {}
 	if (rc != SQLITE_DONE) {
 		if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {

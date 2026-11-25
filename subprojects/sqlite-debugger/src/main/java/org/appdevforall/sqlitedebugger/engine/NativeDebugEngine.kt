@@ -121,7 +121,7 @@ class NativeDebugEngine : DebugEngine {
 		): ExecuteResult {
 			check(handle != 0L) { "the connection is closed" }
 			val result = NativeBridge.execute(handle, sql, Array(args.size) { bindable(args[it]) }, deadlineMillis)
-			return ExecuteResult(changes = result[0], lastInsertRowid = result[1].takeIf { it != 0L })
+			return ExecuteResult(changes = result[0], lastInsertRowid = result[1].takeIf { it != Long.MIN_VALUE })
 		}
 
 		override fun close() {

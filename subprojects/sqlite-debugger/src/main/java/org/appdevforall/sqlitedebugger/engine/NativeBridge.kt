@@ -51,7 +51,8 @@ internal object NativeBridge {
 
 	/**
 	 * `{changes, last_insert_rowid}` of one statement that writes (see [ServerConnection.execute]); the
-	 * rowid is 0 when the statement inserted no row into a rowid table. Throws [DebugEngineException].
+	 * rowid is [Long.MIN_VALUE] when the statement inserted no row into a rowid table. Throws
+	 * [DebugEngineException].
 	 */
 	@JvmStatic
 	external fun execute(
