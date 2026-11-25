@@ -256,8 +256,8 @@ static void record_row(conn_state *cs, sqlite3_stmt *stmt, int64_t number) {
 			const void *p = type == SQLITE_TEXT ? (const void *)sqlite3_column_text(stmt, i) : sqlite3_column_blob(stmt, i);
 			size_t full = (size_t)sqlite3_column_bytes(stmt, i);
 			size_t limit = room < max_value ? room : max_value;
-			size_t stored = type == SQLITE_TEXT ? utf8_cut((const char *)p, full, limit) : (full < limit ? full : limit);
-			if (!p) stored = 0;
+			// p is NULL when SQLite is out of memory; utf8_cut would read through it.
+			size_t stored = !p ? 0 : type == SQLITE_TEXT ? utf8_cut((const char *)p, full, limit) : (full < limit ? full : limit);
 			uint8_t cut = stored < full;
 			if (cut) flags |= SQLITEDBG_EVENT_TRUNCATED;
 			if (stored) memcpy(v + ROW_VALUE_BYTES, p, stored);
