@@ -1259,7 +1259,7 @@ class DatabaseToolsTest {
 		val ran = mutableListOf<String>()
 		engine.executeAnswer = { path, sql, _ ->
 			ran += "$path: $sql"
-			ExecuteResult(1)
+			ExecuteResult(changes = 1, lastInsertRowid = null)
 		}
 		return ran
 	}
@@ -1304,7 +1304,10 @@ class DatabaseToolsTest {
 	@Test fun anAcknowledgementCoversOnlyItsOwnDatabaseAndOnlyThisServerProcess() {
 		engine.appConnections += conn(3, "/data/room2.db")
 		val ran = roomSetup()
-		engine.answer = { _, _, sql, _ -> QueryResult(listOf("1"), if (sql.contains("room_master_table")) listOf(listOf(1L)) else emptyList(), 0, false) }
+		engine.answer = { _, _, sql, _ ->
+			val room = sql.contains("room_master_table")
+			QueryResult(listOf("1"), if (room) listOf(listOf(1L)) else emptyList(), 0, false)
+		}
 		val t = tools
 		ok("execute", db("/data/room.db").put("sql", "delete from note").put("acknowledge_room", true), t)
 		assertTrue(runTool(t, "execute", db("/data/room2.db").put("sql", "delete from note")).getBoolean("isError"))
@@ -1334,7 +1337,13 @@ class DatabaseToolsTest {
 		assertTrue(execute.getString("description").contains("acknowledge_room true"))
 		val prop = execute.getJSONObject("inputSchema").getJSONObject("properties").getJSONObject("acknowledge_room")
 		assertEquals("boolean", prop.getString("type"))
-		assertFalse(execute.getJSONObject("inputSchema").getJSONArray("required").toString().contains("acknowledge_room"))
+		assertFalse(
+			execute
+				.getJSONObject("inputSchema")
+				.getJSONArray("required")
+				.toString()
+				.contains("acknowledge_room"),
+		)
 	}
 
 	@Test fun stoppingTheServerClosesServerConnections() {
