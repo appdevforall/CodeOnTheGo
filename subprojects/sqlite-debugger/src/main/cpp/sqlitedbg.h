@@ -182,7 +182,8 @@ void sqlitedbg_set_client_connected(int connected);
 // Turns row recording on (max_rows_per_statement > 0) or off (0, as at install). While it is on and
 // a client is connected, the first max_rows_per_statement rows of each statement become
 // SQLITEDBG_EVENT_ROW events. TEXT and BLOB values longer than max_value_bytes are cut (0: 256), and
-// a row's data stops at max_row_bytes (0: 4 KiB; never more than half the buffer less one header).
+// a row's data stops at max_row_bytes (0: 4 KiB; at most SQLITEDBG_MAX_ROW_BYTES; never more than
+// half the buffer less one header).
 // Each value is read with the accessor of its own type (sqlite3_column_type first), so the app sees
 // the same values and types afterwards: sqlite3_column_text converts a value in place, and on a BLOB
 // it makes the app's own sqlite3_column_type return SQLITE_TEXT (SQLite 3.49.1, sqlitedbg_test.c). Rows of statements the extension did
@@ -190,6 +191,11 @@ void sqlitedbg_set_client_connected(int connected);
 // the schema read a CREATE TABLE runs. PROFILE events count rows whether or not this is on.
 void sqlitedbg_set_row_capture(uint32_t max_rows_per_statement, uint32_t max_value_bytes,
                                uint32_t max_row_bytes);
+
+// The largest max_row_bytes that sqlitedbg_set_row_capture keeps; a larger one is lowered to it.
+// sqlitedbg_read_events stops at the first record that does not fit its buffer, so a row record must
+// stay well below the 256 KiB the server reads at a time (DatabaseTools.EVENT_BATCH_BYTES).
+#define SQLITEDBG_MAX_ROW_BYTES (64u * 1024u)
 
 // Server connections
 

@@ -192,6 +192,7 @@ static uint64_t conn_id_of(sqlite3 *db) {
 // Tests
 
 extern int sqlitedbg_test_fail_init;  // sqlitedbg.c, built with SQLITEDBG_TEST
+extern uint32_t sqlitedbg_test_max_row_bytes(void);  // likewise
 
 static sqlitedbg_config g_config = {BUFFER_BYTES, MAX_SQL};
 static sqlite3 *g_main;
@@ -739,6 +740,13 @@ static void test_row_limits(void) {
 	}
 	CHECK(wide && cut);
 	batch_free(&b);
+	// a row limit above SQLITEDBG_MAX_ROW_BYTES is lowered to it, so no row record outgrows a reader's batch
+	sqlitedbg_set_row_capture(1, 0, UINT32_MAX);
+	CHECK_EQ(sqlitedbg_test_max_row_bytes(), SQLITEDBG_MAX_ROW_BYTES);
+	sqlitedbg_set_row_capture(1, 0, 1000);
+	CHECK_EQ(sqlitedbg_test_max_row_bytes(), 1000);
+	sqlitedbg_set_row_capture(0, 0, 0);
+	CHECK_EQ(sqlitedbg_test_max_row_bytes(), 4096);
 }
 
 static void test_burst(void) {

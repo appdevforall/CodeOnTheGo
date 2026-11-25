@@ -380,6 +380,8 @@ static void connection_id_fn(sqlite3_context *ctx, int argc, sqlite3_value **arg
 #ifdef SQLITEDBG_TEST
 // Host tests: 1 fails the allocation, 2 makes registering the function fail.
 int sqlitedbg_test_fail_init;
+// Host tests: the row limit in force, since the tests' 8 KiB buffer caps a row before it would.
+uint32_t sqlitedbg_test_max_row_bytes(void) { return __atomic_load_n(&g_max_row, __ATOMIC_RELAXED); }
 #endif
 
 static int init_connection(sqlite3 *db, const sqlite3_api_routines *api);
@@ -544,7 +546,8 @@ void sqlitedbg_set_client_connected(int connected) {
 
 void sqlitedbg_set_row_capture(uint32_t max_rows_per_statement, uint32_t max_value_bytes, uint32_t max_row_bytes) {
 	__atomic_store_n(&g_max_value, max_value_bytes ? max_value_bytes : DEFAULT_MAX_VALUE_BYTES, __ATOMIC_RELAXED);
-	__atomic_store_n(&g_max_row, max_row_bytes ? max_row_bytes : DEFAULT_MAX_ROW_BYTES, __ATOMIC_RELAXED);
+	uint32_t row = max_row_bytes ? max_row_bytes : DEFAULT_MAX_ROW_BYTES;
+	__atomic_store_n(&g_max_row, row < SQLITEDBG_MAX_ROW_BYTES ? row : SQLITEDBG_MAX_ROW_BYTES, __ATOMIC_RELAXED);
 	__atomic_store_n(&g_max_rows, max_rows_per_statement, __ATOMIC_RELAXED);
 }
 
