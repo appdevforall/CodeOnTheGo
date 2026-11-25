@@ -1225,7 +1225,13 @@ class DatabaseToolsTest {
 		)) {
 			assertTrue("$text: $d", d.contains(text))
 		}
-		assertTrue(tools.tools().first { it.name == "query" }.description.contains("Writes are refused: use execute."))
+		assertTrue(
+			tools
+				.tools()
+				.first { it.name == "query" }
+				.description
+				.contains("Writes are refused: use execute."),
+		)
 	}
 
 	@Test fun stoppingTheServerClosesServerConnections() {
