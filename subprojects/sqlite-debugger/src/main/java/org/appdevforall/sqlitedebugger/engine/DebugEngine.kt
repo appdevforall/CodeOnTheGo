@@ -34,8 +34,9 @@ interface DebugEngine {
 
 	/**
 	 * Opens [path] for the server: read-only (an authorizer refuses writes) unless [writable]. Either
-	 * way the authorizer refuses transactions and the PRAGMAs that would reach the app's own
-	 * connections (sqlitedbg.h). Only a path one of [connections] has open may be passed: opening a
+	 * way the authorizer refuses transactions, the PRAGMAs that would reach the app's own
+	 * connections and every PRAGMA that sets a value, user_version on a writable one excepted (sqlitedbg.h).
+	 * Only a path one of [connections] has open may be passed: opening a
 	 * database that Android's own SQLite has open, with requery's, can corrupt it (ADFA-7131, Design 3).
 	 *
 	 * @throws DebugEngineException if SQLite cannot open it, or no app connection has opened yet.

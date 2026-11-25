@@ -394,6 +394,21 @@ void sqlitedbg_set_client_connected(int connected) {
 // The user data of a writable server connection's authorizer; a read-only one gets NULL.
 static const int k_writable = 1;
 
+// PRAGMAs that read and take a table, an index or a check limit as their argument, the ones a client
+// needs to read a schema.
+static const char *const k_read_pragmas[] = {"table_info", "table_xinfo", "table_list", "index_info", "index_xinfo",
+                                             "index_list", "foreign_key_list", "foreign_key_check", "integrity_check",
+                                             "quick_check"};
+
+// Whether a PRAGMA given an argument (PRAGMA x = v, PRAGMA x(v)) may run: a read of that kind, or
+// user_version on a writable connection.
+static int pragma_argument_allowed(const char *name, int writable) {
+	if (writable && sqlite3_stricmp(name, "user_version") == 0) return 1;
+	for (size_t i = 0; i < sizeof k_read_pragmas / sizeof k_read_pragmas[0]; i++)
+		if (sqlite3_stricmp(name, k_read_pragmas[i]) == 0) return 1;
+	return 0;
+}
+
 static int server_authorizer(void *writable, int action, const char *a1, const char *a2, const char *db,
                              const char *trigger) {
 	(void)db;
@@ -435,26 +450,24 @@ static int server_authorizer(void *writable, int action, const char *a1, const c
 			return tls_ending_transaction && a1 && strcmp(a1, "ROLLBACK") == 0 ? SQLITE_OK : SQLITE_DENY;
 		case SQLITE_PRAGMA:
 			// Refused on every server connection, as they would reach the app's own connections or its
-			// file format, not just data. PRAGMA table_info(t) also has a second argument, so only
-			// these names are checked. locking_mode=EXCLUSIVE keeps the lock after a statement, and
+			// file format, not just data. locking_mode=EXCLUSIVE keeps the lock after a statement, and
 			// busy_timeout (any form) lets a statement wait on the app's lock for as long as the client
 			// likes. The heap limits and temp_store_directory are process-wide. query_only is the
-			// server's own guard. writable_schema and a schema_version write can leave a schema the
-			// app's SQLite reads as corrupt, and a journal_mode change switches the mode under the
-			// app's connections.
+			// server's own guard. writable_schema can leave a schema the app's SQLite reads as corrupt.
 			if (a1 && (sqlite3_stricmp(a1, "query_only") == 0 || sqlite3_stricmp(a1, "writable_schema") == 0 ||
 			           sqlite3_stricmp(a1, "locking_mode") == 0 || sqlite3_stricmp(a1, "busy_timeout") == 0 ||
 			           sqlite3_stricmp(a1, "hard_heap_limit") == 0 || sqlite3_stricmp(a1, "soft_heap_limit") == 0 ||
 			           sqlite3_stricmp(a1, "temp_store_directory") == 0))
 				return SQLITE_DENY;
-			if (a1 && a2 && (sqlite3_stricmp(a1, "journal_mode") == 0 || sqlite3_stricmp(a1, "schema_version") == 0))
-				return SQLITE_DENY;
+			// A PRAGMA with an argument sets a value, unless it is a read that takes a name or a limit.
+			// SQLite applies a setting while it prepares the statement, so refusing the write later
+			// (sqlite3_stmt_readonly) is too late: foreign_keys, ignore_check_constraints, journal_mode,
+			// schema_version, cache_size ... would stay changed on the cached connection.
+			if (a1 && a2 && !pragma_argument_allowed(a1, writable != NULL)) return SQLITE_DENY;
 			if (writable) return SQLITE_OK;
 			// Read-only: a PRAGMA that writes the file is a write.
 			if (a1 && (sqlite3_stricmp(a1, "wal_checkpoint") == 0 || sqlite3_stricmp(a1, "incremental_vacuum") == 0 ||
 			           sqlite3_stricmp(a1, "optimize") == 0))
-				return SQLITE_DENY;
-			if (a1 && a2 && (sqlite3_stricmp(a1, "user_version") == 0 || sqlite3_stricmp(a1, "application_id") == 0))
 				return SQLITE_DENY;
 			return SQLITE_OK;
 		default:
