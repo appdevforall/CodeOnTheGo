@@ -84,13 +84,14 @@ class EventDecoderTest {
 		assertThat(events.any { (it.changes ?: 0) > 0 }).isTrue()
 		// a row with every type, and a cut TEXT and BLOB
 		val row = checkNotNull(events.single { it.kind == EventKind.ROW }.row)
-		assertThat(row.values.map { it?.javaClass }).containsExactly(
-			Long::class.javaObjectType,
-			Double::class.javaObjectType,
-			String::class.java,
-			ByteArray::class.java,
-			null,
-		).inOrder()
+		assertThat(row.values.map { it?.javaClass })
+			.containsExactly(
+				Long::class.javaObjectType,
+				Double::class.javaObjectType,
+				String::class.java,
+				ByteArray::class.java,
+				null,
+			).inOrder()
 		assertThat(row.cutIndexes).containsExactly(2, 3)
 		assertThat(events.any { it.sql.startsWith("--") }).isTrue()
 		// multi-byte text survives, including a character outside the BMP

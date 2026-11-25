@@ -119,13 +119,23 @@ internal object EventDecoder {
 						require(stored == 8) { "row at $start: number $i is $stored bytes" }
 						if (type == SQLITE_INTEGER) buffer.getLong(pos) else buffer.getDouble(pos)
 					}
-					SQLITE_TEXT -> String(bytes, pos, stored, Charsets.UTF_8)
-					SQLITE_BLOB -> bytes.copyOfRange(pos, pos + stored)
+
+					SQLITE_TEXT -> {
+						String(bytes, pos, stored, Charsets.UTF_8)
+					}
+
+					SQLITE_BLOB -> {
+						bytes.copyOfRange(pos, pos + stored)
+					}
+
 					SQLITE_NULL -> {
 						require(stored == 0) { "row at $start: null $i has $stored bytes" }
 						null
 					}
-					else -> throw IllegalArgumentException("row at $start: value $i has unknown type $type")
+
+					else -> {
+						throw IllegalArgumentException("row at $start: value $i has unknown type $type")
+					}
 				}
 			if (isCut) cut += i
 			pos += stored
