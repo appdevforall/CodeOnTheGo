@@ -37,6 +37,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.transition.TransitionManager
 import androidx.transition.doOnEnd
 import com.google.android.material.transition.MaterialSharedAxis
+import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.FeedbackButtonManager
 import com.itsaky.androidide.R
 import com.itsaky.androidide.actions.ActionData
@@ -50,6 +51,7 @@ import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
+import com.itsaky.androidide.fragments.PackageNameChangeDialogFragment
 import com.itsaky.androidide.fragments.RecentProjectsFragment
 import com.itsaky.androidide.idetooltips.TooltipManager
 import com.itsaky.androidide.idetooltips.TooltipTag.MAIN_GET_STARTED
@@ -98,6 +100,7 @@ import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 class MainActivity : EdgeToEdgeIDEActivity() {
 	private val log = LoggerFactory.getLogger(MainActivity::class.java)
@@ -215,9 +218,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// rather than just checking deepLinkRequest != null is what tells a genuinely new/not-yet-acted-
 		// on request apart from the system redelivering the same original launch Intent verbatim after
 		// this same request was already fully handled (see consumedDeepLinkRequests' own docs).
+		supportFragmentManager.setFragmentResultListener(
+			PackageNameChangeDialogFragment.REQUEST_KEY,
+			this,
+		) { _, _ ->
+			openLastProject()
+		}
+
 		if (deepLinkRequest != null && deepLinkRequest !in consumedDeepLinkRequests) {
 			handleDeepLinkRequest(deepLinkRequest)
-		} else if (savedInstanceState == null) {
+		} else if (savedInstanceState == null && !shouldShowPackageNameChangeDialog()) {
 			openLastProject()
 		}
 
@@ -325,6 +335,21 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		// Add the "Cancel" button
 		builder.setNegativeButton(getString(R.string.url_consent_cancel), null)
 		builder.show()
+	}
+
+	private fun shouldShowPackageNameChangeDialog(): Boolean {
+		if (BuildConfig.APPLICATION_ID == "org.appdevforall.codeonthego" ||
+			System.currentTimeMillis() - GeneralPreferences.packageNameChangeNoticeDismissedAt < TimeUnit.DAYS.toMillis(7)
+		) {
+			return false
+		}
+		if (supportFragmentManager.findFragmentByTag(PackageNameChangeDialogFragment.TAG) == null) {
+			PackageNameChangeDialogFragment().show(
+				supportFragmentManager,
+				PackageNameChangeDialogFragment.TAG,
+			)
+		}
+		return true
 	}
 
 	override fun onConfigurationChanged(newConfig: Configuration) {

@@ -19,8 +19,19 @@ package com.itsaky.androidide.utils
 
 import java.io.File
 
-/** Returns a stable path for identifying the same project across app entry points. */
-internal fun File.canonicalProjectLocation(): String = runCatching { canonicalPath }.getOrElse { absolutePath }
+/**
+ * Returns a stable path for identifying the same project across app entry points, or the absolute path
+ * when the canonical one cannot be resolved. Catches only [Exception] and [LinkageError], so a
+ * VirtualMachineError still crashes.
+ */
+internal fun File.canonicalProjectLocation(): String =
+	try {
+		canonicalPath
+	} catch (e: Exception) {
+		absolutePath
+	} catch (e: LinkageError) {
+		absolutePath
+	}
 
 internal fun File.isDeletedProjectDirectory(): Boolean {
 	val parent = parentFile ?: return false
