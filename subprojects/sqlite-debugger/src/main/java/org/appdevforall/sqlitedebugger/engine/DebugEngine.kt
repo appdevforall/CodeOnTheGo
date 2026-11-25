@@ -92,7 +92,8 @@ data class ExecuteResult(
 	/**
 	 * The rowid of the last row the statement inserted into a rowid table, or null when it inserted none
 	 * (an UPDATE, a WITHOUT ROWID table, `INSERT OR IGNORE` that ignored the row). Inserts made by
-	 * triggers do not count. A row inserted with rowid 0 reads as null.
+	 * triggers do not count. A row inserted explicitly with rowid [Long.MIN_VALUE], which SQLite never
+	 * assigns itself, reads as null; 0 and other negative rowids are reported.
 	 */
 	val lastInsertRowid: Long?,
 )
