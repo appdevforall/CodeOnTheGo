@@ -22,13 +22,30 @@ SQLITE_EXTENSION_INIT1
 
 #define DEFAULT_BUFFER_BYTES ((size_t)4 << 20)
 #define DEFAULT_MAX_SQL_BYTES 4096u
-#define RECORD_HEADER_BYTES 56u
+#define DEFAULT_MAX_VALUE_BYTES 256u
+#define DEFAULT_MAX_ROW_BYTES 4096u
+#define RECORD_HEADER_BYTES 72u
+#define ROW_HEADER_BYTES 8u
+#define ROW_VALUE_BYTES 12u
 
 _Static_assert(sizeof(sqlitedbg_event_record) == RECORD_HEADER_BYTES, "event record layout");
+_Static_assert(sizeof(sqlitedbg_row_header) == ROW_HEADER_BYTES, "row header layout");
+_Static_assert(sizeof(sqlitedbg_row_value) == ROW_VALUE_BYTES, "row value layout");
 
 // Padding record written where the next record would not fit before the end of the ring, so a
 // record is always contiguous. kind 0 is never a real event.
 #define KIND_PAD 0u
+
+// A statement the extension saw start on a connection (a TRACE_STMT that is not a trigger's or a
+// nested statement's), until its PROFILE event.
+typedef struct stmt_slot {
+	sqlite3_stmt *stmt;           // NULL: free
+	int64_t rows;                 // TRACE_ROW events so far
+	int64_t recorded;             // of those, recorded as SQLITEDBG_EVENT_ROW
+	int rows_cut;                 // a row went unrecorded because of the per-statement limit
+	sqlite3_int64 total_changes;  // sqlite3_total_changes64 when it started
+	uint64_t last_use;            // for evicting the least recently used slot
+} stmt_slot;
 
 typedef struct conn_state {
 	struct conn_state *prev, *next;
@@ -38,6 +55,10 @@ typedef struct conn_state {
 	int closing;  // atomic: set by the close event, cleared by a later statement event
 	int64_t opened_at_ns;
 	int64_t open_thread_id;
+	// Used only from the trace callback, which runs on the thread using the connection: requery's
+	// SQLITE_THREADSAFE=2 means one thread at a time, so these need no lock.
+	stmt_slot slots[SQLITEDBG_STATEMENT_SLOTS];
+	uint64_t use_clock;
 } conn_state;
 
 // Taken only for the fields below; never while SQLite runs.
@@ -49,6 +70,10 @@ static int g_installed;         // g_install_lock
 static int g_api_ready;         // g_lock: sqlite3_api has been saved
 static uint32_t g_max_sql;      // set before g_installed, then read-only
 static int g_client_connected;  // atomic
+// Row recording (sqlitedbg_set_row_capture); each read on its own, so a change mid-row is harmless.
+static uint32_t g_max_rows;       // atomic; 0: off
+static uint32_t g_max_value = DEFAULT_MAX_VALUE_BYTES;  // atomic
+static uint32_t g_max_row = DEFAULT_MAX_ROW_BYTES;      // atomic
 
 static conn_state *g_first, *g_last;
 static uint64_t g_next_conn_id = 1;
@@ -129,13 +154,12 @@ static size_t utf8_cut(const char *sql, size_t len, size_t max) {
 	return max;
 }
 
-static void add_event(uint32_t kind, uint64_t connection_id, int64_t duration_ns, uint32_t flags,
-                      const char *sql, size_t sql_len) {
+// Adds one record with `len` bytes of data, already within the limits.
+static void add_record(uint32_t kind, uint64_t connection_id, int64_t duration_ns, int64_t rows, int64_t changes,
+                       uint32_t flags, const void *data, size_t len) {
 	int64_t time = now_ns();
 	int64_t tid = this_thread_id();
-	size_t kept = utf8_cut(sql, sql_len, g_max_sql);
-	if (kept < sql_len) flags |= SQLITEDBG_EVENT_TRUNCATED;
-	size_t need = (RECORD_HEADER_BYTES + kept + 7) & ~(size_t)7;
+	size_t need = (RECORD_HEADER_BYTES + len + 7) & ~(size_t)7;
 
 	pthread_mutex_lock(&g_lock);
 	uint64_t seq = g_next_seq++;
@@ -150,14 +174,104 @@ static void add_event(uint32_t kind, uint64_t connection_id, int64_t duration_ns
 		r->time_ns = time;
 		r->duration_ns = duration_ns;
 		r->flags = flags;
-		r->sql_bytes = (uint32_t)kept;
-		memcpy((unsigned char *)r + RECORD_HEADER_BYTES, sql, kept);
-		memset((unsigned char *)r + RECORD_HEADER_BYTES + kept, 0, need - RECORD_HEADER_BYTES - kept);
+		r->data_bytes = (uint32_t)len;
+		r->rows = rows;
+		r->changes = changes;
+		memcpy((unsigned char *)r + RECORD_HEADER_BYTES, data, len);
+		memset((unsigned char *)r + RECORD_HEADER_BYTES + len, 0, need - RECORD_HEADER_BYTES - len);
 		g_head += need;
 		g_used += need;
 		if (g_head >= g_cap) g_head = 0;
 	}
 	pthread_mutex_unlock(&g_lock);
+}
+
+static void add_event(uint32_t kind, uint64_t connection_id, int64_t duration_ns, int64_t rows, int64_t changes,
+                      uint32_t flags, const char *sql, size_t sql_len) {
+	size_t kept = utf8_cut(sql, sql_len, g_max_sql);
+	if (kept < sql_len) flags |= SQLITEDBG_EVENT_TRUNCATED;
+	add_record(kind, connection_id, duration_ns, rows, changes, flags, sql, kept);
+}
+
+static stmt_slot *find_slot(conn_state *cs, sqlite3_stmt *stmt) {
+	for (int i = 0; i < SQLITEDBG_STATEMENT_SLOTS; i++)
+		if (cs->slots[i].stmt == stmt) return &cs->slots[i];
+	return NULL;
+}
+
+// The slot for a statement that starts: its old one if it is restarting, else a free one, else the
+// least recently used.
+static stmt_slot *claim_slot(conn_state *cs, sqlite3_stmt *stmt) {
+	stmt_slot *slot = find_slot(cs, stmt);
+	if (!slot) slot = find_slot(cs, NULL);
+	if (!slot) {
+		slot = &cs->slots[0];
+		for (int i = 1; i < SQLITEDBG_STATEMENT_SLOTS; i++)
+			if (cs->slots[i].last_use < slot->last_use) slot = &cs->slots[i];
+	}
+	memset(slot, 0, sizeof *slot);
+	slot->stmt = stmt;
+	slot->last_use = ++cs->use_clock;
+	return slot;
+}
+
+static size_t put_value(unsigned char *out, uint8_t type, uint8_t cut, uint32_t stored, uint32_t full) {
+	sqlitedbg_row_value v = {type, cut, 0, stored, full};
+	memcpy(out, &v, sizeof v);
+	return sizeof v;
+}
+
+// Records the row the statement is on. Each column is read with the accessor of its own type, so
+// nothing is converted and the app's later sqlite3_column_type and values are unchanged.
+static void record_row(conn_state *cs, sqlite3_stmt *stmt, int64_t number) {
+	uint32_t max_value = __atomic_load_n(&g_max_value, __ATOMIC_RELAXED);
+	size_t budget = __atomic_load_n(&g_max_row, __ATOMIC_RELAXED);
+	// A record must fit beside a pad in the ring (see sqlitedbg_install).
+	size_t ring_max = g_cap / 2 > RECORD_HEADER_BYTES ? g_cap / 2 - RECORD_HEADER_BYTES : 0;
+	if (budget > ring_max) budget = ring_max;
+	if (budget < ROW_HEADER_BYTES) return;
+	unsigned char *data = (unsigned char *)malloc(budget);
+	if (!data) return;
+	int columns = sqlite3_column_count(stmt);
+	size_t len = ROW_HEADER_BYTES;
+	uint32_t kept = 0;
+	uint32_t flags = 0;
+	for (int i = 0; i < columns; i++) {
+		if (budget - len < ROW_VALUE_BYTES) break;
+		size_t room = budget - len - ROW_VALUE_BYTES;
+		int type = sqlite3_column_type(stmt, i);
+		unsigned char *v = data + len;
+		if (type == SQLITE_INTEGER || type == SQLITE_FLOAT) {
+			if (room < 8) break;
+			if (type == SQLITE_INTEGER) {
+				sqlite3_int64 n = sqlite3_column_int64(stmt, i);
+				memcpy(v + ROW_VALUE_BYTES, &n, 8);
+			} else {
+				double d = sqlite3_column_double(stmt, i);
+				memcpy(v + ROW_VALUE_BYTES, &d, 8);
+			}
+			len += put_value(v, (uint8_t)type, 0, 8, 8) + 8;
+		} else if (type == SQLITE_TEXT || type == SQLITE_BLOB) {
+			// For TEXT, sqlite3_column_text first and then sqlite3_column_bytes, as SQLite advises.
+			const void *p = type == SQLITE_TEXT ? (const void *)sqlite3_column_text(stmt, i) : sqlite3_column_blob(stmt, i);
+			size_t full = (size_t)sqlite3_column_bytes(stmt, i);
+			size_t limit = room < max_value ? room : max_value;
+			size_t stored = type == SQLITE_TEXT ? utf8_cut((const char *)p, full, limit) : (full < limit ? full : limit);
+			if (!p) stored = 0;
+			uint8_t cut = stored < full;
+			if (cut) flags |= SQLITEDBG_EVENT_TRUNCATED;
+			if (stored) memcpy(v + ROW_VALUE_BYTES, p, stored);
+			len += put_value(v, (uint8_t)type, cut, (uint32_t)stored, (uint32_t)full) + stored;
+		} else {
+			len += put_value(v, SQLITE_NULL, 0, 0, 0);
+		}
+		kept++;
+	}
+	if (kept < (uint32_t)columns) flags |= SQLITEDBG_EVENT_TRUNCATED;
+	sqlitedbg_row_header h = {(uint32_t)columns, kept};
+	memcpy(data, &h, sizeof h);
+	add_record(SQLITEDBG_EVENT_ROW, cs->id, -1, number, -1, flags, data, len);
+	free(data);
 }
 
 // sqlite3_trace_v2 callback. C is the connection's conn_state, which lives until SQLite frees the
@@ -194,15 +308,51 @@ static int trace_cb(unsigned type, void *c, void *p, void *x) {
 				}
 			}
 			int64_t duration = is_stmt ? -1 : *(sqlite3_int64 *)x;
-			add_event(is_stmt ? SQLITEDBG_EVENT_STATEMENT : SQLITEDBG_EVENT_PROFILE, cs->id, duration, flags, sql,
-			          strlen(sql));
+			int64_t rows = -1, changes = -1;
+			if (is_stmt) {
+				// SQLite's own nested statements (the schema read a CREATE TABLE runs, for one) are traced
+				// with "--" text like a trigger, so they get no slot and their rows are never recorded.
+				if (!is_trigger) claim_slot(cs, stmt)->total_changes = sqlite3_total_changes64(sqlite3_db_handle(stmt));
+			} else {
+				stmt_slot *slot = find_slot(cs, stmt);
+				if (slot) {
+					rows = slot->rows;
+					if (slot->rows_cut) flags |= SQLITEDBG_EVENT_ROWS_CUT;
+					if (!sqlite3_stmt_readonly(stmt)) {
+						// sqlite3_changes64 is this statement's count once it has run, but only INSERT, UPDATE
+						// and DELETE set it: after a CREATE TABLE it still holds the last write's. A total that
+						// did not move means the statement changed nothing.
+						sqlite3 *db = sqlite3_db_handle(stmt);
+						changes = sqlite3_total_changes64(db) == slot->total_changes ? 0 : sqlite3_changes64(db);
+					}
+					memset(slot, 0, sizeof *slot);
+				}
+			}
+			add_event(is_stmt ? SQLITEDBG_EVENT_STATEMENT : SQLITEDBG_EVENT_PROFILE, cs->id, duration, rows, changes,
+			          flags, sql, strlen(sql));
 			if (expanded) sqlite3_free(expanded);
+			break;
+		}
+		case SQLITE_TRACE_ROW: {
+			sqlite3_stmt *stmt = (sqlite3_stmt *)p;
+			stmt_slot *slot = find_slot(cs, stmt);
+			if (!slot) break;
+			slot->rows++;
+			slot->last_use = ++cs->use_clock;
+			uint32_t max_rows = __atomic_load_n(&g_max_rows, __ATOMIC_RELAXED);
+			if (!max_rows || !__atomic_load_n(&g_client_connected, __ATOMIC_RELAXED)) break;
+			if (slot->recorded >= max_rows) {
+				slot->rows_cut = 1;
+				break;
+			}
+			slot->recorded++;
+			record_row(cs, stmt, slot->rows);
 			break;
 		}
 		case SQLITE_TRACE_CLOSE:
 			// The close can still fail or leave a zombie, so only mark it: xDestroy frees.
 			__atomic_store_n(&cs->closing, 1, __ATOMIC_RELAXED);
-			add_event(SQLITEDBG_EVENT_CLOSE, cs->id, -1, 0, "", 0);
+			add_event(SQLITEDBG_EVENT_CLOSE, cs->id, -1, -1, -1, 0, "", 0);
 			break;
 	}
 	return 0;
@@ -287,7 +437,8 @@ static int init_connection(sqlite3 *db, const sqlite3_api_routines *api) {
 	int rc = sqlite3_create_function_v2(db, fn_name, 0, SQLITE_UTF8 | SQLITE_INNOCUOUS, cs,
 	                                    connection_id_fn, NULL, NULL, conn_destroy);
 	if (rc != SQLITE_OK) return rc;
-	return sqlite3_trace_v2(db, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_CLOSE, trace_cb, cs);
+	return sqlite3_trace_v2(db, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE | SQLITE_TRACE_ROW | SQLITE_TRACE_CLOSE,
+	                        trace_cb, cs);
 }
 
 int sqlitedbg_install(sqlitedbg_auto_extension_fn auto_extension, const sqlitedbg_config *config) {
@@ -389,6 +540,12 @@ void sqlitedbg_read_events(uint64_t after, void *out, size_t out_bytes, sqlitedb
 
 void sqlitedbg_set_client_connected(int connected) {
 	__atomic_store_n(&g_client_connected, connected ? 1 : 0, __ATOMIC_RELAXED);
+}
+
+void sqlitedbg_set_row_capture(uint32_t max_rows_per_statement, uint32_t max_value_bytes, uint32_t max_row_bytes) {
+	__atomic_store_n(&g_max_value, max_value_bytes ? max_value_bytes : DEFAULT_MAX_VALUE_BYTES, __ATOMIC_RELAXED);
+	__atomic_store_n(&g_max_row, max_row_bytes ? max_row_bytes : DEFAULT_MAX_ROW_BYTES, __ATOMIC_RELAXED);
+	__atomic_store_n(&g_max_rows, max_rows_per_statement, __ATOMIC_RELAXED);
 }
 
 static int server_authorizer(void *unused, int action, const char *a1, const char *a2, const char *db,

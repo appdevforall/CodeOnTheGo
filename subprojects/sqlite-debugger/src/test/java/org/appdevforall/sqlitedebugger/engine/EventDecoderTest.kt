@@ -9,13 +9,13 @@ import java.nio.ByteOrder
 class EventDecoderTest {
 	// events.bin is what sqlitedbg_read_events copied out in sqlitedbg_test.c (test.sh --update-fixture);
 	// events.tsv is the same records as the C struct reads them: seq, kind, connection, thread, time,
-	// duration, flags, sql.
+	// duration, flags, rows, changes, then the SQL or, for a row, its values (see write_row_data there).
 	private val bytes = resource("events.bin")
 	private val table =
 		String(resource("events.tsv"), Charsets.UTF_8)
 			.trimEnd('\n')
 			.split('\n')
-			.map { it.split('\t', limit = 8) }
+			.map { it.split('\t', limit = 10) }
 
 	private fun resource(name: String): ByteArray =
 		checkNotNull(javaClass.getResourceAsStream(name)) { "missing fixture $name" }.use { it.readBytes() }
@@ -34,7 +34,42 @@ class EventDecoderTest {
 			assertThat(event.durationNanos).isEqualTo(if (event.kind == EventKind.PROFILE) row[5].toLong() else null)
 			assertThat(event.truncated).isEqualTo(row[6].toInt() and 1 != 0)
 			assertThat(event.expanded).isEqualTo(row[6].toInt() and 2 != 0)
-			assertThat(event.sql).isEqualTo(row[7])
+			assertThat(event.rowsCut).isEqualTo(row[6].toInt() and 4 != 0)
+			assertThat(event.rows).isEqualTo(row[7].toLong().takeIf { it >= 0 })
+			assertThat(event.changes).isEqualTo(row[8].toLong().takeIf { it >= 0 })
+			if (event.kind == EventKind.ROW) {
+				assertThat(event.sql).isEmpty()
+				assertRow(event.row, row[9])
+			} else {
+				assertThat(event.row).isNull()
+				assertThat(event.sql).isEqualTo(row[9])
+			}
+		}
+	}
+
+	// row is "<columns>/<kept>|" and then each value: a type letter (i, f, t, b, n), "*" if cut, ":" and
+	// the value (decimal, %.17g, text, lowercase hex, nothing for NULL).
+	private fun assertRow(
+		actual: RowValues?,
+		row: String,
+	) {
+		checkNotNull(actual)
+		val (counts, values) = row.split('|', limit = 2)
+		val (columns, kept) = counts.split('/').map { it.toInt() }
+		assertThat(actual.columnCount).isEqualTo(columns)
+		assertThat(actual.values).hasSize(kept)
+		values.split(',').forEachIndexed { i, token ->
+			val (type, text) = token.split(':', limit = 2)
+			assertThat(i in actual.cutIndexes).isEqualTo(type.endsWith("*"))
+			val value = actual.values[i]
+			when (type.trimEnd('*')) {
+				"i" -> assertThat(value).isEqualTo(text.toLong())
+				"f" -> assertThat(value).isEqualTo(text.toDouble())
+				"t" -> assertThat(value).isEqualTo(text)
+				"b" -> assertThat((value as ByteArray).joinToString("") { "%02x".format(it) }).isEqualTo(text)
+				"n" -> assertThat(value).isNull()
+				else -> error("unknown type $type")
+			}
 		}
 	}
 
@@ -45,6 +80,18 @@ class EventDecoderTest {
 		assertThat(events.map { it.kind }.toSet()).containsExactlyElementsIn(EventKind.values().toList())
 		assertThat(events.any { it.truncated }).isTrue()
 		assertThat(events.any { it.expanded }).isTrue()
+		assertThat(events.any { it.rowsCut }).isTrue()
+		assertThat(events.any { (it.changes ?: 0) > 0 }).isTrue()
+		// a row with every type, and a cut TEXT and BLOB
+		val row = checkNotNull(events.single { it.kind == EventKind.ROW }.row)
+		assertThat(row.values.map { it?.javaClass }).containsExactly(
+			Long::class.javaObjectType,
+			Double::class.javaObjectType,
+			String::class.java,
+			ByteArray::class.java,
+			null,
+		).inOrder()
+		assertThat(row.cutIndexes).containsExactly(2, 3)
 		assertThat(events.any { it.sql.startsWith("--") }).isTrue()
 		// multi-byte text survives, including a character outside the BMP
 		assertThat(events.any { it.sql.contains("héllo € 😀") }).isTrue()
@@ -88,5 +135,34 @@ class EventDecoderTest {
 		assertThrows(IllegalArgumentException::class.java) { EventDecoder.decode(big, big.size) }
 		val negative = patched(52, -1)
 		assertThrows(IllegalArgumentException::class.java) { EventDecoder.decode(negative, negative.size) }
+	}
+
+	@Test
+	fun `a malformed row is refused`() {
+		val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+		var offset = 0
+		while (buffer.getInt(offset + 4) != EventKind.ROW.nativeValue) offset += buffer.getInt(offset)
+		val data = offset + EventDecoder.HEADER_BYTES
+
+		fun patched(
+			at: Int,
+			value: Int,
+		): ByteArray {
+			val copy = bytes.copyOf()
+			ByteBuffer.wrap(copy).order(ByteOrder.LITTLE_ENDIAN).putInt(at, value)
+			return copy
+		}
+
+		// kept above columns; the first value (an integer) not 8 bytes; its stored bytes past the row;
+		// an unknown type in the first value's type byte (and its neighbours left alone)
+		val first = data + 8
+		for (broken in listOf(
+			patched(data + 4, 99),
+			patched(first + 4, 4),
+			patched(first + 4, 100000),
+			patched(first, 9),
+		)) {
+			assertThrows(IllegalArgumentException::class.java) { EventDecoder.decode(broken, broken.size) }
+		}
 	}
 }

@@ -30,6 +30,13 @@ MCP client --HTTP, 127.0.0.1--> McpHttp -> McpProtocol -> DatabaseTools -> Debug
 
 The layout of `sqlitedbg_event_record` lives in `sqlitedbg.h`. The JNI layer hands the bytes to Kotlin unchanged, so `EventDecoder.kt` mirrors the layout, field offsets included: change both together. A committed fixture pins them (see Testing).
 
+**Rows and changes (ADFA-7296, interface version 3).** Each record carries `rows` and `changes` (the header grew from 56 to 72 bytes; the earlier fields kept their offsets).
+- A PROFILE event's `rows` counts the rows the statement returned. Its `changes` is the statement's own change count, as `sqlite3_changes64` reports it (not rows changed by triggers). A read-only statement has `changes` -1, and a statement that changed nothing has 0 (a CREATE TABLE, which `sqlite3_changes64` alone would report with the previous write's count).
+- `SQLITEDBG_EVENT_ROW` records one row's values: the first N rows of each statement, while a client is connected and `sqlitedbg_set_row_capture` is on. Recording is off by default, and nothing turns it on yet; the server will (ADFA-7297).
+- Each value is read with the accessor of its own type, after `sqlite3_column_type`. `sqlite3_column_text` on every column would convert values in place: on a BLOB, the app's own `sqlite3_column_type` then returns TEXT. TEXT and BLOB values are cut at a per-value limit, and a row's data at a per-row limit; both are marked.
+- The extension follows up to 16 statements per connection (`SQLITEDBG_STATEMENT_SLOTS`) from their start to their PROFILE event. Rows of a statement it did not see start are not recorded, which drops the rows of SQLite's own nested statements (a CREATE TABLE's schema read returns one). Limit: a connection that steps more than 16 statements in turn loses the oldest, whose remaining rows go unrecorded and whose PROFILE event has `rows` and `changes` -1.
+- Rows are counted on every statement, client or not: `SQLITE_TRACE_ROW` is part of the trace mask from the connection's open. Adding it when a client connects would take a `sqlite3_trace_v2` call on each app connection, which the server's thread may not make while the app uses the connection (`SQLITE_THREADSAFE=2`). The cost per row is one callback and a lookup in 16 slots. It has not been measured on a phone yet.
+
 ## Decisions that shape it
 
 - **Debug builds only.** `DebuggerStartup.onCreate` throws if the process is not debuggable, so a release build that includes the library by mistake crashes at once instead of opening a local server.
