@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds the ADFA-7083 documentation pages.
+"""Builds the documentation pages of this folder (ADFA-7083, ADFA-7243, ADFA-7247).
 
 Reads pages/*.md and writes one JSON file per page into the output directory,
 in the shape documentation.db stores for the Help+Manual pages (templateId
@@ -21,6 +21,9 @@ A page is Markdown, a small subset of it, after a front matter block:
 Supported: `##` and `###` headings, paragraphs, `-` and `1.` lists, `>` notes,
 pipe tables, fenced code blocks, `code`, **bold** and [links](page.html). A link to
 an http(s) address is shown as text, because the documentation stays on the device.
+The word after a code block's opening fence (`sql`, `kotlin`, `java`, `gradle`,
+`gradle-java`, `text`) is for the tests, which run or compile the block: the page
+shows every block the same.
 """
 import html
 import json
@@ -30,18 +33,34 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# Pages of the existing help that these pages hang under, outermost first.
-ROOT_TRAIL = [("cogo-top.html", "Code on the Go"), ("terminal-top.html", "Terminal")]
+# Pages of the existing help that these pages hang under: file -> (title, parent).
+EXISTING = {
+    "cogo-top.html": ("Code on the Go", None),
+    "terminal-top.html": ("Terminal", "cogo-top.html"),
+    "project-create-new.html": ("Create a new project", "cogo-top.html"),
+}
+
+# overflow-wrap: break-word lets a word or code token longer than the line break where it must,
+# so that no line runs off a phone's screen, which would make the whole page scroll sideways.
+# word-break: break-word adds nothing outside a table (WebView 77 has no overflow-wrap: anywhere);
+# it is kept because it was on when the pages were checked on a device. Table cells get
+# overflow-wrap only: see CELL.
+WRAP = "overflow-wrap: break-word; word-break: break-word;"
 
 P_STYLE = {
-    "p_Normal": "",
-    "li": "text-indent: 0; padding-left: 1.2500rem; margin-left: 1.3125rem;",
-    "code": "margin: 0.1875rem 0.0625rem 0.1875rem 1.2500rem; white-space: pre-wrap;",
-    "note": "margin-left: 1.2500rem; padding-left: 0.5000rem; border-left: 0.1875rem solid #999999;",
-    "h2": "page-break-after: avoid;",
-    "h3": "page-break-after: avoid;",
+    "p_Normal": WRAP,
+    "li": "text-indent: 0; padding-left: 1.2500rem; margin-left: 1.3125rem; " + WRAP,
+    "code": "margin: 0.1875rem 0.0625rem 0.1875rem 1.2500rem; white-space: pre-wrap; " + WRAP,
+    "note": "margin-left: 1.2500rem; padding-left: 0.5000rem; border-left: 0.1875rem solid #999999; " + WRAP,
+    "h2": "page-break-after: avoid; " + WRAP,
+    "h3": "page-break-after: avoid; " + WRAP,
 }
-CELL = "border: 1px solid #999999; padding: 0.2500rem 0.5000rem; text-align: left; vertical-align: top;"
+# Tables are laid out fixed at the page's width (see table()), so a cell's column width does not
+# grow with its longest word, and overflow-wrap breaks only a word that does not fit the column.
+# word-break: break-word is left out: in an automatic layout it let a narrow column break short
+# words ("Lice" / "nse") at double font size.
+CELL = ("border: 1px solid #999999; padding: 0.2500rem 0.5000rem; text-align: left; vertical-align: top; "
+        "overflow-wrap: break-word;")
 
 
 def esc(s):
@@ -72,7 +91,7 @@ def inline(s):
 
 
 def paragraph(text):
-    return '<p class="p_Normal">%s</p>' % inline(text)
+    return '<p class="p_Normal" style="%s">%s</p>' % (P_STYLE["p_Normal"], inline(text))
 
 
 def list_item(marker, text):
@@ -91,7 +110,9 @@ def table(rows):
     def cells(row):
         return [c.strip() for c in row.strip().strip("|").split("|")]
     head, body = cells(rows[0]), [cells(r) for r in rows[2:]]
-    out = ['<table style="border-collapse: collapse; margin: 0.3125rem 0 0.5000rem 0;"><tr>']
+    # fixed layout: without it, a long word or code token in a cell widened its column past a
+    # phone's screen at double font size, and the page scrolled sideways
+    out = ['<table style="border-collapse: collapse; margin: 0.3125rem 0 0.5000rem 0; table-layout: fixed; width: 100%;"><tr>']
     out += ['<th style="%s">%s</th>' % (CELL, inline(c)) for c in head]
     out.append("</tr>")
     for row in body:
@@ -160,16 +181,16 @@ def main():
         if name.endswith(".md"):
             meta, md = read_page(os.path.join(HERE, "pages", name))
             pages[meta["file"]] = (meta, md)
-    titles = dict(ROOT_TRAIL)
+    titles = {f: title for f, (title, _) in EXISTING.items()}
     titles.update({f: m["title"] for f, (m, _) in pages.items()})
-    parents = {f: m["parent"] for f, (m, _) in pages.items()}
+    parents = {f: parent for f, (_, parent) in EXISTING.items()}
+    parents.update({f: m["parent"] for f, (m, _) in pages.items()})
 
     for file, (meta, md) in pages.items():
         trail, p = [], meta["parent"]
-        while p in titles and p != "cogo-top.html":
+        while p is not None:  # a parent that is neither a page here nor in EXISTING is a KeyError
             trail.insert(0, p)
-            p = parents.get(p, "terminal-top.html" if p != "terminal-top.html" else "cogo-top.html")
-        trail.insert(0, "cogo-top.html")
+            p = parents[p]
         crumbs = " &gt; ".join('<a href="%s">%s</a>' % (f, esc(titles[f])) for f in trail)
         facts = {
             "file": file,
