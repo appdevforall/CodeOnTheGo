@@ -1,9 +1,11 @@
 package com.itsaky.androidide.app
 
+import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.os.UserManager
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.work.WorkManager
@@ -21,6 +23,7 @@ import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.PluginLogger
 import com.itsaky.androidide.plugins.base.PluginFragmentHelper
 import com.itsaky.androidide.plugins.manager.core.PluginManager
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeLogServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTerminalServiceImpl
@@ -45,6 +48,8 @@ import kotlinx.coroutines.withContext
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
 import org.greenrobot.eventbus.ThreadMode
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.get
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -59,7 +64,9 @@ import kotlin.system.exitProcess
  *
  * @author Akash Yadav
  */
-internal object CredentialProtectedApplicationLoader : ApplicationLoader {
+internal object CredentialProtectedApplicationLoader :
+	ApplicationLoader,
+	KoinComponent {
 	private val logger = LoggerFactory.getLogger(CredentialProtectedApplicationLoader::class.java)
 
 	private val _isLoaded = AtomicBoolean(false)
@@ -327,8 +334,13 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 		ideLogcatReader = null
 	}
 
+	/** [context] and [endpointSource] are parameters only so a test can start the plugin system without the app. */
+	@VisibleForTesting
 	@OptIn(DelicateCoroutinesApi::class)
-	private fun initializePluginSystem() {
+	internal fun initializePluginSystem(
+		context: Context = application,
+		endpointSource: () -> DebuggerEndpointSource = { get() },
+	) {
 		try {
 			logger.info("Initializing plugin system...")
 
@@ -368,7 +380,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 
 			pluginManager =
 				PluginManager.getInstance(
-					context = application,
+					context = context,
 					eventBus = EventBus.getDefault(),
 					logger = pluginLogger,
 				)
@@ -376,7 +388,7 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 			pluginManager?.setLanguageContributionsListener(PluginLanguageSupport::refresh)
 
 			// Set up plugin service providers
-			setupPluginServices()
+			setupPluginServices(endpointSource)
 			setupPluginInflationErrorHandler()
 
 			// Load plugins asynchronously
@@ -398,15 +410,42 @@ internal object CredentialProtectedApplicationLoader : ApplicationLoader {
 	/**
 	 * Sets up the plugin service providers to integrate with AndroidIDE's actual systems.
 	 */
-	private fun setupPluginServices() {
+	private fun setupPluginServices(endpointSource: () -> DebuggerEndpointSource) {
 		pluginManager?.let { manager ->
 			manager.setActivityProvider { application.foregroundActivity }
 			setupBuildServiceProviders()
 			setupProjectManipulationProviders()
 			IdeLogServiceImpl.getInstance().setLogReader(LogsProvider::read)
+			installDebuggerEndpointSource(manager, endpointSource)
 			IdeTerminalServiceImpl.setSessionLauncher(PluginTerminalLauncher { application.foregroundActivity })
 			logger.info("Plugin services configured successfully")
 		}
+	}
+
+	/**
+	 * Installs where every plugin's DebuggerEndpointService reads the SQLite debugger endpoints. The
+	 * SQLite debugger is optional, so an Exception or LinkageError here, such as a binding that cannot
+	 * be built or a different source already installed, is reported and the plugin system starts anyway:
+	 * plugins load, and getEndpoints() throws IllegalStateException saying the endpoints are unavailable.
+	 * Like the other host and plugin-system calls, this catches nothing else: a VirtualMachineError such
+	 * as OutOfMemoryError propagates out of [initializePluginSystem].
+	 */
+	private fun installDebuggerEndpointSource(
+		manager: PluginManager,
+		endpointSource: () -> DebuggerEndpointSource,
+	) {
+		try {
+			manager.installDebuggerEndpointSource(endpointSource())
+		} catch (e: Exception) {
+			reportEndpointSourceFailure(e)
+		} catch (e: LinkageError) {
+			reportEndpointSourceFailure(e)
+		}
+	}
+
+	private fun reportEndpointSourceFailure(e: Throwable) {
+		Sentry.captureException(e)
+		logger.error("Could not set up the SQLite debugger endpoints for plugins; plugins load without them", e)
 	}
 
 	@OptIn(DelicateCoroutinesApi::class)

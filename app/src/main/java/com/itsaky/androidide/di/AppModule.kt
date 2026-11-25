@@ -7,6 +7,7 @@ import com.itsaky.androidide.deeplink.PendingDeepLinkOpen
 import com.itsaky.androidide.editor.language.outline.OutlineProvider
 import com.itsaky.androidide.editor.language.outline.TreeSitterOutlineProvider
 import com.itsaky.androidide.git.core.GitCredentialsManager
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
 import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.repositories.RecentProjectRepository
 import com.itsaky.androidide.repositories.RecentProjectRepositoryImpl
@@ -19,11 +20,13 @@ import com.itsaky.androidide.viewmodel.OutlineViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import java.io.File
 
 /** Qualifier for the process-lifetime [CoroutineScope]; see the binding for why it is named. */
 const val APPLICATION_SCOPE = "applicationScope"
@@ -65,11 +68,19 @@ val coreModule =
 
 		single {
 			val context = androidContext()
+			val packageManager = context.packageManager
 			DebuggerEndpointRepository(
 				get(),
 				get(named(APPLICATION_SCOPE)),
+				isInstalled = { DebuggerEndpointRepository.isPackageInstalled(packageManager, it) },
 				announce = { DebuggerEndpointAnnounce.send(context, it) },
 			)
+		}
+
+		// What DebuggerEndpointService reads. Plugins call it off the main thread, so blocking on Room is fine.
+		single<DebuggerEndpointSource> {
+			val repository = get<DebuggerEndpointRepository>()
+			DebuggerEndpointSource { location -> runBlocking { repository.reportedEndpoints(File(location)) } }
 		}
 
 		single<RecentProjectRepository> {
