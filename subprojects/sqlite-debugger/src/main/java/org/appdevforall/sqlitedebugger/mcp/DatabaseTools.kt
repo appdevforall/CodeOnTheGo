@@ -102,6 +102,23 @@ class DatabaseTools internal constructor(
 			"A statement is stopped and rolled back after 1.5 s (best effort: it can run up to about 3 s longer), in every " +
 				"journal mode, so a long write does not make the app's own writes fail; change fewer rows per call."
 
+		/** Said by execute's description: the first write to a Room database is refused until acknowledged (ADFA-7299). */
+		const val ROOM_DESCRIPTION =
+			"The first write to a Room database (one with room_master_table) is refused with a warning until it is sent again " +
+				"with acknowledge_room true; later writes to it run without asking until the app restarts."
+
+		/**
+		 * Why a write to a Room database waits for acknowledge_room. Room records changes with TEMP triggers on its own
+		 * connection, which a write on the server's connection does not fire, and the debugger must not change how the app
+		 * behaves, so it does not make Room refresh (ADFA-7131, D6).
+		 */
+		const val ROOM_WARNING =
+			"Nothing was run: this is a Room database. Room learns about changes through triggers on its own connection, so it " +
+				"will not see a write from the debugger. Screens that observe this data (Flow, LiveData, Paging, " +
+				"InvalidationTracker) can show stale data, and the app's caches can keep old values, until the app queries again " +
+				"or restarts. Tell the user this; to write anyway, call execute again with acknowledge_room true. Later writes to " +
+				"this database then run without asking until the app restarts."
+
 		/** Server connections never load what the app registers on its own connections (see the README). */
 		private const val APP_FUNCTIONS_NOTE =
 			"Functions the app adds to its own connections, such as sqlite-js's stored JavaScript functions, do not exist " +
@@ -160,6 +177,12 @@ class DatabaseTools internal constructor(
 
 	/** execute's connections, apart from the read-only ones, so a read never runs where writes are allowed. */
 	private val writableConnections = HashMap<String, CachedConnection>()
+
+	/**
+	 * Room databases execute may write to without asking again (ADFA-7299): acknowledged once with
+	 * `acknowledge_room` in this server process. Guarded by [lock].
+	 */
+	private val roomAcknowledged = HashSet<String>()
 	private var clientConnected = false
 	private var lastEventsCallMs = 0L
 	private var cancelIdleCheck: (() -> Unit)? = null
@@ -292,10 +315,15 @@ class DatabaseTools internal constructor(
 					"Also refused: ATTACH, and PRAGMA locking_mode, busy_timeout, query_only, writable_schema, the heap limits, " +
 					"temp_store_directory, and setting journal_mode or schema_version, as they would reach the app's own " +
 					"connections. $WRITE_NOTE The app is not told about the change: a screen showing this data may stay " +
-					"stale until it reads it again. $APP_FUNCTIONS_NOTE.",
+					"stale until it reads it again. $ROOM_DESCRIPTION $APP_FUNCTIONS_NOTE.",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
+					"acknowledge_room" to
+						prop(
+							"boolean",
+							"Set to true, after telling the user, to write to a Room database: Room's observers will not see the change.",
+						),
 					required = listOf("sql"),
 				),
 				readOnly = false,
@@ -474,9 +502,36 @@ class DatabaseTools internal constructor(
 	): JSONObject {
 		val sql = stringArg(args, "sql")
 		val bind = bindArgs(args)
-		val result = withConnection(call, checkedPath(call, args), writable = true) { it.execute(sql, bind, call.deadline) }
+		val acknowledge =
+			when (val v = args.opt("acknowledge_room")) {
+				null, JSONObject.NULL -> false
+				is Boolean -> v
+				else -> throw McpToolError("acknowledge_room must be true or false.")
+			}
+		val path = checkedPath(call, args)
+		if (!call.locked { path in roomAcknowledged } && isRoomDatabase(call, path)) {
+			if (!acknowledge) {
+				throw McpToolError(ROOM_WARNING, JSONObject().put("room", true).put("acknowledge_with", "acknowledge_room"))
+			}
+			call.locked { roomAcknowledged += path }
+		}
+		val result = withConnection(call, path, writable = true) { it.execute(sql, bind, call.deadline) }
 		return JSONObject().put("changes", encodeLong(result.changes))
 	}
+
+	/** Room creates room_master_table in every database it opens; read on the read-only connection. */
+	private fun isRoomDatabase(
+		call: Call,
+		path: String,
+	): Boolean =
+		runChecked(
+			call,
+			path,
+			"SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'room_master_table'",
+			emptyList(),
+			0,
+			QueryLimits(1, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
+		).rows.isNotEmpty()
 
 	private fun explain(
 		call: Call,
