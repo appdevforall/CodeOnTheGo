@@ -181,6 +181,39 @@ public class JniQueryTest {
 		eq(execCode(w, "ROLLBACK", new Object[0], FAR), 23, "ROLLBACK refused");
 		eq(execCode(w, "PRAGMA journal_mode = DELETE", new Object[0], FAR), 23, "journal_mode change refused");
 		eq(execCode(w, "PRAGMA busy_timeout = 60000", new Object[0], FAR), 23, "busy_timeout refused");
+		// a PRAGMA that sets a value is refused before it changes anything (SQLite applies a flag while preparing)
+		eq(exec(w, "CREATE TABLE pc(a INTEGER CHECK(a > 0))"), 0L, "a table with a CHECK");
+		for (String sql : new String[] {"PRAGMA foreign_keys = OFF", "PRAGMA ignore_check_constraints = 1",
+				"PRAGMA recursive_triggers = 1", "PRAGMA reverse_unordered_selects = 1", "PRAGMA cache_size = 1"}) {
+			eq(execCode(w, sql, new Object[0], FAR), 23, sql + " refused: SQLITE_AUTH");
+			eq(execCode(r, sql, new Object[0], FAR), 23, "read-only " + sql + " refused: SQLITE_AUTH");
+		}
+		eq(q(w, "PRAGMA ignore_check_constraints").rows.get(0)[0], 0L, "ignore_check_constraints is still 0");
+		eq(execCode(w, "INSERT INTO pc VALUES(-1)", new Object[0], FAR), 19, "a CHECK violation still fails: SQLITE_CONSTRAINT");
+		eq(q(w, "SELECT count(*) FROM pc").rows.get(0)[0], 0L, "and wrote nothing");
+		eq(execCode(r, "PRAGMA user_version = 7", new Object[0], FAR), 23, "read-only user_version = 7 refused: SQLITE_AUTH");
+		eq(q(r, "PRAGMA user_version").rows.get(0)[0], 0L, "and not stored");
+		// reads that take a table, an index or a limit still run, on both
+		for (long h : new long[] {w, r}) {
+			eq(refusal(h, "PRAGMA table_info(pc)"), null, "table_info(pc)");
+			eq(refusal(h, "PRAGMA index_list(pc)"), null, "index_list(pc)");
+			eq(refusal(h, "PRAGMA quick_check"), null, "quick_check");
+			eq(refusal(h, "PRAGMA integrity_check(3)"), null, "integrity_check(3)");
+			eq(refusal(h, "SELECT * FROM pragma_table_info('pc')"), null, "pragma_table_info('pc')");
+		}
+		eq(q(r, "SELECT name FROM pragma_table_info('pc')").rows.get(0)[0], "a", "the columns of pc");
+		eq(exec(w, "DROP TABLE pc"), 0L, "drop pc");
+		// foreign keys are enforced on this connection, whatever the app's own connections do
+		eq(exec(w, "CREATE TABLE fp(id INTEGER PRIMARY KEY)"), 0L, "create fp");
+		eq(exec(w, "CREATE TABLE fc(id INTEGER PRIMARY KEY, p INTEGER REFERENCES fp(id) ON DELETE CASCADE)"), 0L, "create fc");
+		eq(exec(w, "INSERT INTO fp VALUES(1)"), 1L, "a parent");
+		eq(exec(w, "INSERT INTO fc VALUES(10, 1)"), 1L, "a child with its parent");
+		eq(execRefusal(w, "INSERT INTO fc VALUES(11, 99)"), "19 FOREIGN KEY constraint failed", "a child with no parent is refused");
+		eq(q(w, "SELECT count(*) FROM fc WHERE id = 11").rows.get(0)[0], 0L, "and nothing is written");
+		eq(exec(w, "DELETE FROM fp WHERE id = 1"), 1L, "deleting the parent: changes 1, not the cascaded rows");
+		eq(q(w, "SELECT count(*) FROM fc").rows.get(0)[0], 0L, "removes its children");
+		eq(exec(w, "DROP TABLE fc"), 0L, "drop fc");
+		eq(exec(w, "DROP TABLE fp"), 0L, "drop fp");
 		eq(execCode(w, "DELETE FROM t WHERE id = -1", new Object[0], System.currentTimeMillis() - 1), 9, "a deadline already past");
 		// a read-only connection still refuses a write through execute
 		eq(execCode(r, "INSERT INTO t(id) VALUES(6004)", new Object[0], FAR), 23, "read-only connection: SQLITE_AUTH");

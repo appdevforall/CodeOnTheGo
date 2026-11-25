@@ -160,7 +160,11 @@ void sqlitedbg_set_client_connected(int connected);
 // ROLLBACK, SAVEPOINT and RELEASE, ATTACH and DETACH, and the PRAGMAs that would reach the app rather
 // than the data: locking_mode and busy_timeout (a client could hold a lock across statements, or wait
 // on the app's for as long as it likes), the process-wide hard_heap_limit, soft_heap_limit and
-// temp_store_directory, query_only, writable_schema, and setting journal_mode or schema_version.
+// temp_store_directory, query_only and writable_schema. A PRAGMA with an argument is refused too, as SQLite
+// applies a setting while it prepares the statement, unless it reads (table_info, table_xinfo, table_list,
+// index_info, index_xinfo, index_list, foreign_key_list, foreign_key_check, integrity_check, quick_check)
+// or is user_version on a writable connection.
+// A writable connection also enforces foreign keys, whatever the app's connections do.
 // Read-only also sets PRAGMA query_only and refuses every write. Within one statement a lock is held
 // while it runs, so the JNI layer stops a read on a database that is not in WAL mode, and every
 // write, after SQLITEDBG_SERVER_NON_WAL_MS. Read-only mode guards against accidents; it is not a
