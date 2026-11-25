@@ -385,6 +385,7 @@ Code on the Go cannot load Android Studio or IntelliJ plugins ([ADR 0018](adr/00
 | Highlighting layered over a language (e.g. rainbow brackets) | `EditorDecorationProvider`, which adds foreground colours only |
 | `searchEverywhereContributor` | `ProjectSearchExtension`, which appends sections to Search Results |
 | `runConfigurationType`, external tools | `BuildActionExtension` returning `PluginBuildAction`s that run a `CommandSpec` |
+| `projectListeners` for project open and close, `FileDocumentManagerListener` for saves | `IdeProjectService.addProjectLifecycleListener` and `IdeEditorService.addFileSaveListener`. A save is reported after the file is written, so there is no `beforeDocumentSaving` |
 | Project or module wizard | A `.cgt` template, built with `IdeTemplateService.createTemplateBuilder` and added with `registerTemplate` |
 | `applicationService` / `projectService` | Objects your plugin owns. Offer one to other plugins with `PluginContext.registerService`; reach IDE services with `PluginContext.services.get(...)` |
 
@@ -392,7 +393,7 @@ No equivalent yet:
 
 - **Editor context-menu actions.** `UIExtension.getContextMenuItems()` exists, but the IDE does not call it.
 - **Quick fixes, intention actions and hover documentation.** The language-server bridge does not request code actions or hover.
-- **Message-bus listeners** (`applicationListeners`, `projectListeners`). `PluginContext.eventBus` is the IDE's EventBus, typed `Any`; its events are not part of the [plugin API contract](plugin-api.md), so a subscriber can break on any release.
+- **Other message-bus listeners** (`applicationListeners`, and `projectListeners` beyond project open, close and file save). `PluginContext.eventBus` is the IDE's EventBus, typed `Any`; its events are not part of the [plugin API contract](plugin-api.md), so a subscriber can break on any release.
 - **Anything that depends on the Android plugin** bundled with Android Studio (`org.jetbrains.android`).
 
 ## Porting a VS Code extension
@@ -411,6 +412,7 @@ Code on the Go does not host VS Code's extension API ([ADR 0019](adr/0019-vscode
 | `window.createWebviewPanel` | A `Fragment` hosting an Android `WebView`, shown as an `EditorTabExtension` tab - `markdown-preview-plugin` does this |
 | `contributes.configuration` | `SettingsExtension`, storing values with `PluginContext.getPluginSharedPreferences` |
 | `contributes.taskDefinitions` | `BuildActionExtension` returning `PluginBuildAction`s that run a `CommandSpec` |
+| `workspace.onDidSaveTextDocument` | `IdeEditorService.addFileSaveListener` |
 
 No equivalent yet:
 
@@ -418,7 +420,7 @@ No equivalent yet:
 - **Debuggers** (`contributes.debuggers`). The IDE's debugger does not speak the Debug Adapter Protocol.
 - **Explorer and editor context menus** (`menus["explorer/context"]`, `menus["editor/context"]`). `UIExtension.getContextMenuItems()` exists, but the IDE does not call it.
 - **In-process language providers** (`languages.registerCompletionItemProvider` and the like). Put the logic in a language server instead.
-- **Workspace events** (`workspace.onDidSaveTextDocument` and the like). As for Android Studio's message-bus listeners, `PluginContext.eventBus` is not part of the plugin API contract.
+- **Other workspace events** (`workspace.onDidCreateFiles`, `onDidRenameFiles` and the like). As for Android Studio's message-bus listeners, `PluginContext.eventBus` is not part of the plugin API contract.
 
 ## Troubleshooting
 
