@@ -88,6 +88,149 @@ public class JniQueryTest {
 		return new HashSet<>(Arrays.asList(v));
 	}
 
+	static long exec(long h, String sql, Object... args) throws DebugEngineException {
+		long[] r = NativeBridge.execute(h, sql, args, FAR);
+		eq(r.length, 2, "execute returns {changes, last_insert_rowid}");
+		return r[0];
+	}
+
+	/** The rowid execute reports, or null (Long.MIN_VALUE on the wire) when the statement inserted no row. */
+	static Long rowid(long h, String sql, Object... args) throws DebugEngineException {
+		long r = NativeBridge.execute(h, sql, args, FAR)[1];
+		return r == Long.MIN_VALUE ? null : r;
+	}
+
+	static int execCode(long h, String sql, Object[] args, long deadline) {
+		try {
+			NativeBridge.execute(h, sql, args, deadline);
+			return 0;
+		} catch (DebugEngineException e) {
+			return e.sqliteCode;
+		}
+	}
+
+	/** "code message" of the refusal, or null when the statement ran. */
+	static String execRefusal(long h, String sql) {
+		try {
+			NativeBridge.execute(h, sql, new Object[0], FAR);
+			return null;
+		} catch (DebugEngineException e) {
+			return e.sqliteCode + " " + e.getMessage();
+		}
+	}
+
+	/** ADFA-7298: execute on a writable server connection. */
+	static void execute(Path dir, String path, long app) throws Exception {
+		long w = NativeBridge.openServer(path.getBytes(StandardCharsets.UTF_8), true);
+		long r = NativeBridge.openServer(path.getBytes(StandardCharsets.UTF_8), false);
+
+		// a write reports its own change count, and the app sees it
+		eq(exec(w, "INSERT INTO t(id, s) VALUES(?, ?), (?, ?)", 6001L, "a", 6002L, "b"), 2L, "insert 2: changes 2");
+		eq(exec(w, "UPDATE t SET s = ? WHERE id >= ?", "z", 6001L), 2L, "update 2: changes 2");
+		eq(exec(w, "DELETE FROM t WHERE id = :id", 6001L), 1L, "delete 1, named parameter: changes 1");
+		eq(exec(w, "DELETE FROM t WHERE id = -1"), 0L, "delete none: changes 0");
+		// a statement that changes no row reports 0, not the previous write's count (sqlite3_changes64 keeps it)
+		eq(exec(w, "UPDATE t SET s = 'y' WHERE id = 6002"), 1L, "update 1");
+		eq(exec(w, "CREATE TABLE ex(a)"), 0L, "CREATE TABLE: changes 0, not the update's 1");
+		eq(exec(w, "PRAGMA user_version = 7"), 0L, "a PRAGMA that stores a value runs: changes 0");
+		eq(q(r, "PRAGMA user_version").rows.get(0)[0], 7L, "and is stored");
+		eq(exec(w, "PRAGMA user_version = 0"), 0L, "user_version back");
+		eq(exec(w, "DROP TABLE ex"), 0L, "DROP TABLE: changes 0");
+		eq(exec(w, "INSERT INTO t(id) VALUES(6003) RETURNING id"), 1L, "RETURNING rows are read and dropped: changes 1");
+		eq(q(r, "SELECT count(*) FROM t WHERE id IN (6002, 6003)").rows.get(0)[0], 2L, "the writes are visible to a reader");
+		eq(Helper.exec(app, "DELETE FROM t WHERE id IN (6002, 6003)"), 0, "the app's own connection writes after them");
+		eq(Helper.autocommit(app), 1, "and the app's connection is in autocommit");
+
+		// last_insert_rowid: the writable connection is cached, so SQLite's value outlives each statement
+		eq(exec(w, "CREATE TABLE lr(a UNIQUE)"), 0L, "create lr");
+		eq(exec(w, "CREATE TABLE lrw(a PRIMARY KEY) WITHOUT ROWID"), 0L, "create lrw");
+		eq(rowid(w, "INSERT INTO lr VALUES(1)"), 1L, "INSERT reports its rowid");
+		eq(rowid(w, "INSERT INTO lr VALUES(2)"), 2L, "the next INSERT reports the next rowid");
+		eq(rowid(w, "UPDATE lr SET a = a + 10"), null, "an UPDATE after INSERTs reports null, not their rowid");
+		eq(rowid(w, "INSERT INTO lr VALUES(3)"), 3L, "an INSERT again");
+		eq(rowid(w, "INSERT INTO lrw VALUES(1)"), null, "INSERT into a WITHOUT ROWID table: null, not the previous rowid");
+		eq(rowid(w, "INSERT INTO lr VALUES(4)"), 4L, "an INSERT again");
+		eq(rowid(w, "INSERT OR IGNORE INTO lr VALUES(4)"), null, "INSERT OR IGNORE that inserts nothing: null");
+		eq(rowid(w, "INSERT INTO lr VALUES(5), (6), (7)"), 7L, "a multi-row INSERT reports the last row's rowid");
+		eq(rowid(w, "DELETE FROM lr"), null, "a DELETE reports null");
+		// 0 and negative rowids are rowids like any other
+		eq(rowid(w, "INSERT INTO lr(rowid, a) VALUES(0, 20)"), 0L, "an INSERT with rowid 0 reports 0, not null");
+		eq(rowid(w, "INSERT INTO lr(rowid, a) VALUES(-5, 21)"), -5L, "an INSERT with a negative rowid reports it");
+		eq(rowid(w, "DELETE FROM lr"), null, "a DELETE after them reports null");
+		// SQLite restores the value when a trigger ends, so inserts made only by a trigger report null
+		eq(exec(w, "CREATE TABLE lt(a)"), 0L, "create lt");
+		eq(exec(w, "CREATE TRIGGER lt_up AFTER UPDATE ON lt BEGIN INSERT INTO lr VALUES(100); END"), 0L, "create trigger");
+		eq(rowid(w, "INSERT INTO lt VALUES(1)"), 1L, "an INSERT with no trigger on it reports its rowid");
+		eq(rowid(w, "UPDATE lt SET a = 2"), null, "an UPDATE whose trigger inserts a row reports null");
+		eq(q(r, "SELECT count(*) FROM lr").rows.get(0)[0], 1L, "the trigger did insert");
+		eq(exec(w, "DROP TABLE lt"), 0L, "drop lt");
+		eq(exec(w, "DROP TABLE lr"), 0L, "drop lr");
+		eq(exec(w, "DROP TABLE lrw"), 0L, "drop lrw");
+
+		// a statement that does not write belongs to query
+		eq(execRefusal(w, "SELECT 1"), "1 the statement does not write; run it with query", "a SELECT is refused");
+		eq(execRefusal(w, "PRAGMA user_version"), "1 the statement does not write; run it with query", "a PRAGMA read is refused");
+		// one statement, the same argument rules as query
+		eq(execRefusal(w, "DELETE FROM t WHERE id = -1; DELETE FROM t"),
+				"1 the SQL holds more than one statement; run one statement per call", "a second statement");
+		eq(q(r, "SELECT count(*) FROM t WHERE id = 1").rows.get(0)[0], 1L, "nothing deleted by the refused second statement");
+		eq(execCode(w, "DELETE FROM t WHERE id = ?", new Object[0], FAR), 25, "a missing argument: SQLITE_RANGE");
+		eq(execCode(w, "DELETE FROM t WHERE id = ?", new Object[] {1L, 2L}, FAR), 25, "an extra argument: SQLITE_RANGE");
+		eq(execCode(w, "INSERT INTO nope VALUES(1)", new Object[0], FAR), 1, "an SQLite error: SQLITE_ERROR");
+		eq(execCode(w, "COMMIT", new Object[0], FAR), 23, "COMMIT refused");
+		eq(execCode(w, "ROLLBACK", new Object[0], FAR), 23, "ROLLBACK refused");
+		eq(execCode(w, "PRAGMA journal_mode = DELETE", new Object[0], FAR), 23, "journal_mode change refused");
+		eq(execCode(w, "PRAGMA busy_timeout = 60000", new Object[0], FAR), 23, "busy_timeout refused");
+		eq(execCode(w, "DELETE FROM t WHERE id = -1", new Object[0], System.currentTimeMillis() - 1), 9, "a deadline already past");
+		// a read-only connection still refuses a write through execute
+		eq(execCode(r, "INSERT INTO t(id) VALUES(6004)", new Object[0], FAR), 23, "read-only connection: SQLITE_AUTH");
+		eq(q(r, "SELECT count(*) FROM t WHERE id = 6004").rows.get(0)[0], 0L, "nothing written through a read-only connection");
+		NativeBridge.close(r);
+		NativeBridge.close(w);
+
+		// a long write is stopped after the 1.5 s cap, in WAL mode too, and rolled back, so the app's write never fails
+		for (String mode : new String[] {"DELETE", "WAL"}) {
+			String p = dir.resolve("cap-" + mode + ".db").toString();
+			long a = Helper.open(p);
+			eq(Helper.busyTimeout(a, 2500), 0, mode + ": the app's busy timeout");
+			eq(Helper.exec(a, "PRAGMA journal_mode=" + mode), 0, mode + ": mode");
+			eq(Helper.exec(a, "CREATE TABLE t(id INTEGER)"), 0, mode + ": create");
+			eq(Helper.exec(a, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<300) INSERT INTO t SELECT x FROM c"), 0,
+					mode + ": insert");
+			long sw = NativeBridge.openServer(p.getBytes(StandardCharsets.UTF_8), true);
+			Ran ran = new Ran();
+			Thread th = new Thread(() -> {
+				long t = System.currentTimeMillis();
+				try {
+					// far more work than 1.5 s: a cross join of t four times over, inserted
+					NativeBridge.execute(sw, "INSERT INTO t SELECT a.id FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0 "
+							+ "UNION ALL SELECT -1", new Object[0], System.currentTimeMillis() + 8000);
+				} catch (DebugEngineException e) {
+					ran.code = e.sqliteCode;
+					ran.message = e.getMessage();
+				}
+				ran.ms = System.currentTimeMillis() - t;
+			});
+			th.start();
+			Thread.sleep(300);
+			long t0 = System.currentTimeMillis();
+			eq(Helper.exec(a, "INSERT INTO t(id) VALUES(7001)"), 0, mode + ": the app commits during a long server write");
+			long commitMs = System.currentTimeMillis() - t0;
+			th.join();
+			check(commitMs < 2500, mode + ": the commit waited " + commitMs + " ms, under the busy timeout");
+			eq(ran.code, 9, mode + ": the long write was interrupted: SQLITE_INTERRUPT");
+			check(ran.message != null && ran.message.contains("rolled back") && ran.message.contains("fewer rows"),
+					mode + ": the message says why and what to do: " + ran.message);
+			check(ran.ms >= 1400 && ran.ms < 2500, mode + ": the write stopped after " + ran.ms + " ms, near the 1500 ms cap");
+			long rr = NativeBridge.openServer(p.getBytes(StandardCharsets.UTF_8), false);
+			eq(q(rr, "SELECT count(*) FROM t WHERE id = -1").rows.get(0)[0], 0L, mode + ": the stopped write left nothing");
+			eq(q(rr, "SELECT count(*) FROM t WHERE id = 7001").rows.get(0)[0], 1L, mode + ": the app's write is there");
+			NativeBridge.close(rr);
+			NativeBridge.close(sw);
+			Helper.close(a);
+		}
+	}
+
 	/** Reads t four times over: far longer than the cap, and it holds the lock from its first step. */
 	static final String LONG_READ = "SELECT count(*) FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0";
 
@@ -344,15 +487,19 @@ public class JniQueryTest {
 		eq(((String[]) NativeBridge.connections()[1]).length, 1, "server not listed");
 		NativeBridge.close(srv);
 
-		// the backstop: a writable connection that opens a transaction does not keep it
+		// a writable connection refuses transactions too (ADFA-7298), so the app is never locked out
 		long w = NativeBridge.openServer(bytes, true);
-		q(w, "BEGIN IMMEDIATE");
-		eq(Helper.exec(app, "INSERT INTO t(id) VALUES(4244)"), 0, "the app can write after a writable BEGIN IMMEDIATE");
-		Helper.exec(app, "DELETE FROM t WHERE id = 4244");
-		q(w, "BEGIN");
+		for (String sql : new String[] {"BEGIN", "BEGIN IMMEDIATE", "SAVEPOINT s"}) {
+			eq(codeOf(w, sql, new Object[0], FAR), 23, "writable: " + sql + " refused: SQLITE_AUTH");
+			eq(execCode(w, sql, new Object[0], FAR), 23, "writable execute: " + sql + " refused: SQLITE_AUTH");
+			eq(Helper.exec(app, "INSERT INTO t(id) VALUES(4244)"), 0, "the app can write after a writable " + sql);
+			Helper.exec(app, "DELETE FROM t WHERE id = 4244");
+		}
 		q(w, "INSERT INTO t(id) VALUES(4245)");
 		eq(q(w, "SELECT count(*) FROM t WHERE id = 4245").rows.get(0)[0], 1L, "an autocommit insert on the writable connection stays");
-		// a rollback the backstop cannot make is the query's error, not a lock held in silence
+		// a rollback the backstop cannot make is the query's error, not a lock held in silence. The
+		// transactions below are opened past the authorizer, removed here, as a hole in it would leave one.
+		eq(Helper.denyTransactions(w, false), 0, "the server's authorizer removed");
 		eq(Helper.exec(w, "BEGIN IMMEDIATE"), 0, "a transaction opened outside the query path");
 		eq(Helper.denyTransactions(w, true), 0, "an authorizer that refuses ROLLBACK");
 		eq(refusal(w, "SELECT 1"), "23 a transaction was left open and rolling it back failed: not authorized",
@@ -383,8 +530,21 @@ public class JniQueryTest {
 		eq(Helper.denyTransactions(w, false), 0, "the authorizer cleared, again");
 		eq(refusal(w, "SELECT 1"), null, "the next query rolls it back, again");
 		eq(Helper.autocommit(w), 1, "closed");
+		// the backstop runs after execute too, and keeps execute's own error
+		eq(Helper.exec(w, "BEGIN IMMEDIATE"), 0, "a transaction opened outside the execute path");
+		eq(execCode(w, "UPDATE t SET id = id WHERE id = -1; SELECT 1", new Object[0], FAR), 1, "execute's own error is kept");
+		eq(Helper.autocommit(w), 1, "rolled back after a failed execute");
+		eq(Helper.exec(w, "BEGIN IMMEDIATE"), 0, "a transaction opened outside the execute path, rollback to be refused");
+		eq(Helper.denyTransactions(w, true), 0, "an authorizer that refuses ROLLBACK, for execute");
+		eq(execRefusal(w, "DELETE FROM t WHERE id = -1"), "23 a transaction was left open and rolling it back failed: not authorized",
+				"execute reports the failed rollback");
+		eq(Helper.denyTransactions(w, false), 0, "the authorizer cleared, for execute");
+		eq(execRefusal(w, "DELETE FROM t WHERE id = -1"), null, "the next execute rolls it back");
+		eq(Helper.autocommit(w), 1, "closed, after execute");
 		NativeBridge.close(w);
 		Helper.exec(app, "DELETE FROM t WHERE id = 4245");
+
+		execute(dir, path, app);
 
 		nonWalCap(dir, path);
 

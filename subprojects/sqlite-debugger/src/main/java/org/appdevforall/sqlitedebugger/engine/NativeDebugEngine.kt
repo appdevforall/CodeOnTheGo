@@ -114,6 +114,16 @@ class NativeDebugEngine : DebugEngine {
 			return QueryResult(columns, rows, truncatedCells = counts[0].toInt(), hasMore = counts[1] != 0L, truncatedCellIndexes = cut)
 		}
 
+		override fun execute(
+			sql: String,
+			args: List<Any?>,
+			deadlineMillis: Long,
+		): ExecuteResult {
+			check(handle != 0L) { "the connection is closed" }
+			val result = NativeBridge.execute(handle, sql, Array(args.size) { bindable(args[it]) }, deadlineMillis)
+			return ExecuteResult(changes = result[0], lastInsertRowid = result[1].takeIf { it != Long.MIN_VALUE })
+		}
+
 		override fun close() {
 			val h = handle
 			handle = 0

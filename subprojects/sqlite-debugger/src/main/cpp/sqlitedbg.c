@@ -391,10 +391,11 @@ void sqlitedbg_set_client_connected(int connected) {
 	__atomic_store_n(&g_client_connected, connected ? 1 : 0, __ATOMIC_RELAXED);
 }
 
-static int server_authorizer(void *unused, int action, const char *a1, const char *a2, const char *db,
+// The user data of a writable server connection's authorizer; a read-only one gets NULL.
+static const int k_writable = 1;
+
+static int server_authorizer(void *writable, int action, const char *a1, const char *a2, const char *db,
                              const char *trigger) {
-	(void)unused;
-	(void)a2;
 	(void)db;
 	(void)trigger;
 	switch (action) {
@@ -422,6 +423,8 @@ static int server_authorizer(void *unused, int action, const char *a1, const cha
 		case SQLITE_ALTER_TABLE:
 		case SQLITE_REINDEX:
 		case SQLITE_ANALYZE:
+			return writable ? SQLITE_OK : SQLITE_DENY;
+		// ATTACH would open a file the app may not have open (ADFA-7131, Design 3), writable or not.
 		case SQLITE_ATTACH:
 		case SQLITE_DETACH:
 		// A client could open a transaction or savepoint and hold a lock on the app's database.
@@ -431,20 +434,27 @@ static int server_authorizer(void *unused, int action, const char *a1, const cha
 			// Only the ROLLBACK of sqlitedbg_end_transaction, which ends one, gets past.
 			return tls_ending_transaction && a1 && strcmp(a1, "ROLLBACK") == 0 ? SQLITE_OK : SQLITE_DENY;
 		case SQLITE_PRAGMA:
-			// PRAGMA query_only=0 would lift the guard, and a PRAGMA that stores a value writes.
-			// PRAGMA table_info(t) also has a second argument, so only these names are checked.
-			// locking_mode=EXCLUSIVE keeps the lock after a read, and busy_timeout (any form) lets a
-			// statement wait on the app's lock for as long as the client likes. The heap limits and
-			// temp_store_directory are process-wide: they would change the app's own connections.
+			// Refused on every server connection, as they would reach the app's own connections or its
+			// file format, not just data. PRAGMA table_info(t) also has a second argument, so only
+			// these names are checked. locking_mode=EXCLUSIVE keeps the lock after a statement, and
+			// busy_timeout (any form) lets a statement wait on the app's lock for as long as the client
+			// likes. The heap limits and temp_store_directory are process-wide. query_only is the
+			// server's own guard. writable_schema and a schema_version write can leave a schema the
+			// app's SQLite reads as corrupt, and a journal_mode change switches the mode under the
+			// app's connections.
 			if (a1 && (sqlite3_stricmp(a1, "query_only") == 0 || sqlite3_stricmp(a1, "writable_schema") == 0 ||
 			           sqlite3_stricmp(a1, "locking_mode") == 0 || sqlite3_stricmp(a1, "busy_timeout") == 0 ||
 			           sqlite3_stricmp(a1, "hard_heap_limit") == 0 || sqlite3_stricmp(a1, "soft_heap_limit") == 0 ||
-			           sqlite3_stricmp(a1, "temp_store_directory") == 0 || sqlite3_stricmp(a1, "wal_checkpoint") == 0 ||
-			           sqlite3_stricmp(a1, "incremental_vacuum") == 0 || sqlite3_stricmp(a1, "optimize") == 0))
+			           sqlite3_stricmp(a1, "temp_store_directory") == 0))
 				return SQLITE_DENY;
-			if (a1 && a2 &&
-			    (sqlite3_stricmp(a1, "journal_mode") == 0 || sqlite3_stricmp(a1, "user_version") == 0 ||
-			     sqlite3_stricmp(a1, "application_id") == 0 || sqlite3_stricmp(a1, "schema_version") == 0))
+			if (a1 && a2 && (sqlite3_stricmp(a1, "journal_mode") == 0 || sqlite3_stricmp(a1, "schema_version") == 0))
+				return SQLITE_DENY;
+			if (writable) return SQLITE_OK;
+			// Read-only: a PRAGMA that writes the file is a write.
+			if (a1 && (sqlite3_stricmp(a1, "wal_checkpoint") == 0 || sqlite3_stricmp(a1, "incremental_vacuum") == 0 ||
+			           sqlite3_stricmp(a1, "optimize") == 0))
+				return SQLITE_DENY;
+			if (a1 && a2 && (sqlite3_stricmp(a1, "user_version") == 0 || sqlite3_stricmp(a1, "application_id") == 0))
 				return SQLITE_DENY;
 			return SQLITE_OK;
 		default:
@@ -477,10 +487,8 @@ int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db) {
 	tls_opening_server = 1;
 	int rc = sqlite3_open_v2(path, db, writable ? SQLITE_OPEN_READWRITE : SQLITE_OPEN_READONLY, NULL);
 	tls_opening_server = 0;
-	if (rc == SQLITE_OK && !writable) {
-		rc = sqlite3_exec(*db, "PRAGMA query_only=1", NULL, NULL, NULL);
-		if (rc == SQLITE_OK) rc = sqlite3_set_authorizer(*db, server_authorizer, NULL);
-	}
+	if (rc == SQLITE_OK && !writable) rc = sqlite3_exec(*db, "PRAGMA query_only=1", NULL, NULL, NULL);
+	if (rc == SQLITE_OK) rc = sqlite3_set_authorizer(*db, server_authorizer, writable ? (void *)&k_writable : NULL);
 	// In rollback-journal mode a reader fails at once while the app holds a write lock. Wait a little,
 	// well under the tools' 50 s deadline; the client cannot change it (PRAGMA busy_timeout is refused).
 	if (rc == SQLITE_OK) rc = sqlite3_busy_timeout(*db, SQLITEDBG_SERVER_BUSY_MS);

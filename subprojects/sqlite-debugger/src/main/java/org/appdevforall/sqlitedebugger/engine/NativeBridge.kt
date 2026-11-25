@@ -49,6 +49,19 @@ internal object NativeBridge {
 		deadlineMillis: Long,
 	): Array<Any?>
 
+	/**
+	 * `{changes, last_insert_rowid}` of one statement that writes (see [ServerConnection.execute]); the
+	 * rowid is [Long.MIN_VALUE] when the statement inserted no row into a rowid table. Throws
+	 * [DebugEngineException].
+	 */
+	@JvmStatic
+	external fun execute(
+		handle: Long,
+		sql: String,
+		args: Array<Any?>,
+		deadlineMillis: Long,
+	): LongArray
+
 	@JvmStatic
 	external fun close(handle: Long)
 }

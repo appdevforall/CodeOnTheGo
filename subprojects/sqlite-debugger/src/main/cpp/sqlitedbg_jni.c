@@ -8,6 +8,7 @@
 
 #include <dlfcn.h>
 #include <jni.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -304,6 +305,51 @@ static int prepare_one(sqlite3 *db, const jchar *sql, jsize len, sqlite3_stmt **
 	return SQLITE_OK;
 }
 
+// Prepares sql (one statement, see prepare_one) and binds args to it. Returns 1 with *st set, or 0
+// with an exception pending and *st NULL.
+static int prepare_bound(JNIEnv *env, sqlite3 *db, jstring sql, jobjectArray args, sqlite3_stmt **st) {
+	*st = NULL;
+	const char *message = NULL;
+	jsize sql_len = (*env)->GetStringLength(env, sql);
+	const jchar *sql_chars = (*env)->GetStringChars(env, sql, NULL);
+	if (!sql_chars) return 0;
+	int rc = prepare_one(db, sql_chars, sql_len, st, &message);
+	(*env)->ReleaseStringChars(env, sql, sql_chars);
+	if (rc != SQLITE_OK) {
+		throw_engine(env, rc, message ? message : sqlite3_errmsg(db));
+		return 0;
+	}
+	// A missing argument would be bound as NULL and the statement would run, with a plausible result.
+	int wanted = sqlite3_bind_parameter_count(*st);
+	jsize given = (*env)->GetArrayLength(env, args);
+	if (given != wanted) {
+		char msg[96];
+		snprintf(msg, sizeof msg, "the statement has %d parameter(s) but %d argument(s) were given", wanted, (int)given);
+		throw_engine(env, SQLITE_RANGE, msg);
+	} else {
+		rc = bind_args(env, db, *st, args, &message);
+		if (rc != SQLITE_OK && !(*env)->ExceptionCheck(env)) throw_engine(env, rc, message ? message : "cannot bind");
+	}
+	if ((*env)->ExceptionCheck(env)) {
+		sqlite3_finalize(*st);
+		*st = NULL;
+		return 0;
+	}
+	return 1;
+}
+
+// After the statement: rolls back a transaction left open (a way past the authorizer), which would
+// hold a lock on the app's database until the next call. A failure is the call's error unless the
+// call already failed: that error is kept. Returns 0 when it threw.
+static int end_transaction_backstop(JNIEnv *env, sqlite3 *db) {
+	int rc = sqlitedbg_end_transaction(db);
+	if (rc == SQLITE_OK) return 1;
+	char msg[256];
+	snprintf(msg, sizeof msg, "a transaction was left open and rolling it back failed: %s", sqlite3_errmsg(db));
+	throw_engine(env, rc, msg);
+	return 0;
+}
+
 // One cell as a Java object, or NULL for SQL NULL (or on failure, with an exception pending).
 // *cut is set when a TEXT or BLOB was cut at its limit, and *bytes grows by what the cell costs the
 // result: the TEXT or BLOB bytes kept, 8 for a number.
@@ -358,22 +404,13 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	size_t cut_n = 0, cut_cap = 0;
 	deadline dl = {(int64_t)deadline_ms, 0, 0};
 	int handler_set = 0;
-	const char *message = NULL;
 	int rc;
 
 	if (now_ms() >= dl.at_ms) {
 		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the query started");
 		goto done;
 	}
-	jsize sql_len = (*env)->GetStringLength(env, sql);
-	const jchar *sql_chars = (*env)->GetStringChars(env, sql, NULL);
-	if (!sql_chars) goto done;
-	rc = prepare_one(db, sql_chars, sql_len, &st, &message);
-	(*env)->ReleaseStringChars(env, sql, sql_chars);
-	if (rc != SQLITE_OK) {
-		throw_engine(env, rc, message ? message : sqlite3_errmsg(db));
-		goto done;
-	}
+	if (!prepare_bound(env, db, sql, args, &st)) goto done;
 
 	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
 	// that is not in WAL mode: it holds a SHARED lock until the statement ends, and the app's commit gives
@@ -391,21 +428,6 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	// returns non-zero; it is cleared before this returns, so it never outlives `dl`.
 	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
 	handler_set = 1;
-
-	// A missing argument would be bound as NULL and the query would run, returning a plausible empty result.
-	int wanted = sqlite3_bind_parameter_count(st);
-	jsize given = (*env)->GetArrayLength(env, args);
-	if (given != wanted) {
-		char msg[96];
-		snprintf(msg, sizeof msg, "the statement has %d parameter(s) but %d argument(s) were given", wanted, (int)given);
-		throw_engine(env, SQLITE_RANGE, msg);
-		goto done;
-	}
-	rc = bind_args(env, db, st, args, &message);
-	if (rc != SQLITE_OK) {
-		if (!(*env)->ExceptionCheck(env)) throw_engine(env, rc, message ? message : "cannot bind");
-		goto done;
-	}
 
 	int ncols = sqlite3_column_count(st);
 	jobjectArray names = (*env)->NewObjectArray(env, ncols, g_string, NULL);
@@ -499,16 +521,75 @@ done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
 	sqlite3_finalize(st);
 	free(cut_cells);
-	// Backstop: a transaction left open (a writable connection, or a way past the authorizer)
-	// would hold a lock on the app's database until the next query. A failure is the call's error,
-	// unless the query already failed: that error is kept.
-	rc = sqlitedbg_end_transaction(db);
-	if (rc != SQLITE_OK) {
-		char msg[256];
-		snprintf(msg, sizeof msg, "a transaction was left open and rolling it back failed: %s", sqlite3_errmsg(db));
-		throw_engine(env, rc, msg);
-		result = NULL;
+	if (!end_transaction_backstop(env, db)) result = NULL;
+	return result;
+}
+
+// Runs one statement that writes, to its end, on a writable server connection (ADFA-7298). Rows it
+// returns (RETURNING) are read and dropped. Returns {changes, last_insert_rowid}: changes is the rows the
+// statement itself inserted, updated or deleted (sqlite3_changes64), or 0 when it changed none, such as
+// CREATE TABLE, which leaves sqlite3_changes64 at the previous write's count (ADFA-7131 comment 41489).
+// last_insert_rowid is the rowid of the last row the statement inserted into a rowid table, and INT64_MIN
+// when it inserted none: SQLite never assigns that rowid itself, so only a row inserted explicitly with
+// it reads as none (accepted), while 0 and other negative rowids are reported as they are. Inserts made
+// by a trigger do not count: SQLite restores the value when the trigger ends.
+static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args, jlong deadline_ms) {
+	(void)cls;
+	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
+	sqlite3_stmt *st = NULL;
+	jlongArray result = NULL;
+	deadline dl = {(int64_t)deadline_ms, 0, 0};
+	int handler_set = 0;
+	int rc;
+
+	if (now_ms() >= dl.at_ms) {
+		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the statement started");
+		goto done;
 	}
+	if (!prepare_bound(env, db, sql, args, &st)) goto done;
+	// query is the tool for a read; a statement that changes nothing here would only cost an approval.
+	if (sqlite3_stmt_readonly(st)) {
+		throw_engine(env, SQLITE_ERROR, "the statement does not write; run it with query");
+		goto done;
+	}
+
+	// A write holds the database's write lock until it ends, in every journal mode, and the app's own
+	// writes wait for it only as long as requery's busy timeout: cap it as a non-WAL read is capped.
+	int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
+	if (cap_at < dl.at_ms) {
+		dl.at_ms = cap_at;
+		dl.capped = 1;
+	}
+	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
+	handler_set = 1;
+
+	sqlite3_int64 total_before = sqlite3_total_changes64(db);
+	// the connection is cached and keeps its value across statements: without this an UPDATE would
+	// report the rowid of an earlier execute's INSERT. Not 0, SQLite's own "none": 0 is a valid rowid.
+	sqlite3_set_last_insert_rowid(db, INT64_MIN);
+	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {}
+	if (rc != SQLITE_DONE) {
+		if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {
+			char msg[256];
+			snprintf(msg, sizeof msg,
+			         "the statement was stopped after %.1f s and rolled back: a write holds the database's write lock, so a "
+			         "longer one would make the app's own writes fail. Change fewer rows per call",
+			         SQLITEDBG_SERVER_NON_WAL_MS / 1000.0);
+			throw_engine(env, SQLITE_INTERRUPT, msg);
+		} else if (dl.hit && rc == SQLITE_INTERRUPT) throw_engine(env, SQLITE_INTERRUPT, "the statement ran past its time limit");
+		else throw_engine(env, rc, sqlite3_errmsg(db));
+		goto done;
+	}
+	jlong out[2];
+	out[0] = sqlite3_total_changes64(db) == total_before ? 0 : (jlong)sqlite3_changes64(db);
+	out[1] = (jlong)sqlite3_last_insert_rowid(db);
+	result = (*env)->NewLongArray(env, 2);
+	if (result) (*env)->SetLongArrayRegion(env, result, 0, 2, out);
+
+done:
+	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
+	sqlite3_finalize(st);
+	if (!end_transaction_backstop(env, db)) result = NULL;
 	return result;
 }
 
@@ -551,6 +632,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	    {"setClientConnected", "(Z)V", (void *)bridge_set_client_connected},
 	    {"openServer", "([BZ)J", (void *)bridge_open_server},
 	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;JIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
+	    {"execute", "(JLjava/lang/String;[Ljava/lang/Object;J)[J", (void *)bridge_execute},
 	    {"close", "(J)V", (void *)bridge_close},
 	};
 	jclass bridge = (*env)->FindClass(env, BRIDGE_CLASS);
