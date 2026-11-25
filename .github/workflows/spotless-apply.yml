@@ -60,14 +60,36 @@ jobs:
         run: |
           flox activate -d flox/base -- ./gradlew spotlessApply --no-daemon
 
+      # flox activate can rewrite the tracked environment files under flox/ (schema upgrade,
+      # relock), which do not belong in a formatting commit (ADFA-7244). Drop them, then fail
+      # rather than commit anything Spotless could not have done. The path pattern is a coarse
+      # guard by file type, looser than the targets in build.gradle.kts's spotless block; widen
+      # it if that block gains a new type. Spotless only edits file contents, so an added,
+      # deleted or renamed file, or a mode change, is never its own.
       - name: Commit and push
         run: |
+          git restore -- flox/
           if git diff --quiet; then
             echo "::notice::Already formatted. Nothing to commit."
             exit 0
           fi
+          # quotePath=false: a non-ASCII name would otherwise be listed quoted and miss the pattern.
+          names() { git -c core.quotePath=false diff --name-only "$@"; }
+          unexpected=$({
+            names | grep -vE '\.(java|kt|kts|xml)$|(^|/)\.gitignore$|^(\.githooks|scripts)/' || true
+            # The shell step excludes the keystore, which the scripts/ pattern above would let through.
+            names -- scripts/debug-keystore/adfa-keystore.jks
+            names --diff-filter=ADRCTUXB
+            git -c core.quotePath=false diff --summary | grep -E '^ mode change' || true
+          } | sort -u)
+          if [ -n "$unexpected" ]; then
+            echo "::error::spotlessApply changed files Spotless does not format; not committing:"
+            echo "$unexpected"
+            exit 1
+          fi
           git config user.name "ADFA"
           git config user.email "dev-team@appdevforall.org"
-          git commit -am "style: spotless reformat, no functional change"
+          git add -u
+          git commit -m "style: spotless reformat, no functional change"
           git push origin "HEAD:refs/heads/$BRANCH"
           echo "::notice::Pushed $(git rev-parse --short HEAD) to $BRANCH."

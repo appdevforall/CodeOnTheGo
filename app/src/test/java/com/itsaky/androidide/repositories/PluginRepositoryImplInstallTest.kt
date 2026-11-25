@@ -5,6 +5,7 @@ import com.itsaky.androidide.plugins.manager.core.PluginBuildFiles
 import com.itsaky.androidide.plugins.manager.core.PluginManager
 import com.itsaky.androidide.plugins.manager.core.PluginValidation
 import com.itsaky.androidide.plugins.manager.loaders.PluginManifest
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -30,6 +31,7 @@ class PluginRepositoryImplInstallTest {
 			val pluginsDir = temp.newFolder("plugins")
 			val build = temp.newFile("incoming.cgp").apply { writeText("build A") }
 			val expected = "${PluginBuildFiles.fileStem(ID, build)}.cgp"
+			var loaded = false
 			val manager =
 				mockk<PluginManager>(relaxed = true) {
 					every { getPluginValidation(any()) } returns
@@ -41,7 +43,10 @@ class PluginRepositoryImplInstallTest {
 								iconNightEntryExists = false,
 							),
 						)
-					every { getPlugin(ID) } returns mockk()
+					// The install swaps the file inside the load lock, and refuses while the old build is loaded.
+					coEvery { whileNotLoading<Any?>(any()) } coAnswers { firstArg<suspend () -> Any?>()() }
+					coEvery { loadPlugins() } answers { loaded = true }
+					every { getPlugin(ID) } answers { if (loaded) mockk() else null }
 				}
 
 			PluginRepositoryImpl({ manager }, pluginsDir).installPluginFromFile(build).getOrThrow()
