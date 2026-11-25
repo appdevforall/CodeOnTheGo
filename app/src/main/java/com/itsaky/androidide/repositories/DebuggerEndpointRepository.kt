@@ -1,5 +1,6 @@
 package com.itsaky.androidide.repositories
 
+import android.content.pm.PackageManager
 import com.itsaky.androidide.roomData.recentproject.DebuggerEndpointDao
 import com.itsaky.androidide.sqlitedebugger.DebuggerEndpointValidation
 import com.itsaky.androidide.utils.canonicalProjectLocation
@@ -12,17 +13,22 @@ import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import com.itsaky.androidide.plugins.services.DebuggerEndpoint as PluginDebuggerEndpoint
 
 /**
  * Which app each project builds, and the SQLite debugger endpoint the app last reported (ADFA-7137).
- * Nothing here throws except [CancellationException]: any other failure is logged and reported as
- * false, because none of the callers can do anything about it, and they run on the application scope,
- * which has no CoroutineExceptionHandler (an escaping exception would crash the process).
+ * The writes throw nothing but [CancellationException]: any other failure is logged and reported as
+ * false, because none of their callers can do anything about it, and they run on the application
+ * scope, which has no CoroutineExceptionHandler (an escaping exception would crash the process).
+ * [reportedEndpoints], the read behind the plugin API, is the exception: it throws on a read failure,
+ * so call it where a failure is handled, not on the application scope.
  */
 class DebuggerEndpointRepository(
 	private val dao: DebuggerEndpointDao,
 	private val scope: CoroutineScope,
 	private val clock: () -> Long = System::currentTimeMillis,
+	/** Required, with no default: one that answered true would serve an uninstalled app's port and token as live. */
+	private val isInstalled: (String) -> Boolean,
 	/**
 	 * Asks the app to report its endpoint again, after each pairing; see DebuggerEndpointAnnounce. Required, with no
 	 * default: one that did nothing would leave an app that was already running unknown until its process restarts.
@@ -164,7 +170,54 @@ class DebuggerEndpointRepository(
 			false
 		}
 
-	private companion object {
+	/**
+	 * The endpoints the apps of [projectDir] have reported, for the plugin API (ADFA-7139). Looked up
+	 * by the canonical path, as the pairing stores it; an app is left out until it reports again only
+	 * when a Run install from ProjectHandlerActivity cleared its endpoint (a success result that
+	 * names the package and arrives in the same Code on the Go process). An app installed by Quick
+	 * Build, by a Run install with no project open or whose APK's application ID could not be read,
+	 * by a success result with no package name, by a result that arrived after Code on the Go
+	 * restarted, or by the intent-based fallback installer (on MIUI, or when debugFallbackInstaller
+	 * is set; Run installs too, and it never calls beforeCommit or has a session or result) keeps its
+	 * old token and port until it reports, so it can be listed with a dead endpoint. So can an app
+	 * whose install did not clear them for another reason: [recordInstalled] returns false and keeps
+	 * the old values when the project has no recent-project row or the write fails; a result that
+	 * names a different package is dropped without clearing; a beforeCommit that throws is logged and
+	 * the install goes on with no note; and an install not made from a project (the file tab, adb)
+	 * leaves an already-paired app listed with its dead token and port. Only the Launch action pairs
+	 * an unpaired app at the next launch from a project, keeping stored values; the automatic
+	 * post-install launch (in debug mode too), RestartVmAction and Quick Build's launch of the proxy
+	 * app never call [recordLaunched]. Apps that are no longer installed are left out too: their
+	 * stored port and token would otherwise come back as live. An endpoint can also be stale when the
+	 * app's process has died. Unlike the writes, a read failure is thrown: the plugin API reports it
+	 * rather than answering "no apps".
+	 */
+	suspend fun reportedEndpoints(projectDir: File): List<PluginDebuggerEndpoint> =
+		dao.getByProjectLocation(projectDir.canonicalProjectLocation()).mapNotNull { row ->
+			val token = row.token ?: return@mapNotNull null
+			val port = row.port ?: return@mapNotNull null
+			// Last: a binder call per app, which an app that has not reported need not cost.
+			if (!isInstalled(row.applicationId)) return@mapNotNull null
+			PluginDebuggerEndpoint(row.applicationId, port, token, row.updatedAt ?: 0L)
+		}
+
+	companion object {
+		/**
+		 * Whether [applicationId] is installed. Every package is visible because Code on the Go targets SDK 28; at a
+		 * target of 30 or later, package visibility filtering would make every endpoint look uninstalled unless the
+		 * manifest declares a matching `<queries>`.
+		 */
+		fun isPackageInstalled(
+			packageManager: PackageManager,
+			applicationId: String,
+		): Boolean =
+			try {
+				packageManager.getPackageInfo(applicationId, 0)
+				true
+			} catch (e: PackageManager.NameNotFoundException) {
+				false
+			}
+
 		private val log = LoggerFactory.getLogger(DebuggerEndpointRepository::class.java)
 	}
 }
