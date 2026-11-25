@@ -27,77 +27,92 @@ import com.itsaky.androidide.actions.markInvisible
 import com.itsaky.androidide.actions.openApplicationModuleChooser
 import com.itsaky.androidide.idetooltips.TooltipTag.EDITOR_TOOLBAR_LAUNCH_APP
 import com.itsaky.androidide.projects.IProjectManager
+import com.itsaky.androidide.repositories.DebuggerEndpointRepository
 import com.itsaky.androidide.utils.IntentUtils
 import com.itsaky.androidide.utils.flashError
 import kotlinx.coroutines.launch
+import org.koin.core.context.GlobalContext
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  * An action to launch the already installed application on the device.
  *
  * @author Akash Yadav
  */
-class LaunchAppAction(context: Context, override val order: Int) : EditorActivityAction() {
+class LaunchAppAction(
+	context: Context,
+	override val order: Int,
+) : EditorActivityAction() {
+	override val id: String = "ide.editor.launchInstalledApp"
+	override var requiresUIThread: Boolean = true
 
-    override val id: String = "ide.editor.launchInstalledApp"
-    override var requiresUIThread: Boolean = true
-    override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = EDITOR_TOOLBAR_LAUNCH_APP
+	override fun retrieveTooltipTag(isReadOnlyContext: Boolean) = EDITOR_TOOLBAR_LAUNCH_APP
 
-    init {
-        label = context.getString(R.string.title_launch_app)
-        icon = ContextCompat.getDrawable(context, R.drawable.ic_open_external)
-    }
+	init {
+		label = context.getString(R.string.title_launch_app)
+		icon = ContextCompat.getDrawable(context, R.drawable.ic_open_external)
+	}
 
-    companion object {
-        private val log = LoggerFactory.getLogger(LaunchAppAction::class.java)
-    }
+	companion object {
+		private val log = LoggerFactory.getLogger(LaunchAppAction::class.java)
+	}
 
-    override fun prepare(data: ActionData) {
-        super.prepare(data)
-        data.getActivity() ?: run {
-            markInvisible()
-            return
-        }
+	override fun prepare(data: ActionData) {
+		super.prepare(data)
+		data.getActivity() ?: run {
+			markInvisible()
+			return
+		}
 
-        visible = true
+		visible = true
 
-        val projectManager = IProjectManager.getInstance()
-        enabled = projectManager.getAndroidAppModules().isNotEmpty()
-    }
+		val projectManager = IProjectManager.getInstance()
+		enabled = projectManager.getAndroidAppModules().isNotEmpty()
+	}
 
-    override suspend fun execAction(data: ActionData) {
-        openApplicationModuleChooser(data) { app ->
-            val variant = app.getSelectedVariant()
+	override suspend fun execAction(data: ActionData) {
+		openApplicationModuleChooser(data) { app ->
+			val variant = app.getSelectedVariant()
 
-            log.debug("Selected variant: {}", variant?.name)
+			log.debug("Selected variant: {}", variant?.name)
 
-            if (variant == null) {
-                flashError(R.string.err_selected_variant_not_found)
-                return@openApplicationModuleChooser
-            }
+			if (variant == null) {
+				flashError(R.string.err_selected_variant_not_found)
+				return@openApplicationModuleChooser
+			}
 
-            val applicationId = variant.mainArtifact.applicationId
-            if (applicationId == null) {
-                log.error("Unable to launch application. variant.mainArtifact.applicationId is null")
-                flashError(R.string.err_cannot_determine_package)
-                return@openApplicationModuleChooser
-            }
+			val applicationId = variant.mainArtifact.applicationId
+			if (applicationId == null) {
+				log.error("Unable to launch application. variant.mainArtifact.applicationId is null")
+				flashError(R.string.err_cannot_determine_package)
+				return@openApplicationModuleChooser
+			}
 
-            log.info("Launching application: {}", applicationId)
+			log.info("Launching application: {}", applicationId)
 
-            val activity = data.requireActivity()
-            activity.activityScope.launch {
-                IntentUtils.launchApp(
+			val projectDirPath = IProjectManager.getInstance().projectDirPath
+
+			val activity = data.requireActivity()
+			activity.activityScope.launch {
+				// Awaited so the app's first report cannot arrive before its row exists.
+				if (projectDirPath.isNotBlank()) {
+					GlobalContext
+						.get()
+						.get<DebuggerEndpointRepository>()
+						.recordLaunched(applicationId, File(projectDirPath))
+				}
+				IntentUtils.launchApp(
 					context = activity,
 					packageName = applicationId,
-					logError = false
+					logError = false,
 				)
-            }
-        }
-    }
+			}
+		}
+	}
 
-    override fun getShowAsActionFlags(data: ActionData): Int {
-        // prefer showing this in the overflow menu
-        return MenuItem.SHOW_AS_ACTION_IF_ROOM
-    }
+	override fun getShowAsActionFlags(data: ActionData): Int {
+		// prefer showing this in the overflow menu
+		return MenuItem.SHOW_AS_ACTION_IF_ROOM
+	}
 }

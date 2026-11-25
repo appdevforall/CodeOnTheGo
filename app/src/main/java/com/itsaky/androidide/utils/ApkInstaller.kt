@@ -11,6 +11,7 @@ import androidx.core.app.PendingIntentCompat
 import com.itsaky.androidide.actions.build.DebugAction
 import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.services.InstallationResultReceiver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
@@ -103,6 +104,15 @@ object ApkInstaller {
 	 * @param apk The APK file to install.
 	 * @param suppressPostInstallLaunch tag the install so its success result skips the
 	 *   launch-after-install behavior; see [EXTRA_SUPPRESS_POST_INSTALL_LAUNCH].
+	 * @param beforeCommit called with the session ID on an IO thread once the APK is staged, just before the session
+	 *   is committed, so whatever it records is in place when the result arrives. Not called by the intent-based
+	 *   fallback installer, which has no session and reports no result. An Exception or LinkageError it throws is
+	 *   logged, and the install goes on; a VirtualMachineError such as OutOfMemoryError propagates.
+	 * @param onCommitFailed called with the session ID on the same IO thread when staging or committing the session
+	 *   threw. The session is abandoned and reports no result, so this is where to drop what [beforeCommit] recorded.
+	 *   An Exception or LinkageError it throws is logged; a VirtualMachineError propagates.
+	 * @throws CancellationException when the calling coroutine is cancelled, rather than returning a failure. The
+	 *   session may be committed by then, and then reports its result as usual.
 	 */
 	@JvmStatic
 	suspend fun installApk(
@@ -111,6 +121,8 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		suppressPostInstallLaunch: Boolean = false,
+		beforeCommit: ((sessionId: Int) -> Unit)? = null,
+		onCommitFailed: ((sessionId: Int) -> Unit)? = null,
 	): Boolean =
 		installApkSession(
 			context = context,
@@ -118,12 +130,15 @@ object ApkInstaller {
 			launchInDebugMode = launchInDebugMode,
 			debugFallbackInstaller = debugFallbackInstaller,
 			suppressPostInstallLaunch = suppressPostInstallLaunch,
+			beforeCommit = beforeCommit,
+			onCommitFailed = onCommitFailed,
 		) is SessionLaunchResult.Started
 
 	/**
 	 * Starts a session-based package installation workflow and returns a [SessionLaunchResult]
 	 * with the committed `sessionId` (or a distinct [SessionLaunchResult.TooManySessions]
-	 * when the UID's active session quota is exhausted).
+	 * when the UID's active session quota is exhausted). [beforeCommit], [onCommitFailed] and cancellation are as for
+	 * [installApk].
 	 */
 	@JvmStatic
 	suspend fun installApkSession(
@@ -132,6 +147,8 @@ object ApkInstaller {
 		launchInDebugMode: Boolean = false,
 		debugFallbackInstaller: Boolean = DEBUG_FALLBACK_INSTALLER,
 		suppressPostInstallLaunch: Boolean = false,
+		beforeCommit: ((sessionId: Int) -> Unit)? = null,
+		onCommitFailed: ((sessionId: Int) -> Unit)? = null,
 	): SessionLaunchResult {
 		val isValidApk =
 			withContext(Dispatchers.IO) {
@@ -167,7 +184,7 @@ object ApkInstaller {
 			}
 		}
 
-		return installUsingSession(context, apk, baseIntent)
+		return installUsingSession(context, apk, baseIntent, beforeCommit, onCommitFailed)
 	}
 
 	/**
@@ -463,6 +480,8 @@ object ApkInstaller {
 		context: Context,
 		apk: File,
 		intent: Intent,
+		beforeCommit: ((sessionId: Int) -> Unit)? = null,
+		onCommitFailed: ((sessionId: Int) -> Unit)? = null,
 	): SessionLaunchResult {
 		val installer = context.packageManager.packageInstaller
 		val params = createSessionParams()
@@ -489,9 +508,11 @@ object ApkInstaller {
 							"PackageInstaller callback intent is null"
 						}
 					addToSession(session, apk)
+					beforeCommit?.let { record -> runCallback("beforeCommit", sessionId) { record(sessionId) } }
 					session.commit(callback.intentSender)
 					sessionId
 				} catch (t: Throwable) {
+					onCommitFailed?.let { forget -> runCallback("onCommitFailed", sessionId) { forget(sessionId) } }
 					abandonSession(context, sessionId)
 					throw t
 				} finally {
@@ -501,6 +522,8 @@ object ApkInstaller {
 		}.fold(
 			onSuccess = { sessionId -> SessionLaunchResult.Started(sessionId) },
 			onFailure = { error ->
+				// Cancellation is not a failed install, and a VirtualMachineError, from a callback or not, crashes by design.
+				if (error is CancellationException || error is VirtualMachineError) throw error
 				log.error("Package installation failed", error)
 				if (isTooManyActiveSessions(error)) {
 					SessionLaunchResult.TooManySessions
@@ -509,6 +532,24 @@ object ApkInstaller {
 				}
 			},
 		)
+	}
+
+	/**
+	 * Runs a caller's [callback] for [sessionId], logging an Exception or LinkageError it throws. Anything else, such
+	 * as an OutOfMemoryError, propagates.
+	 */
+	private inline fun runCallback(
+		name: String,
+		sessionId: Int,
+		callback: () -> Unit,
+	) {
+		try {
+			callback()
+		} catch (e: Exception) {
+			log.warn("{} failed for session {}", name, sessionId, e)
+		} catch (e: LinkageError) {
+			log.warn("{} failed for session {}", name, sessionId, e)
+		}
 	}
 
 	/**

@@ -43,6 +43,8 @@ import com.itsaky.androidide.plugins.manager.loaders.toPluginMetadata
 import com.itsaky.androidide.plugins.manager.project.PluginProjectManager
 import com.itsaky.androidide.plugins.manager.security.PluginSecurityManager
 import com.itsaky.androidide.plugins.manager.services.CogoProjectProvider
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointServiceImpl
+import com.itsaky.androidide.plugins.manager.services.DebuggerEndpointSource
 import com.itsaky.androidide.plugins.manager.services.IdeArchiveServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeCommandServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
@@ -61,8 +63,10 @@ import com.itsaky.androidide.plugins.manager.services.IdeThemeServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.PluginBuildService
+import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
+import com.itsaky.androidide.plugins.services.DebuggerEndpointService
 import com.itsaky.androidide.plugins.services.IdeArchiveService
 import com.itsaky.androidide.plugins.services.IdeBuildService
 import com.itsaky.androidide.plugins.services.IdeCommandService
@@ -81,6 +85,7 @@ import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeUIService
+import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -91,10 +96,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 class PluginManager private constructor(
 	private val context: Context,
@@ -348,6 +355,13 @@ class PluginManager private constructor(
 	private val statePersistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 	private val statePersistMutex = Mutex()
 
+	// One plugin load at a time. Startup and an install can both load plugins, and two loads that
+	// overlap could each find a plugin not loaded yet and load it twice.
+	private val loadMutex = Mutex()
+
+	// How long a load, install or uninstall waits for the load lock. Internal so tests can shorten it.
+	internal var loadLockWaitMs = 30_000L
+
 	fun setTemplateReloadListener(listener: (() -> Unit)?) {
 		this.templateReloadListener = listener
 		PluginProjectManager.getInstance().setTemplateReloadListener(listener)
@@ -395,13 +409,81 @@ class PluginManager private constructor(
 	// IDE service providers
 	private val projectProvider = CogoProjectProvider()
 
+	/**
+	 * The root of the project open in the editor, or null on the home screen. Not [projectProvider]:
+	 * `GeneralPreferences.lastOpenedProject` still names a project after it is closed, and so does
+	 * [IProjectManager.projectDirPath]. The editor activity registers [editorProvider] while it shows
+	 * a project and clears it when it ends, so that is what says a project is open.
+	 */
+	private fun openProjectRoot(): File? {
+		if (editorProvider == null) return null
+		return IProjectManager
+			.getInstance()
+			.projectDirPath
+			.takeIf { it.isNotEmpty() }
+			?.let(::File)
+	}
+
+	/** Where [DebuggerEndpointService] reads. Private, so no member of this class hands it out. This does not seal every path: see [DebuggerEndpointServiceImpl]. */
+	private val debuggerEndpointSource = AtomicReference<DebuggerEndpointSource?>()
+
+	/**
+	 * Installs where every plugin's [DebuggerEndpointService] reads the SQLite debugger endpoints apps
+	 * reported. The app installs it before plugins load; when it cannot, plugins load anyway and their
+	 * getEndpoints() throws IllegalStateException. Installing the same source again does nothing:
+	 * the app's start runs again when a later step of it failed (CredentialProtectedApplicationLoader.load
+	 * retries after the user unlocks). Plugins share this class loader, so a different source, which can
+	 * only be a plugin's, fails rather than replacing or blanking the source for every plugin.
+	 *
+	 * @throws IllegalStateException if a different source is already installed
+	 */
+	fun installDebuggerEndpointSource(source: DebuggerEndpointSource) {
+		// Never cleared, so once compareAndSet fails, get() is the installed source.
+		check(debuggerEndpointSource.compareAndSet(null, source) || debuggerEndpointSource.get() === source) {
+			"A different SQLite debugger endpoint source is already installed"
+		}
+	}
+
 	init {
 		if (!pluginsDir.exists()) {
 			pluginsDir.mkdirs()
 		}
 	}
 
-	suspend fun loadPlugins() =
+	/** Loads every plugin file not loaded yet. Waits for a load already under way: see [withLoadLock]. */
+	suspend fun loadPlugins() = withLoadLock("load plugins") { loadAllPlugins() }
+
+	/**
+	 * Runs [block] while no plugin load is under way. Install swaps a plugin's file in it, so a load
+	 * that started first can't load the old file after the old version was unloaded. See [withLoadLock].
+	 */
+	suspend fun <T> whileNotLoading(block: suspend () -> T): T = withLoadLock("change a plugin file", block)
+
+	/**
+	 * Runs [block] holding the load lock, waiting at most [loadLockWaitMs] for it, then without it.
+	 * A load holds the lock while plugins' initialize() and activate() run, so a plugin that never
+	 * returns would otherwise block every later install and uninstall for good, including installing
+	 * its fixed version. Going on without the lock is how loads behaved before it existed, with the
+	 * same risks, now only behind a plugin stuck past the wait: if that stuck load later finishes,
+	 * it can register a second instance of its plugin beside one loaded meanwhile, or, failing,
+	 * drop by plugin id the listeners and sidebar slots of the instance installed meanwhile.
+	 */
+	private suspend fun <T> withLoadLock(
+		action: String,
+		block: suspend () -> T,
+	): T {
+		val locked = loadMutex.lockWithin(loadLockWaitMs)
+		if (!locked) {
+			logger.warn("A plugin load has held the load lock for over ${loadLockWaitMs / 1000} s; going on to $action without it")
+		}
+		return try {
+			block()
+		} finally {
+			if (locked) loadMutex.unlock()
+		}
+	}
+
+	private suspend fun loadAllPlugins() =
 		withContext(Dispatchers.IO) {
 			logger.info("Loading plugins from directory: ${pluginsDir.absolutePath}")
 
@@ -554,6 +636,12 @@ class PluginManager private constructor(
 	 */
 	fun loadPlugin(file: File): Result<IPlugin> {
 		var reservedSlotsPluginId: String? = null
+		// The new plugin's context until loadedPlugins holds the plugin. Every way out before that, a
+		// failure path or a throw, leaves a plugin whose initialize() may have started threads, so the
+		// finally below closes its endpoint service. Once loaded, disabling or unloading closes it.
+		var notLoadedContext: PluginContext? = null
+		// Set once initialize() may have registered workspace listeners, so a later failure drops them.
+		var listenersPluginId: String? = null
 		return try {
 			logger.debug("Loading plugin from: ${file.absolutePath}")
 
@@ -579,6 +667,14 @@ class PluginManager private constructor(
 			checkPluginId(manifest.id).onFailure { return Result.failure(it) }
 
 			logger.debug("Parsed manifest for plugin: ${manifest.name} (${manifest.id})")
+
+			// loadPlugins() runs on every install. Loading a plugin that is already loaded again would
+			// leave the old instance active, its listeners still registered, beside the new one.
+			// Installing over a plugin unloads it first, so its new file still loads.
+			loadedPlugins[manifest.id]?.let { loaded ->
+				logger.debug("Plugin already loaded, keeping its instance: ${manifest.id}")
+				return Result.success(loaded.plugin)
+			}
 
 			if (!securityManager.validatePlugin(file, manifest)) {
 				return Result.failure(SecurityException("plugin failed security validation: ${manifest.id}"))
@@ -664,11 +760,14 @@ class PluginManager private constructor(
 			}
 
 			val pluginContext = createPluginContextWithResources(manifest.id, manifest.name, classLoader, permissions, ctx)
+			notLoadedContext = pluginContext
 
 			logger.debug("Initializing  plugin: ${manifest.id}")
+			listenersPluginId = manifest.id
 			val initResult =
 				initializePlugin(plugin, pluginContext).getOrElse { e ->
 					logger.error("Plugin initialization threw exception for: ${manifest.id}", e)
+					PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 					if (manifest.sidebarItems > 0) {
 						SidebarSlotManager.releasePluginSlots(manifest.id)
 					}
@@ -677,6 +776,7 @@ class PluginManager private constructor(
 
 			if (!initResult) {
 				logger.warn(" plugin initialization returned false for: ${manifest.id}")
+				PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 				if (manifest.sidebarItems > 0) {
 					SidebarSlotManager.releasePluginSlots(manifest.id)
 				}
@@ -703,8 +803,11 @@ class PluginManager private constructor(
 					nativeLibraryDir = nativeLibPath?.let(::File),
 				)
 			loadedPlugins[manifest.id] = loadedPlugin
+			notLoadedContext = null
 
 			if (!isEnabled) {
+				// A disabled plugin hears no workspace events, as after disablePlugin().
+				PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 				logger.info("Successfully loaded  plugin (disabled): ${manifest.name} (${manifest.id})")
 				return Result.success(plugin)
 			}
@@ -715,9 +818,14 @@ class PluginManager private constructor(
 			reservedSlotsPluginId?.let { pluginId ->
 				SidebarSlotManager.releasePluginSlots(pluginId)
 			}
+			listenersPluginId?.let { pluginId ->
+				runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
+			}
 			logger.error("Failed to load plugin from ${file.name}: ${e.javaClass.simpleName}: ${e.message}", e)
 			val prefix = if (e is RuntimeException) "" else "[${e.javaClass.simpleName}] "
 			Result.failure(RuntimeException("Error loading plugin: $prefix${e.message}", e))
+		} finally {
+			notLoadedContext?.debuggerEndpointService()?.close()
 		}
 	}
 
@@ -746,8 +854,10 @@ class PluginManager private constructor(
 			notifyLanguageContributionsChanged(plugin)
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
-			loadedPlugin.isEnabled = false
+			markDisabled(loadedPlugin)
 			savePluginState(manifest.id, false)
+			// activate() may have registered workspace listeners before it failed.
+			PluginWorkspaceEvents.getInstance().removeAll(manifest.id)
 		}
 	}
 
@@ -786,7 +896,15 @@ class PluginManager private constructor(
 	fun unloadPlugin(pluginId: String): Boolean {
 		val loadedPlugin = loadedPlugins.remove(pluginId) ?: return false
 
+		// First and on its own: the plugin is already out of loadedPlugins, so if a later cleanup step
+		// throws, nothing could drop its listeners afterwards, and none may reach it while it tears down.
+		runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
+			.onFailure { logger.error("Failed to drop workspace listeners for: $pluginId", it) }
+
 		try {
+			// First: a later step can throw and end the unload.
+			loadedPlugin.context.debuggerEndpointService()?.close()
+
 			// Remove documentation if plugin implements DocumentationExtension
 			if (loadedPlugin.plugin is DocumentationExtension) {
 				CoroutineScope(Dispatchers.IO).launch {
@@ -1113,8 +1231,17 @@ class PluginManager private constructor(
 			return true
 		}
 
-		// The services outlive a disable, which closed the terminal service.
+		// The services outlive a disable, which closed the terminal and SQLite debugger endpoint services.
 		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
+		loadedPlugin.context.debuggerEndpointService()?.reopen()
+		// An unload that ran since the lookup above already closed these services; close them again.
+		// Enable, disable and unload are still not serialized with each other (out of scope here).
+		if (loadedPlugins[pluginId] !== loadedPlugin) {
+			loadedPlugin.context.debuggerEndpointService()?.close()
+			(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.cancelAll()
+			logger.warn("Plugin $pluginId was unloaded while it was being enabled; not activating it")
+			return false
+		}
 		loadedPlugin.isEnabled = true
 		activateLoadedPlugin(loadedPlugin)
 		return if (loadedPlugin.isEnabled) {
@@ -1139,7 +1266,7 @@ class PluginManager private constructor(
 		return try {
 			cleanupPluginContributions(loadedPlugin)
 			loadedPlugin.plugin.deactivate()
-			loadedPlugin.isEnabled = false
+			markDisabled(loadedPlugin)
 			savePluginState(pluginId, false)
 			lifecycleDispatcher.notifyDeactivated(pluginId)
 			notifyLanguageContributionsChanged(loadedPlugin.plugin)
@@ -1162,7 +1289,7 @@ class PluginManager private constructor(
 		runCatching { loadedPlugin.plugin.deactivate() }.onFailure { e ->
 			logger.error("Plugin deactivate threw during force-disable: $pluginId", e)
 		}
-		loadedPlugin.isEnabled = false
+		markDisabled(loadedPlugin)
 		savePluginState(pluginId, false)
 		lifecycleDispatcher.notifyDeactivated(pluginId)
 		notifyLanguageContributionsChanged(loadedPlugin.plugin)
@@ -1179,6 +1306,9 @@ class PluginManager private constructor(
 		}.onFailure { logger.error("Failed to clean snippets for: $pluginId", it) }
 		runCatching { PluginBuildActionManager.getInstance().cleanupPlugin(pluginId) }
 			.onFailure { logger.error("Failed to clean build actions for: $pluginId", it) }
+		// A disabled plugin must stop hearing workspace events; activate() registers again on enable.
+		runCatching { PluginWorkspaceEvents.getInstance().removeAll(pluginId) }
+			.onFailure { logger.error("Failed to drop workspace listeners for: $pluginId", it) }
 		runCatching {
 			val commandService = loadedPlugin.context.services.get(IdeCommandService::class.java)
 			if (commandService is IdeCommandServiceImpl) commandService.cancelAllCommands()
@@ -1192,6 +1322,21 @@ class PluginManager private constructor(
 			if (templateService is IdeTemplateServiceImpl) templateService.cleanupAllTemplates()
 		}.onFailure { logger.error("Failed to cleanup templates for: $pluginId", it) }
 	}
+
+	/**
+	 * Marks [loadedPlugin] disabled and closes its SQLite debugger endpoint service in one step, so the
+	 * service is closed exactly when the plugin stops being enabled. A disable that fails before this
+	 * point, as when deactivate() throws, leaves the plugin enabled and its service open: enablePlugin
+	 * returns early for an enabled plugin, so it could never reopen the service.
+	 */
+	private fun markDisabled(loadedPlugin: LoadedPlugin) {
+		loadedPlugin.context.debuggerEndpointService()?.close()
+		loadedPlugin.isEnabled = false
+	}
+
+	/** The plugin's [DebuggerEndpointServiceImpl]. Its services outlive a disable, so it is closed instead. */
+	private fun PluginContext.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
+		services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
 
 	sealed class CrashResult {
 		abstract val pluginId: String
@@ -1562,6 +1707,23 @@ class PluginManager private constructor(
 
 		registerServiceWithErrorHandling(
 			pluginServiceRegistry,
+			DebuggerEndpointService::class.java,
+			pluginId,
+			"debugger_endpoint",
+		) {
+			DebuggerEndpointServiceImpl(
+				pluginId = pluginId,
+				permissions = permissions,
+				projectRootProvider = ::openProjectRoot,
+				sourceProvider = debuggerEndpointSource::get,
+				// The only close a plugin loaded as disabled needs: it stays closed through its own
+				// initialize() and after, until enablePlugin reopens it.
+				startOpen = getPluginState(pluginId),
+			)
+		}
+
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
 			IdeTemplateService::class.java,
 			pluginId,
 			"template",
@@ -1657,212 +1819,6 @@ class PluginManager private constructor(
 					classLoader = classLoader,
 					assetManager = resourceContext.assets,
 				),
-			pluginId = pluginId,
-			sharedServices = serviceRegistry,
-			lifecycleDispatcher = lifecycleDispatcher,
-			pluginInfoProvider = { id ->
-				loadedPlugins[id]?.let {
-					PluginInfo(it.toPluginMetadata(), it.isEnabled, isLoaded = true)
-				}
-			},
-		)
-	}
-
-	private fun createPluginContext(
-		pluginId: String,
-		classLoader: ClassLoader,
-		permissions: Set<PluginPermission>,
-	): PluginContext {
-		val pluginServiceRegistry = ServiceRegistryImpl()
-
-		logger.debug("Creating IDE services for plugin: $pluginId")
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeProjectService::class.java,
-			pluginId,
-			"project",
-		) {
-			IdeProjectServiceImpl(
-				pluginId = pluginId,
-				permissions = permissions,
-				projectProvider = projectProvider,
-				requiredPermissions = projectServicePermissions,
-				pathValidator =
-					pathValidator?.let { validator ->
-						object : IdeProjectServiceImpl.PathValidator {
-							override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
-
-							override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-						}
-					},
-				activityProvider = delegatingActivityProvider,
-			)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeUIService::class.java,
-			pluginId,
-			"UI",
-		) {
-			IdeUIServiceImpl(delegatingActivityProvider)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeBuildService::class.java,
-			pluginId,
-			"build",
-		) {
-			PluginBuildService(pluginId, permissions)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeLogService::class.java,
-			pluginId,
-			"log",
-		) {
-			IdeLogServiceImpl.getInstance()
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeProjectManipulationService::class.java,
-			pluginId,
-			"project_manipulation",
-		) {
-			IdeProjectManipulationServiceImpl.getInstance()
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeTooltipService::class.java,
-			pluginId,
-			"tooltip",
-		) {
-			IdeTooltipServiceImpl(context, pluginId, delegatingActivityProvider)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeEditorTabService::class.java,
-			pluginId,
-			"editor_tab",
-		) {
-			IdeEditorTabServiceImpl(delegatingActivityProvider)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeFileService::class.java,
-			pluginId,
-			"file",
-		) {
-			IdeFileServiceImpl(
-				pluginId = pluginId,
-				permissions = permissions,
-				pathValidator =
-					pathValidator?.let { validator ->
-						object : IdeFileServiceImpl.PathValidator {
-							override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
-
-							override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-						}
-					},
-			)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeEnvironmentService::class.java,
-			pluginId,
-			"environment",
-		) {
-			IdeEnvironmentServiceImpl(pluginId)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeArchiveService::class.java,
-			pluginId,
-			"archive",
-		) {
-			IdeArchiveServiceImpl(
-				pluginId = pluginId,
-				permissions = permissions,
-				pathValidator =
-					pathValidator?.let { validator ->
-						object : IdeFileServiceImpl.PathValidator {
-							override fun isPathAllowed(path: File): Boolean = validator.isPathAllowed(path)
-
-							override fun getAllowedPaths(): List<String> = validator.getAllowedPaths()
-						}
-					},
-			)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeSidebarService::class.java,
-			pluginId,
-			"sidebar",
-		) {
-			IdeSidebarServiceImpl(pluginId)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeThemeService::class.java,
-			pluginId,
-			"theme",
-		) {
-			IdeThemeServiceImpl(context)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeFeatureFlagService::class.java,
-			pluginId,
-			"feature_flag",
-		) {
-			IdeFeatureFlagServiceImpl()
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeTemplateService::class.java,
-			pluginId,
-			"template",
-		) {
-			IdeTemplateServiceImpl(
-				pluginId = pluginId,
-				permissions = permissions,
-				onTemplatesChanged = { templateReloadListener?.invoke() },
-				loadedPluginIds = { loadedPlugins.keys },
-			)
-		}
-
-		registerServiceWithErrorHandling(
-			pluginServiceRegistry,
-			IdeSnippetService::class.java,
-			pluginId,
-			"snippet",
-		) {
-			IdeSnippetServiceImpl().apply {
-				setRefreshCallback { pid ->
-					snippetRefreshListener?.invoke(pid)
-				}
-			}
-		}
-
-		return PluginContextImpl(
-			androidContext = context,
-			services = pluginServiceRegistry,
-			eventBus = eventBus,
-			logger = PluginLoggerImpl(pluginId, logger),
-			resources = ResourceManagerImpl(pluginId, pluginsDir, classLoader),
 			pluginId = pluginId,
 			sharedServices = serviceRegistry,
 			lifecycleDispatcher = lifecycleDispatcher,
@@ -1975,3 +1931,24 @@ internal fun initializePlugin(
 	plugin: IPlugin,
 	context: PluginContext,
 ): Result<Boolean> = runCatching { plugin.initialize(context) }
+
+/**
+ * Waits at most [timeoutMs] for this mutex. True when the caller now holds it, and must unlock it.
+ * The flag is set inside the wait, not taken from its result: the timeout can fire just after
+ * lock() returned, and withTimeoutOrNull then reports null for a lock the caller holds. A caller
+ * cancelled just after lock() returned gets a CancellationException instead of the flag, so the
+ * lock is released here: the caller never learns it held it.
+ */
+internal suspend fun Mutex.lockWithin(timeoutMs: Long): Boolean {
+	var locked = false
+	try {
+		withTimeoutOrNull(timeoutMs) {
+			lock()
+			locked = true
+		}
+	} catch (e: Throwable) {
+		if (locked) unlock()
+		throw e
+	}
+	return locked
+}
