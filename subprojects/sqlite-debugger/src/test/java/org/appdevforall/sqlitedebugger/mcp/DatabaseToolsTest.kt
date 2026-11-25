@@ -1218,10 +1218,11 @@ class DatabaseToolsTest {
 		engine.appConnections.clear()
 		engine.appConnections += conn(2, "/data/a.db")
 		ok("execute", db().put("sql", "delete from t"), t)
-		assertEquals(2, engine.openedServerConnections.size)
-		assertEquals(1, engine.closedServerConnections)
-		t.onServerStopped()
+		// execute also opens the read-only connection, to look for Room (ADFA-7299): one of each, twice
+		assertEquals(listOf(false, true, false, true), engine.openedServerConnections.map { it.second })
 		assertEquals(2, engine.closedServerConnections)
+		t.onServerStopped()
+		assertEquals(4, engine.closedServerConnections)
 	}
 
 	@Test fun executeDescribesWhatItRefusesItsTimeLimitAndThatTheAppIsNotTold() {
@@ -1245,6 +1246,95 @@ class DatabaseToolsTest {
 				.description
 				.contains("Writes are refused: use execute."),
 		)
+	}
+
+	/** /data/room.db has room_master_table; /data/a.db does not. Records what execute ran. */
+	private fun roomSetup(): MutableList<String> {
+		engine.appConnections += listOf(conn(1, "/data/a.db"), conn(2, "/data/room.db"))
+		engine.answer = { path, _, sql, _ ->
+			seenSql += sql
+			val room = path == "/data/room.db" && sql.contains("room_master_table")
+			QueryResult(listOf("1"), if (room) listOf(listOf(1L)) else emptyList(), 0, false)
+		}
+		val ran = mutableListOf<String>()
+		engine.executeAnswer = { path, sql, _ ->
+			ran += "$path: $sql"
+			ExecuteResult(1)
+		}
+		return ran
+	}
+
+	@Test fun aRoomDatabaseRefusesTheFirstWriteWithAWarningAndRunsNothing() {
+		val ran = roomSetup()
+		val r = runTool(tools, "execute", db("/data/room.db").put("sql", "delete from note"))
+		assertTrue(r.getBoolean("isError"))
+		val text = r.getJSONArray("content").getJSONObject(0).getString("text")
+		for (part in listOf("Nothing was run", "Room database", "stale data", "acknowledge_room true", "Tell the user")) {
+			assertTrue("$part: $text", text.contains(part))
+		}
+		val details = r.getJSONObject("structuredContent")
+		assertTrue(details.getBoolean("room"))
+		assertEquals("acknowledge_room", details.getString("acknowledge_with"))
+		assertTrue(ran.isEmpty())
+		// it looked on the read-only connection, and opened no writable one
+		assertEquals(listOf("/data/room.db" to false), engine.openedServerConnections)
+		// asked again without the flag, it refuses again
+		assertTrue(runTool(tools, "execute", db("/data/room.db").put("sql", "delete from note")).getBoolean("isError"))
+		assertTrue(ran.isEmpty())
+	}
+
+	@Test fun anAcknowledgedRoomWriteRunsAndLaterWritesRunWithoutAsking() {
+		val ran = roomSetup()
+		val t = tools
+		ok("execute", db("/data/room.db").put("sql", "delete from note where id = 1").put("acknowledge_room", true), t)
+		ok("execute", db("/data/room.db").put("sql", "delete from note where id = 2"), t)
+		ok("execute", db("/data/room.db").put("sql", "delete from note where id = 3").put("acknowledge_room", false), t)
+		assertEquals(
+			listOf(
+				"/data/room.db: delete from note where id = 1",
+				"/data/room.db: delete from note where id = 2",
+				"/data/room.db: delete from note where id = 3",
+			),
+			ran,
+		)
+		// once acknowledged, the database is not looked at again
+		assertEquals(1, seenSql.count { it.contains("room_master_table") })
+	}
+
+	@Test fun anAcknowledgementCoversOnlyItsOwnDatabaseAndOnlyThisServerProcess() {
+		engine.appConnections += conn(3, "/data/room2.db")
+		val ran = roomSetup()
+		engine.answer = { _, _, sql, _ -> QueryResult(listOf("1"), if (sql.contains("room_master_table")) listOf(listOf(1L)) else emptyList(), 0, false) }
+		val t = tools
+		ok("execute", db("/data/room.db").put("sql", "delete from note").put("acknowledge_room", true), t)
+		assertTrue(runTool(t, "execute", db("/data/room2.db").put("sql", "delete from note")).getBoolean("isError"))
+		// a new DatabaseTools, as in a new app process, asks again
+		assertTrue(runTool(tools, "execute", db("/data/room.db").put("sql", "delete from note")).getBoolean("isError"))
+		assertEquals(listOf("/data/room.db: delete from note"), ran)
+	}
+
+	@Test fun aDatabaseWithoutRoomNeverAsks() {
+		val ran = roomSetup()
+		val t = tools
+		ok("execute", db("/data/a.db").put("sql", "delete from t"), t)
+		ok("execute", db("/data/a.db").put("sql", "delete from t").put("acknowledge_room", true), t)
+		assertEquals(listOf("/data/a.db: delete from t", "/data/a.db: delete from t"), ran)
+	}
+
+	@Test fun acknowledgeRoomMustBeABooleanAndIsCheckedBeforeTheEngine() {
+		roomSetup()
+		val r = runTool(tools, "execute", db("/data/room.db").put("sql", "delete from note").put("acknowledge_room", "yes"))
+		assertTrue(r.getBoolean("isError"))
+		assertEquals(0, engine.openAttempts)
+	}
+
+	@Test fun executeDescribesTheRoomAcknowledgement() {
+		val execute = tools.tools().first { it.name == "execute" }.describe()
+		assertTrue(execute.getString("description").contains("room_master_table"))
+		assertTrue(execute.getString("description").contains("acknowledge_room true"))
+		val prop = execute.getJSONObject("inputSchema").getJSONObject("properties").getJSONObject("acknowledge_room")
+		assertEquals("boolean", prop.getString("type"))
+		assertFalse(execute.getJSONObject("inputSchema").getJSONArray("required").toString().contains("acknowledge_room"))
 	}
 
 	@Test fun stoppingTheServerClosesServerConnections() {
