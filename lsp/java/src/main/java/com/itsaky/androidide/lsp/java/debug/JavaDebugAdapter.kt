@@ -274,6 +274,7 @@ internal class JavaDebugAdapter :
 		doSuspensionIfEnabled(client) { vm ->
 			try {
 				logger.debug("resuming client: {}", client.name)
+				vm.evalContext.cancelAllPending()
 				vm.vm.resume()
 				true
 			} catch (e: Throwable) {
@@ -474,6 +475,7 @@ internal class JavaDebugAdapter :
 				)
 
 			req.enable()
+			vm.evalContext.cancelPendingForThread(suspendedThread.thread)
 			suspendedThread.thread.resume()
 			vm.threadState.invalidateAll()
 
