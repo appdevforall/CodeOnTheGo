@@ -35,7 +35,7 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
-### 26.48 — unreleased
+### 26.49 — unreleased
 - **breaking — A `ShellCommand` stops at its timeout or `cancel()`, with every process it started** _(ADFA-7178)_
   A timeout used to wait for the command to exit, and a stop killed only the command's own
   process, never its children. Each command now runs in a process group of its own, and a
@@ -53,6 +53,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   is the exception: Java drains and closes the output as it exits, so such a child is not seen.
   A child whose output goes elsewhere (`server >log 2>&1 &`) is left running, as is a process
   that calls `setsid` itself.
+
+### 26.48 — unreleased
 - **added — Hear the editor open and close a project, and save a file** _(ADFA-3570)_ **[verified]**
   `IdeProjectService.addProjectLifecycleListener(ProjectLifecycleListener)` calls
   `onProjectOpened(projectDir)` when the editor starts opening a project (its sync does not wait
