@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.TransactionTooLargeException
+import android.text.TextUtils
 import android.view.PixelCopy
 import android.view.View
 import android.widget.Toast
@@ -39,11 +40,23 @@ import java.util.Locale
  * from any screen in the Code On the Go application.
  */
 object FeedbackManager {
-	private const val EMAIL_SUPPORT = "feedback@appdevforall.org"
 	private val logger = LoggerFactory.getLogger(FeedbackManager::class.java)
 
 	/**
-	 * Shows the feedback dialog and handles sending feedback email.
+	 * The address feedback goes to, or `null` when this build has none.
+	 *
+	 * A copy made by the Custom IDE Builder can empty `feedback_email` (ADFA-7313); every way to send
+	 * feedback - the floating button, the tooltip's feedback button, the crash report's link - is then
+	 * hidden, so nothing sends a copy's reports to App Dev For All.
+	 */
+	fun feedbackRecipient(context: Context): String? = recipientOrNull(context.getString(R.string.feedback_email))
+
+	@VisibleForTesting
+	internal fun recipientOrNull(value: String): String? = value.trim().takeIf { it.isNotEmpty() }
+
+	/**
+	 * Shows the feedback dialog and handles sending feedback email. Does nothing when there is no
+	 * [feedbackRecipient].
 	 *
 	 * @param activity The context from which feedback is being sent
 	 */
@@ -52,39 +65,42 @@ object FeedbackManager {
 		logContent: String?,
 		metricsAttachment: (suspend () -> File?)? = null,
 	) {
+		val recipient = feedbackRecipient(activity) ?: return
 		val builder = DialogUtils.newMaterialDialogBuilder(activity)
 
 		builder
 			.setTitle(R.string.title_alert)
 			.setMessage(
 				HtmlCompat.fromHtml(
-					activity.getString(R.string.email_feedback_warning_prompt),
+					activity.getString(R.string.email_feedback_warning_prompt, TextUtils.htmlEncode(recipient)),
 					HtmlCompat.FROM_HTML_MODE_COMPACT,
 				),
 			).setNegativeButton(android.R.string.cancel) { dialog, _ -> dialog.dismiss() }
 			.setPositiveButton(android.R.string.ok) { dialog, _ ->
 				dialog.dismiss()
-				sendFeedbackWithAttachments(activity, logContent, metricsAttachment)
+				sendFeedbackWithAttachments(activity, recipient, logContent, metricsAttachment)
 			}.show()
 	}
 
 	/**
-	 * Shows a simple contact dialog as fallback when email intents fail.
+	 * Shows a simple contact dialog as fallback when email intents fail. Does nothing when there is no
+	 * [feedbackRecipient].
 	 * Uses the same title, message, and button text as the existing contact dialog.
 	 */
 	fun showContactDialog(context: Context) {
+		val recipient = feedbackRecipient(context) ?: return
 		val builder = DialogUtils.newMaterialDialogBuilder(context)
 
 		builder
 			.setTitle(R.string.msg_contact_app_dev_title)
-			.setMessage(R.string.msg_contact_app_dev_description)
+			.setMessage(context.getString(R.string.msg_contact_app_dev_description, recipient))
 			.setNegativeButton(android.R.string.cancel) { dialog, _ ->
 				dialog.dismiss()
 			}.setPositiveButton(R.string.send_email) { dialog, _ ->
 				val intent =
 					Intent(Intent.ACTION_SENDTO).apply {
 						data =
-							"mailto:$EMAIL_SUPPORT?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
+							"mailto:$recipient?subject=${context.getString(R.string.feedback_email_subject)}".toUri()
 					}
 				context.startActivity(intent)
 				dialog.dismiss()
@@ -92,6 +108,7 @@ object FeedbackManager {
 			.show()
 	}
 
+	/** Sends feedback from a tooltip. Does nothing when there is no [feedbackRecipient]. */
 	fun sendTooltipFeedbackWithScreenshot(
 		context: Context,
 		customSubject: String,
@@ -99,6 +116,7 @@ object FeedbackManager {
 		includeScreenshot: Boolean = true,
 		shareActivityResultLauncher: ActivityResultLauncher<Intent>? = null,
 	) {
+		val recipient = feedbackRecipient(context) ?: return
 		val message =
 			buildString {
 				append(metadata)
@@ -116,6 +134,7 @@ object FeedbackManager {
 			captureScreenshot(context) { screenshotFile ->
 				sendFeedbackWithAttachment(
 					context,
+					recipient,
 					customSubject,
 					message,
 					screenshotFile,
@@ -125,6 +144,7 @@ object FeedbackManager {
 		} else {
 			sendFeedbackWithAttachment(
 				context,
+				recipient,
 				customSubject,
 				message,
 				null,
@@ -135,6 +155,7 @@ object FeedbackManager {
 
 	private fun sendFeedbackWithAttachment(
 		context: Context,
+		recipient: String,
 		subject: String,
 		message: String,
 		attachmentFile: File?,
@@ -145,7 +166,7 @@ object FeedbackManager {
 				if (attachmentFile != null) {
 					Intent(Intent.ACTION_SEND).apply {
 						type = "message/rfc822"
-						putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
+						putExtra(Intent.EXTRA_EMAIL, arrayOf(recipient))
 						putExtra(Intent.EXTRA_SUBJECT, subject)
 						putExtra(Intent.EXTRA_TEXT, message)
 
@@ -160,7 +181,7 @@ object FeedbackManager {
 				} else {
 					Intent(Intent.ACTION_SENDTO).apply {
 						data = "mailto:".toUri()
-						putExtra(Intent.EXTRA_EMAIL, arrayOf(EMAIL_SUPPORT))
+						putExtra(Intent.EXTRA_EMAIL, arrayOf(recipient))
 						putExtra(Intent.EXTRA_SUBJECT, subject)
 						putExtra(Intent.EXTRA_TEXT, message)
 
@@ -179,7 +200,7 @@ object FeedbackManager {
 		}.recoverCatching {
 			val fallbackIntent =
 				Intent(Intent.ACTION_SENDTO).apply {
-					data = "mailto:${EMAIL_SUPPORT}?subject=${Uri.encode(subject)}&body=${Uri.encode(message)}".toUri()
+					data = "mailto:$recipient?subject=${Uri.encode(subject)}&body=${Uri.encode(message)}".toUri()
 				}
 			context.startActivity(fallbackIntent)
 		}.onFailure {
@@ -335,6 +356,7 @@ object FeedbackManager {
 
 	private fun sendFeedbackWithAttachments(
 		activity: AppCompatActivity,
+		feedbackRecipient: String,
 		logContent: String?,
 		metricsAttachment: (suspend () -> File?)? = null,
 	) {
@@ -345,7 +367,6 @@ object FeedbackManager {
 			val logContentUri = handler.getLogUri(activity, logContent)
 			val metricsUri = metricsAttachmentUri(metricsAttachment, activity::fileProviderUriFor)
 
-			val feedbackRecipient = activity.getString(R.string.feedback_email)
 			val feedbackSubject =
 				activity.getString(R.string.feedback_subject, getCurrentScreenName(activity))
 			val stackTraceSection =

@@ -36,6 +36,7 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.FeedbackManager
 import com.itsaky.androidide.utils.resolveAttr
 
 class CrashReportFragment : Fragment() {
@@ -111,13 +112,15 @@ class CrashReportFragment : Fragment() {
 		val linkColor = requireContext().resolveAttr(com.itsaky.androidide.R.attr.colorOnSurface)
 		val spannable = SpannableString(fullText)
 
-		// Find clickable phrase in text
+		// Find clickable phrase in text. A copy built without a feedback address (ADFA-7313) offers no
+		// email: the report still shows, so it can be copied.
+		val recipient = FeedbackManager.feedbackRecipient(context)
 		val start = fullText.indexOf(supportText)
-		if (start != -1) {
+		if (start != -1 && recipient != null) {
 			spannable.setSpan(
 				object : ClickableSpan() {
 					override fun onClick(widget: View) {
-						sendEmail(context = context)
+						sendEmail(context = context, email = recipient)
 					}
 
 					override fun updateDrawState(ds: TextPaint) {
@@ -136,8 +139,10 @@ class CrashReportFragment : Fragment() {
 		movementMethod = LinkMovementMethod.getInstance()
 	}
 
-	private fun sendEmail(context: Context) {
-		val email = "feedback@appdevforall.org"
+	private fun sendEmail(
+		context: Context,
+		email: String,
+	) {
 		val subject = Uri.encode(context.getString(R.string.crash_email_subject))
 		val body =
 			Uri.encode(

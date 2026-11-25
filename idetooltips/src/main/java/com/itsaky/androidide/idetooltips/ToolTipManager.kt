@@ -416,8 +416,13 @@ object TooltipManager {
 		}
 
 		val feedbackButton = popupView.findViewById<ImageButton>(R.id.feedback_button)
-		val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
-		feedbackButton.startAnimation(pulseAnimation)
+		// A copy built without a feedback address (ADFA-7313) offers no feedback here.
+		if (FeedbackManager.feedbackRecipient(context) == null) {
+			feedbackButton.visibility = View.GONE
+		} else {
+			val pulseAnimation = AnimationUtils.loadAnimation(context, R.anim.pulse_animation)
+			feedbackButton.startAnimation(pulseAnimation)
+		}
 
 		feedbackButton.apply {
 			setOnClickListener {
@@ -429,12 +434,14 @@ object TooltipManager {
 		// The consent dialog needs an Activity: without one (the debugger overlay runs in a Service),
 		// UrlManager would open the link unasked, so the button is not offered there.
 		val sponsorActivity = OffDeviceRequests.activityFor(context, anchorView.context)
+		// An empty github_sponsors_url (a Custom IDE Builder copy, ADFA-7313) hides the button.
+		val sponsorUrl = context.getString(ResR.string.github_sponsors_url).trim()
 		val sponsorButton = popupView.findViewById<ImageButton>(R.id.sponsor_button)
 		sponsorButton.apply {
-			visibility = if (level >= 1 && sponsorActivity != null) View.VISIBLE else View.GONE
+			visibility = if (level >= 1 && sponsorActivity != null && sponsorUrl.isNotEmpty()) View.VISIBLE else View.GONE
 			setColorFilter(iconTintColor)
 			setOnClickListener {
-				sponsorActivity?.let { UrlManager.openUrl(context.getString(ResR.string.github_sponsors_url), null, it) }
+				sponsorActivity?.let { UrlManager.openUrl(sponsorUrl, null, it) }
 			}
 		}
 
