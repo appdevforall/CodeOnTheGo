@@ -1203,7 +1203,7 @@ abstract class ProjectHandlerActivity :
 				}.onFailure { error ->
 					flashError(
 						if (error is PluginStillLoadedException) {
-							getString(string.msg_plugin_install_still_loaded, error.pluginId)
+							getString(string.msg_plugin_install_still_loaded, error.pluginId, getString(string.app_name))
 						} else {
 							getString(
 								string.msg_plugin_install_failed,

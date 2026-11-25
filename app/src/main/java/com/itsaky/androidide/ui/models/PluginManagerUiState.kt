@@ -105,6 +105,8 @@ sealed class PluginManagerUiEffect {
 	data class ShowError(
 		@param:StringRes @get:StringRes val messageResId: Int,
 		val formatArgs: List<Any> = emptyList(),
+		// The message also takes the app name, after formatArgs (ADFA-7237); the view model has no resources.
+		val withAppName: Boolean = false,
 	) : PluginManagerUiEffect()
 
 	data class ShowSuccess(

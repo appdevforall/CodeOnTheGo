@@ -133,7 +133,13 @@ fun PluginManagerContent(
 			viewModel.uiEffect.collect { effect ->
 				when (effect) {
 					is PluginManagerUiEffect.ShowError -> {
-						val message = activity.getString(effect.messageResId, *effect.formatArgs.toTypedArray())
+						val args =
+							if (effect.withAppName) {
+								effect.formatArgs + activity.getString(R.string.app_name)
+							} else {
+								effect.formatArgs
+							}
+						val message = activity.getString(effect.messageResId, *args.toTypedArray())
 						val builder =
 							activity
 								.flashbarBuilder(duration = if (effect.formatArgs.isEmpty()) 5000L else DURATION_INDEFINITE)

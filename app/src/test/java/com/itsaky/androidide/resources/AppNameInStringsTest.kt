@@ -153,6 +153,8 @@ class AppNameInStringsTest {
 		val NAME_POSITION =
 			mapOf(
 				"about_footer_alternate" to 2,
+				"msg_plugin_install_still_loaded" to 2,
+				"package_name_change_message" to 1,
 				"about_footer" to 3,
 				"msg_need_help" to 1,
 				"msg_unsupported_device" to 3,
