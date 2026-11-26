@@ -225,7 +225,7 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
 		var docContents: CharSequence? = null
 		val diagnostics =
 			task.diagnostics.filter {
-				it.source.toUri() == file.toUri() && it.code == DiagnosticCode.NOT_IMPORTED.id
+				it.code == DiagnosticCode.NOT_IMPORTED.id && it.source?.toUri() == file.toUri()
 			}
 		for (diagnostic in diagnostics) {
 			val content =
@@ -235,10 +235,16 @@ class AutoFixImportsAction : BaseJavaCodeAction() {
 					log.error("Failed to get contents of file {}", file, e)
 					continue
 				}
-
-			val name =
-				content.subSequence(diagnostic.startPosition.toInt(), diagnostic.endPosition.toInt())
-			names.add(name.toString())
+			
+			val start = diagnostic.startPosition
+			val end = diagnostic.endPosition
+			if (start < 0 || end < start || end > content.length) {
+				log.warn("Ignoring invalid diagnostic range: start={}, end={}, length={}, file={}", start, end, content.length, file)
+				continue
+			}
+			
+			val name = content.subSequence(start.toInt(), end.toInt()).toString()
+			if (name.isNotBlank()) names.add(name)
 		}
 		return names
 	}
