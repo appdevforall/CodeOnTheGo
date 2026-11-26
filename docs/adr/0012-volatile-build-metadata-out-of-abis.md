@@ -77,9 +77,10 @@ Two related changes follow from the same invariant:
 - `:build-info`'s Jar sets `preserveFileTimestamps = false` and
   `reproducibleFileOrder = true`. This is not optional in practice: with the timestamp
   fixed, `BuildInfo.java` became byte-identical between rebuilds while the *jar* still
-  changed, because Gradle embeds per-entry timestamps by default. kapt tracks that jar
-  through an input property named `internalNonAbiClasspath` - jar bytes rather than the
-  ABI - so the ABI fix above cannot reach it and only a reproducible jar can.
+  changed, because Gradle embeds per-entry timestamps by default. With the default
+  `kapt.include.compile.classpath=true`, kapt tracks that jar through an input property
+  named `internalNonAbiClasspath` - jar bytes rather than the ABI - so the ABI fix above
+  cannot reach it and only a reproducible jar can (see Consequences for the later fix).
 
 ## Consequences
 
@@ -99,11 +100,14 @@ Two related changes follow from the same invariant:
   plain constant. The generated file carries a comment saying why.
 - Values move from being inlined at each call site to a single static read. The runtime
   cost is immaterial; the behaviour is unchanged.
-- kapt still re-ran across its 11 modules: by default it fingerprints the full compile
-  classpath, jar contents included, rather than the ABI-normalised one. Since ADFA-6954,
+- kapt still re-ran in every module that uses it, because by default it fingerprints
+  the full compile classpath, jar contents included, rather than the ABI-normalised one,
+  so the volatile values reached it anyway. Since ADFA-6954,
   `kapt.include.compile.classpath=false` in `gradle.properties` makes it use the
-  ABI-normalised one, so these values no longer reach it. Annotation processors must
-  then be declared with `kapt(...)`; kapt no longer finds them on the compile classpath.
+  ABI-normalised one, so they no longer reach the 12 library modules' kapt. Annotation
+  processors must then be declared with `kapt(...)`; kapt no longer finds them on the
+  compile classpath. `:app`'s kapt still re-runs on every commit, because the version
+  name, which changes with each commit, goes into `:app`'s `BuildConfig`.
 
 ## Alternatives considered
 
