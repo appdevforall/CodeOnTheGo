@@ -1266,7 +1266,9 @@ class DatabaseToolsTest {
 
 	@Test fun aRoomDatabaseRefusesTheFirstWriteWithAWarningAndRunsNothing() {
 		val ran = roomSetup()
-		val r = runTool(tools, "execute", db("/data/room.db").put("sql", "delete from note"))
+		// one instance for both calls: `tools` builds a new one, which would remember no acknowledgement
+		val t = tools
+		val r = runTool(t, "execute", db("/data/room.db").put("sql", "delete from note"))
 		assertTrue(r.getBoolean("isError"))
 		val text = r.getJSONArray("content").getJSONObject(0).getString("text")
 		for (part in listOf("Nothing was run", "Room database", "stale data", "acknowledge_room true", "Tell the user")) {
@@ -1278,8 +1280,8 @@ class DatabaseToolsTest {
 		assertTrue(ran.isEmpty())
 		// it looked on the read-only connection, and opened no writable one
 		assertEquals(listOf("/data/room.db" to false), engine.openedServerConnections)
-		// asked again without the flag, it refuses again
-		assertTrue(runTool(tools, "execute", db("/data/room.db").put("sql", "delete from note")).getBoolean("isError"))
+		// asked again without the flag, it refuses again: the refusal recorded no acknowledgement
+		assertTrue(runTool(t, "execute", db("/data/room.db").put("sql", "delete from note")).getBoolean("isError"))
 		assertTrue(ran.isEmpty())
 	}
 
