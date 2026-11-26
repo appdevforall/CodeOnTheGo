@@ -960,7 +960,10 @@ class DatabaseTools internal constructor(
 			)
 		}
 		val tail = others.rows.map { "${it[0]};" }.toMutableList()
-		val tailCut = others.rows.indices.filter { others.isTruncated(it, 0) }.toMutableSet()
+		val tailCut =
+			others.rows.indices
+				.filter { others.isTruncated(it, 0) }
+				.toMutableSet()
 		if (writableSchema) tail += "PRAGMA writable_schema=OFF;"
 		tail += "COMMIT;"
 		units += DumpUnit.Fixed(tail, tailCut)
