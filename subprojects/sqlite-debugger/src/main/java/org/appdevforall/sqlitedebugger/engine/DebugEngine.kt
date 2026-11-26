@@ -29,8 +29,19 @@ interface DebugEngine {
 		maxBytes: Int,
 	): EventBatch
 
-	/** While true, statements are recorded with their bound values written in. */
+	/** While true, statements are recorded with their bound values written in, and rows if [setRowCapture] is on. */
 	fun setClientConnected(connected: Boolean)
+
+	/**
+	 * Records the first [maxRowsPerStatement] rows of each statement as [EventKind.ROW] events while a
+	 * client is connected; 0 turns it off, as at install. TEXT and BLOB values are cut at [maxValueBytes]
+	 * and a row's data at [maxRowBytes] (`sqlitedbg_set_row_capture`).
+	 */
+	fun setRowCapture(
+		maxRowsPerStatement: Int,
+		maxValueBytes: Int,
+		maxRowBytes: Int,
+	)
 
 	/**
 	 * Opens [path] for the server: read-only (with an authorizer refusing writes) unless
@@ -55,12 +66,17 @@ interface ServerConnection : Closeable {
 	 * progress handler on this server connection) once [deadlineMillis] (System.currentTimeMillis
 	 * clock) has passed.
 	 *
+	 * [argNames] null binds [args] by position, `?NNN` by its number; otherwise `argNames[i]` names the
+	 * parameter `args[i]` goes to, written as in the SQL (`:id`, `@id`, `$id`, `?3`) or bare (`id`, for
+	 * any of `:`, `@` and `$`). Every parameter must get exactly one value and every name must be used.
+	 *
 	 * @throws DebugEngineException for SQLite errors, SQL with no statement or more than one, a
-	 *   refused write, or the deadline.
+	 *   refused write, the deadline, or arguments that do not match the parameters (SQLITE_RANGE).
 	 */
 	fun query(
 		sql: String,
 		args: List<Any?>,
+		argNames: List<String>?,
 		offset: Long,
 		limits: QueryLimits,
 		deadlineMillis: Long,
@@ -178,6 +194,8 @@ data class QueryResult(
 	 * is whole and not listed, one byte more is. [truncatedCells] is its size.
 	 */
 	val truncatedCellIndexes: Set<Long> = emptySet(),
+	/** Each column's declared type, as `sqlite3_column_decltype` gives it; null for an expression. */
+	val declaredTypes: List<String?> = List(columns.size) { null },
 ) {
 	fun isTruncated(
 		row: Int,
