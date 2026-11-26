@@ -189,6 +189,32 @@ class ShellToolsTest {
 		assertTrue("no check ran on the partial key", seen.none { it.first.startsWith("EXPLAIN QUERY PLAN SELECT 1 FROM \"b\"") })
 	}
 
+	@Test fun lintCountsAWithoutRowidPrimaryKeyThatStartsWithTheKey() {
+		// The plans are SQLite 3.49.1's for ch2(x, y, PRIMARY KEY(x, y)) and ch3(x, y, z, PRIMARY KEY(x, z)), both
+		// WITHOUT ROWID, each with FOREIGN KEY(x, y) REFERENCES p(a, b).
+		answer(
+			"SELECT s.name, f.id" to {
+				result(
+					listOf("name", "id", "table", "from", "to"),
+					listOf("ch2", 0L, "p", "x", "a"),
+					listOf("ch2", 0L, "p", "y", "b"),
+					listOf("ch3", 0L, "p", "x", "a"),
+					listOf("ch3", 0L, "p", "y", "b"),
+				)
+			},
+			"EXPLAIN QUERY PLAN SELECT 1 FROM \"ch2\"" to {
+				result(listOf("id", "parent", "notused", "detail"), listOf(3L, 0L, 0L, "SEARCH ch2 USING PRIMARY KEY (x=? AND y=?)"))
+			},
+			"EXPLAIN QUERY PLAN SELECT 1 FROM \"ch3\"" to {
+				result(listOf("id", "parent", "notused", "detail"), listOf(3L, 0L, 0L, "SEARCH ch3 USING PRIMARY KEY (x=?)"))
+			},
+		)
+		val keys = ok("lint_foreign_keys").getJSONArray("foreign_keys")
+		assertTrue("a primary key on both columns covers the key", keys.getJSONObject(0).getBoolean("covered"))
+		assertFalse("one that covers only x does not", keys.getJSONObject(1).getBoolean("covered"))
+		assertTrue(keys.getJSONObject(1).has("create_index"))
+	}
+
 	@Test fun lintGlobFailsWhenTheIndexCoversOnlySomeColumns() {
 		assertTrue(ShellFormat.globMatches("SEARCH t USING COVERING INDEX*(*=? AND *=?)", "SEARCH t USING COVERING INDEX i (a=? AND b=?)"))
 		assertFalse(ShellFormat.globMatches("SEARCH t USING COVERING INDEX*(*=? AND *=?)", "SEARCH t USING COVERING INDEX i (a=?)"))
@@ -299,6 +325,30 @@ class ShellToolsTest {
 		ok("dump")
 		val select = seen.first { it.first.startsWith("SELECT 'INSERT INTO ") }.first
 		assertEquals("SELECT 'INSERT INTO \"g\"(\"a\",\"c\") VALUES(' || quote(\"a\") || ',' || quote(\"c\") || ');' FROM \"g\"", select)
+	}
+
+	@Test fun dumpJoinsTheColumnsOfAWideTableInGroupsOfAHundred() {
+		fun select(columns: Int): String {
+			seen.clear()
+			dumpSchema(
+				tables = listOf(listOf("w", "CREATE TABLE w(...)")),
+				xinfo = mapOf("w" to (1..columns).map { listOf("c$it", 0L) }),
+			)
+			ok("dump")
+			return seen.first { it.first.startsWith("SELECT 'INSERT INTO ") }.first
+		}
+
+		fun chain(columns: IntRange) = columns.joinToString(" || ',' || ") { "quote(\"c$it\")" }
+
+		fun expected(values: String) = "SELECT 'INSERT INTO \"w\" VALUES(' || $values || ');' FROM \"w\" ORDER BY _rowid_"
+		// One chain of || is refused past about 500 columns ("Expression tree is too large (maximum depth 1000)"),
+		// SQLite 3.49.1; up to 100 columns the SELECT is as before, then each group of 100 is a chain of its own.
+		assertEquals(expected(chain(1..100)), select(100))
+		assertEquals(expected("(${chain(1..100)}) || ',' || (${chain(101..101)})"), select(101))
+		assertEquals(
+			expected((0 until 20).joinToString(" || ',' || ") { "(${chain(it * 100 + 1..it * 100 + 100)})" }),
+			select(2000),
+		)
 	}
 
 	@Test fun dumpWritesAVirtualTableIntoTheSchemaAsTheShellDoes() {

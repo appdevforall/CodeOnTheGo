@@ -104,6 +104,15 @@ class DatabaseTools internal constructor(
 		/** dump's limit on one statement, a single TEXT cell; a longer one is cut and listed in truncated_statements. */
 		const val DUMP_STATEMENT_BYTES = MAX_TOTAL_BYTES
 
+		/**
+		 * dump's quote() calls per parenthesised group. A group's chain of || nests about twice this deep, and
+		 * SQLite's limit is 1000; 2000 columns, SQLite's most, make 20 groups.
+		 */
+		const val DUMP_COLUMN_GROUP = 100
+
+		/** SQLite's highest possible column limit (SQLITE_MAX_COLUMN can be raised to 32767, and no further). */
+		const val MAX_TABLE_COLUMNS = 32767
+
 		/** get_events' row recording: rows per statement, bytes per TEXT or BLOB value, and bytes per row. */
 		const val EVENT_ROWS_PER_STATEMENT = 10
 		const val EVENT_VALUE_BYTES = 256
@@ -434,7 +443,8 @@ class DatabaseTools internal constructor(
 				"Lists each foreign key and whether an index on the child table covers it, as the sqlite3 shell's " +
 					".lint fkey-indexes does: without one, deleting or updating a parent row scans the child table. An " +
 					"uncovered key has create_index, a statement that would cover it (not run). Unlike sqlite3, a child column " +
-					"whose collation differs from its parent key's is not taken into account. truncated is true past the first " +
+					"whose collation differs from its parent key's is not taken into account, and a WITHOUT ROWID child's " +
+					"primary key counts when it starts with the key's columns. truncated is true past the first " +
 					"$MAX_ROWS foreign key columns, and the last key, of which only some columns were read, is then left out. " +
 					NON_WAL_NOTE,
 				databaseSchema(),
@@ -873,12 +883,12 @@ class DatabaseTools internal constructor(
 					0,
 					limits,
 				).rows.firstOrNull()?.getOrNull(3) as? String ?: ""
-			// The shell's two patterns (lintFkeyIndexes in shell.c.in)
+			// The shell's two patterns (lintFkeyIndexes in shell.c.in), and a third the shell lacks: a WITHOUT ROWID
+			// table's primary key, whose b-tree holds every column, so a search on it covers the key.
+			val terms = "(" + key.from.joinToString(" AND ") { "*=?" } + ")"
 			val covered =
-				ShellFormat.globMatches(
-					"SEARCH ${key.child} USING COVERING INDEX*(" + key.from.joinToString(" AND ") { "*=?" } + ")",
-					plan,
-				) ||
+				ShellFormat.globMatches("SEARCH ${key.child} USING COVERING INDEX*$terms", plan) ||
+					ShellFormat.globMatches("SEARCH ${key.child} USING PRIMARY KEY $terms", plan) ||
 					ShellFormat.globMatches("SEARCH * USING INTEGER PRIMARY KEY (rowid=?)", plan)
 			val item =
 				JSONObject()
@@ -1350,7 +1360,18 @@ class DatabaseTools internal constructor(
 		table: String,
 		limits: QueryLimits,
 	): String {
-		val all = runChecked(call, path, "SELECT name, hidden FROM pragma_table_xinfo(?)", Bind(listOf(table), null), 0, limits).rows
+		// every column, not a page of them: a cut list would write INSERTs short of values
+		val xinfo =
+			runChecked(
+				call,
+				path,
+				"SELECT name, hidden FROM pragma_table_xinfo(?)",
+				Bind(listOf(table), null),
+				0,
+				limits.copy(maxRows = MAX_TABLE_COLUMNS),
+			)
+		if (xinfo.hasMore) throw McpToolError("Table \"$table\" has more than $MAX_TABLE_COLUMNS columns.")
+		val all = xinfo.rows
 		// hidden 2 and 3: a virtual and a stored generated column
 		val columns = all.filter { it[1] != 2L && it[1] != 3L }.map { it[0] as String }
 		val withoutRowid =
@@ -1371,7 +1392,13 @@ class DatabaseTools internal constructor(
 				} else {
 					""
 				}
-		val values = columns.joinToString(" || ',' || ") { "quote(${quoteIdentifier(it)})" }
+		// SQLite refuses an expression nested deeper than 1000 (SQLITE_MAX_EXPR_DEPTH), which one chain of || reaches
+		// at about 500 columns: past DUMP_COLUMN_GROUP columns, each group is a chain of its own, in parentheses.
+		val values =
+			columns.chunked(DUMP_COLUMN_GROUP).joinToString(" || ',' || ") { group ->
+				val chain = group.joinToString(" || ',' || ") { "quote(${quoteIdentifier(it)})" }
+				if (columns.size > DUMP_COLUMN_GROUP) "($chain)" else chain
+			}
 		return "SELECT ${ShellFormat.sqlLiteral("INSERT INTO $target VALUES(")} || $values || ');' FROM ${quoteIdentifier(table)}" +
 			if (withoutRowid) "" else " ORDER BY _rowid_"
 	}
