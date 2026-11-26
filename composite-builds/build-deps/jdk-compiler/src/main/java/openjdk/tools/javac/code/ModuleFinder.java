@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.Function;
 
 import jdkx.tools.JavaFileManager;
 import jdkx.tools.JavaFileManager.Location;
@@ -57,7 +58,6 @@ import openjdk.tools.javac.util.Name;
 import openjdk.tools.javac.util.Names;
 
 import static openjdk.tools.javac.code.Kinds.Kind.*;
-import openjdk.tools.javac.comp.Check;
 
 /**
  *  This class provides operations to locate module definitions
@@ -82,7 +82,6 @@ public class ModuleFinder {
     private final Names names;
 
     private final ClassFinder classFinder;
-    private final Check chk;
 
     /** Access to files
      */
@@ -105,6 +104,7 @@ public class ModuleFinder {
     }
 
     /** Construct a new module finder. */
+    @SuppressWarnings("this-escape")
     protected ModuleFinder(Context context) {
         context.put(moduleFinderKey, this);
         names = Names.instance(context);
@@ -112,7 +112,6 @@ public class ModuleFinder {
         fileManager = context.get(JavaFileManager.class);
         log = Log.instance(context);
         classFinder = ClassFinder.instance(context);
-        chk = Check.instance(context);
 
         diags = JCDiagnostic.Factory.instance(context);
         dcfh = DeferredCompletionFailureHandler.instance(context);
@@ -208,13 +207,7 @@ public class ModuleFinder {
             if (fo == null) {
                 msym = syms.unnamedModule;
             } else {
-                try {
-                    msym = readModule(fo);
-                } catch (CompletionFailure ex) {
-                    chk.completionError(null, ex);
-                    msym = syms.unnamedModule;
-                }
-                    
+                msym = readModule(fo);
             }
 
             if (msym.patchLocation == null) {
@@ -386,17 +379,7 @@ public class ModuleFinder {
                 msym.module_info.completer = new Symbol.Completer() {
                     @Override
                     public void complete(Symbol sym) throws CompletionFailure {
-                        try {
-                            classFinder.fillIn(msym.module_info);
-                        } catch (Exception ex) {
-                            msym.kind = ERR;
-                            //make sure the module is initialized:
-                            msym.directives = List.nil();
-                            msym.exports = List.nil();
-                            msym.provides = List.nil();
-                            msym.requires = List.nil();
-                            msym.uses = List.nil();
-                        }
+                        classFinder.fillIn(msym.module_info);
                     }
                     @Override
                     public String toString() {

@@ -35,4 +35,4 @@ package openjdk.source.tree;
  * @author Jonathan Gibbons
  * @since 1.6
  */
-public interface ExpressionTree extends Tree, CaseLabelTree {}
+public interface ExpressionTree extends Tree {}

@@ -26,11 +26,9 @@
 package openjdk.tools.javac.platform;
 
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
-
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.URI;
-import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -51,11 +49,13 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jdkx.annotation.processing.Processor;
 import jdkx.tools.ForwardingJavaFileObject;
 import jdkx.tools.JavaFileManager;
+import jdkx.tools.JavaFileManager.Location;
 import jdkx.tools.JavaFileObject;
 import jdkx.tools.JavaFileObject.Kind;
 import jdkx.tools.StandardJavaFileManager;
@@ -71,6 +71,8 @@ import openjdk.tools.javac.main.Option;
 import openjdk.tools.javac.util.Context;
 import openjdk.tools.javac.util.Log;
 import openjdk.tools.javac.util.StringUtils;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /** PlatformProvider for JDK N.
  *
@@ -239,8 +241,8 @@ public class JDKPlatformProvider implements PlatformProvider {
 
                 @Override
                 public String inferBinaryName(Location location, JavaFileObject file) {
-                   if (file instanceof SigJavaFileObject) {
-                        file = ((SigJavaFileObject) file).getDelegate();
+                    if (file instanceof SigJavaFileObject sigJavaFileObject) {
+                        file = sigJavaFileObject.getDelegate();
                     }
                     return super.inferBinaryName(location, file);
                 }
@@ -262,7 +264,6 @@ public class JDKPlatformProvider implements PlatformProvider {
                     boolean hasModules =
                             Feature.MODULES.allowedInSource(Source.lookup(sourceVersion));
                     Path systemModules = root.resolve(ctSymVersion).resolve("system-modules");
-                    Charset utf8 = Charset.forName("UTF-8");
 
                     if (!hasModules) {
                         List<Path> paths = new ArrayList<>();
@@ -288,7 +289,7 @@ public class JDKPlatformProvider implements PlatformProvider {
                                 FileSystems.getFileSystem(URI.create("jrt:/"))
                                            .getPath("modules");
                         try (Stream<String> lines =
-                                Files.lines(systemModules, utf8)) {
+                                Files.lines(systemModules, UTF_8)) {
                             lines.map(line -> jrtModules.resolve(line))
                                  .filter(mod -> Files.exists(mod))
                                  .forEach(mod -> setModule(fm, mod));
@@ -394,8 +395,7 @@ public class JDKPlatformProvider implements PlatformProvider {
     }
 
     static Path findCtSym() {
-        // AndroidIDE changed: Allow overriding java home.
-        String javaHome = JavacConfigProvider.getJavaHome();
+        String javaHome = JavacConfigProvider.getJavaHome();//System.getProperty("java.home");
         Path file = Paths.get(javaHome);
         // file == ${jdk.home}
         for (String name : symbolFileLocation)

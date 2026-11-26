@@ -31,7 +31,6 @@ import java.util.Map;
 import openjdk.tools.javac.parser.Tokens.Comment;
 import openjdk.tools.javac.tree.DCTree.DCDocComment;
 import openjdk.tools.javac.tree.DocCommentTable;
-import openjdk.tools.javac.tree.EndPosTable;
 import openjdk.tools.javac.tree.JCTree;
 import openjdk.tools.javac.util.DiagnosticSource;
 
@@ -52,18 +51,12 @@ public class LazyDocCommentTable implements DocCommentTable {
         }
     }
 
+    public final ParserFactory fac;
+    public final DiagnosticSource diagSource;
+    public final Map<JCTree, Entry> table;
 
-    private final ParserFactory fac;
-    private final boolean breakOnError;
-    private final EndPosTable ept;
-    private final DiagnosticSource diagSource;
-    public Map<JCTree, Entry> table;
-
-
-    LazyDocCommentTable(ParserFactory fac, EndPosTable ept) {
+    LazyDocCommentTable(ParserFactory fac) {
         this.fac = fac;
-        this.breakOnError = fac.options.getBoolean("breakDocCommentParsingOnError", true);
-        this.ept = ept;
         diagSource = fac.log.currentSource();
         table = new HashMap<>();
     }
@@ -91,7 +84,7 @@ public class LazyDocCommentTable implements DocCommentTable {
         if (e == null)
             return null;
         if (e.tree == null)
-            e.tree = new DocCommentParser(fac, breakOnError, ept, diagSource, e.comment, false).parse();
+            e.tree = new DocCommentParser(fac, diagSource, e.comment).parse();
         return e.tree;
     }
 

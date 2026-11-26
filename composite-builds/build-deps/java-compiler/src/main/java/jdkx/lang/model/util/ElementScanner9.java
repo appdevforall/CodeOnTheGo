@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,8 +25,6 @@
 
 package jdkx.lang.model.util;
 
-import java.util.ArrayList;
-import java.util.List;
 import jdkx.lang.model.element.*;
 import jdkx.annotation.processing.SupportedSourceVersion;
 import jdkx.lang.model.SourceVersion;
@@ -38,15 +36,16 @@ import static jdkx.lang.model.SourceVersion.*;
  * appropriate for source versions {@link SourceVersion#RELEASE_9
  * RELEASE_9} through {@link SourceVersion#RELEASE_14 RELEASE_14}.
  *
- * The <code>visit<i>Xyz</i></code> methods in this
- * class scan their component elements by calling {@code scan} on
- * their {@linkplain Element#getEnclosedElements enclosed elements},
- * {@linkplain ExecutableElement#getParameters parameters}, etc., as
- * indicated in the individual method specifications.  A subclass can
- * control the order elements are visited by overriding the
- * <code>visit<i>Xyz</i></code> methods.  Note that clients of a scanner
- * may get the desired behavior be invoking {@code v.scan(e, p)} rather
- * than {@code v.visit(e, p)} on the root objects of interest.
+ * The <code>visit<i>Xyz</i></code> methods in this class scan their
+ * component elements by calling {@link ElementScanner6#scan(Element,
+ * Object) scan} on their {@linkplain Element#getEnclosedElements
+ * enclosed elements}, {@linkplain ExecutableElement#getParameters
+ * parameters}, etc., as indicated in the individual method
+ * specifications.  A subclass can control the order elements are
+ * visited by overriding the <code>visit<i>Xyz</i></code> methods.
+ * Note that clients of a scanner may get the desired behavior by
+ * invoking {@code v.scan(e, p)} rather than {@code v.visit(e, p)} on
+ * the root objects of interest.
  *
  * <p>When a subclass overrides a <code>visit<i>Xyz</i></code> method, the
  * new method can cause the enclosed elements to be scanned in the
@@ -77,7 +76,6 @@ import static jdkx.lang.model.SourceVersion.*;
  * @see ElementScanner14
  * @since 9
  */
-
 @SupportedSourceVersion(RELEASE_14)
 public class ElementScanner9<R, P> extends ElementScanner8<R, P> {
     /**

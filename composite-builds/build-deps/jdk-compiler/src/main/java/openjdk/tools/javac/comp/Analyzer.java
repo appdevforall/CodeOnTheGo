@@ -34,7 +34,6 @@ import java.util.Queue;
 import java.util.stream.Collectors;
 
 import openjdk.source.tree.LambdaExpressionTree;
-import openjdk.source.tree.ModifiersTree;
 import openjdk.source.tree.NewClassTree;
 import openjdk.source.tree.VariableTree;
 import openjdk.tools.javac.code.Flags;
@@ -48,7 +47,6 @@ import openjdk.tools.javac.comp.ArgumentAttr.LocalCacheContext;
 import openjdk.tools.javac.comp.DeferredAttr.AttributionMode;
 import openjdk.tools.javac.resources.CompilerProperties.Warnings;
 import openjdk.tools.javac.tree.JCTree;
-import openjdk.tools.javac.tree.JCTree.JCAnnotation;
 import openjdk.tools.javac.tree.JCTree.JCBlock;
 import openjdk.tools.javac.tree.JCTree.JCClassDecl;
 import openjdk.tools.javac.tree.JCTree.JCDoWhileLoop;
@@ -59,7 +57,6 @@ import openjdk.tools.javac.tree.JCTree.JCLambda;
 import openjdk.tools.javac.tree.JCTree.JCLambda.ParameterKind;
 import openjdk.tools.javac.tree.JCTree.JCMethodDecl;
 import openjdk.tools.javac.tree.JCTree.JCMethodInvocation;
-import openjdk.tools.javac.tree.JCTree.JCModifiers;
 import openjdk.tools.javac.tree.JCTree.JCNewClass;
 import openjdk.tools.javac.tree.JCTree.JCStatement;
 import openjdk.tools.javac.tree.JCTree.JCSwitch;
@@ -121,6 +118,7 @@ public class Analyzer {
         return instance;
     }
 
+    @SuppressWarnings("this-escape")
     protected Analyzer(Context context) {
         context.put(analyzerKey, this);
         types = Types.instance(context);
@@ -143,13 +141,17 @@ public class Analyzer {
      * the {@code -XDfind} option.
      */
     enum AnalyzerMode {
-        DIAMOND("diamond", Feature.DIAMOND),
-        LAMBDA("lambda", Feature.LAMBDA),
-        METHOD("method", Feature.GRAPH_INFERENCE),
+        DIAMOND("diamond"),
+        LAMBDA("lambda"),
+        METHOD("method"),
         LOCAL("local", Feature.LOCAL_VARIABLE_TYPE_INFERENCE);
 
         final String opt;
         final Feature feature;
+
+        AnalyzerMode(String opt) {
+            this(opt, null);
+        }
 
         AnalyzerMode(String opt, Feature feature) {
             this.opt = opt;
@@ -172,7 +174,7 @@ public class Analyzer {
                 res = EnumSet.allOf(AnalyzerMode.class);
             }
             for (AnalyzerMode mode : values()) {
-                if (modes.contains("-" + mode.opt) || !mode.feature.allowedInSource(source)) {
+                if (modes.contains("-" + mode.opt) || (mode.feature != null && !mode.feature.allowedInSource(source))) {
                     res.remove(mode);
                 } else if (modes.contains(mode.opt)) {
                     res.add(mode);
@@ -250,32 +252,26 @@ public class Analyzer {
         @Override
         void process(JCNewClass oldTree, JCNewClass newTree, boolean hasErrors) {
             if (!hasErrors) {
-                Type oldType = null;
-                Type newType = null;
+                List<Type> inferredArgs, explicitArgs;
                 if (oldTree.def != null) {
-                    newType = newTree.def.implementing.nonEmpty()
-                                      ? newTree.def.implementing.get(0).type
-                                      : newTree.def.extending.type;
-                    oldType = oldTree.def.implementing.nonEmpty()
-                                      ? oldTree.def.implementing.get(0).type
-                                      : oldTree.def.extending.type;
+                    inferredArgs = newTree.def.implementing.nonEmpty()
+                                      ? newTree.def.implementing.get(0).type.getTypeArguments()
+                                      : newTree.def.extending.type.getTypeArguments();
+                    explicitArgs = oldTree.def.implementing.nonEmpty()
+                                      ? oldTree.def.implementing.get(0).type.getTypeArguments()
+                                      : oldTree.def.extending.type.getTypeArguments();
                 } else {
-                    newType = newTree.type;
-                    oldType = oldTree.type;
+                    inferredArgs = newTree.type.getTypeArguments();
+                    explicitArgs = oldTree.type.getTypeArguments();
                 }
-                if (oldType != null && !oldType.isErroneous()
-                        && newType != null && !newType.isErroneous()) {
-                    List<Type> explicitArgs = oldType.getTypeArguments();
-                    List<Type> inferredArgs = newType.getTypeArguments();
-                    for (Type t : inferredArgs) {
-                        if (t == null || explicitArgs.head == null || !types.isSameType(t, explicitArgs.head)) {
-                            return;
-                        }
-                        explicitArgs = explicitArgs.tail;
+                for (Type t : inferredArgs) {
+                    if (!types.isSameType(t, explicitArgs.head)) {
+                        return;
                     }
-                    //exact match
-                    log.warning(oldTree.clazz, Warnings.DiamondRedundantArgs);
+                    explicitArgs = explicitArgs.tail;
                 }
+                //exact match
+                log.warning(oldTree.clazz, Warnings.DiamondRedundantArgs);
             }
         }
     }
@@ -292,11 +288,10 @@ public class Analyzer {
         @Override
         boolean match (JCNewClass tree){
             Type clazztype = tree.clazz.type;
-            return tree.def != null && clazztype != null &&
+            return tree.def != null &&
                     clazztype.hasTag(CLASS) &&
                     types.isFunctionalInterface(clazztype.tsym) &&
-                    decls(tree.def).length() == 1
-                    && decls(tree.def).head.hasTag(METHODDEF);
+                    decls(tree.def).length() == 1;
         }
         //where
             private List<JCTree> decls(JCClassDecl decl) {
@@ -776,13 +771,6 @@ public class Analyzer {
                 newNewClazz.args = newNewClazz.args.tail;
             }
             return newNewClazz;
-        }
-
-        @Override @DefinedBy(Api.COMPILER_TREE)
-        public JCTree visitModifiers(ModifiersTree node, Void _unused) {
-            JCModifiers t = (JCModifiers) node;
-            List<JCAnnotation> annotations = copy(t.annotations, _unused);
-            return make.at(t.pos).Modifiers(t.flags & ~Flags.AccessFlags, annotations);
         }
     }
 

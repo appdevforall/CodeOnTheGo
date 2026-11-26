@@ -94,6 +94,7 @@ public class RichDiagnosticFormatter extends
         return instance;
     }
 
+    @SuppressWarnings("this-escape")
     protected RichDiagnosticFormatter(Context context) {
         super((AbstractDiagnosticFormatter)Log.instance(context).getDiagnosticFormatter());
         setRichPrinter(new RichPrinter());
@@ -180,17 +181,17 @@ public class RichDiagnosticFormatter extends
      * @param arg the argument to be translated
      */
     protected void preprocessArgument(Object arg) {
-        if (arg instanceof Type) {
-            preprocessType((Type)arg);
+        if (arg instanceof Type type) {
+            preprocessType(type);
         }
-        else if (arg instanceof Symbol) {
-            preprocessSymbol((Symbol)arg);
+        else if (arg instanceof Symbol symbol) {
+            preprocessSymbol(symbol);
         }
-        else if (arg instanceof JCDiagnostic) {
-            preprocessDiagnostic((JCDiagnostic)arg);
+        else if (arg instanceof JCDiagnostic diagnostic) {
+            preprocessDiagnostic(diagnostic);
         }
-        else if (arg instanceof Iterable<?> && !(arg instanceof Path)) {
-            for (Object o : (Iterable<?>)arg) {
+        else if (arg instanceof Iterable<?> iterable && !(arg instanceof Path)) {
+            for (Object o : iterable) {
                 preprocessArgument(o);
             }
         }
@@ -302,16 +303,16 @@ public class RichDiagnosticFormatter extends
 
         public String simplify(Symbol s) {
             String name = s.getQualifiedName().toString();
-            if (!s.type.isCompound() && !s.type.isPrimitive() && !s.type.hasTag(VOID)) {
+            if (!s.type.isCompound() && !s.type.isPrimitive()) {
                 List<Symbol> conflicts = nameClashes.get(s.getSimpleName());
                 if (conflicts == null ||
                     (conflicts.size() == 1 &&
                     conflicts.contains(s))) {
                     List<Name> l = List.nil();
                     Symbol s2 = s;
-                    while (s2.type != null && s2.type.hasTag(CLASS) &&
-                            s2.type.getEnclosingType() != null && s2.type.getEnclosingType().hasTag(CLASS) &&
-                            s2.owner != null && s2.owner.kind == TYP) {
+                    while (s2.type.hasTag(CLASS) &&
+                            s2.type.getEnclosingType().hasTag(CLASS) &&
+                            s2.owner.kind == TYP) {
                         l = l.prepend(s2.getSimpleName());
                         s2 = s2.owner;
                     }
@@ -556,8 +557,8 @@ public class RichDiagnosticFormatter extends
             if (indexOf(t, WhereClauseKind.TYPEVAR) == -1) {
                 //access the bound type and skip error types
                 Type bound = t.getUpperBound();
-                while ((bound instanceof ErrorType))
-                    bound = ((ErrorType)bound).getOriginalType();
+                while ((bound instanceof ErrorType errorType))
+                    bound = errorType.getOriginalType();
                 //retrieve the bound list - if the type variable
                 //has not been attributed the bound is not set
                 List<Type> bounds = (bound != null) &&

@@ -34,6 +34,10 @@ import java.io.PrintWriter;
  * module for details on replacement APIs.
  */
 public class Main {
+    /**
+     * Do not call.
+     */
+    @Deprecated(since="16", forRemoval=true)
     public Main(){}
 
     /** Main entry point for the launcher.

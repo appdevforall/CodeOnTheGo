@@ -34,7 +34,6 @@ import java.util.*;
 import openjdk.tools.javac.code.Source.Feature;
 import openjdk.tools.javac.util.DefinedBy;
 import openjdk.tools.javac.util.DefinedBy.Api;
-import java.lang.reflect.Method;
 
 /**
  * Object providing state about a prior round of annotation processing.
@@ -124,10 +123,7 @@ public class JavacRoundEnvironment implements RoundEnvironment {
         throwIfNotAnnotation(a);
 
         Set<Element> result = Collections.emptySet();
-
-
-        AnnotationSetScanner scanner = new AnnotationSetScanner(result);
-
+        var scanner = new AnnotationSetScanner(result);
 
         for (Element element : rootElements)
             result = scanner.scan(element, a);
@@ -147,12 +143,7 @@ public class JavacRoundEnvironment implements RoundEnvironment {
         }
 
         Set<Element> result = Collections.emptySet();
-
-
-        AnnotationSetMultiScanner scanner = new AnnotationSetMultiScanner(result);
-
-
-
+        var scanner = new AnnotationSetMultiScanner(result);
 
         for (Element element : rootElements)
             result = scanner.scan(element, annotationSet);
@@ -277,16 +268,7 @@ public class JavacRoundEnvironment implements RoundEnvironment {
         if (annotationElement != null)
             return annotationElement;
         else if (allowModules) {
-            String moduleName = "";
-            try {
-                Method mth = annotation.getClass().getDeclaredMethod("getModule");
-                if (mth != null) {
-                    Object retObj = mth.invoke(annotation);
-                    if (retObj instanceof String) {
-                        moduleName = (String) retObj;
-                    }
-                }
-            } catch (Exception e) {}
+            String moduleName = Objects.requireNonNullElse(annotation.getModule().getName(), "");
             return eltUtils.getTypeElement(eltUtils.getModuleElement(moduleName), name);
         } else {
             return null;

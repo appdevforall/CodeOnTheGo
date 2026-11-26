@@ -25,8 +25,6 @@
 
 package openjdk.tools.javac.comp;
 
-import openjdk.tools.javac.code.Symbol.TypeSymbol;
-import openjdk.tools.javac.tree.JCTree;
 import java.util.AbstractQueue;
 import java.util.Collection;
 import java.util.HashMap;
@@ -58,6 +56,7 @@ public class Todo extends AbstractQueue<Env<AttrContext>> {
     }
 
     /** Create a new todo list. */
+    @SuppressWarnings("this-escape")
     protected Todo(Context context) {
         context.put(todoKey, this);
     }
@@ -123,18 +122,6 @@ public class Todo extends AbstractQueue<Env<AttrContext>> {
             }
         }
         return contentsByFile;
-    }
-
-    void remove(TypeSymbol sym) {
-        for (Iterator<Env<AttrContext>> it = contents.listIterator(); it.hasNext();) {
-            Env<AttrContext> env = it.next();
-            if (env.tree != null && (env.tree.hasTag(JCTree.Tag.CLASSDEF) && ((JCTree.JCClassDecl)env.tree).sym == sym
-                    || env.tree.hasTag(JCTree.Tag.PACKAGEDEF) && ((JCTree.JCPackageDecl)env.tree).packge == sym)) {
-                it.remove();
-                if (contentsByFile != null)
-                    removeByFile(env);
-            }
-        }
     }
 
     private void addByFile(Env<AttrContext> env) {

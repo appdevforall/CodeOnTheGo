@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,9 +26,11 @@ package javac.internal.jrtfs;
 
 import java.nio.file.DirectoryStream;
 import java.nio.file.ClosedDirectoryStreamException;
+import java.nio.file.DirectoryIteratorException;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.NoSuchElementException;
 import java.io.IOException;
 

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018, Google LLC. All rights reserved.
- * Copyright (c) 2018, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,6 +26,7 @@
 
 package openjdk.tools.javac.comp;
 
+import openjdk.tools.javac.code.Flags;
 import openjdk.tools.javac.code.Symbol;
 import openjdk.tools.javac.tree.JCTree;
 import openjdk.tools.javac.tree.JCTree.JCAnnotatedType;
@@ -44,6 +45,7 @@ import openjdk.tools.javac.tree.JCTree.JCCatch;
 import openjdk.tools.javac.tree.JCTree.JCClassDecl;
 import openjdk.tools.javac.tree.JCTree.JCCompilationUnit;
 import openjdk.tools.javac.tree.JCTree.JCConditional;
+import openjdk.tools.javac.tree.JCTree.JCConstantCaseLabel;
 import openjdk.tools.javac.tree.JCTree.JCContinue;
 import openjdk.tools.javac.tree.JCTree.JCDefaultCaseLabel;
 import openjdk.tools.javac.tree.JCTree.JCDoWhileLoop;
@@ -69,8 +71,10 @@ import openjdk.tools.javac.tree.JCTree.JCNewArray;
 import openjdk.tools.javac.tree.JCTree.JCNewClass;
 import openjdk.tools.javac.tree.JCTree.JCOpens;
 import openjdk.tools.javac.tree.JCTree.JCPackageDecl;
+import openjdk.tools.javac.tree.JCTree.JCPatternCaseLabel;
 import openjdk.tools.javac.tree.JCTree.JCPrimitiveTypeTree;
 import openjdk.tools.javac.tree.JCTree.JCProvides;
+import openjdk.tools.javac.tree.JCTree.JCRecordPattern;
 import openjdk.tools.javac.tree.JCTree.JCRequires;
 import openjdk.tools.javac.tree.JCTree.JCReturn;
 import openjdk.tools.javac.tree.JCTree.JCSwitch;
@@ -265,6 +269,14 @@ public class TreeDiffer extends TreeScanner {
     }
 
     @Override
+    public void visitRecordPattern(JCTree.JCRecordPattern tree) {
+        JCRecordPattern that = (JCRecordPattern) parameter;
+        result =
+                scan(tree.deconstructor, that.deconstructor)
+                        && scan(tree.nested, that.nested);
+    }
+
+    @Override
     public void visitBlock(JCBlock tree) {
         JCBlock that = (JCBlock) parameter;
         result = tree.flags == that.flags && scan(tree.stats, that.stats);
@@ -285,7 +297,21 @@ public class TreeDiffer extends TreeScanner {
     @Override
     public void visitCase(JCCase tree) {
         JCCase that = (JCCase) parameter;
-        result = scan(tree.labels, that.labels) && scan(tree.stats, that.stats);
+        result = scan(tree.labels, that.labels) &&
+                 scan(tree.guard, that.guard) &&
+                 scan(tree.stats, that.stats);
+    }
+
+    @Override
+    public void visitConstantCaseLabel(JCConstantCaseLabel tree) {
+        JCConstantCaseLabel that = (JCConstantCaseLabel) parameter;
+        result = scan(tree.expr, that.expr);
+    }
+
+    @Override
+    public void visitPatternCaseLabel(JCPatternCaseLabel tree) {
+        JCPatternCaseLabel that = (JCPatternCaseLabel) parameter;
+        result = scan(tree.pat, that.pat);
     }
 
     @Override

@@ -80,6 +80,11 @@ import static openjdk.tools.javac.main.Option.OptionKind.*;
  * {@code handleOption} then calls {@link #process process} providing a suitable
  * {@link OptionHelper} to provide access the compiler state.
  *
+ *
+ * <p>Maintenance note: when adding new annotation processing related
+ * options, the list of options regarded as requesting explicit
+ * annotation processing in JavaCompiler should be updated.
+ *
  * <p><b>This is NOT part of any supported API.
  * If you write code that depends on this, you do so at your own
  * risk.  This code and its internal interfaces are subject to change
@@ -286,7 +291,7 @@ public enum Option {
         }
     },
 
-    PROC("-proc:", "opt.proc.none.only", STANDARD, BASIC,  ONEOF, "none", "only"),
+    PROC("-proc:", "opt.proc.none.only", STANDARD, BASIC,  ONEOF, "none", "only","full"),
 
     PROCESSOR("-processor", "opt.arg.class.list", "opt.processor", STANDARD, BASIC),
 

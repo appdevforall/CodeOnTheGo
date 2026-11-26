@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2005, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
 import openjdk.tools.javac.util.DefinedBy;
 import openjdk.tools.javac.util.DefinedBy.Api;
 import openjdk.tools.javac.util.StringUtils;
-import java.util.Map.Entry;
 
 /**
  * A processor which prints out elements.  Used to implement the
@@ -56,7 +55,7 @@ import java.util.Map.Entry;
  * deletion without notice.</b>
  */
 @SupportedAnnotationTypes("*")
-@SupportedSourceVersion(SourceVersion.RELEASE_17)
+@SupportedSourceVersion(SourceVersion.RELEASE_21)
 public class PrintingProcessor extends AbstractProcessor {
     PrintWriter writer;
 
@@ -119,6 +118,7 @@ public class PrintingProcessor extends AbstractProcessor {
         }
 
         @Override @DefinedBy(Api.LANGUAGE_MODEL)
+        @SuppressWarnings("preview") // isUnnamed
         public PrintingElementVisitor visitExecutable(ExecutableElement e, Boolean p) {
             ElementKind kind = e.getKind();
 
@@ -126,18 +126,26 @@ public class PrintingProcessor extends AbstractProcessor {
                 kind != INSTANCE_INIT) {
                 Element enclosing = e.getEnclosingElement();
 
-                // Don't print out the constructor of an anonymous class
+                // Don't print out the constructor of an anonymous or unnamed class
                 if (kind == CONSTRUCTOR &&
                     enclosing != null &&
-                    NestingKind.ANONYMOUS ==
+                    (NestingKind.ANONYMOUS ==
                     // Use an anonymous class to determine anonymity!
                     (new SimpleElementVisitor14<NestingKind, Void>() {
                         @Override @DefinedBy(Api.LANGUAGE_MODEL)
                         public NestingKind visitType(TypeElement e, Void p) {
                             return e.getNestingKind();
                         }
-                    }).visit(enclosing))
+                    }).visit(enclosing)
+                    || // Don't print the constructor of an unnamed class
+                    (new SimpleElementVisitor14<Boolean, Void>(false) {
+                        @Override @DefinedBy(Api.LANGUAGE_MODEL)
+                        public Boolean visitType(TypeElement e, Void p) {
+                            return e.isUnnamed();
+                        }
+                    }).visit(enclosing)) ) {
                     return this;
+                }
 
                 defaultAction(e, true);
                 printFormalTypeParameters(e, true);
@@ -170,6 +178,7 @@ public class PrintingProcessor extends AbstractProcessor {
 
 
         @Override @DefinedBy(Api.LANGUAGE_MODEL)
+        @SuppressWarnings("preview") // isUnnamed
         public PrintingElementVisitor visitType(TypeElement e, Boolean p) {
             ElementKind kind = e.getKind();
             NestingKind nestingKind = e.getNestingKind();
@@ -203,6 +212,14 @@ public class PrintingProcessor extends AbstractProcessor {
                         printParameters(constructors.get(0));
                 }
                 writer.print(")");
+            } else if (e.isUnnamed()) {
+                writer.println("// Unnamed class in file whose name starts with " + e.getSimpleName());
+
+                for(Element element : e.getEnclosedElements()) {
+                    this.visit(element);
+                }
+
+                return this;
             } else {
                 if (nestingKind == TOP_LEVEL) {
                     PackageElement pkg = elementUtils.getPackageOf(e);
@@ -280,7 +297,7 @@ public class PrintingProcessor extends AbstractProcessor {
                          e.getEnclosedElements()
                          .stream()
                          .filter(elt -> elementUtils.getOrigin(elt) == Elements.Origin.EXPLICIT )
-                         .collect(Collectors.toList()) ) )
+                         .toList() ) )
                     this.visit(element);
             }
 
@@ -298,7 +315,7 @@ public class PrintingProcessor extends AbstractProcessor {
             if (kind == ENUM_CONSTANT)
                 writer.print(e.getSimpleName());
             else {
-                writer.print(e.asType().toString() + " " + e.getSimpleName() );
+                writer.print(e.asType().toString() + " " + (e.getSimpleName().isEmpty() ? "_" : e.getSimpleName()));
                 Object constantValue  = e.getConstantValue();
                 if (constantValue != null) {
                     writer.print(" = ");
@@ -550,14 +567,14 @@ public class PrintingProcessor extends AbstractProcessor {
                 // checks are intended to preserve correctness in the
                 // face of some other kind of annotation being marked
                 // as mandated.
-                //var entries = annotationMirror.getElementValues().entrySet();
-                annotationMirror.getElementValues().entrySet();
-                if (annotationMirror.getElementValues().entrySet().size() == 1) {
-                    DeclaredType annotationType = annotationMirror.getAnnotationType();
-                    Element annotationTypeAsElement = annotationType.asElement();
-                    
-                    Entry entry = annotationMirror.getElementValues().entrySet().iterator().next();
-                    AnnotationValue annotationElements = (AnnotationValue) entry.getValue();
+
+                var entries = annotationMirror.getElementValues().entrySet();
+                if (entries.size() == 1) {
+                    var annotationType = annotationMirror.getAnnotationType();
+                    var annotationTypeAsElement = annotationType.asElement();
+
+                    var entry = entries.iterator().next();
+                    var annotationElements = entry.getValue();
 
                     // Check that the annotation type declaration has
                     // a single method named "value" and that it
@@ -565,10 +582,11 @@ public class PrintingProcessor extends AbstractProcessor {
                     // that it is an array of an annotation type and
                     // that annotation type in turn was repeatable.
                     if (annotationTypeAsElement.getKind() == ElementKind.ANNOTATION_TYPE) {
-                        List<ExecutableElement> annotationMethods = ElementFilter.methodsIn(annotationTypeAsElement.getEnclosedElements());
+                        var annotationMethods =
+                            ElementFilter.methodsIn(annotationTypeAsElement.getEnclosedElements());
                         if (annotationMethods.size() == 1) {
-                            ExecutableElement valueMethod = annotationMethods.get(0);
-                            TypeMirror returnType = valueMethod.getReturnType();
+                            var valueMethod = annotationMethods.get(0);
+                            var returnType = valueMethod.getReturnType();
 
                             if ("value".equals(valueMethod.getSimpleName().toString()) &&
                                 returnType.getKind() == TypeKind.ARRAY) {
@@ -583,7 +601,7 @@ public class PrintingProcessor extends AbstractProcessor {
                                         if (vals.size() < 2) {
                                             return false;
                                         } else {
-                                            for (AnnotationValue annotValue: vals) {
+                                            for (var annotValue: vals) {
                                                 indent();
                                                 writer.println(annotValue.toString());
                                             }

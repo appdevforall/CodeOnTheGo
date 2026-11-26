@@ -25,7 +25,6 @@
 
 package javac.internal.jmod;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -39,38 +38,40 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/** Helper class to read JMOD file */
+/**
+ * Helper class to read JMOD file
+ */
 public class JmodFile implements AutoCloseable {
     // jmod magic number and version number
     private static final int JMOD_MAJOR_VERSION = 0x01;
     private static final int JMOD_MINOR_VERSION = 0x00;
     private static final byte[] JMOD_MAGIC_NUMBER = {
-        0x4A, 0x4D, /* JM */ JMOD_MAJOR_VERSION, JMOD_MINOR_VERSION, /* version 1.0 */
+        0x4A, 0x4D, /* JM */
+        JMOD_MAJOR_VERSION, JMOD_MINOR_VERSION, /* version 1.0 */
     };
 
     public static void checkMagic(Path file) throws IOException {
-        try (InputStream in = Files.newInputStream(file);
-                BufferedInputStream bis = new BufferedInputStream(in)) {
+        try (InputStream in = Files.newInputStream(file)) {
             // validate the header
-            byte[] magic = new byte[4];
-            bis.read(magic);
-            if (magic[0] != JMOD_MAGIC_NUMBER[0] || magic[1] != JMOD_MAGIC_NUMBER[1]) {
+            byte[] magic = in.readNBytes(4);
+            if (magic.length != 4) {
+                throw new IOException("Invalid JMOD file: " + file);
+            }
+            if (magic[0] != JMOD_MAGIC_NUMBER[0] ||
+                magic[1] != JMOD_MAGIC_NUMBER[1]) {
                 throw new IOException("Invalid JMOD file: " + file.toString());
             }
-            if (magic[2] > JMOD_MAJOR_VERSION
-                    || (magic[2] == JMOD_MAJOR_VERSION && magic[3] > JMOD_MINOR_VERSION)) {
-                throw new IOException(
-                        "Unsupported jmod version: "
-                                + magic[2]
-                                + "."
-                                + magic[3]
-                                + " in "
-                                + file.toString());
+            if (magic[2] > JMOD_MAJOR_VERSION ||
+                (magic[2] == JMOD_MAJOR_VERSION && magic[3] > JMOD_MINOR_VERSION)) {
+                throw new IOException("Unsupported jmod version: " +
+                    magic[2] + "." + magic[3] + " in " + file.toString());
             }
         }
     }
 
-    /** JMOD sections */
+    /**
+     * JMOD sections
+     */
     public static enum Section {
         CLASSES("classes"),
         CONFIG("conf"),
@@ -81,21 +82,22 @@ public class JmodFile implements AutoCloseable {
         NATIVE_CMDS("bin");
 
         private final String jmodDir;
-
         private Section(String jmodDir) {
             this.jmodDir = jmodDir;
         }
 
-        /** Returns the directory name in the JMOD file corresponding to this section */
-        public String jmodDir() {
-            return jmodDir;
-        }
+        /**
+         * Returns the directory name in the JMOD file corresponding to
+         * this section
+         */
+        public String jmodDir() { return jmodDir; }
     }
 
     /**
      * JMOD file entry.
      *
-     * <p>Each entry corresponds to a ZipEntry whose name is: Section::jmodDir + '/' + name
+     * Each entry corresponds to a ZipEntry whose name is:
+     *   Section::jmodDir + '/' + name
      */
     public static class Entry {
         private final ZipEntry zipEntry;
@@ -111,25 +113,33 @@ public class JmodFile implements AutoCloseable {
 
             this.zipEntry = e;
             this.section = section(name.substring(0, i));
-            this.name = name.substring(i + 1);
+            this.name = name.substring(i+1);
         }
 
-        /** Returns the section of this entry. */
+        /**
+         * Returns the section of this entry.
+         */
         public Section section() {
             return section;
         }
 
-        /** Returns the name of this entry. */
+        /**
+         * Returns the name of this entry.
+         */
         public String name() {
             return name;
         }
 
-        /** Returns true if the entry is a directory in the JMOD file. */
+        /**
+         * Returns true if the entry is a directory in the JMOD file.
+         */
         public boolean isDirectory() {
             return zipEntry.isDirectory();
         }
 
-        /** Returns the size of this entry. */
+        /**
+         * Returns the size of this entry.
+         */
         public long size() {
             return zipEntry.getSize();
         }
@@ -147,21 +157,25 @@ public class JmodFile implements AutoCloseable {
          * A map from the jmodDir name to Section
          */
         static final Map<String, Section> NAME_TO_SECTION =
-                Arrays.stream(Section.values())
-                        .collect(Collectors.toMap(Section::jmodDir, Function.identity()));
+            Arrays.stream(Section.values())
+                  .collect(Collectors.toMap(Section::jmodDir, Function.identity()));
 
         static Section section(String name) {
             if (!NAME_TO_SECTION.containsKey(name)) {
                 throw new IllegalArgumentException("invalid section: " + name);
+
             }
             return NAME_TO_SECTION.get(name);
         }
+
     }
 
     private final Path file;
     private final ZipFile zipfile;
 
-    /** Constructs a {@code JmodFile} from a given path. */
+    /**
+     * Constructs a {@code JmodFile} from a given path.
+     */
     public JmodFile(Path file) throws IOException {
         checkMagic(file);
         this.file = file;
@@ -173,7 +187,8 @@ public class JmodFile implements AutoCloseable {
     }
 
     /**
-     * Returns the {@code Entry} for a resource in a JMOD file section or {@code null} if not found.
+     * Returns the {@code Entry} for a resource in a JMOD file section
+     * or {@code null} if not found.
      */
     public Entry getEntry(Section section, String name) {
         String entry = section.jmodDir() + "/" + name;
@@ -182,12 +197,15 @@ public class JmodFile implements AutoCloseable {
     }
 
     /**
-     * Opens an {@code InputStream} for reading the named entry of the given section in this JMOD
-     * file.
+     * Opens an {@code InputStream} for reading the named entry of the given
+     * section in this JMOD file.
      *
-     * @throws IOException if the named entry is not found, or I/O error occurs when reading it
+     * @throws IOException if the named entry is not found, or I/O error
+     *         occurs when reading it
      */
-    public InputStream getInputStream(Section section, String name) throws IOException {
+    public InputStream getInputStream(Section section, String name)
+        throws IOException
+    {
         String entry = section.jmodDir() + "/" + name;
         ZipEntry e = zipfile.getEntry(entry);
         if (e == null) {
@@ -205,9 +223,12 @@ public class JmodFile implements AutoCloseable {
         return zipfile.getInputStream(entry.zipEntry());
     }
 
-    /** Returns a stream of entries in this JMOD file. */
+    /**
+     * Returns a stream of entries in this JMOD file.
+     */
     public Stream<Entry> stream() {
-        return zipfile.stream().map(Entry::new);
+        return zipfile.stream()
+                      .map(Entry::new);
     }
 
     @Override

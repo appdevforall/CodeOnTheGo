@@ -763,7 +763,9 @@ public class JavacTaskImpl extends BasicJavacTask {
                     case VARIABLE_INIT:
                         return ((JavacParser) parser).variableInitializer();
                     case STATIC_BLOCK:
-                        List<JCTree> trees = ((JavacParser) parser).classOrInterfaceOrRecordBodyDeclaration(null, false,
+                       // Names names = Names.instance(context);
+                       // Name className = names.empty;
+                        List<JCTree> trees = ((JavacParser) parser).classOrInterfaceOrRecordBodyDeclaration(null,null, false,
                                 ((JavacParser) parser).isRecordStart());
                         return trees.head != null && trees.head.hasTag(JCTree.Tag.BLOCK) ? (JCBlock) trees.head : null;
                     default:

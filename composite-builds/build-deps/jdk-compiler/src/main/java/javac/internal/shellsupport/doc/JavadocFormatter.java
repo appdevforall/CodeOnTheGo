@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -48,6 +48,7 @@ import openjdk.source.doctree.DocCommentTree;
 import openjdk.source.doctree.DocTree;
 import openjdk.source.doctree.EndElementTree;
 import openjdk.source.doctree.EntityTree;
+import openjdk.source.doctree.EscapeTree;
 import openjdk.source.doctree.InlineTagTree;
 import openjdk.source.doctree.LinkTree;
 import openjdk.source.doctree.LiteralTree;
@@ -215,6 +216,12 @@ public class JavadocFormatter {
                 text = text.replaceAll("\n", "\n" + indentString(indent));
             }
             result.append(text);
+            return null;
+        }
+
+        @Override @DefinedBy(Api.COMPILER_TREE)
+        public Object visitEscape(EscapeTree node, Object p) {
+            result.append(node.getBody());
             return null;
         }
 
@@ -608,7 +615,7 @@ public class JavadocFormatter {
 
     static {
         ResourceBundle bundle =
-                ResourceBundle.getBundle("jdk.internal.shellsupport.doc.resources.javadocformatter");
+                ResourceBundle.getBundle("javac.internal.shellsupport.doc.resources.javadocformatter");
         docSections.put(Sections.TYPE_PARAMS, bundle.getString("CAP_TypeParameters"));
         docSections.put(Sections.PARAMS, bundle.getString("CAP_Parameters"));
         docSections.put(Sections.RETURNS, bundle.getString("CAP_Returns"));

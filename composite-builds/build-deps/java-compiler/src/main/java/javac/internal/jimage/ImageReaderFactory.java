@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,7 +26,6 @@
 package javac.internal.jimage;
 
 import com.itsaky.androidide.javac.config.JavacConfigProvider;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -48,7 +47,6 @@ import java.util.function.Function;
 public class ImageReaderFactory {
     private ImageReaderFactory() {}
 
-    // AndroidIDE changed: Allow overriding java home.
     private static final String JAVA_HOME = JavacConfigProvider.getJavaHome();
     private static final Path BOOT_MODULES_JIMAGE =
         Paths.get(JAVA_HOME, "lib", "modules");

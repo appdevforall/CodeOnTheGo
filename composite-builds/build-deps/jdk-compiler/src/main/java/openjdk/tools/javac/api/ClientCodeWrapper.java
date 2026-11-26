@@ -55,6 +55,7 @@ import jdkx.tools.Diagnostic;
 import jdkx.tools.DiagnosticListener;
 import jdkx.tools.FileObject;
 import jdkx.tools.JavaFileManager;
+import jdkx.tools.JavaFileManager.Location;
 import jdkx.tools.JavaFileObject;
 import jdkx.tools.JavaFileObject.Kind;
 import jdkx.tools.StandardJavaFileManager;
@@ -118,9 +119,9 @@ public class ClientCodeWrapper {
     public JavaFileManager wrap(JavaFileManager fm) {
         if (isTrusted(fm))
             return fm;
-        if (fm instanceof StandardJavaFileManager)
-            return new WrappedStandardJavaFileManager((StandardJavaFileManager) fm);
-        return new WrappedJavaFileManager(fm);
+        return (fm instanceof StandardJavaFileManager standardJavaFileManager) ?
+                new WrappedStandardJavaFileManager(standardJavaFileManager) :
+                new WrappedJavaFileManager(fm);
     }
 
     public FileObject wrap(FileObject fo) {
@@ -129,12 +130,9 @@ public class ClientCodeWrapper {
         return new WrappedFileObject(fo);
     }
 
-    // AndroidIDE Changed: Make public
-    public FileObject unwrap(FileObject fo) {
-        if (fo instanceof WrappedFileObject)
-            return ((WrappedFileObject) fo).clientFileObject;
-        else
-            return fo;
+    FileObject unwrap(FileObject fo) {
+        return (fo instanceof WrappedFileObject wrappedFileObject) ?
+                wrappedFileObject.clientFileObject : fo;
     }
 
     public JavaFileObject wrap(JavaFileObject fo) {
@@ -149,13 +147,10 @@ public class ClientCodeWrapper {
             wrapped.add(wrap(fo));
         return Collections.unmodifiableList(wrapped);
     }
-    
-    // AndroidIDE Changed: Make public
+
     public JavaFileObject unwrap(JavaFileObject fo) {
-          if (fo instanceof WrappedJavaFileObject)
-            return ((JavaFileObject) ((WrappedJavaFileObject) fo).clientFileObject);
-        else
-            return fo;
+        return (fo instanceof WrappedJavaFileObject wrappedJavaFileObject) ?
+                ((JavaFileObject) wrappedJavaFileObject.clientFileObject) : fo;
     }
 
     public <T /*super JavaFileObject*/> DiagnosticListener<T> wrap(DiagnosticListener<T> dl) {
@@ -171,10 +166,8 @@ public class ClientCodeWrapper {
     }
 
     TaskListener unwrap(TaskListener l) {
-         if (l instanceof WrappedTaskListener)
-            return ((WrappedTaskListener) l).clientTaskListener;
-        else
-            return l;
+        return (l instanceof WrappedTaskListener wrappedTaskListener) ?
+                wrappedTaskListener.clientTaskListener : l;
     }
 
     Collection<TaskListener> unwrap(Collection<? extends TaskListener> listeners) {
@@ -183,21 +176,14 @@ public class ClientCodeWrapper {
             c.add(unwrap(l));
         return c;
     }
-    
-    // AndroidIDE Changed: Make public
+
     @SuppressWarnings("unchecked")
-    public  <T> Diagnostic<T> unwrap(final Diagnostic<T> diagnostic) {
-        if (diagnostic instanceof JCDiagnostic) {
-            JCDiagnostic d = (JCDiagnostic) diagnostic;
-            return (Diagnostic<T>) new DiagnosticSourceUnwrapper(d);
-        } else {
-            return diagnostic;
-        }
+    private <T> Diagnostic<T> unwrap(final Diagnostic<T> diagnostic) {
+        return (diagnostic instanceof JCDiagnostic jcDiagnostic) ?
+                (Diagnostic<T>) new DiagnosticSourceUnwrapper(jcDiagnostic) : diagnostic;
     }
 
     protected boolean isTrusted(Object o) {
-        if (o == null)
-            return true;
         Class<?> c = o.getClass();
         Boolean trusted = trustedClasses.get(c);
         if (trusted == null) {
@@ -320,9 +306,31 @@ public class ClientCodeWrapper {
         }
 
         @Override @DefinedBy(Api.COMPILER)
+        public JavaFileObject getJavaFileForOutputForOriginatingFiles(Location location, String className, Kind kind, FileObject... originatingFiles) throws IOException {
+            try {
+                return wrap(clientJavaFileManager.getJavaFileForOutputForOriginatingFiles(location, className, kind, originatingFiles));
+            } catch (ClientCodeException e) {
+                throw e;
+            } catch (RuntimeException | Error e) {
+                throw new ClientCodeException(e);
+            }
+        }
+
+        @Override @DefinedBy(Api.COMPILER)
         public FileObject getFileForOutput(Location location, String packageName, String relativeName, FileObject sibling) throws IOException {
             try {
                 return wrap(clientJavaFileManager.getFileForOutput(location, packageName, relativeName, unwrap(sibling)));
+            } catch (ClientCodeException e) {
+                throw e;
+            } catch (RuntimeException | Error e) {
+                throw new ClientCodeException(e);
+            }
+        }
+
+        @Override @DefinedBy(Api.COMPILER)
+        public FileObject getFileForOutputForOriginatingFiles(Location location, String packageName, String relativeName, FileObject... originatingFiles) throws IOException {
+            try {
+                return wrap(clientJavaFileManager.getFileForOutputForOriginatingFiles(location, packageName, relativeName, originatingFiles));
             } catch (ClientCodeException e) {
                 throw e;
             } catch (RuntimeException | Error e) {
@@ -463,7 +471,7 @@ public class ClientCodeWrapper {
             }
         }
 
-        @Deprecated()
+        @Deprecated(since = "13")
         @Override @DefinedBy(Api.COMPILER)
         public Iterable<? extends JavaFileObject> getJavaFileObjectsFromPaths(Iterable<? extends Path> paths) {
             try {

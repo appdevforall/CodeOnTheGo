@@ -145,8 +145,7 @@ public class Context {
     public <T> T get(Key<T> key) {
         checkState(ht);
         Object o = ht.get(key);
-        if (o instanceof Factory<?>) {
-            Factory<?> fac = (Factory<?>)o;
+        if (o instanceof Factory<?> fac) {
             o = fac.make(this);
             if (o instanceof Factory<?>)
                 throw new AssertionError("T extends Context.Factory");

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016, 2017, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -86,6 +86,7 @@ import openjdk.source.util.TreePath;
 import openjdk.source.util.TreePathScanner;
 import openjdk.source.util.Trees;
 import openjdk.tools.javac.api.JavacTaskImpl;
+import openjdk.tools.javac.util.Assert;
 import openjdk.tools.javac.util.DefinedBy;
 import openjdk.tools.javac.util.DefinedBy.Api;
 import openjdk.tools.javac.util.Pair;
@@ -284,12 +285,12 @@ public abstract class JavadocHelper implements AutoCloseable {
                                     executableElement.getParameters()
                                                      .stream()
                                                      .map(param -> param.getSimpleName().toString())
-                                                     .collect(Collectors.toList());
+                                                     .toList();
                             List<String> throwsList =
                                     executableElement.getThrownTypes()
                                                      .stream()
                                                      .map(TypeMirror::toString)
-                                                     .collect(Collectors.toList());
+                                                     .toList();
                             Set<String> missingParams = new HashSet<>(parameters);
                             Set<String> missingThrows = new HashSet<>(throwsList);
                             boolean hasReturn = false;
@@ -495,7 +496,7 @@ public abstract class JavadocHelper implements AutoCloseable {
                             //if there is a newline immediately behind this tree, insert behind
                             //the newline:
                             long endPos = sp.getEndPosition(null, dcTree, tree);
-                            if (endPos >= 0) {
+                            if (endPos >= offset) {
                                 if (endPos - offset + 1 < docComment.length() &&
                                     docComment.charAt((int) (endPos - offset + 1)) == '\n') {
                                     endPos++;
@@ -672,7 +673,7 @@ public abstract class JavadocHelper implements AutoCloseable {
         //where:
             private String elementSignature(Element el) {
                 switch (el.getKind()) {
-                    case ANNOTATION_TYPE: case CLASS: case ENUM: case INTERFACE:
+                    case ANNOTATION_TYPE: case CLASS: case ENUM: case INTERFACE: case RECORD:
                         return ((TypeElement) el).getQualifiedName().toString();
                     case FIELD:
                         return elementSignature(el.getEnclosingElement()) + "." + el.getSimpleName() + ":" + el.asType();
@@ -698,8 +699,11 @@ public abstract class JavadocHelper implements AutoCloseable {
                         }
                         header.append(")");
                         return header.toString();
-                   default:
+                    case PACKAGE, STATIC_INIT, INSTANCE_INIT, TYPE_PARAMETER,
+                         OTHER, MODULE, RECORD_COMPONENT, BINDING_VARIABLE:
                         return el.toString();
+                    default:
+                        throw Assert.error(el.getKind().name());
                 }
             }
 

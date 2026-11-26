@@ -1476,7 +1476,7 @@ public class Locations {
             }
         }
 
-        //from jdk.internal.module.Checks:
+        //from javac.internal.module.Checks:
         /**
          * Returns {@code true} if the given name is a legal module name.
          */

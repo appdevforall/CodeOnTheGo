@@ -237,8 +237,7 @@ public class Kinds {
         PACKAGE("kindname.package"),
         MODULE("kindname.module"),
         RECORD_COMPONENT("kindname.record.component"),
-        RECORD("kindname.record"),
-		ERROR("kindname.error");
+        RECORD("kindname.record");
 
         private final String name;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,28 +22,24 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package openjdk.source.tree;
 
-package openjdk.tools.doclint;
+import javac.internal.javac.PreviewFeature;
 
 /**
- * Enum representing HTML version of the documentation comment.
+ * A tree node for a binding pattern that matches a pattern
+ * with a variable of any name and a type of the match candidate;
+ * an unnamed pattern.
  *
- * @author Bhavesh Patel
+ * For example the use of underscore {@code _} below:
+ * <pre>
+ *   if (r instanceof R(_)) {}
+ * </pre>
+ *
+ * @jls 14.30.1 Kinds of Patterns
+ *
+ * @since 21
  */
-public enum HtmlVersion {
-
-    HTML4,
-    HTML5,
-    ALL;
-
-    public static HtmlVersion getHtmlVersion(String argsVersion) {
-        switch (argsVersion) {
-            case "html4":
-                return HtmlVersion.HTML4;
-            case "html5":
-                return HtmlVersion.HTML5;
-            default:
-                return null;
-        }
-    }
+@PreviewFeature(feature=PreviewFeature.Feature.UNNAMED)
+public interface AnyPatternTree extends PatternTree {
 }

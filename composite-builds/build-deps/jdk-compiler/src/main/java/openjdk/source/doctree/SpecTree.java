@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,28 +23,27 @@
  * questions.
  */
 
-package openjdk.source.tree;
+package openjdk.source.doctree;
 
-import javac.internal.PreviewFeature;
+import java.util.List;
 
 /**
- * A guard pattern tree.
+ * A tree node for an {@code @spec} block tag.
  *
- * @since 17
+ * <pre>
+ *    &#064;spec url title
+ * </pre>
+ *
+ * @since 20
  */
-@PreviewFeature(feature=PreviewFeature.Feature.SWITCH_PATTERN_MATCHING, reflective=true)
-public interface GuardedPatternTree extends PatternTree {
+public interface SpecTree extends BlockTagTree {
+    /**
+     * {@return the URL}
+     */
+    TextTree getURL();
 
     /**
-     * The guarded pattern expression.
-     * @return the guarded pattern
+     * {@return the title}
      */
-    public PatternTree getPattern();
-
-    /**
-     * The guard expression.
-     * @return the guard expression
-     */
-    public ExpressionTree getExpression();
-
+    List<? extends DocTree> getTitle();
 }

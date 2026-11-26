@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2005, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -40,6 +40,7 @@ import jdkx.lang.model.SourceVersion;
 import jdkx.lang.model.element.*;
 import jdkx.lang.model.type.DeclaredType;
 import jdkx.lang.model.util.Elements;
+import jdkx.tools.JavaFileObject;
 import static jdkx.lang.model.util.ElementFilter.methodsIn;
 
 import openjdk.source.util.JavacTask;
@@ -72,6 +73,7 @@ import static openjdk.tools.javac.code.Scope.LookupKind.NON_RECURSIVE;
 import static openjdk.tools.javac.code.TypeTag.CLASS;
 import openjdk.tools.javac.comp.Modules;
 import openjdk.tools.javac.comp.Resolve;
+import openjdk.tools.javac.comp.Resolve.RecoveryLoadClass;
 import openjdk.tools.javac.resources.CompilerProperties.Notes;
 import static openjdk.tools.javac.tree.JCTree.Tag.*;
 
@@ -95,7 +97,6 @@ public class JavacElements implements Elements {
     private final JavacTaskImpl javacTaskImpl;
     private final Log log;
     private final boolean allowModules;
-    private final LazyTreeLoader loader;
 
     public static JavacElements instance(Context context) {
         JavacElements instance = context.get(JavacElements.class);
@@ -104,6 +105,7 @@ public class JavacElements implements Elements {
         return instance;
     }
 
+    @SuppressWarnings("this-escape")
     protected JavacElements(Context context) {
         context.put(JavacElements.class, this);
         javaCompiler = JavaCompiler.instance(context);
@@ -114,11 +116,10 @@ public class JavacElements implements Elements {
         enter = Enter.instance(context);
         resolve = Resolve.instance(context);
         JavacTask t = context.get(JavacTask.class);
-        javacTaskImpl = t instanceof JavacTaskImpl ? (JavacTaskImpl) t : null;
+        javacTaskImpl = t instanceof JavacTaskImpl taskImpl ? taskImpl : null;
         log = Log.instance(context);
         Source source = Source.instance(context);
         allowModules = Feature.MODULES.allowedInSource(source);
-        loader = LazyTreeLoader.instance(context);
     }
 
     @Override @DefinedBy(Api.LANGUAGE_MODEL)
@@ -224,28 +225,20 @@ public class JavacElements implements Elements {
                     }
                 }
 
-
-            if (found.size() == 2) {
-                // prefer ordinary modules over unnamed module
-                found = found.stream().filter(t -> t.packge().modle != syms.unnamedModule).collect(Collectors.toSet());
-            }
-
-            if (found.size() == 1) {
-                return Optional.of(found.iterator().next());
-            } else if (found.size() > 1) {
-                //more than one element found, produce a note:
-                if (alreadyWarnedDuplicates.add(methodName + ":" + nameStr)) {
-                    String moduleNames = found.stream()
-                                              .map(s -> s.packge().modle)
-                                              .map(m -> m.toString())
-                                              .collect(Collectors.joining(", "));
-                    log.note(Notes.MultipleElements(methodName, nameStr, moduleNames));
-
+                if (found.size() == 1) {
+                    return Optional.of(found.iterator().next());
+                } else if (found.size() > 1) {
+                    //more than one element found, produce a note:
+                    if (alreadyWarnedDuplicates.add(methodName + ":" + nameStr)) {
+                        String moduleNames = found.stream()
+                                                  .map(s -> s.packge().modle)
+                                                  .map(m -> m.toString())
+                                                  .collect(Collectors.joining(", "));
+                        log.note(Notes.MultipleElements(methodName, nameStr, moduleNames));
                     }
                     return Optional.empty();
                 } else {
                     //not found, try another option
-
                 }
             }
             return Optional.empty();
@@ -280,96 +273,6 @@ public class JavacElements implements Elements {
             cf.dcfh.handleAPICompletionFailure(cf);
             return null;
         }
-    }
-
-
-    public ClassSymbol getTypeElementByBinaryName (final CharSequence binaryName) {
-        return getTypeElementByBinaryName(null, binaryName);
-    }
-
-    public ClassSymbol getTypeElementByBinaryName (
-            final ModuleElement module,
-            final CharSequence binaryName) {
-        ensureEntered("getTypeElementByBinaryName");
-        final String strName = binaryName instanceof String ? (String) binaryName : binaryName.toString();
-        int index = strName.lastIndexOf('.');    //NOI18N
-        do {
-            index = strName.indexOf('$', index+1);   //NOI18N
-            final String owner = index < 0 ? strName : strName.substring(0,index);
-            if (SourceVersion.isName(owner)) {
-                ClassSymbol clz = module != null
-                        ? binaryNameToClassSymbol((ModuleSymbol)module, strName, owner)
-                        : unboundBinaryNameToClassSymbol(strName, owner);
-                if (clz != null) {
-                    return clz;
-                }
-            }
-        } while (index >= 0);
-        return null;
-    }
-
-    private ClassSymbol unboundBinaryNameToClassSymbol(
-            final String binaryName,
-            final String owner) {
-        if (modules.getDefaultModule() == syms.noModule) { //not a modular mode:
-            return binaryNameToClassSymbol(syms.noModule, binaryName, owner);
-        }
-
-        Set<ClassSymbol> found = new LinkedHashSet<>();
-
-        for (ModuleSymbol msym : modules.allModules()) {
-            ClassSymbol sym = binaryNameToClassSymbol(msym, binaryName, owner);
-
-            if (sym != null) {
-                found.add(sym);
-            }
-        }
-
-        if (found.size() == 2) {
-            // prefer ordinary modules over unnamed module
-            found = found.stream().filter(t -> t.packge().modle != syms.unnamedModule).collect(Collectors.toSet());
-        }
-
-        if (found.size() == 1) {
-            return found.iterator().next();
-        } else if (found.size() > 1) {
-            //more than one element found, produce a note:
-            if (alreadyWarnedDuplicates.add("getTypeElementByBinaryName:" + binaryName)) {
-                String moduleNames = found.stream()
-                                          .map(s -> s.packge().modle)
-                                          .map(m -> m.toString())
-                                          .collect(Collectors.joining(", "));
-                log.note(Notes.MultipleElements("getTypeElementByBinaryName", binaryName, moduleNames));
-            }
-            return null;
-        } else {
-            //not found, or more than one element found:
-            return null;
-        }
-    }
-
-    private ClassSymbol binaryNameToClassSymbol (
-            final ModuleSymbol module,
-            final String binaryName,
-            final String owner) {
-        final Name name = names.fromString(binaryName);
-        ClassSymbol sym = syms.getClass(module, name);  //TODO: hardcoded default module reference
-        try {
-            if (sym == null) {
-                Symbol ownerSym = javaCompiler.resolveIdent(module, owner);
-                sym = syms.getClass(ownerSym != null && ownerSym.kind.isValid() ? ownerSym.packge().modle : module, name);
-            }
-
-            if (sym != null) {
-                sym.complete();
-                return (sym.exists() &&
-                    name.equals(sym.flatName()))
-                    ? sym
-                    : null;
-            }
-        } catch (CompletionFailure e) {
-        }
-        return null;
     }
 
     /**
@@ -543,10 +446,8 @@ public class JavacElements implements Elements {
 
     @DefinedBy(Api.LANGUAGE_MODEL)
     public PackageElement getPackageOf(Element e) {
-        if (e.getKind() == ElementKind.MODULE)
-            return null;
-        else
-            return cast(Symbol.class, e).packge();
+        Symbol sym = cast(Symbol.class, e);
+        return (sym.kind == MDL || sym.owner.kind == MDL) ? null : sym.packge();
     }
 
     @DefinedBy(Api.LANGUAGE_MODEL)
@@ -554,7 +455,9 @@ public class JavacElements implements Elements {
         Symbol sym = cast(Symbol.class, e);
         if (modules.getDefaultModule() == syms.noModule)
             return null;
-        return (sym.kind == MDL) ? ((ModuleElement) e) : sym.packge().modle;
+        return (sym.kind == MDL) ? ((ModuleElement) e)
+                : (sym.owner.kind == MDL) ? (ModuleElement) sym.owner
+                : sym.packge().modle;
     }
 
     @DefinedBy(Api.LANGUAGE_MODEL)
@@ -635,9 +538,6 @@ public class JavacElements implements Elements {
         return valmap;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @DefinedBy(Api.LANGUAGE_MODEL)
     public FilteredMemberList getAllMembers(TypeElement element) {
         Symbol sym = cast(Symbol.class, element);
@@ -651,13 +551,6 @@ public class JavacElements implements Elements {
         private void addMembers(WriteableScope scope, Type type) {
             members:
             for (Symbol e : type.asElement().members().getSymbols(NON_RECURSIVE)) {
-                ElementKind kind = e.getKind();
-                boolean isAbstract = (e.flags() & Flags.ABSTRACT) != 0;
-                if (kind == ElementKind.METHOD && isAbstract) {
-                    MethodSymbol impl = ((MethodSymbol)e).implementation((TypeSymbol)scope.owner, types, false);
-                    if (impl != null && impl != e)
-                        continue members;
-                }
                 for (Symbol overrider : scope.getSymbolsByName(e.getSimpleName())) {
                     if (overrider.kind == e.kind && (overrider.flags() & Flags.SYNTHETIC) == 0) {
                         if (overrider.getKind() == ElementKind.METHOD &&
@@ -667,6 +560,7 @@ public class JavacElements implements Elements {
                     }
                 }
                 boolean derived = e.getEnclosingElement() != scope.owner;
+                ElementKind kind = e.getKind();
                 boolean initializer = kind == ElementKind.CONSTRUCTOR
                     || kind == ElementKind.INSTANCE_INIT
                     || kind == ElementKind.STATIC_INIT;
@@ -674,6 +568,12 @@ public class JavacElements implements Elements {
                     scope.enter(e);
             }
         }
+
+    @DefinedBy(Api.LANGUAGE_MODEL)
+    public TypeElement getOutermostTypeElement(Element e) {
+        Symbol sym = cast(Symbol.class, e);
+        return sym.outermostClass();
+    }
 
     /**
      * Returns all annotations of an element, whether
@@ -825,20 +725,55 @@ public class JavacElements implements Elements {
         return (msym.flags() & Flags.AUTOMATIC_MODULE) != 0;
     }
 
+    @Override @DefinedBy(Api.LANGUAGE_MODEL)
+    public boolean isCompactConstructor(ExecutableElement e) {
+        return (((MethodSymbol)e).flags() & Flags.COMPACT_RECORD_CONSTRUCTOR) != 0;
+    }
+
+    @Override @DefinedBy(Api.LANGUAGE_MODEL)
+    public boolean isCanonicalConstructor(ExecutableElement e) {
+        return (((MethodSymbol)e).flags() & Flags.RECORD) != 0;
+    }
+
+    @Override @DefinedBy(Api.LANGUAGE_MODEL)
+    public JavaFileObject getFileObjectOf(Element e) {
+        Symbol sym = (Symbol) e;
+        return switch(sym.kind) {
+            case PCK -> {
+                PackageSymbol psym = (PackageSymbol) sym;
+                if (psym.package_info == null) {
+                    yield null;
+                }
+                yield psym.package_info.classfile;
+            }
+
+            case MDL -> {
+                ModuleSymbol msym = (ModuleSymbol) sym;
+                if (msym.module_info == null) {
+                    yield null;
+                }
+                yield msym.module_info.classfile;
+            }
+            case TYP -> ((ClassSymbol) sym).classfile;
+            default -> sym.enclClass().classfile;
+        };
+    }
+
     /**
      * Returns the tree node and compilation unit corresponding to this
      * element, or null if they can't be found.
      */
     private Pair<JCTree, JCCompilationUnit> getTreeAndTopLevel(Element e) {
         Symbol sym = cast(Symbol.class, e);
-        Env<AttrContext> enterEnv = getEnterEnv(sym);
-        if (enterEnv == null) {
-            if (!loader.loadTreeFor(sym.enclClass(), false))
-                return null;
-            enterEnv = getEnterEnv(sym);
-            if (enterEnv == null)
-                return null;
+        if (sym.kind == PCK) {
+            TypeSymbol pkgInfo = ((PackageSymbol) sym).package_info;
+            if (pkgInfo != null) {
+                pkgInfo.complete();
+            }
         }
+        Env<AttrContext> enterEnv = getEnterEnv(sym);
+        if (enterEnv == null)
+            return null;
         JCTree tree = TreeInfo.declarationFor(sym, enterEnv.tree);
         if (tree == null || enterEnv.toplevel == null)
             return null;

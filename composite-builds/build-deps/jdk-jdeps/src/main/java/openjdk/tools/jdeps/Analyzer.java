@@ -391,7 +391,7 @@ public class Analyzer {
 
     static class Jdk8Internals extends Module {
         private static final String NAME = "JDK removed internal API";
-        private static final String JDK8_INTERNALS = "/openjdk/tools/jdeps/resources/jdk8_internals.txt";
+        private static final String JDK8_INTERNALS = "/com/sun/tools/jdeps/resources/jdk8_internals.txt";
         private final Set<String> jdk8Internals;
         private Jdk8Internals() {
             super(NAME, ModuleDescriptor.newModule("jdk8internals").build(), true);

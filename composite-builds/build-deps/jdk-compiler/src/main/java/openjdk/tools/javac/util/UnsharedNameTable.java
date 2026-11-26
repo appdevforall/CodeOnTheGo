@@ -38,10 +38,8 @@ import java.lang.ref.WeakReference;
  *  deletion without notice.</b>
  */
 public class UnsharedNameTable extends Name.Table {
-
-    static public Name.Table create(Names names, Context context) {
-        return new UnsharedNameTable(names, context);
-
+    public static Name.Table create(Names names) {
+        return new UnsharedNameTable(names);
     }
 
     static class HashEntry extends WeakReference<NameImpl> {
@@ -68,14 +66,14 @@ public class UnsharedNameTable extends Name.Table {
      *  @param hashSize the (constant) size to be used for the hash table
      *                  needs to be a power of two.
      */
-    public UnsharedNameTable(Names names, Context context, int hashSize) {
-        super(names, context);
+    public UnsharedNameTable(Names names, int hashSize) {
+        super(names);
         hashMask = hashSize - 1;
         hashes = new HashEntry[hashSize];
     }
 
-    public UnsharedNameTable(Names names, Context context) {
-        this(names, context, 0x8000);
+    public UnsharedNameTable(Names names) {
+        this(names, 0x8000);
     }
 
 
@@ -83,11 +81,17 @@ public class UnsharedNameTable extends Name.Table {
     public Name fromChars(char[] cs, int start, int len) {
         byte[] name = new byte[len * 3];
         int nbytes = Convert.chars2utf(cs, start, name, 0, len);
-        return fromUtf(name, 0, nbytes);
+        return fromValidUtf(name, 0, nbytes);
     }
 
     @Override
-    public Name fromUtf(byte[] cs, int start, int len) {
+    public Name fromUtf(byte[] cs, int start, int len, Convert.Validation validation) throws InvalidUtfException {
+        if (validation != Convert.Validation.NONE)
+            Convert.utfValidate(cs, start, len, validation);
+        return fromValidUtf(cs, start, len);
+    }
+
+    private Name fromValidUtf(byte[] cs, int start, int len) {
         int h = hashValue(cs, start, len) & hashMask;
 
         HashEntry element = hashes[h];

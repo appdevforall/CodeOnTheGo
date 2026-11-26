@@ -43,11 +43,7 @@ public class SharedNameTable extends Name.Table {
     // maintain a freelist of recently used name tables for reuse.
     private static List<SoftReference<SharedNameTable>> freelist = List.nil();
 
-
-    static public synchronized SharedNameTable create(Names names, Context context) {
-
-
-
+    public static synchronized SharedNameTable create(Names names) {
         while (freelist.nonEmpty()) {
             SharedNameTable t = freelist.head.get();
             freelist = freelist.tail;
@@ -55,7 +51,7 @@ public class SharedNameTable extends Name.Table {
                 return t;
             }
         }
-        return new SharedNameTable(names, context);
+        return new SharedNameTable(names);
     }
 
     private static synchronized void dispose(SharedNameTable t) {
@@ -84,16 +80,16 @@ public class SharedNameTable extends Name.Table {
      *                  needs to be a power of two.
      *  @param nameSize the initial size of the name table.
      */
-    public SharedNameTable(Names names, Context context, int hashSize, int nameSize) {
-        super(names, context);
+    public SharedNameTable(Names names, int hashSize, int nameSize) {
+        super(names);
         hashMask = hashSize - 1;
         hashes = new NameImpl[hashSize];
         bytes = new byte[nameSize];
 
     }
 
-    public SharedNameTable(Names names, Context context) {
-        this(names, context, 0x8000, 0x20000);
+    public SharedNameTable(Names names) {
+        this(names, 0x8000, 0x20000);
     }
 
     @Override
@@ -123,7 +119,9 @@ public class SharedNameTable extends Name.Table {
     }
 
     @Override
-    public Name fromUtf(byte[] cs, int start, int len) {
+    public Name fromUtf(byte[] cs, int start, int len, Convert.Validation validation) throws InvalidUtfException {
+        if (validation != Convert.Validation.NONE)
+            Convert.utfValidate(cs, start, len, validation);
         int h = hashValue(cs, start, len) & hashMask;
         NameImpl n = hashes[h];
         byte[] names = this.bytes;
@@ -207,10 +205,9 @@ public class SharedNameTable extends Name.Table {
          */
         @DefinedBy(Api.LANGUAGE_MODEL)
         public boolean equals(Object other) {
-            if (other instanceof Name)
-                return
-                    table == ((Name)other).table && index == ((Name) other).getIndex();
-            else return false;
+            return (other instanceof Name name)
+                    && table == name.table
+                    && index == name.getIndex();
         }
 
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -40,7 +40,6 @@ import jdkx.tools.JavaFileObject;
 import openjdk.tools.javac.code.*;
 import openjdk.tools.javac.code.Attribute.RetentionPolicy;
 import openjdk.tools.javac.code.Directive.*;
-import openjdk.tools.javac.code.Source.Feature;
 import openjdk.tools.javac.code.Symbol.*;
 import openjdk.tools.javac.code.Type.*;
 import openjdk.tools.javac.code.Types.SignatureGenerator.InvalidSignatureException;
@@ -71,8 +70,6 @@ import static jdkx.tools.StandardLocation.CLASS_OUTPUT;
  */
 public class ClassWriter extends ClassFile {
     protected static final Context.Key<ClassWriter> classWriterKey = new Context.Key<>();
-
-    private final Symtab syms;
 
     private final Options options;
 
@@ -164,12 +161,12 @@ public class ClassWriter extends ClassFile {
 
     /** Construct a class writer, given an options table.
      */
+    @SuppressWarnings("this-escape")
     protected ClassWriter(Context context) {
         context.put(classWriterKey, this);
 
         log = Log.instance(context);
         names = Names.instance(context);
-        syms = Symtab.instance(context);
         options = Options.instance(context);
         preview = Preview.instance(context);
         target = Target.instance(context);
@@ -375,24 +372,14 @@ public class ClassWriter extends ClassFile {
             acount++;
         }
         acount += writeJavaAnnotations(sym.getRawAttributes());
-        acount += writeExtraJavaAnnotations(sym.getRawAttributes());
         acount += writeTypeAnnotations(sym.getRawTypeAttributes(), false);
-        acount += writeExtraTypeAnnotations(sym.getRawTypeAttributes());
         return acount;
-    }
-
-    /**Allows subclasses to write additional member attributes
-     *
-     * @return the number of attributes written
-     */
-    protected int writeExtraMemberAttributes(Symbol sym) {
-        return 0;
     }
 
     /**
      * Write method parameter names attribute.
      */
-    int writeMethodParametersAttr(MethodSymbol m) {
+    int writeMethodParametersAttr(MethodSymbol m, boolean writeParamNames) {
         MethodType ty = m.externalType(types).asMethodType();
         final int allparams = ty.argtypes.size();
         if (m.params != null && allparams != 0) {
@@ -403,7 +390,10 @@ public class ClassWriter extends ClassFile {
                 final int flags =
                     ((int) s.flags() & (FINAL | SYNTHETIC | MANDATED)) |
                     ((int) m.flags() & SYNTHETIC);
-                databuf.appendChar(poolWriter.putName(s.name));
+                if (writeParamNames)
+                    databuf.appendChar(poolWriter.putName(s.name));
+                else
+                    databuf.appendChar(0);
                 databuf.appendChar(flags);
             }
             // Now write the real parameters
@@ -411,7 +401,10 @@ public class ClassWriter extends ClassFile {
                 final int flags =
                     ((int) s.flags() & (FINAL | SYNTHETIC | MANDATED)) |
                     ((int) m.flags() & SYNTHETIC);
-                databuf.appendChar(poolWriter.putName(s.name));
+                if (writeParamNames)
+                    databuf.appendChar(poolWriter.putName(s.name));
+                else
+                    databuf.appendChar(0);
                 databuf.appendChar(flags);
             }
             // Now write the captured locals
@@ -419,7 +412,10 @@ public class ClassWriter extends ClassFile {
                 final int flags =
                     ((int) s.flags() & (FINAL | SYNTHETIC | MANDATED)) |
                     ((int) m.flags() & SYNTHETIC);
-                databuf.appendChar(poolWriter.putName(s.name));
+                if (writeParamNames)
+                    databuf.appendChar(poolWriter.putName(s.name));
+                else
+                    databuf.appendChar(0);
                 databuf.appendChar(flags);
             }
             endAttr(attrIndex);
@@ -459,6 +455,7 @@ public class ClassWriter extends ClassFile {
             for (VarSymbol s : vars) {
                 for (Attribute.Compound a : s.getRawAttributes()) {
                     switch (types.getRetention(a)) {
+                    case SOURCE: break;
                     case CLASS: hasInvisible = true; break;
                     case RUNTIME: hasVisible = true; break;
                     default: // /* fail soft */ throw new AssertionError(vis);
@@ -483,13 +480,6 @@ public class ClassWriter extends ClassFile {
         return attrCount;
     }
 
-    /**Allows subclasses to write additional parameter attributes
-     *
-     * @return the number of attributes written
-     */
-    protected int writeExtraParameterAttributes(MethodSymbol m) {
-        return 0;
-    }
 /**********************************************************************
  * Writing Java-language annotations (aka metadata, attributes)
  **********************************************************************/
@@ -503,6 +493,7 @@ public class ClassWriter extends ClassFile {
         ListBuffer<Attribute.Compound> invisibles = new ListBuffer<>();
         for (Attribute.Compound a : attrs) {
             switch (types.getRetention(a)) {
+            case SOURCE: break;
             case CLASS: invisibles.append(a); break;
             case RUNTIME: visibles.append(a); break;
             default: // /* fail soft */ throw new AssertionError(vis);
@@ -527,14 +518,6 @@ public class ClassWriter extends ClassFile {
             attrCount++;
         }
         return attrCount;
-    }
-
-    /**Allows subclasses to write additional Java-language annotations
-     *
-     * @return the number of JVM attributes written
-     */
-    protected int writeExtraJavaAnnotations(List<Attribute.Compound> attrs) {
-        return 0;
     }
 
     int writeTypeAnnotations(List<Attribute.TypeCompound> typeAnnos, boolean inCode) {
@@ -591,14 +574,6 @@ public class ClassWriter extends ClassFile {
         }
 
         return attrCount;
-    }
-
-    /**Allows subclasses to write additional type annotations
-     *
-     * @return the number of JVM attributes written
-     */
-    protected int writeExtraTypeAnnotations(List<Attribute.TypeCompound> attrs) {
-        return 0;
     }
 
     /** A visitor to write an attribute including its leading
@@ -661,13 +636,8 @@ public class ClassWriter extends ClassFile {
         }
         public void visitArray(Attribute.Array array) {
             databuf.appendByte('[');
-            int count = array.values.length;
+            databuf.appendChar(array.values.length);
             for (Attribute a : array.values) {
-                if (a instanceof Attribute.Error) count--;
-            }
-            databuf.appendChar(count);
-            for (Attribute a : array.values) {
-                if (a instanceof Attribute.Error) continue;
                 a.accept(this);
             }
         }
@@ -684,7 +654,7 @@ public class ClassWriter extends ClassFile {
         }
     }
 
-    protected void writeTypeAnnotation(Attribute.TypeCompound c) {
+    void writeTypeAnnotation(Attribute.TypeCompound c) {
         writePosition(c.position);
         writeCompoundAttribute(c);
     }
@@ -864,7 +834,7 @@ public class ClassWriter extends ClassFile {
         databuf.appendChar(poolWriter.innerClasses.size());
         for (ClassSymbol inner : poolWriter.innerClasses) {
             inner.markAbstractIfNeeded(types);
-            char flags = (char) adjustFlags(inner.flags_field);
+            int flags = adjustFlags(inner.flags_field);
             if ((flags & INTERFACE) != 0) flags |= ABSTRACT; // Interfaces are always ABSTRACT
             flags &= ~STRICTFP; //inner classes should not have the strictfp flag set.
             if (dumpInnerClassModifiers) {
@@ -968,6 +938,15 @@ public class ClassWriter extends ClassFile {
      */
     void writeBootstrapMethods() {
         int alenIdx = writeAttr(names.BootstrapMethods);
+        int lastBootstrapMethods;
+        do {
+            lastBootstrapMethods = poolWriter.bootstrapMethods.size();
+            for (BsmKey bsmKey : java.util.List.copyOf(poolWriter.bootstrapMethods.keySet())) {
+                for (LoadableConstant arg : bsmKey.staticArgs) {
+                    poolWriter.putConstant(arg);
+                }
+            }
+        } while (lastBootstrapMethods < poolWriter.bootstrapMethods.size());
         databuf.appendChar(poolWriter.bootstrapMethods.size());
         for (BsmKey bsmKey : poolWriter.bootstrapMethods.keySet()) {
             //write BSM handle
@@ -1004,8 +983,7 @@ public class ClassWriter extends ClassFile {
             acount++;
         }
         acount += writeMemberAttrs(v, false);
-		acount += writeExtraAttributes(v);
-        acount += writeExtraMemberAttributes(v);
+        acount += writeExtraAttributes(v);
         endAttrs(acountIdx, acount);
     }
 
@@ -1026,6 +1004,7 @@ public class ClassWriter extends ClassFile {
         if (m.code != null) {
             int alenIdx = writeAttr(names.Code);
             writeCode(m.code);
+            m.code = null; // to conserve space
             endAttr(alenIdx);
             acount++;
         }
@@ -1044,19 +1023,37 @@ public class ClassWriter extends ClassFile {
             endAttr(alenIdx);
             acount++;
         }
-        if (target.hasMethodParameters() && (options.isSet(PARAMETERS) || m.isConstructor() && (m.flags_field & RECORD) != 0)) {
-            if (!m.isLambdaMethod()) // Per JDK-8138729, do not emit parameters table for lambda bodies.
-                acount += writeMethodParametersAttr(m);
+        if (target.hasMethodParameters()) {
+            if (!m.isLambdaMethod()) { // Per JDK-8138729, do not emit parameters table for lambda bodies.
+                boolean requiresParamNames = requiresParamNames(m);
+                if (requiresParamNames || requiresParamFlags(m))
+                    acount += writeMethodParametersAttr(m, requiresParamNames);
+            }
         }
         acount += writeMemberAttrs(m, false);
-        acount += writeExtraMemberAttributes(m);
-        if (!m.isLambdaMethod()) {
+        if (!m.isLambdaMethod())
             acount += writeParameterAttrs(m.params);
-            acount += writeExtraParameterAttributes(m);
-        }
-		acount += writeExtraAttributes(m);
+        acount += writeExtraAttributes(m);
         endAttrs(acountIdx, acount);
-        m.code = null; // to conserve space
+    }
+
+    private boolean requiresParamNames(MethodSymbol m) {
+        if (options.isSet(PARAMETERS))
+            return true;
+        if (m.isConstructor() && (m.flags_field & RECORD) != 0)
+            return true;
+        return false;
+    }
+
+    private boolean requiresParamFlags(MethodSymbol m) {
+        if (!m.extraParams.isEmpty()) {
+            return m.extraParams.stream().anyMatch(p -> (p.flags_field & (SYNTHETIC | MANDATED)) != 0);
+        }
+        if (m.params != null) {
+            // parameter is stored in params for Enum#valueOf(name)
+            return m.params.stream().anyMatch(p -> (p.flags_field & (SYNTHETIC | MANDATED)) != 0);
+        }
+        return false;
     }
 
     /** Write code attribute of method.
@@ -1266,8 +1263,6 @@ public class ClassWriter extends ClassFile {
                 if (debugstackmap) System.out.print("null");
                 databuf.appendByte(5);
                 break;
-            case ERROR:
-                t = syms.objectType;
             case CLASS:
             case ARRAY:
             case TYPEVAR:
@@ -1540,9 +1535,6 @@ public class ClassWriter extends ClassFile {
         } else {
             outLocn = CLASS_OUTPUT;
         }
-        if (outLocn == null) {
-            return null;
-        }
         JavaFileObject outFile
             = fileManager.getJavaFileForOutput(outLocn,
                                                name,
@@ -1671,9 +1663,7 @@ public class ClassWriter extends ClassFile {
 
         acount += writeFlagAttrs(c.flags());
         acount += writeJavaAnnotations(c.getRawAttributes());
-        acount += writeExtraJavaAnnotations(c.getRawAttributes());
         acount += writeTypeAnnotations(c.getRawTypeAttributes(), false);
-        acount += writeExtraTypeAnnotations(c.getRawTypeAttributes());
         acount += writeEnclosingMethodAttribute(c);
         if (c.owner.kind == MDL) {
             acount += writeModuleAttribute(c);

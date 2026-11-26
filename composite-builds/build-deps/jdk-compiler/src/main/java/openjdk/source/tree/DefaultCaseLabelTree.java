@@ -24,12 +24,9 @@
  */
 package openjdk.source.tree;
 
-import javac.internal.PreviewFeature;
-
 /**
  * A case label that marks {@code default} in {@code case null, default}.
  *
- * @since 17
+ * @since 21
  */
-@PreviewFeature(feature=PreviewFeature.Feature.SWITCH_PATTERN_MATCHING, reflective=true)
 public interface DefaultCaseLabelTree extends CaseLabelTree {}
