@@ -167,6 +167,13 @@ static void bridge_set_client_connected(JNIEnv *env, jclass cls, jboolean connec
 	sqlitedbg_set_client_connected(connected ? 1 : 0);
 }
 
+static void bridge_set_row_capture(JNIEnv *env, jclass cls, jint max_rows, jint max_value_bytes, jint max_row_bytes) {
+	(void)env;
+	(void)cls;
+	sqlitedbg_set_row_capture(max_rows > 0 ? (uint32_t)max_rows : 0, max_value_bytes > 0 ? (uint32_t)max_value_bytes : 0,
+	                          max_row_bytes > 0 ? (uint32_t)max_row_bytes : 0);
+}
+
 // server connections
 
 static jlong bridge_open_server(JNIEnv *env, jclass cls, jbyteArray path, jboolean writable) {
@@ -221,49 +228,166 @@ static int progress_cb(void *p) {
 	return 1;
 }
 
-// Binds args[i] to parameter i + 1. Returns SQLITE_OK or a code with *message set.
-static int bind_args(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, jobjectArray args, const char **message) {
+// Binds v (null, Long, Double, String or byte[]) to parameter idx (from 1).
+static int bind_value(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, int idx, jobject v, const char **message) {
+	int rc;
+	if (!v) {
+		rc = sqlite3_bind_null(st, idx);
+	} else if ((*env)->IsInstanceOf(env, v, g_long)) {
+		jmethodID m = (*env)->GetMethodID(env, g_long, "longValue", "()J");
+		rc = sqlite3_bind_int64(st, idx, (sqlite3_int64)(*env)->CallLongMethod(env, v, m));
+	} else if ((*env)->IsInstanceOf(env, v, g_double)) {
+		jmethodID m = (*env)->GetMethodID(env, g_double, "doubleValue", "()D");
+		rc = sqlite3_bind_double(st, idx, (*env)->CallDoubleMethod(env, v, m));
+	} else if ((*env)->IsInstanceOf(env, v, g_string)) {
+		jsize len = (*env)->GetStringLength(env, (jstring)v);
+		const jchar *chars = (*env)->GetStringChars(env, (jstring)v, NULL);
+		if (!chars) return SQLITE_NOMEM;
+		rc = sqlite3_bind_text16(st, idx, chars, len * 2, SQLITE_TRANSIENT);
+		(*env)->ReleaseStringChars(env, (jstring)v, chars);
+	} else {
+		jclass bytes_class = (*env)->FindClass(env, "[B");
+		int is_bytes = bytes_class && (*env)->IsInstanceOf(env, v, bytes_class);
+		if (bytes_class) (*env)->DeleteLocalRef(env, bytes_class);
+		if (!is_bytes) {
+			*message = "unsupported argument type";
+			return SQLITE_MISUSE;
+		}
+		jsize len = (*env)->GetArrayLength(env, (jbyteArray)v);
+		void *copy = malloc(len ? (size_t)len : 1);
+		if (!copy) return SQLITE_NOMEM;
+		(*env)->GetByteArrayRegion(env, (jbyteArray)v, 0, len, (jbyte *)copy);
+		rc = sqlite3_bind_blob64(st, idx, copy, (sqlite3_uint64)len, SQLITE_TRANSIENT);
+		free(copy);
+	}
+	if (rc != SQLITE_OK) {
+		*message = sqlite3_errmsg(db);
+		return rc;
+	}
+	return (*env)->ExceptionCheck(env) ? SQLITE_ERROR : SQLITE_OK;
+}
+
+// Binds args by position, ? and ?NNN alike: args[i] to parameter i + 1. Their number must be the
+// statement's parameter count: a missing one would be bound as NULL and the query would run,
+// returning a plausible empty result.
+static int bind_positional(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, jobjectArray args, const char **message) {
+	int wanted = sqlite3_bind_parameter_count(st);
 	jsize count = (*env)->GetArrayLength(env, args);
+	if (count != wanted) {
+		char msg[96];
+		snprintf(msg, sizeof msg, "the statement has %d parameter(s) but %d argument(s) were given", wanted, (int)count);
+		throw_engine(env, SQLITE_RANGE, msg);
+		return SQLITE_RANGE;
+	}
 	for (jsize i = 0; i < count; i++) {
 		jobject v = (*env)->GetObjectArrayElement(env, args, i);
-		int rc;
-		if (!v) {
-			rc = sqlite3_bind_null(st, i + 1);
-		} else if ((*env)->IsInstanceOf(env, v, g_long)) {
-			jmethodID m = (*env)->GetMethodID(env, g_long, "longValue", "()J");
-			rc = sqlite3_bind_int64(st, i + 1, (sqlite3_int64)(*env)->CallLongMethod(env, v, m));
-		} else if ((*env)->IsInstanceOf(env, v, g_double)) {
-			jmethodID m = (*env)->GetMethodID(env, g_double, "doubleValue", "()D");
-			rc = sqlite3_bind_double(st, i + 1, (*env)->CallDoubleMethod(env, v, m));
-		} else if ((*env)->IsInstanceOf(env, v, g_string)) {
-			jsize len = (*env)->GetStringLength(env, (jstring)v);
-			const jchar *chars = (*env)->GetStringChars(env, (jstring)v, NULL);
-			if (!chars) return SQLITE_NOMEM;
-			rc = sqlite3_bind_text16(st, i + 1, chars, len * 2, SQLITE_TRANSIENT);
-			(*env)->ReleaseStringChars(env, (jstring)v, chars);
-		} else {
-			jclass bytes_class = (*env)->FindClass(env, "[B");
-			int is_bytes = bytes_class && (*env)->IsInstanceOf(env, v, bytes_class);
-			if (bytes_class) (*env)->DeleteLocalRef(env, bytes_class);
-			if (!is_bytes) {
-				*message = "unsupported argument type";
-				return SQLITE_MISUSE;
-			}
-			jsize len = (*env)->GetArrayLength(env, (jbyteArray)v);
-			void *copy = malloc(len ? (size_t)len : 1);
-			if (!copy) return SQLITE_NOMEM;
-			(*env)->GetByteArrayRegion(env, (jbyteArray)v, 0, len, (jbyte *)copy);
-			rc = sqlite3_bind_blob64(st, i + 1, copy, (sqlite3_uint64)len, SQLITE_TRANSIENT);
-			free(copy);
-		}
+		int rc = bind_value(env, db, st, i + 1, v, message);
 		if (v) (*env)->DeleteLocalRef(env, v);
-		if (rc != SQLITE_OK) {
-			*message = sqlite3_errmsg(db);
-			return rc;
-		}
-		if ((*env)->ExceptionCheck(env)) return SQLITE_ERROR;
+		if (rc != SQLITE_OK) return rc;
 	}
 	return SQLITE_OK;
+}
+
+typedef struct {
+	char *name;  // UTF-8, not terminated
+	size_t len;
+	int used;
+} bind_key;
+
+// Whether SQLite's parameter name (":id", "@id", "$id" or "?3") is key: written the same, or key
+// without the prefix (":", "@" or "$").
+static int key_matches(const char *param, const bind_key *key) {
+	size_t plen = strlen(param);
+	if (plen == key->len && memcmp(param, key->name, plen) == 0) return 1;
+	if (key->len == 0 || strchr(":@$?", key->name[0])) return 0;
+	return strchr(":@$", param[0]) && plen - 1 == key->len && memcmp(param + 1, key->name, key->len) == 0;
+}
+
+// Binds args by name: names[i] (UTF-8) names the parameter args[i] goes to. Every parameter must
+// get exactly one value and every name must be used, so a misspelt name fails instead of leaving a
+// NULL. The error names a name that matches no parameter even when a parameter also has no value,
+// since that name is most likely the parameter's, misspelt.
+static int bind_named(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, jobjectArray args, jobjectArray names,
+                      const char **message) {
+	jsize n = (*env)->GetArrayLength(env, names);
+	if ((*env)->GetArrayLength(env, args) != n) {
+		*message = "names and args differ in length";
+		return SQLITE_MISUSE;
+	}
+	bind_key *keys = calloc(n ? (size_t)n : 1, sizeof *keys);
+	if (!keys) return SQLITE_NOMEM;
+	int rc = SQLITE_OK;
+	char msg[320];
+	const char *missing = NULL;  // the first parameter with no value; SQLite owns the string
+	for (jsize i = 0; i < n && rc == SQLITE_OK; i++) {
+		jbyteArray b = (jbyteArray)(*env)->GetObjectArrayElement(env, names, i);
+		if (!b) {
+			*message = "a parameter name is null";
+			rc = SQLITE_MISUSE;
+			break;
+		}
+		jsize len = (*env)->GetArrayLength(env, b);
+		keys[i].name = malloc(len ? (size_t)len : 1);
+		if (!keys[i].name) rc = SQLITE_NOMEM;
+		else {
+			(*env)->GetByteArrayRegion(env, b, 0, len, (jbyte *)keys[i].name);
+			keys[i].len = (size_t)len;
+		}
+		(*env)->DeleteLocalRef(env, b);
+	}
+	int count = sqlite3_bind_parameter_count(st);
+	for (int p = 1; p <= count && rc == SQLITE_OK; p++) {
+		const char *param = sqlite3_bind_parameter_name(st, p);
+		if (!param) {
+			snprintf(msg, sizeof msg,
+			         "parameter %d has no name (a ? or a gap in the ?NNN numbers): pass args as an array instead", p);
+			throw_engine(env, SQLITE_RANGE, msg);
+			rc = SQLITE_RANGE;
+			break;
+		}
+		jsize found = -1;
+		for (jsize i = 0; i < n; i++) {
+			if (!key_matches(param, &keys[i])) continue;
+			if (found >= 0) {
+				snprintf(msg, sizeof msg, "parameter %.100s is given more than once", param);
+				throw_engine(env, SQLITE_RANGE, msg);
+				rc = SQLITE_RANGE;
+				break;
+			}
+			found = i;
+		}
+		if (rc != SQLITE_OK) break;
+		if (found < 0) {
+			if (!missing) missing = param;
+			continue;
+		}
+		keys[found].used = 1;
+		jobject v = (*env)->GetObjectArrayElement(env, args, found);
+		rc = bind_value(env, db, st, p, v, message);
+		if (v) (*env)->DeleteLocalRef(env, v);
+	}
+	jsize unused = -1;
+	for (jsize i = 0; i < n && unused < 0; i++) {
+		if (!keys[i].used) unused = i;
+	}
+	if (rc == SQLITE_OK && unused >= 0) {
+		int shown = keys[unused].len > 100 ? 100 : (int)keys[unused].len;
+		if (missing) {
+			snprintf(msg, sizeof msg, "the statement has no parameter named %.*s, and no value was given for parameter %.100s",
+			         shown, keys[unused].name, missing);
+		} else {
+			snprintf(msg, sizeof msg, "the statement has no parameter named %.*s", shown, keys[unused].name);
+		}
+		throw_engine(env, SQLITE_RANGE, msg);
+		rc = SQLITE_RANGE;
+	} else if (rc == SQLITE_OK && missing) {
+		snprintf(msg, sizeof msg, "no value was given for parameter %.100s", missing);
+		throw_engine(env, SQLITE_RANGE, msg);
+		rc = SQLITE_RANGE;
+	}
+	for (jsize i = 0; i < n; i++) free(keys[i].name);
+	free(keys);
+	return rc;
 }
 
 // A UTF-8 prefix of at most max bytes ending on a character boundary.
@@ -307,7 +431,8 @@ static int prepare_one(sqlite3 *db, const jchar *sql, jsize len, sqlite3_stmt **
 
 // Prepares sql (one statement, see prepare_one) and binds args to it. Returns 1 with *st set, or 0
 // with an exception pending and *st NULL.
-static int prepare_bound(JNIEnv *env, sqlite3 *db, jstring sql, jobjectArray args, sqlite3_stmt **st) {
+static int prepare_bound(JNIEnv *env, sqlite3 *db, jstring sql, jobjectArray args, jobjectArray names,
+                         sqlite3_stmt **st) {
 	*st = NULL;
 	const char *message = NULL;
 	jsize sql_len = (*env)->GetStringLength(env, sql);
@@ -319,17 +444,10 @@ static int prepare_bound(JNIEnv *env, sqlite3 *db, jstring sql, jobjectArray arg
 		throw_engine(env, rc, message ? message : sqlite3_errmsg(db));
 		return 0;
 	}
-	// A missing argument would be bound as NULL and the statement would run, with a plausible result.
-	int wanted = sqlite3_bind_parameter_count(*st);
-	jsize given = (*env)->GetArrayLength(env, args);
-	if (given != wanted) {
-		char msg[96];
-		snprintf(msg, sizeof msg, "the statement has %d parameter(s) but %d argument(s) were given", wanted, (int)given);
-		throw_engine(env, SQLITE_RANGE, msg);
-	} else {
-		rc = bind_args(env, db, *st, args, &message);
-		if (rc != SQLITE_OK && !(*env)->ExceptionCheck(env)) throw_engine(env, rc, message ? message : "cannot bind");
-	}
+	// Both check that every parameter gets a value: a missing one would be bound as NULL and the statement
+	// would run, with a plausible result.
+	rc = names ? bind_named(env, db, *st, args, names, &message) : bind_positional(env, db, *st, args, &message);
+	if (rc != SQLITE_OK && !(*env)->ExceptionCheck(env)) throw_engine(env, rc, message ? message : "cannot bind");
 	if ((*env)->ExceptionCheck(env)) {
 		sqlite3_finalize(*st);
 		*st = NULL;
@@ -394,7 +512,8 @@ static jobject cell_value(JNIEnv *env, sqlite3_stmt *st, int col, jint max_text,
 	}
 }
 
-static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args, jlong offset,
+static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args,
+                                 jobjectArray names, jlong offset,
                                  jint max_rows, jint max_text, jint max_blob, jint max_total, jlong deadline_ms) {
 	(void)cls;
 	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
@@ -410,7 +529,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the query started");
 		goto done;
 	}
-	if (!prepare_bound(env, db, sql, args, &st)) goto done;
+	if (!prepare_bound(env, db, sql, args, names, &st)) goto done;
 
 	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
 	// that is not in WAL mode: it holds a SHARED lock until the statement ends, and the app's commit gives
@@ -430,15 +549,24 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	handler_set = 1;
 
 	int ncols = sqlite3_column_count(st);
-	jobjectArray names = (*env)->NewObjectArray(env, ncols, g_string, NULL);
-	jobject rows = names ? (*env)->NewObject(env, g_array_list, g_list_init) : NULL;
+	jobjectArray columns = (*env)->NewObjectArray(env, ncols, g_string, NULL);
+	// The declared type of each column, null for an expression (sqlite3_column_decltype)
+	jobjectArray decltypes = columns ? (*env)->NewObjectArray(env, ncols, g_string, NULL) : NULL;
+	jobject rows = decltypes ? (*env)->NewObject(env, g_array_list, g_list_init) : NULL;
 	if (!rows) goto done;
 	for (int c = 0; c < ncols; c++) {
 		const char *name = sqlite3_column_name(st, c);
 		jstring s = utf8_string(env, name ? name : "", name ? (int)strlen(name) : 0);
 		if (!s) goto done;
-		(*env)->SetObjectArrayElement(env, names, c, s);
+		(*env)->SetObjectArrayElement(env, columns, c, s);
 		(*env)->DeleteLocalRef(env, s);
+		const char *decl = sqlite3_column_decltype(st, c);
+		if (decl) {
+			jstring d = utf8_string(env, decl, (int)strlen(decl));
+			if (!d) goto done;
+			(*env)->SetObjectArrayElement(env, decltypes, c, d);
+			(*env)->DeleteLocalRef(env, d);
+		}
 	}
 
 	int has_more = 0, row_count = 0;
@@ -508,14 +636,15 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 
 	// {cut cell count, hasMore, then the index of each cut cell}
 	jlongArray counts = (*env)->NewLongArray(env, (jsize)(2 + cut_n));
-	result = counts ? (*env)->NewObjectArray(env, 3, g_object, NULL) : NULL;
+	result = counts ? (*env)->NewObjectArray(env, 4, g_object, NULL) : NULL;
 	if (!result) goto done;
 	jlong head[2] = {(jlong)cut_n, has_more};
 	(*env)->SetLongArrayRegion(env, counts, 0, 2, head);
 	if (cut_n) (*env)->SetLongArrayRegion(env, counts, 2, (jsize)cut_n, cut_cells);
-	(*env)->SetObjectArrayElement(env, result, 0, names);
+	(*env)->SetObjectArrayElement(env, result, 0, columns);
 	(*env)->SetObjectArrayElement(env, result, 1, rows);
 	(*env)->SetObjectArrayElement(env, result, 2, counts);
+	(*env)->SetObjectArrayElement(env, result, 3, decltypes);
 
 done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
@@ -546,7 +675,7 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the statement started");
 		goto done;
 	}
-	if (!prepare_bound(env, db, sql, args, &st)) goto done;
+	if (!prepare_bound(env, db, sql, args, NULL, &st)) goto done;
 	// query is the tool for a read; a statement that changes nothing here would only cost an approval.
 	if (sqlite3_stmt_readonly(st)) {
 		throw_engine(env, SQLITE_ERROR, "the statement does not write; run it with query");
@@ -631,7 +760,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	    {"readEvents", "(J[B[J)V", (void *)bridge_read_events},
 	    {"setClientConnected", "(Z)V", (void *)bridge_set_client_connected},
 	    {"openServer", "([BZ)J", (void *)bridge_open_server},
-	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;JIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
+	    {"setRowCapture", "(III)V", (void *)bridge_set_row_capture},
+	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;[[BJIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
 	    {"execute", "(JLjava/lang/String;[Ljava/lang/Object;J)[J", (void *)bridge_execute},
 	    {"close", "(J)V", (void *)bridge_close},
 	};
