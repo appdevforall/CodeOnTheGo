@@ -70,7 +70,7 @@ Capabilities of the sqlite3 shell, in the server so every client has them. All a
   - A virtual table goes into `sqlite_schema` under `PRAGMA writable_schema`, and its shadow tables are dumped as tables. With `table` set to a virtual table, its shadow tables (`pragma_table_list` type `shadow`, SQLite 3.37 and later, whose names start with the virtual table's name and `_`) are dumped too, with their indexes and triggers; the whole-database dump already has them. Limitation: if another virtual table's name also starts that way (`docs` and `docs_fts`), its shadow tables are included.
   - Rows are written by `quote()` in SQL, which round-trips REALs (checked in the JNI test). They come in rowid order, so paging is stable.
   - Generated columns are left out, with a column list.
-  - Paged by a cursor (`unit.offset`, rebuilt from the schema on each call): at most 1000 statements and about 4 MiB a page. A statement over 4 MiB is cut and listed.
+  - Paged by a cursor (`unit.offset`, rebuilt from the schema on each call): at most 1000 statements and about 4 MiB a page. The budget counts UTF-16 characters (`String.length`), while the engine counts UTF-8 bytes, and the engine returns the first row whole whatever is left of the budget, so a page can reach about 8 MiB of characters (more bytes if the text is not ASCII). A statement over 4 MiB is cut and listed.
 - **`export` (`.mode csv`, `.mode insert`).**
   - CSV is RFC 4180 with CRLF line ends. NULL is an empty field, the empty string is `""`, and a BLOB is hex.
   - `insert` writes literals that read back the same (`X'..'`, an infinity as `1e999`, NaN as NULL).

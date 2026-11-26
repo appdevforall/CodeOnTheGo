@@ -396,7 +396,9 @@ class DatabaseTools internal constructor(
 					"as SQL text that rebuilds it, as the sqlite3 " +
 					"shell's .dump does: PRAGMA foreign_keys=OFF, BEGIN TRANSACTION, each table's CREATE and INSERTs, then the " +
 					"indexes, triggers and views, then COMMIT. A page holds at most $MAX_ROWS statements and about " +
-					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB; pass next_cursor as cursor for the next, until complete is true. " +
+					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of characters (UTF-16 characters, not bytes: non-ASCII text takes up to 3 " +
+					"bytes each), and a statement still goes in whole when the budget is nearly used, so a page can reach about " +
+					"${2 * MAX_TOTAL_BYTES / (1024 * 1024)} MiB; pass next_cursor as cursor for the next, until complete is true. " +
 					"A statement longer than ${DUMP_STATEMENT_BYTES / (1024 * 1024)} MiB is cut and listed in " +
 					"truncated_statements (indexes into sql), and the dump is then not whole. Paging re-reads the schema and " +
 					"the rows, so a dump of a database that changes between pages can miss or repeat rows. $NON_WAL_NOTE",
