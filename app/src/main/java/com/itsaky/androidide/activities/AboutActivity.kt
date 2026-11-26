@@ -296,7 +296,6 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 			binding.icon.updatePaddingRelative(dp8, dp8, dp8, dp8)
 			binding.title.setTextAppearance(R.style.TextAppearance_Material3_TitleSmall)
 
-			binding.description.maxLines = 3
 			binding.description.setTextAppearance(R.style.TextAppearance_Material3_BodySmall)
 			binding.description.setTextColor(binding.description.context.resolveAttr(R.attr.colorPrimary))
 
