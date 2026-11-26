@@ -141,7 +141,20 @@ class BundledAddonsRecord(
 		// both read, change and rewrite the file.
 		private val instances = ConcurrentHashMap<String, BundledAddonsRecord>()
 
-		fun inFilesDir(filesDir: File): BundledAddonsRecord =
-			instances.computeIfAbsent(File(filesDir, FILE_NAME).canonicalPath) { BundledAddonsRecord(File(it)) }
+		/**
+		 * The record for [filesDir]. Never throws: when the path cannot be made canonical, the absolute
+		 * path keys the instance, so a broken file system shows up when the record is read or written,
+		 * where every caller already handles it, and not here.
+		 */
+		fun inFilesDir(filesDir: File): BundledAddonsRecord {
+			val file = File(filesDir, FILE_NAME)
+			val key =
+				try {
+					file.canonicalPath
+				} catch (e: IOException) {
+					file.absolutePath
+				}
+			return instances.computeIfAbsent(key) { BundledAddonsRecord(File(it)) }
+		}
 	}
 }
