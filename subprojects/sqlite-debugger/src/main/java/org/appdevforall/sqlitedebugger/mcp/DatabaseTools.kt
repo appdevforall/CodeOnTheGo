@@ -399,8 +399,8 @@ class DatabaseTools internal constructor(
 			.put(
 				"description",
 				"Values to bind: null, numbers or strings. An array binds by position (? and ?NNN, by number); an object binds " +
-					"by name (:name, @name, \$name, ?NNN), with keys written as in the SQL or without the prefix. Every " +
-					"parameter needs a value, and every key a parameter.",
+					"by name (:name, @name, \$name, ?NNN), with keys written as in the SQL. A key without a prefix, such as id, " +
+					"matches :id, @id and \$id; a ?NNN key keeps its ?. Every parameter needs a value, and every key a parameter.",
 			)
 
 	private fun databaseSchema(
