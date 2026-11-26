@@ -35,6 +35,26 @@ private fun closeProjectLog(message: String) {
 class InitializationProjectAndCancelingBuildScenario(
 	private val closeProjectAfterBuild: Boolean = true,
 ) : Scenario() {
+	/**
+	 * Taps OK on the "Setting up your project" notice if it is showing, waiting up to [waitMs] for it,
+	 * and says whether it did. The editor opens the notice when the sync starts, only OK closes it, and
+	 * while it is open the wait below never sees "Project initialized" or an enabled Quick run. On a
+	 * slow phone it opens well after the first step has stopped looking for it (ADFA-7294).
+	 */
+	private fun TestContext<Unit>.dismissFirstBuildNotice(waitMs: Long = 0L): Boolean {
+		val d = device.uiDevice
+		val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+		val notice = d.findObject(UiSelector().text(targetContext.getString(R.string.title_first_build)))
+		val showing = if (waitMs > 0) notice.waitForExists(waitMs) else notice.exists()
+		if (!showing) {
+			return false
+		}
+		clickFirstAccessibilityNodeByText(targetContext.getString(android.R.string.ok))
+		d.waitForIdle()
+		closeProjectLog("Dismissed the first build notice")
+		return true
+	}
+
 	private fun TestContext<Unit>.clickToolbarButton(
 		description: String,
 		waitMs: Long = DEFAULT_TOOLBAR_BUTTON_TIMEOUT_MS,
@@ -49,11 +69,7 @@ class InitializationProjectAndCancelingBuildScenario(
 	override val steps: TestContext<Unit>.() -> Unit = {
 		step("Dismiss first build notice and start init") {
 			val d = device.uiDevice
-			val okBtn = d.findObject(UiSelector().text("OK").className("android.widget.Button"))
-			if (okBtn.waitForExists(DEFAULT_UI_TIMEOUT_MS)) {
-				clickFirstAccessibilityNodeByText("OK")
-				d.waitForIdle()
-			}
+			dismissFirstBuildNotice(DEFAULT_UI_TIMEOUT_MS)
 			// Wait for the editor UI to settle after dialog dismiss
 			// before clicking the quick-run button
 			val toolbar =
@@ -76,6 +92,7 @@ class InitializationProjectAndCancelingBuildScenario(
 			var initialized = false
 
 			while (System.currentTimeMillis() < deadline && !initialized) {
+				dismissFirstBuildNotice()
 				val status = d.findObject(UiSelector().text(initializedText))
 				val quickRun = d.findObject(UiSelector().descriptionContains(quickRunDescription))
 
