@@ -16,6 +16,7 @@
 #include <sys/syscall.h>
 
 #include "sqlite3.h"
+#include "expert/sqlite3expert.h"
 #include "sqlitedbg.h"
 
 static int g_failures;
@@ -1009,6 +1010,91 @@ static void test_server(void) {
 	CHECK_EQ(sqlite3_close(app), SQLITE_OK);
 }
 
+static int always_stop(void *unused) {
+	(void)unused;
+	return 1;
+}
+
+static int never_stop(void *unused) {
+	(void)unused;
+	return 0;
+}
+
+// Counts statements run on a connection whose SQL names one of expert's sampling functions.
+static int sampling_trace(unsigned type, void *count, void *stmt, void *unused) {
+	(void)unused;
+	if (type == SQLITE_TRACE_STMT) {
+		const char *sql = sqlite3_sql((sqlite3_stmt *)stmt);
+		if (sql && strstr(sql, "sqlite_expert_")) ++*(int *)count;
+	}
+	return 0;
+}
+
+// suggest_indexes: ext/expert on a read-only server connection (ADFA-7301).
+static void test_expert(void) {
+	exec_ok(g_main, "CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY, customer INTEGER, total REAL)");
+	exec_ok(g_main, "CREATE TABLE IF NOT EXISTS lines(id INTEGER PRIMARY KEY, sku TEXT)");
+	exec_ok(g_main, "CREATE INDEX IF NOT EXISTS lines_sku ON lines(sku)");
+	listing l;
+	size_t before = list_conns(&l);
+	sqlite3 *srv = NULL;
+	CHECK_EQ(sqlitedbg_open_server(g_db_path, 0, &srv), SQLITE_OK);
+	exec_ok(g_main, "INSERT INTO orders(customer, total) VALUES(1, 2.5), (2, 3.5)");
+	uint64_t cur = cursor_now();
+	// sampling would read the app's rows on srv with expert's sqlite_expert_rem and _sample functions
+	int sampling = 0;
+	CHECK_EQ(sqlite3_trace_v2(srv, SQLITE_TRACE_STMT, sampling_trace, &sampling), SQLITE_OK);
+
+	sqlite3expert *ex = NULL;
+	char *err = NULL;
+	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5; SELECT id FROM lines WHERE sku = 'a'",
+	                              never_stop, NULL, &ex, &err),
+	         SQLITE_OK);
+	CHECK(err == NULL);
+	CHECK(ex != NULL);
+	if (ex) {
+		CHECK_EQ(sqlite3_expert_count(ex), 2);
+		const char *idx0 = sqlite3_expert_report(ex, 0, EXPERT_REPORT_INDEXES);
+		const char *idx1 = sqlite3_expert_report(ex, 1, EXPERT_REPORT_INDEXES);
+		const char *plan0 = sqlite3_expert_report(ex, 0, EXPERT_REPORT_PLAN);
+		CHECK(idx0 && strstr(idx0, "CREATE INDEX") && strstr(idx0, "orders(customer)"));
+		CHECK(idx1 == NULL);  // lines_sku covers it: no suggestion (the shell prints "(no new indexes)")
+		CHECK(plan0 && strstr(plan0, "USING"));
+		CHECK(strstr(sqlite3_expert_report(ex, 0, EXPERT_REPORT_SQL), "customer = 5") != NULL);
+		// while it is open, its two in-memory connections are not the app's
+		CHECK_EQ(list_conns(&l), before);
+		sqlite3_expert_destroy(ex);
+	}
+	CHECK_EQ(sampling, 0);  // no row of the app's data was read
+	sqlite3_trace_v2(srv, 0, NULL, NULL);
+	// nothing was traced: expert's statements ran on its own connections, never on the app's
+	batch b;
+	read_all(cur, &b);
+	CHECK_EQ(b.count, 0);
+	batch_free(&b);
+	// the server connection has no temp table, no new function, and is still read-only
+	sqlite3_stmt *st;
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_schema", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_rem(1, 1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK_EQ(step_all(srv, "INSERT INTO orders(customer) VALUES(1)"), SQLITE_AUTH);
+
+	// errors come back with SQLite's message; the time limit stops the analysis
+	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM no_such_table", never_stop, NULL, &ex, &err) != SQLITE_OK);
+	CHECK(ex == NULL);
+	CHECK(err && strstr(err, "no_such_table"));
+	sqlite3_free(err);
+	err = NULL;
+	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5", always_stop, NULL, &ex, &err) != SQLITE_OK);
+	CHECK(ex == NULL);
+	sqlite3_free(err);
+
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	CHECK_EQ(list_conns(&l), before);
+}
+
 // Each of these would let a client keep a lock on the app's database (ADFA-7135 review, H3).
 static void test_server_holds_no_locks(void) {
 	static const char *const denied[] = {
@@ -1516,6 +1602,8 @@ int main(int argc, char **argv) {
 		test_server_ends_transaction();
 		printf("# server waits for locks\n");
 		test_server_waits_for_locks();
+		printf("# expert\n");
+		test_expert();
 		printf("# threads\n");
 		test_threads();
 		if (argc == 4 && strcmp(argv[1], "--write-fixture") == 0) write_fixture(argv[2], argv[3]);

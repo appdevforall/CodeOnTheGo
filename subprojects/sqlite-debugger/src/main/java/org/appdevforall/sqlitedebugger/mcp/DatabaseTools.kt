@@ -72,6 +72,12 @@ class DatabaseTools internal constructor(
 		/** Bound values stop being recorded this long after the last get_events call. */
 		const val EVENTS_IDLE_MS = 60_000L
 
+		/** export's limit on one TEXT or BLOB value: higher than query's, as a cut value is wrong data in an export. */
+		const val EXPORT_VALUE_BYTES = 64 * 1024
+
+		/** dump's limit on one statement, a single TEXT cell; a longer one is cut and listed in truncated_statements. */
+		const val DUMP_STATEMENT_BYTES = MAX_TOTAL_BYTES
+
 		/** get_events' row recording: rows per statement, bytes per TEXT or BLOB value, and bytes per row. */
 		const val EVENT_ROWS_PER_STATEMENT = 10
 		const val EVENT_VALUE_BYTES = 256
@@ -326,7 +332,11 @@ class DatabaseTools internal constructor(
 				"get_stats",
 				"Get statistics",
 				"Returns page_count, page_size, freelist_count, and the row count of each table when the database has fewer than " +
-					"$MAX_TABLES_FOR_COUNTS tables. $NON_WAL_NOTE",
+					"$MAX_TABLES_FOR_COUNTS tables. Also what the sqlite3 shell's .dbinfo shows: schema_version, user_version, " +
+					"application_id, encoding, auto_vacuum, journal_mode, schema_objects (counts by type) and schema_size (bytes " +
+					"of CREATE statements), and header: the header fields no PRAGMA reads (write_format, read_format, " +
+					"reserved_bytes, file_change_counter, schema_format, default_cache_size, autovacuum_top_root, " +
+					"incremental_vacuum, software_version), when SQLite has sqlite_dbpage (else header_unavailable). $NON_WAL_NOTE",
 				databaseSchema(),
 			) { call, args -> getStats(call, args) },
 			tool(
@@ -343,6 +353,67 @@ class DatabaseTools internal constructor(
 					"A full integrity_check of a big database that is not in WAL mode will stop early with that error.",
 				databaseSchema("full" to prop("boolean", "Run the full integrity_check. Default false."), required = emptyList()),
 			) { call, args -> integrityCheck(call, args) },
+			tool(
+				"suggest_indexes",
+				"Suggest indexes",
+				"Suggests indexes for one or more SQL statements, as the sqlite3 shell's .expert does (SQLite's ext/expert). " +
+					"The statements are prepared, never run, and no row of the app's data is read: the suggestions rest on " +
+					"SQLite's default estimates, not on the data, so check them with explain_query_plan. For each statement, " +
+					"indexes lists the CREATE INDEX statements that would help (empty when the existing ones suffice) and plan " +
+					"the query plan with them; candidates lists every index weighed. Nothing is created. $APP_FUNCTIONS_NOTE.",
+				databaseSchema("sql" to prop("string", "One or more SQL statements."), required = listOf("sql")),
+			) { call, args -> suggestIndexes(call, args) },
+			tool(
+				"lint_foreign_keys",
+				"Check foreign key indexes",
+				"Lists each foreign key and whether an index on the child table covers it, as the sqlite3 shell's " +
+					".lint fkey-indexes does: without one, deleting or updating a parent row scans the child table. An " +
+					"uncovered key has create_index, a statement that would cover it (not run). Unlike sqlite3, a child column " +
+					"whose collation differs from its parent key's is not taken into account. truncated is true past the first " +
+					"$MAX_ROWS foreign key columns. $NON_WAL_NOTE",
+				databaseSchema(),
+			) { call, args -> lintForeignKeys(call, args) },
+			tool(
+				"dump",
+				"Dump as SQL",
+				"Returns a database, or one table with its indexes and triggers, as SQL text that rebuilds it, as the sqlite3 " +
+					"shell's .dump does: PRAGMA foreign_keys=OFF, BEGIN TRANSACTION, each table's CREATE and INSERTs, then the " +
+					"indexes, triggers and views, then COMMIT. A page holds at most $MAX_ROWS statements and about " +
+					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB; pass next_cursor as cursor for the next, until complete is true. " +
+					"A statement longer than ${DUMP_STATEMENT_BYTES / (1024 * 1024)} MiB is cut and listed in " +
+					"truncated_statements (indexes into sql), and the dump is then not whole. Paging re-reads the schema and " +
+					"the rows, so a dump of a database that changes between pages can miss or repeat rows. $NON_WAL_NOTE",
+				databaseSchema(
+					"table" to prop("string", "Only this table, with its indexes and triggers. Default: the whole database."),
+					"cursor" to prop("string", "The next_cursor of the previous page. Default: the start."),
+				),
+			) { call, args -> dump(call, args) },
+			tool(
+				"export",
+				"Export a query",
+				"Runs one read-only SQL statement and returns its rows as CSV or SQL INSERT statements, as the sqlite3 shell's " +
+					".mode csv and .mode insert do. CSV (RFC 4180, CRLF line ends): a header row on the first page unless " +
+					"header is false, NULL as an empty field, the empty string as \"\", a BLOB as hex. insert: one " +
+					"INSERT INTO table VALUES(...) per row, with literals that read back the same (X'..' for a BLOB). At most " +
+					"max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS) and about ${MAX_TOTAL_BYTES / (1024 * 1024)} " +
+					"MiB of values per page; use offset to page ($PAGING_NOTE) A TEXT or BLOB value longer than " +
+					"${EXPORT_VALUE_BYTES / 1024} KiB is cut, counted in truncated_cells, and the export is then not whole. " +
+					"$APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
+				databaseSchema(
+					"sql" to prop("string", "The SQL statement."),
+					"args" to argsSchema(),
+					"format" to
+						JSONObject()
+							.put("type", "string")
+							.put("enum", JSONArray(listOf("csv", "insert")))
+							.put("description", "csv or insert."),
+					"table" to prop("string", "insert: the table name in the statements. Default \"table\"."),
+					"header" to prop("boolean", "csv: a header row on the first page (offset 0). Default true."),
+					"offset" to prop("integer", "Rows to skip. Default 0."),
+					"max_rows" to prop("integer", "Rows to return. Default $DEFAULT_MAX_ROWS, at most $MAX_ROWS."),
+					required = listOf("sql", "format"),
+				),
+			) { call, args -> export(call, args) },
 			tool(
 				"get_events",
 				"Get SQL events",
@@ -567,7 +638,57 @@ class DatabaseTools internal constructor(
 			val count = if (tables.size >= MAX_ROWS) "at least ${tables.size}" else "${tables.size}"
 			out.put("row_counts_skipped", "The database has $count tables; counts are given only under $MAX_TABLES_FOR_COUNTS.")
 		}
+		addDbinfo(call, path, out, limits)
 		return out
+	}
+
+	/**
+	 * What sqlite3's .dbinfo adds: PRAGMA values, schema object counts and size, and the header fields no PRAGMA
+	 * reads, from page 1 through sqlite_dbpage when SQLite was built with it. Never from the file itself: closing
+	 * any descriptor to it would drop the app's POSIX locks on it.
+	 */
+	private fun addDbinfo(
+		call: Call,
+		path: String,
+		out: JSONObject,
+		limits: QueryLimits,
+	) {
+		fun pragma(name: String) = runChecked(call, path, "PRAGMA $name", Bind.NONE, 0, limits).rows.firstOrNull()?.firstOrNull()
+		for (name in listOf("schema_version", "user_version", "application_id", "encoding", "auto_vacuum", "journal_mode")) {
+			out.put(name, encodeValue(pragma(name)))
+		}
+		val objects = JSONObject().put("table", 0).put("index", 0).put("trigger", 0).put("view", 0)
+		var schemaSize = 0L
+		for (
+			row in runChecked(
+				call,
+				path,
+				"SELECT type, count(*), total(length(sql)) FROM sqlite_master GROUP BY type",
+				Bind.NONE,
+				0,
+				limits,
+			).rows
+		) {
+			objects.put(row[0] as String, row[1] as Long)
+			schemaSize += (row[2] as Double).toLong()
+		}
+		out.put("schema_objects", objects).put("schema_size", schemaSize)
+		val page =
+			try {
+				runChecked(call, path, "SELECT data FROM sqlite_dbpage WHERE pgno = 1", Bind.NONE, 0, limits)
+					.rows
+					.firstOrNull()
+					?.firstOrNull()
+			} catch (e: McpToolError) {
+				out.put("header_unavailable", "SQLite here has no sqlite_dbpage (${e.message}), so the header fields are left out.")
+				return
+			}
+		val fields = (page as? ByteArray)?.let { ShellFormat.headerFields(it) }
+		if (fields == null) {
+			out.put("header_unavailable", "Page 1 could not be read.")
+			return
+		}
+		out.put("header", JSONObject().also { h -> fields.forEach { (k, v) -> h.put(k, v) } })
 	}
 
 	private fun integrityCheck(
@@ -589,6 +710,357 @@ class DatabaseTools internal constructor(
 			.put("messages", JSONArray(messages))
 			.put("truncated_cells", result.truncatedCells)
 			.put("truncated_cell_indexes", truncatedCellIndexes(result))
+	}
+
+	private fun suggestIndexes(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
+		val sql = stringArg(args, "sql")
+		val path = checkedPath(call, args)
+		val result = onConnection(call, path) { it.suggestIndexes(sql, call.deadline) }
+
+		fun lines(text: String?) = JSONArray(text?.lines()?.map { it.trimEnd() }?.filter { it.isNotEmpty() } ?: emptyList<String>())
+		val statements = JSONArray()
+		for (st in result.statements) {
+			statements.put(JSONObject().put("sql", st.sql).put("indexes", lines(st.indexes)).put("plan", lines(st.plan)))
+		}
+		return JSONObject().put("statements", statements).put("candidates", lines(result.candidates))
+	}
+
+	private class ForeignKey(
+		val child: String,
+		val parent: String,
+	) {
+		val from = mutableListOf<String>()
+		val to = mutableListOf<String?>()
+	}
+
+	private fun lintForeignKeys(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
+		val path = checkedPath(call, args)
+		val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
+		val list =
+			runChecked(
+				call,
+				path,
+				"SELECT s.name, f.id, f.\"table\", f.\"from\", f.\"to\" FROM sqlite_master AS s, " +
+					"pragma_foreign_key_list(s.name) AS f WHERE s.type = 'table' ORDER BY s.name, f.id, f.seq",
+				Bind.NONE,
+				0,
+				limits,
+			)
+		val keys = LinkedHashMap<Pair<String, Any?>, ForeignKey>()
+		for (row in list.rows) {
+			val key = keys.getOrPut((row[0] as String) to row[1]) { ForeignKey(row[0] as String, row[2] as String) }
+			key.from += row[3] as String
+			key.to += row[4] as String?
+		}
+		val out = JSONArray()
+		var uncovered = 0
+		for (key in keys.values) {
+			// A key naming no parent columns refers to the parent's primary key, as in the shell's LEFT JOIN on pragma_table_info.
+			val parentColumns =
+				if (key.to.all { it != null }) {
+					key.to.map { it!! }
+				} else {
+					runChecked(
+						call,
+						path,
+						"SELECT name FROM pragma_table_info(?) WHERE pk > 0 ORDER BY pk",
+						Bind(listOf(key.parent), null),
+						0,
+						limits,
+					)
+						.rows
+						.map { it[0] as String }
+				}
+			val child = quoteIdentifier(key.child)
+			val plan =
+				runChecked(
+					call,
+					path,
+					"EXPLAIN QUERY PLAN SELECT 1 FROM $child WHERE " + key.from.joinToString(" AND ") { "$child.${quoteIdentifier(it)}=?" },
+					Bind(List(key.from.size) { null }, null),
+					0,
+					limits,
+				).rows.firstOrNull()?.getOrNull(3) as? String ?: ""
+			// The shell's two patterns (lintFkeyIndexes in shell.c.in)
+			val covered =
+				ShellFormat.globMatches(
+					"SEARCH ${key.child} USING COVERING INDEX*(" + key.from.joinToString(" AND ") { "*=?" } + ")",
+					plan,
+				) ||
+					ShellFormat.globMatches("SEARCH * USING INTEGER PRIMARY KEY (rowid=?)", plan)
+			val item =
+				JSONObject()
+					.put("child_table", key.child)
+					.put("child_columns", JSONArray(key.from))
+					.put("parent_table", key.parent)
+					.put("parent_columns", JSONArray(parentColumns))
+					.put("covered", covered)
+			if (!covered) {
+				uncovered++
+				item.put(
+					"create_index",
+					"CREATE INDEX ${quoteIdentifier(key.child + "_" + key.from.joinToString("_"))} ON $child(" +
+						key.from.joinToString(", ") { quoteIdentifier(it) } + ");",
+				)
+			}
+			out.put(item)
+		}
+		return JSONObject().put("foreign_keys", out).put("uncovered", uncovered).put("truncated", list.hasMore)
+	}
+
+	/** One step of a dump: statements known up front, or a table's rows as INSERTs (see [dump]). */
+	private sealed class DumpUnit {
+		class Fixed(
+			val statements: List<String>,
+		) : DumpUnit()
+
+		class Rows(
+			val table: String,
+		) : DumpUnit()
+	}
+
+	/**
+	 * sqlite3's .dump: the plan is rebuilt from the schema on every page, and the cursor is "unit.offset", the
+	 * statement or row to start from in that step.
+	 */
+	private fun dump(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
+		val path = checkedPath(call, args)
+		val only =
+			when (val v = args.opt("table")) {
+				null, JSONObject.NULL -> null
+				is String -> v
+				else -> throw McpToolError("table must be a string.")
+			}
+		val cursor =
+			when (val v = args.opt("cursor")) {
+				null, JSONObject.NULL -> {
+					0 to 0L
+				}
+
+				is String -> {
+					val parts = v.split('.')
+					val unit = parts.getOrNull(0)?.toIntOrNull()
+					val offset = parts.getOrNull(1)?.toLongOrNull()
+					if (parts.size != 2 || unit == null || offset == null || unit < 0 || offset < 0) {
+						throw McpToolError("cursor must be a next_cursor from dump.")
+					}
+					unit to offset
+				}
+
+				else -> {
+					throw McpToolError("cursor must be a string.")
+				}
+			}
+		val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
+		val tables =
+			runChecked(
+				call,
+				path,
+				"SELECT name, sql FROM sqlite_master WHERE type = 'table' AND sql NOT NULL" +
+					(if (only != null) " AND name = ?" else "") + " ORDER BY name = 'sqlite_sequence', rowid",
+				if (only != null) Bind(listOf(only), null) else Bind.NONE,
+				0,
+				QueryLimits(MAX_ROWS, MAX_SCHEMA_SQL_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
+			)
+		if (tables.hasMore) throw McpToolError("The database has more than $MAX_ROWS tables; dump them one at a time with table.")
+		if (only != null && tables.rows.isEmpty()) throw McpToolError("No table named \"$only\".")
+		val units = mutableListOf<DumpUnit>(DumpUnit.Fixed(listOf("PRAGMA foreign_keys=OFF;", "BEGIN TRANSACTION;")))
+		var writableSchema = false
+		for (row in tables.rows) {
+			val name = row[0] as String
+			val sql = row[1] as String
+			when {
+				name == "sqlite_sequence" -> {
+					units += DumpUnit.Fixed(listOf("DELETE FROM sqlite_sequence;"))
+					units += DumpUnit.Rows(name)
+				}
+
+				name == "sqlite_stat1" -> {
+					units += DumpUnit.Fixed(listOf("ANALYZE sqlite_schema;"))
+					units += DumpUnit.Rows(name)
+				}
+
+				name.startsWith("sqlite_") -> {}
+
+				sql.regionMatches(0, "CREATE VIRTUAL TABLE", 0, 20, ignoreCase = true) -> {
+					// As the shell does: its shadow tables are dumped as tables, so it must not be created again.
+					val statements = mutableListOf<String>()
+					if (!writableSchema) statements += "PRAGMA writable_schema=ON;"
+					writableSchema = true
+					statements +=
+						"INSERT INTO sqlite_schema(type,name,tbl_name,rootpage,sql) VALUES('table'," +
+						"${ShellFormat.sqlLiteral(name)},${ShellFormat.sqlLiteral(name)},0,${ShellFormat.sqlLiteral(sql)});"
+					units += DumpUnit.Fixed(statements)
+				}
+
+				else -> {
+					units += DumpUnit.Fixed(listOf("$sql;"))
+					units += DumpUnit.Rows(name)
+				}
+			}
+		}
+		val others =
+			runChecked(
+				call,
+				path,
+				"SELECT sql FROM sqlite_master WHERE sql NOT NULL AND type IN ('index', 'trigger', 'view')" +
+					(if (only != null) " AND tbl_name = ?" else "") + " ORDER BY rowid",
+				if (only != null) Bind(listOf(only), null) else Bind.NONE,
+				0,
+				QueryLimits(MAX_ROWS, MAX_SCHEMA_SQL_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
+			)
+		if (others.hasMore) {
+			throw McpToolError("The database has more than $MAX_ROWS indexes, triggers and views; dump one table at a time.")
+		}
+		val tail = others.rows.map { "${it[0]};" }.toMutableList()
+		if (writableSchema) tail += "PRAGMA writable_schema=OFF;"
+		tail += "COMMIT;"
+		units += DumpUnit.Fixed(tail)
+
+		val out = JSONArray()
+		val cut = JSONArray()
+		var bytes = 0L
+		var unit = cursor.first
+		var offset = cursor.second
+		while (unit < units.size && out.length() < MAX_ROWS && bytes < MAX_TOTAL_BYTES) {
+			when (val u = units[unit]) {
+				is DumpUnit.Fixed -> {
+					while (offset < u.statements.size && out.length() < MAX_ROWS && bytes < MAX_TOTAL_BYTES) {
+						val st = u.statements[offset.toInt()]
+						out.put(st)
+						bytes += st.length
+						offset++
+					}
+					if (offset < u.statements.size) break
+				}
+
+				is DumpUnit.Rows -> {
+					val rows =
+						runChecked(
+							call,
+							path,
+							insertsFor(call, path, u.table, limits),
+							Bind.NONE,
+							offset,
+							QueryLimits(MAX_ROWS - out.length(), DUMP_STATEMENT_BYTES, MAX_BLOB_BYTES, (MAX_TOTAL_BYTES - bytes).toInt()),
+						)
+					rows.rows.forEachIndexed { r, row ->
+						if (rows.isTruncated(r, 0)) cut.put(out.length())
+						val st = row[0] as? String ?: ""
+						out.put(st)
+						bytes += st.length
+					}
+					offset += rows.rows.size
+					if (rows.hasMore) break
+				}
+			}
+			unit++
+			offset = 0
+		}
+		val complete = unit >= units.size
+		return JSONObject()
+			.put("sql", out)
+			.put("complete", complete)
+			.put("next_cursor", if (complete) JSONObject.NULL else "$unit.$offset")
+			.put("truncated_statements", cut)
+	}
+
+	/**
+	 * The SELECT that writes each row of [table] as an INSERT statement, in rowid order for a rowid table
+	 * (so paging is stable). quote() writes literals that read back the same (a REAL that would not, with
+	 * %!.15g, gets more digits). Generated columns are left out, with a column list, as the shell does.
+	 */
+	private fun insertsFor(
+		call: Call,
+		path: String,
+		table: String,
+		limits: QueryLimits,
+	): String {
+		val all = runChecked(call, path, "SELECT name, hidden FROM pragma_table_xinfo(?)", Bind(listOf(table), null), 0, limits).rows
+		// hidden 2 and 3: a virtual and a stored generated column
+		val columns = all.filter { it[1] != 2L && it[1] != 3L }.map { it[0] as String }
+		val withoutRowid =
+			runChecked(
+				call,
+				path,
+				"SELECT wr FROM pragma_table_list WHERE schema = 'main' AND name = ?",
+				Bind(listOf(table), null),
+				0,
+				limits,
+			)
+				.rows
+				.firstOrNull()
+				?.firstOrNull() == 1L
+		val target =
+			quoteIdentifier(table) +
+				if (columns.size < all.size) {
+					"(" + columns.joinToString(",") { quoteIdentifier(it) } + ")"
+				} else {
+					""
+				}
+		val values = columns.joinToString(" || ',' || ") { "quote(${quoteIdentifier(it)})" }
+		return "SELECT ${ShellFormat.sqlLiteral("INSERT INTO $target VALUES(")} || $values || ');' FROM ${quoteIdentifier(table)}" +
+			if (withoutRowid) "" else " ORDER BY _rowid_"
+	}
+
+	private fun export(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
+		val sql = stringArg(args, "sql")
+		val format = stringArg(args, "format")
+		if (format != "csv" && format != "insert") throw McpToolError("format must be csv or insert.")
+		val table =
+			when (val v = args.opt("table")) {
+				null, JSONObject.NULL -> "table"
+				is String -> v
+				else -> throw McpToolError("table must be a string.")
+			}
+		val header =
+			when (val v = args.opt("header")) {
+				null, JSONObject.NULL -> true
+				is Boolean -> v
+				else -> throw McpToolError("header must be true or false.")
+			}
+		val offset = intArg(args, "offset", 0, 0, Long.MAX_VALUE)
+		val maxRows = intArg(args, "max_rows", DEFAULT_MAX_ROWS.toLong(), 1, MAX_ROWS.toLong()).toInt()
+		val result =
+			run(
+				call,
+				args,
+				sql,
+				bindArgs(args),
+				offset,
+				QueryLimits(maxRows, EXPORT_VALUE_BYTES, EXPORT_VALUE_BYTES, MAX_TOTAL_BYTES),
+			)
+		val text = StringBuilder()
+		if (format == "csv") {
+			if (header && offset == 0L) text.append(result.columns.joinToString(",") { ShellFormat.csvField(it) }).append("\r\n")
+			for (row in result.rows) text.append(row.joinToString(",") { ShellFormat.csvField(it) }).append("\r\n")
+		} else {
+			for (row in result.rows) {
+				text.append("INSERT INTO ").append(quoteIdentifier(table)).append(" VALUES(")
+				text.append(row.joinToString(",") { ShellFormat.sqlLiteral(it) }).append(");\n")
+			}
+		}
+		val out =
+			JSONObject()
+				.put("text", text.toString())
+				.put("row_count", result.rows.size)
+				.put("offset", encodeLong(offset))
+				.put("has_more", result.hasMore)
+				.put("truncated_cells", result.truncatedCells)
+		if (result.hasMore) out.put("next_offset", encodeLong(offset + result.rows.size))
+		return out
 	}
 
 	private fun getEvents(args: JSONObject): JSONObject {
@@ -755,7 +1227,14 @@ class DatabaseTools internal constructor(
 		bind: Bind,
 		offset: Long,
 		limits: QueryLimits,
-	): QueryResult =
+	): QueryResult = onConnection(call, path) { it.query(sql, bind.values, bind.names, offset, limits, call.deadline) }
+
+	/** Runs [block] on the cached server connection to [path], opening it if needed, under [lock]. */
+	private fun <T> onConnection(
+		call: Call,
+		path: String,
+		block: (ServerConnection) -> T,
+	): T =
 		call.locked {
 			try {
 				val live = engine.connections()
@@ -770,7 +1249,7 @@ class DatabaseTools internal constructor(
 							if (ids.isEmpty()) throw unknownDatabase(path, knownPaths(live))
 							CachedConnection(engine.openServerConnection(path, writable = false), ids)
 						}.connection
-				conn.query(sql, bind.values, bind.names, offset, limits, call.deadline)
+				block(conn)
 			} catch (e: DebugEngineException) {
 				val error = engineError(e)
 				// The time limit counts the call's waits for the lock, so a quick query can run out of time

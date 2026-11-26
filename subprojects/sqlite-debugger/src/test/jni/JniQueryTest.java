@@ -422,6 +422,59 @@ public class JniQueryTest {
 
 		// the server connection is not listed
 		eq(((String[]) NativeBridge.connections()[1]).length, 1, "server not listed");
+		// The SQL the sqlite3 shell tools send (DatabaseTools, ADFA-7301), on this read-only server connection
+		eq(Helper.exec(app, "CREATE TABLE parent(id INTEGER PRIMARY KEY, code TEXT UNIQUE)"), 0, "fk parent");
+		eq(Helper.exec(app, "CREATE TABLE lines(id INTEGER PRIMARY KEY, pid INTEGER REFERENCES parent, x REAL)"), 0, "fk child");
+		eq(Helper.exec(app, "CREATE TABLE notes(id INTEGER PRIMARY KEY, pcode TEXT REFERENCES parent(code))"), 0, "fk child 2");
+		eq(Helper.exec(app, "CREATE INDEX notes_pcode ON notes(pcode)"), 0, "fk index");
+		eq(Helper.exec(app, "CREATE TABLE g(a INTEGER, b AS (a + 1), c TEXT) "), 0, "generated column");
+		eq(Helper.exec(app, "CREATE TABLE w(k TEXT PRIMARY KEY, v) WITHOUT ROWID"), 0, "without rowid");
+		eq(Helper.exec(app, "INSERT INTO lines VALUES(1, NULL, 0.1),(2, NULL, 1e300)"), 0, "fk rows");
+		r = q(srv, "SELECT s.name, f.id, f.\"table\", f.\"from\", f.\"to\" FROM sqlite_master AS s, "
+				+ "pragma_foreign_key_list(s.name) AS f WHERE s.type = 'table' ORDER BY s.name, f.id, f.seq");
+		eq(r.rows.size(), 2, "lint: both foreign keys listed");
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList("lines", 0L, "parent", "pid", null), "lint: a key naming no parent column");
+		eq(Arrays.asList(r.rows.get(1)), Arrays.asList("notes", 0L, "parent", "pcode", "code"), "lint: a key naming one");
+		r = query(srv, "SELECT name FROM pragma_table_info(?) WHERE pk > 0 ORDER BY pk", new Object[] {"parent"}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], "id", "lint: the parent's primary key");
+		r = query(srv, "EXPLAIN QUERY PLAN SELECT 1 FROM \"lines\" WHERE \"lines\".\"pid\"=?", new Object[] {null}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[3], "SCAN lines", "lint: an uncovered key scans the child");
+		r = query(srv, "EXPLAIN QUERY PLAN SELECT 1 FROM \"notes\" WHERE \"notes\".\"pcode\"=?", new Object[] {null}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[3], "SEARCH notes USING COVERING INDEX notes_pcode (pcode=?)", "lint: a covered key, as the shell's glob expects");
+		r = query(srv, "SELECT name, hidden FROM pragma_table_xinfo(?)", new Object[] {"g"}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(1)[1], 2L, "dump: a virtual generated column is hidden 2");
+		r = query(srv, "SELECT wr FROM pragma_table_list WHERE schema = 'main' AND name = ?", new Object[] {"w"}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], 1L, "dump: pragma_table_list knows WITHOUT ROWID");
+		r = q(srv, "SELECT 'INSERT INTO \"lines\" VALUES(' || quote(\"id\") || ',' || quote(\"pid\") || ',' || quote(\"x\") || ');' "
+				+ "FROM \"lines\" ORDER BY _rowid_");
+		eq(r.rows.get(0)[0], "INSERT INTO \"lines\" VALUES(1,NULL,0.1);", "dump: quote() keeps 0.1");
+		eq(r.rows.get(1)[0], "INSERT INTO \"lines\" VALUES(2,NULL,1.0e+300);", "dump: and 1e300");
+		r = q(srv, "SELECT 0, CAST(quote(x) AS REAL) = x FROM lines");
+		eq(r.rows.get(0)[1], 1L, "dump: a quoted REAL reads back the same");
+		r = q(srv, "SELECT type, count(*), total(length(sql)) FROM sqlite_master GROUP BY type");
+		check(r.rows.size() >= 2, "get_stats: schema objects by type");
+		eq(refusal(srv, "SELECT data FROM sqlite_dbpage WHERE pgno = 1"), "1 no such table: sqlite_dbpage",
+				"get_stats: this SQLite has no sqlite_dbpage, as requery's may not");
+		String[] ex = NativeBridge.suggestIndexes(srv, "SELECT * FROM lines WHERE x = 1; SELECT id FROM notes WHERE pcode = 'a'"
+				.getBytes(StandardCharsets.UTF_8), FAR);
+		eq(ex.length, 7, "suggest_indexes: candidates, then sql, indexes and plan for two statements");
+		check(ex[2] != null && ex[2].contains("CREATE INDEX") && ex[2].contains("lines(x)"), "suggest_indexes: an index on lines(x): " + ex[2]);
+		eq(ex[5], null, "suggest_indexes: notes_pcode already covers the second");
+		check(ex[6] != null && ex[6].contains("notes_pcode"), "suggest_indexes: its plan uses it: " + ex[6]);
+		try {
+			NativeBridge.suggestIndexes(srv, "SELECT 1\0".getBytes(StandardCharsets.UTF_8), FAR);
+			check(false, "suggest_indexes: a NUL was accepted");
+		} catch (DebugEngineException e) {
+			eq(e.sqliteCode, 1, "suggest_indexes: a NUL is refused");
+		}
+		try {
+			NativeBridge.suggestIndexes(srv, "SELECT 1".getBytes(StandardCharsets.UTF_8), 1);
+			check(false, "suggest_indexes: ran past its deadline");
+		} catch (DebugEngineException e) {
+			eq(e.sqliteCode, 9, "suggest_indexes: the deadline is SQLITE_INTERRUPT");
+		}
+		eq(((String[]) NativeBridge.connections()[1]).length, 1, "suggest_indexes: expert's connections are not listed");
+
 		NativeBridge.close(srv);
 
 		// the backstop: a writable connection that opens a transaction does not keep it

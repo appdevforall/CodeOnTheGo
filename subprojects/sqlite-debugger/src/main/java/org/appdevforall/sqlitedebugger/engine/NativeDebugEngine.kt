@@ -132,6 +132,16 @@ class NativeDebugEngine : DebugEngine {
 			)
 		}
 
+		override fun suggestIndexes(
+			sql: String,
+			deadlineMillis: Long,
+		): IndexSuggestions {
+			check(handle != 0L) { "the connection is closed" }
+			val r = NativeBridge.suggestIndexes(handle, sql.toByteArray(Charsets.UTF_8), deadlineMillis)
+			val statements = (0 until (r.size - 1) / 3).map { i -> StatementSuggestion(r[1 + 3 * i] ?: "", r[2 + 3 * i], r[3 + 3 * i]) }
+			return IndexSuggestions(r[0], statements)
+		}
+
 		override fun close() {
 			val h = handle
 			handle = 0

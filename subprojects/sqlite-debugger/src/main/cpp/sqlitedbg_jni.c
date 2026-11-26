@@ -14,6 +14,7 @@
 #include <time.h>
 
 #include "sqlite3ext.h"
+#include "expert/sqlite3expert.h"
 #include "sqlitedbg.h"
 
 SQLITE_EXTENSION_INIT3
@@ -627,6 +628,62 @@ done:
 	return result;
 }
 
+// Index suggestions: [candidates, then sql, indexes and plan for each statement] (sqlite3_expert_report).
+static jobjectArray bridge_suggest_indexes(JNIEnv *env, jclass cls, jlong handle, jbyteArray sql_utf8, jlong deadline_ms) {
+	(void)cls;
+	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
+	deadline dl = {(int64_t)deadline_ms, 0, 0};
+	sqlite3expert *ex = NULL;
+	char *err = NULL;
+	jobjectArray result = NULL;
+
+	if (now_ms() >= dl.at_ms) {
+		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the analysis started");
+		return NULL;
+	}
+	jsize len = (*env)->GetArrayLength(env, sql_utf8);
+	char *text = malloc((size_t)len + 1);
+	if (!text) {
+		throw_engine(env, SQLITE_NOMEM, "out of memory");
+		return NULL;
+	}
+	(*env)->GetByteArrayRegion(env, sql_utf8, 0, len, (jbyte *)text);
+	text[len] = 0;
+	if (memchr(text, 0, (size_t)len)) {
+		free(text);
+		throw_engine(env, SQLITE_ERROR, "the SQL holds a NUL character, and SQLite reads no further than it");
+		return NULL;
+	}
+	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
+	int rc = sqlitedbg_expert_run(db, text, progress_cb, &dl, &ex, &err);
+	sqlite3_progress_handler(db, 0, NULL, NULL);
+	free(text);
+	if (rc != SQLITE_OK) {
+		if (dl.hit) throw_engine(env, SQLITE_INTERRUPT, "the analysis ran past its time limit");
+		else throw_engine(env, rc, err ? err : sqlite3_errstr(rc));
+		sqlite3_free(err);
+		return NULL;
+	}
+	int n = sqlite3_expert_count(ex);
+	result = (*env)->NewObjectArray(env, 1 + 3 * n, g_string, NULL);
+	for (int i = -1; result && i < n; i++) {
+		static const int kinds[] = {EXPERT_REPORT_SQL, EXPERT_REPORT_INDEXES, EXPERT_REPORT_PLAN};
+		for (int k = 0; k < (i < 0 ? 1 : 3); k++) {
+			const char *r = sqlite3_expert_report(ex, i < 0 ? 0 : i, i < 0 ? EXPERT_REPORT_CANDIDATES : kinds[k]);
+			if (!r) continue;
+			jstring js = utf8_string(env, r, (int)strlen(r));
+			if (!js) {
+				result = NULL;
+				break;
+			}
+			(*env)->SetObjectArrayElement(env, result, i < 0 ? 0 : 1 + 3 * i + k, js);
+			(*env)->DeleteLocalRef(env, js);
+		}
+	}
+	sqlite3_expert_destroy(ex);
+	return result;
+}
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	(void)reserved;
 	JNIEnv *env;
@@ -667,6 +724,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	    {"openServer", "([BZ)J", (void *)bridge_open_server},
 	    {"setRowCapture", "(III)V", (void *)bridge_set_row_capture},
 	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;[[BJIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
+	    {"suggestIndexes", "(J[BJ)[Ljava/lang/String;", (void *)bridge_suggest_indexes},
 	    {"close", "(J)V", (void *)bridge_close},
 	};
 	jclass bridge = (*env)->FindClass(env, BRIDGE_CLASS);

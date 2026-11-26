@@ -12,6 +12,9 @@ class FakeDebugEngine(
 ) : DebugEngine {
 	val appConnections = mutableListOf<AppConnection>()
 
+	/** Answers suggestIndexes: the path and the SQL. */
+	var suggestAnswer: (path: String, sql: String) -> IndexSuggestions = { _, _ -> IndexSuggestions(null, emptyList()) }
+
 	override var runId = "run-1"
 		private set
 
@@ -158,6 +161,14 @@ class FakeDebugEngine(
 					truncatedCells = if (all.truncatedCellIndexes.isEmpty()) all.truncatedCells else cut.size,
 					truncatedCellIndexes = cut,
 				)
+			}
+
+			override fun suggestIndexes(
+				sql: String,
+				deadlineMillis: Long,
+			): IndexSuggestions {
+				check(!closed) { "closed" }
+				return suggestAnswer(path, sql)
 			}
 
 			override fun close() {

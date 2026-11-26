@@ -81,7 +81,33 @@ interface ServerConnection : Closeable {
 		limits: QueryLimits,
 		deadlineMillis: Long,
 	): QueryResult
+
+	/**
+	 * Index suggestions for [sql] (one or more statements) from SQLite's ext/expert (`sqlitedbg_expert_run`):
+	 * the statements are prepared, never run, and no row of the app's data is read, so the suggestions
+	 * rest on SQLite's default estimates. Stops at [deadlineMillis] like [query].
+	 *
+	 * @throws DebugEngineException for SQLite errors (SQL that does not prepare, for one) or the deadline.
+	 */
+	fun suggestIndexes(
+		sql: String,
+		deadlineMillis: Long,
+	): IndexSuggestions
 }
+
+data class IndexSuggestions(
+	/** The candidate indexes expert weighed, one CREATE INDEX per line with its estimate; null when none. */
+	val candidates: String?,
+	val statements: List<StatementSuggestion>,
+)
+
+data class StatementSuggestion(
+	val sql: String,
+	/** The CREATE INDEX statements that would help, one per line; null when none would. */
+	val indexes: String?,
+	/** EXPLAIN QUERY PLAN with those indexes, one line per step. */
+	val plan: String?,
+)
 
 data class AppConnection(
 	/** Unique within the process, never reused. */

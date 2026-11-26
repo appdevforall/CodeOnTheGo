@@ -627,6 +627,8 @@ int sqlitedbg_end_transaction(sqlite3 *db) {
 	return rc;
 }
 
+void sqlitedbg_private_open(int on) { tls_opening_server = on; }
+
 int sqlitedbg_open_server(const char *path, int writable, sqlite3 **db) {
 	*db = NULL;
 	pthread_mutex_lock(&g_lock);
