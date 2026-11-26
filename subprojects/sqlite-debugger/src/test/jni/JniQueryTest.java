@@ -181,6 +181,39 @@ public class JniQueryTest {
 		eq(shorter.code, 9, "a 400 ms deadline: SQLITE_INTERRUPT");
 		check(shorter.message != null && shorter.message.contains("time limit") && !shorter.message.contains("WAL"),
 				"the call's own deadline is reported as such: " + shorter.message);
+		// suggest_indexes with sampling reads the app's rows: the same cap, with a message about sampling. Without
+		// sampling it reads no rows and has no cap.
+		eq(Helper.exec(app, "CREATE TABLE big(a INTEGER, b INTEGER)"), 0, "a big table");
+		eq(Helper.exec(app, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 6000000) "
+				+ "INSERT INTO big SELECT x % 1000, x % 977 FROM c"), 0, "6,000,000 rows: sampling 3,000,000 took 1.3 s on a computer");
+		Ran sampled = new Ran();
+		Thread sampler = new Thread(() -> {
+			long t = System.currentTimeMillis();
+			try {
+				NativeBridge.suggestIndexes(srv, "SELECT * FROM big WHERE a = 1 AND b = 2".getBytes(StandardCharsets.UTF_8), 100,
+						System.currentTimeMillis() + 8000);
+			} catch (DebugEngineException e) {
+				sampled.code = e.sqliteCode;
+				sampled.message = e.getMessage();
+			}
+			sampled.ms = System.currentTimeMillis() - t;
+		});
+		sampler.start();
+		Thread.sleep(300);
+		t0 = System.currentTimeMillis();
+		eq(Helper.exec(app, "INSERT INTO t(id) VALUES(5002)"), 0, "the app commits while suggest_indexes samples");
+		commitMs = System.currentTimeMillis() - t0;
+		sampler.join();
+		check(commitMs < 2500, "the commit waited " + commitMs + " ms, under the busy timeout");
+		eq(sampled.code, 9, "sampling was interrupted: SQLITE_INTERRUPT");
+		check(sampled.message != null && sampled.message.contains("not in WAL mode") && sampled.message.contains("lower sample"),
+				"the message says why and what to do: " + sampled.message);
+		check(sampled.ms < 2500, "sampling stopped after " + sampled.ms + " ms");
+		String[] unsampled = NativeBridge.suggestIndexes(srv, "SELECT * FROM big WHERE a = 1 AND b = 2".getBytes(StandardCharsets.UTF_8), 0,
+				System.currentTimeMillis() + 8000);
+		check(unsampled[2] != null && unsampled[2].contains("big("), "without sampling: a suggestion, no cap: " + unsampled[2]);
+		Helper.exec(app, "DELETE FROM t WHERE id = 5002");
+		Helper.exec(app, "DROP TABLE big");
 		NativeBridge.close(srv);
 		Helper.close(app);
 
@@ -456,24 +489,27 @@ public class JniQueryTest {
 		eq(refusal(srv, "SELECT data FROM sqlite_dbpage WHERE pgno = 1"), "1 no such table: sqlite_dbpage",
 				"get_stats: this SQLite has no sqlite_dbpage, as requery's may not");
 		String[] ex = NativeBridge.suggestIndexes(srv, "SELECT * FROM lines WHERE x = 1; SELECT id FROM notes WHERE pcode = 'a'"
-				.getBytes(StandardCharsets.UTF_8), FAR);
+				.getBytes(StandardCharsets.UTF_8), 0, FAR);
 		eq(ex.length, 7, "suggest_indexes: candidates, then sql, indexes and plan for two statements");
 		check(ex[2] != null && ex[2].contains("CREATE INDEX") && ex[2].contains("lines(x)"), "suggest_indexes: an index on lines(x): " + ex[2]);
 		eq(ex[5], null, "suggest_indexes: notes_pcode already covers the second");
 		check(ex[6] != null && ex[6].contains("notes_pcode"), "suggest_indexes: its plan uses it: " + ex[6]);
 		try {
-			NativeBridge.suggestIndexes(srv, "SELECT 1\0".getBytes(StandardCharsets.UTF_8), FAR);
+			NativeBridge.suggestIndexes(srv, "SELECT 1\0".getBytes(StandardCharsets.UTF_8), 0, FAR);
 			check(false, "suggest_indexes: a NUL was accepted");
 		} catch (DebugEngineException e) {
 			eq(e.sqliteCode, 1, "suggest_indexes: a NUL is refused");
 		}
 		try {
-			NativeBridge.suggestIndexes(srv, "SELECT 1".getBytes(StandardCharsets.UTF_8), 1);
+			NativeBridge.suggestIndexes(srv, "SELECT 1".getBytes(StandardCharsets.UTF_8), 0, 1);
 			check(false, "suggest_indexes: ran past its deadline");
 		} catch (DebugEngineException e) {
 			eq(e.sqliteCode, 9, "suggest_indexes: the deadline is SQLITE_INTERRUPT");
 		}
 		eq(((String[]) NativeBridge.connections()[1]).length, 1, "suggest_indexes: expert's connections are not listed");
+		// sample 100: the statistics show a scan of two rows is cheap, so no index is suggested for lines(x)
+		ex = NativeBridge.suggestIndexes(srv, "SELECT * FROM lines WHERE x = 1".getBytes(StandardCharsets.UTF_8), 100, FAR);
+		eq(ex[2], null, "suggest_indexes: sampling changes the estimate");
 
 		NativeBridge.close(srv);
 

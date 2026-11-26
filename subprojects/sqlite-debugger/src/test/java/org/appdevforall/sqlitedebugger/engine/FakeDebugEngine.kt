@@ -15,6 +15,10 @@ class FakeDebugEngine(
 	/** Answers suggestIndexes: the path and the SQL. */
 	var suggestAnswer: (path: String, sql: String) -> IndexSuggestions = { _, _ -> IndexSuggestions(null, emptyList()) }
 
+	/** The sample of the last suggestIndexes. */
+	var lastSample: Int? = null
+		private set
+
 	override var runId = "run-1"
 		private set
 
@@ -165,9 +169,11 @@ class FakeDebugEngine(
 
 			override fun suggestIndexes(
 				sql: String,
+				sample: Int,
 				deadlineMillis: Long,
 			): IndexSuggestions {
 				check(!closed) { "closed" }
+				lastSample = sample
 				return suggestAnswer(path, sql)
 			}
 

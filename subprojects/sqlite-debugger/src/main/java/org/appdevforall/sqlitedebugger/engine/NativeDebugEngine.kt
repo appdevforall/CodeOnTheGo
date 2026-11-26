@@ -134,10 +134,12 @@ class NativeDebugEngine : DebugEngine {
 
 		override fun suggestIndexes(
 			sql: String,
+			sample: Int,
 			deadlineMillis: Long,
 		): IndexSuggestions {
 			check(handle != 0L) { "the connection is closed" }
-			val r = NativeBridge.suggestIndexes(handle, sql.toByteArray(Charsets.UTF_8), deadlineMillis)
+			require(sample in 0..100) { "sample $sample outside 0..100" }
+			val r = NativeBridge.suggestIndexes(handle, sql.toByteArray(Charsets.UTF_8), sample, deadlineMillis)
 			val statements = (0 until (r.size - 1) / 3).map { i -> StatementSuggestion(r[1 + 3 * i] ?: "", r[2 + 3 * i], r[3 + 3 * i]) }
 			return IndexSuggestions(r[0], statements)
 		}

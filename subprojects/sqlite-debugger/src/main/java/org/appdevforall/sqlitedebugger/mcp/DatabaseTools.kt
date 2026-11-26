@@ -357,11 +357,19 @@ class DatabaseTools internal constructor(
 				"suggest_indexes",
 				"Suggest indexes",
 				"Suggests indexes for one or more SQL statements, as the sqlite3 shell's .expert does (SQLite's ext/expert). " +
-					"The statements are prepared, never run, and no row of the app's data is read: the suggestions rest on " +
-					"SQLite's default estimates, not on the data, so check them with explain_query_plan. For each statement, " +
-					"indexes lists the CREATE INDEX statements that would help (empty when the existing ones suffice) and plan " +
-					"the query plan with them; candidates lists every index weighed. Nothing is created. $APP_FUNCTIONS_NOTE.",
-				databaseSchema("sql" to prop("string", "One or more SQL statements."), required = listOf("sql")),
+					"The statements are prepared, never run. By default (sample 0) no row of the app's data is read: the " +
+					"suggestions rest on SQLite's default estimates, which assume large tables, so on a small table they can " +
+					"name an index that would not help; check them with explain_query_plan. sample (1 to 100) reads that " +
+					"percentage of the rows of each table with a candidate index first, for estimates from the data: it costs " +
+					"a scan of those tables in the app, and on a database that is not in WAL mode it stops after 1.5 s (use " +
+					"a lower sample, or 0). For each statement, indexes lists the CREATE INDEX statements that would help " +
+					"(empty when the existing ones suffice) and plan the query plan with them; candidates lists every index " +
+					"weighed. Nothing is created. $APP_FUNCTIONS_NOTE.",
+				databaseSchema(
+					"sql" to prop("string", "One or more SQL statements."),
+					"sample" to prop("integer", "Percentage of rows to read for the estimates, 0 to 100. Default 0: none."),
+					required = listOf("sql"),
+				),
 			) { call, args -> suggestIndexes(call, args) },
 			tool(
 				"lint_foreign_keys",
@@ -717,8 +725,9 @@ class DatabaseTools internal constructor(
 		args: JSONObject,
 	): JSONObject {
 		val sql = stringArg(args, "sql")
+		val sample = intArg(args, "sample", 0, 0, 100).toInt()
 		val path = checkedPath(call, args)
-		val result = onConnection(call, path) { it.suggestIndexes(sql, call.deadline) }
+		val result = onConnection(call, path) { it.suggestIndexes(sql, sample, call.deadline) }
 
 		fun lines(text: String?) = JSONArray(text?.lines()?.map { it.trimEnd() }?.filter { it.isNotEmpty() } ?: emptyList<String>())
 		val statements = JSONArray()

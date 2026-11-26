@@ -90,6 +90,17 @@ class ShellToolsTest {
 		assertEquals(listOf("CREATE INDEX t_idx_1 ON t(a); -- stat1: 10 1"), r.getJSONArray("candidates").strings())
 	}
 
+	@Test fun suggestIndexesSamplesOnlyWhenAsked() {
+		ok("suggest_indexes", JSONObject().put("sql", "SELECT 1"))
+		assertEquals(0, engine.lastSample)
+		ok("suggest_indexes", JSONObject().put("sql", "SELECT 1").put("sample", 25))
+		assertEquals(25, engine.lastSample)
+		assertTrue(error("suggest_indexes", JSONObject().put("sql", "SELECT 1").put("sample", 101)).contains("between 0 and 100"))
+		assertTrue(error("suggest_indexes", JSONObject().put("sql", "SELECT 1").put("sample", -1)).contains("between 0 and 100"))
+		val description = tools.tools().single { it.name == "suggest_indexes" }.description
+		for (text in listOf("sample 0", "1.5 s", "explain_query_plan")) assertTrue(text, description.contains(text))
+	}
+
 	@Test fun suggestIndexesWithNothingToSuggestHasEmptyLists() {
 		engine.suggestAnswer = { _, sql -> IndexSuggestions(null, listOf(StatementSuggestion(sql, null, null))) }
 		val st = ok("suggest_indexes", JSONObject().put("sql", "SELECT 1")).getJSONArray("statements").getJSONObject(0)

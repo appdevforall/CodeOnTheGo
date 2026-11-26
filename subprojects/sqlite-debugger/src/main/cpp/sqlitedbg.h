@@ -236,14 +236,16 @@ int sqlitedbg_end_transaction(sqlite3 *db);
 // Index suggestions (sqlite3's .expert): runs SQLite's ext/expert (sqlitedbg_expert.c) over sql, one
 // or more statements, on the server connection db. Expert copies db's schema into two in-memory
 // connections of its own, which the extension neither lists nor traces, and only prepares sql on db,
-// never runs it. Sampling is off, so no row of the app's data is read and nothing is added to db; the
-// suggestions rest on SQLite's default estimates. progress (with arg) is set on expert's connections
+// never runs it. sample (0 to 100, clamped) is the percentage of rows expert reads, on db, to build
+// sqlite_stat1 for its estimates; for that run it also registers two functions and a temp table on db,
+// and drops them after. At 0 no row of the app's data is read and nothing is added to db; the
+// suggestions then rest on SQLite's default estimates. progress (with arg) is set on expert's connections
 // as on db, for the time limit; the caller sets db's own. On SQLITE_OK, *out holds the results, read
 // with sqlite3_expert_count and sqlite3_expert_report and freed with sqlite3_expert_destroy. Otherwise
 // *out is NULL and *errmsg may hold a message, freed with sqlite3_free.
 typedef struct sqlite3expert sqlite3expert;
-int sqlitedbg_expert_run(sqlite3 *db, const char *sql, int (*progress)(void *), void *arg, sqlite3expert **out,
-                         char **errmsg);
+int sqlitedbg_expert_run(sqlite3 *db, const char *sql, int sample, int (*progress)(void *), void *arg,
+                         sqlite3expert **out, char **errmsg);
 
 // Set around a connection the extension opens for itself (expert's), so it is not taken for the app's.
 void sqlitedbg_private_open(int on);

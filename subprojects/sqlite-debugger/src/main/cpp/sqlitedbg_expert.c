@@ -8,8 +8,8 @@ SQLITE_EXTENSION_INIT3
 #include "expert/sqlite3expert.c"
 #include "sqlitedbg.h"
 
-int sqlitedbg_expert_run(sqlite3 *db, const char *sql, int (*progress)(void *), void *arg, sqlite3expert **out,
-                         char **errmsg) {
+int sqlitedbg_expert_run(sqlite3 *db, const char *sql, int sample, int (*progress)(void *), void *arg,
+                         sqlite3expert **out, char **errmsg) {
 	*out = NULL;
 	*errmsg = NULL;
 	// expert opens two in-memory connections; the extension must not list or trace them as the app's
@@ -19,9 +19,10 @@ int sqlitedbg_expert_run(sqlite3 *db, const char *sql, int (*progress)(void *), 
 	if (!p) return SQLITE_ERROR;
 	sqlite3_progress_handler(p->dbv, 1000, progress, arg);
 	sqlite3_progress_handler(p->dbm, 1000, progress, arg);
-	// No sqlite_stat1 from the app's data: sampling reads every row of every indexed table on db, and
-	// registers functions and a temp table on it. Suggestions then rest on SQLite's default estimates.
-	int rc = sqlite3_expert_config(p, EXPERT_CONFIG_SAMPLE, 0);
+	// Sampling reads that percentage of the rows of every table with a candidate index, on db, and registers
+	// two functions and a temp table on db for the run (expert drops them after). At 0 nothing of the app's
+	// data is read, and suggestions rest on SQLite's default estimates.
+	int rc = sqlite3_expert_config(p, EXPERT_CONFIG_SAMPLE, sample < 0 ? 0 : sample > 100 ? 100 : sample);
 	// The handler runs every 1000 VM steps, which a small schema may never reach: check between steps too.
 	if (rc == SQLITE_OK) rc = progress(arg) ? SQLITE_INTERRUPT : sqlite3_expert_sql(p, sql, errmsg);
 	if (rc == SQLITE_OK) rc = progress(arg) ? SQLITE_INTERRUPT : sqlite3_expert_analyze(p, errmsg);

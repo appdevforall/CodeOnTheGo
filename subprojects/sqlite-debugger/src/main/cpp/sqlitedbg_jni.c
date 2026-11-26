@@ -221,6 +221,18 @@ static int is_wal_mode(sqlite3 *db) {
 	return wal;
 }
 
+// Brings d forward to SQLITEDBG_SERVER_NON_WAL_MS from now on a database that is not in WAL mode, and
+// marks it capped. Counted from after the mode check, which can wait on the app's lock.
+static void cap_non_wal(sqlite3 *db, deadline *d) {
+	if (now_ms() + SQLITEDBG_SERVER_NON_WAL_MS < d->at_ms && !is_wal_mode(db)) {
+		int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
+		if (cap_at < d->at_ms) {
+			d->at_ms = cap_at;
+			d->capped = 1;
+		}
+	}
+}
+
 static int progress_cb(void *p) {
 	deadline *d = (deadline *)p;
 	if (now_ms() < d->at_ms) return 0;
@@ -492,14 +504,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
 	// that is not in WAL mode: it holds a SHARED lock until the statement ends, and the app's commit gives
 	// up after requery's 2500 ms busy timeout (see SQLITEDBG_SERVER_NON_WAL_MS). The mode is read per call.
-	if (now_ms() + SQLITEDBG_SERVER_NON_WAL_MS < dl.at_ms && !is_wal_mode(db)) {
-		// counted from here, after the mode check, which can wait on the app's lock
-		int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
-		if (cap_at < dl.at_ms) {
-			dl.at_ms = cap_at;
-			dl.capped = 1;
-		}
-	}
+	cap_non_wal(db, &dl);
 
 	// SQLite checks the handler every 1000 virtual machine steps and stops the statement when it
 	// returns non-zero; it is cleared before this returns, so it never outlives `dl`.
@@ -628,7 +633,8 @@ done:
 }
 
 // Index suggestions: [candidates, then sql, indexes and plan for each statement] (sqlite3_expert_report).
-static jobjectArray bridge_suggest_indexes(JNIEnv *env, jclass cls, jlong handle, jbyteArray sql_utf8, jlong deadline_ms) {
+static jobjectArray bridge_suggest_indexes(JNIEnv *env, jclass cls, jlong handle, jbyteArray sql_utf8, jint sample,
+                                           jlong deadline_ms) {
 	(void)cls;
 	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
 	deadline dl = {(int64_t)deadline_ms, 0, 0};
@@ -653,12 +659,21 @@ static jobjectArray bridge_suggest_indexes(JNIEnv *env, jclass cls, jlong handle
 		throw_engine(env, SQLITE_ERROR, "the SQL holds a NUL character, and SQLite reads no further than it");
 		return NULL;
 	}
+	// Sampling reads the app's rows on db, holding its SHARED lock on a database not in WAL mode: the same cap as a query.
+	if (sample > 0) cap_non_wal(db, &dl);
 	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
-	int rc = sqlitedbg_expert_run(db, text, progress_cb, &dl, &ex, &err);
+	int rc = sqlitedbg_expert_run(db, text, sample, progress_cb, &dl, &ex, &err);
 	sqlite3_progress_handler(db, 0, NULL, NULL);
 	free(text);
 	if (rc != SQLITE_OK) {
-		if (dl.hit) throw_engine(env, SQLITE_INTERRUPT, "the analysis ran past its time limit");
+		if (dl.hit && dl.capped) {
+			char msg[256];
+			snprintf(msg, sizeof msg,
+			         "sampling was stopped after %.1f s: this database is not in WAL mode, so a longer read would block "
+			         "the app's own writes. Use a lower sample, or 0; a database in WAL mode has no such limit",
+			         SQLITEDBG_SERVER_NON_WAL_MS / 1000.0);
+			throw_engine(env, SQLITE_INTERRUPT, msg);
+		} else if (dl.hit) throw_engine(env, SQLITE_INTERRUPT, "the analysis ran past its time limit");
 		else throw_engine(env, rc, err ? err : sqlite3_errstr(rc));
 		sqlite3_free(err);
 		return NULL;
@@ -723,7 +738,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	    {"openServer", "([BZ)J", (void *)bridge_open_server},
 	    {"setRowCapture", "(III)V", (void *)bridge_set_row_capture},
 	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;[[BJIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
-	    {"suggestIndexes", "(J[BJ)[Ljava/lang/String;", (void *)bridge_suggest_indexes},
+	    {"suggestIndexes", "(J[BIJ)[Ljava/lang/String;", (void *)bridge_suggest_indexes},
 	    {"close", "(J)V", (void *)bridge_close},
 	};
 	jclass bridge = (*env)->FindClass(env, BRIDGE_CLASS);

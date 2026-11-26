@@ -84,13 +84,16 @@ interface ServerConnection : Closeable {
 
 	/**
 	 * Index suggestions for [sql] (one or more statements) from SQLite's ext/expert (`sqlitedbg_expert_run`):
-	 * the statements are prepared, never run, and no row of the app's data is read, so the suggestions
-	 * rest on SQLite's default estimates. Stops at [deadlineMillis] like [query].
+	 * the statements are prepared, never run. [sample] (0 to 100) is the percentage of rows read for the
+	 * estimates; at 0 no row of the app's data is read and the suggestions rest on SQLite's default
+	 * estimates. Stops at [deadlineMillis] like [query], and, when sampling a database not in WAL mode,
+	 * after `SQLITEDBG_SERVER_NON_WAL_MS`.
 	 *
 	 * @throws DebugEngineException for SQLite errors (SQL that does not prepare, for one) or the deadline.
 	 */
 	fun suggestIndexes(
 		sql: String,
+		sample: Int,
 		deadlineMillis: Long,
 	): IndexSuggestions
 }

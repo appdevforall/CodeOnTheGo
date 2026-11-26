@@ -1047,7 +1047,7 @@ static void test_expert(void) {
 
 	sqlite3expert *ex = NULL;
 	char *err = NULL;
-	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5; SELECT id FROM lines WHERE sku = 'a'",
+	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5; SELECT id FROM lines WHERE sku = 'a'", 0,
 	                              never_stop, NULL, &ex, &err),
 	         SQLITE_OK);
 	CHECK(err == NULL);
@@ -1082,14 +1082,28 @@ static void test_expert(void) {
 	CHECK_EQ(step_all(srv, "INSERT INTO orders(customer) VALUES(1)"), SQLITE_AUTH);
 
 	// errors come back with SQLite's message; the time limit stops the analysis
-	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM no_such_table", never_stop, NULL, &ex, &err) != SQLITE_OK);
+	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM no_such_table", 0, never_stop, NULL, &ex, &err) != SQLITE_OK);
 	CHECK(ex == NULL);
 	CHECK(err && strstr(err, "no_such_table"));
 	sqlite3_free(err);
 	err = NULL;
-	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5", always_stop, NULL, &ex, &err) != SQLITE_OK);
+	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5", 0, always_stop, NULL, &ex, &err) != SQLITE_OK);
 	CHECK(ex == NULL);
 	sqlite3_free(err);
+
+	// sample > 0 reads the rows on srv (the opt-in), and still leaves nothing behind on it
+	sampling = 0;
+	CHECK_EQ(sqlite3_trace_v2(srv, SQLITE_TRACE_STMT, sampling_trace, &sampling), SQLITE_OK);
+	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5", 100, never_stop, NULL, &ex, &err), SQLITE_OK);
+	CHECK(sampling > 0);
+	sqlite3_trace_v2(srv, 0, NULL, NULL);
+	sqlite3_expert_destroy(ex);
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_schema", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_rem(1, 1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK_EQ(list_conns(&l), before);
 
 	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
 	CHECK_EQ(list_conns(&l), before);

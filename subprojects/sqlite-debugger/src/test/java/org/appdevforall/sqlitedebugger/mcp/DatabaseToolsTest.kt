@@ -439,8 +439,9 @@ class DatabaseToolsTest {
 
 						override fun suggestIndexes(
 							sql: String,
+							sample: Int,
 							deadlineMillis: Long,
-						) = c.suggestIndexes(sql, deadlineMillis)
+						) = c.suggestIndexes(sql, sample, deadlineMillis)
 					}
 				}
 			}
@@ -475,8 +476,9 @@ class DatabaseToolsTest {
 
 					override fun suggestIndexes(
 						sql: String,
+						sample: Int,
 						deadlineMillis: Long,
-					) = c.suggestIndexes(sql, deadlineMillis)
+					) = c.suggestIndexes(sql, sample, deadlineMillis)
 				}
 			}
 		}
@@ -564,8 +566,9 @@ class DatabaseToolsTest {
 
 				override fun suggestIndexes(
 					sql: String,
+					sample: Int,
 					deadlineMillis: Long,
-				) = c.suggestIndexes(sql, deadlineMillis)
+				) = c.suggestIndexes(sql, sample, deadlineMillis)
 			}
 		}
 	}
