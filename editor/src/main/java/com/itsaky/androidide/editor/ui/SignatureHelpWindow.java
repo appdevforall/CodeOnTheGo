@@ -23,6 +23,7 @@ import android.text.SpannableStringBuilder;
 import android.text.style.ForegroundColorSpan;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.OneShotPreDrawListener;
 import com.itsaky.androidide.lsp.models.SignatureHelp;
 import com.itsaky.androidide.lsp.models.SignatureInformation;
 import com.itsaky.androidide.utils.ContextUtilsKt;
@@ -64,6 +65,8 @@ public class SignatureHelpWindow extends BaseEditorWindow {
 		return paren < 0 ? label : label.substring(0, paren);
 	}
 
+	private int activeSignatureStart;
+
 	/**
 	 * Create a signature help popup window for editor
 	 *
@@ -103,6 +106,12 @@ public class SignatureHelpWindow extends BaseEditorWindow {
 
 		this.text.setText(signatureText);
 		displayWindow();
+
+		final int activeStart = this.activeSignatureStart;
+		OneShotPreDrawListener.add(this.scrollView, () -> {
+			final var layout = this.text.getLayout();
+			this.scrollView.scrollTo(0, layout.getLineTop(layout.getLineForOffset(activeStart)));
+		});
 	}
 
 	@Nullable
@@ -130,9 +139,14 @@ public class SignatureHelpWindow extends BaseEditorWindow {
 			return null;
 		}
 
+		final var active = signatures.get(activeSignature);
+		activeSignatureStart = 0;
 		count = applicable.size();
 		for (var i = 0; i < count; i++) {
 			final var info = applicable.get(i);
+			if (info == active) {
+				activeSignatureStart = sb.length();
+			}
 			formatSignature(info, activeParameter, sb);
 			if (i != count - 1) {
 				sb.append('\n');
