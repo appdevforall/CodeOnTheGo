@@ -52,7 +52,7 @@ The layout of `sqlitedbg_event_record` lives in `sqlitedbg.h`. The JNI layer han
 - **JNI test:** when a JDK is on PATH, `test.sh` also builds `libsqlitedbg.so` as it ships (no `SQLITE_CORE`) against a requery-like `libsqlite3x.so` and runs `src/test/jni/JniQueryTest.java` through `NativeBridge`: paging, the total-bytes budget, per-cell truncation, bound types, one statement per call, the deadline, refused writes and transactions, and the rollback of a transaction left open. It uses Java stubs of `NativeBridge` and `DebugEngineException` instead of the Kotlin, so a JDK is all it needs; `test.sh` checks the native names match `NativeBridge.kt`. Otherwise it is skipped with a message. CI runs `test.sh` in `.github/workflows/test-sqlite-debugger.yml` for changes under this module.
 - **JVM tests:** `flox activate -d flox/local -- ./gradlew :subprojects:sqlite-debugger:testDebugUnitTest`. They cover `EventDecoder`, `McpProtocol`, `McpHttp`, `DatabaseTools` (with `FakeDebugEngine`) and `EndpointBroadcast`, its announce receiver included.
 
-`.github/workflows/test-sqlite-debugger.yml` runs `test.sh` (the C and JNI tests) on pull requests that touch the module or the SQLite headers. The JVM tests run in `.github/workflows/debug.yml`, in the step "Run sqlite-debugger unit tests" beside the `:plugin-api` one.
+`.github/workflows/test-sqlite-debugger.yml` runs `test.sh` (the C and JNI tests) on pull requests that touch the module or the SQLite headers. The JVM tests run in `.github/workflows/debug.yml`, in the job "Run checks (API, unit tests, Spotless)", step "Run sqlite-debugger unit tests", beside the `:plugin-api` one.
 
 ## Not done yet
 

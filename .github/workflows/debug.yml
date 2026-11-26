@@ -133,6 +133,89 @@ jobs:
 
           echo "Jira ticket $JIRA_TICKET exists"
 
+  # The checks run here, on a second runner at the same time as build_apk, instead of before the
+  # assemble (ADFA-6958). build_apk publishes nothing until this job has passed (its step "Wait
+  # for the checks to pass"), so "Build Universal APK", the check branch protection requires,
+  # still fails when a check fails.
+  checks:
+    name: Run checks (API, unit tests, Spotless)
+    runs-on: self-hosted
+    timeout-minutes: 30
+    needs: [ check_changes, validate_branch ]
+    if: needs.check_changes.outputs.must_build == 'true'
+    env:
+      INCLUDE_LLAMA_ASSETS: "false"
+
+    steps:
+
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Check if Nix is installed
+        run: |
+          if command -v nix >/dev/null 2>&1; then
+            echo "nix is installed"
+            echo "nix_installed=true" >> $GITHUB_ENV
+          else
+            echo "nix is not installed"
+            echo "nix_installed=false" >> $GITHUB_ENV
+          fi
+
+      - name: Install Flox
+        if: env.nix_installed == 'false'
+        uses: flox/install-flox-action@v2
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "google-services.json created successfully"
+
+      - name: Verify plugin-api binary compatibility
+        run: |
+          flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
+
+      # testDebugUnitTest, not testV8DebugUnitTest: :plugin-api declares no product flavors, so the
+      # v8 task every other module has does not exist here. Named as its own step rather than left
+      # to jacocoAggregateReport, which is not on the PR path at all.
+      - name: Run plugin-api unit tests
+        run: |
+          flox activate -d flox/base -- ./gradlew :plugin-api:testDebugUnitTest --no-daemon
+
+      # The SQLite debugger's Kotlin tests (EventDecoder, McpProtocol, McpHttp, DatabaseTools). Its own
+      # workflow, test-sqlite-debugger.yml, runs only test.sh (the C and JNI tests) on ubuntu-latest. Like
+      # :plugin-api it has no product flavors, so the task is testDebugUnitTest.
+      - name: Run sqlite-debugger unit tests
+        run: |
+          flox activate -d flox/base -- ./gradlew :subprojects:sqlite-debugger:testDebugUnitTest --no-daemon
+
+      # Combined with a compile task on purpose: spotlessCheck alone never pulls a
+      # source-tree-writing task into the graph, so the implicit-dependency failure ADFA-5244 fixed
+      # cannot reproduce in a standalone run. Without this step a regression of that exclude is
+      # invisible to CI and shows up only on a developer's machine at push time.
+      - name: Run spotlessCheck alongside a compile task
+        run: |
+          # Two tasks, so two possible causes: the message must not name one of them. Blaming
+          # Spotless for a compile error is the exact misdiagnosis this step exists to catch.
+          set +e
+          flox activate -d flox/base -- ./gradlew :common:compileV8DebugKotlin spotlessCheck --no-daemon
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Gradle failed on ':common:compileV8DebugKotlin spotlessCheck'. If the output above shows formatting violations, run './gradlew spotlessApply' locally and commit the result; if it shows a compile error, spotlessApply will not help. The Gradle output says which."
+            exit "$status"
+          fi
+
+      - name: Cleanup google-services.json
+        if: always()
+        run: |
+          rm -f app/google-services.json
+          echo "google-services.json cleaned up successfully"
+
   build_apk:
     name: Build Universal APK
     runs-on: self-hosted
@@ -192,41 +275,6 @@ jobs:
         run: |
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
           echo "google-services.json created successfully"
-
-      - name: Verify plugin-api binary compatibility
-        run: |
-          flox activate -d flox/base -- ./gradlew :plugin-api:apiCheck --no-daemon
-
-      # testDebugUnitTest, not testV8DebugUnitTest: :plugin-api declares no product flavors, so the
-      # v8 task every other module has does not exist here. Named as its own step rather than left
-      # to jacocoAggregateReport, which is not on the PR path at all.
-      - name: Run plugin-api unit tests
-        run: |
-          flox activate -d flox/base -- ./gradlew :plugin-api:testDebugUnitTest --no-daemon
-
-      # The SQLite debugger's Kotlin tests (EventDecoder, McpProtocol, McpHttp, DatabaseTools). Its own
-      # workflow, test-sqlite-debugger.yml, runs only test.sh (the C and JNI tests) on ubuntu-latest. Like
-      # :plugin-api it has no product flavors, so the task is testDebugUnitTest.
-      - name: Run sqlite-debugger unit tests
-        run: |
-          flox activate -d flox/base -- ./gradlew :subprojects:sqlite-debugger:testDebugUnitTest --no-daemon
-
-      # Combined with a compile task on purpose: spotlessCheck alone never pulls a
-      # source-tree-writing task into the graph, so the implicit-dependency failure ADFA-5244 fixed
-      # cannot reproduce in a standalone run. Without this step a regression of that exclude is
-      # invisible to CI and shows up only on a developer's machine at push time.
-      - name: Run spotlessCheck alongside a compile task
-        run: |
-          # Two tasks, so two possible causes: the message must not name one of them. Blaming
-          # Spotless for a compile error is the exact misdiagnosis this step exists to catch.
-          set +e
-          flox activate -d flox/base -- ./gradlew :common:compileV8DebugKotlin spotlessCheck --no-daemon
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ]; then
-            echo "::error::Gradle failed on ':common:compileV8DebugKotlin spotlessCheck'. If the output above shows formatting violations, run './gradlew spotlessApply' locally and commit the result; if it shows a compile error, spotlessApply will not help. The Gradle output says which."
-            exit "$status"
-          fi
 
       - name: Install advancecomp (advzip, used by recompressApk)
         run: |
@@ -335,6 +383,37 @@ jobs:
           echo "JIRA_TICKET=$JIRA_TICKET" >> $GITHUB_OUTPUT
           echo "JIRA_TITLE=$JIRA_TITLE" >> $GITHUB_OUTPUT
           echo "JIRA_URL=$JIRA_URL" >> $GITHUB_OUTPUT
+
+      # Publish nothing until the checks job has passed. It started with this job and is much
+      # shorter, so this normally returns at once. filter=latest: after "Re-run failed jobs", the
+      # checks job's newest attempt counts, not the failed one.
+      - name: Wait for the checks to pass
+        env:
+          CHECKS_JOB: Run checks (API, unit tests, Spotless)
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100"
+          deadline=$((SECONDS + 30 * 60))
+          while :; do
+            state=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$url" \
+              | jq -r --arg name "$CHECKS_JOB" '.jobs[] | select(.name == $name) | "\(.status) \(.conclusion)"') || state=""
+            case "$state" in
+              "completed success")
+                echo "The checks passed."
+                exit 0
+                ;;
+              completed\ *)
+                echo "::error::The job '$CHECKS_JOB' ended with '${state#completed }', so nothing was published. Its log shows which check failed."
+                exit 1
+                ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Gave up after 30 minutes waiting for the job '$CHECKS_JOB' (last state: '${state:-not found}'), so nothing was published."
+              exit 1
+            fi
+            echo "Job '$CHECKS_JOB': ${state:-not found yet}; checking again in 15 s"
+            sleep 15
+          done
 
       - name: Authenticate to Google Cloud via Workload Identity
         uses: google-github-actions/auth@v2
