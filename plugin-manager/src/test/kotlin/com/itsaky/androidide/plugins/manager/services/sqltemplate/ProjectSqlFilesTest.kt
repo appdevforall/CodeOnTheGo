@@ -121,6 +121,24 @@ class ProjectSqlFilesTest {
 	}
 
 	@Test
+	fun `a schema file nested too deep is skipped and the others are still found`() {
+		val depth = ProjectSqlFiles.MAX_JSON_DEPTH * 2
+		val head = """{"formatVersion": 1, "database": {"version": 1, "identityHash": "h", "entities": ["""
+		val deep = head + "[".repeat(depth) + "]".repeat(depth) + "]}}"
+		write("app/schemas/com.example.Deep/1.json", deep)
+		write("app/schemas/com.example.Fine/1.json", schema(1, "ok"))
+		assertThat(ProjectSqlFiles.roomSchemas(root).map { it.className }).containsExactly("com.example.Fine")
+	}
+
+	@Test
+	fun `past the limit, the entries kept are the first in the documented order, wherever the walk met them`() {
+		val per = ProjectSqlFiles.MAX_MATCHES * 3 / 4
+		for (dir in listOf("a", "z")) for (i in 0 until per) write("$dir/t$i.sql.peb", "x")
+		val all = (listOf("a", "z").flatMap { d -> (0 until per).map { "$d/t$it.sql.peb" } }).sorted()
+		assertThat(ProjectSqlFiles.templates(root)).containsExactlyElementsIn(all.take(ProjectSqlFiles.MAX_MATCHES)).inOrder()
+	}
+
+	@Test
 	fun `readBounded refuses a link, a folder and a file over the limit`() {
 		val real = write("real.txt", "hello")
 		assertThat(ProjectSqlFiles.readBounded(real)).isEqualTo("hello")
