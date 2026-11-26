@@ -329,4 +329,12 @@ class TemplateVariablesTest {
 		val room = call(JSONObject().put("database", "/data/app.db")).getJSONArray("databases").getJSONObject(0).getJSONObject("room")
 		assertEquals(listOf("room_master_table", "room_table_modification_log"), room.getJSONArray("own_tables").values())
 	}
+
+	@Test fun aPageThatIsEmptyButSaysThereIsMoreMarksTheResultTruncated() {
+		engine.answer = roomSchema
+		engine.rawPage = { _, sql ->
+			if (sql.startsWith("SELECT name, type, wr")) QueryResult(listOf("name", "type", "wr"), emptyList(), 0, true) else null
+		}
+		assertTrue(call(JSONObject().put("database", "/data/app.db")).getBoolean("truncated"))
+	}
 }

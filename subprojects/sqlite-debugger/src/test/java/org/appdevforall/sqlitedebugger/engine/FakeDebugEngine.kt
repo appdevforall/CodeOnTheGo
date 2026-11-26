@@ -10,6 +10,8 @@ class FakeDebugEngine(
 		QueryResult(emptyList(), emptyList(), 0, false)
 	},
 ) : DebugEngine {
+	var rawPage: (path: String, sql: String) -> QueryResult? = { _, _ -> null }
+
 	val appConnections = mutableListOf<AppConnection>()
 
 	/** Answers suggestIndexes: the path and the SQL. */
@@ -144,6 +146,8 @@ class FakeDebugEngine(
 				check(!closed) { "closed" }
 				lastArgNames = argNames
 				queries += sql to limits
+				// A page exactly as given, for an answer the paging rule below cannot produce (an empty page with hasMore).
+				rawPage(path, sql)?.let { return it }
 				val all = answer(path, writable, sql, args)
 				val skip = offset.toInt().coerceAtMost(all.rows.size)
 				val rest = all.rows.drop(skip)

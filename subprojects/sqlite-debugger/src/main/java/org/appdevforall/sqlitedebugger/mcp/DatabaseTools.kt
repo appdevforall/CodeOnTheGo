@@ -957,7 +957,12 @@ class DatabaseTools internal constructor(
 			while (true) {
 				val page = runChecked(call, path, sql, Bind.NONE, all.size.toLong(), limits)
 				all.addAll(page.rows)
-				if (!page.hasMore || page.rows.isEmpty()) return all
+				if (!page.hasMore) return all
+				if (page.rows.isEmpty()) {
+					// More was promised but none came: the list may be short.
+					truncated = true
+					return all
+				}
 				if (all.size >= MAX_TEMPLATE_ROWS) {
 					truncated = true
 					return all.subList(0, MAX_TEMPLATE_ROWS)
