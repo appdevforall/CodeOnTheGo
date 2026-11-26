@@ -7,6 +7,10 @@ import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import com.itsaky.androidide.plugins.services.RoomSchema
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 
 /** Finds the SQL templates and Room's exported schemas in a project (ADFA-7302). Plain JVM, unit-tested without Android. */
 internal object ProjectSqlFiles {
@@ -38,6 +42,28 @@ internal object ProjectSqlFiles {
 				val text = runCatching { file.readText() }.getOrNull() ?: return@mapNotNull null
 				parseRoomSchema(text, file.parentFile!!.name, relative(root, file))
 			}.sortedWith(compareBy({ it.className }, { it.version }))
+
+	/** [file] is over [MAX_FILE_BYTES]. */
+	class TooLarge : IOException("larger than ${MAX_FILE_BYTES / (1024 * 1024)} MiB")
+
+	/**
+	 * [file]'s text (UTF-8), if it is a regular file (not a link, FIFO or device, which could block the read) of at most
+	 * [MAX_FILE_BYTES]. The size is not taken from the file system: at most that many bytes plus one are read.
+	 *
+	 * @throws TooLarge for a longer file
+	 * @throws IOException for anything else that stops the read
+	 */
+	@Throws(IOException::class)
+	fun readBounded(file: File): String {
+		val path = file.toPath()
+		val attributes = Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+		if (!attributes.isRegularFile) throw IOException("not a regular file")
+		Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS).use { input ->
+			val bytes = input.readNBytes((MAX_FILE_BYTES + 1).toInt())
+			if (bytes.size > MAX_FILE_BYTES) throw TooLarge()
+			return String(bytes, Charsets.UTF_8)
+		}
+	}
 
 	/**
 	 * A Room schema file, or null if it is not one: Room writes `formatVersion` and a `database` with `version` and

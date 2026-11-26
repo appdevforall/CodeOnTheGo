@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.manager.services.sqltemplate
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
@@ -117,5 +118,21 @@ class ProjectSqlFilesTest {
 		write("sqlite/notes.peb", "not sql")
 		write("build/out.sql.peb", "copied")
 		assertThat(ProjectSqlFiles.templates(root)).containsExactly("app/sqlite/a.sql.peb", "sqlite/report.sql.peb").inOrder()
+	}
+
+	@Test
+	fun `readBounded refuses a link, a folder and a file over the limit`() {
+		val real = write("real.txt", "hello")
+		assertThat(ProjectSqlFiles.readBounded(real)).isEqualTo("hello")
+		val link = File(root, "link.txt")
+		Files.createSymbolicLink(link.toPath(), real.toPath())
+		assertThrows(java.io.IOException::class.java) { ProjectSqlFiles.readBounded(link) }
+		assertThrows(java.io.IOException::class.java) { ProjectSqlFiles.readBounded(File(root, "nope")) }
+		val folder = File(root, "dir").apply { mkdirs() }
+		assertThrows(java.io.IOException::class.java) { ProjectSqlFiles.readBounded(folder) }
+		val exact = write("exact.txt", "a".repeat(ProjectSqlFiles.MAX_FILE_BYTES.toInt()))
+		assertThat(ProjectSqlFiles.readBounded(exact)).hasLength(ProjectSqlFiles.MAX_FILE_BYTES.toInt())
+		val over = write("over.txt", "a".repeat(ProjectSqlFiles.MAX_FILE_BYTES.toInt() + 1))
+		assertThrows(ProjectSqlFiles.TooLarge::class.java) { ProjectSqlFiles.readBounded(over) }
 	}
 }

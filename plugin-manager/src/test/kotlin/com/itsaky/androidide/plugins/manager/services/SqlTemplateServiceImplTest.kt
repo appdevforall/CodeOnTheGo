@@ -2,6 +2,7 @@ package com.itsaky.androidide.plugins.manager.services
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.plugins.PluginPermission
+import com.itsaky.androidide.plugins.manager.services.sqltemplate.ProjectSqlFiles
 import com.itsaky.androidide.plugins.services.SqlTemplateException
 import org.junit.After
 import org.junit.Assert.assertThrows
@@ -25,6 +26,8 @@ class SqlTemplateServiceImplTest {
 		project: File? = root,
 		mainThread: Boolean = false,
 	) = SqlTemplateServiceImpl("p", permissions, { project }, { mainThread }, { Instant.parse("2026-11-26T12:00:00Z") })
+
+	private fun SqlTemplateServiceImpl.renderPlain(path: String) = render(path, emptyMap<String, Any>(), emptyMap(), 1000)
 
 	private fun template(
 		path: String,
@@ -53,7 +56,23 @@ class SqlTemplateServiceImplTest {
 
 	@Test
 	fun `refuses the main thread`() {
-		assertThrows(IllegalStateException::class.java) { service(mainThread = true).listTemplates() }
+		template("t.sql.peb", "SELECT 1")
+		val onMain = service(mainThread = true)
+		assertThrows(IllegalStateException::class.java) { onMain.listTemplates() }
+		assertThrows(IllegalStateException::class.java) { onMain.getRoomSchemas() }
+		assertThrows(IllegalStateException::class.java) { onMain.render("t.sql.peb", emptyMap<String, Any>(), emptyMap(), 1000) }
+	}
+
+	/** Runs [block] on a thread of its own and fails if it has not finished in 5 s, as a read of a FIFO would not. */
+	private fun <T> within5s(block: () -> T): T {
+		val result =
+			java.util.concurrent.atomic
+				.AtomicReference<Result<T>>()
+		val thread = Thread { result.set(runCatching(block)) }.apply { isDaemon = true }
+		thread.start()
+		thread.join(5_000)
+		check(result.get() != null) { "still running after 5 s" }
+		return result.get().getOrThrow()
 	}
 
 	@Test
@@ -69,6 +88,47 @@ class SqlTemplateServiceImplTest {
 		assertThrows(IllegalArgumentException::class.java) {
 			service().render(File(outside, "x.peb").path, emptyMap<String, Any>(), emptyMap(), 1000)
 		}
+	}
+
+	@Test
+	fun `a template that is a FIFO is refused, not read`() {
+		val fifo = File(root, "x.sql.peb")
+		val made = ProcessBuilder("mkfifo", fifo.path).start().waitFor() == 0
+		org.junit.Assume.assumeTrue("mkfifo is not available", made)
+		val service = service()
+		val e = assertThrows(SqlTemplateException::class.java) { within5s { service.renderPlain("x.sql.peb") } }
+		assertThat(e).hasMessageThat().contains("x.sql.peb could not be read: not a regular file")
+	}
+
+	@Test
+	fun `a folder named like a template is refused`() {
+		File(root, "d.sql.peb").mkdirs()
+		val e = assertThrows(SqlTemplateException::class.java) { service().render("d.sql.peb", emptyMap<String, Any>(), emptyMap(), 1000) }
+		assertThat(e).hasMessageThat().contains("d.sql.peb could not be read")
+	}
+
+	@Test
+	fun `a template larger than the limit is refused by what is read, not by the size the file system reports`() {
+		template("big.sql.peb", "a".repeat(ProjectSqlFiles.MAX_FILE_BYTES.toInt() + 1))
+		val e = assertThrows(SqlTemplateException::class.java) { service().renderPlain("big.sql.peb") }
+		assertThat(e).hasMessageThat().contains("big.sql.peb is larger than 8 MiB")
+	}
+
+	@Test
+	fun `a link to a template inside the project is read through to the template`() {
+		template("real.sql.peb", "SELECT 7")
+		Files.createSymbolicLink(File(root, "alias.sql.peb").toPath(), File(root, "real.sql.peb").toPath())
+		assertThat(service().render("alias.sql.peb", emptyMap<String, Any>(), emptyMap(), 1000)).isEqualTo("SELECT 7")
+	}
+
+	@Test
+	fun `a NUL in the path or the project folder is the documented error, not an IOException`() {
+		template("t.sql.peb", "SELECT 1")
+		assertThrows(IllegalArgumentException::class.java) { service().renderPlain("a\u0000b.sql.peb") }
+		val nul = File("/tmp/pro\u0000ject")
+		assertThrows(IllegalStateException::class.java) { service(project = nul).listTemplates() }
+		assertThrows(IllegalStateException::class.java) { service(project = nul).getRoomSchemas() }
+		assertThrows(IllegalStateException::class.java) { service(project = nul).renderPlain("t.sql.peb") }
 	}
 
 	@Test

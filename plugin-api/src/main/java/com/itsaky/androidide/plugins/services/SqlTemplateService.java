@@ -67,7 +67,7 @@ public interface SqlTemplateService {
 	 * The render runs on a thread of its own, with one time limit for the whole render, functions included. When it passes, that thread is interrupted (a function in progress should stop) and this throws.
 	 *
 	 * @param templatePath
-	 *            the template, relative to the project root (as {@link #listTemplates} gives it); its name must end in {@code .peb}, and it must be inside the project once links are resolved
+	 *            the template, relative to the project root (as {@link #listTemplates} gives it); its name must end in {@code .peb}, it must have no NUL character, and it must be inside the project once links are resolved; the file must be a regular file of at most 8 MiB
 	 * @param variables
 	 *            the variables, by name (not {@code project} or {@code render_time})
 	 * @param functions
@@ -76,13 +76,13 @@ public interface SqlTemplateService {
 	 *            the time limit, from 1 to {@link #MAX_TIMEOUT_MILLIS}
 	 * @return the SQL, at most 4 Mi characters
 	 * @throws SqlTemplateException
-	 *             if the template cannot be read or rendered, a function fails, or the time limit passes
+	 *             if the template cannot be read (it is not a regular file, such as a FIFO, or is larger than 8 MiB) or rendered, a function fails, or the time limit passes
 	 * @throws IllegalArgumentException
-	 *             for a path outside the project or not ending in {@code .peb}, a reserved or invalid name, a value of another type, or a time limit out of range
+	 *             for a path outside the project, not ending in {@code .peb} or with a NUL, a reserved or invalid name, a value of another type, or a time limit out of range
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
-	 *             if called on the main thread, or when no project is open
+	 *             if called on the main thread, when no project is open, or when the project folder cannot be resolved
 	 * @throws InterruptedException
 	 *             if the calling thread is interrupted while it waits for the render, which is then stopped
 	 */

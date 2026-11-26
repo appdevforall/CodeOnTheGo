@@ -32,15 +32,17 @@ internal class SqlTemplateServiceImpl(
 	@Throws(InterruptedException::class)
 	override fun getRoomSchemas(): List<RoomSchema> {
 		checkCaller("getRoomSchemas")
-		val root = projectRootProvider() ?: return emptyList()
-		return Collections.unmodifiableList(ProjectSqlFiles.roomSchemas(root.canonicalFile))
+		val root = projectRoot() ?: return emptyList()
+		val found = ProjectSqlFiles.roomSchemas(root)
+		return Collections.unmodifiableList(found)
 	}
 
 	@Throws(InterruptedException::class)
 	override fun listTemplates(): List<String> {
 		checkCaller("listTemplates")
-		val root = projectRootProvider() ?: return emptyList()
-		return Collections.unmodifiableList(ProjectSqlFiles.templates(root.canonicalFile))
+		val root = projectRoot() ?: return emptyList()
+		val found = ProjectSqlFiles.templates(root)
+		return Collections.unmodifiableList(found)
 	}
 
 	@Throws(SqlTemplateException::class, InterruptedException::class)
@@ -51,17 +53,16 @@ internal class SqlTemplateServiceImpl(
 		timeoutMillis: Long,
 	): String {
 		checkCaller("render")
-		val root = (projectRootProvider() ?: throw IllegalStateException("No project is open")).canonicalFile
+		val root = projectRoot() ?: throw IllegalStateException("No project is open")
 		val file = templateFile(root, templatePath)
 		for (name in SqlTemplateRenderer.RESERVED_VARIABLES) {
 			require(name !in variables) { "\"$name\" is set by Code on the Go; use another name" }
 		}
-		if (file.length() > ProjectSqlFiles.MAX_FILE_BYTES) {
-			throw SqlTemplateException("$templatePath is larger than ${ProjectSqlFiles.MAX_FILE_BYTES / (1024 * 1024)} MiB", null)
-		}
 		val text =
 			try {
-				file.readText()
+				ProjectSqlFiles.readBounded(file)
+			} catch (e: ProjectSqlFiles.TooLarge) {
+				throw SqlTemplateException("$templatePath is ${e.message}", null)
 			} catch (e: IOException) {
 				throw SqlTemplateException("$templatePath could not be read: ${e.message}", e)
 			}
@@ -71,14 +72,35 @@ internal class SqlTemplateServiceImpl(
 		return SqlTemplateRenderer.render(templatePath, text, all, functions, timeoutMillis)
 	}
 
-	/** The template, which must name a `.peb` file inside [root] once links are resolved. */
+	/** The open project's folder with links resolved, or null when none is open. */
+	private fun projectRoot(): File? {
+		val root = projectRootProvider() ?: return null
+		return try {
+			root.canonicalFile
+		} catch (e: IOException) {
+			throw IllegalStateException("The project folder cannot be resolved: ${e.message}", e)
+		}
+	}
+
+	/**
+	 * The template, which must name a `.peb` file inside [root] once links are resolved. The file is then read by this
+	 * resolved path, without following a link at its last step and only if it is a regular file, so a template that is a
+	 * FIFO or a link cannot block or redirect the read. A swap of a folder on the path between this check and the read
+	 * needs write access to the project, which already lets a plugin write a template, so it is not guarded against.
+	 */
 	private fun templateFile(
 		root: File,
 		templatePath: String,
 	): File {
+		require('\u0000' !in templatePath) { "A template's path has no NUL character" }
 		require(templatePath.endsWith(".peb")) { "A template's name ends in .peb: $templatePath" }
 		require(!File(templatePath).isAbsolute) { "The template path is relative to the project root: $templatePath" }
-		val file = File(root, templatePath).canonicalFile
+		val file =
+			try {
+				File(root, templatePath).canonicalFile
+			} catch (e: IOException) {
+				throw IllegalArgumentException("$templatePath is not a usable path: ${e.message}", e)
+			}
 		require(file.path.startsWith(root.path + File.separator)) { "$templatePath is outside the project" }
 		return file
 	}
