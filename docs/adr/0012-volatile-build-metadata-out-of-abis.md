@@ -106,9 +106,13 @@ Two related changes follow from the same invariant:
   `kapt.include.compile.classpath=false` in `gradle.properties` makes it use the
   ABI-normalised one, so they no longer reach kapt in the 12 library modules of the APK
   build. Annotation processors must then be declared with `kapt(...)`; kapt no longer
-  finds them on the compile classpath. `:app`'s kapt still re-runs on every commit,
-  because the version name, which changes with each commit, goes into `:app`'s
-  `BuildConfig`.
+  finds them on the compile classpath.
+- `:app`'s own `BuildConfig` held the version name and code, which change with each
+  commit and each hour, so `:app`'s kapt, compiles and dexing re-ran on every commit.
+  Since ADFA-6954, build-logic's `GenerateAppBuildConfigTask` generates that class in
+  place of AGP's, with the same fields minus those two. The version stays in the
+  manifest. Code reads the version name from `BuildInfo.VERSION_NAME_SIMPLE`, and the
+  name and code from `PackageManager`.
 
 ## Alternatives considered
 

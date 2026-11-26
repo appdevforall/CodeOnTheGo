@@ -26,6 +26,7 @@ import com.android.build.gradle.BaseExtension
 import com.itsaky.androidide.build.config.BuildConfig
 import com.itsaky.androidide.build.config.projectVersionCode
 import com.itsaky.androidide.build.config.simpleVersionName
+import com.itsaky.androidide.plugins.tasks.GenerateAppBuildConfigTask
 import com.itsaky.androidide.plugins.util.SdkUtils.getAndroidJar
 import org.gradle.api.GradleException
 import org.gradle.api.Project
@@ -175,15 +176,6 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 // 		}
 
 		if (":app" == project.path) {
-			flavorsAbis.forEach { (abi, _) ->
-				// the common defaultConfig, not the flavor-specific
-				defaultConfig.buildConfigField(
-					"String",
-					"ABI_${abi.replace('-', '_').uppercase()}",
-					"\"${abi}\"",
-				)
-			}
-
 			extensions.getByType(ApplicationAndroidComponentsExtension::class.java).apply {
 				onVariants { variant ->
 					variant.outputs.forEach { output ->
@@ -292,7 +284,33 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 		testOptions { unitTests.isIncludeAndroidResources = true }
 
 		buildFeatures.viewBinding = true
-		buildFeatures.buildConfig = true
+		// :app gets its BuildConfig from GenerateAppBuildConfigTask instead, without the version, so a
+		// new commit doesn't recompile :app (ADFA-6954). AGP rejects buildConfigField while its
+		// BuildConfig is off: add new :app fields to the task's stringFields.
+		val generatesOwnBuildConfig = project.path == ":app"
+		buildFeatures.buildConfig = !generatesOwnBuildConfig
+		if (generatesOwnBuildConfig) {
+			project.registerAppBuildConfig()
+		}
+	}
+}
+
+private fun Project.registerAppBuildConfig() {
+	extensions.getByType(ApplicationAndroidComponentsExtension::class.java).onVariants { variant ->
+		val task =
+			tasks.register(
+				"generate${variant.name.replaceFirstChar { it.uppercase() }}AppBuildConfig",
+				GenerateAppBuildConfigTask::class.java,
+			) {
+				packageName.set(variant.namespace)
+				debuggable.set(variant.debuggable)
+				applicationId.set(variant.applicationId)
+				buildTypeName.set(variant.buildType)
+				flavorName.set(variant.flavorName.orEmpty())
+				stringFields.set(flavorsAbis.keys.associateBy { "ABI_${it.replace('-', '_').uppercase()}" })
+			}
+		// Also sets the task's outputDir, to build/generated/java/<task name>.
+		variant.sources.java?.addGeneratedSourceDirectory(task, GenerateAppBuildConfigTask::outputDir)
 	}
 }
 
