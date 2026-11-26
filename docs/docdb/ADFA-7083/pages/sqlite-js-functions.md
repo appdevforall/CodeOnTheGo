@@ -15,6 +15,8 @@ An error in your JavaScript, such as a thrown exception or a syntax error, becom
 
 In the code you pass, a **function expression** is a JavaScript function written inside parentheses, like `(function (args) { ... })`. Every `js_create_` function returns `0` when it succeeds.
 
+If the database keeps your functions and the new one cannot be stored, a `js_create_` function fails, as described in When a function cannot be stored.
+
 A function cannot be redefined in a session that already has it: you get `Function updates must be performed using a separate database connection.` To change one, close `sqlite3`, open it again and create the new version first, without calling `js_init_table(1)`, which would create the old one. If the database keeps your functions, the new version replaces the stored one, and `js_init_table(1)` creates it in your next session.
 
 ### js_create_scalar
@@ -140,6 +142,34 @@ SELECT name, kind FROM js_functions;
 
 > Call `js_init_table(1)` only on databases you trust. It runs the JavaScript that the database stores.
 
+### When a function cannot be stored
+
+If the table `js_functions` exists but sqlite-js cannot write the new function to it, the `js_create_` function fails. The error starts with `The function was registered on this connection, but it could not be stored in js_functions:` and ends with the reason from SQLite. This happens when:
+
+- The database is read-only: you opened it with `sqlite3 -readonly` or `.open --readonly`, or `PRAGMA query_only` is on. The reason is `attempt to write a readonly database`.
+- Another program is writing to the database. The reason is `database is locked`.
+
+After this error, the function still works until you close `sqlite3`. It is not stored, so `js_init_table(1)` in your next session does not create it. If `js_functions` already held a function of that name, it still holds that one, and `js_init_table(1)` creates that older version.
+
+A `js_functions` table that `js_init_table()` did not make, and that lacks one of its columns, gives no error: the `js_create_` function returns `0` and stores nothing.
+
+```sql
+PRAGMA query_only = ON;
+SELECT js_create_scalar('half', '(function (args) { return args[0] / 2; })');
+-- Error: could not be stored in js_functions: attempt to write a readonly database
+SELECT half(10);
+-- 5
+PRAGMA query_only = OFF;
+SELECT name FROM js_functions;
+-- twice
+```
+
+To store the function, remove the cause, close `sqlite3`, open it again and create the function again. Creating it again in the same session fails, because the session already has it.
+
+A function that is already stored with the same code needs no write, so creating it succeeds even on a read-only database. A database without the table `js_functions` stores nothing, so this error cannot happen there.
+
+sqlite-js 1.4.4 and later report this error. Versions 1.4.2 and 1.4.3 return `0` instead, and the function is missing in your next session.
+
 ## Read files
 
 ### js_load_text and js_load_blob
@@ -178,11 +208,11 @@ js_version()
 js_version(1)
 ```
 
-`js_version()` returns the version of sqlite-js. `js_version(1)` returns the version of the JavaScript engine, quickjs-ng.
+`js_version()` returns the version of sqlite-js that you have, such as `1.4.4`. `js_version(1)` returns the version of the JavaScript engine, quickjs-ng.
 
 ```sql
 SELECT js_version();
--- 1.4.2
+-- 1.4.4
 ```
 
 ## What changed in sqlite-js 1.4
@@ -205,6 +235,14 @@ sqlite-js 1.4.2 has more fixes, several of them sent or reported by App Dev For 
 - Code that calls itself without end fails instead of crashing `sqlite3` in more cases. If the stack has no limit, `js_set_max_stack_size` allows at most 1 MB.
 - JavaScript that runs out of memory while much of its memory is garbage no longer fails again on every try.
 - A query that computes a JavaScript window function no longer crashes `sqlite3` when JavaScript drops its result set partway.
+
+sqlite-js 1.4.4 reports three errors that 1.4.3 and earlier versions hide:
+
+- A `js_create_` function fails when the database keeps your functions but the new one cannot be stored, as on a read-only database. Before, it returned `0`, and the function was missing in the next session. See When a function cannot be stored.
+- An error while sqlite-js builds the array of arguments for your function, or a row for `toArray()`, fails the call with that error. Before, the function ran with fewer arguments, or `toArray()` returned fewer or shorter rows. Such an error is rare: JavaScript ran out of memory, or code put a setter on `Array.prototype`.
+- Text that SQLite has no memory left to convert fails the call with `out of memory`. Before, `sqlite3` crashed.
+
+sqlite-js 1.4.3 changed nothing that you can see in `sqlite3`.
 
 ## Credits
 

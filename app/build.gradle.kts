@@ -736,11 +736,13 @@ androidComponents.onVariants { variant ->
 }
 
 tasks.register("downloadDocDb") {
+	// Task.project is deprecated at execution time, so resolve the destination while configuring.
+	val docDbDir = rootProject.projectDir.resolve("assets")
 	doLast {
 		val githubRepo = "appdevforall/OfflineDocumentationTools"
 		val latestReleaseApiUrl = "https://api.github.com/repos/$githubRepo/releases/latest"
 
-		project.logger.lifecycle("Fetching latest release metadata...")
+		logger.lifecycle("Fetching latest release metadata...")
 		try {
 			val jsonResponse = URI(latestReleaseApiUrl).toURL().readText()
 			val jsonObject = JSONObject(jsonResponse)
@@ -761,22 +763,19 @@ tasks.register("downloadDocDb") {
 
 			val dbName = "documentation.db"
 			if (assetUrl != null && assetName != null) {
-				val destinationPath =
-					project.rootProject.projectDir
-						.resolve("assets/$dbName")
-						.toPath()
+				val destinationPath = docDbDir.resolve(dbName).toPath()
 
-				project.logger.lifecycle("Downloading : $assetUrl as $destinationPath")
+				logger.lifecycle("Downloading : $assetUrl as $destinationPath")
 
 				URL(assetUrl).openStream().use { input ->
 					Files.copy(input, destinationPath, StandardCopyOption.REPLACE_EXISTING)
 					println("Download complete: $destinationPath")
 				}
 			} else {
-				project.logger.lifecycle("No `.sqlite` asset found in the latest release.")
+				logger.lifecycle("No `.sqlite` asset found in the latest release.")
 			}
 		} catch (e: Exception) {
-			project.logger.lifecycle("Failed to fetch documentation.db info: ${e.message}")
+			logger.lifecycle("Failed to fetch documentation.db info: ${e.message}")
 		}
 	}
 }
@@ -1069,6 +1068,9 @@ tasks.register("assembleAssets") {
 }
 
 tasks.register("recompressApk") {
+	// Task.project is deprecated at execution time, so read the properties while configuring.
+	val abiProperty = providers.gradleProperty("recompressAbi")
+	val buildNameProperty = providers.gradleProperty("recompressBuildName")
 	doLast {
 		// abi/buildName are set by the assemble finalizers below; the project
 		// properties allow a standalone run against an already-built APK:
@@ -1078,14 +1080,14 @@ tasks.register("recompressApk") {
 			if (extraProps.has("abi")) {
 				extraProps["abi"].toString()
 			} else {
-				project.findProperty("recompressAbi")?.toString()
+				abiProperty.orNull
 					?: error("recompressApk: set -PrecompressAbi=v7|v8")
 			}
 		val buildName: String =
 			if (extraProps.has("buildName")) {
 				extraProps["buildName"].toString()
 			} else {
-				project.findProperty("recompressBuildName")?.toString()
+				buildNameProperty.orNull
 					?: error("recompressApk: set -PrecompressBuildName=debug|release")
 			}
 		val noCompressExtensions =
@@ -1098,13 +1100,13 @@ tasks.register("recompressApk") {
 				noCompressRelease
 			}
 
-		project.logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
+		logger.lifecycle("Calling recompressApk abi:$abi buildName:$buildName")
 
 		val start = System.nanoTime()
 		recompressApk(abi, buildName, noCompressExtensions)
 		val durationMs = "%.2f".format((System.nanoTime() - start) / 1_000_000.0)
 
-		project.logger.lifecycle("recompressApk completed in ${durationMs}ms")
+		logger.lifecycle("recompressApk completed in ${durationMs}ms")
 	}
 }
 

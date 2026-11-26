@@ -37,9 +37,9 @@ tasks.register("deleteExistingJarFiles") {
 }
 
 tasks.register("copyJar") {
+	// Task.project is deprecated at execution time, so resolve the directory while configuring.
+	val libsDir = project.layout.buildDirectory.dir("libs")
 	doLast {
-		val libsDir = project.layout.buildDirectory.dir("libs")
-
 		copy {
 			from(libsDir)
 			into(libsDir)

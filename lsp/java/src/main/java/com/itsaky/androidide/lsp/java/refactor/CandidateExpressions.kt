@@ -200,7 +200,7 @@ private fun isCaseLabel(path: TreePath): Boolean {
 	while (current != null) {
 		val leaf = current.leaf
 		if (leaf is StatementTree && leaf !is CaseTree) return false
-		if (leaf is CaseTree) return leaf.body !== child
+		if (leaf is CaseTree) return leaf.ruleBody !== child
 		child = leaf
 		current = current.parentPath
 	}

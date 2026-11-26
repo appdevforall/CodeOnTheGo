@@ -138,7 +138,7 @@ internal fun KaSession.buildCandidate(
 	if (declared != null && (declared !is KtProperty || outputs.writtenAfter.isNotEmpty())) {
 		return refuse(ExtractionRefusal.OutputNotReturnable(declared.name.orEmpty()))
 	}
-	val output = declared as? KtProperty
+	val output: KtProperty? = declared
 	// The tail-return exception holds only when nothing else flows out (R8).
 	if (tailReturn && output != null) return refuse(ExtractionRefusal.ExitsRegion)
 
@@ -356,7 +356,7 @@ private fun KaSession.capturedParameters(
 		// resolves. The ancestor test below already lets every selector resolving to a non-local member
 		// through, which is what a guard would have bought.
 		val resolved =
-			runCatching { reference.mainReference?.resolveToSymbols()?.firstOrNull() }.getOrNull() ?: continue
+			runCatching { reference.mainReference.resolveToSymbols().firstOrNull() }.getOrNull() ?: continue
 		val name = reference.getReferencedName()
 
 		// A local class or object is not a callable, so it used to fail the cast below and be silently
@@ -538,8 +538,8 @@ private fun KaSession.outputsOf(
 private fun KaSession.resolvedPsi(reference: KtSimpleNameExpression): PsiElement? =
 	runCatching {
 		reference.mainReference
-			?.resolveToSymbols()
-			?.firstOrNull()
+			.resolveToSymbols()
+			.firstOrNull()
 			?.psi
 	}.getOrNull()
 
@@ -556,7 +556,7 @@ private fun KaSession.reassignedOuterVar(
 		if (!reference.isWriteTarget()) continue
 		val symbol =
 			runCatching {
-				(reference.mainReference?.resolveToSymbols()?.firstOrNull() as? KaVariableSymbol)?.takeIf { !it.isVal }
+				(reference.mainReference.resolveToSymbols().firstOrNull() as? KaVariableSymbol)?.takeIf { !it.isVal }
 			}.getOrNull() ?: continue
 		val declarationPsi = runCatching { symbol.psi }.getOrNull() ?: continue
 		if (!PsiTreeUtil.isAncestor(enclosing, declarationPsi, true)) continue
@@ -763,7 +763,7 @@ private fun KaSession.usesBackingField(
 	if (enclosing !is KtPropertyAccessor) return false
 	return simpleNamesIn(elements).any { reference ->
 		reference.getReferencedName() == BACKING_FIELD_NAME &&
-			runCatching { reference.mainReference?.resolveToSymbols()?.firstOrNull() }.getOrNull() is KaBackingFieldSymbol
+			runCatching { reference.mainReference.resolveToSymbols().firstOrNull() }.getOrNull() is KaBackingFieldSymbol
 	}
 }
 
@@ -804,8 +804,8 @@ private fun KaSession.innerImplicitReceiver(
 		val symbol =
 			runCatching {
 				thisExpression.instanceReference.mainReference
-					?.resolveToSymbols()
-					?.firstOrNull()
+					.resolveToSymbols()
+					.firstOrNull()
 			}.getOrNull()
 		val lambda = lambdaOwning(symbol) ?: continue
 		if (isBoundOutsideRegion(enclosing, lambda, span)) return constructNameFor(lambda)
@@ -836,11 +836,19 @@ private fun KaSession.implicitReceiverLambdaFor(reference: KtSimpleNameExpressio
 		// Defensive only. A compound assignment (`n += 1` inside `apply { }`) redirects to the whole
 		// compound access, but the resolver flags that redirect and still hands back a plain variable
 		// access, so the branch above already catches it in this version.
-		val applied =
-			call?.successfulCallOrNull<KaCallableMemberCall<*, *>>()?.partiallyAppliedSymbol
-				?: call?.successfulCallOrNull<KaCompoundVariableAccessCall>()?.variableCall?.partiallyAppliedSymbol
-				?: call?.successfulCallOrNull<KaCompoundArrayAccessCall>()?.getterCall?.partiallyAppliedSymbol
-		receiverLambda(applied?.dispatchReceiver) ?: receiverLambda(applied?.extensionReceiver)
+		// The variable and getter calls carry their receivers themselves; their partiallyAppliedSymbol is
+		// deprecated.
+		val receivers =
+			call?.successfulCallOrNull<KaCallableMemberCall<*, *>>()?.partiallyAppliedSymbol?.let {
+				it.dispatchReceiver to it.extensionReceiver
+			}
+				?: call?.successfulCallOrNull<KaCompoundVariableAccessCall>()?.variableCall?.let {
+					it.dispatchReceiver to it.extensionReceiver
+				}
+				?: call?.successfulCallOrNull<KaCompoundArrayAccessCall>()?.getterCall?.let {
+					it.dispatchReceiver to it.extensionReceiver
+				}
+		receiverLambda(receivers?.first) ?: receiverLambda(receivers?.second)
 	}.getOrNull()
 
 private fun receiverLambda(receiver: KaReceiverValue?): KtFunctionLiteral? = lambdaOwning((receiver as? KaImplicitReceiverValue)?.symbol)
