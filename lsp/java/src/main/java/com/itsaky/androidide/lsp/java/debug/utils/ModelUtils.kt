@@ -58,7 +58,7 @@ fun Location.asLspLocation(useDeclTypeName: Boolean = true): LspLocation {
 					logger.info("No source found for location: {}", this)
 				}
 
-				return@mapNotNull fo as SourceFileObject?
+				return@mapNotNull fo
 			}?.firstOrNull() // TODO: Maybe allow the user to choose which source file to open?
 
 	val source =

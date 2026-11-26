@@ -61,7 +61,7 @@
 		android:layout_height="wrap_content"
 		android:layout_below="@id/header_container" />
 
-	<androidx.legacy.widget.Space
+	<Space
 		android:id="@+id/space_bottom"
 		android:layout_width="match_parent"
 		android:layout_height="wrap_content"

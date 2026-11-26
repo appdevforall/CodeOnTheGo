@@ -495,6 +495,8 @@ class ExternalLanguageServer(
 	private fun initializeParams(): InitializeParams =
 		InitializeParams().apply {
 			val root = workspaceRoot?.toPath()
+			// LSP deprecates rootUri for workspaceFolders, but servers that predate folders read only rootUri.
+			@Suppress("DEPRECATION")
 			rootUri = root?.toLspUri()
 			workspaceFolders = root?.let { listOf(WorkspaceFolder(it.toLspUri(), it.fileName.toString())) }
 			initializationOptions = this@ExternalLanguageServer.initializationOptions.takeIf { it.isNotEmpty() }

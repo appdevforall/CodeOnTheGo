@@ -178,4 +178,15 @@ class BundledAddonsRecordTest {
 
 		assertThat(BundledAddonsRecord.inFilesDir(filesDir)).isSameInstanceAs(BundledAddonsRecord.inFilesDir(File(filesDir, ".")))
 	}
+
+	@Test
+	fun `a folder whose path cannot be made canonical still gets a record`() {
+		// A NUL in the path makes File.canonicalPath throw IOException ("Invalid file path").
+		val filesDir = File(tempFolder.root, "files\u0000broken")
+
+		val record = BundledAddonsRecord.inFilesDir(filesDir)
+
+		assertThat(record).isSameInstanceAs(BundledAddonsRecord.inFilesDir(filesDir))
+		assertThat(record.unreportedFailures()).isEmpty()
+	}
 }

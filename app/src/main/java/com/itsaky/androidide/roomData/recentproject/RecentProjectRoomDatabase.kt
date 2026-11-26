@@ -8,11 +8,13 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 
-@Database(entities = [RecentProject::class, RecentProjectMaintenance::class], version = 5, exportSchema = false)
+@Database(entities = [RecentProject::class, RecentProjectMaintenance::class, DebuggerEndpoint::class], version = 6, exportSchema = false)
 abstract class RecentProjectRoomDatabase : RoomDatabase() {
 	abstract fun recentProjectDao(): RecentProjectDao
 
 	abstract fun maintenanceDao(): RecentProjectMaintenanceDao
+
+	abstract fun debuggerEndpointDao(): DebuggerEndpointDao
 
 	fun vacuum() {
 		val db = openHelper.writableDatabase
@@ -82,6 +84,21 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
 				}
 			}
 
+		internal val migration5To6 =
+			object : Migration(5, 6) {
+				override fun migrate(db: SupportSQLiteDatabase) {
+					db.execSQL(
+						"CREATE TABLE IF NOT EXISTS `debugger_endpoint_table` (`application_id` TEXT NOT NULL, `project_location` TEXT NOT NULL, `token` TEXT, `port` INTEGER, `updated_at` INTEGER, PRIMARY KEY(`application_id`), FOREIGN KEY(`project_location`) REFERENCES `recent_project_table`(`location`) ON UPDATE CASCADE ON DELETE CASCADE )",
+					)
+					db.execSQL(
+						"CREATE INDEX IF NOT EXISTS `index_debugger_endpoint_table_project_location` ON `debugger_endpoint_table` (`project_location`)",
+					)
+				}
+			}
+
+		internal val migrations: Array<Migration>
+			get() = arrayOf(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6)
+
 		fun getDatabase(
 			context: Context,
 			scope: CoroutineScope,
@@ -93,7 +110,7 @@ abstract class RecentProjectRoomDatabase : RoomDatabase() {
 						RecentProjectRoomDatabase::class.java,
 						"RecentProject_database",
 					).addCallback(RecentProjectRoomDatabaseCallback(context, scope))
-					.addMigrations(migration1To2, migration2To3, migration3To4, migration4To5)
+					.addMigrations(*migrations)
 					.build()
 					.also { instance = it }
 			}
