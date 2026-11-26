@@ -13,6 +13,7 @@ import java.io.IOException
 import java.time.Instant
 import java.util.Collections
 import java.util.EnumSet
+import java.util.concurrent.CancellationException
 
 /**
  * The [SqlTemplateService] the plugin manager registers for each plugin (ADFA-7302). It is gated on
@@ -25,15 +26,22 @@ internal class SqlTemplateServiceImpl(
 	private val projectRootProvider: () -> File?,
 	private val isMainThread: () -> Boolean = { Looper.myLooper() == Looper.getMainLooper() },
 	private val clock: () -> Instant = Instant::now,
+	/** False for a plugin saved as disabled: it stays closed through its own initialize() until [reopen]. */
+	startOpen: Boolean = true,
 ) : SqlTemplateService {
 	private val permissions: Set<PluginPermission> =
 		Collections.unmodifiableSet(EnumSet.noneOf(PluginPermission::class.java).apply { addAll(permissions) })
+
+	// Set by close, cleared by reopen. A disabled plugin keeps its services, and any thread it left running.
+	@Volatile
+	private var closed = !startOpen
 
 	@Throws(InterruptedException::class)
 	override fun getRoomSchemas(): List<RoomSchema> {
 		checkCaller("getRoomSchemas")
 		val root = projectRoot() ?: return emptyList()
 		val found = ProjectSqlFiles.roomSchemas(root)
+		requireOpen()
 		return Collections.unmodifiableList(found)
 	}
 
@@ -42,6 +50,7 @@ internal class SqlTemplateServiceImpl(
 		checkCaller("listTemplates")
 		val root = projectRoot() ?: return emptyList()
 		val found = ProjectSqlFiles.templates(root)
+		requireOpen()
 		return Collections.unmodifiableList(found)
 	}
 
@@ -69,7 +78,24 @@ internal class SqlTemplateServiceImpl(
 		val all = LinkedHashMap<String, Any?>(variables)
 		all["project"] = mapOf("name" to root.name, "path" to root.path)
 		all["render_time"] = clock().toString()
-		return SqlTemplateRenderer.render(templatePath, text, all, functions, timeoutMillis)
+		val sql = SqlTemplateRenderer.render(templatePath, text, all, functions, timeoutMillis)
+		// Again after the render: a plugin disabled while it ran gets no SQL either.
+		requireOpen()
+		return sql
+	}
+
+	/**
+	 * Refuses every later call, and one still running when it ends, with [CancellationException] until [reopen], as
+	 * [DebuggerEndpointServiceImpl.close] does. Called when the plugin is disabled or unloaded. A render already in progress
+	 * is not stopped: it ends at its own time limit.
+	 */
+	fun close() {
+		closed = true
+	}
+
+	/** Lets calls through again after [close]. Called when the plugin is enabled. */
+	fun reopen() {
+		closed = false
 	}
 
 	/** The open project's folder with links resolved, or null when none is open. */
@@ -105,12 +131,17 @@ internal class SqlTemplateServiceImpl(
 		return file
 	}
 
+	private fun requireOpen() {
+		if (closed) throw CancellationException("Plugin $pluginId is disabled or unloaded")
+	}
+
 	private fun checkCaller(method: String) {
 		if (PluginPermission.DEBUGGER_ENDPOINTS !in permissions) {
 			throw SecurityException(
 				"Plugin $pluginId does not have required permissions: ${PluginPermission.DEBUGGER_ENDPOINTS.name}",
 			)
 		}
+		requireOpen()
 		check(!isMainThread()) { "SqlTemplateService.$method() reads the project's files; call it off the main thread" }
 	}
 }

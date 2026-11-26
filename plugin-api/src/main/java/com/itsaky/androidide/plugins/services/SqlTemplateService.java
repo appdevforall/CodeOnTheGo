@@ -14,7 +14,7 @@ import java.util.Map;
  * Every render also gets {@code project} ({@code name} and {@code path}, the project root) and {@code render_time} (ISO 8601, UTC). Caller variables may not use those names.
  *
  * <p>
- * The host registers this service for every plugin; a call needs the {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws {@link SecurityException} without it. Calls read the project's files, so call from a background thread: on the main thread they throw {@link IllegalStateException}.
+ * The host registers this service for every plugin; a call needs the {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws {@link SecurityException} without it. The service outlives a disable, so it is closed instead: after the plugin is disabled or unloaded every call throws {@link java.util.concurrent.CancellationException} until the plugin is enabled again. Calls read the project's files, so call from a background thread: on the main thread they throw {@link IllegalStateException}.
  */
 public interface SqlTemplateService {
 
@@ -34,6 +34,8 @@ public interface SqlTemplateService {
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
 	 *             if called on the main thread
+	 * @throws java.util.concurrent.CancellationException
+	 *             if the plugin has been disabled or unloaded, until it is enabled again; also when a call already running finds it so at its end
 	 * @throws InterruptedException
 	 *             if the calling thread is interrupted while the project is read
 	 */
@@ -48,6 +50,8 @@ public interface SqlTemplateService {
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
 	 *             if called on the main thread
+	 * @throws java.util.concurrent.CancellationException
+	 *             if the plugin has been disabled or unloaded, until it is enabled again; also when a call already running finds it so at its end
 	 * @throws InterruptedException
 	 *             if the calling thread is interrupted while the project is read
 	 */
@@ -83,6 +87,8 @@ public interface SqlTemplateService {
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
 	 *             if called on the main thread, when no project is open, or when the project folder cannot be resolved
+	 * @throws java.util.concurrent.CancellationException
+	 *             if the plugin has been disabled or unloaded, until it is enabled again; also when a call already running finds it so at its end
 	 * @throws InterruptedException
 	 *             if the calling thread is interrupted while it waits for the render, which is then stopped
 	 */

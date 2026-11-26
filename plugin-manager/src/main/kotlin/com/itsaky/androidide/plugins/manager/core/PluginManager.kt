@@ -828,6 +828,7 @@ class PluginManager private constructor(
 			Result.failure(RuntimeException("Error loading plugin: $prefix${e.message}", e))
 		} finally {
 			notLoadedContext?.debuggerEndpointService()?.close()
+			notLoadedContext?.sqlTemplateService()?.close()
 		}
 	}
 
@@ -906,6 +907,7 @@ class PluginManager private constructor(
 		try {
 			// First: a later step can throw and end the unload.
 			loadedPlugin.context.debuggerEndpointService()?.close()
+			loadedPlugin.context.sqlTemplateService()?.close()
 
 			// Remove documentation if plugin implements DocumentationExtension
 			if (loadedPlugin.plugin is DocumentationExtension) {
@@ -1236,10 +1238,12 @@ class PluginManager private constructor(
 		// The services outlive a disable, which closed the terminal and SQLite debugger endpoint services.
 		(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.reopen()
 		loadedPlugin.context.debuggerEndpointService()?.reopen()
+		loadedPlugin.context.sqlTemplateService()?.reopen()
 		// An unload that ran since the lookup above already closed these services; close them again.
 		// Enable, disable and unload are still not serialized with each other (out of scope here).
 		if (loadedPlugins[pluginId] !== loadedPlugin) {
 			loadedPlugin.context.debuggerEndpointService()?.close()
+			loadedPlugin.context.sqlTemplateService()?.close()
 			(loadedPlugin.context.services.get(IdeTerminalService::class.java) as? IdeTerminalServiceImpl)?.cancelAll()
 			logger.warn("Plugin $pluginId was unloaded while it was being enabled; not activating it")
 			return false
@@ -1333,12 +1337,17 @@ class PluginManager private constructor(
 	 */
 	private fun markDisabled(loadedPlugin: LoadedPlugin) {
 		loadedPlugin.context.debuggerEndpointService()?.close()
+		loadedPlugin.context.sqlTemplateService()?.close()
 		loadedPlugin.isEnabled = false
 	}
 
 	/** The plugin's [DebuggerEndpointServiceImpl]. Its services outlive a disable, so it is closed instead. */
 	private fun PluginContext.debuggerEndpointService(): DebuggerEndpointServiceImpl? =
 		services.get(DebuggerEndpointService::class.java) as? DebuggerEndpointServiceImpl
+
+	/** The plugin's [SqlTemplateServiceImpl], closed and reopened with the debugger endpoint service. */
+	private fun PluginContext.sqlTemplateService(): SqlTemplateServiceImpl? =
+		services.get(SqlTemplateService::class.java) as? SqlTemplateServiceImpl
 
 	sealed class CrashResult {
 		abstract val pluginId: String
@@ -1730,7 +1739,13 @@ class PluginManager private constructor(
 			pluginId,
 			"sql_template",
 		) {
-			SqlTemplateServiceImpl(pluginId = pluginId, permissions = permissions, projectRootProvider = ::openProjectRoot)
+			SqlTemplateServiceImpl(
+				pluginId = pluginId,
+				permissions = permissions,
+				projectRootProvider = ::openProjectRoot,
+				// As the debugger endpoint service above: closed through initialize() for a plugin saved as disabled.
+				startOpen = getPluginState(pluginId),
+			)
 		}
 
 		registerServiceWithErrorHandling(
