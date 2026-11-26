@@ -1105,6 +1105,40 @@ static void test_expert(void) {
 	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_rem(1, 1)", -1, &st, NULL) != SQLITE_OK);
 	CHECK_EQ(list_conns(&l), before);
 
+	// sample 50 on a table big enough for the sample to matter: suggestions come back, the sampling reads run on srv, and
+	// afterwards srv has neither expert's two functions nor anything in temp, and still reads and refuses writes
+	exec_ok(g_main, "CREATE TABLE samp(id INTEGER PRIMARY KEY, a INTEGER, b INTEGER)");
+	exec_ok(g_main,
+	        "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 5000) "
+	        "INSERT INTO samp SELECT x, x % 500, x % 7 FROM c");
+	sampling = 0;
+	CHECK_EQ(sqlite3_trace_v2(srv, SQLITE_TRACE_STMT, sampling_trace, &sampling), SQLITE_OK);
+	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM samp WHERE a = 7 AND b = 3", 50, never_stop, NULL, &ex, &err), SQLITE_OK);
+	CHECK(sampling > 0);
+	sqlite3_trace_v2(srv, 0, NULL, NULL);
+	CHECK(ex != NULL);
+	if (ex) {
+		CHECK_EQ(sqlite3_expert_count(ex), 1);
+		const char *idx = sqlite3_expert_report(ex, 0, EXPERT_REPORT_INDEXES);
+		CHECK(idx && strstr(idx, "CREATE INDEX") && strstr(idx, "samp("));
+		CHECK(sqlite3_expert_report(ex, 0, EXPERT_REPORT_PLAN) != NULL);
+		sqlite3_expert_destroy(ex);
+	}
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_schema", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_master", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_rem(1, 1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_sample(1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK_EQ(step_all(srv, "SELECT count(*) FROM samp"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "INSERT INTO samp(a) VALUES(1)"), SQLITE_AUTH);
+	CHECK_EQ(list_conns(&l), before);
+	exec_ok(g_main, "DROP TABLE samp");
+
 	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
 	CHECK_EQ(list_conns(&l), before);
 }
