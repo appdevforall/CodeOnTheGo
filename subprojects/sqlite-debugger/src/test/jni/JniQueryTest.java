@@ -230,14 +230,18 @@ public class JniQueryTest {
 			eq(Helper.exec(a, "CREATE TABLE t(id INTEGER)"), 0, mode + ": create");
 			eq(Helper.exec(a, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<300) INSERT INTO t SELECT x FROM c"), 0,
 					mode + ": insert");
+			eq(Helper.exec(a, "CREATE TABLE sentinel(id INTEGER)"), 0, mode + ": create sentinel");
 			long sw = NativeBridge.openServer(p.getBytes(StandardCharsets.UTF_8), true);
 			Ran ran = new Ran();
 			Thread th = new Thread(() -> {
 				long t = System.currentTimeMillis();
 				try {
-					// far more work than 1.5 s: a cross join of t four times over, inserted
-					NativeBridge.execute(sw, "INSERT INTO t SELECT a.id FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0 "
-							+ "UNION ALL SELECT -1", new Object[0], System.currentTimeMillis() + 8000);
+					// The -1 row is inserted first: SQLite runs UNION ALL's left side first and inserts each row as it
+					// comes, as sentinel has no trigger and the SELECT does not read it. Then far more work than 1.5 s,
+					// a cross join of t four times over, matching nothing. So the stopped write has a row to roll back.
+					NativeBridge.execute(sw, "INSERT INTO sentinel SELECT -1 UNION ALL "
+							+ "SELECT a.id FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0", new Object[0],
+							System.currentTimeMillis() + 8000);
 				} catch (DebugEngineException e) {
 					ran.code = e.sqliteCode;
 					ran.message = e.getMessage();
@@ -256,7 +260,7 @@ public class JniQueryTest {
 					mode + ": the message says why and what to do: " + ran.message);
 			check(ran.ms >= 1400 && ran.ms < 2500, mode + ": the write stopped after " + ran.ms + " ms, near the 1500 ms cap");
 			long rr = NativeBridge.openServer(p.getBytes(StandardCharsets.UTF_8), false);
-			eq(q(rr, "SELECT count(*) FROM t WHERE id = -1").rows.get(0)[0], 0L, mode + ": the stopped write left nothing");
+			eq(q(rr, "SELECT count(*) FROM sentinel").rows.get(0)[0], 0L, mode + ": the stopped write's -1 row was rolled back");
 			eq(q(rr, "SELECT count(*) FROM t WHERE id = 7001").rows.get(0)[0], 1L, mode + ": the app's write is there");
 			NativeBridge.close(rr);
 			NativeBridge.close(sw);
