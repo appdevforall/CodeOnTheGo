@@ -313,4 +313,20 @@ class TemplateVariablesTest {
 		assertEquals("/data/androidx.work.workdb", error.getString("database"))
 		assertTrue(error.getString("error"), error.getString("error").startsWith("ClassCastException"))
 	}
+
+	@Test fun onlyRoomsOwnTablesAreListedAsRoomsEvenWhenAnAppTableStartsWithRoom() {
+		engine.answer = { path, w, sql, a ->
+			if (path == "/data/app.db" && sql.startsWith("SELECT name, type, wr")) {
+				rows(
+					listOf("room_booking", "table", 0L),
+					listOf("room_master_table", "table", 0L),
+					listOf("room_table_modification_log", "table", 0L),
+				)
+			} else {
+				roomSchema(path, w, sql, a)
+			}
+		}
+		val room = call(JSONObject().put("database", "/data/app.db")).getJSONArray("databases").getJSONObject(0).getJSONObject("room")
+		assertEquals(listOf("room_master_table", "room_table_modification_log"), room.getJSONArray("own_tables").values())
+	}
 }

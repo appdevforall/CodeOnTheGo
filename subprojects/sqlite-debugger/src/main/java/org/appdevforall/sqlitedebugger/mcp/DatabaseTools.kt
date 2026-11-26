@@ -86,6 +86,9 @@ class DatabaseTools internal constructor(
 
 		/** What get_template_variables says of a database it did not read because the call's time limit had passed. */
 		const val TIME_LIMIT_SKIP = "not read: the call's time limit passed before this database"
+
+		/** The tables Room's runtime creates itself (room-runtime 2.8.4: RoomMasterTable, InvalidationTracker); an app's `room_*` is not one. */
+		val ROOM_OWN_TABLES = setOf("room_master_table", "room_table_modification_log")
 		private val FTS_MODULES = setOf("fts3", "fts4", "fts5")
 
 		/** Bound values stop being recorded this long after the last get_events call. */
@@ -1083,7 +1086,7 @@ class DatabaseTools internal constructor(
 					JSONObject()
 						.put("schema_version", encodeValue(userVersion))
 						.put("identity_hash", hash ?: JSONObject.NULL)
-						.put("own_tables", JSONArray(tables.keys.filter { it.startsWith("room_") }))
+						.put("own_tables", JSONArray(tables.keys.filter { it in ROOM_OWN_TABLES }))
 						.put("fts_sync_triggers", ftsSyncTriggers)
 				} else {
 					JSONObject.NULL

@@ -89,7 +89,7 @@ Capabilities of the sqlite3 shell, in the server so every client has them. All a
   - **Per database:** path, name, `user_version`, journal mode, page size and count, and `library` for a database a library owns, by file name (only `androidx.work.workdb` so far).
   - **Per table:** type (`table`, `virtual`, `shadow`), WITHOUT ROWID, columns (declared type, NOT NULL, default, primary key position, generated), primary key, indexes and foreign keys.
   - **Schema objects:** views, triggers, FTS tables and `sqlite_sequence`.
-  - **Room**, when `room_master_table` exists: `user_version` as the schema version, the identity hash (row id 42), Room's `room_` tables and its `room_fts_content_sync_` triggers.
+  - **Room**, when `room_master_table` exists: `user_version` as the schema version, the identity hash (row id 42), Room's own tables (`room_master_table` and `room_table_modification_log`, when present; an app's other `room_*` tables are not listed) and its `room_fts_content_sync_` triggers.
 - **How it reads.** `pragma_table_list` (SQLite 3.37 and later), `pragma_table_xinfo`, `pragma_index_list`/`pragma_index_xinfo` and `pragma_foreign_key_list`, one query each, paged to 20,000 rows (`truncated` past that), and `sqlite_master` for views, triggers and virtual-table modules. `sqlite_` tables are left out, and a virtual table's hidden columns (FTS's own) too.
 - **Errors.** A database that fails, for any reason, is listed in `errors` and the others still come. When the call's time limit passes, each database not yet read is in `errors` too, with the error `not read: the call's time limit passed before this database`.
 - **Not here:**
