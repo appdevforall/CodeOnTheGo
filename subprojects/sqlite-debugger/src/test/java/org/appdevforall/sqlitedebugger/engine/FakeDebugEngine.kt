@@ -39,6 +39,9 @@ class FakeDebugEngine(
 	/** Each setRowCapture call, in order: rows per statement, value bytes, row bytes. */
 	val rowCaptureCalls = mutableListOf<Triple<Int, Int, Int>>()
 
+	/** The SQL and limits of each query, in order. */
+	val queries = mutableListOf<Pair<String, QueryLimits>>()
+
 	/** The argNames of the last query: null when its args were bound by position. */
 	var lastArgNames: List<String>? = null
 		private set
@@ -140,6 +143,7 @@ class FakeDebugEngine(
 			): QueryResult {
 				check(!closed) { "closed" }
 				lastArgNames = argNames
+				queries += sql to limits
 				val all = answer(path, writable, sql, args)
 				val skip = offset.toInt().coerceAtMost(all.rows.size)
 				val rest = all.rows.drop(skip)

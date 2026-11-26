@@ -831,6 +831,8 @@ class DatabaseTools internal constructor(
 	private sealed class DumpUnit {
 		class Fixed(
 			val statements: List<String>,
+			/** Indexes into [statements] of those cut at the statement limit. */
+			val cut: Set<Int> = emptySet(),
 		) : DumpUnit()
 
 		class Rows(
@@ -874,23 +876,39 @@ class DatabaseTools internal constructor(
 				}
 			}
 		val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
-		val tables =
-			runChecked(
+		val schemaLimits = QueryLimits(MAX_ROWS, DUMP_STATEMENT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
+
+		fun tablesOf(names: List<String>?): QueryResult {
+			val filter = if (names != null) " AND name IN (${names.joinToString(",") { "?" }})" else ""
+			return runChecked(
 				call,
 				path,
-				"SELECT name, sql FROM sqlite_master WHERE type = 'table' AND sql NOT NULL" +
-					(if (only != null) " AND name = ?" else "") + " ORDER BY name = 'sqlite_sequence', rowid",
-				if (only != null) Bind(listOf(only), null) else Bind.NONE,
+				"SELECT name, sql FROM sqlite_master WHERE type = 'table' AND sql NOT NULL$filter ORDER BY name = 'sqlite_sequence', rowid",
+				if (names != null) Bind(names, null) else Bind.NONE,
 				0,
-				QueryLimits(MAX_ROWS, MAX_SCHEMA_SQL_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
+				schemaLimits,
 			)
-		if (tables.hasMore) throw McpToolError("The database has more than $MAX_ROWS tables; dump them one at a time with table.")
+		}
+
+		val tables = tablesOf(only?.let { listOf(it) })
+		if (tables.hasMore) {
+			throw McpToolError(
+				if (tables.rows.size < MAX_ROWS) {
+					"The CREATE statements of the tables come to more than ${MAX_TOTAL_BYTES / (1024 * 1024)} MiB; " +
+						"dump them one at a time with table."
+				} else {
+					"The database has more than $MAX_ROWS tables; dump them one at a time with table."
+				},
+			)
+		}
 		if (only != null && tables.rows.isEmpty()) throw McpToolError("No table named \"$only\".")
+		val named = only?.let { listOf(it) }
 		val units = mutableListOf<DumpUnit>(DumpUnit.Fixed(listOf("PRAGMA foreign_keys=OFF;", "BEGIN TRANSACTION;")))
 		var writableSchema = false
-		for (row in tables.rows) {
+		for ((r, row) in tables.rows.withIndex()) {
 			val name = row[0] as String
 			val sql = row[1] as String
+			val cutSql = tables.isTruncated(r, 1)
 			when {
 				name == "sqlite_sequence" -> {
 					units += DumpUnit.Fixed(listOf("DELETE FROM sqlite_sequence;"))
@@ -904,7 +922,7 @@ class DatabaseTools internal constructor(
 
 				name.startsWith("sqlite_") -> {}
 
-				sql.regionMatches(0, "CREATE VIRTUAL TABLE", 0, 20, ignoreCase = true) -> {
+				isVirtualTable(sql) -> {
 					// As the shell does: its shadow tables are dumped as tables, so it must not be created again.
 					val statements = mutableListOf<String>()
 					if (!writableSchema) statements += "PRAGMA writable_schema=ON;"
@@ -912,11 +930,11 @@ class DatabaseTools internal constructor(
 					statements +=
 						"INSERT INTO sqlite_schema(type,name,tbl_name,rootpage,sql) VALUES('table'," +
 						"${ShellFormat.sqlLiteral(name)},${ShellFormat.sqlLiteral(name)},0,${ShellFormat.sqlLiteral(sql)});"
-					units += DumpUnit.Fixed(statements)
+					units += DumpUnit.Fixed(statements, if (cutSql) setOf(statements.lastIndex) else emptySet())
 				}
 
 				else -> {
-					units += DumpUnit.Fixed(listOf("$sql;"))
+					units += DumpUnit.Fixed(listOf("$sql;"), if (cutSql) setOf(0) else emptySet())
 					units += DumpUnit.Rows(name)
 				}
 			}
@@ -926,18 +944,26 @@ class DatabaseTools internal constructor(
 				call,
 				path,
 				"SELECT sql FROM sqlite_master WHERE sql NOT NULL AND type IN ('index', 'trigger', 'view')" +
-					(if (only != null) " AND tbl_name = ?" else "") + " ORDER BY rowid",
-				if (only != null) Bind(listOf(only), null) else Bind.NONE,
+					(if (named != null) " AND tbl_name IN (${named.joinToString(",") { "?" }})" else "") + " ORDER BY rowid",
+				if (named != null) Bind(named, null) else Bind.NONE,
 				0,
-				QueryLimits(MAX_ROWS, MAX_SCHEMA_SQL_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
+				schemaLimits,
 			)
 		if (others.hasMore) {
-			throw McpToolError("The database has more than $MAX_ROWS indexes, triggers and views; dump one table at a time.")
+			throw McpToolError(
+				if (others.rows.size < MAX_ROWS) {
+					"The CREATE statements of the indexes, triggers and views come to more than ${MAX_TOTAL_BYTES / (1024 * 1024)} MiB; " +
+						"dump one table at a time."
+				} else {
+					"The database has more than $MAX_ROWS indexes, triggers and views; dump one table at a time."
+				},
+			)
 		}
 		val tail = others.rows.map { "${it[0]};" }.toMutableList()
+		val tailCut = others.rows.indices.filter { others.isTruncated(it, 0) }.toMutableSet()
 		if (writableSchema) tail += "PRAGMA writable_schema=OFF;"
 		tail += "COMMIT;"
-		units += DumpUnit.Fixed(tail)
+		units += DumpUnit.Fixed(tail, tailCut)
 
 		val out = JSONArray()
 		val cut = JSONArray()
@@ -949,6 +975,7 @@ class DatabaseTools internal constructor(
 				is DumpUnit.Fixed -> {
 					while (offset < u.statements.size && out.length() < MAX_ROWS && bytes < MAX_TOTAL_BYTES) {
 						val st = u.statements[offset.toInt()]
+						if (offset.toInt() in u.cut) cut.put(out.length())
 						out.put(st)
 						bytes += st.length
 						offset++
@@ -986,6 +1013,8 @@ class DatabaseTools internal constructor(
 			.put("next_cursor", if (complete) JSONObject.NULL else "$unit.$offset")
 			.put("truncated_statements", cut)
 	}
+
+	private fun isVirtualTable(createSql: String) = createSql.regionMatches(0, "CREATE VIRTUAL TABLE", 0, 20, ignoreCase = true)
 
 	/**
 	 * The SELECT that writes each row of [table] as an INSERT statement, in rowid order for a rowid table

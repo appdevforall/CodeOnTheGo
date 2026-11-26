@@ -184,17 +184,25 @@ class ShellToolsTest {
 		rows: (table: String, offset: Int) -> List<String> = { _, _ -> emptyList() },
 		xinfo: Map<String, List<List<Any?>>> = emptyMap(),
 		withoutRowid: Set<String> = emptySet(),
+		tablesCut: Set<Long> = emptySet(),
+		othersCut: Set<Long> = emptySet(),
 	) {
 		engine.answer = { _, _, sql, args ->
 			seen += sql to args
 			when {
 				sql.startsWith("SELECT name, sql FROM sqlite_master") -> {
 					val only = args.firstOrNull()
-					QueryResult(listOf("name", "sql"), tables.filter { only == null || it[0] == only }, 0, false)
+					QueryResult(
+						listOf("name", "sql"),
+						tables.filter { only == null || it[0] == only },
+						tablesCut.size,
+						false,
+						tablesCut,
+					)
 				}
 
 				sql.startsWith("SELECT sql FROM sqlite_master") -> {
-					QueryResult(listOf("sql"), others, 0, false)
+					QueryResult(listOf("sql"), others, othersCut.size, false, othersCut)
 				}
 
 				sql.startsWith("SELECT name, hidden FROM pragma_table_xinfo") -> {
@@ -291,7 +299,7 @@ class ShellToolsTest {
 		dumpSchema(tables = listOf(listOf("t", "CREATE TABLE t(a)"), listOf("u", "CREATE TABLE u(b)")))
 		val sql = ok("dump", JSONObject().put("table", "u")).getJSONArray("sql").strings()
 		assertEquals(listOf("PRAGMA foreign_keys=OFF;", "BEGIN TRANSACTION;", "CREATE TABLE u(b);", "COMMIT;"), sql)
-		assertTrue(seen.single { it.first.startsWith("SELECT sql FROM sqlite_master") }.first.contains("AND tbl_name = ?"))
+		assertTrue(seen.single { it.first.startsWith("SELECT sql FROM sqlite_master") }.first.contains("AND tbl_name IN (?)"))
 		assertEquals("No table named \"zz\".", error("dump", JSONObject().put("table", "zz")))
 	}
 
@@ -343,6 +351,67 @@ class ShellToolsTest {
 			listOf(4),
 			(0 until r.getJSONArray("truncated_statements").length()).map { r.getJSONArray("truncated_statements").getInt(it) },
 		)
+	}
+
+	@Test fun dumpReadsSchemaSqlWithTheStatementLimitAndListsACutOne() {
+		// cut cells are row * columns + column: the table query has 2 columns, the others query 1
+		dumpSchema(
+			tables = listOf(listOf("t", "CREATE TABLE t(a, b"), listOf("u", "CREATE TABLE u(b)")),
+			others = listOf(listOf("CREATE INDEX ok ON u(b)"), listOf("CREATE VIEW v AS SELECT 'x")),
+			tablesCut = setOf(1L),
+			othersCut = setOf(1L),
+		)
+		val r = ok("dump")
+		val sql = r.getJSONArray("sql").strings()
+		assertEquals("CREATE TABLE t(a, b;", sql[2])
+		assertEquals("CREATE VIEW v AS SELECT 'x;", sql[sql.size - 2])
+		assertEquals(listOf(2, sql.size - 2), (0 until 2).map { r.getJSONArray("truncated_statements").getInt(it) })
+		assertEquals(2, r.getJSONArray("truncated_statements").length())
+		val schemaQueries = engine.queries.filter { it.first.contains("FROM sqlite_master") }
+		assertEquals(2, schemaQueries.size)
+		for ((sqlText, limits) in schemaQueries) {
+			assertEquals(sqlText, DatabaseTools.DUMP_STATEMENT_BYTES, limits.maxTextBytes)
+		}
+	}
+
+	@Test fun dumpListsACutVirtualTableStatement() {
+		dumpSchema(tables = listOf(listOf("docs", "CREATE VIRTUAL TABLE docs USING fts5(bo")), tablesCut = setOf(1L))
+		val r = ok("dump")
+		val cut = r.getJSONArray("truncated_statements")
+		assertEquals(listOf(3), (0 until cut.length()).map { cut.getInt(it) })
+	}
+
+	@Test fun dumpSaysWhenTheSchemaPassesTheByteBudgetNotTheTableLimit() {
+		val big = "x".repeat(3 * 1024 * 1024)
+		engine.answer = { _, _, sql, _ ->
+			if (sql.startsWith("SELECT name, sql")) {
+				QueryResult(listOf("name", "sql"), listOf(listOf("a", big), listOf("b", big)), 0, false)
+			} else {
+				QueryResult(listOf("sql"), listOf(listOf(big), listOf(big)), 0, false)
+			}
+		}
+		val message = error("dump", JSONObject())
+		assertTrue(message, message.contains("MiB") && !message.contains("more than ${DatabaseTools.MAX_ROWS} tables"))
+		engine.answer = { _, _, sql, _ ->
+			if (sql.startsWith("SELECT name, sql")) {
+				QueryResult(listOf("name", "sql"), listOf(listOf("a", "CREATE TABLE a(x)")), 0, false)
+			} else {
+				QueryResult(listOf("sql"), listOf(listOf(big), listOf(big)), 0, false)
+			}
+		}
+		val others = error("dump", JSONObject())
+		assertTrue(others, others.contains("MiB") && !others.contains("more than ${DatabaseTools.MAX_ROWS} indexes"))
+	}
+
+	@Test fun dumpStillSaysMoreThanTheTableLimitWhenRowsRunOut() {
+		engine.answer = { _, _, sql, _ ->
+			if (sql.startsWith("SELECT name, sql")) {
+				QueryResult(listOf("name", "sql"), (1..1001).map { listOf("t$it", "CREATE TABLE t$it(a)") }, 0, false)
+			} else {
+				QueryResult(listOf("sql"), emptyList(), 0, false)
+			}
+		}
+		assertTrue(error("dump", JSONObject()).contains("more than ${DatabaseTools.MAX_ROWS} tables"))
 	}
 
 	@Test fun exportWritesCsvAsTheShellDoes() {
