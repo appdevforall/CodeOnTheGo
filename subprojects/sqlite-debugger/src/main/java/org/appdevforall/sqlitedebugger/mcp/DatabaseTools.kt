@@ -368,7 +368,10 @@ class DatabaseTools internal constructor(
 					"a scan of those tables in the app, and on a database that is not in WAL mode it stops after 1.5 s (use " +
 					"a lower sample, or 0). For each statement, indexes lists the CREATE INDEX statements that would help " +
 					"(empty when the existing ones suffice) and plan the query plan with them; candidates lists every index " +
-					"weighed. Nothing is created. $APP_FUNCTIONS_NOTE.",
+					"weighed. Nothing is created. Only read statements can be analysed: an INSERT, UPDATE or DELETE fails with " +
+					"\"not authorized\", because each statement is first prepared on the read-only connection. For an UPDATE or " +
+					"DELETE send a SELECT with the same WHERE: SELECT * FROM t WHERE a = 1 for DELETE FROM t WHERE a = 1. " +
+					"$APP_FUNCTIONS_NOTE.",
 				databaseSchema(
 					"sql" to prop("string", "One or more SQL statements."),
 					"sample" to prop("integer", "Percentage of rows to read for the estimates, 0 to 100. Default 0: none."),

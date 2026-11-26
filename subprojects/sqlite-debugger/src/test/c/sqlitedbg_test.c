@@ -1087,6 +1087,16 @@ static void test_expert(void) {
 	CHECK(err && strstr(err, "no_such_table"));
 	sqlite3_free(err);
 	err = NULL;
+	// only read statements can be analysed: expert prepares each on srv, whose authorizer refuses a write
+	static const char *const writes[] = {"UPDATE orders SET total = 1 WHERE customer = 5", "DELETE FROM orders WHERE customer = 5",
+	                                     "INSERT INTO orders(customer) VALUES(5)"};
+	for (size_t i = 0; i < sizeof writes / sizeof writes[0]; i++) {
+		CHECK(sqlitedbg_expert_run(srv, writes[i], 0, never_stop, NULL, &ex, &err) != SQLITE_OK);
+		CHECK(ex == NULL);
+		CHECK(err && strstr(err, "not authorized"));
+		sqlite3_free(err);
+		err = NULL;
+	}
 	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5", 0, always_stop, NULL, &ex, &err) != SQLITE_OK);
 	CHECK(ex == NULL);
 	sqlite3_free(err);
