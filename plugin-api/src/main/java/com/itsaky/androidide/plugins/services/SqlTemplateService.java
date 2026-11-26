@@ -8,7 +8,7 @@ import java.util.Map;
  * Renders the open project's SQL templates, for the SQLite debugger's {@code .read}: a plugin such as an MCP client passes the template's path, the variables it fetched from the app ({@code get_template_variables}) and the functions that read the app's data, and gets back the SQL. Rendering happens here because Code on the Go already has Pebble; the apps it builds do not.
  *
  * <p>
- * Templates are Pebble files in the project, such as {@code sqlite/report.sql.peb}, with the engine and settings of Code on the Go's project templates: the delimiters {@code ${{ }}}, {@code ${% %}} and {@code ${# #}}, strict variables (an unknown variable is an error) and Pebble's newline trimming (a closing {@code }}}, {@code %}} or {@code #}} eats the line break after it). One difference: autoescaping is off, as SQL is not HTML. A template quotes what it splices in with two filters: {@code sql_ident} writes an identifier in double quotes, doubling any inside, and {@code sql_literal} writes a literal (a string in single quotes, doubling any inside; a number as is; a boolean as 1 or 0; null as NULL). A value the user supplies should not be spliced at all: write a parameter such as {@code :id} into the SQL and bind the value when running it.
+ * Templates are Pebble files in the project, such as {@code sqlite/report.sql.peb}, with the engine and settings of Code on the Go's project templates: the delimiters {@code ${{ }}}, {@code ${% %}} and {@code ${# #}}, strict variables (an unknown variable is an error) and Pebble's newline trimming (a closing {@code }}}, {@code %}} or {@code #}} eats the line break after it). One difference: autoescaping is off, as SQL is not HTML. A template quotes what it splices in with two filters: {@code sql_ident} writes an identifier in double quotes, doubling any inside, and {@code sql_literal} writes a literal (a string in single quotes, doubling any inside; a number as is, a negative one in parentheses so that {@code 1-x} cannot become a comment; a boolean as 1 or 0; null as NULL). A value the user supplies should not be spliced at all: write a parameter such as {@code :id} into the SQL and bind the value when running it.
  *
  * <p>
  * Every render also gets {@code project} ({@code name} and {@code path}, the project root) and {@code render_time} (ISO 8601, UTC). Caller variables may not use those names.
@@ -58,8 +58,8 @@ public interface SqlTemplateService {
 	 * Renders a template of the open project.
 	 *
 	 * <p>
-	 * A variable's value is null, a {@link String}, a {@link Number}, a {@link Boolean}, a {@link Map} with {@link String} keys, a {@link List} or other {@link Iterable}, a {@link RoomSchema}, or a {@link java.util.function.Supplier} of one of these. A supplier is lazy: it is called the first time the template reads the value, at most once, and not at all when the template does not; maps and lists may hold suppliers too. A function, such as {@code row_count(db, table)}, is called each time the template calls it, with its arguments.
-
+	 * A variable's value is null, a {@link String}, a {@link Number}, a {@link Boolean}, a {@link Map} with {@link String} keys, a {@link List} or other {@link Iterable}, a {@link RoomSchema}, or a {@link java.util.function.Supplier} of one of these. A supplier is lazy: it is called the first time the template reads the value, at most once, and not at all when the template does not; maps and lists may hold suppliers too. A function, such as {@code row_count(db, table)}, is called each time the template calls it, with its arguments, which are passed by position: a named argument such as {@code f(a=1)} fails the render. A supplier that a function returns is read once, as a variable's is.
+	 *
 	 * <p>
 	 * Pebble's {@code range} is limited here to 100,000 values: a larger one fails the render, as building it could exhaust the app's memory. A {@code for} loop checks for a stopped render on every pass.
 	 *

@@ -230,7 +230,7 @@ internal object SqlTemplateRenderer {
 	/** Carries a function's failure, with its name, past Pebble's own wrapping. */
 	private class FunctionFailure(
 		message: String,
-		cause: Throwable,
+		cause: Throwable?,
 	) : RuntimeException(message, cause)
 
 	/** A value a quoting filter refused. */
@@ -266,6 +266,10 @@ internal object SqlTemplateRenderer {
 			if (Thread.currentThread().isInterrupted) {
 				throw FunctionFailure("$name was not called: the render was stopped", InterruptedException())
 			}
+			val named = args.keys.filterNot { key -> key.all { it.isDigit() } }
+			if (named.isNotEmpty()) {
+				throw FunctionFailure("$name(...) at line $lineNumber: named arguments (${named.joinToString()}) are not supported", null)
+			}
 			val positional = (0 until args.size).map { args[it.toString()] }
 			val result =
 				try {
@@ -278,7 +282,8 @@ internal object SqlTemplateRenderer {
 			} catch (e: IllegalArgumentException) {
 				throw FunctionFailure(e.message ?: "bad value", e)
 			}
-			return wrap(result)
+			// A supplier is read here as a variable's is: once, with the value checked.
+			return Lazy(result, "$name(...)").get()
 		}
 	}
 
@@ -339,24 +344,27 @@ internal object SqlTemplateRenderer {
 			}
 
 			is Long, is Int, is Short, is Byte, is BigInteger -> {
-				input.toString()
+				signed(input.toString())
 			}
 
 			is Double, is Float -> {
 				val d = (input as Number).toDouble()
 				if (d.isNaN() || d.isInfinite()) throw QuoteFailure("$LITERAL_FILTER at line $lineNumber: $d has no SQL literal")
 				// Kotlin writes 1.0E10, which SQLite reads as a REAL; a whole number keeps its ".0", so it stays a REAL.
-				d.toString()
+				signed(d.toString())
 			}
 
 			is BigDecimal -> {
-				input.toString()
+				signed(input.toString())
 			}
 
 			else -> {
 				throw QuoteFailure("$LITERAL_FILTER at line $lineNumber cannot quote ${describe(input)}")
 			}
 		}
+
+	/** A negative number in parentheses: spliced after a minus, a bare `-5` would read as the comment `--`. */
+	private fun signed(number: String) = if (number.startsWith("-")) "($number)" else number
 
 	private fun describe(value: Any?) = if (value == null) "null" else "a ${value.javaClass.simpleName}"
 }

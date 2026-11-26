@@ -63,7 +63,7 @@ class SqlTemplateRendererTest {
 		val text =
 			"\${{ s | sql_literal }} \${{ n | sql_literal }} \${{ l | sql_literal }} \${{ d | sql_literal }} " +
 				"\${{ whole | sql_literal }} \${{ big | sql_literal }} \${{ yes | sql_literal }} \${{ no | sql_literal }}"
-		assertThat(render(text, variables)).isEqualTo("'it''s' NULL -42 2.5 2.0 1.0E300 1 0")
+		assertThat(render(text, variables)).isEqualTo("'it''s' NULL (-42) 2.5 2.0 1.0E300 1 0")
 		assertThat(failure("\${{ x | sql_literal }}", mapOf("x" to Double.NaN))).contains("NaN has no SQL literal")
 		assertThat(failure("\${{ x | sql_literal }}", mapOf("x" to "a\u0000"))).contains("NUL")
 		assertThat(failure("\${{ x | sql_literal }}", mapOf("x" to listOf(1L)))).contains("cannot quote")
@@ -229,5 +229,47 @@ class SqlTemplateRendererTest {
 		assertThat(failure("\${% for i in range(1, 5, 0) %}\${% endfor %}")).contains("different than 0")
 		assertThat(failure("\${% for i in range(1, 'z') %}\${% endfor %}")).contains("Number or String")
 		assertThat(failure("\${% for i in range(-9223372036854775807, 9223372036854775807) %}\${% endfor %}")).contains("the most is")
+	}
+
+	@Test
+	fun `a negative number is in parentheses, so a minus before it cannot make a comment`() {
+		assertThat(render("1-\${{ x | sql_literal }}", mapOf("x" to -5L))).isEqualTo("1-(-5)")
+		assertThat(render("1-\${{ x | sql_literal }}", mapOf("x" to -2.5))).isEqualTo("1-(-2.5)")
+		assertThat(render("1-\${{ x | sql_literal }}", mapOf("x" to java.math.BigDecimal("-0.50")))).isEqualTo("1-(-0.50)")
+		assertThat(
+			render("1-\${{ x | sql_literal }}", mapOf("x" to java.math.BigInteger("-70000000000000000000"))),
+		).isEqualTo("1-(-70000000000000000000)")
+		assertThat(render("\${{ x | sql_literal }}", mapOf("x" to 5L))).isEqualTo("5")
+	}
+
+	@Test
+	fun `a function called with a named argument fails the render instead of getting null`() {
+		val calls = AtomicInteger()
+		val fn =
+			SqlTemplateFunction {
+				calls.incrementAndGet()
+				1L
+			}
+		val message = failure("\${{ f(a=1) }}", functions = mapOf("f" to fn))
+		assertThat(message).contains("f(...) at line 1: named arguments (a) are not supported")
+		assertThat(failure("\${{ f(1, b=2) }}", functions = mapOf("f" to fn))).contains("named arguments (b)")
+		assertThat(calls.get()).isEqualTo(0)
+		assertThat(render("\${{ f(1, 2) }}", functions = mapOf("f" to fn))).isEqualTo("1")
+	}
+
+	@Test
+	fun `a supplier a function returns is read once, alone or inside a list or map`() {
+		val calls = AtomicInteger()
+		val functions =
+			mapOf(
+				"one" to SqlTemplateFunction { Supplier { "x" + calls.incrementAndGet() } },
+				"many" to SqlTemplateFunction { listOf(Supplier { "a" }, Supplier { "b" }) },
+				"keyed" to SqlTemplateFunction { mapOf("k" to Supplier { 7L }) },
+			)
+		assertThat(render("\${{ one() }}", functions = functions)).isEqualTo("x1")
+		assertThat(render("\${% for v in many() %}\${{ v }}\${% endfor %}", functions = functions)).isEqualTo("ab")
+		assertThat(render("\${{ keyed().k }}", functions = functions)).isEqualTo("7")
+		val bad = mapOf("f" to SqlTemplateFunction { Supplier { Any() } })
+		assertThat(failure("\${{ f() }}", functions = bad)).contains("cannot be a template value")
 	}
 }

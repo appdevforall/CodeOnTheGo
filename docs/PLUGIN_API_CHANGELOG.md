@@ -42,10 +42,10 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   SQL, at most 4 Mi characters. It uses the engine and settings of Code on the Go's project templates: the `${{ }}`,
   `${% %}` and `${# #}` delimiters, strict variables and Pebble's newline trimming. One difference: autoescaping is
   off. Two filters quote what a template splices in: `sql_ident` (`"..."`) and `sql_literal` (`'...'`, a number as
-  is, a boolean as 1 or 0, null as `NULL`). Every render gets `project` (`name`, `path`) and `render_time` (ISO
+  is but a negative one in parentheses, a boolean as 1 or 0, null as `NULL`). Every render gets `project` (`name`, `path`) and `render_time` (ISO
   8601, UTC); a caller may not pass those names. A variable may be a `java.util.function.Supplier`, read the first
   time the template uses it and never when it does not, and a `SqlTemplateFunction` runs each time the template
-  calls it, with its arguments in order. The render runs on a thread of its own under one time limit (at most
+  calls it, with its arguments in order (a named argument fails the render). The render runs on a thread of its own under one time limit (at most
   `MAX_TIMEOUT_MILLIS`, 120 s); when it passes, the thread is interrupted. A function that fails, or a template
   error, throws the checked `SqlTemplateException` with a message to show as it is. Pebble's `range` is limited to
   100,000 values here (more fails the render), and a `for` loop ends when the render is stopped.
