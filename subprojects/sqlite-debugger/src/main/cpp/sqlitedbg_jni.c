@@ -227,7 +227,6 @@ static int progress_cb(void *p) {
 	return 1;
 }
 
-// Binds args[i] to parameter i + 1. Returns SQLITE_OK or a code with *message set.
 // Binds v (null, Long, Double, String or byte[]) to parameter idx (from 1).
 static int bind_value(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, int idx, jobject v, const char **message) {
 	int rc;
