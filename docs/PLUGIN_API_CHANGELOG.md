@@ -46,7 +46,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   On Android 11, whose `setsid` always forks, the IDE uses the Terminal's `setsid` instead, if that
   one runs commands in place. Until the Terminal is installed, the IDE checks again as each command
   starts, and meanwhile commands get no group of their own: a stop leaves their children running,
-  as before.
+  as before. The same goes for a check that timed out or failed to run, as on a busy device: the
+  next command checks again.
   A command that exits on its own is never reported as timed out. If a background child still
   holds its output 500 ms after the command exits, the child is stopped, and `await()` returns
   within about 1.5 s of the exit. A command that exits before the IDE starts reading its output

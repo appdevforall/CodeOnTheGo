@@ -19,6 +19,16 @@ internal data class GroupedCommand(
 )
 
 /**
+ * What checking the `setsid` candidates found: [path], the first that runs commands in place, or null
+ * if none does. Not [definite] when a check could not tell (it timed out or failed to run), so the
+ * answer is not kept and the next command checks again.
+ */
+internal data class SetsidCheck(
+	val path: String?,
+	val definite: Boolean,
+)
+
+/**
  * Runs each shell command as the leader of a process group of its own, so that stopping it stops
  * every process it started, not only the one the IDE holds. Without a group, a command's children
  * (`a | b`, `cmd &`, pip's build steps) outlive it.
@@ -91,7 +101,8 @@ internal class ProcessGroups(
 		 * whichever first runs commands in place (see [usableSetsid]); and `kill(2)` through [Os].
 		 * Checked once per [terminalSetsid], unless neither works while [terminalSetsid] cannot run
 		 * yet: the Terminal installs it at first-run setup, possibly after plugins have run commands,
-		 * and where toybox's forks (Android 11) it is the only one that works.
+		 * and where toybox's forks (Android 11) it is the only one that works. Also checked again
+		 * after a check that could not tell, such as one that timed out on a busy device.
 		 */
 		fun android(terminalSetsid: File): ProcessGroups =
 			android(terminalSetsid) { usableSetsid(listOf(ANDROID_SETSID, terminalSetsid.path), ANDROID_SH) }
@@ -99,13 +110,14 @@ internal class ProcessGroups(
 		/** [android], with [findSetsid] in place of checking the candidates. */
 		internal fun android(
 			terminalSetsid: File,
-			findSetsid: () -> String?,
+			findSetsid: () -> SetsidCheck,
 		): ProcessGroups =
 			android[terminalSetsid.path] ?: synchronized(android) {
 				android[terminalSetsid.path] ?: run {
-					val setsid = findSetsid()
-					val groups = ProcessGroups(setsid, ::osSignal)
-					if (setsid != null || terminalSetsid.canExecute()) android[terminalSetsid.path] = groups
+					val found = findSetsid()
+					val groups = ProcessGroups(found.path, ::osSignal)
+					val kept = found.path != null || (found.definite && terminalSetsid.canExecute())
+					if (kept) android[terminalSetsid.path] = groups
 					groups
 				}
 			}
@@ -140,27 +152,38 @@ internal class ProcessGroups(
 		fun usableSetsid(
 			candidates: List<String>,
 			shell: String,
-		): String? {
-			val setsid = candidates.firstOrNull { File(it).canExecute() && runsInPlace(it, shell) }
-			if (setsid == null) log.warn("No setsid runs commands in place: a stop reaches only a command's own process ({})", candidates)
-			return setsid
+		): SetsidCheck {
+			var definite = true
+			for (candidate in candidates.filter { File(it).canExecute() }) {
+				val inPlace = runsInPlace(candidate, shell)
+				if (inPlace == true) return SetsidCheck(candidate, definite = true)
+				if (inPlace == null) definite = false
+			}
+			log.warn("No setsid runs commands in place: a stop reaches only a command's own process ({})", candidates)
+			return SetsidCheck(null, definite)
 		}
 
+		/** Whether [setsid] runs [shell] in place, or null if the check could not tell. */
 		private fun runsInPlace(
 			setsid: String,
 			shell: String,
-		): Boolean {
+		): Boolean? {
 			val inPlace =
 				runCatching {
 					val process = ProcessBuilder(setsid, shell, "-c", "echo \$\$").redirectErrorStream(true).start()
 					if (!process.waitFor(CHECK_TIMEOUT_S, TimeUnit.SECONDS)) {
 						process.destroyForcibly()
-						return@runCatching false
+						log.warn("{} took over {} s to check; checking it again on the next command", setsid, CHECK_TIMEOUT_S)
+						return@runCatching null
 					}
 					val printed = process.inputStream.bufferedReader().use { it.readLine() }
-					printed != null && printed.trim() == process.pidOrNull()?.toString()
-				}.getOrDefault(false)
-			if (!inPlace) log.warn("{} forks, so it is not used", setsid)
+					val pid = process.pidOrNull() ?: error("no process id for the check's process")
+					printed != null && printed.trim() == pid.toString()
+				}.getOrElse {
+					log.warn("{} could not be checked ({}); checking it again on the next command", setsid, it.toString())
+					null
+				}
+			if (inPlace == false) log.warn("{} forks, so it is not used", setsid)
 			return inPlace
 		}
 	}
