@@ -29,7 +29,7 @@ public interface SqlTemplateService {
 	/**
 	 * Gets Room's exported schemas in the open project: every {@code <class>/<version>.json} file with {@code database.version} and {@code database.identityHash}, outside build output and hidden folders. Room writes them only when {@code exportSchema} is on, so the list can be empty; a migration from version N exists when the file for N does.
 	 *
-	 * @return the schemas, ordered by class name and version, in a list the caller cannot modify (never null; empty when no project is open). A file Room did not write, or cannot be read, is skipped
+	 * @return the schemas, ordered by class name and version, at most 2,000 (the first in that order; the host logs a warning when it stops there), in a list the caller cannot modify (never null; empty when no project is open). A file Room did not write, cannot be read or cannot be parsed (JSON nested more than 64 levels, say) is skipped
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
@@ -45,7 +45,7 @@ public interface SqlTemplateService {
 	/**
 	 * Lists the SQL templates in the open project: the files whose names end in {@code .sql.peb}, outside build output and hidden folders.
 	 *
-	 * @return their paths relative to the project root, with {@code /} separators, sorted, in a list the caller cannot modify (never null; empty when no project is open)
+	 * @return their paths relative to the project root, with {@code /} separators, sorted, at most 2,000 (the first in that order; the host logs a warning when it stops there), in a list the caller cannot modify (never null; empty when no project is open)
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException

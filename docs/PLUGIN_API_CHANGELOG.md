@@ -53,7 +53,7 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   (`RoomSchema`: class name from the folder, version, identity hash, path, entities and views with Room's JSON keys,
   `indices`, `foreignKeys` and `views` present even where Room left them out). Both skip build output and hidden
   folders. Every call needs `debugger.endpoints` and throws `SecurityException` without it, and
-  `IllegalStateException` on the main thread. Floor `plugin.min_ide_version` at `26.48`.
+  `IllegalStateException` on the main thread. Both lists stop at 2,000 entries (the first in their order). Floor `plugin.min_ide_version` at `26.48`.
 - **added — Show the IDE's own documentation from a plugin** _(ADFA-7134)_
   `IdeTooltipService.showTooltip(anchorView, category, tag)` now reads the IDE's documentation
   when `category` is `ide`, `java`, `kotlin` or `xml`, for example

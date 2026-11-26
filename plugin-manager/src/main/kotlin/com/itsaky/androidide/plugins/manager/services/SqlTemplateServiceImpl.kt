@@ -8,6 +8,7 @@ import com.itsaky.androidide.plugins.services.RoomSchema
 import com.itsaky.androidide.plugins.services.SqlTemplateException
 import com.itsaky.androidide.plugins.services.SqlTemplateFunction
 import com.itsaky.androidide.plugins.services.SqlTemplateService
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.IOException
 import java.time.Instant
@@ -42,6 +43,7 @@ internal class SqlTemplateServiceImpl(
 		val root = projectRoot() ?: return emptyList()
 		val found = ProjectSqlFiles.roomSchemas(root)
 		requireOpen()
+		if (found.size >= ProjectSqlFiles.MAX_MATCHES) log.warn("getRoomSchemas for plugin {} stopped at {} schemas", pluginId, found.size)
 		return Collections.unmodifiableList(found)
 	}
 
@@ -51,6 +53,7 @@ internal class SqlTemplateServiceImpl(
 		val root = projectRoot() ?: return emptyList()
 		val found = ProjectSqlFiles.templates(root)
 		requireOpen()
+		if (found.size >= ProjectSqlFiles.MAX_MATCHES) log.warn("listTemplates for plugin {} stopped at {} templates", pluginId, found.size)
 		return Collections.unmodifiableList(found)
 	}
 
@@ -143,5 +146,9 @@ internal class SqlTemplateServiceImpl(
 		}
 		requireOpen()
 		check(!isMainThread()) { "SqlTemplateService.$method() reads the project's files; call it off the main thread" }
+	}
+
+	private companion object {
+		private val log = LoggerFactory.getLogger(SqlTemplateServiceImpl::class.java)
 	}
 }

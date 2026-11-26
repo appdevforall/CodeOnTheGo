@@ -19,8 +19,17 @@ internal object ProjectSqlFiles {
 	/** Folders below this depth are not searched: schemas sit about four levels down, templates wherever the user puts them. */
 	const val MAX_DEPTH = 12
 
-	/** At most this many matches are returned, so a project full of JSON cannot make a call slow. */
+	/**
+	 * At most this many entries are returned, so a project full of JSON cannot make a call slow: the first ones in the
+	 * documented order (templates by path; schemas by class, then version), the rest left out.
+	 */
 	const val MAX_MATCHES = 2000
+
+	/** Room's schemas nest about six levels; a file nested deeper than this is not read as one. */
+	const val MAX_JSON_DEPTH = 64
+
+	/** The walk stops collecting candidates here, so the cut above is made on a sorted list, but a pathological project cannot fill memory. */
+	const val MAX_CANDIDATES = 50_000
 
 	/** A template or schema file larger than this is not read. */
 	const val MAX_FILE_BYTES = 8L * 1024 * 1024
@@ -32,16 +41,29 @@ internal object ProjectSqlFiles {
 	private val CLASS_NAME = Regex("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*")
 
 	/** The project's `*.sql.peb` files, relative to [root], sorted. */
-	fun templates(root: File): List<String> = walk(root) { it.name.endsWith(TEMPLATE_SUFFIX) }.map { relative(root, it) }.sorted()
+	fun templates(root: File): List<String> =
+		walk(root) { it.name.endsWith(TEMPLATE_SUFFIX) }.map { relative(root, it) }.sorted().take(MAX_MATCHES)
 
-	/** Every schema Room exported under [root], by class and version. A file that is not Room's, or unreadable, is skipped. */
+	/**
+	 * Every schema Room exported under [root], by class and version, at most [MAX_MATCHES] (the first in that order).
+	 * A file that is not Room's, is unreadable or cannot be parsed (JSON nested too deeply, say) is skipped.
+	 */
 	fun roomSchemas(root: File): List<RoomSchema> =
 		walk(root) { VERSION_FILE.matches(it.name) && CLASS_NAME.matches(it.parentFile?.name ?: "") }
+			.sortedWith(compareBy<File>({ it.parentFile!!.name }, { versionOf(it) }, { relative(root, it) }))
+			.take(MAX_MATCHES)
 			.mapNotNull { file ->
-				if (file.length() > MAX_FILE_BYTES) return@mapNotNull null
-				val text = runCatching { file.readText() }.getOrNull() ?: return@mapNotNull null
-				parseRoomSchema(text, file.parentFile!!.name, relative(root, file))
-			}.sortedWith(compareBy({ it.className }, { it.version }))
+				try {
+					parseRoomSchema(readBounded(file), file.parentFile!!.name, relative(root, file))
+				} catch (e: Exception) {
+					null
+				} catch (e: StackOverflowError) {
+					// Backstop for the depth limit below, as toValue recurses once per level of nesting.
+					null
+				}
+			}
+
+	private fun versionOf(file: File) = VERSION_FILE.matchEntire(file.name)!!.groupValues[1].toInt()
 
 	/** [file] is over [MAX_FILE_BYTES]. */
 	class TooLarge : IOException("larger than ${MAX_FILE_BYTES / (1024 * 1024)} MiB")
@@ -66,10 +88,23 @@ internal object ProjectSqlFiles {
 	}
 
 	/**
-	 * A Room schema file, or null if it is not one: Room writes `formatVersion` and a `database` with `version` and
+	 * A Room schema file, or null if it is not one (or is nested deeper than [MAX_JSON_DEPTH]): Room writes `formatVersion` and a `database` with `version` and
 	 * `identityHash`. Room leaves out `indices`, `foreignKeys` and `views` when they are empty; they come back empty.
 	 */
 	fun parseRoomSchema(
+		text: String,
+		className: String,
+		path: String,
+	): RoomSchema? =
+		try {
+			parse(text, className, path)
+		} catch (e: TooDeep) {
+			null
+		}
+
+	private class TooDeep : RuntimeException("JSON nested more than $MAX_JSON_DEPTH levels")
+
+	private fun parse(
 		text: String,
 		className: String,
 		path: String,
@@ -99,20 +134,27 @@ internal object ProjectSqlFiles {
 	}
 
 	/** JSON as Kotlin values: maps, lists, String, Boolean, Long for a whole number, Double otherwise; all unmodifiable. */
-	private fun toValue(e: JsonElement?): Any? =
+	private fun toValue(
+		e: JsonElement?,
+		depth: Int = 0,
+	): Any? =
 		when {
+			depth > MAX_JSON_DEPTH -> {
+				throw TooDeep()
+			}
+
 			e == null || e.isJsonNull -> {
 				null
 			}
 
 			e is JsonObject -> {
 				val map = LinkedHashMap<String, Any?>()
-				for ((k, v) in e.entrySet()) map[k] = toValue(v)
+				for ((k, v) in e.entrySet()) map[k] = toValue(v, depth + 1)
 				java.util.Collections.unmodifiableMap(map)
 			}
 
 			e is JsonArray -> {
-				java.util.Collections.unmodifiableList(e.map { toValue(it) })
+				java.util.Collections.unmodifiableList(e.map { toValue(it, depth + 1) })
 			}
 
 			e is JsonPrimitive && e.isBoolean -> {
@@ -139,7 +181,7 @@ internal object ProjectSqlFiles {
 		val found = ArrayList<File>()
 		val stack = ArrayDeque<Pair<File, Int>>()
 		stack.addLast(root to 0)
-		while (stack.isNotEmpty() && found.size < MAX_MATCHES) {
+		while (stack.isNotEmpty() && found.size < MAX_CANDIDATES) {
 			if (Thread.interrupted()) throw InterruptedException()
 			val (dir, depth) = stack.removeLast()
 			val children = dir.listFiles() ?: continue
@@ -150,7 +192,7 @@ internal object ProjectSqlFiles {
 					if (depth < MAX_DEPTH && child.name !in SKIPPED && !isLink(child)) stack.addLast(child to depth + 1)
 				} else if (child.isFile && accept(child)) {
 					found += child
-					if (found.size >= MAX_MATCHES) break
+					if (found.size >= MAX_CANDIDATES) break
 				}
 			}
 		}
@@ -159,8 +201,7 @@ internal object ProjectSqlFiles {
 
 	private fun isLink(file: File) =
 		runCatching {
-			java.nio.file.Files
-				.isSymbolicLink(file.toPath())
+			Files.isSymbolicLink(file.toPath())
 		}.getOrDefault(true)
 
 	fun relative(
