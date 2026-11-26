@@ -49,8 +49,20 @@ class FakeDebugEngine(
 		buffered.addLast(Event(lastSeq, kind, connectionId, 1, lastSeq, durationNanos, sql, false, clientConnected))
 	}
 
+	/** Adds [event] as the next one, numbered after the events before it whatever its own [Event.seq]. */
+	fun addEvent(event: Event) {
+		lastSeq++
+		buffered.addLast(event.copy(seq = lastSeq))
+	}
+
 	/** Drops the [count] oldest buffered events, as a full native buffer would. */
 	fun dropOldest(count: Int) = repeat(count) { buffered.removeFirstOrNull() }
+
+	/** A record's data as [EventDecoder] reads it: the SQL, or a ROW event's values, each with its header. */
+	private fun dataBytes(event: Event): Int {
+		val row = event.row ?: return event.sql.toByteArray().size
+		return EventDecoder.ROW_HEADER_BYTES + row.values.sumOf { EventDecoder.ROW_VALUE_BYTES + cellBytes(it).toInt() }
+	}
 
 	private fun cellBytes(value: Any?): Long =
 		when (value) {
@@ -74,8 +86,8 @@ class FakeDebugEngine(
 		var bytes = 0
 		for (event in buffered) {
 			if (event.seq <= after) continue
-			// the native record: a 56-byte header, then the SQL padded to 8 bytes
-			val size = 56 + (event.sql.toByteArray().size + 7) / 8 * 8
+			// the native record: the header, then its data padded to 8 bytes
+			val size = EventDecoder.HEADER_BYTES + (dataBytes(event) + 7) / 8 * 8
 			if (bytes + size > maxBytes) break
 			bytes += size
 			events += event

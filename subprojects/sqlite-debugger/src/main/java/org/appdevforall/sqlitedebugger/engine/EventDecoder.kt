@@ -28,8 +28,8 @@ internal object EventDecoder {
 	private const val FLAG_EXPANDED = 2
 	private const val FLAG_ROWS_CUT = 4
 
-	private const val ROW_HEADER_BYTES = 8
-	private const val ROW_VALUE_BYTES = 12
+	internal const val ROW_HEADER_BYTES = 8
+	internal const val ROW_VALUE_BYTES = 12
 
 	// SQLite's fundamental types, as sqlite3_column_type returns them.
 	private const val SQLITE_INTEGER = 1
