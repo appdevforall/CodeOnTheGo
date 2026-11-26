@@ -407,18 +407,20 @@ jobs:
             state=$(curl -fsS --max-time 30 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$url" \
               | jq -r --arg name "$CHECKS_JOB" '.jobs[] | select(.name == $name) | "\(.status) \(.conclusion)"') || state=""
             case "$state" in
-              "completed success")
-                echo "The checks passed."
-                exit 0
-                ;;
+              "completed success") ;;
               completed\ *)
                 echo "::error::The job '$CHECKS_JOB' ended with '${state#completed }', so nothing was published. Its log shows which check failed. To retry, use \"Re-run failed jobs\": re-running only one of the two jobs leaves this one failed."
                 exit 1
                 ;;
             esac
+            # Before accepting success too: a build that gets here late must not start publishing.
             if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "::error::Gave up waiting for the job '$CHECKS_JOB' 5 minutes before this job's timeout (last state: '${state:-not found}'), so nothing was published."
+              echo "::error::Too close to this job's timeout to publish safely (job '$CHECKS_JOB': '${state:-not found}'), so nothing was published."
               exit 1
+            fi
+            if [ "$state" = "completed success" ]; then
+              echo "The checks passed."
+              exit 0
             fi
             echo "Job '$CHECKS_JOB': ${state:-not found yet}; checking again in 15 s"
             sleep 15
