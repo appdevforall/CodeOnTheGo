@@ -488,6 +488,14 @@ public class JniQueryTest {
 				"dump: the shadow tables of a virtual table, and not docs_extra");
 		eq(Helper.exec(app, "DROP TABLE docs"), 0, "drop the fts5 table");
 		eq(Helper.exec(app, "DROP TABLE docs_extra"), 0, "drop the plain table");
+		// export asks for the column count with a LIMIT 0 wrapper: SQLite must stop before stepping the inner query, so
+		// an endless one (here a recursive CTE with no end) returns at once, with its columns and no rows
+		long probeStart = System.currentTimeMillis();
+		r = query(srv, "SELECT * FROM (\nWITH RECURSIVE c(x, y) AS (SELECT 1, 2 UNION ALL SELECT x + 1, y FROM c) SELECT x, y FROM c\n) LIMIT 0",
+				new Object[0], 0, 1, 4096, 1024, MAX, System.currentTimeMillis() + 3000);
+		eq(r.columns.length, 2, "export: the wrapper reports the column count");
+		eq(r.rows.size(), 0, "export: and runs no row");
+		check(System.currentTimeMillis() - probeStart < 2000, "export: the wrapper did not step the inner query");
 		r = query(srv, "SELECT wr FROM pragma_table_list WHERE schema = 'main' AND name = ?", new Object[] {"w"}, 0, 100, 4096, 1024, MAX, FAR);
 		eq(r.rows.get(0)[0], 1L, "dump: pragma_table_list knows WITHOUT ROWID");
 		r = q(srv, "SELECT 'INSERT INTO \"lines\" VALUES(' || quote(\"id\") || ',' || quote(\"pid\") || ',' || quote(\"x\") || ');' "

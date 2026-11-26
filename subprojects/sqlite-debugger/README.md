@@ -74,7 +74,7 @@ Capabilities of the sqlite3 shell, in the server so every client has them. All a
 - **`export` (`.mode csv`, `.mode insert`).**
   - CSV is RFC 4180 with CRLF line ends. NULL is an empty field, the empty string is `""`, and a BLOB is hex.
   - `insert` writes literals that read back the same (`X'..'`, an infinity as `1e999`, NaN as NULL).
-  - A value is cut at 64 KiB, higher than `query`'s limit, since a cut value is wrong data in an export.
+  - A value is cut at 64 KiB, higher than `query`'s limit, since a cut value is wrong data in an export. The engine returns the first row of a page whole, so a wide row would pass the 4 MiB cap: with more than 64 columns the limit is lowered to 4 MiB divided by the column count, never below `query`'s 4096 bytes (a row of 2000 columns, SQLite's default maximum, is then bounded as in `query`, about 7.8 MiB). The column count comes from a first call that wraps the statement as `SELECT * FROM (...) LIMIT 0`, which SQLite ends before stepping the inner query; a statement that cannot be wrapped (PRAGMA, EXPLAIN) is asked for its first row instead, so such a statement can run up to its first row twice.
 - **`get_stats` (`.dbinfo`).**
   - It adds `schema_version`, `user_version`, `application_id`, `encoding`, `auto_vacuum`, `journal_mode`, the schema object counts and the schema size.
   - The header fields no PRAGMA reads come from page 1 through `sqlite_dbpage`, when SQLite has it; otherwise `header_unavailable` says why. The host SQLite in `test.sh` has no `sqlite_dbpage`; whether requery's has it is unchecked.

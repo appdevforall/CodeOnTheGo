@@ -72,7 +72,11 @@ class DatabaseTools internal constructor(
 		/** Bound values stop being recorded this long after the last get_events call. */
 		const val EVENTS_IDLE_MS = 60_000L
 
-		/** export's limit on one TEXT or BLOB value: higher than query's, as a cut value is wrong data in an export. */
+		/**
+		 * export's limit on one TEXT or BLOB value: higher than query's, as a cut value is wrong data in an export. A
+		 * result of many columns gets less, so that one row (always returned whole) stays within [MAX_TOTAL_BYTES]:
+		 * [MAX_TOTAL_BYTES] / columns, but never below [MAX_TEXT_BYTES].
+		 */
 		const val EXPORT_VALUE_BYTES = 64 * 1024
 
 		/** dump's limit on one statement, a single TEXT cell; a longer one is cut and listed in truncated_statements. */
@@ -407,7 +411,10 @@ class DatabaseTools internal constructor(
 					"INSERT INTO table VALUES(...) per row, with literals that read back the same (X'..' for a BLOB). At most " +
 					"max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS) and about ${MAX_TOTAL_BYTES / (1024 * 1024)} " +
 					"MiB of values per page; use offset to page ($PAGING_NOTE) A TEXT or BLOB value longer than " +
-					"${EXPORT_VALUE_BYTES / 1024} KiB is cut, counted in truncated_cells, and the export is then not whole. " +
+					"${EXPORT_VALUE_BYTES / 1024} KiB is cut, counted in truncated_cells, and the export is then not whole; " +
+					"with more than ${MAX_TOTAL_BYTES / EXPORT_VALUE_BYTES} columns the limit is lower, $MAX_TOTAL_BYTES divided by the " +
+					"column count but at least $MAX_TEXT_BYTES bytes, so that one row stays within about " +
+					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB (2000 columns: $MAX_TEXT_BYTES bytes each, about 7.8 MiB). " +
 					"$APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
@@ -1083,6 +1090,28 @@ class DatabaseTools internal constructor(
 			if (withoutRowid) "" else " ORDER BY _rowid_"
 	}
 
+	/**
+	 * The per-value limit for [sql]: the engine always returns a first row whole, so it is lowered with the column
+	 * count, which a LIMIT 0 wrapper gives without running the statement (SQLite stops before its first step). A
+	 * statement that cannot be wrapped (PRAGMA, EXPLAIN) is asked for its first row instead.
+	 */
+	private fun exportCellBytes(
+		call: Call,
+		args: JSONObject,
+		sql: String,
+		bind: Bind,
+	): Int {
+		val probe = QueryLimits(1, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
+		val wrapped = "SELECT * FROM (\n${sql.trimEnd { it == ';' || it.isWhitespace() }}\n) LIMIT 0"
+		val columns =
+			try {
+				run(call, args, wrapped, bind, 0, probe).columns.size
+			} catch (e: McpToolError) {
+				run(call, args, sql, bind, 0, probe.copy(maxRows = 0)).columns.size
+			}
+		return (MAX_TOTAL_BYTES / columns.coerceAtLeast(1)).coerceIn(MAX_TEXT_BYTES, EXPORT_VALUE_BYTES)
+	}
+
 	private fun export(
 		call: Call,
 		args: JSONObject,
@@ -1104,15 +1133,9 @@ class DatabaseTools internal constructor(
 			}
 		val offset = intArg(args, "offset", 0, 0, Long.MAX_VALUE)
 		val maxRows = intArg(args, "max_rows", DEFAULT_MAX_ROWS.toLong(), 1, MAX_ROWS.toLong()).toInt()
-		val result =
-			run(
-				call,
-				args,
-				sql,
-				bindArgs(args),
-				offset,
-				QueryLimits(maxRows, EXPORT_VALUE_BYTES, EXPORT_VALUE_BYTES, MAX_TOTAL_BYTES),
-			)
+		val bind = bindArgs(args)
+		val cellBytes = exportCellBytes(call, args, sql, bind)
+		val result = run(call, args, sql, bind, offset, QueryLimits(maxRows, cellBytes, cellBytes, MAX_TOTAL_BYTES))
 		val text = StringBuilder()
 		if (format == "csv") {
 			if (header && offset == 0L) text.append(result.columns.joinToString(",") { ShellFormat.csvField(it) }).append("\r\n")

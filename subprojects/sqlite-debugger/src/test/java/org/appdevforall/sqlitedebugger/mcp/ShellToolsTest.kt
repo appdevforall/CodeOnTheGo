@@ -3,6 +3,7 @@ package org.appdevforall.sqlitedebugger.mcp
 import org.appdevforall.sqlitedebugger.engine.AppConnection
 import org.appdevforall.sqlitedebugger.engine.FakeDebugEngine
 import org.appdevforall.sqlitedebugger.engine.IndexSuggestions
+import org.appdevforall.sqlitedebugger.engine.QueryLimits
 import org.appdevforall.sqlitedebugger.engine.QueryResult
 import org.appdevforall.sqlitedebugger.engine.StatementSuggestion
 import org.json.JSONArray
@@ -520,6 +521,66 @@ class ShellToolsTest {
 			ok("export", JSONObject().put("sql", "SELECT").put("format", "insert")).getString("text").lines().first(),
 		)
 		assertTrue(error("export", JSONObject().put("sql", "SELECT").put("format", "json")).contains("csv or insert"))
+	}
+
+	private fun exportWith(columns: Int): QueryLimits {
+		engine.answer = { _, _, _, _ -> QueryResult(List(columns) { "c$it" }, listOf(List(columns) { 1L }), 0, false) }
+		engine.queries.clear()
+		ok("export", JSONObject().put("sql", "SELECT a FROM t;\n").put("format", "csv"))
+		return engine.queries.last().second
+	}
+
+	@Test fun exportLowersTheValueLimitForAWideResult() {
+		val narrow = exportWith(3)
+		assertEquals(DatabaseTools.EXPORT_VALUE_BYTES, narrow.maxTextBytes)
+		assertEquals(DatabaseTools.EXPORT_VALUE_BYTES, narrow.maxBlobBytes)
+		val sixtyFour = exportWith(64)
+		assertEquals("64 columns of 64 KiB are the 4 MiB budget", DatabaseTools.EXPORT_VALUE_BYTES, sixtyFour.maxTextBytes)
+		val wide = exportWith(100)
+		assertEquals(DatabaseTools.MAX_TOTAL_BYTES / 100, wide.maxTextBytes)
+		assertEquals(DatabaseTools.MAX_TOTAL_BYTES / 100, wide.maxBlobBytes)
+		assertEquals(DatabaseTools.MAX_TOTAL_BYTES, wide.maxTotalBytes)
+		val widest = exportWith(2000)
+		assertEquals("never below query's TEXT limit", DatabaseTools.MAX_TEXT_BYTES, widest.maxTextBytes)
+		assertEquals(DatabaseTools.MAX_TEXT_BYTES, widest.maxBlobBytes)
+	}
+
+	@Test fun exportCountsColumnsWithoutRunningTheStatement() {
+		exportWith(3)
+		val (probe, limits) = engine.queries.first()
+		assertEquals("SELECT * FROM (\nSELECT a FROM t\n) LIMIT 0", probe)
+		assertEquals(2, engine.queries.size)
+		assertEquals("SELECT a FROM t;\n", engine.queries.last().first)
+		assertTrue(limits.maxRows >= 1)
+	}
+
+	@Test fun exportAsksForTheFirstRowWhenTheStatementCannotBeWrapped() {
+		engine.answer = { _, _, sql, _ ->
+			if (sql.contains("LIMIT 0")) {
+				throw org.appdevforall.sqlitedebugger.engine
+					.DebugEngineException(1, "near \"(\": syntax error")
+			}
+			QueryResult(List(100) { "c$it" }, listOf(List(100) { 1L }), 0, false)
+		}
+		engine.queries.clear()
+		ok("export", JSONObject().put("sql", "PRAGMA table_info(t)").put("format", "csv"))
+		assertEquals(3, engine.queries.size)
+		assertEquals("PRAGMA table_info(t)", engine.queries[1].first)
+		assertEquals(0, engine.queries[1].second.maxRows)
+		assertEquals(
+			DatabaseTools.MAX_TOTAL_BYTES / 100,
+			engine.queries
+				.last()
+				.second.maxTextBytes,
+		)
+	}
+
+	@Test fun exportReportsTheStatementsOwnErrorWhenItDoesNotPrepare() {
+		engine.answer = { _, _, _, _ ->
+			throw org.appdevforall.sqlitedebugger.engine
+				.DebugEngineException(1, "no such table: zz")
+		}
+		assertTrue(error("export", JSONObject().put("sql", "SELECT * FROM zz").put("format", "csv")).contains("no such table: zz"))
 	}
 
 	@Test fun exportUsesItsOwnValueLimitAndPassesArgs() {
