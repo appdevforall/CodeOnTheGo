@@ -51,6 +51,9 @@ internal class EventHandler(
 
 	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 	private val adapterContext = newSingleThreadContext("JDWPEventHandler")
+
+	// adapterContext's type, CloseableCoroutineDispatcher, is itself experimental.
+	@OptIn(ExperimentalCoroutinesApi::class)
 	private val adapterScope = CoroutineScope(adapterContext)
 	private var eventsJob: Job? = null
 

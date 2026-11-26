@@ -138,7 +138,7 @@ private fun frameFor(
 		return expressionBodyFrame(LAMBDA, inner, innerSpan, parent, root, positions, fileText, indentUnit, "return")
 	}
 
-	if (parent is CaseTree && parent.caseKind == CaseTree.CaseKind.RULE && parent.body === inner) {
+	if (parent is CaseTree && parent.isRule && parent.ruleBody === inner) {
 		return when {
 			inner is ExpressionTree -> {
 				// `case A -> value;` parses the body as the expression and takes the `;` separately, so the
@@ -155,7 +155,7 @@ private fun frameFor(
 		}
 	}
 
-	if (parent is CaseTree && parent.caseKind == CaseTree.CaseKind.STATEMENT && inner !is BlockTree) {
+	if (parent is CaseTree && parent.isStatementGroup && inner !is BlockTree) {
 		return caseGroupFrame(parent, root, positions)
 	}
 
@@ -326,7 +326,7 @@ private fun blockLabel(
 
 		is SynchronizedTree -> ScopeLabel(R.string.label_extract_scope_synchronized_block)
 
-		is CaseTree -> if (owner.caseKind == CaseTree.CaseKind.RULE) SWITCH_RULE else SWITCH_CASE
+		is CaseTree -> if (owner.isRule) SWITCH_RULE else SWITCH_CASE
 
 		else -> ScopeLabel(R.string.label_extract_scope_block)
 	}
