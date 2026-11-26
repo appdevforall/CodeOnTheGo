@@ -221,6 +221,7 @@ jobs:
   build_apk:
     name: Build Universal APK
     runs-on: self-hosted
+    # "Wait for the checks to pass" gives up 5 minutes before this timeout; change both together.
     timeout-minutes: 60
     needs: [ check_changes, validate_branch ]
     if: needs.check_changes.outputs.must_build == 'true'
@@ -228,6 +229,10 @@ jobs:
       INCLUDE_LLAMA_ASSETS: "false"
 
     steps:
+
+      # For "Wait for the checks to pass", which must give up before this job's timeout.
+      - name: Record the job start time
+        run: echo "JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Cancel previous runs
         uses: styfle/cancel-workflow-action@0.12.1
@@ -388,15 +393,16 @@ jobs:
 
       # Publish nothing until the checks job has passed. It started with this job and is much
       # shorter, so this normally returns at once. filter=latest: after "Re-run failed jobs", the
-      # checks job's newest attempt counts, not the failed one. The 40-minute limit counts from
-      # here, so it also covers the checks job waiting for a runner; past it, nothing is published.
+      # checks job's newest attempt counts, not the failed one. It gives up 5 minutes before this
+      # job's 60-minute timeout, which leaves time for the publish steps: a timeout during them
+      # could upload to App Tester without the Jira and Slack steps.
       - name: Wait for the checks to pass
         env:
           CHECKS_JOB: Run checks (API, unit tests, Spotless)
           GH_TOKEN: ${{ github.token }}
         run: |
           url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100"
-          deadline=$((SECONDS + 40 * 60))
+          deadline=$((JOB_STARTED_AT + (60 - 5) * 60))
           while :; do
             state=$(curl -fsS --max-time 30 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$url" \
               | jq -r --arg name "$CHECKS_JOB" '.jobs[] | select(.name == $name) | "\(.status) \(.conclusion)"') || state=""
@@ -410,8 +416,8 @@ jobs:
                 exit 1
                 ;;
             esac
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::error::Gave up after 40 minutes waiting for the job '$CHECKS_JOB' (last state: '${state:-not found}'), so nothing was published."
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Gave up waiting for the job '$CHECKS_JOB' 5 minutes before this job's timeout (last state: '${state:-not found}'), so nothing was published."
               exit 1
             fi
             echo "Job '$CHECKS_JOB': ${state:-not found yet}; checking again in 15 s"
