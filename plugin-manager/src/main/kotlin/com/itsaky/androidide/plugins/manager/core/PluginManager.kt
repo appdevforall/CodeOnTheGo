@@ -64,6 +64,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeTooltipServiceImpl
 import com.itsaky.androidide.plugins.manager.services.IdeUIServiceImpl
 import com.itsaky.androidide.plugins.manager.services.PluginBuildService
 import com.itsaky.androidide.plugins.manager.services.PluginWorkspaceEvents
+import com.itsaky.androidide.plugins.manager.services.SqlTemplateServiceImpl
 import com.itsaky.androidide.plugins.manager.snippets.PluginSnippetManager
 import com.itsaky.androidide.plugins.manager.ui.PluginEditorTabManager
 import com.itsaky.androidide.plugins.services.DebuggerEndpointService
@@ -85,6 +86,7 @@ import com.itsaky.androidide.plugins.services.IdeTerminalService
 import com.itsaky.androidide.plugins.services.IdeThemeService
 import com.itsaky.androidide.plugins.services.IdeTooltipService
 import com.itsaky.androidide.plugins.services.IdeUIService
+import com.itsaky.androidide.plugins.services.SqlTemplateService
 import com.itsaky.androidide.projects.IProjectManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -1720,6 +1722,15 @@ class PluginManager private constructor(
 				// initialize() and after, until enablePlugin reopens it.
 				startOpen = getPluginState(pluginId),
 			)
+		}
+
+		registerServiceWithErrorHandling(
+			pluginServiceRegistry,
+			SqlTemplateService::class.java,
+			pluginId,
+			"sql_template",
+		) {
+			SqlTemplateServiceImpl(pluginId = pluginId, permissions = permissions, projectRootProvider = ::openProjectRoot)
 		}
 
 		registerServiceWithErrorHandling(

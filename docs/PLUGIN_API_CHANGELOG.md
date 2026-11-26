@@ -36,6 +36,23 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.48 — unreleased
+- **added — Render the project's SQL templates for the SQLite debugger** _(ADFA-7302)_ **[verified]**
+  `SqlTemplateService.render(templatePath, variables, functions, timeoutMillis)` renders a Pebble template of the
+  open project (a path relative to its root, ending in `.peb`, inside it once links are resolved) and returns the
+  SQL, at most 4 Mi characters. It uses the engine and settings of Code on the Go's project templates: the `${{ }}`,
+  `${% %}` and `${# #}` delimiters, strict variables and Pebble's newline trimming. One difference: autoescaping is
+  off. Two filters quote what a template splices in: `sql_ident` (`"..."`) and `sql_literal` (`'...'`, a number as
+  is, a boolean as 1 or 0, null as `NULL`). Every render gets `project` (`name`, `path`) and `render_time` (ISO
+  8601, UTC); a caller may not pass those names. A variable may be a `java.util.function.Supplier`, read the first
+  time the template uses it and never when it does not, and a `SqlTemplateFunction` runs each time the template
+  calls it, with its arguments in order. The render runs on a thread of its own under one time limit (at most
+  `MAX_TIMEOUT_MILLIS`, 120 s); when it passes, the thread is interrupted. A function that fails, or a template
+  error, throws the checked `SqlTemplateException` with a message to show as it is.
+  `listTemplates()` lists the project's `*.sql.peb` files, and `getRoomSchemas()` the schemas Room exported
+  (`RoomSchema`: class name from the folder, version, identity hash, path, entities and views with Room's JSON keys,
+  `indices`, `foreignKeys` and `views` present even where Room left them out). Both skip build output and hidden
+  folders. Every call needs `debugger.endpoints` and throws `SecurityException` without it, and
+  `IllegalStateException` on the main thread. Floor `plugin.min_ide_version` at `26.48`.
 - **added — Show the IDE's own documentation from a plugin** _(ADFA-7134)_
   `IdeTooltipService.showTooltip(anchorView, category, tag)` now reads the IDE's documentation
   when `category` is `ide`, `java`, `kotlin` or `xml`, for example
