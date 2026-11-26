@@ -6,10 +6,13 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.itsaky.androidide.logging.provider.IdeLogRouter
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
 import io.mockk.spyk
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -19,7 +22,9 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.slf4j.event.Level
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.CopyOnWriteArrayList
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
@@ -281,6 +286,124 @@ class ApkInstallerSessionTest {
 			val swept = ApkInstaller.abandonMySessions(context)
 			assertThat(swept).isEqualTo(49)
 			assertThat(activeSessions).containsExactly(50)
+		}
+
+	@Test
+	fun `a commit that throws leaves no note, as its session reports no result`() =
+		runTest {
+			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+			val session = mockk<PackageInstaller.Session>(relaxed = true)
+			every { session.openWrite(any(), any(), any()) } returns ByteArrayOutputStream()
+			every { session.commit(any()) } throws SecurityException("commit refused")
+
+			val installer = mockk<PackageInstaller>()
+			every { installer.createSession(any()) } returns 300
+			every { installer.openSession(300) } returns session
+			justRun { installer.abandonSession(300) }
+
+			val baseContext = ApplicationProvider.getApplicationContext<Context>()
+			val pm = spyk(baseContext.packageManager)
+			every { pm.packageInstaller } returns installer
+			val context = spyk(baseContext)
+			every { context.packageManager } returns pm
+
+			// What ProjectHandlerActivity passes: a note before the commit, dropped when the commit fails.
+			val notes = mutableSetOf<Int>()
+			var noted = false
+			val result =
+				ApkInstaller.installUsingSession(
+					context,
+					apk,
+					Intent(),
+					beforeCommit = {
+						notes += it
+						noted = true
+					},
+					onCommitFailed = { notes -= it },
+				)
+
+			assertThat(result).isEqualTo(ApkInstaller.SessionLaunchResult.Failed)
+			assertThat(noted).isTrue()
+			assertThat(notes).isEmpty()
+		}
+
+	/** A context whose PackageInstaller creates session [id], whose commit succeeds and whose abandon is recorded. */
+	private fun committingContext(
+		id: Int,
+		abandoned: MutableList<Int>,
+	): Context {
+		val session = mockk<PackageInstaller.Session>(relaxed = true)
+		every { session.openWrite(any(), any(), any()) } returns ByteArrayOutputStream()
+		val installer = mockk<PackageInstaller>()
+		every { installer.createSession(any()) } returns id
+		every { installer.openSession(id) } returns session
+		every { installer.abandonSession(id) } answers { abandoned += id }
+		val baseContext = ApplicationProvider.getApplicationContext<Context>()
+		val pm = spyk(baseContext.packageManager)
+		every { pm.packageInstaller } returns installer
+		return spyk(baseContext).also { every { it.packageManager } returns pm }
+	}
+
+	@Test
+	fun `a cancelled install is neither reported as Failed nor logged as an error`() =
+		runTest {
+			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+			val context = committingContext(400, mutableListOf())
+			val errors = CopyOnWriteArrayList<String>()
+			val sink =
+				IdeLogRouter.ExternalSink { level, loggerName, message, _ ->
+					if (level == Level.ERROR && loggerName == ApkInstaller::class.java.name) errors += message
+				}
+			var result: ApkInstaller.SessionLaunchResult? = null
+
+			IdeLogRouter.addSink(sink)
+			try {
+				val install =
+					launch {
+						val job = coroutineContext.job
+						// The caller goes away while the session is staged, as when the editor closes mid-install.
+						result = ApkInstaller.installUsingSession(context, apk, Intent(), beforeCommit = { job.cancel() })
+					}
+				install.join()
+				assertThat(install.isCancelled).isTrue()
+			} finally {
+				IdeLogRouter.removeSink(sink)
+			}
+
+			assertThat(result).isNull()
+			assertThat(errors).isEmpty()
+		}
+
+	@Test
+	fun `an Exception from beforeCommit is logged and the install goes on, while an OutOfMemoryError propagates`() =
+		runTest {
+			val apk = tempFolder.newFile("app-debug.apk").apply { writeBytes(byteArrayOf(1, 2, 3, 4)) }
+			val abandoned = mutableListOf<Int>()
+
+			val goesOn =
+				ApkInstaller.installUsingSession(
+					committingContext(500, abandoned),
+					apk,
+					Intent(),
+					beforeCommit = { throw IllegalStateException("note refused") },
+				)
+			assertThat(goesOn).isEqualTo(ApkInstaller.SessionLaunchResult.Started(500))
+
+			val forgotten = mutableListOf<Int>()
+			val thrown =
+				runCatching {
+					ApkInstaller.installUsingSession(
+						committingContext(501, abandoned),
+						apk,
+						Intent(),
+						beforeCommit = { throw OutOfMemoryError("note") },
+						onCommitFailed = { forgotten += it },
+					)
+				}.exceptionOrNull()
+			assertThat(thrown).isInstanceOf(OutOfMemoryError::class.java)
+			// Cleaned up on the way out, as for any other failure.
+			assertThat(forgotten).containsExactly(501)
+			assertThat(abandoned).containsExactly(501)
 		}
 
 	@Test

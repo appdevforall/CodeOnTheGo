@@ -170,6 +170,7 @@ include(
 	":subprojects:shizuku-server-shared",
 	":subprojects:shizuku-shared",
 	":subprojects:shizuku-starter",
+	":subprojects:sqlite-debugger",
 	":subprojects:sqlite-js",
 	":subprojects:tooling-api",
 	":subprojects:tooling-api-events",
@@ -190,7 +191,6 @@ include(
 	":plugin-api",
 	":plugin-api:plugin-builder",
 	":plugin-manager",
-	":compose-preview",
 	":floating-window",
 )
 

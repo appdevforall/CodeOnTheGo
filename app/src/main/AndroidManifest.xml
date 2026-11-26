@@ -360,6 +360,18 @@
             </intent-filter>
         </receiver>
 
+        <!-- The SQLite debugger library in an app built here reports its token and port. The sender
+         is another app, so it is exported; the receiver ignores apps it has no pairing row for. -->
+        <receiver
+            android:name=".sqlitedebugger.DebuggerEndpointReceiver"
+            android:enabled="true"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.itsaky.androidide.SQLITE_DEBUGGER_ENDPOINT" />
+            </intent-filter>
+        </receiver>
+
         <!--
          Receiver used to receive broadcasts when foreground application changes
          This receiver *must* have permissions that are not usually granted to

@@ -39,6 +39,9 @@ object OverlayLayoutParams {
 				gravity = Gravity.TOP or Gravity.START
 				x = state.bounds.x
 				y = state.bounds.y
+				// The replacement, Window.setDecorFitsSystemWindows, needs a Window, which an overlay added
+				// through WindowManager.addView does not have.
+				@Suppress("DEPRECATION")
 				softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
 			}
 

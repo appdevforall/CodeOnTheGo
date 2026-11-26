@@ -83,11 +83,12 @@ object ZipTemplateReader {
 						val userWidgets = mutableListOf<Widget<*>>()
 						val params = mutableMapOf<String, Parameter<*>>()
 
+						// Gson ignores Kotlin nullability, so a parameter without a label leaves `label` null.
 						metaJson.parameters?.user?.text?.forEach { textParam ->
 							val param =
 								stringParameter {
 									name = 0
-									nameStr = textParam.label ?: ""
+									nameStr = textParam.label.orEmpty()
 									default = textParam.default ?: ""
 								}
 							userWidgets.add(TextFieldWidget(param))
@@ -98,7 +99,7 @@ object ZipTemplateReader {
 							val param =
 								booleanParameter {
 									name = 0
-									nameStr = checkboxParam.label ?: ""
+									nameStr = checkboxParam.label.orEmpty()
 									default = checkboxParam.default ?: false
 								}
 							userWidgets.add(CheckBoxWidget(param))

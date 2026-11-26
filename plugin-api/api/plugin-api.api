@@ -107,6 +107,7 @@ public final class com/itsaky/androidide/plugins/PluginMetadata : android/os/Par
 }
 
 public final class com/itsaky/androidide/plugins/PluginPermission : java/lang/Enum {
+	public static final field DEBUGGER_ENDPOINTS Lcom/itsaky/androidide/plugins/PluginPermission;
 	public static final field FILESYSTEM_READ Lcom/itsaky/androidide/plugins/PluginPermission;
 	public static final field FILESYSTEM_WRITE Lcom/itsaky/androidide/plugins/PluginPermission;
 	public static final field IDE_ENVIRONMENT_WRITE Lcom/itsaky/androidide/plugins/PluginPermission;
@@ -1649,6 +1650,22 @@ public final class com/itsaky/androidide/plugins/services/CursorPosition {
 	public final fun getLine ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class com/itsaky/androidide/plugins/services/DebuggerEndpoint {
+	public fun <init> (Ljava/lang/String;ILjava/lang/String;J)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getApplicationId ()Ljava/lang/String;
+	public fun getPort ()I
+	public fun getToken ()Ljava/lang/String;
+	public fun getUpdatedAtMillis ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class com/itsaky/androidide/plugins/services/DebuggerEndpointService {
+	public static final field CONTRACT_VERSION I
+	public abstract fun getEndpoints ()Ljava/util/List;
 }
 
 public abstract interface class com/itsaky/androidide/plugins/services/EditorContentChangeListener {
