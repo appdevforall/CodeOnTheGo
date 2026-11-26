@@ -512,41 +512,19 @@ static jobject cell_value(JNIEnv *env, sqlite3_stmt *st, int col, jint max_text,
 	}
 }
 
-static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args,
-                                 jobjectArray names, jlong offset,
-                                 jint max_rows, jint max_text, jint max_blob, jint max_total, jlong deadline_ms) {
-	(void)cls;
-	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
-	sqlite3_stmt *st = NULL;
+// Steps st, skipping offset rows, and collects at most max_rows rows within max_total bytes of cells (the
+// first row always goes in, so a page makes progress), each TEXT and BLOB cut at max_text and max_blob.
+// Returns [columns, rows, counts, decltypes] as NativeBridge.query describes, with *rc the last
+// sqlite3_step result and *has_more set when rows were left unread. When *has_more is 0 and *rc is not
+// SQLITE_DONE the statement failed: the caller reports it and drops the result. NULL with an exception
+// pending when a JNI allocation failed.
+static jobjectArray read_rows(JNIEnv *env, sqlite3_stmt *st, jlong offset, jint max_rows, jint max_text, jint max_blob,
+                              jint max_total, int *rc, int *has_more) {
 	jobjectArray result = NULL;
 	jlong *cut_cells = NULL;  // row * columns + column of each cut cell
 	size_t cut_n = 0, cut_cap = 0;
-	deadline dl = {(int64_t)deadline_ms, 0, 0};
-	int handler_set = 0;
-	int rc;
-
-	if (now_ms() >= dl.at_ms) {
-		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the query started");
-		goto done;
-	}
-	if (!prepare_bound(env, db, sql, args, names, &st)) goto done;
-
-	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
-	// that is not in WAL mode: it holds a SHARED lock until the statement ends, and the app's commit gives
-	// up after requery's 2500 ms busy timeout (see SQLITEDBG_SERVER_NON_WAL_MS). The mode is read per call.
-	if (now_ms() + SQLITEDBG_SERVER_NON_WAL_MS < dl.at_ms && !is_wal_mode(db)) {
-		// counted from here, after the mode check, which can wait on the app's lock
-		int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
-		if (cap_at < dl.at_ms) {
-			dl.at_ms = cap_at;
-			dl.capped = 1;
-		}
-	}
-
-	// SQLite checks the handler every 1000 virtual machine steps and stops the statement when it
-	// returns non-zero; it is cleared before this returns, so it never outlives `dl`.
-	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
-	handler_set = 1;
+	*rc = SQLITE_OK;
+	*has_more = 0;
 
 	int ncols = sqlite3_column_count(st);
 	jobjectArray columns = (*env)->NewObjectArray(env, ncols, g_string, NULL);
@@ -569,16 +547,16 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		}
 	}
 
-	int has_more = 0, row_count = 0;
+	int row_count = 0;
 	int64_t total = 0;
 	jlong skipped = 0;
-	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {
+	while ((*rc = sqlite3_step(st)) == SQLITE_ROW) {
 		if (skipped < offset) {
 			skipped++;
 			continue;
 		}
 		if (row_count >= max_rows) {
-			has_more = 1;
+			*has_more = 1;
 			break;
 		}
 		jobjectArray row = (*env)->NewObjectArray(env, ncols, g_object, NULL);
@@ -607,12 +585,11 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 				(*env)->DeleteLocalRef(env, cell);
 			}
 		}
-		// The total bounds the host app's heap. The first row always goes in, so a page makes
-		// progress; one row is bounded by the per-cell limits.
+		// The total bounds the host app's heap. One row is bounded by the per-cell limits.
 		if (row_count > 0 && total + row_bytes > max_total) {
 			(*env)->DeleteLocalRef(env, row);
 			cut_n = cut_before;
-			has_more = 1;
+			*has_more = 1;
 			break;
 		}
 		total += row_bytes;
@@ -621,7 +598,61 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 		if ((*env)->ExceptionCheck(env)) goto done;
 		row_count++;
 	}
-	if (!has_more && rc != SQLITE_DONE) {
+
+	// {cut cell count, hasMore, then the index of each cut cell}
+	jlongArray counts = (*env)->NewLongArray(env, (jsize)(2 + cut_n));
+	result = counts ? (*env)->NewObjectArray(env, 4, g_object, NULL) : NULL;
+	if (!result) goto done;
+	jlong head[2] = {(jlong)cut_n, *has_more};
+	(*env)->SetLongArrayRegion(env, counts, 0, 2, head);
+	if (cut_n) (*env)->SetLongArrayRegion(env, counts, 2, (jsize)cut_n, cut_cells);
+	(*env)->SetObjectArrayElement(env, result, 0, columns);
+	(*env)->SetObjectArrayElement(env, result, 1, rows);
+	(*env)->SetObjectArrayElement(env, result, 2, counts);
+	(*env)->SetObjectArrayElement(env, result, 3, decltypes);
+
+done:
+	free(cut_cells);
+	return result;
+}
+
+static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args,
+                                 jobjectArray names, jlong offset,
+                                 jint max_rows, jint max_text, jint max_blob, jint max_total, jlong deadline_ms) {
+	(void)cls;
+	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
+	sqlite3_stmt *st = NULL;
+	jobjectArray result = NULL;
+	deadline dl = {(int64_t)deadline_ms, 0, 0};
+	int handler_set = 0;
+	int rc, has_more;
+
+	if (now_ms() >= dl.at_ms) {
+		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the query started");
+		goto done;
+	}
+	if (!prepare_bound(env, db, sql, args, names, &st)) goto done;
+
+	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
+	// that is not in WAL mode: it holds a SHARED lock until the statement ends, and the app's commit gives
+	// up after requery's 2500 ms busy timeout (see SQLITEDBG_SERVER_NON_WAL_MS). The mode is read per call.
+	if (now_ms() + SQLITEDBG_SERVER_NON_WAL_MS < dl.at_ms && !is_wal_mode(db)) {
+		// counted from here, after the mode check, which can wait on the app's lock
+		int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
+		if (cap_at < dl.at_ms) {
+			dl.at_ms = cap_at;
+			dl.capped = 1;
+		}
+	}
+
+	// SQLite checks the handler every 1000 virtual machine steps and stops the statement when it
+	// returns non-zero; it is cleared before this returns, so it never outlives `dl`.
+	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
+	handler_set = 1;
+
+	result = read_rows(env, st, offset, max_rows, max_text, max_blob, max_total, &rc, &has_more);
+	if (result && !has_more && rc != SQLITE_DONE) {
+		result = NULL;
 		if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {
 			char msg[256];
 			snprintf(msg, sizeof msg,
@@ -631,46 +662,38 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 			throw_engine(env, SQLITE_INTERRUPT, msg);
 		} else if (dl.hit && rc == SQLITE_INTERRUPT) throw_engine(env, SQLITE_INTERRUPT, "the query ran past its time limit");
 		else throw_engine(env, rc, sqlite3_errmsg(db));
-		goto done;
 	}
-
-	// {cut cell count, hasMore, then the index of each cut cell}
-	jlongArray counts = (*env)->NewLongArray(env, (jsize)(2 + cut_n));
-	result = counts ? (*env)->NewObjectArray(env, 4, g_object, NULL) : NULL;
-	if (!result) goto done;
-	jlong head[2] = {(jlong)cut_n, has_more};
-	(*env)->SetLongArrayRegion(env, counts, 0, 2, head);
-	if (cut_n) (*env)->SetLongArrayRegion(env, counts, 2, (jsize)cut_n, cut_cells);
-	(*env)->SetObjectArrayElement(env, result, 0, columns);
-	(*env)->SetObjectArrayElement(env, result, 1, rows);
-	(*env)->SetObjectArrayElement(env, result, 2, counts);
-	(*env)->SetObjectArrayElement(env, result, 3, decltypes);
 
 done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
 	sqlite3_finalize(st);
-	free(cut_cells);
 	if (!end_transaction_backstop(env, db)) result = NULL;
 	return result;
 }
 
-// Runs one statement that writes, to its end, on a writable server connection (ADFA-7298). Rows it
-// returns (RETURNING) are read and dropped. Returns {changes, last_insert_rowid}: changes is the rows the
-// statement itself inserted, updated or deleted (sqlite3_changes64), or 0 when it changed none, such as
-// CREATE TABLE, which leaves sqlite3_changes64 at the previous write's count (ADFA-7131 comment 41489).
-// last_insert_rowid is the rowid of the last row the statement inserted into a rowid table, and INT64_MIN
-// when it inserted none: SQLite never assigns that rowid itself, so only a row inserted explicitly with
-// it reads as none (accepted), while 0 and other negative rowids are reported as they are. Inserts made
-// by a trigger do not count: SQLite restores the value when the trigger ends.
-static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args,
-                                 jobjectArray names, jlong deadline_ms) {
+// Runs one statement that writes on a writable server connection (ADFA-7298), and returns the rows it
+// returns (RETURNING) as read_rows does, within the same limits (ADFA-7304): [columns, rows, counts,
+// decltypes, {changes, last_insert_rowid}]. changes is the rows the statement itself inserted, updated or
+// deleted (sqlite3_changes64), or 0 when it changed none, such as CREATE TABLE, which leaves
+// sqlite3_changes64 at the previous write's count (ADFA-7131 comment 41489). last_insert_rowid is the rowid
+// of the last row the statement inserted into a rowid table, and INT64_MIN when it inserted none: SQLite
+// never assigns that rowid itself, so only a row inserted explicitly with it reads as none (accepted), while
+// 0 and other negative rowids are reported as they are. Inserts made by a trigger do not count: SQLite
+// restores the value when the trigger ends.
+// SQLite makes every change, and buffers every RETURNING row, in the first sqlite3_step (ADFA-7304 comment
+// 41621). So a statement stopped at the row limit is reset, which commits all its changes and leaves
+// changes counting every row written. A statement that fails at any step, even after rows came back, is
+// rolled back whole, so its rows are dropped and only the error is returned.
+static jobjectArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args,
+                                   jobjectArray names, jint max_rows, jint max_text, jint max_blob, jint max_total,
+                                   jlong deadline_ms) {
 	(void)cls;
 	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
 	sqlite3_stmt *st = NULL;
-	jlongArray result = NULL;
+	jobjectArray result = NULL;
 	deadline dl = {(int64_t)deadline_ms, 0, 0};
 	int handler_set = 0;
-	int rc;
+	int rc, has_more;
 
 	if (now_ms() >= dl.at_ms) {
 		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the statement started");
@@ -697,8 +720,19 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 	// the connection is cached and keeps its value across statements: without this an UPDATE would
 	// report the rowid of an earlier execute's INSERT. Not 0, SQLite's own "none": 0 is a valid rowid.
 	sqlite3_set_last_insert_rowid(db, INT64_MIN);
-	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {}
-	if (rc != SQLITE_DONE) {
+	jobjectArray rows = read_rows(env, st, 0, max_rows, max_text, max_blob, max_total, &rc, &has_more);
+	if (!rows) goto done;
+	if (has_more) {
+		// Commits every change, not only those of the rows read; the commit itself can fail.
+		rc = sqlite3_reset(st);
+		if (rc != SQLITE_OK) {
+			char msg[256];
+			snprintf(msg, sizeof msg, "the statement could not be committed, and nothing it changed was kept: %s",
+			         sqlite3_errmsg(db));
+			throw_engine(env, rc, msg);
+			goto done;
+		}
+	} else if (rc != SQLITE_DONE) {
 		if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {
 			char msg[256];
 			snprintf(msg, sizeof msg,
@@ -713,8 +747,16 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 	jlong out[2];
 	out[0] = sqlite3_total_changes64(db) == total_before ? 0 : (jlong)sqlite3_changes64(db);
 	out[1] = (jlong)sqlite3_last_insert_rowid(db);
-	result = (*env)->NewLongArray(env, 2);
-	if (result) (*env)->SetLongArrayRegion(env, result, 0, 2, out);
+	jlongArray counts = (*env)->NewLongArray(env, 2);
+	result = counts ? (*env)->NewObjectArray(env, 5, g_object, NULL) : NULL;
+	if (!result) goto done;
+	(*env)->SetLongArrayRegion(env, counts, 0, 2, out);
+	for (int i = 0; i < 4; i++) {
+		jobject part = (*env)->GetObjectArrayElement(env, rows, i);
+		(*env)->SetObjectArrayElement(env, result, i, part);
+		(*env)->DeleteLocalRef(env, part);
+	}
+	(*env)->SetObjectArrayElement(env, result, 4, counts);
 
 done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
@@ -763,7 +805,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	    {"openServer", "([BZ)J", (void *)bridge_open_server},
 	    {"setRowCapture", "(III)V", (void *)bridge_set_row_capture},
 	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;[[BJIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
-	    {"execute", "(JLjava/lang/String;[Ljava/lang/Object;[[BJ)[J", (void *)bridge_execute},
+	    {"execute", "(JLjava/lang/String;[Ljava/lang/Object;[[BIIIIJ)[Ljava/lang/Object;", (void *)bridge_execute},
 	    {"close", "(J)V", (void *)bridge_close},
 	};
 	jclass bridge = (*env)->FindClass(env, BRIDGE_CLASS);

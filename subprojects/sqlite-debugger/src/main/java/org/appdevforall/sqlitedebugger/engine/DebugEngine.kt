@@ -85,19 +85,22 @@ interface ServerConnection : Closeable {
 	): QueryResult
 
 	/**
-	 * Runs [sql], one statement that writes, to its end in autocommit, with [args] bound as in [query] (by name when
-	 * [argNames] is not null); rows it
-	 * returns (RETURNING) are dropped. Needs a connection opened with `writable = true`. The statement is
-	 * stopped and rolled back once [deadlineMillis] has passed, or after SQLITEDBG_SERVER_NON_WAL_MS
-	 * (1.5 s) whichever is first: it holds the write lock, which the app's own writes wait for.
+	 * Runs [sql], one statement that writes, in autocommit, with [args] bound as in [query] (by name when
+	 * [argNames] is not null), and returns the rows it returns (RETURNING) within [limits] as [query] does,
+	 * from the first row, with no offset: paging would run the write again. Every change is committed
+	 * however many rows are returned ([ExecuteResult.rows] has hasMore). Needs a connection opened with
+	 * `writable = true`. The statement is stopped and rolled back once [deadlineMillis] has passed, or after
+	 * SQLITEDBG_SERVER_NON_WAL_MS (1.5 s) whichever is first: it holds the write lock, which the app's own
+	 * writes wait for. A statement that fails, even after rows came back, keeps nothing and returns no rows.
 	 *
 	 * @throws DebugEngineException as [query] does, and for a statement that does not write
-	 *   (`sqlite3_stmt_readonly`), a transaction statement, or a refused PRAGMA.
+	 *   (`sqlite3_stmt_readonly`), a transaction statement, a refused PRAGMA, or a failed commit.
 	 */
 	fun execute(
 		sql: String,
 		args: List<Any?>,
 		argNames: List<String>?,
+		limits: QueryLimits,
 		deadlineMillis: Long,
 	): ExecuteResult
 }
@@ -115,6 +118,8 @@ data class ExecuteResult(
 	 * assigns itself, reads as null; 0 and other negative rowids are reported.
 	 */
 	val lastInsertRowid: Long?,
+	/** The rows from RETURNING, as [ServerConnection.query] returns rows; no columns without RETURNING. */
+	val rows: QueryResult = QueryResult(emptyList(), emptyList(), 0, false),
 )
 
 data class AppConnection(

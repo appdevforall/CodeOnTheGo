@@ -112,6 +112,43 @@ class NativeDebugEngine : DebugEngine {
 					deadlineMillis,
 				)
 
+			return rowsOf(result)
+		}
+
+		override fun execute(
+			sql: String,
+			args: List<Any?>,
+			argNames: List<String>?,
+			limits: QueryLimits,
+			deadlineMillis: Long,
+		): ExecuteResult {
+			check(handle != 0L) { "the connection is closed" }
+			require(argNames == null || argNames.size == args.size) { "${argNames?.size} names for ${args.size} args" }
+			require(limits.maxRows > 0 && limits.maxTextBytes >= 0 && limits.maxBlobBytes >= 0 && limits.maxTotalBytes > 0) {
+				"bad limits $limits"
+			}
+			val result =
+				NativeBridge.execute(
+					handle,
+					sql,
+					Array(args.size) { bindable(args[it]) },
+					argNames?.map { it.toByteArray(Charsets.UTF_8) }?.toTypedArray(),
+					limits.maxRows,
+					limits.maxTextBytes,
+					limits.maxBlobBytes,
+					limits.maxTotalBytes,
+					deadlineMillis,
+				)
+			val counts = result[4] as LongArray
+			return ExecuteResult(
+				changes = counts[0],
+				lastInsertRowid = counts[1].takeIf { it != Long.MIN_VALUE },
+				rows = rowsOf(result),
+			)
+		}
+
+		/** The first four elements of what [NativeBridge.query] and [NativeBridge.execute] return. */
+		private fun rowsOf(result: Array<Any?>): QueryResult {
 			@Suppress("UNCHECKED_CAST")
 			val columns = (result[0] as Array<String>).asList()
 
@@ -130,25 +167,6 @@ class NativeDebugEngine : DebugEngine {
 				truncatedCellIndexes = cut,
 				declaredTypes = declaredTypes,
 			)
-		}
-
-		override fun execute(
-			sql: String,
-			args: List<Any?>,
-			argNames: List<String>?,
-			deadlineMillis: Long,
-		): ExecuteResult {
-			check(handle != 0L) { "the connection is closed" }
-			require(argNames == null || argNames.size == args.size) { "${argNames?.size} names for ${args.size} args" }
-			val result =
-				NativeBridge.execute(
-					handle,
-					sql,
-					Array(args.size) { bindable(args[it]) },
-					argNames?.map { it.toByteArray(Charsets.UTF_8) }?.toTypedArray(),
-					deadlineMillis,
-				)
-			return ExecuteResult(changes = result[0], lastInsertRowid = result[1].takeIf { it != Long.MIN_VALUE })
 		}
 
 		override fun close() {

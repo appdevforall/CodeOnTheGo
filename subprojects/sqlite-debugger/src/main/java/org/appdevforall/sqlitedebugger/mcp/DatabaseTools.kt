@@ -367,7 +367,13 @@ class DatabaseTools internal constructor(
 					"the rowid of the last row it inserted into a rowid table, or null when it inserted none (an UPDATE, " +
 					"a WITHOUT ROWID table, an ignored row; rows inserted by triggers do not count). One statement per call; " +
 					"BEGIN, COMMIT, ROLLBACK and SAVEPOINT are refused, so several statements cannot be made atomic. " +
-					"A statement that does not write is refused: use query. Rows from RETURNING are not returned. " +
+					"A statement that does not write is refused: use query. Rows from RETURNING come back as query returns " +
+					"them (columns, column_types, rows, storage_classes, has_more, truncated_cells, truncated_cell_indexes), at " +
+					"most max_rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS) and about " +
+					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cells. Every change is committed whatever is returned: " +
+					"has_more true means RETURNING produced more rows than came back, and they cannot be paged (that " +
+					"would write again); read them with query. SQLite makes every change before the first row comes back, " +
+					"so the time limit covers the whole write. A statement that fails returns no rows and keeps nothing. " +
 					"Foreign keys are enforced here whatever the app's own connections do: ON DELETE and ON UPDATE actions " +
 					"run, and a write the app could make with foreign keys off may be refused. " +
 					"Also refused: ATTACH, every PRAGMA that takes a value except user_version (no setting can be " +
@@ -378,6 +384,7 @@ class DatabaseTools internal constructor(
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
 					"args" to argsSchema(),
+					"max_rows" to prop("integer", "RETURNING rows to return. Default $DEFAULT_MAX_ROWS, at most $MAX_ROWS."),
 					"acknowledge_room" to
 						prop(
 							"boolean",
@@ -581,6 +588,7 @@ class DatabaseTools internal constructor(
 	): JSONObject {
 		val sql = stringArg(args, "sql")
 		val bind = bindArgs(args)
+		val maxRows = intArg(args, "max_rows", DEFAULT_MAX_ROWS.toLong(), 1, MAX_ROWS.toLong()).toInt()
 		val acknowledge =
 			when (val v = args.opt("acknowledge_room")) {
 				null, JSONObject.NULL -> false
@@ -594,8 +602,19 @@ class DatabaseTools internal constructor(
 			}
 			call.locked { roomAcknowledged += path }
 		}
-		val result = withConnection(call, path, writable = true) { it.execute(sql, bind.values, bind.names, call.deadline) }
-		return JSONObject()
+		val limits = QueryLimits(maxRows, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
+		val result = withConnection(call, path, writable = true) { it.execute(sql, bind.values, bind.names, limits, call.deadline) }
+		// Rows only for a statement with RETURNING; there is no offset to page with.
+		val out =
+			if (result.rows.columns.isEmpty()) {
+				JSONObject()
+			} else {
+				encodeResult(result.rows, 0).also {
+					it.remove("offset")
+					it.remove("next_offset")
+				}
+			}
+		return out
 			.put("changes", encodeLong(result.changes))
 			.put("last_insert_rowid", result.lastInsertRowid?.let { encodeLong(it) } ?: JSONObject.NULL)
 	}

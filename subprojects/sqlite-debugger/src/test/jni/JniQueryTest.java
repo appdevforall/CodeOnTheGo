@@ -126,21 +126,45 @@ public class JniQueryTest {
 		return new HashSet<>(Arrays.asList(v));
 	}
 
+	/** execute with query's limits and no names: [columns, rows, counts, decltypes, {changes, last_insert_rowid}]. */
+	static Object[] run(long h, String sql, byte[][] names, int maxRows, int maxText, int maxBlob, int maxTotal, long deadline,
+			Object... args) throws DebugEngineException {
+		Object[] r = NativeBridge.execute(h, sql, args, names, maxRows, maxText, maxBlob, maxTotal, deadline);
+		eq(r.length, 5, "execute returns the rows, then {changes, last_insert_rowid}");
+		return r;
+	}
+
+	static long[] counts(Object[] r) {
+		return (long[]) r[4];
+	}
+
+	/** What execute returned as rows, unpacked as query's are. */
+	@SuppressWarnings("unchecked")
+	static Result rowsOf(Object[] r) {
+		Result out = new Result();
+		out.columns = (String[]) r[0];
+		out.rows = (List<Object[]>) r[1];
+		long[] c = (long[]) r[2];
+		out.truncated = c[0];
+		out.hasMore = c[1] != 0;
+		for (int i = 2; i < c.length; i++) out.cut.add(c[i]);
+		out.declaredTypes = (String[]) r[3];
+		return out;
+	}
+
 	static long exec(long h, String sql, Object... args) throws DebugEngineException {
-		long[] r = NativeBridge.execute(h, sql, args, null, FAR);
-		eq(r.length, 2, "execute returns {changes, last_insert_rowid}");
-		return r[0];
+		return counts(run(h, sql, null, 1000, 4096, 1024, MAX, FAR, args))[0];
 	}
 
 	/** The rowid execute reports, or null (Long.MIN_VALUE on the wire) when the statement inserted no row. */
 	static Long rowid(long h, String sql, Object... args) throws DebugEngineException {
-		long r = NativeBridge.execute(h, sql, args, null, FAR)[1];
+		long r = counts(run(h, sql, null, 1000, 4096, 1024, MAX, FAR, args))[1];
 		return r == Long.MIN_VALUE ? null : r;
 	}
 
 	static int execCode(long h, String sql, Object[] args, long deadline) {
 		try {
-			NativeBridge.execute(h, sql, args, null, deadline);
+			NativeBridge.execute(h, sql, args, null, 1000, 4096, 1024, MAX, deadline);
 			return 0;
 		} catch (DebugEngineException e) {
 			return e.sqliteCode;
@@ -150,11 +174,85 @@ public class JniQueryTest {
 	/** "code message" of the refusal, or null when the statement ran. */
 	static String execRefusal(long h, String sql) {
 		try {
-			NativeBridge.execute(h, sql, new Object[0], null, FAR);
+			NativeBridge.execute(h, sql, new Object[0], null, 1000, 4096, 1024, MAX, FAR);
 			return null;
 		} catch (DebugEngineException e) {
 			return e.sqliteCode + " " + e.getMessage();
 		}
+	}
+
+	/**
+	 * ADFA-7304: RETURNING rows within query's limits. SQLite makes every change in the first step, so a
+	 * statement stopped at a limit is reset, which commits all of it (comment 41621).
+	 */
+	static void returningCaps(long w, long r, long app) throws Exception {
+		eq(exec(w, "CREATE TABLE rt(id INTEGER PRIMARY KEY, v INTEGER, s TEXT, b BLOB)"), 0L, "create rt");
+		eq(exec(w, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 50) "
+				+ "INSERT INTO rt SELECT x, 0, printf('%.20c', 'x'), x'0102030405' FROM c"), 50L, "50 rows");
+
+		// past the row cap: the capped rows, has_more, every change made and counted
+		Object[] ret = run(w, "UPDATE rt SET v = v + 1 RETURNING *", null, 3, 4096, 1024, MAX, FAR);
+		Result rows = rowsOf(ret);
+		eq(rows.rows.size(), 3, "3 rows, the cap");
+		check(rows.hasMore, "has_more past the cap");
+		eq(counts(ret)[0], 50L, "changes counts every row written, not only those returned");
+		eq(q(r, "SELECT count(*) FROM rt WHERE v = 1").rows.get(0)[0], 50L, "and every row was updated, and committed");
+		eq(Arrays.asList(rows.columns), Arrays.asList("id", "v", "s", "b"), "RETURNING * columns");
+		eq(Arrays.asList(rows.declaredTypes), Arrays.asList("INTEGER", "INTEGER", "TEXT", "BLOB"), "declared types, as query's");
+
+		// the byte budget: the first row always comes back, the rest is has_more
+		ret = run(w, "UPDATE rt SET v = v + 1 RETURNING s", null, 1000, 4096, 1024, 10, FAR);
+		eq(rowsOf(ret).rows.size(), 1, "the budget keeps the first row only");
+		check(rowsOf(ret).hasMore, "and says there is more");
+		eq(counts(ret)[0], 50L, "every row still counted");
+		eq(q(r, "SELECT count(*) FROM rt WHERE v = 2").rows.get(0)[0], 50L, "and updated");
+
+		// a wide row is cut as in query
+		ret = run(w, "UPDATE rt SET v = v + 1 WHERE id = 1 RETURNING s, b", null, 1000, 4, 2, MAX, FAR);
+		rows = rowsOf(ret);
+		eq(rows.rows.get(0)[0], "xxxx", "TEXT cut at its limit");
+		eq(((byte[]) rows.rows.get(0)[1]).length, 2, "BLOB cut at its limit");
+		eq(rows.cut, set(0L, 1L), "both listed as cut");
+
+		// DELETE ... RETURNING cut short deletes every row
+		ret = run(w, "DELETE FROM rt WHERE id > 40 RETURNING id", null, 2, 4096, 1024, MAX, FAR);
+		eq(rowsOf(ret).rows.size(), 2, "2 rows back");
+		eq(counts(ret)[0], 10L, "10 deleted");
+		eq(q(r, "SELECT count(*) FROM rt WHERE id > 40").rows.get(0)[0], 0L, "all 10 gone");
+
+		// the commit at the reset can fail: the app holds a read transaction, so the write cannot take the lock
+		eq(Helper.exec(app, "BEGIN; SELECT count(*) FROM rt"), 0, "the app opens a read transaction");
+		try {
+			NativeBridge.execute(w, "UPDATE rt SET v = 100 RETURNING id", new Object[0], null, 1, 4096, 1024, MAX, FAR);
+			check(false, "a write whose commit failed returned rows");
+		} catch (DebugEngineException e) {
+			eq(e.sqliteCode, 5, "the failed commit is the call's error: SQLITE_BUSY");
+			check(e.getMessage().contains("could not be committed"), "and says so: " + e.getMessage());
+		}
+		eq(Helper.exec(app, "COMMIT"), 0, "the app ends its transaction");
+		eq(Helper.autocommit(app), 1, "the app's connection is in autocommit");
+		eq(q(r, "SELECT count(*) FROM rt WHERE v = 100").rows.get(0)[0], 0L, "and nothing of the failed write was kept");
+		eq(exec(w, "UPDATE rt SET v = 7 WHERE id = 1"), 1L, "the writable connection still writes");
+		eq(exec(w, "DROP TABLE rt"), 0L, "drop rt");
+
+		// The time limit after rows came back: the first step (every change) takes about 0.5 s on a computer,
+		// copying 400,000 rows out runs past 1.5 s, and SQLite rolls back the whole statement (41621).
+		exec(w, "CREATE TABLE big(id INTEGER PRIMARY KEY, v, a, b, c, d, e, f, g, h)");
+		exec(w, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 400000) "
+				+ "INSERT INTO big SELECT x, 0, 'aaaa', 'bbbb', 'cccc', 'dddd', 'eeee', 'ffff', 'gggg', 'hhhh' FROM c");
+		long t = System.currentTimeMillis();
+		eq(counts(run(w, "UPDATE big SET v = 1 RETURNING *", null, 1, 4096, 1024, MAX, FAR))[0], 400000L, "one row back: every row changed");
+		long firstStep = System.currentTimeMillis() - t;
+		try {
+			run(w, "UPDATE big SET v = 2 RETURNING *", null, 1 << 30, 4096, 1024, 1 << 30, FAR);
+			check(false, "every row of a write past the time limit came back");
+		} catch (DebugEngineException e) {
+			eq(e.sqliteCode, 9, "stopped while its rows came back: SQLITE_INTERRUPT");
+			check(e.getMessage().contains("rolled back"), "the message says it was rolled back: " + e.getMessage());
+		}
+		eq(q(r, "SELECT count(*) FROM big WHERE v = 2").rows.get(0)[0], 0L, "and nothing was kept, though rows had come back");
+		if (firstStep >= 1000) System.out.println("  note: the first step took " + firstStep + " ms, so the stop may have come before any row");
+		exec(w, "DROP TABLE big");
 	}
 
 	/** ADFA-7298: execute on a writable server connection. */
@@ -169,12 +267,12 @@ public class JniQueryTest {
 		eq(exec(w, "DELETE FROM t WHERE id = -1"), 0L, "delete none: changes 0");
 		// by name, as query binds (ADFA-7304: P2-2 and P2-3 met)
 		byte[][] names = {"s".getBytes(StandardCharsets.UTF_8), ":id".getBytes(StandardCharsets.UTF_8)};
-		eq(NativeBridge.execute(w, "INSERT INTO t(id, s) VALUES(:id, @s)", new Object[] {"n", 6004L}, names, FAR)[0], 1L,
+		eq(counts(run(w, "INSERT INTO t(id, s) VALUES(:id, @s)", names, 1000, 4096, 1024, MAX, FAR, "n", 6004L))[0], 1L,
 				"execute binds by name: changes 1");
 		eq(q(r, "SELECT count(*) FROM t WHERE id = 6004 AND s = 'n'").rows.get(0)[0], 1L, "each value went to its own parameter");
 		try {
 			NativeBridge.execute(w, "DELETE FROM t WHERE id = :id", new Object[] {6004L}, new byte[][] {"idd".getBytes(StandardCharsets.UTF_8)},
-					FAR);
+					1000, 4096, 1024, MAX, FAR);
 			check(false, "execute ran with a misspelt name");
 		} catch (DebugEngineException e) {
 			eq(e.sqliteCode, 25, "execute: a misspelt name is SQLITE_RANGE, nothing run");
@@ -188,7 +286,17 @@ public class JniQueryTest {
 		eq(q(r, "PRAGMA user_version").rows.get(0)[0], 7L, "and is stored");
 		eq(exec(w, "PRAGMA user_version = 0"), 0L, "user_version back");
 		eq(exec(w, "DROP TABLE ex"), 0L, "DROP TABLE: changes 0");
-		eq(exec(w, "INSERT INTO t(id) VALUES(6003) RETURNING id"), 1L, "RETURNING rows are read and dropped: changes 1");
+		// RETURNING rows come back as query's do (ADFA-7304)
+		Object[] ret = run(w, "INSERT INTO t(id) VALUES(6003) RETURNING id", null, 1000, 4096, 1024, MAX, FAR);
+		eq(counts(ret)[0], 1L, "INSERT ... RETURNING: changes 1");
+		eq(Arrays.asList(rowsOf(ret).columns), Arrays.asList("id"), "its RETURNING column");
+		eq(rowsOf(ret).rows.size(), 1, "one row");
+		eq(rowsOf(ret).rows.get(0)[0], 6003L, "the id it inserted");
+		eq(counts(ret)[1], q(r, "SELECT rowid FROM t WHERE id = 6003").rows.get(0)[0], "and last_insert_rowid, its rowid");
+		ret = run(w, "UPDATE t SET s = 'q' WHERE id = 6003", null, 1000, 4096, 1024, MAX, FAR);
+		eq(rowsOf(ret).columns.length, 0, "without RETURNING: no columns");
+		eq(rowsOf(ret).rows.size(), 0, "and no rows");
+		returningCaps(w, r, app);
 		eq(q(r, "SELECT count(*) FROM t WHERE id IN (6002, 6003)").rows.get(0)[0], 2L, "the writes are visible to a reader");
 		eq(Helper.exec(app, "DELETE FROM t WHERE id IN (6002, 6003)"), 0, "the app's own connection writes after them");
 		eq(Helper.autocommit(app), 1, "and the app's connection is in autocommit");
@@ -289,7 +397,7 @@ public class JniQueryTest {
 				try {
 					// far more work than 1.5 s: a cross join of t four times over, inserted
 					NativeBridge.execute(sw, "INSERT INTO t SELECT a.id FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0 "
-							+ "UNION ALL SELECT -1", new Object[0], null, System.currentTimeMillis() + 8000);
+							+ "UNION ALL SELECT -1", new Object[0], null, 1000, 4096, 1024, MAX, System.currentTimeMillis() + 8000);
 				} catch (DebugEngineException e) {
 					ran.code = e.sqliteCode;
 					ran.message = e.getMessage();

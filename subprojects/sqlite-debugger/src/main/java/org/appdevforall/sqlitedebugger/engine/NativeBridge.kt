@@ -63,9 +63,9 @@ internal object NativeBridge {
 	): Array<Any?>
 
 	/**
-	 * `{changes, last_insert_rowid}` of one statement that writes (see [ServerConnection.execute]); the
-	 * rowid is [Long.MIN_VALUE] when the statement inserted no row into a rowid table. [names] binds
-	 * [args] as in [query]. Throws [DebugEngineException].
+	 * One statement that writes (see [ServerConnection.execute]): its RETURNING rows as [query] returns
+	 * them, then `{changes, last_insert_rowid}`; the rowid is [Long.MIN_VALUE] when the statement inserted
+	 * no row into a rowid table. [names] binds [args] as in [query]. Throws [DebugEngineException].
 	 */
 	@JvmStatic
 	external fun execute(
@@ -73,8 +73,12 @@ internal object NativeBridge {
 		sql: String,
 		args: Array<Any?>,
 		names: Array<ByteArray>?,
+		maxRows: Int,
+		maxTextBytes: Int,
+		maxBlobBytes: Int,
+		maxTotalBytes: Int,
 		deadlineMillis: Long,
-	): LongArray
+	): Array<Any?>
 
 	@JvmStatic
 	external fun close(handle: Long)

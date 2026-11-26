@@ -1424,6 +1424,45 @@ class DatabaseToolsTest {
 		assertEquals(listOf("array", "object"), schema.getJSONArray("type").let { a -> (0 until a.length()).map { a.getString(it) } })
 	}
 
+	@Test fun executeReturnsReturningRowsAsQueryDoes() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.executeAnswer = { _, _, _ ->
+			ExecuteResult(
+				changes = 50,
+				lastInsertRowid = null,
+				rows =
+					QueryResult(
+						listOf("id", "b"),
+						listOf(listOf(1L, byteArrayOf(1)), listOf(2L, null)),
+						1,
+						true,
+						setOf(1L),
+						listOf("INTEGER", "BLOB"),
+					),
+			)
+		}
+		val r = ok("execute", db().put("sql", "update t set v = 1 returning id, b").put("max_rows", 2))
+		assertEquals(50, r.getInt("changes"))
+		assertEquals(listOf("id", "b"), r.getJSONArray("columns").let { a -> (0 until a.length()).map { a.getString(it) } })
+		assertEquals("INTEGER", r.getJSONArray("column_types").getString(0))
+		assertEquals(2, r.getInt("row_count"))
+		assertEquals("01", r.getJSONArray("rows").getJSONArray(0).getJSONObject(1).getString("hex"))
+		assertEquals("ib", r.getJSONArray("storage_classes").getString(0))
+		assertTrue(r.getBoolean("has_more"))
+		assertEquals(1, r.getInt("truncated_cells"))
+		assertEquals(0, r.getJSONArray("truncated_cell_indexes").getJSONArray(0).getInt(0))
+		assertFalse("no paging: running the write again would write again", r.has("offset") || r.has("next_offset"))
+		assertEquals(2, engine.lastExecuteLimits!!.maxRows)
+		assertEquals(DatabaseTools.MAX_TOTAL_BYTES, engine.lastExecuteLimits!!.maxTotalBytes)
+
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1, lastInsertRowid = 9) }
+		val plain = ok("execute", db().put("sql", "insert into t values (1)"))
+		assertFalse("no RETURNING: no rows", plain.has("rows") || plain.has("columns"))
+		assertEquals(DatabaseTools.DEFAULT_MAX_ROWS, engine.lastExecuteLimits!!.maxRows)
+		assertTrue(runTool(tools, "execute", db().put("sql", "x").put("max_rows", 0)).getBoolean("isError"))
+		assertTrue(runTool(tools, "execute", db().put("sql", "x").put("max_rows", DatabaseTools.MAX_ROWS + 1)).getBoolean("isError"))
+	}
+
 	@Test fun executeReportsChangesPastTwoToTheFiftyThirdAsAString() {
 		engine.appConnections += conn(1, "/data/a.db")
 		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1L shl 60, lastInsertRowid = null) }
@@ -1479,7 +1518,9 @@ class DatabaseToolsTest {
 			"committed at once and cannot be undone",
 			"BEGIN, COMMIT, ROLLBACK and SAVEPOINT are refused",
 			"does not write is refused: use query",
-			"RETURNING are not returned",
+			"Rows from RETURNING come back as query returns them",
+			"cannot be paged",
+			"returns no rows and keeps nothing",
 			"stopped and rolled back after 1.5 s",
 			"in every journal mode",
 			"may stay stale",

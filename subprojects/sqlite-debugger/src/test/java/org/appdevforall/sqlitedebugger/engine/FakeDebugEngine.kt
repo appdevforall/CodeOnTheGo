@@ -34,6 +34,10 @@ class FakeDebugEngine(
 	/** Each setRowCapture call, in order: rows per statement, value bytes, row bytes. */
 	val rowCaptureCalls = mutableListOf<Triple<Int, Int, Int>>()
 
+	/** The limits of the last execute. */
+	var lastExecuteLimits: QueryLimits? = null
+		private set
+
 	/** The argNames of the last query: null when its args were bound by position. */
 	var lastArgNames: List<String>? = null
 		private set
@@ -166,10 +170,12 @@ class FakeDebugEngine(
 				sql: String,
 				args: List<Any?>,
 				argNames: List<String>?,
+				limits: QueryLimits,
 				deadlineMillis: Long,
 			): ExecuteResult {
 				check(!closed) { "closed" }
 				lastArgNames = argNames
+				lastExecuteLimits = limits
 				if (!writable) throw DebugEngineException(DebugEngineException.SQLITE_AUTH, "not authorized")
 				return executeAnswer(path, sql, args)
 			}
