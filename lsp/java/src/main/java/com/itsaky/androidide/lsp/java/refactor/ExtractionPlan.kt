@@ -43,7 +43,7 @@ sealed interface AnchorForm {
  * part, filled positionally.
  */
 data class ScopeLabel(
-	@StringRes val res: Int,
+	@param:StringRes val res: Int,
 	val argument: String? = null,
 )
 
