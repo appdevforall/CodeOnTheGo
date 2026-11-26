@@ -36,12 +36,18 @@ class DatabaseTools internal constructor(
 	private val databaseDir: File?,
 	private val clock: () -> Long,
 	private val idleScheduler: IdleScheduler,
+	/**
+	 * get_template_variables' app and device objects, read on each call (the locale can change); null on the JVM.
+	 * Called outside the lock, so it must be quick and thread-safe.
+	 */
+	private val environment: () -> JSONObject? = { null },
 ) {
 	constructor(
 		engine: DebugEngine,
 		databaseDir: File? = null,
 		clock: () -> Long = System::currentTimeMillis,
-	) : this(engine, databaseDir, clock, TimerIdleScheduler())
+		environment: () -> JSONObject? = { null },
+	) : this(engine, databaseDir, clock, TimerIdleScheduler(), environment)
 
 	companion object {
 		const val DEFAULT_MAX_ROWS = 100
@@ -68,6 +74,16 @@ class DatabaseTools internal constructor(
 		private const val DEADLINE_SECONDS = DEADLINE_MS / 1000
 		const val EVENT_BATCH_BYTES = 256 * 1024
 		const val MAX_TABLES_FOR_COUNTS = 10
+
+		/** get_template_variables' limit on each list it reads (tables, columns, index columns, foreign key columns). */
+		const val MAX_TEMPLATE_ROWS = 20_000
+
+		/** Databases a library creates, by file name, and the library. */
+		val LIBRARY_DATABASES = mapOf("androidx.work.workdb" to "androidx.work")
+
+		/** The prefix of the triggers Room keeps an external-content FTS table in step with. */
+		const val ROOM_FTS_SYNC_PREFIX = "room_fts_content_sync_"
+		private val FTS_MODULES = setOf("fts3", "fts4", "fts5")
 
 		/** Bound values stop being recorded this long after the last get_events call. */
 		const val EVENTS_IDLE_MS = 60_000L
@@ -378,6 +394,32 @@ class DatabaseTools internal constructor(
 					required = listOf("sql"),
 				),
 			) { call, args -> suggestIndexes(call, args) },
+			tool(
+				"get_template_variables",
+				"Get template variables",
+				"Returns, in one call, what a SQL template (.read with a Pebble template, rendered by Code on the Go) can use " +
+					"without reading the app's rows: app (package, version_name, version_code) and device (api_level, abi, abis, " +
+					"locale), then for each database the app has open (or only database): path, name, library (the library " +
+					"that owns it, such as androidx.work, recognised by file name; else null), user_version, journal_mode, " +
+					"page_size, page_count; tables, each with type (table, virtual or shadow, the last for the tables a " +
+					"virtual table such as FTS keeps its data in), without_rowid, column_count, columns (name, declared_type, " +
+					"not_null, default as SQL text, primary_key: its position in the key from 1, else 0, generated), " +
+					"primary_key (column names), indexes (name, unique, origin: c CREATE INDEX, u UNIQUE, pk PRIMARY KEY; " +
+					"partial; columns, null for an expression) and foreign_keys (table, from, to: null names the parent's " +
+					"primary key, on_update, on_delete); views and triggers (name, table); fts_tables (virtual tables using " +
+					"fts3, fts4 or fts5); has_sqlite_sequence; and room, null unless the database has room_master_table: " +
+					"schema_version (user_version), identity_hash, own_tables (room_ names) and fts_sync_triggers " +
+					"(room_fts_content_sync_ triggers). sqlite_ tables are left out. A database that cannot be read is in " +
+					"errors with the message. truncated is true when a list stopped at $MAX_TEMPLATE_ROWS rows. Row counts " +
+					"and other reads of the data are not here: a template calls them as functions. $NON_WAL_NOTE",
+				JSONObject()
+					.put("type", "object")
+					.put("additionalProperties", false)
+					.put(
+						"properties",
+						JSONObject().put("database", prop("string", "Only this database, as list_databases gives it. Default: all.")),
+					).put("required", JSONArray()),
+			) { call, args -> getTemplateVariables(call, args) },
 			tool(
 				"lint_foreign_keys",
 				"Check foreign key indexes",
@@ -849,6 +891,216 @@ class DatabaseTools internal constructor(
 		}
 		return JSONObject().put("foreign_keys", out).put("uncovered", uncovered).put("truncated", list.hasMore)
 	}
+
+	private fun getTemplateVariables(
+		call: Call,
+		args: JSONObject,
+	): JSONObject {
+		val paths =
+			if (args.opt("database") == null || args.opt("database") == JSONObject.NULL) {
+				knownPaths(engine.connections()).sorted()
+			} else {
+				listOf(checkedPath(call, args))
+			}
+		val out = JSONObject()
+		val env = environment()
+		out.put("app", env?.optJSONObject("app") ?: JSONObject.NULL)
+		out.put("device", env?.optJSONObject("device") ?: JSONObject.NULL)
+		val databases = JSONArray()
+		val errors = JSONArray()
+		var truncated = false
+		for (path in paths) {
+			try {
+				val db = TemplateReader(call, path)
+				databases.put(db.read())
+				truncated = truncated || db.truncated
+			} catch (e: McpToolError) {
+				// Past the time limit every later database fails the same way: stop, as the call is over.
+				errors.put(JSONObject().put("database", path).put("error", e.message))
+				if (clock() >= call.deadline) break
+			}
+		}
+		return out
+			.put("databases", databases)
+			.put("errors", errors)
+			.put("truncated", truncated)
+	}
+
+	/** get_template_variables for one database. */
+	private inner class TemplateReader(
+		val call: Call,
+		val path: String,
+	) {
+		var truncated = false
+
+		private val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
+
+		/** Every row of [sql], page by page, up to [MAX_TEMPLATE_ROWS]. */
+		private fun rows(sql: String): List<List<Any?>> {
+			val all = ArrayList<List<Any?>>()
+			while (true) {
+				val page = runChecked(call, path, sql, Bind.NONE, all.size.toLong(), limits)
+				all.addAll(page.rows)
+				if (!page.hasMore || page.rows.isEmpty()) return all
+				if (all.size >= MAX_TEMPLATE_ROWS) {
+					truncated = true
+					return all.subList(0, MAX_TEMPLATE_ROWS)
+				}
+			}
+		}
+
+		private fun pragma(name: String) = runChecked(call, path, "PRAGMA $name", Bind.NONE, 0, limits).rows.firstOrNull()?.firstOrNull()
+
+		fun read(): JSONObject {
+			val userVersion = pragma("user_version")
+			val db =
+				JSONObject()
+					.put("path", path)
+					.put("name", File(path).name)
+					.put("library", LIBRARY_DATABASES[File(path).name] ?: JSONObject.NULL)
+					.put("user_version", encodeValue(userVersion))
+					.put("journal_mode", encodeValue(pragma("journal_mode")))
+					.put("page_size", encodeValue(pragma("page_size")))
+					.put("page_count", encodeValue(pragma("page_count")))
+
+			val tables = LinkedHashMap<String, TemplateTable>()
+			var hasSqliteSequence = false
+			for (row in rows("SELECT name, type, wr FROM pragma_table_list WHERE schema = 'main' AND type <> 'view' ORDER BY name")) {
+				val name = row[0] as String
+				if (name == "sqlite_sequence") hasSqliteSequence = true
+				if (isInternal(name)) continue
+				tables[name] = TemplateTable(name, row[1] as String, row[2] == 1L)
+			}
+			for (row in rows(
+				"SELECT t.name, c.name, c.type, c.\"notnull\", c.dflt_value, c.pk, c.hidden FROM pragma_table_list AS t, " +
+					"pragma_table_xinfo(t.name, t.schema) AS c WHERE t.schema = 'main' AND t.type <> 'view' ORDER BY t.name, c.cid",
+			)) {
+				val table = tables[row[0] as String] ?: continue
+				// hidden 1 is a virtual table's hidden column (such as FTS's own); 2 and 3 are generated columns.
+				val hidden = row[6] as Long
+				if (hidden == 1L) continue
+				table.columns +=
+					JSONObject()
+						.put("name", row[1])
+						.put("declared_type", row[2])
+						.put("not_null", row[3] == 1L)
+						.put("default", row[4] ?: JSONObject.NULL)
+						.put("primary_key", row[5])
+						.put("generated", hidden >= 2L)
+				val pk = row[5] as Long
+				if (pk > 0) table.primaryKey += (pk to row[1] as String)
+			}
+			for (row in rows(
+				"SELECT t.name, il.name, il.\"unique\", il.origin, il.partial, ii.name FROM pragma_table_list AS t, " +
+					"pragma_index_list(t.name, t.schema) AS il, pragma_index_xinfo(il.name, t.schema) AS ii " +
+					"WHERE t.schema = 'main' AND t.type = 'table' AND ii.key = 1 ORDER BY t.name, il.name, ii.seqno",
+			)) {
+				val table = tables[row[0] as String] ?: continue
+				val name = row[1] as String
+				val index =
+					table.indexes.getOrPut(name) {
+						JSONObject()
+							.put("name", name)
+							.put("unique", row[2] == 1L)
+							.put("origin", row[3])
+							.put("partial", row[4] == 1L)
+							.put("columns", JSONArray())
+					}
+				index.getJSONArray("columns").put(row[5] ?: JSONObject.NULL)
+			}
+			for (row in rows(
+				"SELECT t.name, f.id, f.\"table\", f.\"from\", f.\"to\", f.on_update, f.on_delete FROM pragma_table_list AS t, " +
+					"pragma_foreign_key_list(t.name, t.schema) AS f WHERE t.schema = 'main' AND t.type = 'table' " +
+					"ORDER BY t.name, f.id, f.seq",
+			)) {
+				val table = tables[row[0] as String] ?: continue
+				val key =
+					table.foreignKeys.getOrPut(row[1] as Long) {
+						JSONObject()
+							.put("table", row[2])
+							.put("from", JSONArray())
+							.put("to", JSONArray())
+							.put("on_update", row[5])
+							.put("on_delete", row[6])
+					}
+				key.getJSONArray("from").put(row[3])
+				key.getJSONArray("to").put(row[4] ?: JSONObject.NULL)
+			}
+
+			val views = JSONArray()
+			val triggers = JSONArray()
+			val ftsTables = JSONArray()
+			val ftsSyncTriggers = JSONArray()
+			// A virtual table's module is the word after USING; the statement is cut at MAX_TEXT_BYTES, well past it.
+			for (row in rows(
+				"SELECT type, name, tbl_name, CASE WHEN type = 'table' THEN sql END FROM sqlite_master " +
+					"WHERE type IN ('view', 'trigger') OR (type = 'table' AND sql LIKE 'CREATE VIRTUAL TABLE%') ORDER BY type, name",
+			)) {
+				val name = row[1] as String
+				when (row[0]) {
+					"view" -> views.put(JSONObject().put("name", name))
+					"trigger" -> {
+						triggers.put(JSONObject().put("name", name).put("table", row[2]))
+						if (name.startsWith(ROOM_FTS_SYNC_PREFIX)) ftsSyncTriggers.put(name)
+					}
+					"table" -> if (virtualModule(row[3] as String?)?.lowercase() in FTS_MODULES) ftsTables.put(name)
+				}
+			}
+
+			db.put("tables", JSONArray(tables.values.map { it.toJson() }))
+			db.put("views", views)
+			db.put("triggers", triggers)
+			db.put("fts_tables", ftsTables)
+			db.put("has_sqlite_sequence", hasSqliteSequence)
+			db.put(
+				"room",
+				if ("room_master_table" in tables) {
+					// Room writes its one row with id 42 (RoomMasterTable.DEFAULT_ID).
+					val hash =
+						runChecked(call, path, "SELECT identity_hash FROM room_master_table WHERE id = 42", Bind.NONE, 0, limits)
+							.rows
+							.firstOrNull()
+							?.firstOrNull()
+					JSONObject()
+						.put("schema_version", encodeValue(userVersion))
+						.put("identity_hash", hash ?: JSONObject.NULL)
+						.put("own_tables", JSONArray(tables.keys.filter { it.startsWith("room_") }))
+						.put("fts_sync_triggers", ftsSyncTriggers)
+				} else {
+					JSONObject.NULL
+				},
+			)
+			return db
+		}
+
+		private fun isInternal(name: String) = name.regionMatches(0, "sqlite_", 0, 7, ignoreCase = true)
+	}
+
+	private class TemplateTable(
+		val name: String,
+		val type: String,
+		val withoutRowid: Boolean,
+	) {
+		val columns = mutableListOf<JSONObject>()
+		val primaryKey = mutableListOf<Pair<Long, String>>()
+		val indexes = LinkedHashMap<String, JSONObject>()
+		val foreignKeys = LinkedHashMap<Long, JSONObject>()
+
+		fun toJson(): JSONObject =
+			JSONObject()
+				.put("name", name)
+				.put("type", type)
+				.put("without_rowid", withoutRowid)
+				.put("column_count", columns.size)
+				.put("columns", JSONArray(columns))
+				.put("primary_key", JSONArray(primaryKey.sortedBy { it.first }.map { it.second }))
+				.put("indexes", JSONArray(indexes.values))
+				.put("foreign_keys", JSONArray(foreignKeys.values))
+	}
+
+	/** The module of a CREATE VIRTUAL TABLE statement: the word after USING. */
+	private fun virtualModule(sql: String?): String? =
+		sql?.let { Regex("\\bUSING\\s+([A-Za-z0-9_]+)", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
 
 	/** One step of a dump: statements known up front, or a table's rows as INSERTs (see [dump]). */
 	private sealed class DumpUnit {

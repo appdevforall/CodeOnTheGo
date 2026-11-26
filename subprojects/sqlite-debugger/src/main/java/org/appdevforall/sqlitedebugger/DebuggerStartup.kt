@@ -6,12 +6,16 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
 import android.util.Log
 import org.appdevforall.sqlitedebugger.engine.NativeDebugEngine
 import org.appdevforall.sqlitedebugger.mcp.DatabaseTools
 import org.appdevforall.sqlitedebugger.mcp.McpHttp
 import org.appdevforall.sqlitedebugger.mcp.McpProtocol
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 import kotlin.concurrent.thread
 
@@ -52,7 +56,8 @@ class DebuggerStartup : ContentProvider() {
 		engine: NativeDebugEngine,
 		databaseDir: File,
 	) {
-		val tools = DatabaseTools(engine, databaseDir)
+		val app = appInfo(context)
+		val tools = DatabaseTools(engine, databaseDir, environment = { JSONObject().put("app", app).put("device", deviceInfo()) })
 		val token = McpHttp.newToken()
 		val protocol = McpProtocol(tools.tools(), "1", { UUID.randomUUID().toString() }, postTimeLimitMs = DatabaseTools.DEADLINE_MS)
 		val http = McpHttp(protocol, { token }, log = { Log.w(TAG, it) })
@@ -62,6 +67,39 @@ class DebuggerStartup : ContentProvider() {
 		Log.i(TAG, "listening on 127.0.0.1:${http.boundPort}")
 		EndpointBroadcast.sendAndListen(context, token, http.boundPort)
 	}
+
+	/**
+	 * get_template_variables' app object. No build type: AGP 8 generates no BuildConfig by default, and nothing else
+	 * tells the library the app's variant. Only the package when the package manager fails: the server still starts.
+	 */
+	private fun appInfo(context: Context): JSONObject {
+		val app = JSONObject().put("package", context.packageName)
+		val info =
+			try {
+				context.packageManager.getPackageInfo(context.packageName, 0)
+			} catch (e: Exception) {
+				Log.w(TAG, "could not read the app's version", e)
+				return app
+			}
+		val versionCode =
+			if (Build.VERSION.SDK_INT >= 28) {
+				info.longVersionCode
+			} else {
+				@Suppress("DEPRECATION")
+				info.versionCode.toLong()
+			}
+		return app
+			.put("version_name", info.versionName ?: JSONObject.NULL)
+			.put("version_code", versionCode)
+	}
+
+	/** Read on each call: the user can change the locale while the app runs. */
+	private fun deviceInfo(): JSONObject =
+		JSONObject()
+			.put("api_level", Build.VERSION.SDK_INT)
+			.put("abi", Build.SUPPORTED_ABIS.firstOrNull() ?: JSONObject.NULL)
+			.put("abis", JSONArray(Build.SUPPORTED_ABIS.toList()))
+			.put("locale", Locale.getDefault().toLanguageTag())
 
 	override fun query(
 		uri: Uri,

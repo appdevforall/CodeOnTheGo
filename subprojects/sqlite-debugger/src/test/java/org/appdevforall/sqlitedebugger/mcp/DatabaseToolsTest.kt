@@ -90,6 +90,7 @@ class DatabaseToolsTest {
 				"get_stats",
 				"integrity_check",
 				"suggest_indexes",
+				"get_template_variables",
 				"lint_foreign_keys",
 				"dump",
 				"export",
