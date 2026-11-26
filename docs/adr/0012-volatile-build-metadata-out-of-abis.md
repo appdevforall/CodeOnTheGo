@@ -99,8 +99,11 @@ Two related changes follow from the same invariant:
   plain constant. The generated file carries a comment saying why.
 - Values move from being inlined at each call site to a single static read. The runtime
   cost is immaterial; the behaviour is unchanged.
-- kapt still re-runs across its 11 modules: it resolves the full compile classpath
-  rather than the ABI-normalised one. Tracked by ADFA-4598 (kapt to KSP).
+- kapt still re-ran across its 11 modules: by default it fingerprints the full compile
+  classpath, jar contents included, rather than the ABI-normalised one. Since ADFA-6954,
+  `kapt.include.compile.classpath=false` in `gradle.properties` makes it use the
+  ABI-normalised one, so these values no longer reach it. Annotation processors must
+  then be declared with `kapt(...)`; kapt no longer finds them on the compile classpath.
 
 ## Alternatives considered
 
