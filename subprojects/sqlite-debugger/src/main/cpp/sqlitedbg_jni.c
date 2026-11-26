@@ -497,8 +497,18 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 
 done:
 	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
-	sqlite3_finalize(st);
+	// A statement stopped before SQLITE_DONE (a page cut short) ends here: on a writable connection an
+	// autocommit write, such as an INSERT ... RETURNING, commits here, and a commit that fails rolls the
+	// write back. That is the call's error, unless the query already failed: that error is kept.
+	rc = sqlite3_finalize(st);
 	free(cut_cells);
+	if (rc != SQLITE_OK && !(*env)->ExceptionCheck(env)) {
+		char msg[256];
+		snprintf(msg, sizeof msg, "the statement failed as it was finished, and nothing it changed was kept: %s",
+		         sqlite3_errmsg(db));
+		throw_engine(env, rc, msg);
+		result = NULL;
+	}
 	// Backstop: a transaction left open (a writable connection, or a way past the authorizer)
 	// would hold a lock on the app's database until the next query. A failure is the call's error,
 	// unless the query already failed: that error is kept.
