@@ -448,7 +448,8 @@ class ShellToolsTest {
 	@Test fun getStatsSaysWhyTheHeaderIsMissingWithoutSqliteDbpage() {
 		engine.answer = { _, _, sql, _ ->
 			if (sql.contains("sqlite_dbpage")) {
-				throw org.appdevforall.sqlitedebugger.engine.DebugEngineException(1, "no such table: sqlite_dbpage")
+				throw org.appdevforall.sqlitedebugger.engine
+					.DebugEngineException(1, "no such table: sqlite_dbpage")
 			}
 			QueryResult(emptyList(), emptyList(), 0, false)
 		}

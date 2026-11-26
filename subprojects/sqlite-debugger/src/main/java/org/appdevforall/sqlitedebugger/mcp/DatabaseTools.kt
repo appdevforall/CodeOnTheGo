@@ -665,17 +665,22 @@ class DatabaseTools internal constructor(
 		for (name in listOf("schema_version", "user_version", "application_id", "encoding", "auto_vacuum", "journal_mode")) {
 			out.put(name, encodeValue(pragma(name)))
 		}
-		val objects = JSONObject().put("table", 0).put("index", 0).put("trigger", 0).put("view", 0)
+		val objects =
+			JSONObject()
+				.put("table", 0)
+				.put("index", 0)
+				.put("trigger", 0)
+				.put("view", 0)
 		var schemaSize = 0L
 		for (
-			row in runChecked(
-				call,
-				path,
-				"SELECT type, count(*), total(length(sql)) FROM sqlite_master GROUP BY type",
-				Bind.NONE,
-				0,
-				limits,
-			).rows
+		row in runChecked(
+			call,
+			path,
+			"SELECT type, count(*), total(length(sql)) FROM sqlite_master GROUP BY type",
+			Bind.NONE,
+			0,
+			limits,
+		).rows
 		) {
 			objects.put(row[0] as String, row[1] as Long)
 			schemaSize += (row[2] as Double).toLong()
@@ -782,8 +787,7 @@ class DatabaseTools internal constructor(
 						Bind(listOf(key.parent), null),
 						0,
 						limits,
-					)
-						.rows
+					).rows
 						.map { it[0] as String }
 				}
 			val child = quoteIdentifier(key.child)
@@ -1005,8 +1009,7 @@ class DatabaseTools internal constructor(
 				Bind(listOf(table), null),
 				0,
 				limits,
-			)
-				.rows
+			).rows
 				.firstOrNull()
 				?.firstOrNull() == 1L
 		val target =

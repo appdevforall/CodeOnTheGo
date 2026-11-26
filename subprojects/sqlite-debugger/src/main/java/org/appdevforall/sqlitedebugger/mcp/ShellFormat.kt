@@ -13,16 +13,29 @@ internal object ShellFormat {
 	 */
 	fun csvField(value: Any?): String =
 		when (value) {
-			null -> ""
-			is ByteArray -> DatabaseTools.hex(value)
-			is Double -> realText(value)
-			is String ->
+			null -> {
+				""
+			}
+
+			is ByteArray -> {
+				DatabaseTools.hex(value)
+			}
+
+			is Double -> {
+				realText(value)
+			}
+
+			is String -> {
 				if (value.isEmpty() || value.any { it == ',' || it == '"' || it == '\r' || it == '\n' }) {
 					"\"" + value.replace("\"", "\"\"") + "\""
 				} else {
 					value
 				}
-			else -> value.toString()
+			}
+
+			else -> {
+				value.toString()
+			}
 		}
 
 	/**
