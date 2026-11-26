@@ -230,14 +230,18 @@ public class JniQueryTest {
 			eq(Helper.exec(a, "CREATE TABLE t(id INTEGER)"), 0, mode + ": create");
 			eq(Helper.exec(a, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<300) INSERT INTO t SELECT x FROM c"), 0,
 					mode + ": insert");
+			eq(Helper.exec(a, "CREATE TABLE sentinel(id INTEGER)"), 0, mode + ": create sentinel");
 			long sw = NativeBridge.openServer(p.getBytes(StandardCharsets.UTF_8), true);
 			Ran ran = new Ran();
 			Thread th = new Thread(() -> {
 				long t = System.currentTimeMillis();
 				try {
-					// far more work than 1.5 s: a cross join of t four times over, inserted
-					NativeBridge.execute(sw, "INSERT INTO t SELECT a.id FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0 "
-							+ "UNION ALL SELECT -1", new Object[0], System.currentTimeMillis() + 8000);
+					// The -1 row is inserted first: SQLite runs UNION ALL's left side first and inserts each row as it
+					// comes, as sentinel has no trigger and the SELECT does not read it. Then far more work than 1.5 s,
+					// a cross join of t four times over, matching nothing. So the stopped write has a row to roll back.
+					NativeBridge.execute(sw, "INSERT INTO sentinel SELECT -1 UNION ALL "
+							+ "SELECT a.id FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0", new Object[0],
+							System.currentTimeMillis() + 8000);
 				} catch (DebugEngineException e) {
 					ran.code = e.sqliteCode;
 					ran.message = e.getMessage();
@@ -256,12 +260,145 @@ public class JniQueryTest {
 					mode + ": the message says why and what to do: " + ran.message);
 			check(ran.ms >= 1400 && ran.ms < 2500, mode + ": the write stopped after " + ran.ms + " ms, near the 1500 ms cap");
 			long rr = NativeBridge.openServer(p.getBytes(StandardCharsets.UTF_8), false);
-			eq(q(rr, "SELECT count(*) FROM t WHERE id = -1").rows.get(0)[0], 0L, mode + ": the stopped write left nothing");
+			eq(q(rr, "SELECT count(*) FROM sentinel").rows.get(0)[0], 0L, mode + ": the stopped write's -1 row was rolled back");
 			eq(q(rr, "SELECT count(*) FROM t WHERE id = 7001").rows.get(0)[0], 1L, mode + ": the app's write is there");
 			NativeBridge.close(rr);
 			NativeBridge.close(sw);
 			Helper.close(a);
 		}
+	}
+
+	/** Runs execute on its own thread; its outcome lands in out. */
+	static Thread executeAsync(long h, String sql, long deadline, Ran out) {
+		Thread th = new Thread(() -> {
+			long t = System.currentTimeMillis();
+			try {
+				out.changes = NativeBridge.execute(h, sql, new Object[0], deadline)[0];
+			} catch (DebugEngineException e) {
+				out.code = e.sqliteCode;
+				out.message = e.getMessage();
+			}
+			out.ms = System.currentTimeMillis() - t;
+		});
+		th.start();
+		return th;
+	}
+
+	static String insertRows(String table, long n) {
+		return "INSERT INTO " + table + " WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<" + n + ") SELECT x FROM c";
+	}
+
+	static String readRows(long n) {
+		return "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<" + n + ") "
+				+ "SELECT count(*) FROM c, (SELECT id FROM t LIMIT 1)";
+	}
+
+	/** How many rows insertRows writes in about targetMs on this machine, timed on the writable connection w. */
+	static long rowsFor(long w, String table, long targetMs) throws DebugEngineException {
+		for (long n = 20000;; n *= 4) {
+			long t = System.nanoTime();
+			exec(w, insertRows(table, n));
+			long ms = (System.nanoTime() - t) / 1_000_000;
+			exec(w, "DELETE FROM " + table);
+			if (ms >= 40) return Math.max(n, n * targetMs / ms);
+		}
+	}
+
+	/**
+	 * #2312 review: the waits for a lock around execute. The cap bounds the time a write holds the write lock,
+	 * so a wait for the app's lock before that does not count, the wait to commit does, and a deadline that
+	 * passes while preparing stops the write before it starts. Rollback-journal databases, where these waits happen.
+	 */
+	static void lockWaits(Path dir) throws Exception {
+		String p = dir.resolve("waits.db").toString();
+		byte[] bytes = p.getBytes(StandardCharsets.UTF_8);
+		long a = Helper.open(p);
+		eq(Helper.busyTimeout(a, 2500), 0, "waits: the app's busy timeout");
+		eq(Helper.exec(a, "CREATE TABLE t(id INTEGER)"), 0, "waits: create");
+		eq(Helper.exec(a, "CREATE TABLE w(x INTEGER)"), 0, "waits: create w");
+
+		// A fresh connection reads the schema when it first prepares, which waits for the app's EXCLUSIVE lock.
+		// The deadline passes meanwhile: the INSERT, too short for a progress callback, must not run.
+		long fresh = NativeBridge.openServer(bytes, true);
+		eq(Helper.exec(a, "BEGIN EXCLUSIVE"), 0, "waits: the app holds the EXCLUSIVE lock");
+		Ran prep = new Ran();
+		Thread th = executeAsync(fresh, "INSERT INTO t VALUES(8001)", System.currentTimeMillis() + 300, prep);
+		Thread.sleep(800);
+		eq(Helper.exec(a, "COMMIT"), 0, "waits: the app commits");
+		th.join();
+		check(prep.ms >= 700, "waits: preparing waited " + prep.ms + " ms for the app's lock");
+		eq(prep.code, 9, "waits: the deadline passed while preparing: SQLITE_INTERRUPT");
+		check(prep.message != null && prep.message.contains("before the statement started"), "waits: the message: " + prep.message);
+		NativeBridge.close(fresh);
+		long r = NativeBridge.openServer(bytes, false);
+		eq(q(r, "SELECT count(*) FROM t WHERE id = 8001").rows.get(0)[0], 0L, "waits: the INSERT did not run");
+
+		// The app holds the write lock for about 1.5 s, then the write needs about 0.4 s: its cap starts once
+		// it has the lock, so it is not stopped for time it spent waiting.
+		long sw = NativeBridge.openServer(bytes, true);
+		long n = rowsFor(sw, "w", 400);
+		eq(Helper.exec(a, "BEGIN IMMEDIATE"), 0, "waits: the app holds the write lock");
+		Ran waited = new Ran();
+		th = executeAsync(sw, insertRows("w", n), System.currentTimeMillis() + 8000, waited);
+		Thread.sleep(1500);
+		eq(Helper.exec(a, "COMMIT"), 0, "waits: the app commits");
+		th.join();
+		eq(waited.message, null, "waits: a write that waited " + waited.ms + " ms for the lock is not stopped (" + n + " rows)");
+		eq(waited.changes, n, "waits: and wrote its rows");
+		check(waited.ms >= 1400, "waits: it did wait, " + waited.ms + " ms");
+		eq(exec(sw, "DELETE FROM w"), n, "waits: empty w");
+
+		// An app reader holds SHARED, so the write cannot commit: it is stopped at the cap, not after the 3 s
+		// busy timeout, and rolled back, so the app's writes wait no longer than that.
+		eq(Helper.exec(a, "BEGIN"), 0, "waits: the app opens a read");
+		eq(Helper.exec(a, "SELECT count(*) FROM t"), 0, "waits: and holds SHARED");
+		Ran commit = new Ran();
+		th = executeAsync(sw, "INSERT INTO t VALUES(8002)", System.currentTimeMillis() + 8000, commit);
+		Thread.sleep(2700);
+		eq(Helper.exec(a, "COMMIT"), 0, "waits: the app ends its read");
+		th.join();
+		eq(commit.code, 9, "waits: the write waiting to commit was stopped: SQLITE_INTERRUPT");
+		check(commit.message != null && commit.message.contains("rolled back") && commit.message.contains("finish reading"),
+				"waits: the message says why: " + commit.message);
+		check(commit.ms >= 1400 && commit.ms < 2400, "waits: it stopped after " + commit.ms + " ms, near the 1500 ms cap");
+		eq(q(r, "SELECT count(*) FROM t WHERE id = 8002").rows.get(0)[0], 0L, "waits: and was rolled back");
+		eq(Helper.exec(a, "INSERT INTO t VALUES(8003)"), 0, "waits: the app writes after it");
+		eq(exec(sw, "INSERT INTO t VALUES(8004)"), 1L, "waits: and so does the next execute, with the busy timeout back");
+
+		// A read's non-WAL cap also starts once it holds its lock: the app holds EXCLUSIVE for about 1.5 s,
+		// then the read needs about 0.4 s. It reads t, so it takes the lock, and counts a recursive CTE.
+		long m = 20000;
+		for (;; m *= 4) {
+			long t = System.nanoTime();
+			q(r, readRows(m));
+			long ms = (System.nanoTime() - t) / 1_000_000;
+			if (ms >= 40) {
+				m = Math.max(m, m * 400 / ms);
+				break;
+			}
+		}
+		eq(Helper.exec(a, "BEGIN EXCLUSIVE"), 0, "waits: the app holds the EXCLUSIVE lock again");
+		Ran read = new Ran();
+		String readSql = readRows(m);
+		th = new Thread(() -> {
+			long t = System.currentTimeMillis();
+			try {
+				query(r, readSql, new Object[0], 0, 100, 4096, 1024, MAX, System.currentTimeMillis() + 8000);
+			} catch (DebugEngineException e) {
+				read.code = e.sqliteCode;
+				read.message = e.getMessage();
+			}
+			read.ms = System.currentTimeMillis() - t;
+		});
+		th.start();
+		Thread.sleep(1500);
+		eq(Helper.exec(a, "COMMIT"), 0, "waits: the app commits");
+		th.join();
+		eq(read.message, null, "waits: a read that waited " + read.ms + " ms for the lock is not stopped (" + m + " rows)");
+		check(read.ms >= 1400, "waits: it did wait, " + read.ms + " ms");
+		NativeBridge.close(r);
+		NativeBridge.close(sw);
+		eq(Helper.close(a), 0, "waits: close the app connection");
 	}
 
 	/** Reads t four times over: far longer than the cap, and it holds the lock from its first step. */
@@ -272,6 +409,7 @@ public class JniQueryTest {
 		volatile String message;
 		volatile int code;
 		volatile long ms;
+		volatile long changes = -1;
 	}
 
 	static Thread longRead(long h, long deadline, Ran out) {
@@ -578,6 +716,8 @@ public class JniQueryTest {
 		Helper.exec(app, "DELETE FROM t WHERE id = 4245");
 
 		execute(dir, path, app);
+
+		lockWaits(dir);
 
 		nonWalCap(dir, path);
 

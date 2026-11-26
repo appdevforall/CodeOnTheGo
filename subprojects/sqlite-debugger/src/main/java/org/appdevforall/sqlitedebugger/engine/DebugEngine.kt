@@ -71,8 +71,9 @@ interface ServerConnection : Closeable {
 	/**
 	 * Runs [sql], one statement that writes, to its end in autocommit, with [args] bound as in [query]; rows it
 	 * returns (RETURNING) are dropped. Needs a connection opened with `writable = true`. The statement is
-	 * stopped and rolled back once [deadlineMillis] has passed, or after SQLITEDBG_SERVER_NON_WAL_MS
-	 * (1.5 s) whichever is first: it holds the write lock, which the app's own writes wait for.
+	 * stopped and rolled back once [deadlineMillis] has passed, or once it has held the write lock for
+	 * SQLITEDBG_SERVER_NON_WAL_MS (1.5 s), waiting to commit included, whichever is first: the app's own writes
+	 * wait for that lock. A deadline that passes while the statement is prepared stops it before it starts.
 	 *
 	 * @throws DebugEngineException as [query] does, and for a statement that does not write
 	 *   (`sqlite3_stmt_readonly`), a transaction statement, or a refused PRAGMA.
