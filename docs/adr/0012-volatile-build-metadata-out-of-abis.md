@@ -100,14 +100,15 @@ Two related changes follow from the same invariant:
   plain constant. The generated file carries a comment saying why.
 - Values move from being inlined at each call site to a single static read. The runtime
   cost is immaterial; the behaviour is unchanged.
-- kapt still re-ran in every module that uses it, because by default it fingerprints
-  the full compile classpath, jar contents included, rather than the ABI-normalised one,
-  so the volatile values reached it anyway. Since ADFA-6954,
+- kapt still re-ran in every module of the APK build that runs it, because by default it
+  fingerprints the full compile classpath, jar contents included, rather than the
+  ABI-normalised one, so the volatile values reached it anyway. Since ADFA-6954,
   `kapt.include.compile.classpath=false` in `gradle.properties` makes it use the
-  ABI-normalised one, so they no longer reach the 12 library modules' kapt. Annotation
-  processors must then be declared with `kapt(...)`; kapt no longer finds them on the
-  compile classpath. `:app`'s kapt still re-runs on every commit, because the version
-  name, which changes with each commit, goes into `:app`'s `BuildConfig`.
+  ABI-normalised one, so they no longer reach kapt in the 12 library modules of the APK
+  build. Annotation processors must then be declared with `kapt(...)`; kapt no longer
+  finds them on the compile classpath. `:app`'s kapt still re-runs on every commit,
+  because the version name, which changes with each commit, goes into `:app`'s
+  `BuildConfig`.
 
 ## Alternatives considered
 
