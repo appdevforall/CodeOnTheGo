@@ -83,6 +83,9 @@ dependencies {
 
 	implementation(libs.brotli4j)
 	runtimeOnly(brotli4jNatives)
+
+	testImplementation(libs.tests.junit)
+	testImplementation(libs.tests.google.truth)
 }
 
 gradlePlugin {
