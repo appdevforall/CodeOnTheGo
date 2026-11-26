@@ -91,17 +91,19 @@ class DatabaseTools internal constructor(
 		 * sqlitedbg.h, which says why); this text must follow it.
 		 */
 		const val NON_WAL_NOTE =
-			"On a database that is not in WAL mode a statement is stopped after 1.5 s (best effort: it can run up to about 3 s " +
-				"longer), so a long read does not block the app's own writes; use a narrower query or a LIMIT. A database in " +
-				"WAL mode has no such limit (the $DEADLINE_SECONDS s limit applies, also best effort)."
+			"On a database that is not in WAL mode a statement is stopped after 1.5 s of holding its lock (best effort; a wait " +
+				"of up to 3 s for the app's lock is not counted), so a long read does not block the app's own writes; use a " +
+				"narrower query or a LIMIT. A database in WAL mode has no such limit (the $DEADLINE_SECONDS s limit applies, also " +
+				"best effort)."
 
 		/**
 		 * Said by execute. The limit is the same C constant as [NON_WAL_NOTE]'s (sqlitedbg.h), applied to every write
 		 * whatever the journal mode: a write holds the database's write lock, which the app's own writes wait for.
 		 */
 		const val WRITE_NOTE =
-			"A statement is stopped and rolled back after 1.5 s (best effort: it can run up to about 3 s longer), in every " +
-				"journal mode, so a long write does not make the app's own writes fail; change fewer rows per call."
+			"A statement is stopped and rolled back after 1.5 s of holding the database's write lock, waiting to commit " +
+				"included (best effort; a wait of up to 3 s for the app's lock before that is not counted), in every journal " +
+				"mode, so a long write does not make the app's own writes fail; change fewer rows per call."
 
 		private const val READ_PRAGMAS_NOTE =
 			"table_info, table_xinfo, table_list, index_info, index_xinfo, index_list, foreign_key_list, " +

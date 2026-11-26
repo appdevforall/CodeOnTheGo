@@ -167,12 +167,14 @@ void sqlitedbg_set_client_connected(int connected);
 // A writable connection also enforces foreign keys, whatever the app's connections do.
 // Read-only also sets PRAGMA query_only and refuses every write. Within one statement a lock is held
 // while it runs, so the JNI layer stops a read on a database that is not in WAL mode, and every
-// write, after SQLITEDBG_SERVER_NON_WAL_MS. Read-only mode guards against accidents; it is not a
-// security boundary (ADFA-7131, D11), and a writable connection can change any data the app's can.
+// write, once it has held its lock for SQLITEDBG_SERVER_NON_WAL_MS. Read-only mode guards against
+// accidents; it is not a security boundary (ADFA-7131, D11), and a writable connection can change
+// any data the app's can.
 // Never traced and never listed. The caller owns *db and closes it with sqlite3_close_v2.
 // A server connection, unlike an app connection, may use a progress handler (for time limits).
 // The connection waits up to SQLITEDBG_SERVER_BUSY_MS for a lock the app holds and then reports
-// SQLITE_BUSY.
+// SQLITE_BUSY. The JNI layer's execute replaces that wait for the statement, to end it at the time
+// limit too, and puts it back after.
 // Returns SQLITE_MISUSE before any app connection has opened (the extension then has no SQLite
 // API to call), or what sqlite3_open_v2 returns. A failure after the open (PRAGMA query_only, the
 // authorizer or the busy timeout) closes the connection, sets *db to NULL and returns that code, as

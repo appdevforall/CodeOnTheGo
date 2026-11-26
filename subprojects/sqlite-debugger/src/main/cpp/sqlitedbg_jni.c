@@ -196,10 +196,29 @@ static void bridge_close(JNIEnv *env, jclass cls, jlong handle) {
 }
 
 typedef struct deadline {
-	int64_t at_ms;
-	int hit;
-	int capped;  // at_ms is the non-WAL cap, earlier than the call's own deadline
+	sqlite3 *db;
+	int64_t at_ms;   // when the statement is stopped: the call's deadline, or the cap once that has started
+	int64_t cap_ms;  // the cap's length, 0 for none (see start_cap_once_locked)
+	int64_t slept_ms;  // busy_cb's waits so far
+	int cap_started;
+	int capped;    // at_ms is the cap, earlier than the call's own deadline
+	int hit;       // stopped at at_ms
+	int busy_hit;  // stopped at at_ms by busy_cb, while waiting for a lock
 } deadline;
+
+// The cap bounds how long a statement holds a lock on the database, which is when the app's own writes
+// wait for it, so it starts once the statement holds one: a wait for the app's lock is not counted.
+// SQLite takes the lock in the statement's first instructions, before the first progress callback, and
+// still holds it in busy_cb while a write waits for the commit's EXCLUSIVE lock.
+static void start_cap_once_locked(deadline *d) {
+	if (!d->cap_ms || d->cap_started || sqlite3_txn_state(d->db, "main") == SQLITE_TXN_NONE) return;
+	d->cap_started = 1;
+	int64_t cap_at = now_ms() + d->cap_ms;
+	if (cap_at < d->at_ms) {
+		d->at_ms = cap_at;
+		d->capped = 1;
+	}
+}
 
 // Whether the database is in WAL mode. PRAGMA journal_mode without a value only reads the mode. Any
 // failure counts as not WAL, which is the safe answer: the statement then gets the short cap.
@@ -216,8 +235,34 @@ static int is_wal_mode(sqlite3 *db) {
 
 static int progress_cb(void *p) {
 	deadline *d = (deadline *)p;
+	start_cap_once_locked(d);
 	if (now_ms() < d->at_ms) return 0;
 	d->hit = 1;
+	return 1;
+}
+
+// execute's busy handler, in place of the connection's sqlite3_busy_timeout: it waits as that does, up
+// to SQLITEDBG_SERVER_BUSY_MS in all (SQLite counts one statement's waits together too), and also gives
+// up at d's limit. SQLite does not call the progress handler during a busy wait, so without this a write
+// waiting for the commit's EXCLUSIVE lock, while an app reader holds SHARED (rollback journal), kept
+// the write lock, and the app's writes waiting, up to 3 s past the cap.
+static int busy_cb(void *p, int count) {
+	static const int naps_ms[] = {1, 2, 5, 10, 15, 20, 25, 25, 25, 50, 50, 100};  // sqlite3_busy_timeout's
+	deadline *d = (deadline *)p;
+	start_cap_once_locked(d);
+	int64_t now = now_ms();
+	if (now >= d->at_ms) {
+		d->hit = 1;
+		d->busy_hit = 1;
+		return 0;
+	}
+	int64_t nap = naps_ms[count < 11 ? count : 11];
+	if (nap > SQLITEDBG_SERVER_BUSY_MS - d->slept_ms) nap = SQLITEDBG_SERVER_BUSY_MS - d->slept_ms;
+	if (nap > d->at_ms - now) nap = d->at_ms - now;
+	if (nap <= 0) return 0;
+	struct timespec ts = {(time_t)(nap / 1000), (long)(nap % 1000) * 1000000L};
+	nanosleep(&ts, NULL);
+	d->slept_ms += nap;
 	return 1;
 }
 
@@ -402,7 +447,7 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	jobjectArray result = NULL;
 	jlong *cut_cells = NULL;  // row * columns + column of each cut cell
 	size_t cut_n = 0, cut_cap = 0;
-	deadline dl = {(int64_t)deadline_ms, 0, 0};
+	deadline dl = {.db = db, .at_ms = (int64_t)deadline_ms};
 	int handler_set = 0;
 	int rc;
 
@@ -415,14 +460,8 @@ static jobjectArray bridge_query(JNIEnv *env, jclass cls, jlong handle, jstring 
 	// Every server tool runs its statements here, so this is the one place that bounds a read on a database
 	// that is not in WAL mode: it holds a SHARED lock until the statement ends, and the app's commit gives
 	// up after requery's 2500 ms busy timeout (see SQLITEDBG_SERVER_NON_WAL_MS). The mode is read per call.
-	if (now_ms() + SQLITEDBG_SERVER_NON_WAL_MS < dl.at_ms && !is_wal_mode(db)) {
-		// counted from here, after the mode check, which can wait on the app's lock
-		int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
-		if (cap_at < dl.at_ms) {
-			dl.at_ms = cap_at;
-			dl.capped = 1;
-		}
-	}
+	// The cap starts once the read holds its lock (start_cap_once_locked).
+	if (now_ms() + SQLITEDBG_SERVER_NON_WAL_MS < dl.at_ms && !is_wal_mode(db)) dl.cap_ms = SQLITEDBG_SERVER_NON_WAL_MS;
 
 	// SQLite checks the handler every 1000 virtual machine steps and stops the statement when it
 	// returns non-zero; it is cleared before this returns, so it never outlives `dl`.
@@ -538,7 +577,7 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
 	sqlite3_stmt *st = NULL;
 	jlongArray result = NULL;
-	deadline dl = {(int64_t)deadline_ms, 0, 0};
+	deadline dl = {.db = db, .at_ms = (int64_t)deadline_ms};
 	int handler_set = 0;
 	int rc;
 
@@ -547,6 +586,12 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 		goto done;
 	}
 	if (!prepare_bound(env, db, sql, args, &st)) goto done;
+	// Preparing can wait on the app's lock to read the schema. A short write would then run to its
+	// commit before the progress handler's first callback, so check again before it starts.
+	if (now_ms() >= dl.at_ms) {
+		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the statement started");
+		goto done;
+	}
 	// query is the tool for a read; a statement that changes nothing here would only cost an approval.
 	if (sqlite3_stmt_readonly(st)) {
 		throw_engine(env, SQLITE_ERROR, "the statement does not write; run it with query");
@@ -554,13 +599,11 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 	}
 
 	// A write holds the database's write lock until it ends, in every journal mode, and the app's own
-	// writes wait for it only as long as requery's busy timeout: cap it as a non-WAL read is capped.
-	int64_t cap_at = now_ms() + SQLITEDBG_SERVER_NON_WAL_MS;
-	if (cap_at < dl.at_ms) {
-		dl.at_ms = cap_at;
-		dl.capped = 1;
-	}
+	// writes wait for it only as long as requery's busy timeout: cap it as a non-WAL read is capped,
+	// from when it holds the lock (start_cap_once_locked), and while it waits to commit (busy_cb).
+	dl.cap_ms = SQLITEDBG_SERVER_NON_WAL_MS;
 	sqlite3_progress_handler(db, 1000, progress_cb, &dl);
+	sqlite3_busy_handler(db, busy_cb, &dl);
 	handler_set = 1;
 
 	sqlite3_int64 total_before = sqlite3_total_changes64(db);
@@ -569,15 +612,25 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 	sqlite3_set_last_insert_rowid(db, INT64_MIN);
 	while ((rc = sqlite3_step(st)) == SQLITE_ROW) {}
 	if (rc != SQLITE_DONE) {
-		if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {
+		// busy_cb giving up makes the step fail with SQLITE_BUSY; at the commit SQLite then rolls back
+		if (dl.busy_hit && rc == SQLITE_BUSY && dl.capped) {
+			char msg[320];
+			snprintf(msg, sizeof msg,
+			         "the statement was stopped after %.1f s and rolled back: it was waiting for another connection to finish "
+			         "reading the database, and a write holds the database's write lock, so waiting longer would make the "
+			         "app's own writes fail. Try it again",
+			         SQLITEDBG_SERVER_NON_WAL_MS / 1000.0);
+			throw_engine(env, SQLITE_INTERRUPT, msg);
+		} else if (dl.hit && rc == SQLITE_INTERRUPT && dl.capped) {
 			char msg[256];
 			snprintf(msg, sizeof msg,
 			         "the statement was stopped after %.1f s and rolled back: a write holds the database's write lock, so a "
 			         "longer one would make the app's own writes fail. Change fewer rows per call",
 			         SQLITEDBG_SERVER_NON_WAL_MS / 1000.0);
 			throw_engine(env, SQLITE_INTERRUPT, msg);
-		} else if (dl.hit && rc == SQLITE_INTERRUPT) throw_engine(env, SQLITE_INTERRUPT, "the statement ran past its time limit");
-		else throw_engine(env, rc, sqlite3_errmsg(db));
+		} else if (dl.hit && (rc == SQLITE_INTERRUPT || rc == SQLITE_BUSY)) {
+			throw_engine(env, SQLITE_INTERRUPT, "the statement ran past its time limit");
+		} else throw_engine(env, rc, sqlite3_errmsg(db));
 		goto done;
 	}
 	jlong out[2];
@@ -587,7 +640,10 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 	if (result) (*env)->SetLongArrayRegion(env, result, 0, 2, out);
 
 done:
-	if (handler_set) sqlite3_progress_handler(db, 0, NULL, NULL);
+	if (handler_set) {
+		sqlite3_progress_handler(db, 0, NULL, NULL);
+		sqlite3_busy_timeout(db, SQLITEDBG_SERVER_BUSY_MS);  // as sqlitedbg_open_server set it; dl is gone
+	}
 	sqlite3_finalize(st);
 	if (!end_transaction_backstop(env, db)) result = NULL;
 	return result;
