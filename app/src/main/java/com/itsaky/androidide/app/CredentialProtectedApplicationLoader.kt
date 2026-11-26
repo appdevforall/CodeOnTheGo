@@ -403,12 +403,12 @@ internal object CredentialProtectedApplicationLoader :
 					if (manager != null) {
 						// Under the load lock, as Add-ons Manager installs are: the sync replaces plugin files.
 						val synced =
-							manager.whileNotLoading { withContext(Dispatchers.IO) { BundleSyncAtStart.run(application, manager) } }
+							manager.whileNotLoading { withContext(Dispatchers.IO) { BundleSyncAtStart.run(context, manager) } }
 						manager.loadPlugins()
 						if (synced) {
 							// Plugins are loaded already; this only records the bundled ones that failed.
 							BundledPluginStartup(
-								record = BundledAddonsRecord.inFilesDir(application.filesDir),
+								record = BundledAddonsRecord.inFilesDir(context.filesDir),
 								reloadPlugins = {},
 								loadError = manager::getLoadError,
 							).start()
