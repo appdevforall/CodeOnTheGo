@@ -1133,7 +1133,17 @@ class DatabaseToolsTest {
 			got = a
 			QueryResult(emptyList(), emptyList(), 0, false)
 		}
-		ok("query", db().put("sql", "x").put("args", JSONObject().put(":b", "s").put("a", 1).put("\$c", JSONObject.NULL).put("?2", 2.5)))
+		ok(
+			"query",
+			db().put("sql", "x").put(
+				"args",
+				JSONObject()
+					.put(":b", "s")
+					.put("a", 1)
+					.put("\$c", JSONObject.NULL)
+					.put("?2", 2.5),
+			),
+		)
 		val byName = engine.lastArgNames!!.zip(got).toMap()
 		assertEquals(mapOf("a" to 1L, ":b" to "s", "\$c" to null, "?2" to 2.5), byName)
 		ok("explain_query_plan", db().put("sql", "x").put("args", JSONObject().put("id", 7)))
@@ -1167,9 +1177,20 @@ class DatabaseToolsTest {
 		val types = r.getJSONArray("column_types")
 		val declared = (0 until types.length()).map { if (types.isNull(it)) null else types.get(it) }
 		assertEquals(listOf<Any?>("INTEGER", "REAL", "TEXT", "BLOB", null), declared)
-		assertEquals(listOf("irtbn", "tnirb"), r.getJSONArray("storage_classes").let { a -> (0 until a.length()).map { a.getString(it) } })
-		assertTrue("a REAL 2.0 reads as 2 in JSON, so only the storage class tells it from an INTEGER", r.toString().contains("[1,2,\"x\""))
-		assertEquals("0fff", r.getJSONArray("rows").getJSONArray(0).getJSONObject(3).getString("hex"))
+		val classes = r.getJSONArray("storage_classes").let { a -> (0 until a.length()).map { a.getString(it) } }
+		assertEquals(listOf("irtbn", "tnirb"), classes)
+		assertTrue(
+			"a REAL 2.0 reads as 2 in JSON, so only the storage class tells it from an INTEGER",
+			r.toString().contains("[1,2,\"x\""),
+		)
+		assertEquals(
+			"0fff",
+			r
+				.getJSONArray("rows")
+				.getJSONArray(0)
+				.getJSONObject(3)
+				.getString("hex"),
+		)
 		assertTrue(r.getJSONArray("rows").getJSONArray(0).isNull(4))
 		val description = tools.tools().single { it.name == "query" }.description
 		assertTrue(description.contains("storage_classes") && description.contains("column_types") && description.contains("hex"))
@@ -1294,11 +1315,12 @@ class DatabaseToolsTest {
 					val values = json.getJSONArray("values")
 					assertEquals(row.values.size, values.length())
 					row.values.forEachIndexed { c, v ->
+						val got = values.get(c)
 						when (v) {
 							null -> assertTrue(values.isNull(c))
 							is ByteArray -> assertEquals(DatabaseTools.hex(v), values.getJSONObject(c).getString("hex"))
-							is Double -> assertEquals(DatabaseTools.encodeValue(v), (values.get(c) as? Number)?.toDouble() ?: values.get(c))
-							else -> assertEquals(DatabaseTools.encodeValue(v), values.get(c).let { if (it is Int) it.toLong() else it })
+							is Double -> assertEquals(DatabaseTools.encodeValue(v), (got as? Number)?.toDouble() ?: got)
+							else -> assertEquals(DatabaseTools.encodeValue(v), if (got is Int) got.toLong() else got)
 						}
 					}
 					val cut = json.getJSONArray("cut_values")
@@ -1323,8 +1345,10 @@ class DatabaseToolsTest {
 		assertEquals("", DatabaseTools.hex(ByteArray(0)))
 	}
 
-	private fun kinds(r: JSONObject) =
-		r.getJSONArray("events").let { a -> (0 until a.length()).map { a.getJSONObject(it).getString("kind") } }
+	private fun kinds(r: JSONObject): List<String> {
+		val events = r.getJSONArray("events")
+		return (0 until events.length()).map { events.getJSONObject(it).getString("kind") }
+	}
 
 	private class FakeIdleScheduler : IdleScheduler {
 		class Check(
