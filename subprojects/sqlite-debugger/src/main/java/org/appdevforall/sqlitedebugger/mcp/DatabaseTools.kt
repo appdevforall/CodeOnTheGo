@@ -384,7 +384,8 @@ class DatabaseTools internal constructor(
 			tool(
 				"dump",
 				"Dump as SQL",
-				"Returns a database, or one table with its indexes and triggers, as SQL text that rebuilds it, as the sqlite3 " +
+				"Returns a database, or one table with its indexes and triggers (for a virtual table, its shadow tables too), " +
+					"as SQL text that rebuilds it, as the sqlite3 " +
 					"shell's .dump does: PRAGMA foreign_keys=OFF, BEGIN TRANSACTION, each table's CREATE and INSERTs, then the " +
 					"indexes, triggers and views, then COMMIT. A page holds at most $MAX_ROWS statements and about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB; pass next_cursor as cursor for the next, until complete is true. " +
@@ -890,7 +891,7 @@ class DatabaseTools internal constructor(
 			)
 		}
 
-		val tables = tablesOf(only?.let { listOf(it) })
+		var tables = tablesOf(only?.let { listOf(it) })
 		if (tables.hasMore) {
 			throw McpToolError(
 				if (tables.rows.size < MAX_ROWS) {
@@ -902,7 +903,25 @@ class DatabaseTools internal constructor(
 			)
 		}
 		if (only != null && tables.rows.isEmpty()) throw McpToolError("No table named \"$only\".")
-		val named = only?.let { listOf(it) }
+		// The shell's .dump of a virtual table leaves its shadow tables out; they are needed to restore it, so they come too.
+		// SQLite names a shadow table after its virtual table and "_" (type 'shadow' in table_list, from 3.37).
+		var named = only?.let { listOf(it) }
+		if (only != null && isVirtualTable(tables.rows[0][1] as String)) {
+			val shadows =
+				runChecked(
+					call,
+					path,
+					"SELECT name FROM pragma_table_list WHERE schema = 'main' AND type = 'shadow' " +
+						"AND substr(name, 1, length(?) + 1) = ? || '_' ORDER BY name",
+					Bind(listOf(only, only), null),
+					0,
+					limits,
+				).rows.map { it[0] as String }
+			if (shadows.isNotEmpty()) {
+				named = listOf(only) + shadows
+				tables = tablesOf(named)
+			}
+		}
 		val units = mutableListOf<DumpUnit>(DumpUnit.Fixed(listOf("PRAGMA foreign_keys=OFF;", "BEGIN TRANSACTION;")))
 		var writableSchema = false
 		for ((r, row) in tables.rows.withIndex()) {

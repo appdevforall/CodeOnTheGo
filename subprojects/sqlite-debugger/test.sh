@@ -83,8 +83,9 @@ run_jni () {
 	java_names=$(sed -n 's/.*static native .* \([A-Za-z]*\)(.*/\1/p' "$jni/org/appdevforall/sqlitedebugger/engine/NativeBridge.java" | sort | tr '\n' ' ')
 	[ "$kotlin_names" = "$java_names" ] || { echo "NativeBridge.kt has ($kotlin_names) but the test stub has ($java_names)"; exit 1; }
 	local jinc=(-I"$jdk/include" -I"$jdk/include/linux")
-	# as requery builds it: everything exported, so dlsym finds sqlite3_auto_extension
-	build gcc -O1 -w -shared -fPIC -DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -I"$AMAL" \
+	# as requery builds it: everything exported, so dlsym finds sqlite3_auto_extension. FTS5 is on for the shadow
+	# tables of a virtual table (dump), which SQLite builds nothing else with.
+	build gcc -O1 -w -shared -fPIC -DSQLITE_ENABLE_FTS5 -DSQLITE_THREADSAFE=2 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_MEMSTATUS=0 -I"$AMAL" \
 		"$AMAL/sqlite3.c" -o "$out/lib/libsqlite3x.so" -lpthread -ldl -lm
 	build gcc -O1 -Wall -Wextra -Werror -shared -fPIC -fvisibility=hidden -I"$AMAL" -I"$CPP" "${jinc[@]}" \
 		"$CPP/sqlitedbg.c" "$CPP/sqlitedbg_jni.c" "$CPP/sqlitedbg_expert.c" -Wl,--version-script="$CPP/sqlitedbg.map" \

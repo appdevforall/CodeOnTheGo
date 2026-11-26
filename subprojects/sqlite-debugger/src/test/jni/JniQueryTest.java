@@ -1,6 +1,7 @@
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -476,6 +477,17 @@ public class JniQueryTest {
 		eq(r.rows.get(0)[3], "SEARCH notes USING COVERING INDEX notes_pcode (pcode=?)", "lint: a covered key, as the shell's glob expects");
 		r = query(srv, "SELECT name, hidden FROM pragma_table_xinfo(?)", new Object[] {"g"}, 0, 100, 4096, 1024, MAX, FAR);
 		eq(r.rows.get(1)[1], 2L, "dump: a virtual generated column is hidden 2");
+		// dump of a virtual table: its shadow tables are found by name and type 'shadow', and the server's authorizer allows it
+		eq(Helper.exec(app, "CREATE VIRTUAL TABLE docs USING fts5(body)"), 0, "fts5 table");
+		eq(Helper.exec(app, "CREATE TABLE docs_extra(a)"), 0, "a plain table that starts with the virtual table's name");
+		r = query(srv, "SELECT name FROM pragma_table_list WHERE schema = 'main' AND type = 'shadow' "
+				+ "AND substr(name, 1, length(?) + 1) = ? || '_' ORDER BY name", new Object[] {"docs", "docs"}, 0, 100, 4096, 1024, MAX, FAR);
+		List<Object> shadowNames = new ArrayList<>();
+		for (Object[] shadow : r.rows) shadowNames.add(shadow[0]);
+		eq(shadowNames, Arrays.asList("docs_config", "docs_content", "docs_data", "docs_docsize", "docs_idx"),
+				"dump: the shadow tables of a virtual table, and not docs_extra");
+		eq(Helper.exec(app, "DROP TABLE docs"), 0, "drop the fts5 table");
+		eq(Helper.exec(app, "DROP TABLE docs_extra"), 0, "drop the plain table");
 		r = query(srv, "SELECT wr FROM pragma_table_list WHERE schema = 'main' AND name = ?", new Object[] {"w"}, 0, 100, 4096, 1024, MAX, FAR);
 		eq(r.rows.get(0)[0], 1L, "dump: pragma_table_list knows WITHOUT ROWID");
 		r = q(srv, "SELECT 'INSERT INTO \"lines\" VALUES(' || quote(\"id\") || ',' || quote(\"pid\") || ',' || quote(\"x\") || ');' "

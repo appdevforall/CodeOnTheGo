@@ -186,15 +186,15 @@ class ShellToolsTest {
 		withoutRowid: Set<String> = emptySet(),
 		tablesCut: Set<Long> = emptySet(),
 		othersCut: Set<Long> = emptySet(),
+		shadows: List<String> = emptyList(),
 	) {
 		engine.answer = { _, _, sql, args ->
 			seen += sql to args
 			when {
 				sql.startsWith("SELECT name, sql FROM sqlite_master") -> {
-					val only = args.firstOrNull()
 					QueryResult(
 						listOf("name", "sql"),
-						tables.filter { only == null || it[0] == only },
+						tables.filter { args.isEmpty() || it[0] in args },
 						tablesCut.size,
 						false,
 						tablesCut,
@@ -207,6 +207,11 @@ class ShellToolsTest {
 
 				sql.startsWith("SELECT name, hidden FROM pragma_table_xinfo") -> {
 					QueryResult(listOf("name", "hidden"), xinfo[args[0]] ?: listOf(listOf("a", 0L)), 0, false)
+				}
+
+				sql.startsWith("SELECT name FROM pragma_table_list") -> {
+					// type 'shadow', named after the virtual table (args[0]) and "_"
+					QueryResult(listOf("name"), shadows.filter { it.startsWith("${args[0]}_") }.map { listOf(it) }, 0, false)
 				}
 
 				sql.startsWith("SELECT wr FROM pragma_table_list") -> {
@@ -301,6 +306,48 @@ class ShellToolsTest {
 		assertEquals(listOf("PRAGMA foreign_keys=OFF;", "BEGIN TRANSACTION;", "CREATE TABLE u(b);", "COMMIT;"), sql)
 		assertTrue(seen.single { it.first.startsWith("SELECT sql FROM sqlite_master") }.first.contains("AND tbl_name IN (?)"))
 		assertEquals("No table named \"zz\".", error("dump", JSONObject().put("table", "zz")))
+	}
+
+	@Test fun dumpOfAVirtualTableIncludesItsShadowTables() {
+		dumpSchema(
+			tables =
+				listOf(
+					listOf("docs", "CREATE VIRTUAL TABLE docs USING fts5(body)"),
+					listOf("docs_data", "CREATE TABLE 'docs_data'(id INTEGER PRIMARY KEY, block BLOB)"),
+					listOf("docs_idx", "CREATE TABLE 'docs_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID"),
+					listOf("other_data", "CREATE TABLE other_data(a)"),
+				),
+			others = listOf(listOf("CREATE INDEX docs_data_i ON docs_data(id)")),
+			shadows = listOf("docs_data", "docs_idx", "other_data"),
+			rows = { table, _ -> listOf("INSERT INTO \"$table\" VALUES(1);") },
+		)
+		val sql = ok("dump", JSONObject().put("table", "docs")).getJSONArray("sql").strings()
+		assertEquals(
+			listOf(
+				"PRAGMA foreign_keys=OFF;",
+				"BEGIN TRANSACTION;",
+				"PRAGMA writable_schema=ON;",
+				"INSERT INTO sqlite_schema(type,name,tbl_name,rootpage,sql) " +
+					"VALUES('table','docs','docs',0,'CREATE VIRTUAL TABLE docs USING fts5(body)');",
+				"CREATE TABLE 'docs_data'(id INTEGER PRIMARY KEY, block BLOB);",
+				"INSERT INTO \"docs_data\" VALUES(1);",
+				"CREATE TABLE 'docs_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;",
+				"INSERT INTO \"docs_idx\" VALUES(1);",
+				"CREATE INDEX docs_data_i ON docs_data(id);",
+				"PRAGMA writable_schema=OFF;",
+				"COMMIT;",
+			),
+			sql,
+		)
+		val others = seen.single { it.first.startsWith("SELECT sql FROM sqlite_master") }
+		assertEquals(listOf<Any?>("docs", "docs_data", "docs_idx"), others.second)
+		assertTrue(seen.any { it.first.startsWith("SELECT name FROM pragma_table_list") && it.first.contains("type = 'shadow'") })
+	}
+
+	@Test fun dumpOfAPlainTableDoesNotLookForShadowTables() {
+		dumpSchema(tables = listOf(listOf("t", "CREATE TABLE t(a)")), shadows = listOf("t_data"))
+		ok("dump", JSONObject().put("table", "t"))
+		assertTrue(seen.none { it.first.contains("'shadow'") })
 	}
 
 	@Test fun dumpPagesAtTheStatementLimitAndResumesFromTheCursor() {
