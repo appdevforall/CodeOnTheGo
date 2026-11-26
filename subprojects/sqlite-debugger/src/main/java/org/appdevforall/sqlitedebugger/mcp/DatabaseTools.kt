@@ -871,7 +871,12 @@ class DatabaseTools internal constructor(
 			}
 
 			is JSONObject -> {
-				val names = raw.keys().asSequence().sorted().toList()
+				val names =
+					raw
+						.keys()
+						.asSequence()
+						.sorted()
+						.toList()
 				names.forEach { if (it.isEmpty()) throw McpToolError("args has an empty name.") }
 				Bind(names.map { value(raw.opt(it), "args.$it") }, names)
 			}
@@ -882,7 +887,6 @@ class DatabaseTools internal constructor(
 		}
 	}
 }
-
 
 /** Runs the idle check later; a test seam, the real one is [TimerIdleScheduler]. */
 internal fun interface IdleScheduler {
