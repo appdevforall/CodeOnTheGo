@@ -384,7 +384,8 @@ class DatabaseTools internal constructor(
 				"Lists each foreign key and whether an index on the child table covers it, as the sqlite3 shell's " +
 					".lint fkey-indexes does: without one, deleting or updating a parent row scans the child table. An " +
 					"uncovered key has create_index, a statement that would cover it (not run). Unlike sqlite3, a child column " +
-					"whose collation differs from its parent key's is not taken into account. truncated is true past the first " +
+					"whose collation differs from its parent key's is not taken into account, and a WITHOUT ROWID child's " +
+					"primary key counts when it starts with the key's columns. truncated is true past the first " +
 					"$MAX_ROWS foreign key columns, and the last key, of which only some columns were read, is then left out. " +
 					NON_WAL_NOTE,
 				databaseSchema(),
@@ -823,12 +824,12 @@ class DatabaseTools internal constructor(
 					0,
 					limits,
 				).rows.firstOrNull()?.getOrNull(3) as? String ?: ""
-			// The shell's two patterns (lintFkeyIndexes in shell.c.in)
+			// The shell's two patterns (lintFkeyIndexes in shell.c.in), and a third the shell lacks: a WITHOUT ROWID
+			// table's primary key, whose b-tree holds every column, so a search on it covers the key.
+			val terms = "(" + key.from.joinToString(" AND ") { "*=?" } + ")"
 			val covered =
-				ShellFormat.globMatches(
-					"SEARCH ${key.child} USING COVERING INDEX*(" + key.from.joinToString(" AND ") { "*=?" } + ")",
-					plan,
-				) ||
+				ShellFormat.globMatches("SEARCH ${key.child} USING COVERING INDEX*$terms", plan) ||
+					ShellFormat.globMatches("SEARCH ${key.child} USING PRIMARY KEY $terms", plan) ||
 					ShellFormat.globMatches("SEARCH * USING INTEGER PRIMARY KEY (rowid=?)", plan)
 			val item =
 				JSONObject()
