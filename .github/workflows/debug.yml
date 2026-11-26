@@ -149,8 +149,10 @@ jobs:
       INCLUDE_LLAMA_ASSETS: "false"
       # Passed as -Dorg.gradle.jvmargs, which replaces that line in gradle.properties, so it repeats
       # the line's other flags. These checks need far less heap than the APK build's 8 GB each for
-      # Gradle and Kotlin, and three runners share a machine with 30 GB and no swap, where Gradle
-      # and Kotlin processes have been killed when builds overlapped (ADFA-7325).
+      # Gradle and Kotlin. Three runners share each machine (the one measured has 30 GB and no
+      # swap), and Gradle and Kotlin processes have been killed there when builds overlapped
+      # (ADFA-7325). If a check runs out of memory, raise the limit here: Gradle's and Kotlin's
+      # messages point at gradle.properties, which this value overrides.
       CHECKS_JVMARGS: >-
         -Xmx3g -Dkotlin.daemon.jvm.options=-Xmx2g -XX:+HeapDumpOnOutOfMemoryError
         --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED
