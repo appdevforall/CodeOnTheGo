@@ -127,20 +127,20 @@ public class JniQueryTest {
 	}
 
 	static long exec(long h, String sql, Object... args) throws DebugEngineException {
-		long[] r = NativeBridge.execute(h, sql, args, FAR);
+		long[] r = NativeBridge.execute(h, sql, args, null, FAR);
 		eq(r.length, 2, "execute returns {changes, last_insert_rowid}");
 		return r[0];
 	}
 
 	/** The rowid execute reports, or null (Long.MIN_VALUE on the wire) when the statement inserted no row. */
 	static Long rowid(long h, String sql, Object... args) throws DebugEngineException {
-		long r = NativeBridge.execute(h, sql, args, FAR)[1];
+		long r = NativeBridge.execute(h, sql, args, null, FAR)[1];
 		return r == Long.MIN_VALUE ? null : r;
 	}
 
 	static int execCode(long h, String sql, Object[] args, long deadline) {
 		try {
-			NativeBridge.execute(h, sql, args, deadline);
+			NativeBridge.execute(h, sql, args, null, deadline);
 			return 0;
 		} catch (DebugEngineException e) {
 			return e.sqliteCode;
@@ -150,7 +150,7 @@ public class JniQueryTest {
 	/** "code message" of the refusal, or null when the statement ran. */
 	static String execRefusal(long h, String sql) {
 		try {
-			NativeBridge.execute(h, sql, new Object[0], FAR);
+			NativeBridge.execute(h, sql, new Object[0], null, FAR);
 			return null;
 		} catch (DebugEngineException e) {
 			return e.sqliteCode + " " + e.getMessage();
@@ -167,6 +167,20 @@ public class JniQueryTest {
 		eq(exec(w, "UPDATE t SET s = ? WHERE id >= ?", "z", 6001L), 2L, "update 2: changes 2");
 		eq(exec(w, "DELETE FROM t WHERE id = :id", 6001L), 1L, "delete 1, named parameter: changes 1");
 		eq(exec(w, "DELETE FROM t WHERE id = -1"), 0L, "delete none: changes 0");
+		// by name, as query binds (ADFA-7304: P2-2 and P2-3 met)
+		byte[][] names = {"s".getBytes(StandardCharsets.UTF_8), ":id".getBytes(StandardCharsets.UTF_8)};
+		eq(NativeBridge.execute(w, "INSERT INTO t(id, s) VALUES(:id, @s)", new Object[] {"n", 6004L}, names, FAR)[0], 1L,
+				"execute binds by name: changes 1");
+		eq(q(r, "SELECT count(*) FROM t WHERE id = 6004 AND s = 'n'").rows.get(0)[0], 1L, "each value went to its own parameter");
+		try {
+			NativeBridge.execute(w, "DELETE FROM t WHERE id = :id", new Object[] {6004L}, new byte[][] {"idd".getBytes(StandardCharsets.UTF_8)},
+					FAR);
+			check(false, "execute ran with a misspelt name");
+		} catch (DebugEngineException e) {
+			eq(e.sqliteCode, 25, "execute: a misspelt name is SQLITE_RANGE, nothing run");
+		}
+		eq(q(r, "SELECT count(*) FROM t WHERE id = 6004").rows.get(0)[0], 1L, "and the row is still there");
+		Helper.exec(app, "DELETE FROM t WHERE id = 6004 OR s = '6004'");
 		// a statement that changes no row reports 0, not the previous write's count (sqlite3_changes64 keeps it)
 		eq(exec(w, "UPDATE t SET s = 'y' WHERE id = 6002"), 1L, "update 1");
 		eq(exec(w, "CREATE TABLE ex(a)"), 0L, "CREATE TABLE: changes 0, not the update's 1");
@@ -275,7 +289,7 @@ public class JniQueryTest {
 				try {
 					// far more work than 1.5 s: a cross join of t four times over, inserted
 					NativeBridge.execute(sw, "INSERT INTO t SELECT a.id FROM t a, t b, t c, t d WHERE a.id + b.id + c.id + d.id < 0 "
-							+ "UNION ALL SELECT -1", new Object[0], System.currentTimeMillis() + 8000);
+							+ "UNION ALL SELECT -1", new Object[0], null, System.currentTimeMillis() + 8000);
 				} catch (DebugEngineException e) {
 					ran.code = e.sqliteCode;
 					ran.message = e.getMessage();

@@ -662,7 +662,8 @@ done:
 // when it inserted none: SQLite never assigns that rowid itself, so only a row inserted explicitly with
 // it reads as none (accepted), while 0 and other negative rowids are reported as they are. Inserts made
 // by a trigger do not count: SQLite restores the value when the trigger ends.
-static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args, jlong deadline_ms) {
+static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring sql, jobjectArray args,
+                                 jobjectArray names, jlong deadline_ms) {
 	(void)cls;
 	sqlite3 *db = (sqlite3 *)(intptr_t)handle;
 	sqlite3_stmt *st = NULL;
@@ -675,7 +676,7 @@ static jlongArray bridge_execute(JNIEnv *env, jclass cls, jlong handle, jstring 
 		throw_engine(env, SQLITE_INTERRUPT, "the time limit passed before the statement started");
 		goto done;
 	}
-	if (!prepare_bound(env, db, sql, args, NULL, &st)) goto done;
+	if (!prepare_bound(env, db, sql, args, names, &st)) goto done;
 	// query is the tool for a read; a statement that changes nothing here would only cost an approval.
 	if (sqlite3_stmt_readonly(st)) {
 		throw_engine(env, SQLITE_ERROR, "the statement does not write; run it with query");
@@ -762,7 +763,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 	    {"openServer", "([BZ)J", (void *)bridge_open_server},
 	    {"setRowCapture", "(III)V", (void *)bridge_set_row_capture},
 	    {"query", "(JLjava/lang/String;[Ljava/lang/Object;[[BJIIIIJ)[Ljava/lang/Object;", (void *)bridge_query},
-	    {"execute", "(JLjava/lang/String;[Ljava/lang/Object;J)[J", (void *)bridge_execute},
+	    {"execute", "(JLjava/lang/String;[Ljava/lang/Object;[[BJ)[J", (void *)bridge_execute},
 	    {"close", "(J)V", (void *)bridge_close},
 	};
 	jclass bridge = (*env)->FindClass(env, BRIDGE_CLASS);

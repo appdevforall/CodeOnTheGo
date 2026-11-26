@@ -165,9 +165,11 @@ class FakeDebugEngine(
 			override fun execute(
 				sql: String,
 				args: List<Any?>,
+				argNames: List<String>?,
 				deadlineMillis: Long,
 			): ExecuteResult {
 				check(!closed) { "closed" }
+				lastArgNames = argNames
 				if (!writable) throw DebugEngineException(DebugEngineException.SQLITE_AUTH, "not authorized")
 				return executeAnswer(path, sql, args)
 			}

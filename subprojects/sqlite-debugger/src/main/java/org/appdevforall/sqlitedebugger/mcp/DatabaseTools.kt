@@ -377,7 +377,7 @@ class DatabaseTools internal constructor(
 					"stale until it reads it again. $ROOM_DESCRIPTION $APP_FUNCTIONS_NOTE.",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
-					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
+					"args" to argsSchema(),
 					"acknowledge_room" to
 						prop(
 							"boolean",
@@ -581,7 +581,6 @@ class DatabaseTools internal constructor(
 	): JSONObject {
 		val sql = stringArg(args, "sql")
 		val bind = bindArgs(args)
-		if (bind.names != null) throw McpToolError("args must be an array.")
 		val acknowledge =
 			when (val v = args.opt("acknowledge_room")) {
 				null, JSONObject.NULL -> false
@@ -595,7 +594,7 @@ class DatabaseTools internal constructor(
 			}
 			call.locked { roomAcknowledged += path }
 		}
-		val result = withConnection(call, path, writable = true) { it.execute(sql, bind.values, call.deadline) }
+		val result = withConnection(call, path, writable = true) { it.execute(sql, bind.values, bind.names, call.deadline) }
 		return JSONObject()
 			.put("changes", encodeLong(result.changes))
 			.put("last_insert_rowid", result.lastInsertRowid?.let { encodeLong(it) } ?: JSONObject.NULL)

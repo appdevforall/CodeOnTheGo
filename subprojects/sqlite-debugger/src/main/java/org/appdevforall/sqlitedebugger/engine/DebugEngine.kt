@@ -85,7 +85,8 @@ interface ServerConnection : Closeable {
 	): QueryResult
 
 	/**
-	 * Runs [sql], one statement that writes, to its end in autocommit, with [args] bound as in [query]; rows it
+	 * Runs [sql], one statement that writes, to its end in autocommit, with [args] bound as in [query] (by name when
+	 * [argNames] is not null); rows it
 	 * returns (RETURNING) are dropped. Needs a connection opened with `writable = true`. The statement is
 	 * stopped and rolled back once [deadlineMillis] has passed, or after SQLITEDBG_SERVER_NON_WAL_MS
 	 * (1.5 s) whichever is first: it holds the write lock, which the app's own writes wait for.
@@ -96,6 +97,7 @@ interface ServerConnection : Closeable {
 	fun execute(
 		sql: String,
 		args: List<Any?>,
+		argNames: List<String>?,
 		deadlineMillis: Long,
 	): ExecuteResult
 }

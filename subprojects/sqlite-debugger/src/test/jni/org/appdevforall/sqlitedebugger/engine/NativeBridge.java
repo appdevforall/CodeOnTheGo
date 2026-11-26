@@ -24,7 +24,7 @@ public final class NativeBridge {
 			int maxBlobBytes, int maxTotalBytes, long deadlineMillis)
 			throws DebugEngineException;
 
-	public static native long[] execute(long handle, String sql, Object[] args, long deadlineMillis) throws DebugEngineException;
+	public static native long[] execute(long handle, String sql, Object[] args, byte[][] names, long deadlineMillis) throws DebugEngineException;
 
 	public static native void close(long handle);
 }

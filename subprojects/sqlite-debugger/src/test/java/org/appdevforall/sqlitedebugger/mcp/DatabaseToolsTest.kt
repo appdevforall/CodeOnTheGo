@@ -1409,6 +1409,21 @@ class DatabaseToolsTest {
 		assertEquals(listOf("/data/a.db" to false, "/data/a.db" to true), engine.openedServerConnections)
 	}
 
+	@Test fun executeBindsAnObjectByName() {
+		engine.appConnections += conn(1, "/data/a.db")
+		var got: List<Any?> = emptyList()
+		engine.executeAnswer = { _, _, args ->
+			got = args
+			ExecuteResult(changes = 1, lastInsertRowid = null)
+		}
+		ok("execute", db().put("sql", "update t set a = :a where b = @b").put("args", JSONObject().put("a", "x").put("@b", 2)))
+		assertEquals(mapOf("a" to "x", "@b" to 2L), engine.lastArgNames!!.zip(got).toMap())
+		ok("execute", db().put("sql", "update t set a = ?").put("args", JSONArray().put(1)))
+		assertEquals("an array binds by position", null, engine.lastArgNames)
+		val schema = tools.tools().single { it.name == "execute" }.inputSchema.getJSONObject("properties").getJSONObject("args")
+		assertEquals(listOf("array", "object"), schema.getJSONArray("type").let { a -> (0 until a.length()).map { a.getString(it) } })
+	}
+
 	@Test fun executeReportsChangesPastTwoToTheFiftyThirdAsAString() {
 		engine.appConnections += conn(1, "/data/a.db")
 		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1L shl 60, lastInsertRowid = null) }

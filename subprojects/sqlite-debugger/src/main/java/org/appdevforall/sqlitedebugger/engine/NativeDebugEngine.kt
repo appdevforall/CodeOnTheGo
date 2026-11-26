@@ -135,10 +135,19 @@ class NativeDebugEngine : DebugEngine {
 		override fun execute(
 			sql: String,
 			args: List<Any?>,
+			argNames: List<String>?,
 			deadlineMillis: Long,
 		): ExecuteResult {
 			check(handle != 0L) { "the connection is closed" }
-			val result = NativeBridge.execute(handle, sql, Array(args.size) { bindable(args[it]) }, deadlineMillis)
+			require(argNames == null || argNames.size == args.size) { "${argNames?.size} names for ${args.size} args" }
+			val result =
+				NativeBridge.execute(
+					handle,
+					sql,
+					Array(args.size) { bindable(args[it]) },
+					argNames?.map { it.toByteArray(Charsets.UTF_8) }?.toTypedArray(),
+					deadlineMillis,
+				)
 			return ExecuteResult(changes = result[0], lastInsertRowid = result[1].takeIf { it != Long.MIN_VALUE })
 		}
 
