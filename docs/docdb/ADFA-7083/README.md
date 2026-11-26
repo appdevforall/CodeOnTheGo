@@ -1,6 +1,8 @@
-# ADFA-7083: sqlite-js documentation pages
+# sqlite-js documentation pages (ADFA-7083, ADFA-7243, ADFA-7247)
 
-Four Help+Manual style pages for `documentation.db`, in the `i/` set, reached from the Terminal page (`i/terminal-top.html`):
+Seven Help+Manual style pages for `documentation.db`, in the `i/` set.
+
+Four cover the terminal package ([ADFA-7081](https://appdevforall.atlassian.net/browse/ADFA-7081)) and are reached from the Terminal page (`i/terminal-top.html`):
 
 | Page | Path |
 |------|------|
@@ -9,16 +11,29 @@ Four Help+Manual style pages for `documentation.db`, in the `i/` set, reached fr
 | JavaScript in sqlite-js | `i/sqlite-js-javascript.html` |
 | JavaScript basics | `i/javascript-intro.html` |
 
-They document the terminal package ([ADFA-7081](https://appdevforall.atlassian.net/browse/ADFA-7081)), sqlite-js 1.4.2 and later: upstream's 1.4.0 and 1.4.2 releases merged our fixes. Apps built with Code on the Go ([ADFA-7082](https://appdevforall.atlassian.net/browse/ADFA-7082)) are not covered yet.
+They describe sqlite-js 1.4.2 and later, and say what 1.4.4 changed ([ADFA-7243](https://appdevforall.atlassian.net/browse/ADFA-7243)): a `js_create_` function fails when it cannot store the function.
+
+Three cover apps built with Code on the Go ([ADFA-7247](https://appdevforall.atlassian.net/browse/ADFA-7247)): the sqlite-js AAR (`subprojects/sqlite-js`, 1.4.4) and the JavaScript in SQLite project template (dev-assets `templates/JavaScriptInSQLite`). They are reached from Create a new project (`i/project-create-new.html`) and from the terminal pages:
+
+| Page | Path |
+|------|------|
+| JavaScript in SQLite for apps | `i/sqlite-js-app-top.html` |
+| Set up a database with JavaScript functions | `i/sqlite-js-app-database.html` |
+| Stop JavaScript that never ends | `i/sqlite-js-app-cancel.html` |
+
+All seven are in this one folder, though three tickets wrote them, because `apply.py` writes a page by its path: a second folder with its own copy of a page would undo the first one's. One run of `apply.py` brings a database up to date, whether or not it has the earlier pages.
 
 - `pages/*.md`: the source, a small Markdown subset (see `build.py`).
 - `build.py OUT_DIR`: turns each page into the JSON facts that `helpmanual-topic.peb` renders.
-- `apply.py DB`: adds the pages to a `documentation.db` in one transaction, compressed against its `CompressionDictionary`, and appends a section with a link to `i/terminal-top.html`. It handles both forms of that page: a template context (JSON), as in databases up to `wholedb` 2026-10-16, and a finished Help+Manual page (HTML), as from 2026-11-02. A database of the second form also stores `i/jstopics/terminal-top.js`, which the help viewer loads to move between pages, and the section goes into it too. A second run changes nothing. It refuses a database that declares a version below 2. Run it on a copy first; the master is edited by a `docdb-studio` maintainer. Needs the `brotli` command.
-- `test_examples.py`: runs every ` ```sql ` example against a real `sqlite3` with sqlite-js loaded, runs again each one that creates nothing, as a reader would, and checks that links, including each page's parent, prev and next, resolve: `SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so python3 test_examples.py`.
+- `apply.py DB`: adds the pages to a `documentation.db` in one transaction, compressed against its `CompressionDictionary`. A page whose stored row already matches is left alone. It also appends a section with a link to `i/terminal-top.html` and one to `i/project-create-new.html`. It handles both forms of those pages: a template context (JSON), as in databases up to `wholedb` 2026-10-16, and a finished Help+Manual page (HTML), as from 2026-11-02. A database of the second form also stores each page's `i/jstopics/` file, which the help viewer loads to move between pages, and the section goes into it too. A second run changes nothing. It refuses a database that declares a version below 2. Run it on a copy first; the master is edited by a `docdb-studio` maintainer. Needs the `brotli` command.
+- `test_examples.py`: runs every ` ```sql ` example against a real `sqlite3` with sqlite-js loaded, runs again each one that creates nothing, as a reader would, and checks that links, including each page's parent, prev and next, resolve. An example's `-- Error:` line names an error that its statement must report. Run it against sqlite-js 1.4.4: `SQLITE3=sqlite3 EXT=/path/to/sqlite-js.so python3 test_examples.py`.
+- `test_app_examples.py`: checks the app pages' ` ```gradle `, ` ```kotlin ` and ` ```java ` examples. It builds the Kotlin ones in a project made from the template, with the AAR, and the Java ones in a second project, the template with its Kotlin sources and Kotlin-only build lines removed and the page's ` ```gradle-java ` settings added. It runs their SQL on the host. With `DEVICE=1` it also runs them on a device, under `app-test/DocExamplesTest.kt` and `app-test/JavaDocExamplesTest.java`, each of which installs and removes its own app. If Gradle skips a slow device ("Unknown API Level"), install the two APKs it built for each project with `adb install`, run `adb shell am instrument -w org.appdevforall.sqlitejs.docexamples.test/androidx.test.runner.AndroidJUnitRunner` (Kotlin) and `adb shell am instrument -w org.appdevforall.sqlitejs.docexamples.java.test/androidx.test.runner.AndroidJUnitRunner` (Java), and uninstall the four packages: those two, and the same names without `.test`. Its docstring has the usage. It needs a dev-assets checkout, the AAR, the Android SDK and Gradle.
 - `CLAIMS.md`: every factual claim in the pages, and how each was checked.
 
 ## Not done here
 
-- The table of contents (`i/hmcontent.html`), the keyword index and the search index (`i/zoom_*.js`) are generated by Help+Manual and do not list these pages. The pages are reachable from `terminal-top.html` and from each other. Regenerate those files with the next Help+Manual export.
+- The app pages' examples are compiled, their SQL has run on a host, and the two tests in `app-test/` have run the Kotlin and the Java ones on one phone (32-bit ARM, Android 9). No 64-bit device has run them. The template's own screen has not been checked on a device for these tickets. The pages were read in the help viewer on that phone, at font scale 1.0 and 2.0: `CLAIMS.md` (Format) says which page at which scale.
+- The table of contents (`i/hmcontent.html`), the keyword index and the search index (`i/zoom_*.js`) are generated by Help+Manual and do not list these pages. The pages are reachable from `terminal-top.html`, from `project-create-new.html` and from each other. Regenerate those files with the next Help+Manual export.
+- The template's tooltip (`template.javascript.sqlite`) is not in the databases these scripts were tried on, and these scripts do not add it.
 - Attribution: `sqlite-js-functions.html` adapts the upstream README (Apache-2.0) and carries the notice. The other pages are original text. `javascript-intro.html` reuses no MDN text.
 - External addresses appear as text, not links: documentation stays on the device.

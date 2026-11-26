@@ -49,7 +49,7 @@ object ReplaceAction {
 				return@setPositiveButton
 			}
 
-			editor.searcher.replaceThis(input.text.toString())
+			editor.searcher.replaceCurrentMatch(input.text.toString())
 		}
 		builder.setNeutralButton(R.string.replaceAll) { dialog, _ ->
 			dialog.dismiss()

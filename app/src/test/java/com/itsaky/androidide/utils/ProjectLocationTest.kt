@@ -5,6 +5,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 
 class ProjectLocationTest {
@@ -24,5 +25,37 @@ class ProjectLocationTest {
 		val openPath = File(root, "MyApp")
 
 		assertThat(createPath.canonicalProjectLocation()).isEqualTo(openPath.canonicalProjectLocation())
+	}
+
+	@Test
+	fun `an Exception from canonicalPath falls back to the absolute path`() {
+		val file =
+			object : File(tempFolder.root, "MyApp") {
+				override fun getCanonicalPath(): String = throw IOException("cannot resolve")
+			}
+
+		assertThat(file.canonicalProjectLocation()).isEqualTo(file.absolutePath)
+	}
+
+	@Test
+	fun `a LinkageError from canonicalPath falls back to the absolute path`() {
+		val file =
+			object : File(tempFolder.root, "MyApp") {
+				override fun getCanonicalPath(): String = throw NoClassDefFoundError("missing")
+			}
+
+		assertThat(file.canonicalProjectLocation()).isEqualTo(file.absolutePath)
+	}
+
+	@Test
+	fun `an OutOfMemoryError from canonicalPath propagates`() {
+		val file =
+			object : File(tempFolder.root, "MyApp") {
+				override fun getCanonicalPath(): String = throw OutOfMemoryError("test")
+			}
+
+		val thrown = runCatching { file.canonicalProjectLocation() }.exceptionOrNull()
+
+		assertThat(thrown).isInstanceOf(OutOfMemoryError::class.java)
 	}
 }

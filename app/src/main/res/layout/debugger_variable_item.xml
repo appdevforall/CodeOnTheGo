@@ -18,7 +18,7 @@
 		app:layout_constraintTop_toTopOf="parent"
 		app:tint="?attr/colorPrimary" />
 
-	<androidx.legacy.widget.Space
+	<Space
 		android:id="@+id/chevron_icon_space"
 		android:layout_width="@dimen/content_padding_half"
 		android:layout_height="0dp"
@@ -38,7 +38,7 @@
 		app:layout_constraintTop_toTopOf="@id/chevron"
 		app:tint="?attr/colorPrimary" />
 
-	<androidx.legacy.widget.Space
+	<Space
 		android:id="@+id/icon_label_space"
 		android:layout_width="@dimen/content_padding"
 		android:layout_height="0dp"
@@ -57,7 +57,7 @@
 		app:layout_constraintTop_toTopOf="parent"
 		tools:text="myInt: Int = 123" />
 
-	<androidx.legacy.widget.Space
+	<Space
 		android:id="@+id/label_edit_space"
 		android:layout_width="@dimen/content_padding"
 		android:layout_height="0dp"

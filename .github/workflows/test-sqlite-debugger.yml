@@ -1,0 +1,27 @@
+name: Test sqlite-debugger
+
+# The tests the Android build cannot run (ADFA-7135): the extension's C tests under AddressSanitizer,
+# UBSan and ThreadSanitizer, and the JNI query test on a host JVM. See subprojects/sqlite-debugger/test.sh,
+# which downloads the SQLite amalgamation itself and checks its hash.
+
+on:
+  pull_request:
+    paths:
+      - 'subprojects/sqlite-debugger/**'
+      - 'subprojects/sqlite-js/upstream/libs/**'
+      - '.github/workflows/test-sqlite-debugger.yml'
+
+permissions:
+  contents: read
+
+jobs:
+
+  test-sqlite-debugger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run the sqlite-debugger tests
+        run: subprojects/sqlite-debugger/test.sh
