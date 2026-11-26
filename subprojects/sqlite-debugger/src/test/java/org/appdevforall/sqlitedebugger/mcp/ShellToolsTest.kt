@@ -169,6 +169,25 @@ class ShellToolsTest {
 		assertEquals(listOf(null, null), eqp.second)
 	}
 
+	@Test fun lintLeavesOutTheLastKeyWhenTheListIsCut() {
+		// 1001 columns: key a has 997 of them, key b has 4, and the engine returns the first 1000, so b has only 3
+		val columns = listOf("name", "id", "table", "from", "to")
+		val all = (1..997).map { listOf("a", 0L, "p", "c$it", "k$it") } + (1..4).map { listOf("b", 0L, "p", "d$it", "m$it") }
+		answer(
+			"SELECT s.name, f.id" to { QueryResult(columns, all, 0, false) },
+			"EXPLAIN QUERY PLAN SELECT 1 FROM" to {
+				result(listOf("id", "parent", "notused", "detail"), listOf(3L, 0L, 0L, "SEARCH t USING INTEGER PRIMARY KEY (rowid=?)"))
+			},
+		)
+		val r = ok("lint_foreign_keys")
+		assertTrue(r.getBoolean("truncated"))
+		val keys = r.getJSONArray("foreign_keys")
+		assertEquals(1, keys.length())
+		assertEquals("a", keys.getJSONObject(0).getString("child_table"))
+		assertEquals(997, keys.getJSONObject(0).getJSONArray("child_columns").length())
+		assertTrue("no check ran on the partial key", seen.none { it.first.startsWith("EXPLAIN QUERY PLAN SELECT 1 FROM \"b\"") })
+	}
+
 	@Test fun lintGlobFailsWhenTheIndexCoversOnlySomeColumns() {
 		assertTrue(ShellFormat.globMatches("SEARCH t USING COVERING INDEX*(*=? AND *=?)", "SEARCH t USING COVERING INDEX i (a=? AND b=?)"))
 		assertFalse(ShellFormat.globMatches("SEARCH t USING COVERING INDEX*(*=? AND *=?)", "SEARCH t USING COVERING INDEX i (a=?)"))

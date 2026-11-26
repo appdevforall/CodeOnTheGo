@@ -378,7 +378,8 @@ class DatabaseTools internal constructor(
 					".lint fkey-indexes does: without one, deleting or updating a parent row scans the child table. An " +
 					"uncovered key has create_index, a statement that would cover it (not run). Unlike sqlite3, a child column " +
 					"whose collation differs from its parent key's is not taken into account. truncated is true past the first " +
-					"$MAX_ROWS foreign key columns. $NON_WAL_NOTE",
+					"$MAX_ROWS foreign key columns, and the last key, of which only some columns were read, is then left out. " +
+					NON_WAL_NOTE,
 				databaseSchema(),
 			) { call, args -> lintForeignKeys(call, args) },
 			tool(
@@ -767,8 +768,15 @@ class DatabaseTools internal constructor(
 				0,
 				limits,
 			)
+		// A cut list ends inside a foreign key with some of its columns missing: checking that key would test a
+		// partial one and could call it covered. Drop its rows (the list is ordered by table, id, seq).
+		var rows = list.rows
+		if (list.hasMore && rows.isNotEmpty()) {
+			val last = rows.last()
+			rows = rows.dropLastWhile { it[0] == last[0] && it[1] == last[1] }
+		}
 		val keys = LinkedHashMap<Pair<String, Any?>, ForeignKey>()
-		for (row in list.rows) {
+		for (row in rows) {
 			val key = keys.getOrPut((row[0] as String) to row[1]) { ForeignKey(row[0] as String, row[2] as String) }
 			key.from += row[3] as String
 			key.to += row[4] as String?
