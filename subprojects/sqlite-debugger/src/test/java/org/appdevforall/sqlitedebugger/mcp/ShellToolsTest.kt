@@ -327,6 +327,30 @@ class ShellToolsTest {
 		assertEquals("SELECT 'INSERT INTO \"g\"(\"a\",\"c\") VALUES(' || quote(\"a\") || ',' || quote(\"c\") || ');' FROM \"g\"", select)
 	}
 
+	@Test fun dumpJoinsTheColumnsOfAWideTableInGroupsOfAHundred() {
+		fun select(columns: Int): String {
+			seen.clear()
+			dumpSchema(
+				tables = listOf(listOf("w", "CREATE TABLE w(...)")),
+				xinfo = mapOf("w" to (1..columns).map { listOf("c$it", 0L) }),
+			)
+			ok("dump")
+			return seen.first { it.first.startsWith("SELECT 'INSERT INTO ") }.first
+		}
+
+		fun chain(columns: IntRange) = columns.joinToString(" || ',' || ") { "quote(\"c$it\")" }
+
+		fun expected(values: String) = "SELECT 'INSERT INTO \"w\" VALUES(' || $values || ');' FROM \"w\" ORDER BY _rowid_"
+		// One chain of || is refused past about 500 columns ("Expression tree is too large (maximum depth 1000)"),
+		// SQLite 3.49.1; up to 100 columns the SELECT is as before, then each group of 100 is a chain of its own.
+		assertEquals(expected(chain(1..100)), select(100))
+		assertEquals(expected("(${chain(1..100)}) || ',' || (${chain(101..101)})"), select(101))
+		assertEquals(
+			expected((0 until 20).joinToString(" || ',' || ") { "(${chain(it * 100 + 1..it * 100 + 100)})" }),
+			select(2000),
+		)
+	}
+
 	@Test fun dumpWritesAVirtualTableIntoTheSchemaAsTheShellDoes() {
 		dumpSchema(
 			tables =
