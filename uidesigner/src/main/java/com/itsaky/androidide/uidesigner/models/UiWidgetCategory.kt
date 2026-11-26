@@ -20,4 +20,8 @@ package com.itsaky.androidide.uidesigner.models
 import androidx.annotation.StringRes
 import com.itsaky.androidide.inflater.models.UiWidget
 
-data class UiWidgetCategory(@StringRes val label: Int, var widgets: List<UiWidget> = emptyList(), var isExpanded: Boolean = false)
+data class UiWidgetCategory(
+	@param:StringRes val label: Int,
+	var widgets: List<UiWidget> = emptyList(),
+	var isExpanded: Boolean = false,
+)
