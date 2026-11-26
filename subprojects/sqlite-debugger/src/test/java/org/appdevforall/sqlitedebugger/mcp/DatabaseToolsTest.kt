@@ -1086,6 +1086,18 @@ class DatabaseToolsTest {
 		t.onServerStopped()
 	}
 
+	@Test fun theIdleTimerThreadEndsOnceItsCheckHasRun() {
+		fun idleThreads() = Thread.getAllStackTraces().keys.filter { it.name == "sqlite-debugger-idle" && it.isAlive }.toSet()
+		val before = idleThreads()
+		val ran = CountDownLatch(1)
+		TimerIdleScheduler().schedule(10) { ran.countDown() }
+		assertTrue(ran.await(5, TimeUnit.SECONDS))
+		// other tests leave their own checks pending: only this schedule's thread must end
+		val mine = idleThreads() - before
+		mine.forEach { it.join(5_000) }
+		assertTrue("still parked: $mine", mine.none { it.isAlive })
+	}
+
 	private class FakeIdleScheduler : IdleScheduler {
 		class Check(
 			val task: Runnable,
