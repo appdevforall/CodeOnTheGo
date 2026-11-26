@@ -1087,7 +1087,12 @@ class DatabaseToolsTest {
 	}
 
 	@Test fun theIdleTimerThreadEndsOnceItsCheckHasRun() {
-		fun idleThreads() = Thread.getAllStackTraces().keys.filter { it.name == "sqlite-debugger-idle" && it.isAlive }.toSet()
+		fun idleThreads() =
+			Thread
+				.getAllStackTraces()
+				.keys
+				.filter { it.name == "sqlite-debugger-idle" && it.isAlive }
+				.toSet()
 		val before = idleThreads()
 		val ran = CountDownLatch(1)
 		TimerIdleScheduler().schedule(10) { ran.countDown() }
