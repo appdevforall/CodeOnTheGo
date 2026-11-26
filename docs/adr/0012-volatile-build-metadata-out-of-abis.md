@@ -111,7 +111,8 @@ Two related changes follow from the same invariant:
   commit and each hour, so `:app`'s kapt, compiles and dexing re-ran on every commit.
   Since ADFA-6954, build-logic's `GenerateAppBuildConfigTask` generates that class in
   place of AGP's, with the same fields minus those two. The version stays in the
-  manifest; code reads it from `BuildInfo.VERSION_NAME_SIMPLE` or `PackageManager`.
+  manifest. Code reads the version name from `BuildInfo.VERSION_NAME_SIMPLE`, and the
+  name and code from `PackageManager`.
 
 ## Alternatives considered
 
