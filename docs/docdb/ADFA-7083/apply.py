@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adds the ADFA-7083 pages to a documentation.db.
+"""Adds the pages of this folder (ADFA-7083, ADFA-7243, ADFA-7247) to a documentation.db.
 
 Usage: python3 apply.py DOCUMENTATION_DB
 
@@ -8,14 +8,15 @@ database's CompressionDictionary (quality 11, lgwin 24, as the documentation
 pipeline does), and in ONE transaction:
   - upserts a Content row per page whose row is missing or differs, path
     i/<file>, templateId of helpmanual-topic.peb, text/html, EN-us;
-  - appends a section that links to the new pages to i/terminal-top.html,
-    unless it has one. The page's other sections start collapsed, so the link
+  - appends a section that links to the new pages to i/terminal-top.html, and
+    one to i/project-create-new.html, which lists the project templates, unless
+    the page has it. A page's other sections start collapsed, so the link
     gets a heading of its own, where readers see it. The page is either a
     template context (JSON, rendered by helpmanual-topic.peb), as in databases
     up to wholedb 2026-10-16, or a finished Help+Manual page (HTML), as from
     wholedb 2026-11-02; the section goes at the end of the topic's body in both.
-    A database of the second kind also stores the page's i/jstopics/
-    terminal-top.js, which the help viewer loads to move between pages, so the
+    A database of the second kind also stores the page's i/jstopics/ file
+    (terminal-top.js), which the help viewer loads to move between pages, so the
     section goes into that file's hmBody too;
   - if a page or the link changed, stamps the content-i and wholedb rows of
     LastChange, inserting any that is missing, as docdb-studio does.
@@ -37,47 +38,55 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-LINK_FILE = "terminal-top.html"
-LINK_TARGET = "sqlite-js-top.html"
-LINK_HTML = ('<h1 class="p_Heading1" style="page-break-after: avoid;"><a id="sqlite-js" class="hmanchor"></a>'
-             '<span class="f_Heading1">SQL functions in JavaScript</span></h1>\r\n'
-             '<p class="p_Normal">To write SQL functions in JavaScript, see '
-             '<a href="sqlite-js-top.html" class="topiclink">JavaScript in SQLite (sqlite-js)</a>.</p>\r\n')
-WHO = "ADFA-7083"
+HEADING = ('<h1 class="p_Heading1" style="page-break-after: avoid;"><a id="%s" class="hmanchor"></a>'
+           '<span class="f_Heading1">%s</span></h1>\r\n')
+# (page that gets the section, page the section links to, the section's anchor id, the section)
+LINKS = [
+    ("terminal-top.html", "sqlite-js-top.html", "sqlite-js",
+     HEADING % ("sqlite-js", "SQL functions in JavaScript")
+     + '<p class="p_Normal">To write SQL functions in JavaScript, see '
+       '<a href="sqlite-js-top.html" class="topiclink">JavaScript in SQLite (sqlite-js)</a>.</p>\r\n'),
+    ("project-create-new.html", "sqlite-js-app-top.html", "sqlite-js-app",
+     HEADING % ("sqlite-js-app", "JavaScript in SQLite template")
+     + '<p class="p_Normal">The JavaScript in SQLite template creates an app whose Room database calls '
+       'functions written in JavaScript. See <a href="sqlite-js-app-top.html" class="topiclink">'
+       'JavaScript in SQLite for apps</a>.</p>\r\n'),
+]
+WHO = "ADFA-7247"
 # A finished page's topic body ends where the skin closes its scroller div.
 HTML_BODY_END = re.compile(r"\n\s*</div>\s*<!-- hmpagebody_scroller -->")
 # A stored jstopics file is hmLoadTopic({...}) whose last property is the hmBody string.
 JSTOPIC_BODY_END = re.compile(r'"\s*\}\)\s*$')
 
 
-def add_link(text):
-    """The page with the link section added, or None if it already has it."""
+def add_link(text, file, anchor, section):
+    """The page with the section added, or None if it already has it."""
     if text.lstrip("\ufeff \t\r\n").startswith("{"):
         page = json.loads(text)
-        if 'id="sqlite-js"' in page["hmBody"]:
+        if 'id="%s"' % anchor in page["hmBody"]:
             return None
-        page["hmBody"] += LINK_HTML
+        page["hmBody"] += section
         return json.dumps(page, ensure_ascii=False)
-    if 'id="sqlite-js"' in text:
+    if 'id="%s"' % anchor in text:
         return None
     ends = list(HTML_BODY_END.finditer(text))
     if len(ends) != 1:
         raise RuntimeError("i/%s is HTML, but its topic body's end was found %d times, not once"
-                           % (LINK_FILE, len(ends)))
+                           % (file, len(ends)))
     at = ends[0].start()
-    return text[:at] + "\n" + LINK_HTML.replace("\r\n", "\n").rstrip("\n") + text[at:]
+    return text[:at] + "\n" + section.replace("\r\n", "\n").rstrip("\n") + text[at:]
 
 
-def add_link_to_jstopic(text):
-    """The jstopics file with the link section added to its hmBody, or None if it has it."""
-    if 'id=\\"sqlite-js\\"' in text:
+def add_link_to_jstopic(text, file, anchor, section):
+    """The jstopics file with the section added to its hmBody, or None if it has it."""
+    if 'id=\\"%s\\"' % anchor in text:
         return None
     ends = list(JSTOPIC_BODY_END.finditer(text))
     body = text.rfind("hmBody:")
     if len(ends) != 1 or body < 0 or re.search(r"\n\s*hm\w+:", text[body:]):
-        raise RuntimeError("i/jstopics/%s does not end with its hmBody string" % LINK_FILE.replace(".html", ".js"))
+        raise RuntimeError("i/jstopics/%s does not end with its hmBody string" % file.replace(".html", ".js"))
     # escaped as Help+Manual writes these strings: \" for quotes, <\/ for </, \n\r at line ends
-    escaped = (LINK_HTML.replace("\\", "\\\\").replace('"', '\\"').replace("</", "<\\/")
+    escaped = (section.replace("\\", "\\\\").replace('"', '\\"').replace("</", "<\\/")
                .replace("\r\n", "\\n\\r"))
     at = ends[0].start()
     return text[:at] + escaped + text[at:]
@@ -154,31 +163,33 @@ def main():
                 changed = True
                 print("upserted %s (%d bytes)" % (path, len(blob)))
 
-            row = db.execute("SELECT content FROM Content WHERE path = ?", ("i/" + LINK_FILE,)).fetchone()
-            if row is None:
-                raise RuntimeError("i/%s is not in the database" % LINK_FILE)
-            linked = add_link(brotli(["-d", "-D", dict_path], row[0], work).decode("utf-8"))
-            if linked is None:
-                print("i/%s already links to %s" % (LINK_FILE, LINK_TARGET))
-            else:
-                blob = brotli(["-q", "11", "-w", "24", "-D", dict_path], linked.encode("utf-8"), work)
-                db.execute("UPDATE Content SET content = ? WHERE path = ?", (blob, "i/" + LINK_FILE))
-                changed = True
-                print("added a link to i/%s" % LINK_FILE)
-
-            jstopic = "i/jstopics/" + LINK_FILE.replace(".html", ".js")
-            row = db.execute("SELECT content FROM Content WHERE path = ?", (jstopic,)).fetchone()
-            if row is None:
-                print("%s is not stored: the app renders it from the page" % jstopic)
-            else:
-                linked = add_link_to_jstopic(brotli(["-d", "-D", dict_path], row[0], work).decode("utf-8"))
+            for file, target, anchor, section in LINKS:
+                row = db.execute("SELECT content FROM Content WHERE path = ?", ("i/" + file,)).fetchone()
+                if row is None:
+                    raise RuntimeError("i/%s is not in the database" % file)
+                linked = add_link(brotli(["-d", "-D", dict_path], row[0], work).decode("utf-8"), file, anchor, section)
                 if linked is None:
-                    print("%s already links to %s" % (jstopic, LINK_TARGET))
+                    print("i/%s already links to %s" % (file, target))
                 else:
                     blob = brotli(["-q", "11", "-w", "24", "-D", dict_path], linked.encode("utf-8"), work)
-                    db.execute("UPDATE Content SET content = ? WHERE path = ?", (blob, jstopic))
+                    db.execute("UPDATE Content SET content = ? WHERE path = ?", (blob, "i/" + file))
                     changed = True
-                    print("added a link to %s" % jstopic)
+                    print("added a link to i/%s" % file)
+
+                jstopic = "i/jstopics/" + file.replace(".html", ".js")
+                row = db.execute("SELECT content FROM Content WHERE path = ?", (jstopic,)).fetchone()
+                if row is None:
+                    print("%s is not stored: the app renders it from the page" % jstopic)
+                else:
+                    linked = add_link_to_jstopic(brotli(["-d", "-D", dict_path], row[0], work).decode("utf-8"),
+                                                 file, anchor, section)
+                    if linked is None:
+                        print("%s already links to %s" % (jstopic, target))
+                    else:
+                        blob = brotli(["-q", "11", "-w", "24", "-D", dict_path], linked.encode("utf-8"), work)
+                        db.execute("UPDATE Content SET content = ? WHERE path = ?", (blob, jstopic))
+                        changed = True
+                        print("added a link to %s" % jstopic)
 
             # Stamp the sets' rows rather than add rows: the app reads wholedb with LIMIT 1 and no order.
             if changed:

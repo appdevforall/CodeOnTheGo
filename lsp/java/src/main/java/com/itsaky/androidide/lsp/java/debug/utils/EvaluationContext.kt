@@ -1,6 +1,10 @@
 package com.itsaky.androidide.lsp.java.debug.utils
 
+import com.sun.jdi.IncompatibleThreadStateException
+import com.sun.jdi.InvalidStackFrameException
+import com.sun.jdi.ObjectCollectedException
 import com.sun.jdi.ThreadReference
+import com.sun.jdi.VMDisconnectedException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -16,137 +20,207 @@ import java.util.concurrent.atomic.AtomicLong
 internal typealias Evaluator<R> = suspend () -> R
 
 private sealed interface EvaluationMessage {
-    data class EvaluateRequest<R>(
-        val thread: ThreadReference,
-        val evaluator: Evaluator<R>,
-        val deferred: CompletableDeferred<R?>,
-        val id: Long = Companion.id.getAndIncrement()
-    ) : EvaluationMessage {
-        companion object {
-            private val id = AtomicLong(0)
-        }
-    }
+	data class EvaluateRequest<R>(
+		val thread: ThreadReference,
+		val evaluator: Evaluator<R>,
+		val deferred: CompletableDeferred<R?>,
+		val id: Long = Companion.id.getAndIncrement(),
+	) : EvaluationMessage {
+		companion object {
+			private val id = AtomicLong(0)
+		}
+	}
 
-    data object Shutdown : EvaluationMessage
+	data class CancelPending(
+		val thread: ThreadReference? = null,
+	) : EvaluationMessage
+
+	data object Shutdown : EvaluationMessage
 }
 
 class EvaluationContext : AutoCloseable {
-    companion object {
-        private val logger = LoggerFactory.getLogger(EvaluationContext::class.java)
-    }
+	companion object {
+		private val logger = LoggerFactory.getLogger(EvaluationContext::class.java)
+	}
 
-    override fun close() {
-        evaluationActor.trySend(EvaluationMessage.Shutdown)
-        evaluationActor.close()
-    }
+	override fun close() {
+		evaluationActor.trySend(EvaluationMessage.Shutdown)
+		evaluationActor.close()
+	}
 
-    private val sequentialDispatcher = Dispatchers.IO.limitedParallelism(1)
+	fun cancelPendingForThread(thread: ThreadReference) {
+		evaluationActor.trySend(EvaluationMessage.CancelPending(thread))
+	}
 
+	fun cancelAllPending() {
+		evaluationActor.trySend(EvaluationMessage.CancelPending(null))
+	}
 
-    @OptIn(ObsoleteCoroutinesApi::class, ExperimentalCoroutinesApi::class)
-    private val evaluationActor = CoroutineScope(sequentialDispatcher).actor<EvaluationMessage>(
-        capacity = Channel.UNLIMITED
-    ) {
-        val threadBatches =
-            mutableMapOf<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>()
+	private val sequentialDispatcher = Dispatchers.IO.limitedParallelism(1)
 
-        for (message in channel) {
-            when (message) {
-                is EvaluationMessage.EvaluateRequest<*> -> {
-                    threadBatches.getOrPut(message.thread) { mutableListOf() }.add(message)
-                    delay(10) // Small delay to allow batching
+	@OptIn(ObsoleteCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+	private val evaluationActor =
+		CoroutineScope(sequentialDispatcher).actor<EvaluationMessage>(
+			capacity = Channel.UNLIMITED,
+		) {
+			val threadBatches =
+				mutableMapOf<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>()
 
-                    if (channel.isEmpty) {
-                        try {
-                            processBatches(threadBatches)
-                        } catch (e: Throwable) {
-                            logger.error("Failed to process evaluator batches", e)
-                        }
-                    }
-                }
+			for (message in channel) {
+				when (message) {
+					is EvaluationMessage.EvaluateRequest<*> -> {
+						threadBatches.getOrPut(message.thread) { mutableListOf() }.add(message)
+						delay(10) // Small delay to allow batching
 
-                is EvaluationMessage.Shutdown -> {
-                    cancelPendingRequests(threadBatches)
-                    break
-                }
-            }
-        }
-    }
+						if (channel.isEmpty) {
+							processBatches(threadBatches)
+						}
+					}
 
-    suspend fun <R> evaluate(
-        thread: ThreadReference,
-        evaluator: Evaluator<R>
-    ): R? {
-        val deferred = CompletableDeferred<R?>()
-        val request = EvaluationMessage.EvaluateRequest(thread, evaluator, deferred)
+					is EvaluationMessage.CancelPending -> {
+						dropPendingRequests(threadBatches, message.thread)
+						// Other threads' batches may have been deferred behind this message.
+						if (channel.isEmpty) {
+							processBatches(threadBatches)
+						}
+					}
 
-        evaluationActor.send(request)
-        return deferred.await()
-    }
+					is EvaluationMessage.Shutdown -> {
+						cancelPendingRequests(threadBatches)
+						break
+					}
+				}
+			}
+		}
 
-    private suspend fun processBatches(threadBatches: MutableMap<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>) {
-        threadBatches.forEach { (thread, requests) ->
-            if (requests.isNotEmpty()) {
-                processBatchForThread(thread, requests)
-                requests.clear()
-            }
-        }
-    }
+	suspend fun <R> evaluate(
+		thread: ThreadReference,
+		evaluator: Evaluator<R>,
+	): R? {
+		val deferred = CompletableDeferred<R?>()
+		val request = EvaluationMessage.EvaluateRequest(thread, evaluator, deferred)
 
-    private suspend fun processBatchForThread(
-        thread: ThreadReference,
-        requests: List<EvaluationMessage.EvaluateRequest<*>>
-    ) {
-        val threadName = thread.name()
-        logger.debug(
-            "Processing batch of {} requests for thread {}",
-            requests.size,
-            threadName
-        )
+		val sendResult = evaluationActor.trySend(request)
+		if (sendResult.isFailure) {
+			return null
+		}
+		return deferred.await()
+	}
 
-        // Ensure thread is still suspended
-        if (!thread.isSuspended) {
-            logger.warn("Thread $threadName is not suspended, failing batch for thread {}", threadName)
-            val exception = IllegalStateException("Thread $threadName is not suspended")
-            requests.forEach { request ->
-                request.deferred.completeExceptionally(exception)
-            }
-            return
-        }
+	private suspend fun processBatches(threadBatches: MutableMap<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>) {
+		try {
+			threadBatches.forEach { (thread, requests) ->
+				if (requests.isNotEmpty()) {
+					processBatchForThread(thread, requests)
+					requests.clear()
+				}
+			}
+		} catch (e: CancellationException) {
+			threadBatches.values.forEach { requests ->
+				requests.forEach { it.deferred.complete(null) }
+				requests.clear()
+			}
+			throw e
+		} catch (e: Throwable) {
+			logger.error("Failed to process evaluator batches", e)
+		}
+	}
 
-        // Process each request sequentially
-        requests.forEach { request ->
-            try {
-                @Suppress("UNCHECKED_CAST")
-                val typedRequest = request as EvaluationMessage.EvaluateRequest<Any?>
-                val result = typedRequest.evaluator()
-                typedRequest.deferred.complete(result)
-            } catch (e: Exception) {
-                logger.error("Failed to execute evaluation for thread {}", threadName, e)
-                request.deferred.completeExceptionally(e)
-            }
-        }
-    }
+	private suspend fun processBatchForThread(
+		thread: ThreadReference,
+		requests: List<EvaluationMessage.EvaluateRequest<*>>,
+	) {
+		val threadName = runCatching { thread.name() }.getOrDefault("<unknown>")
+		logger.debug(
+			"Processing batch of {} requests for thread {}",
+			requests.size,
+			threadName,
+		)
 
-    private fun cancelPendingRequests(
-        threadBatches: MutableMap<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>
-    ) {
-        logger.debug("Cancelling pending evaluation requests")
-        val cancellationException = CancellationException("EvaluationContext is shutting down")
-        threadBatches.values.forEach { requests ->
-            requests.forEach { request ->
-                request.deferred.cancel(cancellationException)
-            }
-        }
+		// Ensure thread is still suspended
+		val isSuspended = runCatching { thread.isSuspended }.getOrDefault(false)
+		if (!isSuspended) {
+			logger.warn("Thread {} is not suspended, skipping batch of {} requests", threadName, requests.size)
+			requests.forEach { request ->
+				request.deferred.complete(null)
+			}
+			return
+		}
 
-        val totalCancelled = threadBatches.values.sumOf { it.size }
-        if (totalCancelled > 0) {
-            logger.debug(
-                "Cancelled {} pending evaluation requests due to shutdown",
-                totalCancelled
-            )
-        }
+		// Process each request sequentially
+		requests.forEach { request ->
+			if (!runCatching { thread.isSuspended }.getOrDefault(false)) {
+				logger.warn("Thread {} resumed during batch, skipping remaining request", threadName)
+				request.deferred.complete(null)
+				return@forEach
+			}
 
-        threadBatches.clear()
-    }
+			try {
+				@Suppress("UNCHECKED_CAST")
+				val typedRequest = request as EvaluationMessage.EvaluateRequest<Any?>
+				val result = typedRequest.evaluator()
+				typedRequest.deferred.complete(result)
+			} catch (e: CancellationException) {
+				request.deferred.cancel(e)
+				throw e
+			} catch (e: Exception) {
+				when (e) {
+					is InvalidStackFrameException,
+					is IncompatibleThreadStateException,
+					is ObjectCollectedException,
+					is VMDisconnectedException,
+					-> {
+						logger.warn("Skipping stale evaluation for thread {}: {}", threadName, e.message)
+					}
+
+					else -> {
+						logger.error("Failed to execute evaluation for thread {}", threadName, e)
+					}
+				}
+				request.deferred.complete(null)
+			}
+		}
+	}
+
+	private fun dropPendingRequests(
+		threadBatches: MutableMap<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>,
+		targetThread: ThreadReference?,
+	) {
+		if (targetThread != null) {
+			val requests = threadBatches.remove(targetThread) ?: return
+			if (requests.isNotEmpty()) {
+				logger.debug("Dropping {} pending evaluation requests for resumed thread", requests.size)
+				requests.forEach { it.deferred.complete(null) }
+			}
+		} else {
+			val totalDropped = threadBatches.values.sumOf { it.size }
+			if (totalDropped > 0) {
+				logger.debug("Dropping {} pending evaluation requests across all threads", totalDropped)
+			}
+			threadBatches.values.forEach { requests ->
+				requests.forEach { it.deferred.complete(null) }
+			}
+			threadBatches.clear()
+		}
+	}
+
+	private fun cancelPendingRequests(threadBatches: MutableMap<ThreadReference, MutableList<EvaluationMessage.EvaluateRequest<*>>>) {
+		logger.debug("Cancelling pending evaluation requests")
+		val cancellationException = CancellationException("EvaluationContext is shutting down")
+		threadBatches.values.forEach { requests ->
+			requests.forEach { request ->
+				request.deferred.cancel(cancellationException)
+			}
+		}
+
+		val totalCancelled = threadBatches.values.sumOf { it.size }
+		if (totalCancelled > 0) {
+			logger.debug(
+				"Cancelled {} pending evaluation requests due to shutdown",
+				totalCancelled,
+			)
+		}
+
+		threadBatches.clear()
+	}
 }

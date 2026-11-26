@@ -14,6 +14,9 @@ import com.itsaky.androidide.lsp.java.debug.utils.kotlinDisplayName
 import com.itsaky.androidide.lsp.java.debug.utils.kotlinLambdaScopes
 import com.itsaky.androidide.lsp.java.debug.utils.lineNumberInKotlin
 import com.itsaky.androidide.lsp.java.debug.utils.sourceNameInKotlinOrNull
+import com.sun.jdi.AbsentInformationException
+import com.sun.jdi.IncompatibleThreadStateException
+import com.sun.jdi.InvalidStackFrameException
 import com.sun.jdi.Location
 import com.sun.jdi.Method
 import com.sun.jdi.ObjectCollectedException
@@ -78,8 +81,11 @@ class JavaStackFrame(
 								this.thisObject()
 							}.getOrElse { e ->
 								when (e) {
-									is VMDisconnectedException -> {
-										logger.warn("VM disconnected while fetching 'this' object.", e)
+									is VMDisconnectedException,
+									is InvalidStackFrameException,
+									is IncompatibleThreadStateException,
+									-> {
+										logger.warn("Frame or VM unavailable while fetching 'this' object: {}", e.message)
 										return@evaluate emptyList()
 									}
 
@@ -128,6 +134,8 @@ class JavaStackFrame(
 										)
 									} catch (e: VMDisconnectedException) {
 										throw e
+									} catch (e: InvalidStackFrameException) {
+										throw e
 									} catch (err: Throwable) {
 										logger.error(
 											"Failed to create variable wrapper for {}",
@@ -142,6 +150,11 @@ class JavaStackFrame(
 						} catch (e: VMDisconnectedException) {
 							logger.warn("VM disconnected while reading local variables. Aborting.")
 							return@evaluate emptyList()
+						} catch (e: InvalidStackFrameException) {
+							logger.warn("Frame invalidated while reading local variables: {}", e.message)
+							return@evaluate emptyList()
+						} catch (e: AbsentInformationException) {
+							logger.debug("No local variable information available for {}", location)
 						} catch (e: Throwable) {
 							logger.error("Error reading local variables", e)
 						}
@@ -188,7 +201,6 @@ class JavaStackFrame(
 
 internal class LspThreadInfo(
 	val thread: ThreadInfo,
-	val frames: List<StackFrame> = thread.frames(),
 ) : LspThreadInfo {
 	companion object {
 		private val logger = LoggerFactory.getLogger(LspThreadInfo::class.java)
@@ -198,14 +210,20 @@ internal class LspThreadInfo(
 
 	override suspend fun descriptor(): ThreadDescriptor =
 		withContext(Dispatchers.IO) {
-			val thread = thread.thread
-			val group = thread.threadGroup()
+			val jdiThread = thread.thread
+			val id = runCatching { jdiThread.uniqueID().toString() }.getOrDefault("<unknown>")
+			val name = runCatching { jdiThread.name() }.getOrDefault("<collected>")
+			val group = runCatching { jdiThread.threadGroup()?.name() }.getOrNull() ?: "<unknown>"
+			val state =
+				runCatching {
+					threadStateOf(jdiThread.status())
+				}.getOrDefault(LspThreadState.UNKNOWN)
 
 			ThreadDescriptor(
-				id = thread.uniqueID().toString(),
-				name = thread.name(),
-				group = group.name(),
-				state = threadStateOf(thread.status()),
+				id = id,
+				name = name,
+				group = group,
+				state = state,
 			)
 		}
 
@@ -213,11 +231,32 @@ internal class LspThreadInfo(
 		if (!::cachedFrames.isInitialized) {
 			cachedFrames =
 				JavaDebugAdapter.requireInstance().evalContext().evaluate(thread.thread) {
-					frames.map { frame ->
-						JavaStackFrame(
-							thread = thread.thread,
-							frame = frame,
-						)
+					thread.frames().mapNotNull { frame ->
+						try {
+							JavaStackFrame(
+								thread = thread.thread,
+								frame = frame,
+							)
+						} catch (e: Exception) {
+							when (e) {
+								is InvalidStackFrameException,
+								is IncompatibleThreadStateException,
+								is VMDisconnectedException,
+								-> {
+									throw e
+								}
+
+								is ObjectCollectedException -> {
+									logger.warn("Skipping collected stack frame in thread {}", thread.thread.name())
+									null
+								}
+
+								else -> {
+									logger.error("Failed to materialize stack frame", e)
+									null
+								}
+							}
+						}
 					}
 				} ?: emptyList()
 		}

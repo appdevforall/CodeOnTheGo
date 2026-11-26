@@ -419,7 +419,8 @@ object KotlinMetadataScanner {
 							receiverTypeDisplayName = receiverType?.let { kmTypeToDisplayName(it) } ?: "",
 							isConst = prop.isConst,
 							isLateinit = prop.isLateinit,
-							hasGetter = prop.getter != null,
+							// Every Kotlin property has a getter, so KmProperty.getter is never null.
+							hasGetter = true,
 							hasSetter = prop.setter != null,
 							isDelegated = prop.isDelegated,
 							isTypeNullable = prop.returnType.isNullable,
