@@ -304,7 +304,8 @@ static int key_matches(const char *param, const bind_key *key) {
 
 // Binds args by name: names[i] (UTF-8) names the parameter args[i] goes to. Every parameter must
 // get exactly one value and every name must be used, so a misspelt name fails instead of leaving a
-// NULL.
+// NULL. The error names a name that matches no parameter even when a parameter also has no value,
+// since that name is most likely the parameter's, misspelt.
 static int bind_named(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, jobjectArray args, jobjectArray names,
                       const char **message) {
 	jsize n = (*env)->GetArrayLength(env, names);
@@ -315,7 +316,8 @@ static int bind_named(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, jobjectArray a
 	bind_key *keys = calloc(n ? (size_t)n : 1, sizeof *keys);
 	if (!keys) return SQLITE_NOMEM;
 	int rc = SQLITE_OK;
-	char msg[256];
+	char msg[320];
+	const char *missing = NULL;  // the first parameter with no value; SQLite owns the string
 	for (jsize i = 0; i < n && rc == SQLITE_OK; i++) {
 		jbyteArray b = (jbyteArray)(*env)->GetObjectArrayElement(env, names, i);
 		if (!b) {
@@ -355,20 +357,30 @@ static int bind_named(JNIEnv *env, sqlite3 *db, sqlite3_stmt *st, jobjectArray a
 		}
 		if (rc != SQLITE_OK) break;
 		if (found < 0) {
-			snprintf(msg, sizeof msg, "no value was given for parameter %.100s", param);
-			throw_engine(env, SQLITE_RANGE, msg);
-			rc = SQLITE_RANGE;
-			break;
+			if (!missing) missing = param;
+			continue;
 		}
 		keys[found].used = 1;
 		jobject v = (*env)->GetObjectArrayElement(env, args, found);
 		rc = bind_value(env, db, st, p, v, message);
 		if (v) (*env)->DeleteLocalRef(env, v);
 	}
-	for (jsize i = 0; i < n && rc == SQLITE_OK; i++) {
-		if (keys[i].used) continue;
-		int shown = keys[i].len > 100 ? 100 : (int)keys[i].len;
-		snprintf(msg, sizeof msg, "the statement has no parameter named %.*s", shown, keys[i].name);
+	jsize unused = -1;
+	for (jsize i = 0; i < n && unused < 0; i++) {
+		if (!keys[i].used) unused = i;
+	}
+	if (rc == SQLITE_OK && unused >= 0) {
+		int shown = keys[unused].len > 100 ? 100 : (int)keys[unused].len;
+		if (missing) {
+			snprintf(msg, sizeof msg, "the statement has no parameter named %.*s, and no value was given for parameter %.100s",
+			         shown, keys[unused].name, missing);
+		} else {
+			snprintf(msg, sizeof msg, "the statement has no parameter named %.*s", shown, keys[unused].name);
+		}
+		throw_engine(env, SQLITE_RANGE, msg);
+		rc = SQLITE_RANGE;
+	} else if (rc == SQLITE_OK && missing) {
+		snprintf(msg, sizeof msg, "no value was given for parameter %.100s", missing);
 		throw_engine(env, SQLITE_RANGE, msg);
 		rc = SQLITE_RANGE;
 	}

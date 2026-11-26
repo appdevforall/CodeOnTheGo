@@ -371,8 +371,12 @@ public class JniQueryTest {
 				"25 parameter 2 has no name (a ? or a gap in the ?NNN numbers): pass args as an array instead", "named: an anonymous ?");
 		eq(namedRefusal(srv, "SELECT ?2", new Object[] {1L}, new String[] {"?2"}),
 				"25 parameter 1 has no name (a ? or a gap in the ?NNN numbers): pass args as an array instead", "named: a gap in ?NNN");
-		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L}, new String[] {":b"}), "25 no value was given for parameter :a",
+		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L}, new String[] {":b"}),
+				"25 the statement has no parameter named :b, and no value was given for parameter :a",
 				"named: a prefixed key matches only that prefix");
+		eq(namedRefusal(srv, "SELECT id FROM t WHERE id = :id", new Object[] {1L}, new String[] {"idx"}),
+				"25 the statement has no parameter named idx, and no value was given for parameter :id",
+				"named: a misspelt key is named although a parameter also has no value");
 
 		// declared types: the column's, or null for an expression
 		r = q(srv, "SELECT id, r, s, b, id + 1, NULL FROM t LIMIT 1");
