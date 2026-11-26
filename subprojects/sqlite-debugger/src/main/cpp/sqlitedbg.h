@@ -237,8 +237,9 @@ int sqlitedbg_end_transaction(sqlite3 *db);
 // or more statements, on the server connection db. Expert copies db's schema into two in-memory
 // connections of its own, which the extension neither lists nor traces, and only prepares sql on db,
 // never runs it. sample (0 to 100, clamped) is the percentage of rows expert reads, on db, to build
-// sqlite_stat1 for its estimates; for that run it also registers two functions and a temp table on db,
-// and drops them after. At 0 no row of the app's data is read and nothing is added to db; the
+// sqlite_stat1 for its estimates; for that run it also registers sqlite_expert_sample on db, and at 100 also
+// sqlite_expert_rem (below 100 that one, and the temp table of the sampled rows, are on expert's own
+// connection), and removes them from db after. At 0 no row of the app's data is read and nothing is added to db; the
 // suggestions then rest on SQLite's default estimates. progress (with arg) is set on expert's connections
 // as on db, for the time limit; the caller sets db's own. On SQLITE_OK, *out holds the results, read
 // with sqlite3_expert_count and sqlite3_expert_report and freed with sqlite3_expert_destroy. Otherwise

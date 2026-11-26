@@ -20,7 +20,8 @@ int sqlitedbg_expert_run(sqlite3 *db, const char *sql, int sample, int (*progres
 	sqlite3_progress_handler(p->dbv, 1000, progress, arg);
 	sqlite3_progress_handler(p->dbm, 1000, progress, arg);
 	// Sampling reads that percentage of the rows of every table with a candidate index, on db, and registers
-	// two functions and a temp table on db for the run (expert drops them after). At 0 nothing of the app's
+	// sqlite_expert_sample on db for the run, and at 100 sqlite_expert_rem too (expert removes them after); the
+	// temp table is made on expert's own connection p->dbv. At 0 nothing of the app's
 	// data is read, and suggestions rest on SQLite's default estimates.
 	int rc = sqlite3_expert_config(p, EXPERT_CONFIG_SAMPLE, sample < 0 ? 0 : sample > 100 ? 100 : sample);
 	// The handler runs every 1000 VM steps, which a small schema may never reach: check between steps too.
