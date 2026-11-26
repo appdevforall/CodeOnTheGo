@@ -47,7 +47,8 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   time the template uses it and never when it does not, and a `SqlTemplateFunction` runs each time the template
   calls it, with its arguments in order. The render runs on a thread of its own under one time limit (at most
   `MAX_TIMEOUT_MILLIS`, 120 s); when it passes, the thread is interrupted. A function that fails, or a template
-  error, throws the checked `SqlTemplateException` with a message to show as it is.
+  error, throws the checked `SqlTemplateException` with a message to show as it is. Pebble's `range` is limited to
+  100,000 values here (more fails the render), and a `for` loop ends when the render is stopped.
   `listTemplates()` lists the project's `*.sql.peb` files, and `getRoomSchemas()` the schemas Room exported
   (`RoomSchema`: class name from the folder, version, identity hash, path, entities and views with Room's JSON keys,
   `indices`, `foreignKeys` and `views` present even where Room left them out). Both skip build output and hidden

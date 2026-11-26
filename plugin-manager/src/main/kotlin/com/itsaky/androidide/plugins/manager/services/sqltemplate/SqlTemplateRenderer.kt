@@ -11,6 +11,7 @@ import io.pebbletemplates.pebble.extension.Filter
 import io.pebbletemplates.pebble.extension.Function
 import io.pebbletemplates.pebble.template.EvaluationContext
 import io.pebbletemplates.pebble.template.PebbleTemplate
+import io.pebbletemplates.pebble.tokenParser.TokenParser
 import java.io.StringWriter
 import java.math.BigDecimal
 import java.math.BigInteger
@@ -23,6 +24,9 @@ import java.util.function.Supplier
 /**
  * Renders a SQL template (ADFA-7302) with the project templates' Pebble settings ([ProjectTemplatePebble]), autoescaping
  * off, the two quoting filters, lazy variables and the caller's functions. Plain JVM, so it is unit-tested without Android.
+ *
+ * Pebble never looks at the interrupt flag, so two of its pieces are replaced in this engine only:
+ * `for` checks for an interrupt on every pass, and `range` refuses more than [CappedRangeFunction.MAX_ELEMENTS] values.
  */
 internal object SqlTemplateRenderer {
 	/** The most characters a render writes, as the documentation pages' renderer allows. */
@@ -239,7 +243,11 @@ internal object SqlTemplateRenderer {
 	) : AbstractExtension() {
 		override fun getFilters(): Map<String, Filter> = mapOf(IDENT_FILTER to IdentFilter, LITERAL_FILTER to LiteralFilter)
 
-		override fun getFunctions(): Map<String, Function> = callerFunctions.mapValues { (name, fn) -> CallerFunction(name, fn) }
+		// An extension's tag and function replace Pebble's core ones of the same name (ExtensionRegistry.put).
+		override fun getTokenParsers(): List<TokenParser> = listOf(InterruptibleForTokenParser())
+
+		override fun getFunctions(): Map<String, Function> =
+			callerFunctions.mapValues { (name, fn) -> CallerFunction(name, fn) as Function } + ("range" to CappedRangeFunction)
 	}
 
 	private class CallerFunction(

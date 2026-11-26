@@ -188,4 +188,46 @@ class SqlTemplateRendererTest {
 		val text = "\${% for i in range(1, 5000) %}\${{ chunk }}\${% endfor %}"
 		assertThat(failure(text, mapOf("chunk" to "x".repeat(1024)))).contains("Tried to write more than")
 	}
+
+	private fun renderThreads() = Thread.getAllStackTraces().keys.filter { it.name == "sql-template-render" && it.isAlive }
+
+	private fun awaitNoRenderThread(): Boolean {
+		val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+		while (System.nanoTime() < until) {
+			if (renderThreads().isEmpty()) return true
+			Thread.sleep(20)
+		}
+		return false
+	}
+
+	@Test
+	fun `a busy loop that writes nothing is stopped by the time limit and its thread ends`() {
+		val message =
+			failure("\${% for i in range(1, 100000) %}\${% for j in range(1, 100000) %}\${% endfor %}\${% endfor %}", timeoutMillis = 200)
+		assertThat(message).contains("did not finish within 200 ms")
+		assertThat(awaitNoRenderThread()).isTrue()
+	}
+
+	@Test
+	fun `a loop over a map or list still works, with its loop variables`() {
+		val text = "\${% for k in m %}\${{ k.key }}=\${{ k.value }}:\${{ loop.index }}/\${{ loop.length }},\${% endfor %}"
+		assertThat(render(text, mapOf("m" to mapOf("a" to 1L, "b" to 2L)))).isEqualTo("a=1:0/2,b=2:1/2,")
+		assertThat(render("\${% for x in l %}\${{ x }}\${% else %}none\${% endfor %}", mapOf("l" to emptyList<Any>()))).isEqualTo("none")
+	}
+
+	@Test
+	fun `range past the cap fails with a clear error, and a normal range is unchanged`() {
+		val message = failure("\${% for i in range(1, 9999999999) %}\${% endfor %}")
+		assertThat(message).contains("the most is 100000")
+		assertThat(failure("\${% for i in range(0, 100000) %}\${% endfor %}")).contains("the most is 100000")
+		assertThat(render("\${% for i in range(1, 100000) %}\${% endfor %}ok")).isEqualTo("ok")
+		assertThat(render("\${% for i in range(1, 5) %}\${{ i }}\${% endfor %}")).isEqualTo("12345")
+		assertThat(render("\${% for i in range(10, 1, -3) %}\${{ i }},\${% endfor %}")).isEqualTo("10,7,4,1,")
+		assertThat(render("\${% for i in range(5, 1) %}\${{ i }}\${% endfor %}none")).isEqualTo("none")
+		assertThat(render("\${% for c in range('a', 'e', 2) %}\${{ c }}\${% endfor %}")).isEqualTo("ace")
+		assertThat(render("\${% for i in range(1, 9, increment=4) %}\${{ i }},\${% endfor %}")).isEqualTo("1,5,9,")
+		assertThat(failure("\${% for i in range(1, 5, 0) %}\${% endfor %}")).contains("different than 0")
+		assertThat(failure("\${% for i in range(1, 'z') %}\${% endfor %}")).contains("Number or String")
+		assertThat(failure("\${% for i in range(-9223372036854775807, 9223372036854775807) %}\${% endfor %}")).contains("the most is")
+	}
 }

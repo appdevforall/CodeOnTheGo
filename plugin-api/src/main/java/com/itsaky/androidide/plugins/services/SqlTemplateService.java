@@ -59,6 +59,9 @@ public interface SqlTemplateService {
 	 *
 	 * <p>
 	 * A variable's value is null, a {@link String}, a {@link Number}, a {@link Boolean}, a {@link Map} with {@link String} keys, a {@link List} or other {@link Iterable}, a {@link RoomSchema}, or a {@link java.util.function.Supplier} of one of these. A supplier is lazy: it is called the first time the template reads the value, at most once, and not at all when the template does not; maps and lists may hold suppliers too. A function, such as {@code row_count(db, table)}, is called each time the template calls it, with its arguments.
+
+	 * <p>
+	 * Pebble's {@code range} is limited here to 100,000 values: a larger one fails the render, as building it could exhaust the app's memory. A {@code for} loop checks for a stopped render on every pass.
 	 *
 	 * <p>
 	 * The render runs on a thread of its own, with one time limit for the whole render, functions included. When it passes, that thread is interrupted (a function in progress should stop) and this throws.
