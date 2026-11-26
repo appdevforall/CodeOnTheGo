@@ -10,6 +10,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import java.time.Instant
+import java.util.concurrent.CancellationException
 
 class SqlTemplateServiceImplTest {
 	private val root = Files.createTempDirectory("shop").toFile()
@@ -129,6 +130,28 @@ class SqlTemplateServiceImplTest {
 		assertThrows(IllegalStateException::class.java) { service(project = nul).listTemplates() }
 		assertThrows(IllegalStateException::class.java) { service(project = nul).getRoomSchemas() }
 		assertThrows(IllegalStateException::class.java) { service(project = nul).renderPlain("t.sql.peb") }
+	}
+
+	@Test
+	fun `after close every call fails, and reopen lets them through again`() {
+		template("t.sql.peb", "SELECT 1")
+		val service = service()
+		service.close()
+		assertThrows(CancellationException::class.java) { service.renderPlain("t.sql.peb") }
+		assertThrows(CancellationException::class.java) { service.listTemplates() }
+		assertThrows(CancellationException::class.java) { service.getRoomSchemas() }
+		service.reopen()
+		assertThat(service.renderPlain("t.sql.peb")).isEqualTo("SELECT 1")
+		assertThat(service.listTemplates()).containsExactly("t.sql.peb")
+	}
+
+	@Test
+	fun `a service started closed refuses until it is reopened`() {
+		template("t.sql.peb", "SELECT 1")
+		val closed = SqlTemplateServiceImpl("p", setOf(PluginPermission.DEBUGGER_ENDPOINTS), { root }, { false }, startOpen = false)
+		assertThrows(CancellationException::class.java) { closed.listTemplates() }
+		closed.reopen()
+		assertThat(closed.getRoomSchemas()).isEmpty()
 	}
 
 	@Test
