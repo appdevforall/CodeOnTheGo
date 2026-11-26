@@ -259,15 +259,15 @@ internal class ThisVariable<ValueT : LspValue>(
 		value = ref,
 	) {
 	@Suppress("UNCHECKED_CAST")
-	override suspend fun value(): ValueT {
+	override suspend fun value(): ValueT? {
 		if (this.value == null) {
 			return LspValue.UNDEFINED as ValueT
 		}
 
 		val evalContext = JavaDebugAdapter.requireInstance().evalContext()
 		return evalContext.evaluate(thread) {
-			toLspValue(thread, value)
-		}!! as ValueT
+			toLspValue(thread, value) as ValueT
+		}
 	}
 
 	override suspend fun jdiValue(): Value? = value
@@ -322,15 +322,15 @@ internal class JavaFieldVariable<ValueT : LspValue>(
 	override suspend fun isMutable(): Boolean = !field.isFinal && super.isMutable()
 
 	@Suppress("UNCHECKED_CAST")
-	override suspend fun value(): ValueT {
+	override suspend fun value(): ValueT? {
 		if (this.value == null) {
 			return LspValue.UNDEFINED as ValueT
 		}
 
 		val evalContext = JavaDebugAdapter.requireInstance().evalContext()
 		return evalContext.evaluate(thread) {
-			toLspValue(thread, value)
-		}!! as ValueT
+			toLspValue(thread, value) as ValueT
+		}
 	}
 
 	override suspend fun setValue(value: String): Boolean {

@@ -197,6 +197,8 @@ public class VectorMasterDrawable extends Drawable {
 		return offsetY;
 	}
 
+	// Drawable.getOpacity() is deprecated but still abstract, so it must be overridden.
+	@Deprecated
 	@Override
 	public int getOpacity() {
 		return PixelFormat.TRANSLUCENT;
