@@ -400,7 +400,9 @@ class DatabaseTools internal constructor(
 					"bytes each), and a statement still goes in whole when the budget is nearly used, so a page can reach about " +
 					"${2 * MAX_TOTAL_BYTES / (1024 * 1024)} MiB; pass next_cursor as cursor for the next, until complete is true. " +
 					"A statement longer than ${DUMP_STATEMENT_BYTES / (1024 * 1024)} MiB is cut and listed in " +
-					"truncated_statements (indexes into sql), and the dump is then not whole. Paging re-reads the schema and " +
+					"truncated_statements (indexes into sql), and the dump is then not whole. Rows are read ORDER BY _rowid_, which a " +
+					"user column named _rowid_ takes over (the order is then by that column), and a WITHOUT ROWID table is read " +
+					"with no ORDER BY, in the order SQLite chooses (normally its primary key). Paging re-reads the schema and " +
 					"the rows, so a dump of a database that changes between pages can miss or repeat rows. $NON_WAL_NOTE",
 				databaseSchema(
 					"table" to prop("string", "Only this table, with its indexes and triggers. Default: the whole database."),

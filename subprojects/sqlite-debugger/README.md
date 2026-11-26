@@ -69,7 +69,7 @@ Capabilities of the sqlite3 shell, in the server so every client has them. All a
   Details:
   - Other `sqlite_` tables are skipped, except that `sqlite_stat1` gets `ANALYZE sqlite_schema`.
   - A virtual table goes into `sqlite_schema` under `PRAGMA writable_schema`, and its shadow tables are dumped as tables. With `table` set to a virtual table, its shadow tables (`pragma_table_list` type `shadow`, SQLite 3.37 and later, whose names start with the virtual table's name and `_`) are dumped too, with their indexes and triggers; the whole-database dump already has them. Limitation: if another virtual table's name also starts that way (`docs` and `docs_fts`), its shadow tables are included.
-  - Rows are written by `quote()` in SQL, which round-trips REALs (checked in the JNI test). They come in rowid order, so paging is stable.
+  - Rows are written by `quote()` in SQL, which round-trips REALs (checked in the JNI test). They come `ORDER BY _rowid_`, so paging is stable, with two exceptions: a table with a user column named `_rowid_` is ordered by that column (the name binds to the column), and a WITHOUT ROWID table gets no ORDER BY, so its order is the planner's (normally primary key order) and not guaranteed.
   - Generated columns are left out, with a column list.
   - Paged by a cursor (`unit.offset`, rebuilt from the schema on each call): at most 1000 statements and about 4 MiB a page. The budget counts UTF-16 characters (`String.length`), while the engine counts UTF-8 bytes, and the engine returns the first row whole whatever is left of the budget, so a page can reach about 8 MiB of characters (more bytes if the text is not ASCII). A statement over 4 MiB is cut and listed.
 - **`export` (`.mode csv`, `.mode insert`).**
