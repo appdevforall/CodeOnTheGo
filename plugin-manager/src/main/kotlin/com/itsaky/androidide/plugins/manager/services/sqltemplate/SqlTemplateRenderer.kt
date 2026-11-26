@@ -46,6 +46,10 @@ internal object SqlTemplateRenderer {
 	/**
 	 * Renders [text] (the template [name], for messages). [variables] must already include the reserved ones.
 	 *
+	 * The render runs on a daemon thread, and the time limit interrupts it. `for` and `range` honour that, but a caller's function
+	 * that ignores the interrupt keeps running on that thread after this throws (the approved behaviour: nothing can force a
+	 * thread to stop), so the function's effects go on until it returns.
+	 *
 	 * @throws SqlTemplateException for anything the template or a function did wrong, or the time limit
 	 * @throws IllegalArgumentException for a bad name, value type or time limit
 	 */
