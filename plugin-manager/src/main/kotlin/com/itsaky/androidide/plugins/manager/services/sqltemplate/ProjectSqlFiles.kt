@@ -75,16 +75,31 @@ internal object ProjectSqlFiles {
 	/** JSON as Kotlin values: maps, lists, String, Boolean, Long for a whole number, Double otherwise; all unmodifiable. */
 	private fun toValue(e: JsonElement?): Any? =
 		when {
-			e == null || e.isJsonNull -> null
+			e == null || e.isJsonNull -> {
+				null
+			}
+
 			e is JsonObject -> {
 				val map = LinkedHashMap<String, Any?>()
 				for ((k, v) in e.entrySet()) map[k] = toValue(v)
 				java.util.Collections.unmodifiableMap(map)
 			}
-			e is JsonArray -> java.util.Collections.unmodifiableList(e.map { toValue(it) })
-			e is JsonPrimitive && e.isBoolean -> e.asBoolean
-			e is JsonPrimitive && e.isNumber -> e.asBigDecimal.let { n -> runCatching { n.longValueExact() }.getOrElse { n.toDouble() } }
-			else -> e.asString
+
+			e is JsonArray -> {
+				java.util.Collections.unmodifiableList(e.map { toValue(it) })
+			}
+
+			e is JsonPrimitive && e.isBoolean -> {
+				e.asBoolean
+			}
+
+			e is JsonPrimitive && e.isNumber -> {
+				e.asBigDecimal.let { n -> runCatching { n.longValueExact() }.getOrElse { n.toDouble() } }
+			}
+
+			else -> {
+				e.asString
+			}
 		}
 
 	/**
@@ -116,7 +131,11 @@ internal object ProjectSqlFiles {
 		return found
 	}
 
-	private fun isLink(file: File) = runCatching { java.nio.file.Files.isSymbolicLink(file.toPath()) }.getOrDefault(true)
+	private fun isLink(file: File) =
+		runCatching {
+			java.nio.file.Files
+				.isSymbolicLink(file.toPath())
+		}.getOrDefault(true)
 
 	fun relative(
 		root: File,

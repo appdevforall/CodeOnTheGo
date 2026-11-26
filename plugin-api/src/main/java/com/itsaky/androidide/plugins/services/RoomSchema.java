@@ -7,17 +7,10 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * One schema file Room exported into the open project ({@code exportSchema} on): {@code <schemaLocation>/<class>/<version>.json}.
- * Immutable.
+ * One schema file Room exported into the open project ({@code exportSchema} on): {@code <schemaLocation>/<class>/<version>.json}. Immutable.
  *
  * <p>
- * The entities and views keep Room's own JSON keys, so a template reads them as Room writes them: an entity has
- * {@code tableName}, {@code createSql} (with {@code ${TABLE_NAME}} for the table name), {@code fields} (each with
- * {@code fieldPath}, {@code columnName}, {@code affinity}, {@code notNull}), {@code primaryKey} ({@code autoGenerate},
- * {@code columnNames}), {@code indices} and {@code foreignKeys}; a view has {@code viewName} and {@code createSql}. Room
- * leaves out {@code indices}, {@code foreignKeys} and {@code views} when they are empty; here they are always present,
- * as empty lists. JSON numbers are {@link Long} or {@link Double}, objects {@link Map} and arrays {@link List}, none of
- * them modifiable.
+ * The entities and views keep Room's own JSON keys, so a template reads them as Room writes them: an entity has {@code tableName}, {@code createSql} (with {@code ${TABLE_NAME}} for the table name), {@code fields} (each with {@code fieldPath}, {@code columnName}, {@code affinity}, {@code notNull}), {@code primaryKey} ({@code autoGenerate}, {@code columnNames}), {@code indices} and {@code foreignKeys}; a view has {@code viewName} and {@code createSql}. Room leaves out {@code indices}, {@code foreignKeys} and {@code views} when they are empty; here they are always present, as empty lists. JSON numbers are {@link Long} or {@link Double}, objects {@link Map} and arrays {@link List}, none of them modifiable.
  */
 public final class RoomSchema {
 

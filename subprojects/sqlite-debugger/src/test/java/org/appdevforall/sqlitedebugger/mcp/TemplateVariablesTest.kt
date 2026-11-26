@@ -62,12 +62,27 @@ class TemplateVariablesTest {
 
 	private val roomSchema: (String, Boolean, String, List<Any?>) -> QueryResult = { path, _, sql, _ ->
 		when {
-			path != "/data/app.db" -> if (sql.startsWith("PRAGMA")) rows(listOf(0L)) else rows()
-			sql == "PRAGMA user_version" -> rows(listOf(3L))
-			sql == "PRAGMA journal_mode" -> rows(listOf("wal"))
-			sql == "PRAGMA page_size" -> rows(listOf(4096L))
-			sql == "PRAGMA page_count" -> rows(listOf(12L))
-			sql.startsWith("SELECT name, type, wr FROM pragma_table_list") ->
+			path != "/data/app.db" -> {
+				if (sql.startsWith("PRAGMA")) rows(listOf(0L)) else rows()
+			}
+
+			sql == "PRAGMA user_version" -> {
+				rows(listOf(3L))
+			}
+
+			sql == "PRAGMA journal_mode" -> {
+				rows(listOf("wal"))
+			}
+
+			sql == "PRAGMA page_size" -> {
+				rows(listOf(4096L))
+			}
+
+			sql == "PRAGMA page_count" -> {
+				rows(listOf(12L))
+			}
+
+			sql.startsWith("SELECT name, type, wr FROM pragma_table_list") -> {
 				rows(
 					listOf("c", "table", 1L),
 					listOf("f", "virtual", 0L),
@@ -77,7 +92,9 @@ class TemplateVariablesTest {
 					listOf("sqlite_schema", "table", 0L),
 					listOf("sqlite_sequence", "table", 0L),
 				)
-			sql.startsWith("SELECT t.name, c.name") ->
+			}
+
+			sql.startsWith("SELECT t.name, c.name") -> {
 				rows(
 					listOf("c", "a", "INT", 1L, null, 1L, 0L),
 					listOf("c", "b", "INT", 1L, null, 2L, 0L),
@@ -94,7 +111,9 @@ class TemplateVariablesTest {
 					listOf("room_master_table", "identity_hash", "TEXT", 0L, null, 0L, 0L),
 					listOf("sqlite_sequence", "name", "", 0L, null, 0L, 0L),
 				)
-			sql.startsWith("SELECT t.name, il.name") ->
+			}
+
+			sql.startsWith("SELECT t.name, il.name") -> {
 				rows(
 					listOf("c", "ci", 0L, "c", 0L, "pid"),
 					listOf("c", "ci", 0L, "c", 0L, null),
@@ -102,15 +121,27 @@ class TemplateVariablesTest {
 					listOf("c", "sqlite_autoindex_c_1", 1L, "pk", 0L, "b"),
 					listOf("p", "pn", 1L, "c", 1L, "name"),
 				)
-			sql.startsWith("SELECT t.name, f.id") -> rows(listOf("c", 0L, "p", "pid", "id", "NO ACTION", "CASCADE"))
-			sql.startsWith("SELECT type, name, tbl_name") ->
+			}
+
+			sql.startsWith("SELECT t.name, f.id") -> {
+				rows(listOf("c", 0L, "p", "pid", "id", "NO ACTION", "CASCADE"))
+			}
+
+			sql.startsWith("SELECT type, name, tbl_name") -> {
 				rows(
 					listOf("table", "f", "f", "CREATE VIRTUAL TABLE f USING fts4(content='p', name)"),
 					listOf("trigger", "room_fts_content_sync_f_BEFORE_UPDATE", "p", null),
 					listOf("view", "v", "v", null),
 				)
-			sql.startsWith("SELECT identity_hash FROM room_master_table") -> rows(listOf("abc123"))
-			else -> rows()
+			}
+
+			sql.startsWith("SELECT identity_hash FROM room_master_table") -> {
+				rows(listOf("abc123"))
+			}
+
+			else -> {
+				rows()
+			}
 		}
 	}
 
@@ -139,7 +170,14 @@ class TemplateVariablesTest {
 		val ci = c.getJSONArray("indexes").objects().first { it.getString("name") == "ci" }
 		// An expression in an index is a null column.
 		assertEquals(listOf("pid", JSONObject.NULL), ci.getJSONArray("columns").values())
-		assertEquals("pk", c.getJSONArray("indexes").objects().first { it.getString("name") == "sqlite_autoindex_c_1" }.getString("origin"))
+		assertEquals(
+			"pk",
+			c
+				.getJSONArray("indexes")
+				.objects()
+				.first { it.getString("name") == "sqlite_autoindex_c_1" }
+				.getString("origin"),
+		)
 		val fk = c.getJSONArray("foreign_keys").getJSONObject(0)
 		assertEquals("p", fk.getString("table"))
 		assertEquals(listOf("pid"), fk.getJSONArray("from").values())
@@ -219,7 +257,14 @@ class TemplateVariablesTest {
 		}
 		val out = call(JSONObject().put("database", "/data/app.db"))
 		assertTrue(out.getBoolean("truncated"))
-		assertEquals(DatabaseTools.MAX_TEMPLATE_ROWS, out.getJSONArray("databases").getJSONObject(0).getJSONArray("tables").length())
+		assertEquals(
+			DatabaseTools.MAX_TEMPLATE_ROWS,
+			out
+				.getJSONArray("databases")
+				.getJSONObject(0)
+				.getJSONArray("tables")
+				.length(),
+		)
 	}
 
 	@Test fun aListOfExactlyTheLimitIsWhole() {

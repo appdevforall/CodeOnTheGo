@@ -60,8 +60,9 @@ class SqlTemplateRendererTest {
 				"yes" to true,
 				"no" to false,
 			)
-		val text = "\${{ s | sql_literal }} \${{ n | sql_literal }} \${{ l | sql_literal }} \${{ d | sql_literal }} " +
-			"\${{ whole | sql_literal }} \${{ big | sql_literal }} \${{ yes | sql_literal }} \${{ no | sql_literal }}"
+		val text =
+			"\${{ s | sql_literal }} \${{ n | sql_literal }} \${{ l | sql_literal }} \${{ d | sql_literal }} " +
+				"\${{ whole | sql_literal }} \${{ big | sql_literal }} \${{ yes | sql_literal }} \${{ no | sql_literal }}"
 		assertThat(render(text, variables)).isEqualTo("'it''s' NULL -42 2.5 2.0 1.0E300 1 0")
 		assertThat(failure("\${{ x | sql_literal }}", mapOf("x" to Double.NaN))).contains("NaN has no SQL literal")
 		assertThat(failure("\${{ x | sql_literal }}", mapOf("x" to "a\u0000"))).contains("NUL")
@@ -84,12 +85,34 @@ class SqlTemplateRendererTest {
 		assertThat(calls.get()).isEqualTo(1)
 		// in a map and a list too, and still once when read twice through them
 		val nestedCalls = AtomicInteger()
-		val nested = mapOf("db" to mapOf("tables" to listOf(Supplier { nestedCalls.incrementAndGet(); "users" })))
+		val nested =
+			mapOf(
+				"db" to
+					mapOf(
+						"tables" to
+							listOf(
+								Supplier {
+									nestedCalls.incrementAndGet()
+									"users"
+								},
+							),
+					),
+			)
 		assertThat(render("\${{ db.tables[0] | sql_ident }} \${{ db.tables[0] }}", nested)).isEqualTo("\"users\" users")
 		assertThat(nestedCalls.get()).isEqualTo(1)
 		// reading one element of a list, even twice, reads none of the others
 		val other = AtomicInteger()
-		val list = mapOf("l" to listOf(Supplier { "a" }, Supplier { other.incrementAndGet(); "b" }))
+		val list =
+			mapOf(
+				"l" to
+					listOf(
+						Supplier { "a" },
+						Supplier {
+							other.incrementAndGet()
+							"b"
+						},
+					),
+			)
 		assertThat(render("\${{ l[0] }}\${{ l[0] }}", list)).isEqualTo("aa")
 		assertThat(other.get()).isEqualTo(0)
 	}
@@ -97,7 +120,11 @@ class SqlTemplateRendererTest {
 	@Test
 	fun `a function runs only when called, with its arguments in order`() {
 		val seen = mutableListOf<List<Any?>>()
-		val rowCount = SqlTemplateFunction { args -> seen += args; 7L }
+		val rowCount =
+			SqlTemplateFunction { args ->
+				seen += args
+				7L
+			}
 		val functions = mapOf("row_count" to rowCount)
 		assertThat(render("\${% if false %}\${{ row_count('a', 't') }}\${% endif %}none", functions = functions)).isEqualTo("none")
 		assertThat(seen).isEmpty()

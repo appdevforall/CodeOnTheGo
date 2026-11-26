@@ -1038,12 +1038,18 @@ class DatabaseTools internal constructor(
 			)) {
 				val name = row[1] as String
 				when (row[0]) {
-					"view" -> views.put(JSONObject().put("name", name))
+					"view" -> {
+						views.put(JSONObject().put("name", name))
+					}
+
 					"trigger" -> {
 						triggers.put(JSONObject().put("name", name).put("table", row[2]))
 						if (name.startsWith(ROOM_FTS_SYNC_PREFIX)) ftsSyncTriggers.put(name)
 					}
-					"table" -> if (virtualModule(row[3] as String?)?.lowercase() in FTS_MODULES) ftsTables.put(name)
+
+					"table" -> {
+						if (virtualModule(row[3] as String?)?.lowercase() in FTS_MODULES) ftsTables.put(name)
+					}
 				}
 			}
 

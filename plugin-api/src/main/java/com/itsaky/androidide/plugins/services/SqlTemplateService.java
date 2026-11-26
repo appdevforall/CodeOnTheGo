@@ -5,36 +5,21 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Renders the open project's SQL templates, for the SQLite debugger's {@code .read}: a plugin such as an MCP client
- * passes the template's path, the variables it fetched from the app ({@code get_template_variables}) and the functions
- * that read the app's data, and gets back the SQL. Rendering happens here because Code on the Go already has Pebble;
- * the apps it builds do not.
+ * Renders the open project's SQL templates, for the SQLite debugger's {@code .read}: a plugin such as an MCP client passes the template's path, the variables it fetched from the app ({@code get_template_variables}) and the functions that read the app's data, and gets back the SQL. Rendering happens here because Code on the Go already has Pebble; the apps it builds do not.
  *
  * <p>
- * Templates are Pebble files in the project, such as {@code sqlite/report.sql.peb}, with the engine and settings of
- * Code on the Go's project templates: the delimiters {@code ${{ }}}, {@code ${% %}} and {@code ${# #}}, strict variables
- * (an unknown variable is an error) and Pebble's newline trimming (a closing {@code }}}, {@code %}} or {@code #}} eats
- * the line break after it). One difference: autoescaping is off, as SQL is not HTML. A template quotes what it splices
- * in with two filters: {@code sql_ident} writes an identifier in double quotes, doubling any inside, and
- * {@code sql_literal} writes a literal (a string in single quotes, doubling any inside; a number as is; a boolean as 1
- * or 0; null as NULL). A value the user supplies should not be spliced at all: write a parameter such as {@code :id}
- * into the SQL and bind the value when running it.
+ * Templates are Pebble files in the project, such as {@code sqlite/report.sql.peb}, with the engine and settings of Code on the Go's project templates: the delimiters {@code ${{ }}}, {@code ${% %}} and {@code ${# #}}, strict variables (an unknown variable is an error) and Pebble's newline trimming (a closing {@code }}}, {@code %}} or {@code #}} eats the line break after it). One difference: autoescaping is off, as SQL is not HTML. A template quotes what it splices in with two filters: {@code sql_ident} writes an identifier in double quotes, doubling any inside, and {@code sql_literal} writes a literal (a string in single quotes, doubling any inside; a number as is; a boolean as 1 or 0; null as NULL). A value the user supplies should not be spliced at all: write a parameter such as {@code :id} into the SQL and bind the value when running it.
  *
  * <p>
- * Every render also gets {@code project} ({@code name} and {@code path}, the project root) and {@code render_time}
- * (ISO 8601, UTC). Caller variables may not use those names.
+ * Every render also gets {@code project} ({@code name} and {@code path}, the project root) and {@code render_time} (ISO 8601, UTC). Caller variables may not use those names.
  *
  * <p>
- * The host registers this service for every plugin; a call needs the
- * {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws
- * {@link SecurityException} without it. Calls read the project's files, so call from a background thread: on the main
- * thread they throw {@link IllegalStateException}.
+ * The host registers this service for every plugin; a call needs the {@link com.itsaky.androidide.plugins.PluginPermission#DEBUGGER_ENDPOINTS} permission and throws {@link SecurityException} without it. Calls read the project's files, so call from a background thread: on the main thread they throw {@link IllegalStateException}.
  */
 public interface SqlTemplateService {
 
 	/**
-	 * Contract revision, bumped whenever a member is added here. It marks the revision and does not negotiate one; see
-	 * {@link ToolSourceRegistry#CONTRACT_VERSION}.
+	 * Contract revision, bumped whenever a member is added here. It marks the revision and does not negotiate one; see {@link ToolSourceRegistry#CONTRACT_VERSION}.
 	 */
 	int CONTRACT_VERSION = 1;
 
@@ -42,13 +27,9 @@ public interface SqlTemplateService {
 	long MAX_TIMEOUT_MILLIS = 120_000L;
 
 	/**
-	 * Gets Room's exported schemas in the open project: every {@code <class>/<version>.json} file with
-	 * {@code database.version} and {@code database.identityHash}, outside build output and hidden folders. Room writes
-	 * them only when {@code exportSchema} is on, so the list can be empty; a migration from version N exists when the
-	 * file for N does.
+	 * Gets Room's exported schemas in the open project: every {@code <class>/<version>.json} file with {@code database.version} and {@code database.identityHash}, outside build output and hidden folders. Room writes them only when {@code exportSchema} is on, so the list can be empty; a migration from version N exists when the file for N does.
 	 *
-	 * @return the schemas, ordered by class name and version, in a list the caller cannot modify (never null; empty when
-	 *         no project is open). A file Room did not write, or cannot be read, is skipped
+	 * @return the schemas, ordered by class name and version, in a list the caller cannot modify (never null; empty when no project is open). A file Room did not write, or cannot be read, is skipped
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
@@ -60,11 +41,9 @@ public interface SqlTemplateService {
 	List<RoomSchema> getRoomSchemas() throws InterruptedException;
 
 	/**
-	 * Lists the SQL templates in the open project: the files whose names end in {@code .sql.peb}, outside build output
-	 * and hidden folders.
+	 * Lists the SQL templates in the open project: the files whose names end in {@code .sql.peb}, outside build output and hidden folders.
 	 *
-	 * @return their paths relative to the project root, with {@code /} separators, sorted, in a list the caller cannot
-	 *         modify (never null; empty when no project is open)
+	 * @return their paths relative to the project root, with {@code /} separators, sorted, in a list the caller cannot modify (never null; empty when no project is open)
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException
@@ -79,32 +58,24 @@ public interface SqlTemplateService {
 	 * Renders a template of the open project.
 	 *
 	 * <p>
-	 * A variable's value is null, a {@link String}, a {@link Number}, a {@link Boolean}, a {@link Map} with
-	 * {@link String} keys, a {@link List} or other {@link Iterable}, a {@link RoomSchema}, or a
-	 * {@link java.util.function.Supplier} of one of these. A supplier is lazy: it is called the first time the template
-	 * reads the value, at most once, and not at all when the template does not; maps and lists may hold suppliers too.
-	 * A function, such as {@code row_count(db, table)}, is called each time the template calls it, with its arguments.
+	 * A variable's value is null, a {@link String}, a {@link Number}, a {@link Boolean}, a {@link Map} with {@link String} keys, a {@link List} or other {@link Iterable}, a {@link RoomSchema}, or a {@link java.util.function.Supplier} of one of these. A supplier is lazy: it is called the first time the template reads the value, at most once, and not at all when the template does not; maps and lists may hold suppliers too. A function, such as {@code row_count(db, table)}, is called each time the template calls it, with its arguments.
 	 *
 	 * <p>
-	 * The render runs on a thread of its own, with one time limit for the whole render, functions included. When it
-	 * passes, that thread is interrupted (a function in progress should stop) and this throws.
+	 * The render runs on a thread of its own, with one time limit for the whole render, functions included. When it passes, that thread is interrupted (a function in progress should stop) and this throws.
 	 *
 	 * @param templatePath
-	 *            the template, relative to the project root (as {@link #listTemplates} gives it); its name must end in
-	 *            {@code .peb}, and it must be inside the project once links are resolved
+	 *            the template, relative to the project root (as {@link #listTemplates} gives it); its name must end in {@code .peb}, and it must be inside the project once links are resolved
 	 * @param variables
 	 *            the variables, by name (not {@code project} or {@code render_time})
 	 * @param functions
-	 *            the functions, by name: letters, digits and {@code _}, not starting with a digit, and not a Pebble
-	 *            built-in function or one of the filter names
+	 *            the functions, by name: letters, digits and {@code _}, not starting with a digit, and not a Pebble built-in function or one of the filter names
 	 * @param timeoutMillis
 	 *            the time limit, from 1 to {@link #MAX_TIMEOUT_MILLIS}
 	 * @return the SQL, at most 4 Mi characters
 	 * @throws SqlTemplateException
 	 *             if the template cannot be read or rendered, a function fails, or the time limit passes
 	 * @throws IllegalArgumentException
-	 *             for a path outside the project or not ending in {@code .peb}, a reserved or invalid name, a value of
-	 *             another type, or a time limit out of range
+	 *             for a path outside the project or not ending in {@code .peb}, a reserved or invalid name, a value of another type, or a time limit out of range
 	 * @throws SecurityException
 	 *             if the plugin lacks the {@code debugger.endpoints} permission
 	 * @throws IllegalStateException

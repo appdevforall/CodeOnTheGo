@@ -28,26 +28,26 @@ class ProjectSqlFilesTest {
 		hash: String,
 	) = """
 		{
-		  "formatVersion": 1,
-		  "database": {
-		    "version": $version,
-		    "identityHash": "$hash",
-		    "entities": [
-		      {
-		        "tableName": "User",
-		        "createSql": "CREATE TABLE IF NOT EXISTS `${'$'}{TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT, PRIMARY KEY(`id`))",
-		        "fields": [
-		          {"fieldPath": "id", "columnName": "id", "affinity": "INTEGER", "notNull": true},
-		          {"fieldPath": "name", "columnName": "name", "affinity": "TEXT"}
-		        ],
-		        "primaryKey": {"autoGenerate": false, "columnNames": ["id"]}
-		      }
-		    ],
-		    "setupQueries": [
-		      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-		      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '$hash')"
-		    ]
-		  }
+		"formatVersion": 1,
+		"database": {
+			"version": $version,
+			"identityHash": "$hash",
+			"entities": [
+			{
+				"tableName": "User",
+				"createSql": "CREATE TABLE IF NOT EXISTS `${'$'}{TABLE_NAME}` (`id` INTEGER NOT NULL, `name` TEXT, PRIMARY KEY(`id`))",
+				"fields": [
+				{"fieldPath": "id", "columnName": "id", "affinity": "INTEGER", "notNull": true},
+				{"fieldPath": "name", "columnName": "name", "affinity": "TEXT"}
+				],
+				"primaryKey": {"autoGenerate": false, "columnNames": ["id"]}
+			}
+			],
+			"setupQueries": [
+			"CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+			"INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '$hash')"
+			]
+		}
 		}
 		""".trimIndent()
 
@@ -73,10 +73,10 @@ class ProjectSqlFilesTest {
 		val text =
 			"""
 			{"formatVersion": 1, "database": {"version": 2, "identityHash": "h", "entities": [
-			  {"tableName": "Book", "fields": [], "primaryKey": {"autoGenerate": true, "columnNames": ["id"]},
-			   "indices": [{"name": "index_Book_userId", "unique": false, "columnNames": ["userId"]}],
-			   "foreignKeys": [{"table": "User", "onDelete": "CASCADE", "columns": ["userId"], "referencedColumns": ["id"]}]}],
-			  "views": [{"viewName": "Names", "createSql": "CREATE VIEW `${'$'}{VIEW_NAME}` AS SELECT name FROM User"}]}}
+			{"tableName": "Book", "fields": [], "primaryKey": {"autoGenerate": true, "columnNames": ["id"]},
+			"indices": [{"name": "index_Book_userId", "unique": false, "columnNames": ["userId"]}],
+			"foreignKeys": [{"table": "User", "onDelete": "CASCADE", "columns": ["userId"], "referencedColumns": ["id"]}]}],
+			"views": [{"viewName": "Names", "createSql": "CREATE VIEW `${'$'}{VIEW_NAME}` AS SELECT name FROM User"}]}}
 			""".trimIndent()
 		val s = ProjectSqlFiles.parseRoomSchema(text, "Db", "2.json")!!
 		val book = s.entities.single()

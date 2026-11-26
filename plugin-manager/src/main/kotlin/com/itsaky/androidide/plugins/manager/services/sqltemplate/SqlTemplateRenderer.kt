@@ -122,25 +122,42 @@ internal object SqlTemplateRenderer {
 		where: String,
 	) {
 		when (value) {
-			null, is String, is Number, is Boolean, is RoomSchema, is Supplier<*> -> Unit
-			is Map<*, *> ->
+			null, is String, is Number, is Boolean, is RoomSchema, is Supplier<*> -> {
+				Unit
+			}
+
+			is Map<*, *> -> {
 				for ((k, v) in value) {
 					require(k is String) { "$where: a map key must be a String, not ${k?.javaClass?.name}" }
 					checkValue(v, "$where.$k")
 				}
-			is Iterable<*> -> value.forEachIndexed { i, v -> checkValue(v, "$where[$i]") }
-			else -> throw IllegalArgumentException("$where: a ${value.javaClass.name} cannot be a template value")
+			}
+
+			is Iterable<*> -> {
+				value.forEachIndexed { i, v -> checkValue(v, "$where[$i]") }
+			}
+
+			else -> {
+				throw IllegalArgumentException("$where: a ${value.javaClass.name} cannot be a template value")
+			}
 		}
 	}
 
 	/** A value as the template sees it: a supplier is read (once, by its holder), maps and lists are wrapped in turn. */
 	private fun wrap(value: Any?): Any? =
 		when (value) {
-			is Map<*, *> ->
+			is Map<*, *> -> {
 				@Suppress("UNCHECKED_CAST")
 				LazyMap(value as Map<String, Any?>)
-			is Iterable<*> -> LazyList(value.toList())
-			else -> value
+			}
+
+			is Iterable<*> -> {
+				LazyList(value.toList())
+			}
+
+			else -> {
+				value
+			}
 		}
 
 	/** Resolves a supplier the first time it is read and keeps the value. Used on the render thread only. */
@@ -298,23 +315,39 @@ internal object SqlTemplateRenderer {
 		lineNumber: Int = 0,
 	): String =
 		when (input) {
-			null -> "NULL"
+			null -> {
+				"NULL"
+			}
+
 			is String -> {
 				if ('\u0000' in input) {
 					throw QuoteFailure("$LITERAL_FILTER at line $lineNumber: the string holds a NUL character")
 				}
 				"'" + input.replace("'", "''") + "'"
 			}
-			is Boolean -> if (input) "1" else "0"
-			is Long, is Int, is Short, is Byte, is BigInteger -> input.toString()
+
+			is Boolean -> {
+				if (input) "1" else "0"
+			}
+
+			is Long, is Int, is Short, is Byte, is BigInteger -> {
+				input.toString()
+			}
+
 			is Double, is Float -> {
 				val d = (input as Number).toDouble()
 				if (d.isNaN() || d.isInfinite()) throw QuoteFailure("$LITERAL_FILTER at line $lineNumber: $d has no SQL literal")
 				// Kotlin writes 1.0E10, which SQLite reads as a REAL; a whole number keeps its ".0", so it stays a REAL.
 				d.toString()
 			}
-			is BigDecimal -> input.toString()
-			else -> throw QuoteFailure("$LITERAL_FILTER at line $lineNumber cannot quote ${describe(input)}")
+
+			is BigDecimal -> {
+				input.toString()
+			}
+
+			else -> {
+				throw QuoteFailure("$LITERAL_FILTER at line $lineNumber cannot quote ${describe(input)}")
+			}
 		}
 
 	private fun describe(value: Any?) = if (value == null) "null" else "a ${value.javaClass.simpleName}"
