@@ -36,6 +36,13 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
 ### 26.48 — unreleased
+- **added — Show the IDE's own documentation from a plugin** _(ADFA-7134)_
+  `IdeTooltipService.showTooltip(anchorView, category, tag)` now reads the IDE's documentation
+  when `category` is `ide`, `java`, `kotlin` or `xml`, for example
+  `showTooltip(view, "java", "android.widget.TextView")`. Before, every category was replaced
+  with the plugin's own, so those calls found nothing. Any other category still reads the
+  plugin's own entries, so a plugin that passes its own category under another spelling is
+  unaffected. Floor `plugin.min_ide_version` at `26.48` to rely on it.
 - **added — Find the SQLite debugger of the open project's apps** _(ADFA-7139)_ **[verified]**
   `DebuggerEndpointService.getEndpoints()` returns an unmodifiable `List<DebuggerEndpoint>`, one per app of the open
   project that has reported to the IDE: `applicationId`, `port` (on `127.0.0.1`), `token` (the bearer

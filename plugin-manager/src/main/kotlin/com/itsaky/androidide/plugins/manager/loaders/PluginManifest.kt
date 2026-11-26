@@ -130,9 +130,11 @@ object PluginManifestParser {
 
 	fun toJson(manifest: PluginManifest): String = gson.toJson(manifest)
 
+	// Gson ignores Kotlin nullability and the defaults, so a manifest missing a list leaves it null
+	// here despite the non-null type. Hence the null checks and orEmpty() calls below.
 	@Suppress("SENSELESS_COMPARISON")
 	private fun PluginManifest.normalize(): PluginManifest {
-		val normalizedActions = (buildActions ?: emptyList()).map { it.normalize() }
+		val normalizedActions = buildActions.orEmpty().map { it.normalize() }
 		val normalizedRevision = normalizeProvenanceValue(vcsRevision)
 		val normalizedTimestamp = normalizeProvenanceValue(buildTimestamp)
 		return if (
@@ -141,9 +143,9 @@ object PluginManifestParser {
 			normalizedRevision !== vcsRevision || normalizedTimestamp !== buildTimestamp
 		) {
 			copy(
-				permissions = permissions ?: emptyList(),
-				dependencies = dependencies ?: emptyList(),
-				extensions = extensions ?: emptyList(),
+				permissions = permissions.orEmpty(),
+				dependencies = dependencies.orEmpty(),
+				extensions = extensions.orEmpty(),
 				buildActions = normalizedActions,
 				vcsRevision = normalizedRevision,
 				buildTimestamp = normalizedTimestamp,
@@ -157,8 +159,8 @@ object PluginManifestParser {
 	private fun ManifestBuildAction.normalize(): ManifestBuildAction {
 		if (arguments == null || environment == null || timeoutMs == 0L) {
 			return copy(
-				arguments = arguments ?: emptyList(),
-				environment = environment ?: emptyMap(),
+				arguments = arguments.orEmpty(),
+				environment = environment.orEmpty(),
 				timeoutMs = if (timeoutMs == 0L) 600_000 else timeoutMs,
 			)
 		}
