@@ -83,6 +83,9 @@ class DatabaseTools internal constructor(
 
 		/** The prefix of the triggers Room keeps an external-content FTS table in step with. */
 		const val ROOM_FTS_SYNC_PREFIX = "room_fts_content_sync_"
+
+		/** What get_template_variables says of a database it did not read because the call's time limit had passed. */
+		const val TIME_LIMIT_SKIP = "not read: the call's time limit passed before this database"
 		private val FTS_MODULES = setOf("fts3", "fts4", "fts5")
 
 		/** Bound values stop being recorded this long after the last get_events call. */
@@ -408,9 +411,11 @@ class DatabaseTools internal constructor(
 					"partial; columns, null for an expression) and foreign_keys (table, from, to: null names the parent's " +
 					"primary key, on_update, on_delete); views and triggers (name, table); fts_tables (virtual tables using " +
 					"fts3, fts4 or fts5); has_sqlite_sequence; and room, null unless the database has room_master_table: " +
-					"schema_version (user_version), identity_hash, own_tables (room_ names) and fts_sync_triggers " +
+					"schema_version (user_version), identity_hash, own_tables (room_master_table and room_table_modification_log, " +
+					"when present) and fts_sync_triggers " +
 					"(room_fts_content_sync_ triggers). sqlite_ tables are left out. A database that cannot be read is in " +
-					"errors with the message. truncated is true when a list stopped at $MAX_TEMPLATE_ROWS rows. Row counts " +
+					"errors with the message, and so is each database left unread because the call's time limit passed " +
+					"(\"not read: ...\"). truncated is true when a list stopped at $MAX_TEMPLATE_ROWS rows. Row counts " +
 					"and other reads of the data are not here: a template calls them as functions. $NON_WAL_NOTE",
 				JSONObject()
 					.put("type", "object")
@@ -909,15 +914,23 @@ class DatabaseTools internal constructor(
 		val databases = JSONArray()
 		val errors = JSONArray()
 		var truncated = false
-		for (path in paths) {
+		for ((i, path) in paths.withIndex()) {
 			try {
 				val db = TemplateReader(call, path)
 				databases.put(db.read())
 				truncated = truncated || db.truncated
 			} catch (e: McpToolError) {
-				// Past the time limit every later database fails the same way: stop, as the call is over.
 				errors.put(JSONObject().put("database", path).put("error", e.message))
-				if (clock() >= call.deadline) break
+				if (clock() >= call.deadline) {
+					// Past the time limit every later database fails the same way: stop, as the call is over, but say which were left.
+					for (skipped in paths.drop(i + 1)) errors.put(JSONObject().put("database", skipped).put("error", TIME_LIMIT_SKIP))
+					break
+				}
+			} catch (e: InterruptedException) {
+				throw e
+			} catch (e: Exception) {
+				// One database's odd answer (a value of another type, say) must not lose the others. An Error still propagates.
+				errors.put(JSONObject().put("database", path).put("error", "${e.javaClass.simpleName}: ${e.message}"))
 			}
 		}
 		return out

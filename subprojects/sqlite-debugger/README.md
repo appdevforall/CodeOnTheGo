@@ -91,7 +91,7 @@ Capabilities of the sqlite3 shell, in the server so every client has them. All a
   - **Schema objects:** views, triggers, FTS tables and `sqlite_sequence`.
   - **Room**, when `room_master_table` exists: `user_version` as the schema version, the identity hash (row id 42), Room's `room_` tables and its `room_fts_content_sync_` triggers.
 - **How it reads.** `pragma_table_list` (SQLite 3.37 and later), `pragma_table_xinfo`, `pragma_index_list`/`pragma_index_xinfo` and `pragma_foreign_key_list`, one query each, paged to 20,000 rows (`truncated` past that), and `sqlite_master` for views, triggers and virtual-table modules. `sqlite_` tables are left out, and a virtual table's hidden columns (FTS's own) too.
-- **Errors.** A database that fails is listed in `errors` and the others still come.
+- **Errors.** A database that fails, for any reason, is listed in `errors` and the others still come. When the call's time limit passes, each database not yet read is in `errors` too, with the error `not read: the call's time limit passed before this database`.
 - **Not here:**
   - Row counts and other reads of the data: a template calls those as functions, only when it uses them.
   - The build type: AGP 8 generates no `BuildConfig` by default, and nothing else tells the library the app's variant.

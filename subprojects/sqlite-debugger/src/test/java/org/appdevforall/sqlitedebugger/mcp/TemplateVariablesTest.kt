@@ -33,7 +33,8 @@ class TemplateVariablesTest {
 			it.appConnections += AppConnection(2, "/data/androidx.work.workdb", false, false, 1, 5)
 		}
 	private var environment: JSONObject? = null
-	private val tools = DatabaseTools(engine, null, { 1_000_000L }, environment = { environment })
+	private var now = 1_000_000L
+	private val tools = DatabaseTools(engine, null, { now }, environment = { environment })
 
 	private fun call(args: JSONObject): JSONObject {
 		val protocol = McpProtocol(tools.tools(), "test", { "s" }, 4)
@@ -277,5 +278,39 @@ class TemplateVariablesTest {
 			}
 		}
 		assertFalse(call(JSONObject().put("database", "/data/app.db")).getBoolean("truncated"))
+	}
+
+	@Test fun databasesLeftUnreadWhenTheTimeLimitPassesAreInErrors() {
+		// The paths sort as androidx.work.workdb, then app.db: the limit passes while the first is read.
+		val read = mutableSetOf<String>()
+		engine.answer = { path, w, sql, a ->
+			read += path
+			if (path == "/data/androidx.work.workdb" && sql.startsWith("PRAGMA user_version")) {
+				now += DatabaseTools.DEADLINE_MS + 1
+				throw DebugEngineException(9, "interrupted")
+			}
+			roomSchema(path, w, sql, a)
+		}
+		val out = call(JSONObject())
+		assertEquals(0, out.getJSONArray("databases").length())
+		val errors = out.getJSONArray("errors").objects()
+		assertEquals(listOf("/data/androidx.work.workdb", "/data/app.db"), errors.map { it.getString("database") })
+		assertEquals(DatabaseTools.TIME_LIMIT_SKIP, errors[1].getString("error"))
+		assertEquals(setOf("/data/androidx.work.workdb"), read)
+	}
+
+	@Test fun anOddAnswerFromOneDatabaseIsItsErrorAndTheOthersStillCome() {
+		engine.answer = { path, w, sql, a ->
+			if (path == "/data/androidx.work.workdb" && sql.startsWith("SELECT name, type, wr")) {
+				rows(listOf(5L, "table", 0L))
+			} else {
+				roomSchema(path, w, sql, a)
+			}
+		}
+		val out = call(JSONObject())
+		assertEquals(listOf("app.db"), out.getJSONArray("databases").objects().map { it.getString("name") })
+		val error = out.getJSONArray("errors").getJSONObject(0)
+		assertEquals("/data/androidx.work.workdb", error.getString("database"))
+		assertTrue(error.getString("error"), error.getString("error").startsWith("ClassCastException"))
 	}
 }
