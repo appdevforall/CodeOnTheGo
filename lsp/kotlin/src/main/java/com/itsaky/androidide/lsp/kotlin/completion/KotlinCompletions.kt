@@ -28,9 +28,11 @@ import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.progress.ProgressManager
 import com.itsaky.androidide.projects.FileManager
 import io.github.rosemoe.sora.lang.completion.CompletionCancelledException
+import org.appdevforall.codeonthego.indexing.api.indexQuery
 import org.appdevforall.codeonthego.indexing.jvm.JvmClassInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmFunctionInfo
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbol
+import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolDescriptor
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolIndex
 import org.appdevforall.codeonthego.indexing.jvm.JvmSymbolKind
 import org.appdevforall.codeonthego.indexing.jvm.JvmTypeAliasInfo
@@ -364,16 +366,37 @@ private fun KaSession.collectExtensionFunctions(
 	to: MutableList<CompletionItem>,
 ) {
 	val extensionSymbols =
-		ctx.scope
-			.callables { name -> matchesFilter(name) }
-			.filter { symbol ->
-				if (!symbol.isExtension) return@filter false
-
-				val extReceiverType = symbol.receiverType ?: return@filter false
-				receiverType.isSubtypeOf(extReceiverType)
-			}
-
+		extensionCallableCandidates(receiverType, ctx.scopeContext, { names -> indexedExtensionNames(names) }) { name ->
+			matchesFilter(name)
+		}
 	to += toCompletionItems(extensionSymbols)
+}
+
+/**
+ * Names of the extensions the JVM symbol indexes hold for any of [receiverTypeNames].
+ *
+ * Unfiltered by the typed prefix: [matchesFilter] also accepts camel-case and fuzzy matches, which a
+ * prefix condition here would drop. Unlimited, since a capped name list silently loses candidates.
+ */
+context(ctx: AnalysisContext)
+private fun indexedExtensionNames(receiverTypeNames: Set<String>): Set<Name> {
+	val indexes = ctx.env.unimportedSymbolIndexes
+	val names = mutableSetOf<Name>()
+	for (index in indexes) {
+		for (receiverTypeName in receiverTypeNames) {
+			abortIfCancelled()
+			val query =
+				indexQuery {
+					eq(JvmSymbolDescriptor.KEY_RECEIVER_TYPE, receiverTypeName)
+					limit = 0
+				}
+			index
+				.distinctValues(JvmSymbolDescriptor.KEY_NAME, query)
+				.filter(Name::isValidIdentifier)
+				.mapTo(names, Name::identifier)
+		}
+	}
+	return names
 }
 
 context(env: AbstractCompilationEnvironment, ctx: AnalysisContext)
@@ -428,22 +451,13 @@ private fun KaSession.collectUnimportedSymbols(to: MutableList<CompletionItem>) 
 		ctx.ktElement.containingKtFile.packageDirective
 			?.fqName
 			?.asString()
-	val useSiteModule = this.useSiteModule
-	val visibilityChecker = env.symbolVisibilityChecker
+	val visibility = env.symbolVisibilityChecker.forUseSite(this.useSiteModule)
 
 	fun addCompletionItem(symbol: JvmSymbol): Boolean {
 		abortIfCancelled()
 
 		if (symbol.packageName == currentPackage) return false
-
-		val isVisible =
-			visibilityChecker.isVisible(
-				symbol = symbol,
-				useSiteModule = useSiteModule,
-				useSitePackage = currentPackage,
-			)
-
-		if (!isVisible) return false
+		if (!visibility.isVisible(symbol, useSitePackage = currentPackage)) return false
 
 		val item = buildUnimportedSymbolItem(symbol) ?: return false
 		to += item
