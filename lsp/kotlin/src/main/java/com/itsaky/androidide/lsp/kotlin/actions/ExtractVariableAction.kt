@@ -7,7 +7,6 @@ import com.itsaky.androidide.actions.requireEditor
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.refactor.KOTLIN_NAME_MESSAGES
 import com.itsaky.androidide.lsp.kotlin.refactor.candidateAndScopeFor
 import com.itsaky.androidide.lsp.kotlin.refactor.toCandidateViews
@@ -74,7 +73,7 @@ class ExtractVariableAction : BaseKotlinCodeAction() {
 			selectionEnd = selectionEnd,
 			documentVersion = documentVersionOf(nioPath),
 			// Ties the analysis to this action's coroutine: cancelling the action aborts the analysis.
-			cancelChecker = ScheduledCancelChecker(createJobCancelChecker()),
+			cancelChecker = createJobCancelChecker(),
 		)
 	}
 

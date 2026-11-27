@@ -118,10 +118,11 @@ internal class ScheduledCancelChecker(
 /**
  * Runs [attempt] and, if it was preempted, runs it exactly once more.
  *
- * The retry policy every [AnalysisPriority.COMMAND] call site needs. A command is preempted by
- * keystroke-driven work ([AnalysisPriority.INTERACTIVE]), which - unlike a genuine cancellation -
- * leaves the user's own request alive, so reporting the empty/failed result would be a lie: "no
- * references" for a symbol that has plenty, or a silently skipped organize-imports.
+ * The retry policy every user-invoked call site needs. A command is preempted by keystroke-driven
+ * work ([AnalysisPriority.INTERACTIVE]), and any request, the INTERACTIVE refactoring planners
+ * included, by the barrier an edit raises. Unlike a genuine cancellation, a preemption leaves the
+ * user's own request alive, so reporting the empty/failed result would be a lie: "no references" for
+ * a symbol that has plenty, or a silently skipped organize-imports.
  *
  * Two details this centralises:
  * - **A fresh [ScheduledCancelChecker] per attempt.** [ScheduledCancelChecker.preempt] latches, so
@@ -131,6 +132,9 @@ internal class ScheduledCancelChecker(
  *   that stale file fails. So [attempt] must re-fetch the file too.
  *
  * A second preemption propagates - this is one retry, not a loop.
+ *
+ * Must not be called while holding `project.read` or a pin: the retry first waits out any edit
+ * barrier, and the edit under that barrier needs `project.write`.
  */
 internal inline fun <R> retryingOnPreemption(
 	delegate: ICancelChecker,
@@ -141,6 +145,8 @@ internal inline fun <R> retryingOnPreemption(
 		attempt(ScheduledCancelChecker(delegate))
 	} catch (e: AnalysisPreemptedException) {
 		schedulerLogger.debug("{} preempted; retrying once", label)
+		// An edit's barrier turns every requester away until it ends, so retrying at once would meet it again.
+		AnalysisScheduler.awaitNoBarrier(delegate)
 		attempt(ScheduledCancelChecker(delegate))
 	}
 
@@ -165,6 +171,9 @@ internal object AnalysisScheduler {
 	/** Upper bound on how long a queued requester waits before re-checking its cancellation. */
 	private const val WAIT_POLL_MILLIS = 25L
 
+	/** Upper bound on how long a preempted retry waits for an edit's barrier to come down. */
+	private const val BARRIER_WAIT_MILLIS = 5_000L
+
 	private val mutex = ReentrantLock()
 	private val available = mutex.newCondition()
 
@@ -173,6 +182,9 @@ internal object AnalysisScheduler {
 	private var holderReentry = 0
 	private var holderPreempted = false
 	private var holderPreempt: (() -> Unit)? = null
+
+	/** Number of [preemptingAnalysis] blocks currently running; non-zero turns every new requester away. */
+	private var barriers = 0
 
 	/** Number of threads currently waiting to acquire, per priority. */
 	private val waiting = IntArray(AnalysisPriority.entries.size)
@@ -206,6 +218,10 @@ internal object AnalysisScheduler {
 				while (true) {
 					// Bail out (rather than keep waiting) if this requester was cancelled while queued.
 					cancelChecker.abortIfCancelled()
+
+					if (barriers > 0) {
+						throw AnalysisPreemptedException()
+					}
 
 					val hp = holderPriority
 					if (holderThread != null && hp != null && !holderPreempted &&
@@ -273,6 +289,58 @@ internal object AnalysisScheduler {
 			holderPreempt = null
 			holderPreempted = false
 			available.signalAll()
+		}
+	}
+
+	/**
+	 * Runs [block] with analysis held off, so [block] can take `project.write` without waiting for
+	 * analyses to finish.
+	 *
+	 * Every analysis holds `project.read` for its whole run and takes this scheduler's slot while still
+	 * holding it, so a write has to wait for all of them. While [block] runs:
+	 * - the current holder, whatever its priority, is preempted (its `onPreempt` is invoked once);
+	 * - every requester waiting in [acquire], and every new one, leaves with
+	 *   [AnalysisPreemptedException], releasing its read lock on the way out;
+	 * - a reentrant [acquire] by the holder's own thread is unaffected, so the holder can unwind.
+	 *
+	 * Barriers nest and overlap: analysis resumes when the last one ends.
+	 *
+	 * The caller must not hold `project.read` or the analysis slot: [block] would then wait on itself.
+	 */
+	fun <R> preemptingAnalysis(block: () -> R): R {
+		// The raise sits inside the try: a throwing onPreempt must not leave the count up, or every later
+		// analysis in the process is turned away.
+		try {
+			mutex.withLock {
+				barriers++
+				// Waiters park on a timed await; wake them so they leave now rather than at the next poll.
+				available.signalAll()
+				if (holderThread != null && !holderPreempted) {
+					holderPreempted = true
+					holderPreempt?.invoke()
+				}
+			}
+			return block()
+		} finally {
+			mutex.withLock {
+				barriers--
+				available.signalAll()
+			}
+		}
+	}
+
+	/**
+	 * Blocks until no [preemptingAnalysis] barrier is up, [cancelChecker] is cancelled, or
+	 * [BARRIER_WAIT_MILLIS] passes. The bound keeps a caller that wrongly holds a lock the barrier's
+	 * edit needs from hanging; it then retries into the barrier and fails as it did before the wait.
+	 */
+	fun awaitNoBarrier(cancelChecker: ICancelChecker) {
+		val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(BARRIER_WAIT_MILLIS)
+		mutex.withLock {
+			while (barriers > 0 && System.nanoTime() < deadline) {
+				cancelChecker.abortIfCancelled()
+				available.await(WAIT_POLL_MILLIS, TimeUnit.MILLISECONDS)
+			}
 		}
 	}
 

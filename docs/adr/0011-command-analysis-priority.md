@@ -37,6 +37,8 @@ INDEXING < DIAGNOSTICS < COMMAND < INTERACTIVE
 - Keystroke-driven features (completion, signature help) stay on `INTERACTIVE` and therefore still win against a command.
 - A command preempted by `INTERACTIVE` retries. Long-running commands take their session **per unit of work** - for find usages, per candidate file - so a preemption costs one file, not the whole request.
 
+> **Update (2026-11-13, ADFA-6855):** `INTERACTIVE` is no longer the only thing that preempts a command. Before an edit to an open Kotlin document is applied, `AnalysisScheduler.preemptingAnalysis` raises a barrier that preempts the current holder *whatever its priority* and turns away every waiting or new requester with `AnalysisPreemptedException` until the edit's `project.write` is done. So a command, and an `INTERACTIVE` request too, can be preempted by an edit to any open file. The retry rule above therefore applies to every user-invoked request, including the `INTERACTIVE` refactoring planners (extract variable, extract method, inline variable), which now wrap their pipeline in `retryingOnPreemption`. Before retrying, `retryingOnPreemption` waits (cancellably, bounded at 5 s) for every barrier to come down; retrying at once would meet the same barrier and spend the only retry on it.
+
 ## Consequences
 
 **Positive**
@@ -48,7 +50,7 @@ INDEXING < DIAGNOSTICS < COMMAND < INTERACTIVE
 
 **Negative / costs**
 
-- Commands still need a retry policy, because `INTERACTIVE` outranks them. The retry is one line at each call site and already proven in `findDefinitionAt`, but it is a rule every future command has to remember.
+- Commands still need a retry policy, because `INTERACTIVE` outranks them and an edit's barrier preempts every priority (see the update under Decision). The retry is one line at each call site and already proven in `findDefinitionAt`, but it is a rule every future command has to remember.
 - Four tiers instead of three is more scheduler surface to reason about.
 - Background diagnostics now lose to any command, so a long search delays diagnostics for its duration. Acceptable: diagnostics are re-queued, never discarded.
 
