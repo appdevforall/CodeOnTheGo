@@ -343,7 +343,7 @@ Defined by `PluginPermission` in `plugin-api/src/main/kotlin/com/itsaky/androidi
 | `project.structure`      | Modify project structure                                                        |
 | `native.code`            | Execute native machine code                                                     |
 | `ide.environment.write`  | Write to IDE-managed directories (Android SDK, NDK, cache)                      |
-| `debugger.endpoints`     | Read the port and token of the open project's SQLite debugger servers, and so query the apps' databases (read-only for now) |
+| `debugger.endpoints`     | Read the port and token of the open project's SQLite debugger servers, and so query the apps' databases (read-only for now); render the project's SQL templates (`SqlTemplateService`) |
 
 Plugins run in Code on the Go's process. A permission declares what a plugin means to do, and the
 services check it on every call, but it cannot stop a plugin that reaches into the host by

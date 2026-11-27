@@ -16,6 +16,7 @@
 #include <sys/syscall.h>
 
 #include "sqlite3.h"
+#include "expert/sqlite3expert.h"
 #include "sqlitedbg.h"
 
 static int g_failures;
@@ -66,12 +67,15 @@ static sqlite3 *open_app(const char *path) {
 
 // Events
 
+// The largest row data a test records (sqlitedbg_set_row_capture's max_row_bytes in the row tests).
+#define MAX_ROW_DATA 1024
+
 typedef struct ev {
 	uint32_t kind, flags;
 	uint64_t seq, conn;
-	int64_t tid, time_ns, duration_ns;
-	char sql[MAX_SQL * 4 + 8];
-	uint32_t sql_bytes;
+	int64_t tid, time_ns, duration_ns, rows, changes;
+	char sql[MAX_ROW_DATA + 8];  // SQL text, or a row's data for SQLITEDBG_EVENT_ROW
+	uint32_t data_bytes;
 } ev;
 
 typedef struct batch {
@@ -101,9 +105,12 @@ static void read_all(uint64_t after, batch *b) {
 		const sqlitedbg_event_record *rec = (const sqlitedbg_event_record *)(void *)(buf + off);
 		CHECK(rec->record_bytes >= sizeof *rec);
 		CHECK_EQ(rec->record_bytes % 8, 0);
-		CHECK(rec->sql_bytes <= MAX_SQL);
-		CHECK(rec->record_bytes >= sizeof *rec + rec->sql_bytes);
+		CHECK(rec->data_bytes <= (rec->kind == SQLITEDBG_EVENT_ROW ? MAX_ROW_DATA : MAX_SQL));
+		CHECK(rec->record_bytes >= sizeof *rec + rec->data_bytes);
 		CHECK(rec->seq > prev);
+		// rows and changes are -1 where they do not apply
+		if (rec->kind != SQLITEDBG_EVENT_PROFILE && rec->kind != SQLITEDBG_EVENT_ROW) CHECK_EQ(rec->rows, -1);
+		if (rec->kind != SQLITEDBG_EVENT_PROFILE) CHECK_EQ(rec->changes, -1);
 		prev = rec->seq;
 		ev *e = &b->events[i];
 		e->kind = rec->kind;
@@ -113,9 +120,11 @@ static void read_all(uint64_t after, batch *b) {
 		e->tid = rec->thread_id;
 		e->time_ns = rec->time_ns;
 		e->duration_ns = rec->duration_ns;
-		e->sql_bytes = rec->sql_bytes;
-		memcpy(e->sql, (const char *)buf + off + sizeof *rec, rec->sql_bytes);
-		e->sql[rec->sql_bytes] = 0;
+		e->rows = rec->rows;
+		e->changes = rec->changes;
+		e->data_bytes = rec->data_bytes;
+		memcpy(e->sql, (const char *)buf + off + sizeof *rec, rec->data_bytes);
+		e->sql[rec->data_bytes] = 0;
 		off += rec->record_bytes;
 	}
 	CHECK_EQ(off, r.bytes);
@@ -184,6 +193,7 @@ static uint64_t conn_id_of(sqlite3 *db) {
 // Tests
 
 extern int sqlitedbg_test_fail_init;  // sqlitedbg.c, built with SQLITEDBG_TEST
+extern uint32_t sqlitedbg_test_max_row_bytes(void);  // likewise
 
 static sqlitedbg_config g_config = {BUFFER_BYTES, MAX_SQL};
 static sqlite3 *g_main;
@@ -220,7 +230,7 @@ static void test_install(void) {
 	read_all(cur, &b);
 	CHECK_EQ(b.count, 2);
 	CHECK(b.events[0].flags & SQLITEDBG_EVENT_TRUNCATED);
-	CHECK_EQ(b.events[0].sql_bytes, MAX_SQL);
+	CHECK_EQ(b.events[0].data_bytes, MAX_SQL);
 	batch_free(&b);
 }
 
@@ -251,6 +261,9 @@ static void test_events(void) {
 	CHECK_EQ(b.events[3].kind, SQLITEDBG_EVENT_PROFILE);
 	CHECK(strcmp(b.events[3].sql, "INSERT INTO t VALUES(?)") == 0);
 	CHECK(b.events[3].duration_ns >= 0);
+	// no rows; one row changed by the insert itself, not counting the trigger's
+	CHECK_EQ(b.events[3].rows, 0);
+	CHECK_EQ(b.events[3].changes, 1);
 	for (size_t i = 0; i < b.count; i++) {
 		CHECK_EQ(b.events[i].conn, 1);
 		CHECK_EQ(b.events[i].tid, tid());
@@ -338,7 +351,7 @@ static void test_expanded(void) {
 	read_all(cur, &b);
 	CHECK(b.events[0].flags & SQLITEDBG_EVENT_EXPANDED);
 	CHECK(b.events[0].flags & SQLITEDBG_EVENT_TRUNCATED);
-	CHECK_EQ(b.events[0].sql_bytes, MAX_SQL);
+	CHECK_EQ(b.events[0].data_bytes, MAX_SQL);
 	batch_free(&b);
 }
 
@@ -357,9 +370,9 @@ static void test_truncation(void) {
 	read_all(cur, &b);
 	CHECK_EQ(b.count, 2);
 	for (int i = 0; i < 2; i++) {
-		CHECK_EQ(b.events[i].sql_bytes, 62);
+		CHECK_EQ(b.events[i].data_bytes, 62);
 		CHECK(b.events[i].flags & SQLITEDBG_EVENT_TRUNCATED);
-		CHECK(utf8_valid(b.events[i].sql, b.events[i].sql_bytes));
+		CHECK(utf8_valid(b.events[i].sql, b.events[i].data_bytes));
 	}
 	batch_free(&b);
 
@@ -372,8 +385,8 @@ static void test_truncation(void) {
 	exec_ok(g_main, sql);
 	read_all(cur, &b);
 	CHECK_EQ(b.count, 2);
-	CHECK_EQ(b.events[0].sql_bytes, 63);
-	CHECK(utf8_valid(b.events[0].sql, b.events[0].sql_bytes));
+	CHECK_EQ(b.events[0].data_bytes, 63);
+	CHECK(utf8_valid(b.events[0].sql, b.events[0].data_bytes));
 	batch_free(&b);
 
 	// exactly at the limit is whole, one byte over is cut
@@ -388,10 +401,353 @@ static void test_truncation(void) {
 		cur = cursor_now();
 		exec_ok(g_main, sql);
 		read_all(cur, &b);
-		CHECK_EQ(b.events[0].sql_bytes, MAX_SQL);
+		CHECK_EQ(b.events[0].data_bytes, MAX_SQL);
 		CHECK_EQ((b.events[0].flags & SQLITEDBG_EVENT_TRUNCATED) != 0, over);
 		batch_free(&b);
 	}
+}
+
+// Rows and changes (ADFA-7296)
+
+typedef struct rv {
+	int type, cut;
+	uint32_t stored, full;
+	const unsigned char *p;
+} rv;
+
+// Parses a ROW event's data into at most max values; checks it is exactly as long as data_bytes.
+// Returns the values kept, or -1 if the data is malformed.
+static int parse_row(const ev *e, uint32_t *columns, rv *vals, int max) {
+	const unsigned char *d = (const unsigned char *)e->sql;
+	size_t n = e->data_bytes, off = sizeof(sqlitedbg_row_header);
+	if (n < off) return -1;
+	sqlitedbg_row_header h;
+	memcpy(&h, d, sizeof h);
+	*columns = h.columns;
+	if (h.kept > h.columns || (int)h.kept > max) return -1;
+	for (uint32_t i = 0; i < h.kept; i++) {
+		sqlitedbg_row_value v;
+		if (n - off < sizeof v) return -1;
+		memcpy(&v, d + off, sizeof v);
+		off += sizeof v;
+		if (v.stored_bytes > n - off || v.stored_bytes > v.full_bytes || v.reserved != 0 || v.cut != (v.stored_bytes < v.full_bytes)) return -1;
+		vals[i] = (rv){v.type, v.cut, v.stored_bytes, v.full_bytes, d + off};
+		off += v.stored_bytes;
+	}
+	return off == n ? (int)h.kept : -1;
+}
+
+static int64_t rv_int(const rv *v) {
+	int64_t x = 0;
+	if (v->stored == 8) memcpy(&x, v->p, 8);
+	return x;
+}
+
+static double rv_double(const rv *v) {
+	double x = 0;
+	if (v->stored == 8) memcpy(&x, v->p, 8);
+	return x;
+}
+
+// The last event of `kind` whose SQL is `sql`, or NULL.
+static const ev *find_event(const batch *b, uint32_t kind, const char *sql) {
+	for (size_t i = b->count; i-- > 0;)
+		if (b->events[i].kind == kind && strcmp(b->events[i].sql, sql) == 0) return &b->events[i];
+	return NULL;
+}
+
+static size_t count_kind(const batch *b, uint32_t kind) {
+	size_t n = 0;
+	for (size_t i = 0; i < b->count; i++) n += b->events[i].kind == kind;
+	return n;
+}
+
+static void test_rows(void) {
+	exec_ok(g_main, "CREATE TABLE r(i INTEGER, f REAL, s TEXT, b BLOB, n)");
+	// row 2's text is 20 two-byte characters (40 bytes) and its blob 40 bytes, both over the 15-byte
+	// value limit below; 15 falls inside a character, so the text is cut to 14
+	char long_text[64] = "";
+	for (int k = 0; k < 20; k++) strcat(long_text, "\xC3\xA9");
+	char sql[256];
+	exec_ok(g_main, "INSERT INTO r VALUES(1, 1.5, 'one', x'0102', NULL)");
+	snprintf(sql, sizeof sql, "INSERT INTO r VALUES(2, 2.5, '%s', zeroblob(40), NULL)", long_text);
+	exec_ok(g_main, sql);
+	exec_ok(g_main, "INSERT INTO r VALUES(3, 3.5, 'three', x'03', NULL)");
+	exec_ok(g_main, "INSERT INTO r VALUES(4, 4.5, 'four', x'04', NULL)");
+	exec_ok(g_main, "INSERT INTO r VALUES(5, 5.5, 'five', x'05', NULL)");
+
+	sqlitedbg_set_row_capture(3, 15, MAX_ROW_DATA);
+	sqlitedbg_set_client_connected(1);
+	uint64_t cur = cursor_now();
+	sqlite3_stmt *st;
+	CHECK_EQ(sqlite3_prepare_v2(g_main, "SELECT i, f, s, b, n FROM r ORDER BY i", -1, &st, NULL), SQLITE_OK);
+	int steps = 0;
+	while (sqlite3_step(st) == SQLITE_ROW) {
+		steps++;
+		// the app sees its own types and values: the extension read each column with its own accessor
+		CHECK_EQ(sqlite3_column_type(st, 0), SQLITE_INTEGER);
+		CHECK_EQ(sqlite3_column_type(st, 1), SQLITE_FLOAT);
+		CHECK_EQ(sqlite3_column_type(st, 2), SQLITE_TEXT);
+		CHECK_EQ(sqlite3_column_type(st, 3), SQLITE_BLOB);
+		CHECK_EQ(sqlite3_column_type(st, 4), SQLITE_NULL);
+		CHECK_EQ(sqlite3_column_int64(st, 0), steps);
+		CHECK(sqlite3_column_double(st, 1) == steps + 0.5);
+	}
+	sqlite3_finalize(st);
+	sqlitedbg_set_client_connected(0);
+	CHECK_EQ(steps, 5);
+
+	batch b;
+	read_all(cur, &b);
+	// the statement, its first three rows, its profile
+	CHECK_EQ(b.count, 5);
+	CHECK_EQ(b.events[0].kind, SQLITEDBG_EVENT_STATEMENT);
+	for (int k = 1; k <= 3; k++) {
+		const ev *e = &b.events[k];
+		CHECK_EQ(e->kind, SQLITEDBG_EVENT_ROW);
+		CHECK_EQ(e->rows, k);
+		CHECK_EQ(e->changes, -1);
+		CHECK_EQ(e->duration_ns, -1);
+		CHECK_EQ(e->conn, 1);
+		CHECK_EQ(e->tid, tid());
+		uint32_t columns = 0;
+		rv v[5];
+		CHECK_EQ(parse_row(e, &columns, v, 5), 5);
+		CHECK_EQ(columns, 5);
+		CHECK_EQ(v[0].type, SQLITE_INTEGER);
+		CHECK_EQ(rv_int(&v[0]), k);
+		CHECK_EQ(v[1].type, SQLITE_FLOAT);
+		CHECK(rv_double(&v[1]) == k + 0.5);
+		CHECK_EQ(v[2].type, SQLITE_TEXT);
+		CHECK_EQ(v[3].type, SQLITE_BLOB);
+		CHECK_EQ(v[4].type, SQLITE_NULL);
+		CHECK_EQ(v[4].stored, 0);
+		if (k == 2) {
+			CHECK(e->flags & SQLITEDBG_EVENT_TRUNCATED);
+			CHECK_EQ(v[2].full, 40);
+			CHECK_EQ(v[2].stored, 14);
+			CHECK_EQ(v[2].cut, 1);
+			CHECK(utf8_valid((const char *)v[2].p, v[2].stored));
+			CHECK(memcmp(v[2].p, long_text, 14) == 0);
+			CHECK_EQ(v[3].full, 40);
+			CHECK_EQ(v[3].stored, 15);
+			CHECK_EQ(v[3].cut, 1);
+		} else {
+			CHECK_EQ(e->flags, 0);
+			const char *want = k == 1 ? "one" : "three";
+			CHECK_EQ(v[2].stored, strlen(want));
+			CHECK(memcmp(v[2].p, want, strlen(want)) == 0);
+			CHECK_EQ(v[3].cut, 0);
+		}
+	}
+	CHECK(memcmp(b.events[1].sql + 8 + 12 + 8 + 12 + 8 + 12 + 3 + 12, "\x01\x02", 2) == 0);
+	const ev *prof = &b.events[4];
+	CHECK_EQ(prof->kind, SQLITEDBG_EVENT_PROFILE);
+	// all five rows counted, two left unrecorded by the limit; a read changes nothing
+	CHECK_EQ(prof->rows, 5);
+	CHECK(prof->flags & SQLITEDBG_EVENT_ROWS_CUT);
+	CHECK_EQ(prof->changes, -1);
+	batch_free(&b);
+
+	// with no client, or with recording off, rows are counted but not recorded
+	cur = cursor_now();
+	exec_ok(g_main, "SELECT i FROM r");
+	sqlitedbg_set_row_capture(0, 0, 0);
+	sqlitedbg_set_client_connected(1);
+	exec_ok(g_main, "SELECT i FROM r WHERE i < 3");
+	sqlitedbg_set_client_connected(0);
+	read_all(cur, &b);
+	CHECK_EQ(count_kind(&b, SQLITEDBG_EVENT_ROW), 0);
+	CHECK_EQ(find_event(&b, SQLITEDBG_EVENT_PROFILE, "SELECT i FROM r")->rows, 5);
+	CHECK_EQ(find_event(&b, SQLITEDBG_EVENT_PROFILE, "SELECT i FROM r")->flags, 0);
+	CHECK_EQ(find_event(&b, SQLITEDBG_EVENT_PROFILE, "SELECT i FROM r WHERE i < 3")->rows, 2);
+	batch_free(&b);
+}
+
+static void test_internal_rows(void) {
+	// a CREATE TABLE runs SQLite's own nested statement that returns a row (the schema read); with
+	// recording on, it is not recorded
+	sqlitedbg_set_row_capture(10, 0, MAX_ROW_DATA);
+	sqlitedbg_set_client_connected(1);
+	uint64_t cur = cursor_now();
+	exec_ok(g_main, "CREATE TABLE ri(a)");
+	exec_ok(g_main, "CREATE INDEX rii ON ri(a)");
+	sqlitedbg_set_client_connected(0);
+	sqlitedbg_set_row_capture(0, 0, 0);
+	batch b;
+	read_all(cur, &b);
+	CHECK_EQ(count_kind(&b, SQLITEDBG_EVENT_ROW), 0);
+	const ev *e = find_event(&b, SQLITEDBG_EVENT_PROFILE, "CREATE TABLE ri(a)");
+	CHECK(e != NULL);
+	if (e) CHECK_EQ(e->rows, 0);
+	batch_free(&b);
+}
+
+static void test_changes(void) {
+	exec_ok(g_main, "CREATE TABLE c(a)");
+	uint64_t cur = cursor_now();
+	exec_ok(g_main, "INSERT INTO c SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3");
+	exec_ok(g_main, "UPDATE c SET a = a + 1 WHERE a > 1");
+	exec_ok(g_main, "DELETE FROM c WHERE a = 1");
+	exec_ok(g_main, "SELECT a FROM c");
+	// after the DELETE, sqlite3_changes64 still says 1: a CREATE TABLE does not set it
+	exec_ok(g_main, "CREATE TABLE c2(a)");
+	exec_ok(g_main, "UPDATE c SET a = a WHERE 0");
+	// t's trigger inserts into log too: only the insert's own row counts
+	exec_ok(g_main, "INSERT INTO t VALUES(5)");
+	batch b;
+	read_all(cur, &b);
+	struct {
+		const char *sql;
+		int64_t changes, rows;
+	} want[] = {
+	    {"INSERT INTO c SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3", 3, 0},
+	    {"UPDATE c SET a = a + 1 WHERE a > 1", 2, 0},
+	    {"DELETE FROM c WHERE a = 1", 1, 0},
+	    {"SELECT a FROM c", -1, 2},
+	    {"CREATE TABLE c2(a)", 0, 0},
+	    {"UPDATE c SET a = a WHERE 0", 0, 0},
+	    {"INSERT INTO t VALUES(5)", 1, 0},
+	};
+	for (size_t i = 0; i < sizeof want / sizeof want[0]; i++) {
+		const ev *e = find_event(&b, SQLITEDBG_EVENT_PROFILE, want[i].sql);
+		CHECK(e != NULL);
+		if (!e) continue;
+		if (e->changes != want[i].changes) fprintf(stderr, "  changes of %s\n", want[i].sql);
+		CHECK_EQ(e->changes, want[i].changes);
+		CHECK_EQ(e->rows, want[i].rows);
+	}
+	batch_free(&b);
+}
+
+// The first value of a ROW event, as an int (INTEGER) or its first byte (TEXT).
+static int64_t first_value(const ev *e, int *type) {
+	uint32_t columns;
+	rv v[2];
+	*type = 0;
+	if (parse_row(e, &columns, v, 2) < 1) return -1;
+	*type = v[0].type;
+	return v[0].type == SQLITE_INTEGER ? rv_int(&v[0]) : v[0].stored ? v[0].p[0] : -1;
+}
+
+static void test_interleaved_rows(void) {
+	// two statements stepped in turn on one connection keep their own row numbers
+	sqlitedbg_set_row_capture(10, 0, MAX_ROW_DATA);
+	sqlitedbg_set_client_connected(1);
+	uint64_t cur = cursor_now();
+	sqlite3_stmt *a, *s;
+	CHECK_EQ(sqlite3_prepare_v2(g_main, "SELECT 10 UNION ALL SELECT 20", -1, &a, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_prepare_v2(g_main, "SELECT 'x' UNION ALL SELECT 'y' UNION ALL SELECT 'z'", -1, &s, NULL),
+	         SQLITE_OK);
+	CHECK_EQ(sqlite3_step(a), SQLITE_ROW);
+	CHECK_EQ(sqlite3_step(s), SQLITE_ROW);
+	CHECK_EQ(sqlite3_step(a), SQLITE_ROW);
+	CHECK_EQ(sqlite3_step(s), SQLITE_ROW);
+	CHECK_EQ(sqlite3_step(s), SQLITE_ROW);
+	sqlite3_finalize(a);
+	sqlite3_finalize(s);
+	sqlitedbg_set_client_connected(0);
+	sqlitedbg_set_row_capture(0, 0, 0);
+	batch b;
+	read_all(cur, &b);
+	int64_t want_rows[] = {1, 1, 2, 2, 3};
+	int64_t want_first[] = {10, 'x', 20, 'y', 'z'};
+	size_t k = 0;
+	for (size_t i = 0; i < b.count; i++) {
+		if (b.events[i].kind != SQLITEDBG_EVENT_ROW) continue;
+		int type;
+		int64_t first = first_value(&b.events[i], &type);
+		if (k < 5) {
+			CHECK_EQ(b.events[i].rows, want_rows[k]);
+			CHECK_EQ(first, want_first[k]);
+			CHECK_EQ(type, k == 0 || k == 2 ? SQLITE_INTEGER : SQLITE_TEXT);
+		}
+		k++;
+	}
+	CHECK_EQ(k, 5);
+	CHECK_EQ(find_event(&b, SQLITEDBG_EVENT_PROFILE, "SELECT 10 UNION ALL SELECT 20")->rows, 2);
+	CHECK_EQ(find_event(&b, SQLITEDBG_EVENT_PROFILE, "SELECT 'x' UNION ALL SELECT 'y' UNION ALL SELECT 'z'")->rows, 3);
+	batch_free(&b);
+
+	// one statement more than there are slots, each started in turn: the oldest loses its slot, so its
+	// later rows go unrecorded and its profile has no counts
+	enum { N = SQLITEDBG_STATEMENT_SLOTS + 1 };
+	sqlite3_stmt *st[N];
+	char sql[64];
+	sqlitedbg_set_row_capture(10, 0, MAX_ROW_DATA);
+	sqlitedbg_set_client_connected(1);
+	cur = cursor_now();
+	for (int i = 0; i < N; i++) {
+		snprintf(sql, sizeof sql, "SELECT %d UNION ALL SELECT %d", i, i);
+		CHECK_EQ(sqlite3_prepare_v2(g_main, sql, -1, &st[i], NULL), SQLITE_OK);
+		CHECK_EQ(sqlite3_step(st[i]), SQLITE_ROW);
+	}
+	CHECK_EQ(sqlite3_step(st[0]), SQLITE_ROW);
+	CHECK_EQ(sqlite3_step(st[1]), SQLITE_ROW);
+	for (int i = 0; i < N; i++) sqlite3_finalize(st[i]);
+	sqlitedbg_set_client_connected(0);
+	sqlitedbg_set_row_capture(0, 0, 0);
+	read_all(cur, &b);
+	// one row each, plus statement 1's second row; statement 0's second row had no slot
+	CHECK_EQ(count_kind(&b, SQLITEDBG_EVENT_ROW), N + 1);
+	const ev *p0 = find_event(&b, SQLITEDBG_EVENT_PROFILE, "SELECT 0 UNION ALL SELECT 0");
+	const ev *p1 = find_event(&b, SQLITEDBG_EVENT_PROFILE, "SELECT 1 UNION ALL SELECT 1");
+	CHECK(p0 && p1);
+	if (p0) CHECK_EQ(p0->rows, -1);
+	if (p0) CHECK_EQ(p0->changes, -1);
+	if (p1) CHECK_EQ(p1->rows, 2);
+	batch_free(&b);
+}
+
+static void test_row_limits(void) {
+	// the row's data stops at max_row_bytes: the header (8) and one INTEGER (12 + 8) fit in 40, a
+	// second INTEGER does not
+	sqlitedbg_set_row_capture(10, 0, 40);
+	sqlitedbg_set_client_connected(1);
+	uint64_t cur = cursor_now();
+	exec_ok(g_main, "SELECT 1, 2");
+	// a value limit of 1 cuts a two-byte character to nothing, which is still a whole value
+	sqlitedbg_set_row_capture(10, 1, MAX_ROW_DATA);
+	exec_ok(g_main, "SELECT '\xC3\xA9', x'0a0b'");
+	sqlitedbg_set_client_connected(0);
+	sqlitedbg_set_row_capture(0, 0, 0);
+	batch b;
+	read_all(cur, &b);
+	CHECK_EQ(count_kind(&b, SQLITEDBG_EVENT_ROW), 2);
+	const ev *wide = NULL, *cut = NULL;
+	for (size_t i = 0; i < b.count; i++) {
+		if (b.events[i].kind != SQLITEDBG_EVENT_ROW) continue;
+		if (!wide) wide = &b.events[i];
+		else cut = &b.events[i];
+	}
+	uint32_t columns;
+	rv v[2];
+	if (wide) {
+		CHECK_EQ(parse_row(wide, &columns, v, 2), 1);
+		CHECK_EQ(columns, 2);
+		CHECK_EQ(rv_int(&v[0]), 1);
+		CHECK(wide->flags & SQLITEDBG_EVENT_TRUNCATED);
+		CHECK(wide->data_bytes <= 40);
+	}
+	if (cut) {
+		CHECK_EQ(parse_row(cut, &columns, v, 2), 2);
+		CHECK_EQ(v[0].type, SQLITE_TEXT);
+		CHECK_EQ(v[0].stored, 0);
+		CHECK_EQ(v[0].full, 2);
+		CHECK_EQ(v[1].type, SQLITE_BLOB);
+		CHECK_EQ(v[1].stored, 1);
+		CHECK_EQ(v[1].p[0], 0x0a);
+		CHECK(cut->flags & SQLITEDBG_EVENT_TRUNCATED);
+	}
+	CHECK(wide && cut);
+	batch_free(&b);
+	// a row limit above SQLITEDBG_MAX_ROW_BYTES is lowered to it, so no row record outgrows a reader's batch
+	sqlitedbg_set_row_capture(1, 0, UINT32_MAX);
+	CHECK_EQ(sqlitedbg_test_max_row_bytes(), SQLITEDBG_MAX_ROW_BYTES);
+	sqlitedbg_set_row_capture(1, 0, 1000);
+	CHECK_EQ(sqlitedbg_test_max_row_bytes(), 1000);
+	sqlitedbg_set_row_capture(0, 0, 0);
+	CHECK_EQ(sqlitedbg_test_max_row_bytes(), 4096);
 }
 
 static void test_burst(void) {
@@ -513,7 +869,7 @@ static void test_close_and_list(void) {
 	CHECK_EQ(b.count, 1);
 	CHECK_EQ(b.events[0].kind, SQLITEDBG_EVENT_CLOSE);
 	CHECK_EQ(b.events[0].conn, id);
-	CHECK_EQ(b.events[0].sql_bytes, 0);
+	CHECK_EQ(b.events[0].data_bytes, 0);
 	batch_free(&b);
 
 	// the failed close left the connection open: a statement on it clears closing, a second failed close sets it
@@ -652,6 +1008,149 @@ static void test_server(void) {
 	sqlite3 *app = open_app(":memory:");
 	CHECK_EQ(list_conns(&l), before + 1);
 	CHECK_EQ(sqlite3_close(app), SQLITE_OK);
+}
+
+static int always_stop(void *unused) {
+	(void)unused;
+	return 1;
+}
+
+static int never_stop(void *unused) {
+	(void)unused;
+	return 0;
+}
+
+// Counts statements run on a connection whose SQL names one of expert's sampling functions.
+static int sampling_trace(unsigned type, void *count, void *stmt, void *unused) {
+	(void)unused;
+	if (type == SQLITE_TRACE_STMT) {
+		const char *sql = sqlite3_sql((sqlite3_stmt *)stmt);
+		if (sql && strstr(sql, "sqlite_expert_")) ++*(int *)count;
+	}
+	return 0;
+}
+
+// suggest_indexes: ext/expert on a read-only server connection (ADFA-7301).
+static void test_expert(void) {
+	exec_ok(g_main, "CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY, customer INTEGER, total REAL)");
+	exec_ok(g_main, "CREATE TABLE IF NOT EXISTS lines(id INTEGER PRIMARY KEY, sku TEXT)");
+	exec_ok(g_main, "CREATE INDEX IF NOT EXISTS lines_sku ON lines(sku)");
+	listing l;
+	size_t before = list_conns(&l);
+	sqlite3 *srv = NULL;
+	CHECK_EQ(sqlitedbg_open_server(g_db_path, 0, &srv), SQLITE_OK);
+	exec_ok(g_main, "INSERT INTO orders(customer, total) VALUES(1, 2.5), (2, 3.5)");
+	uint64_t cur = cursor_now();
+	// sampling would read the app's rows on srv with expert's sqlite_expert_rem and _sample functions
+	int sampling = 0;
+	CHECK_EQ(sqlite3_trace_v2(srv, SQLITE_TRACE_STMT, sampling_trace, &sampling), SQLITE_OK);
+
+	sqlite3expert *ex = NULL;
+	char *err = NULL;
+	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5; SELECT id FROM lines WHERE sku = 'a'", 0,
+	                              never_stop, NULL, &ex, &err),
+	         SQLITE_OK);
+	CHECK(err == NULL);
+	CHECK(ex != NULL);
+	if (ex) {
+		CHECK_EQ(sqlite3_expert_count(ex), 2);
+		const char *idx0 = sqlite3_expert_report(ex, 0, EXPERT_REPORT_INDEXES);
+		const char *idx1 = sqlite3_expert_report(ex, 1, EXPERT_REPORT_INDEXES);
+		const char *plan0 = sqlite3_expert_report(ex, 0, EXPERT_REPORT_PLAN);
+		CHECK(idx0 && strstr(idx0, "CREATE INDEX") && strstr(idx0, "orders(customer)"));
+		CHECK(idx1 == NULL);  // lines_sku covers it: no suggestion (the shell prints "(no new indexes)")
+		CHECK(plan0 && strstr(plan0, "USING"));
+		CHECK(strstr(sqlite3_expert_report(ex, 0, EXPERT_REPORT_SQL), "customer = 5") != NULL);
+		// while it is open, its two in-memory connections are not the app's
+		CHECK_EQ(list_conns(&l), before);
+		sqlite3_expert_destroy(ex);
+	}
+	CHECK_EQ(sampling, 0);  // no row of the app's data was read
+	sqlite3_trace_v2(srv, 0, NULL, NULL);
+	// nothing was traced: expert's statements ran on its own connections, never on the app's
+	batch b;
+	read_all(cur, &b);
+	CHECK_EQ(b.count, 0);
+	batch_free(&b);
+	// the server connection has no temp table, no new function, and is still read-only
+	sqlite3_stmt *st;
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_schema", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_rem(1, 1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK_EQ(step_all(srv, "INSERT INTO orders(customer) VALUES(1)"), SQLITE_AUTH);
+
+	// errors come back with SQLite's message; the time limit stops the analysis
+	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM no_such_table", 0, never_stop, NULL, &ex, &err) != SQLITE_OK);
+	CHECK(ex == NULL);
+	CHECK(err && strstr(err, "no_such_table"));
+	sqlite3_free(err);
+	err = NULL;
+	// only read statements can be analysed: expert prepares each on srv, whose authorizer refuses a write
+	static const char *const writes[] = {"UPDATE orders SET total = 1 WHERE customer = 5", "DELETE FROM orders WHERE customer = 5",
+	                                     "INSERT INTO orders(customer) VALUES(5)"};
+	for (size_t i = 0; i < sizeof writes / sizeof writes[0]; i++) {
+		CHECK(sqlitedbg_expert_run(srv, writes[i], 0, never_stop, NULL, &ex, &err) != SQLITE_OK);
+		CHECK(ex == NULL);
+		CHECK(err && strstr(err, "not authorized"));
+		sqlite3_free(err);
+		err = NULL;
+	}
+	CHECK(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5", 0, always_stop, NULL, &ex, &err) != SQLITE_OK);
+	CHECK(ex == NULL);
+	sqlite3_free(err);
+
+	// sample > 0 reads the rows on srv (the opt-in), and still leaves nothing behind on it
+	sampling = 0;
+	CHECK_EQ(sqlite3_trace_v2(srv, SQLITE_TRACE_STMT, sampling_trace, &sampling), SQLITE_OK);
+	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM orders WHERE customer = 5", 100, never_stop, NULL, &ex, &err), SQLITE_OK);
+	CHECK(sampling > 0);
+	sqlite3_trace_v2(srv, 0, NULL, NULL);
+	sqlite3_expert_destroy(ex);
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_schema", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_rem(1, 1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK_EQ(list_conns(&l), before);
+
+	// sample 50 on a table big enough for the sample to matter: suggestions come back, the sampling reads run on srv, and
+	// afterwards srv has neither expert's two functions nor anything in temp, and still reads and refuses writes
+	exec_ok(g_main, "CREATE TABLE samp(id INTEGER PRIMARY KEY, a INTEGER, b INTEGER)");
+	exec_ok(g_main,
+	        "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 5000) "
+	        "INSERT INTO samp SELECT x, x % 500, x % 7 FROM c");
+	sampling = 0;
+	CHECK_EQ(sqlite3_trace_v2(srv, SQLITE_TRACE_STMT, sampling_trace, &sampling), SQLITE_OK);
+	CHECK_EQ(sqlitedbg_expert_run(srv, "SELECT * FROM samp WHERE a = 7 AND b = 3", 50, never_stop, NULL, &ex, &err), SQLITE_OK);
+	CHECK(sampling > 0);
+	sqlite3_trace_v2(srv, 0, NULL, NULL);
+	CHECK(ex != NULL);
+	if (ex) {
+		CHECK_EQ(sqlite3_expert_count(ex), 1);
+		const char *idx = sqlite3_expert_report(ex, 0, EXPERT_REPORT_INDEXES);
+		CHECK(idx && strstr(idx, "CREATE INDEX") && strstr(idx, "samp("));
+		CHECK(sqlite3_expert_report(ex, 0, EXPERT_REPORT_PLAN) != NULL);
+		sqlite3_expert_destroy(ex);
+	}
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_schema", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK_EQ(sqlite3_prepare_v2(srv, "SELECT count(*) FROM temp.sqlite_master", -1, &st, NULL), SQLITE_OK);
+	CHECK_EQ(sqlite3_step(st), SQLITE_ROW);
+	CHECK_EQ(sqlite3_column_int(st, 0), 0);
+	sqlite3_finalize(st);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_rem(1, 1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK(sqlite3_prepare_v2(srv, "SELECT sqlite_expert_sample(1)", -1, &st, NULL) != SQLITE_OK);
+	CHECK_EQ(step_all(srv, "SELECT count(*) FROM samp"), SQLITE_DONE);
+	CHECK_EQ(step_all(srv, "INSERT INTO samp(a) VALUES(1)"), SQLITE_AUTH);
+	CHECK_EQ(list_conns(&l), before);
+	exec_ok(g_main, "DROP TABLE samp");
+
+	CHECK_EQ(sqlite3_close_v2(srv), SQLITE_OK);
+	CHECK_EQ(list_conns(&l), before);
 }
 
 // Each of these would let a client keep a lock on the app's database (ADFA-7135 review, H3).
@@ -816,6 +1315,7 @@ typedef struct worker {
 	int index;
 	atomic_int *stop;
 	long long stmts, closes;
+	long long row_stmts;  // statements that return one row: each adds at most one row event
 	int failed;
 } worker;
 
@@ -843,6 +1343,7 @@ static void *worker_main(void *arg) {
 		if (n % 7 == 0) {
 			if (sqlite3_exec(db, "SELECT count(*) FROM w", NULL, NULL, NULL) != SQLITE_OK) w->failed = 1;
 			w->stmts++;
+			w->row_stmts++;
 		}
 		if (n % 50 == 0) {
 			// connection churn beside the other threads' statements
@@ -853,6 +1354,7 @@ static void *worker_main(void *arg) {
 			}
 			if (sqlite3_exec(extra, "SELECT 1", NULL, NULL, NULL) != SQLITE_OK) w->failed = 1;
 			w->stmts++;
+			w->row_stmts++;
 			if (sqlite3_close(extra) != SQLITE_OK) w->failed = 1;
 			w->closes++;
 		}
@@ -885,8 +1387,8 @@ static void *reader_main(void *arg) {
 		uint64_t prev = after;
 		for (size_t i = 0; i < res.count; i++) {
 			const sqlitedbg_event_record *rec = (const sqlitedbg_event_record *)(void *)(buf + off);
-			if (rec->seq <= prev || rec->record_bytes % 8 || rec->kind < 1 || rec->kind > 3 ||
-			    rec->record_bytes < sizeof *rec + rec->sql_bytes)
+			if (rec->seq <= prev || rec->record_bytes % 8 || rec->kind < 1 || rec->kind > 4 ||
+			    rec->record_bytes < sizeof *rec + rec->data_bytes)
 				r->failed = 1;
 			prev = rec->seq;
 			off += rec->record_bytes;
@@ -896,9 +1398,12 @@ static void *reader_main(void *arg) {
 		int bad = 0;
 		sqlitedbg_each_connection(list_noop, &bad);
 		if (bad) r->failed = 1;
+		// row recording switched on and off while the workers' statements return rows
+		sqlitedbg_set_row_capture(r->reads % 2 ? 4 : 0, 0, 0);
 		sqlitedbg_set_client_connected(r->reads++ % 3 == 0);
 	}
 	sqlitedbg_set_client_connected(0);
+	sqlitedbg_set_row_capture(0, 0, 0);
 	return NULL;
 }
 
@@ -926,11 +1431,12 @@ static void test_threads(void) {
 	for (int i = 0; i < N; i++) pthread_join(th[i], NULL);
 	pthread_join(rt, NULL);
 
-	long long stmts = 0, closes = 0;
+	long long stmts = 0, closes = 0, row_stmts = 0;
 	for (int i = 0; i < N; i++) {
 		CHECK_EQ(w[i].failed, 0);
 		stmts += w[i].stmts;
 		closes += w[i].closes;
+		row_stmts += w[i].row_stmts;
 	}
 	CHECK_EQ(rd.failed, 0);
 	CHECK(stmts > 1000);
@@ -938,17 +1444,63 @@ static void test_threads(void) {
 	CHECK_EQ(list_conns(&l), before);
 	batch b;
 	read_all(0, &b);
-	CHECK_EQ(b.next - cur, 2 * (uint64_t)stmts + (uint64_t)closes);
+	// two events per statement, one per close, and one per recorded row: at most one per row statement
+	uint64_t made = b.next - cur, base = 2 * (uint64_t)stmts + (uint64_t)closes;
+	CHECK(made >= base);
+	CHECK(made <= base + (uint64_t)row_stmts);
 	batch_free(&b);
 	printf("  threads: %lld statements, %lld closes, %lld reads\n", stmts, closes, rd.reads);
 }
 
 // Fixture for EventDecoder's JVM test: a known run, as bytes plus a table of what they hold.
 
-static void write_tsv_row(FILE *f, const sqlitedbg_event_record *r, const char *sql) {
-	fprintf(f, "%llu\t%u\t%llu\t%lld\t%lld\t%lld\t%u\t%.*s\n", (unsigned long long)r->seq, r->kind,
+// A ROW event's data as text: "<columns>/<kept>|" and then each value, comma-separated, as a type
+// letter (i, f, t, b, n), "*" if it was cut, ":" and the value: an integer in decimal, a float with
+// %.17g, text as is, a blob in lowercase hex, nothing for NULL. Returns 0 if the data is malformed.
+static int write_row_data(FILE *f, const unsigned char *d, size_t n) {
+	sqlitedbg_row_header h;
+	if (n < sizeof h) return 0;
+	memcpy(&h, d, sizeof h);
+	fprintf(f, "%u/%u|", h.columns, h.kept);
+	size_t off = sizeof h;
+	for (uint32_t i = 0; i < h.kept; i++) {
+		sqlitedbg_row_value v;
+		if (n - off < sizeof v) return 0;
+		memcpy(&v, d + off, sizeof v);
+		off += sizeof v;
+		if (v.stored_bytes > n - off) return 0;
+		const unsigned char *p = d + off;
+		const char *letter = v.type == SQLITE_INTEGER ? "i" : v.type == SQLITE_FLOAT ? "f" : v.type == SQLITE_TEXT ? "t"
+		                     : v.type == SQLITE_BLOB  ? "b" : "n";
+		fprintf(f, "%s%s%s:", i ? "," : "", letter, v.cut ? "*" : "");
+		if (v.type == SQLITE_INTEGER || v.type == SQLITE_FLOAT) {
+			if (v.stored_bytes != 8) return 0;
+			long long x;
+			double y;
+			memcpy(&x, p, 8);
+			memcpy(&y, p, 8);
+			if (v.type == SQLITE_INTEGER) fprintf(f, "%lld", x);
+			else fprintf(f, "%.17g", y);
+		} else if (v.type == SQLITE_TEXT) {
+			fprintf(f, "%.*s", (int)v.stored_bytes, (const char *)p);
+		} else if (v.type == SQLITE_BLOB) {
+			for (uint32_t k = 0; k < v.stored_bytes; k++) fprintf(f, "%02x", p[k]);
+		}
+		off += v.stored_bytes;
+	}
+	return off == n;
+}
+
+// seq, kind, connection, thread, time, duration, flags, rows, changes, then the SQL or the row data.
+static int write_tsv_row(FILE *f, const sqlitedbg_event_record *r, const char *data) {
+	fprintf(f, "%llu\t%u\t%llu\t%lld\t%lld\t%lld\t%u\t%lld\t%lld\t", (unsigned long long)r->seq, r->kind,
 	        (unsigned long long)r->connection_id, (long long)r->thread_id, (long long)r->time_ns,
-	        (long long)r->duration_ns, r->flags, (int)r->sql_bytes, sql);
+	        (long long)r->duration_ns, r->flags, (long long)r->rows, (long long)r->changes);
+	int ok = 1;
+	if (r->kind == SQLITEDBG_EVENT_ROW) ok = write_row_data(f, (const unsigned char *)data, r->data_bytes);
+	else fprintf(f, "%.*s", (int)r->data_bytes, data);
+	fputc('\n', f);
+	return ok;
 }
 
 static void run_fixture_scenario(void) {
@@ -975,6 +1527,14 @@ static void run_fixture_scenario(void) {
 	sqlite3 *c = open_app(":memory:");
 	exec_ok(c, "SELECT 1");
 	CHECK_EQ(sqlite3_close(c), SQLITE_OK);
+	// recorded rows (ADFA-7296): every type, a text and a blob cut at 4 bytes, and a profile with its
+	// counts and ROWS_CUT; then a write's change count
+	sqlitedbg_set_row_capture(1, 4, 1024);
+	sqlitedbg_set_client_connected(1);
+	exec_ok(g_main, "SELECT 7, 2.5, 'h\xC3\xA9llo', x'0a0b0c0d0e', NULL UNION ALL SELECT -9, -0.125, 'ab', x'', NULL");
+	sqlitedbg_set_client_connected(0);
+	sqlitedbg_set_row_capture(0, 0, 0);
+	exec_ok(g_main, "DELETE FROM fxlog");
 }
 
 static unsigned char *slurp(const char *path, size_t *n) {
@@ -1004,11 +1564,14 @@ static int bin_to_tsv(const unsigned char *bin, size_t n, char **out) {
 	while (off < n) {
 		const sqlitedbg_event_record *r = (const sqlitedbg_event_record *)(const void *)(bin + off);
 		if (off + sizeof *r > n || r->record_bytes % 8 || off + r->record_bytes > n ||
-		    r->record_bytes < sizeof *r + r->sql_bytes) {
+		    r->record_bytes < sizeof *r + r->data_bytes) {
 			ok = 0;
 			break;
 		}
-		write_tsv_row(f, r, (const char *)bin + off + sizeof *r);
+		if (!write_tsv_row(f, r, (const char *)bin + off + sizeof *r)) {
+			ok = 0;
+			break;
+		}
 		off += r->record_bytes;
 	}
 	fclose(f);
@@ -1076,6 +1639,12 @@ int main(int argc, char **argv) {
 		test_expanded();
 		printf("# truncation\n");
 		test_truncation();
+		printf("# rows and changes\n");
+		test_rows();
+		test_internal_rows();
+		test_changes();
+		test_interleaved_rows();
+		test_row_limits();
 		printf("# burst\n");
 		test_burst();
 		printf("# cursor reset\n");
@@ -1091,6 +1660,8 @@ int main(int argc, char **argv) {
 		test_server_ends_transaction();
 		printf("# server waits for locks\n");
 		test_server_waits_for_locks();
+		printf("# expert\n");
+		test_expert();
 		printf("# threads\n");
 		test_threads();
 		if (argc == 4 && strcmp(argv[1], "--write-fixture") == 0) write_fixture(argv[2], argv[3]);

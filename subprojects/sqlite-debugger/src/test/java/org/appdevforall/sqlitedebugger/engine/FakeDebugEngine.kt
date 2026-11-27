@@ -10,7 +10,16 @@ class FakeDebugEngine(
 		QueryResult(emptyList(), emptyList(), 0, false)
 	},
 ) : DebugEngine {
+	var rawPage: (path: String, sql: String) -> QueryResult? = { _, _ -> null }
+
 	val appConnections = mutableListOf<AppConnection>()
+
+	/** Answers suggestIndexes: the path and the SQL. */
+	var suggestAnswer: (path: String, sql: String) -> IndexSuggestions = { _, _ -> IndexSuggestions(null, emptyList()) }
+
+	/** The sample of the last suggestIndexes. */
+	var lastSample: Int? = null
+		private set
 
 	override var runId = "run-1"
 		private set
@@ -27,6 +36,16 @@ class FakeDebugEngine(
 	private var lastSeq = 0L
 
 	var clientConnected = false
+		private set
+
+	/** Each setRowCapture call, in order: rows per statement, value bytes, row bytes. */
+	val rowCaptureCalls = mutableListOf<Triple<Int, Int, Int>>()
+
+	/** The SQL and limits of each query, in order. */
+	val queries = mutableListOf<Pair<String, QueryLimits>>()
+
+	/** The argNames of the last query: null when its args were bound by position. */
+	var lastArgNames: List<String>? = null
 		private set
 
 	val openedServerConnections = mutableListOf<Pair<String, Boolean>>()
@@ -49,8 +68,26 @@ class FakeDebugEngine(
 		buffered.addLast(Event(lastSeq, kind, connectionId, 1, lastSeq, durationNanos, sql, false, clientConnected))
 	}
 
+	/** Adds the event [make] builds for the next number, for the kinds and fields [addEvent] does not set. */
+	fun addEvent(make: (seq: Long) -> Event) {
+		lastSeq++
+		buffered.addLast(make(lastSeq))
+	}
+
+	/** Adds [event] as the next one, numbered after the events before it whatever its own [Event.seq]. */
+	fun addEvent(event: Event) {
+		lastSeq++
+		buffered.addLast(event.copy(seq = lastSeq))
+	}
+
 	/** Drops the [count] oldest buffered events, as a full native buffer would. */
 	fun dropOldest(count: Int) = repeat(count) { buffered.removeFirstOrNull() }
+
+	/** A record's data as [EventDecoder] reads it: the SQL, or a ROW event's values, each with its header. */
+	private fun dataBytes(event: Event): Int {
+		val row = event.row ?: return event.sql.toByteArray().size
+		return EventDecoder.ROW_HEADER_BYTES + row.values.sumOf { EventDecoder.ROW_VALUE_BYTES + cellBytes(it).toInt() }
+	}
 
 	private fun cellBytes(value: Any?): Long =
 		when (value) {
@@ -74,8 +111,8 @@ class FakeDebugEngine(
 		var bytes = 0
 		for (event in buffered) {
 			if (event.seq <= after) continue
-			// the native record: a 56-byte header, then the SQL padded to 8 bytes
-			val size = 56 + (event.sql.toByteArray().size + 7) / 8 * 8
+			// the native record: the header, then its data padded to 8 bytes
+			val size = EventDecoder.HEADER_BYTES + (dataBytes(event) + 7) / 8 * 8
 			if (bytes + size > maxBytes) break
 			bytes += size
 			events += event
@@ -85,6 +122,14 @@ class FakeDebugEngine(
 
 	override fun setClientConnected(connected: Boolean) {
 		clientConnected = connected
+	}
+
+	override fun setRowCapture(
+		maxRowsPerStatement: Int,
+		maxValueBytes: Int,
+		maxRowBytes: Int,
+	) {
+		rowCaptureCalls += Triple(maxRowsPerStatement, maxValueBytes, maxRowBytes)
 	}
 
 	override fun openServerConnection(
@@ -105,11 +150,16 @@ class FakeDebugEngine(
 			override fun query(
 				sql: String,
 				args: List<Any?>,
+				argNames: List<String>?,
 				offset: Long,
 				limits: QueryLimits,
 				deadlineMillis: Long,
 			): QueryResult {
 				check(!closed) { "closed" }
+				lastArgNames = argNames
+				queries += sql to limits
+				// A page exactly as given, for an answer the paging rule below cannot produce (an empty page with hasMore).
+				rawPage(path, sql)?.let { return it }
 				val all = answer(path, writable, sql, args)
 				val skip = offset.toInt().coerceAtMost(all.rows.size)
 				val rest = all.rows.drop(skip)
@@ -135,6 +185,16 @@ class FakeDebugEngine(
 					truncatedCells = if (all.truncatedCellIndexes.isEmpty()) all.truncatedCells else cut.size,
 					truncatedCellIndexes = cut,
 				)
+			}
+
+			override fun suggestIndexes(
+				sql: String,
+				sample: Int,
+				deadlineMillis: Long,
+			): IndexSuggestions {
+				check(!closed) { "closed" }
+				lastSample = sample
+				return suggestAnswer(path, sql)
 			}
 
 			override fun close() {

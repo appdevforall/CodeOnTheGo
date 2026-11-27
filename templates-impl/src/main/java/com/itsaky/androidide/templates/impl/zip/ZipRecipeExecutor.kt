@@ -7,6 +7,7 @@ import com.itsaky.androidide.templates.Language
 import com.itsaky.androidide.templates.ModuleTemplateData
 import com.itsaky.androidide.templates.Parameter
 import com.itsaky.androidide.templates.ProjectTemplateData
+import com.itsaky.androidide.templates.ProjectTemplatePebble
 import com.itsaky.androidide.templates.ProjectTemplateRecipeResult
 import com.itsaky.androidide.templates.RecipeExecutor
 import com.itsaky.androidide.templates.TemplateRecipe
@@ -17,8 +18,6 @@ import dalvik.system.DexClassLoader
 import io.pebbletemplates.pebble.PebbleEngine
 import io.pebbletemplates.pebble.error.PebbleException
 import io.pebbletemplates.pebble.extension.Extension
-import io.pebbletemplates.pebble.lexer.Syntax
-import io.pebbletemplates.pebble.loader.StringLoader
 import org.adfa.constants.ANDROID_GRADLE_PLUGIN_VERSION
 import org.adfa.constants.KOTLIN_VERSION
 import org.adfa.constants.Sdk
@@ -103,18 +102,7 @@ class ZipRecipeExecutor(
 
 		zipProvider().use { zip ->
 
-			val customSyntax =
-				Syntax
-					.Builder()
-					.setPrintOpenDelimiter(DELIM_PRINT_OPEN)
-					.setPrintCloseDelimiter(DELIM_PRINT_CLOSE)
-					.setExecuteOpenDelimiter(DELIM_EXECUTE_OPEN)
-					.setExecuteCloseDelimiter(DELIM_EXECUTE_CLOSE)
-					.setCommentOpenDelimiter(DELIM_COMMENT_OPEN)
-					.setCommentCloseDelimiter(DELIM_COMMENT_CLOSE)
-					.build()
-
-			val builder = PebbleEngine.Builder()
+			val builder = ProjectTemplatePebble.engineBuilder()
 
 			val extensionsEntry = zip.getEntry(META_EXTENSION_JAR)
 			if (extensionsEntry != null) {
@@ -125,11 +113,7 @@ class ZipRecipeExecutor(
 			}
 
 			val pebbleEngine =
-				builder
-					.loader(StringLoader())
-					.strictVariables(true)
-					.syntax(customSyntax)
-					.build()
+				builder.build()
 
 			val className = data.name.replace(CLASS_NAME_PATTERN, "")
 			val (baseIdentifiers, warnings) =

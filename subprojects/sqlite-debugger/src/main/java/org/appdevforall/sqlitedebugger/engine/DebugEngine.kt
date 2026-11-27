@@ -29,8 +29,19 @@ interface DebugEngine {
 		maxBytes: Int,
 	): EventBatch
 
-	/** While true, statements are recorded with their bound values written in. */
+	/** While true, statements are recorded with their bound values written in, and rows if [setRowCapture] is on. */
 	fun setClientConnected(connected: Boolean)
+
+	/**
+	 * Records the first [maxRowsPerStatement] rows of each statement as [EventKind.ROW] events while a
+	 * client is connected; 0 turns it off, as at install. TEXT and BLOB values are cut at [maxValueBytes]
+	 * and a row's data at [maxRowBytes] (`sqlitedbg_set_row_capture`).
+	 */
+	fun setRowCapture(
+		maxRowsPerStatement: Int,
+		maxValueBytes: Int,
+		maxRowBytes: Int,
+	)
 
 	/**
 	 * Opens [path] for the server: read-only (with an authorizer refusing writes) unless
@@ -55,17 +66,51 @@ interface ServerConnection : Closeable {
 	 * progress handler on this server connection) once [deadlineMillis] (System.currentTimeMillis
 	 * clock) has passed.
 	 *
+	 * [argNames] null binds [args] by position, `?NNN` by its number; otherwise `argNames[i]` names the
+	 * parameter `args[i]` goes to, written as in the SQL (`:id`, `@id`, `$id`, `?3`) or bare (`id`, for
+	 * any of `:`, `@` and `$`). Every parameter must get exactly one value and every name must be used.
+	 *
 	 * @throws DebugEngineException for SQLite errors, SQL with no statement or more than one, a
-	 *   refused write, or the deadline.
+	 *   refused write, the deadline, or arguments that do not match the parameters (SQLITE_RANGE).
 	 */
 	fun query(
 		sql: String,
 		args: List<Any?>,
+		argNames: List<String>?,
 		offset: Long,
 		limits: QueryLimits,
 		deadlineMillis: Long,
 	): QueryResult
+
+	/**
+	 * Index suggestions for [sql] (one or more statements) from SQLite's ext/expert (`sqlitedbg_expert_run`):
+	 * the statements are prepared, never run. [sample] (0 to 100) is the percentage of rows read for the
+	 * estimates; at 0 no row of the app's data is read and the suggestions rest on SQLite's default
+	 * estimates. Stops at [deadlineMillis] like [query], and, when sampling a database not in WAL mode,
+	 * after `SQLITEDBG_SERVER_NON_WAL_MS`.
+	 *
+	 * @throws DebugEngineException for SQLite errors (SQL that does not prepare, for one) or the deadline.
+	 */
+	fun suggestIndexes(
+		sql: String,
+		sample: Int,
+		deadlineMillis: Long,
+	): IndexSuggestions
 }
+
+data class IndexSuggestions(
+	/** The candidate indexes expert weighed, one CREATE INDEX per line with its estimate; null when none. */
+	val candidates: String?,
+	val statements: List<StatementSuggestion>,
+)
+
+data class StatementSuggestion(
+	val sql: String,
+	/** The CREATE INDEX statements that would help, one per line; null when none would. */
+	val indexes: String?,
+	/** EXPLAIN QUERY PLAN with those indexes, one line per step. */
+	val plan: String?,
+)
 
 data class AppConnection(
 	/** Unique within the process, never reused. */
@@ -91,6 +136,12 @@ enum class EventKind(
 
 	/** The app asked SQLite to close the connection; [Event.sql] is empty. */
 	CLOSE(3),
+
+	/**
+	 * A statement returned a row, recorded only while a client is connected and row recording is on.
+	 * [Event.row] holds its values, [Event.rows] its number in the statement; [Event.sql] is empty.
+	 */
+	ROW(4),
 }
 
 data class Event(
@@ -103,10 +154,37 @@ data class Event(
 	/** Set for [EventKind.PROFILE] only. */
 	val durationNanos: Long?,
 	val sql: String,
-	/** [sql] was cut at the extension's limit. */
+	/** [sql] was cut at the extension's limit, or for [EventKind.ROW], [row] was (see [RowValues]). */
 	val truncated: Boolean,
 	/** [sql] has its bound values written in. */
 	val expanded: Boolean,
+	/**
+	 * [EventKind.PROFILE]: the rows the statement returned, recorded or not. [EventKind.ROW]: the row's
+	 * number in its statement, from 1. Null otherwise, and for a statement the extension did not see start.
+	 */
+	val rows: Long? = null,
+	/**
+	 * [EventKind.PROFILE] of a statement that may write: the rows it changed itself, as
+	 * `sqlite3_changes64` counts them (not those changed by triggers); 0 when it changed none. Null for a
+	 * read-only statement and for the other kinds.
+	 */
+	val changes: Long? = null,
+	/** [EventKind.PROFILE]: rows went unrecorded because the statement returned more than the per-statement limit. */
+	val rowsCut: Boolean = false,
+	/** [EventKind.ROW] only: the row's values. */
+	val row: RowValues? = null,
+)
+
+data class RowValues(
+	/** The statement's column count. */
+	val columnCount: Int,
+	/**
+	 * The values kept, in column order: null, [Long], [Double], [String] or [ByteArray]. Fewer than
+	 * [columnCount] when the row's data reached its limit.
+	 */
+	val values: List<Any?>,
+	/** Indexes into [values] of TEXT and BLOB values that were cut at the value limit. */
+	val cutIndexes: Set<Int>,
 )
 
 data class EventBatch(
@@ -145,6 +223,8 @@ data class QueryResult(
 	 * is whole and not listed, one byte more is. [truncatedCells] is its size.
 	 */
 	val truncatedCellIndexes: Set<Long> = emptySet(),
+	/** Each column's declared type, as `sqlite3_column_decltype` gives it; null for an expression. */
+	val declaredTypes: List<String?> = List(columns.size) { null },
 ) {
 	fun isTruncated(
 		row: Int,

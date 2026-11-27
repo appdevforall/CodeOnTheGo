@@ -11,13 +11,6 @@ const val DEX_OPT_FOLDER = "dex_opt"
 
 const val TEMPLATE_EXTENSION = ".peb"
 
-const val DELIM_PRINT_OPEN = "\${{"
-const val DELIM_PRINT_CLOSE = "}}"
-const val DELIM_EXECUTE_OPEN = "\${%"
-const val DELIM_EXECUTE_CLOSE = "%}"
-const val DELIM_COMMENT_OPEN = "\${#"
-const val DELIM_COMMENT_CLOSE = "#}"
-
 const val KEY_PACKAGE_NAME = "PACKAGE_NAME"
 const val KEY_APP_NAME = "APP_NAME"
 const val KEY_CLASS_NAME = "CLASS_NAME"

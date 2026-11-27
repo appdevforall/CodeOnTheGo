@@ -1,6 +1,7 @@
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -44,12 +45,25 @@ public class JniQueryTest {
 		long truncated;
 		boolean hasMore;
 		Set<Long> cut = new HashSet<>();
+		String[] declaredTypes;
 	}
 
 	@SuppressWarnings("unchecked")
 	static Result query(long h, String sql, Object[] args, long offset, int maxRows, int maxText, int maxBlob, int maxTotal,
 			long deadline) throws DebugEngineException {
-		Object[] r = NativeBridge.query(h, sql, args, offset, maxRows, maxText, maxBlob, maxTotal, deadline);
+		return named(h, sql, args, null, offset, maxRows, maxText, maxBlob, maxTotal, deadline);
+	}
+
+	/** As query, with args bound by name when names is not null. */
+	@SuppressWarnings("unchecked")
+	static Result named(long h, String sql, Object[] args, String[] names, long offset, int maxRows, int maxText, int maxBlob,
+			int maxTotal, long deadline) throws DebugEngineException {
+		byte[][] nameBytes = null;
+		if (names != null) {
+			nameBytes = new byte[names.length][];
+			for (int i = 0; i < names.length; i++) nameBytes[i] = names[i].getBytes(StandardCharsets.UTF_8);
+		}
+		Object[] r = NativeBridge.query(h, sql, args, nameBytes, offset, maxRows, maxText, maxBlob, maxTotal, deadline);
 		Result out = new Result();
 		out.columns = (String[]) r[0];
 		out.rows = (List<Object[]>) r[1];
@@ -58,6 +72,8 @@ public class JniQueryTest {
 		out.hasMore = counts[1] != 0;
 		eq(counts.length, 2 + (int) counts[0], "one index per cut cell");
 		for (int i = 2; i < counts.length; i++) out.cut.add(counts[i]);
+		out.declaredTypes = (String[]) r[3];
+		eq(out.declaredTypes.length, out.columns.length, "one declared type per column");
 		return out;
 	}
 
@@ -71,6 +87,29 @@ public class JniQueryTest {
 			return 0;
 		} catch (DebugEngineException e) {
 			return e.sqliteCode;
+		}
+	}
+
+	/** The row events (kind 4) in the buffer, read from the start; the records' layout is in sqlitedbg.h. */
+	static long rowEvents() {
+		byte[] buf = new byte[1 << 20];
+		long[] out = new long[4];
+		NativeBridge.readEvents(0, buf, out);
+		java.nio.ByteBuffer b = java.nio.ByteBuffer.wrap(buf).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+		long rows = 0;
+		for (int at = 0; at < out[2]; at += b.getInt(at)) {
+			if (b.getInt(at + 4) == 4) rows++;
+		}
+		return rows;
+	}
+
+	/** "code message" of a refused query with args bound by name, or null when it ran. */
+	static String namedRefusal(long h, String sql, Object[] args, String[] names) {
+		try {
+			named(h, sql, args, names, 0, 100, 4096, 1024, MAX, FAR);
+			return null;
+		} catch (DebugEngineException e) {
+			return e.sqliteCode + " " + e.getMessage();
 		}
 	}
 
@@ -143,6 +182,39 @@ public class JniQueryTest {
 		eq(shorter.code, 9, "a 400 ms deadline: SQLITE_INTERRUPT");
 		check(shorter.message != null && shorter.message.contains("time limit") && !shorter.message.contains("WAL"),
 				"the call's own deadline is reported as such: " + shorter.message);
+		// suggest_indexes with sampling reads the app's rows: the same cap, with a message about sampling. Without
+		// sampling it reads no rows and has no cap.
+		eq(Helper.exec(app, "CREATE TABLE big(a INTEGER, b INTEGER)"), 0, "a big table");
+		eq(Helper.exec(app, "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c WHERE x < 6000000) "
+				+ "INSERT INTO big SELECT x % 1000, x % 977 FROM c"), 0, "6,000,000 rows: sampling 3,000,000 took 1.3 s on a computer");
+		Ran sampled = new Ran();
+		Thread sampler = new Thread(() -> {
+			long t = System.currentTimeMillis();
+			try {
+				NativeBridge.suggestIndexes(srv, "SELECT * FROM big WHERE a = 1 AND b = 2".getBytes(StandardCharsets.UTF_8), 100,
+						System.currentTimeMillis() + 8000);
+			} catch (DebugEngineException e) {
+				sampled.code = e.sqliteCode;
+				sampled.message = e.getMessage();
+			}
+			sampled.ms = System.currentTimeMillis() - t;
+		});
+		sampler.start();
+		Thread.sleep(300);
+		t0 = System.currentTimeMillis();
+		eq(Helper.exec(app, "INSERT INTO t(id) VALUES(5002)"), 0, "the app commits while suggest_indexes samples");
+		commitMs = System.currentTimeMillis() - t0;
+		sampler.join();
+		check(commitMs < 2500, "the commit waited " + commitMs + " ms, under the busy timeout");
+		eq(sampled.code, 9, "sampling was interrupted: SQLITE_INTERRUPT");
+		check(sampled.message != null && sampled.message.contains("not in WAL mode") && sampled.message.contains("lower sample"),
+				"the message says why and what to do: " + sampled.message);
+		check(sampled.ms < 2500, "sampling stopped after " + sampled.ms + " ms");
+		String[] unsampled = NativeBridge.suggestIndexes(srv, "SELECT * FROM big WHERE a = 1 AND b = 2".getBytes(StandardCharsets.UTF_8), 0,
+				System.currentTimeMillis() + 8000);
+		check(unsampled[2] != null && unsampled[2].contains("big("), "without sampling: a suggestion, no cap: " + unsampled[2]);
+		Helper.exec(app, "DELETE FROM t WHERE id = 5002");
+		Helper.exec(app, "DROP TABLE big");
 		NativeBridge.close(srv);
 		Helper.close(app);
 
@@ -194,6 +266,19 @@ public class JniQueryTest {
 		Object[] conns = NativeBridge.connections();
 		eq(((String[]) conns[1]).length, 1, "one app connection");
 		eq(((String[]) conns[1])[0], path, "its path");
+
+		// setRowCapture reaches the extension: rows are recorded only while it is on (and a client is connected)
+		NativeBridge.setClientConnected(true);
+		long rowsBefore = rowEvents();
+		eq(Helper.exec(app, "SELECT id FROM t WHERE id < 3"), 0, "read with row recording off");
+		eq(rowEvents(), rowsBefore, "no row events while row recording is off");
+		NativeBridge.setRowCapture(1, 0, 0);
+		eq(Helper.exec(app, "SELECT id FROM t WHERE id < 3"), 0, "read with row recording on");
+		eq(rowEvents(), rowsBefore + 1, "one row event: one row per statement");
+		NativeBridge.setRowCapture(0, 0, 0);
+		eq(Helper.exec(app, "SELECT id FROM t WHERE id < 3"), 0, "read with row recording off again");
+		eq(rowEvents(), rowsBefore + 1, "off again");
+		NativeBridge.setClientConnected(false);
 
 		byte[] bytes = path.getBytes(StandardCharsets.UTF_8);
 		long srv = NativeBridge.openServer(bytes, false);
@@ -297,6 +382,39 @@ public class JniQueryTest {
 		}
 		eq(codeOf(srv, "SELECT ?", new Object[] {1L, 2L}, FAR), 25, "too many args: SQLITE_RANGE");
 		eq(codeOf(srv, "SELECT ?", new Object[] {new Object()}, FAR), 21, "unsupported arg type: SQLITE_MISUSE");
+		r = query(srv, "SELECT ?2, ?1", new Object[] {"one", "two"}, 0, 10, 4096, 1024, MAX, FAR);
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList("two", "one"), "?NNN in an array binds by number");
+
+		// by name: each prefix, written with it or bare
+		r = named(srv, "SELECT :a, @b, $c, :a", new Object[] {1L, "x", null}, new String[] {":a", "b", "$c"}, 0, 10, 4096, 1024, MAX,
+				FAR);
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList(1L, "x", null, 1L), "named: :a, @b, $c, and :a again");
+		r = named(srv, "SELECT ?2, ?1", new Object[] {"one", "two"}, new String[] {"?1", "?2"}, 0, 10, 4096, 1024, MAX, FAR);
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList("two", "one"), "named: ?NNN by its own name");
+		r = named(srv, "SELECT :€", new Object[] {9L}, new String[] {"€"}, 0, 10, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], 9L, "named: a non-ASCII name");
+		r = named(srv, "SELECT 1", new Object[0], new String[0], 0, 10, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], 1L, "named: no parameters, no names");
+		eq(namedRefusal(srv, "SELECT :a, :b", new Object[] {1L}, new String[] {"a"}), "25 no value was given for parameter :b",
+				"named: a parameter left out");
+		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L, 2L}, new String[] {"a", "zz"}),
+				"25 the statement has no parameter named zz", "named: a misspelt name");
+		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L, 2L}, new String[] {"a", ":a"}), "25 parameter :a is given more than once",
+				"named: bare and prefixed");
+		eq(namedRefusal(srv, "SELECT :a, ?", new Object[] {1L}, new String[] {"a"}),
+				"25 parameter 2 has no name (a ? or a gap in the ?NNN numbers): pass args as an array instead", "named: an anonymous ?");
+		eq(namedRefusal(srv, "SELECT ?2", new Object[] {1L}, new String[] {"?2"}),
+				"25 parameter 1 has no name (a ? or a gap in the ?NNN numbers): pass args as an array instead", "named: a gap in ?NNN");
+		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L}, new String[] {":b"}),
+				"25 the statement has no parameter named :b, and no value was given for parameter :a",
+				"named: a prefixed key matches only that prefix");
+		eq(namedRefusal(srv, "SELECT id FROM t WHERE id = :id", new Object[] {1L}, new String[] {"idx"}),
+				"25 the statement has no parameter named idx, and no value was given for parameter :id",
+				"named: a misspelt key is named although a parameter also has no value");
+
+		// declared types: the column's, or null for an expression
+		r = q(srv, "SELECT id, r, s, b, id + 1, NULL FROM t LIMIT 1");
+		eq(Arrays.asList(r.declaredTypes), Arrays.asList("INTEGER", "REAL", "TEXT", "BLOB", null, null), "declared types");
 		eq(codeOf(srv, "SELEKT 1", new Object[0], FAR), 1, "syntax error: SQLITE_ERROR");
 
 		// one statement per call: SQLite compiles only the first, so a second is refused, not dropped
@@ -342,6 +460,109 @@ public class JniQueryTest {
 
 		// the server connection is not listed
 		eq(((String[]) NativeBridge.connections()[1]).length, 1, "server not listed");
+		// The SQL the sqlite3 shell tools send (DatabaseTools, ADFA-7301), on this read-only server connection
+		eq(Helper.exec(app, "CREATE TABLE parent(id INTEGER PRIMARY KEY, code TEXT UNIQUE)"), 0, "fk parent");
+		eq(Helper.exec(app, "CREATE TABLE lines(id INTEGER PRIMARY KEY, pid INTEGER REFERENCES parent, x REAL)"), 0, "fk child");
+		eq(Helper.exec(app, "CREATE TABLE notes(id INTEGER PRIMARY KEY, pcode TEXT REFERENCES parent(code))"), 0, "fk child 2");
+		eq(Helper.exec(app, "CREATE INDEX notes_pcode ON notes(pcode)"), 0, "fk index");
+		eq(Helper.exec(app, "CREATE TABLE g(a INTEGER, b AS (a + 1), c TEXT) "), 0, "generated column");
+		eq(Helper.exec(app, "CREATE TABLE w(k TEXT PRIMARY KEY, v) WITHOUT ROWID"), 0, "without rowid");
+		eq(Helper.exec(app, "INSERT INTO lines VALUES(1, NULL, 0.1),(2, NULL, 1e300)"), 0, "fk rows");
+		r = q(srv, "SELECT s.name, f.id, f.\"table\", f.\"from\", f.\"to\" FROM sqlite_master AS s, "
+				+ "pragma_foreign_key_list(s.name) AS f WHERE s.type = 'table' ORDER BY s.name, f.id, f.seq");
+		eq(r.rows.size(), 2, "lint: both foreign keys listed");
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList("lines", 0L, "parent", "pid", null), "lint: a key naming no parent column");
+		eq(Arrays.asList(r.rows.get(1)), Arrays.asList("notes", 0L, "parent", "pcode", "code"), "lint: a key naming one");
+		r = query(srv, "SELECT name FROM pragma_table_info(?) WHERE pk > 0 ORDER BY pk", new Object[] {"parent"}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], "id", "lint: the parent's primary key");
+		r = query(srv, "EXPLAIN QUERY PLAN SELECT 1 FROM \"lines\" WHERE \"lines\".\"pid\"=?", new Object[] {null}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[3], "SCAN lines", "lint: an uncovered key scans the child");
+		r = query(srv, "EXPLAIN QUERY PLAN SELECT 1 FROM \"notes\" WHERE \"notes\".\"pcode\"=?", new Object[] {null}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[3], "SEARCH notes USING COVERING INDEX notes_pcode (pcode=?)", "lint: a covered key, as the shell's glob expects");
+		r = query(srv, "SELECT name, hidden FROM pragma_table_xinfo(?)", new Object[] {"g"}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(1)[1], 2L, "dump: a virtual generated column is hidden 2");
+		// get_template_variables (ADFA-7302): its SQL, as DatabaseTools.TemplateReader sends it, through the authorizer
+		r = q(srv, "SELECT name, type, wr FROM pragma_table_list WHERE schema = 'main' AND type <> 'view' ORDER BY name");
+		List<Object> listed = new ArrayList<>();
+		for (Object[] tl : r.rows) listed.add(tl[0] + ":" + tl[1] + ":" + tl[2]);
+		check(listed.contains("w:table:1") && listed.contains("parent:table:0"), "template: table list with WITHOUT ROWID " + listed);
+		r = q(srv, "SELECT t.name, c.name, c.type, c.\"notnull\", c.dflt_value, c.pk, c.hidden FROM pragma_table_list AS t, "
+				+ "pragma_table_xinfo(t.name, t.schema) AS c WHERE t.schema = 'main' AND t.type <> 'view' ORDER BY t.name, c.cid");
+		boolean sawGenerated = false;
+		for (Object[] col : r.rows) sawGenerated |= "g".equals(col[0]) && "b".equals(col[1]) && Long.valueOf(2).equals(col[6]);
+		check(sawGenerated, "template: columns, a generated one hidden 2");
+		r = q(srv, "SELECT t.name, il.name, il.\"unique\", il.origin, il.partial, ii.name FROM pragma_table_list AS t, "
+				+ "pragma_index_list(t.name, t.schema) AS il, pragma_index_xinfo(il.name, t.schema) AS ii "
+				+ "WHERE t.schema = 'main' AND t.type = 'table' AND ii.key = 1 ORDER BY t.name, il.name, ii.seqno");
+		List<Object> indexed = new ArrayList<>();
+		for (Object[] ix : r.rows) indexed.add(ix[0] + "." + ix[1] + "." + ix[3] + "." + ix[5]);
+		check(indexed.contains("notes.notes_pcode.c.pcode") && indexed.contains("parent.sqlite_autoindex_parent_1.u.code"),
+				"template: index columns " + indexed);
+		r = q(srv, "SELECT t.name, f.id, f.\"table\", f.\"from\", f.\"to\", f.on_update, f.on_delete FROM pragma_table_list AS t, "
+				+ "pragma_foreign_key_list(t.name, t.schema) AS f WHERE t.schema = 'main' AND t.type = 'table' "
+				+ "ORDER BY t.name, f.id, f.seq");
+		eq(r.rows.size(), 2, "template: foreign keys");
+		eq(r.rows.get(0)[6], "NO ACTION", "template: on_delete");
+		for (String pragma : new String[] {"user_version", "journal_mode", "page_size", "page_count"}) {
+			check(q(srv, "PRAGMA " + pragma).rows.size() == 1, "template: PRAGMA " + pragma + " reads");
+		}
+		r = q(srv, "SELECT type, name, tbl_name, CASE WHEN type = 'table' THEN sql END FROM sqlite_master "
+				+ "WHERE type IN ('view', 'trigger') OR (type = 'table' AND sql LIKE 'CREATE VIRTUAL TABLE%') ORDER BY type, name");
+		check(r.rows.isEmpty() || r.rows.get(0).length == 4, "template: views, triggers and virtual tables");
+		// dump of a virtual table: its shadow tables are found by name and type 'shadow', and the server's authorizer allows it
+		eq(Helper.exec(app, "CREATE VIRTUAL TABLE docs USING fts5(body)"), 0, "fts5 table");
+		eq(Helper.exec(app, "CREATE TABLE docs_extra(a)"), 0, "a plain table that starts with the virtual table's name");
+		r = query(srv, "SELECT name FROM pragma_table_list WHERE schema = 'main' AND type = 'shadow' "
+				+ "AND substr(name, 1, length(?) + 1) = ? || '_' ORDER BY name", new Object[] {"docs", "docs"}, 0, 100, 4096, 1024, MAX, FAR);
+		List<Object> shadowNames = new ArrayList<>();
+		for (Object[] shadow : r.rows) shadowNames.add(shadow[0]);
+		eq(shadowNames, Arrays.asList("docs_config", "docs_content", "docs_data", "docs_docsize", "docs_idx"),
+				"dump: the shadow tables of a virtual table, and not docs_extra");
+		eq(Helper.exec(app, "DROP TABLE docs"), 0, "drop the fts5 table");
+		eq(Helper.exec(app, "DROP TABLE docs_extra"), 0, "drop the plain table");
+		// export asks for the column count with a LIMIT 0 wrapper: SQLite must stop before stepping the inner query, so
+		// an endless one (here a recursive CTE with no end) returns at once, with its columns and no rows
+		long probeStart = System.currentTimeMillis();
+		r = query(srv, "SELECT * FROM (\nWITH RECURSIVE c(x, y) AS (SELECT 1, 2 UNION ALL SELECT x + 1, y FROM c) SELECT x, y FROM c\n) LIMIT 0",
+				new Object[0], 0, 1, 4096, 1024, MAX, System.currentTimeMillis() + 3000);
+		eq(r.columns.length, 2, "export: the wrapper reports the column count");
+		eq(r.rows.size(), 0, "export: and runs no row");
+		check(System.currentTimeMillis() - probeStart < 2000, "export: the wrapper did not step the inner query");
+		r = query(srv, "SELECT wr FROM pragma_table_list WHERE schema = 'main' AND name = ?", new Object[] {"w"}, 0, 100, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], 1L, "dump: pragma_table_list knows WITHOUT ROWID");
+		r = q(srv, "SELECT 'INSERT INTO \"lines\" VALUES(' || quote(\"id\") || ',' || quote(\"pid\") || ',' || quote(\"x\") || ');' "
+				+ "FROM \"lines\" ORDER BY _rowid_");
+		eq(r.rows.get(0)[0], "INSERT INTO \"lines\" VALUES(1,NULL,0.1);", "dump: quote() keeps 0.1");
+		eq(r.rows.get(1)[0], "INSERT INTO \"lines\" VALUES(2,NULL,1.0e+300);", "dump: and 1e300");
+		r = q(srv, "SELECT 0, CAST(quote(x) AS REAL) = x FROM lines");
+		eq(r.rows.get(0)[1], 1L, "dump: a quoted REAL reads back the same");
+		r = q(srv, "SELECT type, count(*), total(length(sql)) FROM sqlite_master GROUP BY type");
+		check(r.rows.size() >= 2, "get_stats: schema objects by type");
+		eq(refusal(srv, "SELECT data FROM sqlite_dbpage WHERE pgno = 1"), "1 no such table: sqlite_dbpage",
+				"get_stats: this SQLite has no sqlite_dbpage, as requery's may not");
+		String[] ex = NativeBridge.suggestIndexes(srv, "SELECT * FROM lines WHERE x = 1; SELECT id FROM notes WHERE pcode = 'a'"
+				.getBytes(StandardCharsets.UTF_8), 0, FAR);
+		eq(ex.length, 7, "suggest_indexes: candidates, then sql, indexes and plan for two statements");
+		check(ex[2] != null && ex[2].contains("CREATE INDEX") && ex[2].contains("lines(x)"), "suggest_indexes: an index on lines(x): " + ex[2]);
+		eq(ex[5], null, "suggest_indexes: notes_pcode already covers the second");
+		check(ex[6] != null && ex[6].contains("notes_pcode"), "suggest_indexes: its plan uses it: " + ex[6]);
+		try {
+			NativeBridge.suggestIndexes(srv, "SELECT 1\0".getBytes(StandardCharsets.UTF_8), 0, FAR);
+			check(false, "suggest_indexes: a NUL was accepted");
+		} catch (DebugEngineException e) {
+			eq(e.sqliteCode, 1, "suggest_indexes: a NUL is refused");
+		}
+		try {
+			NativeBridge.suggestIndexes(srv, "SELECT 1".getBytes(StandardCharsets.UTF_8), 0, 1);
+			check(false, "suggest_indexes: ran past its deadline");
+		} catch (DebugEngineException e) {
+			eq(e.sqliteCode, 9, "suggest_indexes: the deadline is SQLITE_INTERRUPT");
+		}
+		eq(((String[]) NativeBridge.connections()[1]).length, 1, "suggest_indexes: expert's connections are not listed");
+		// sample 100: the statistics show a scan of two rows is cheap, so no index is suggested for lines(x)
+		ex = NativeBridge.suggestIndexes(srv, "SELECT * FROM lines WHERE x = 1".getBytes(StandardCharsets.UTF_8), 100, FAR);
+		eq(ex[2], null, "suggest_indexes: sampling changes the estimate");
+
 		NativeBridge.close(srv);
 
 		// the backstop: a writable connection that opens a transaction does not keep it

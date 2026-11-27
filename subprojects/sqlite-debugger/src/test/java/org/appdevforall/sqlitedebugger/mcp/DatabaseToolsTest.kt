@@ -3,10 +3,13 @@ package org.appdevforall.sqlitedebugger.mcp
 import org.appdevforall.sqlitedebugger.engine.AppConnection
 import org.appdevforall.sqlitedebugger.engine.DebugEngine
 import org.appdevforall.sqlitedebugger.engine.DebugEngineException
+import org.appdevforall.sqlitedebugger.engine.Event
+import org.appdevforall.sqlitedebugger.engine.EventDecoder
 import org.appdevforall.sqlitedebugger.engine.EventKind
 import org.appdevforall.sqlitedebugger.engine.FakeDebugEngine
 import org.appdevforall.sqlitedebugger.engine.QueryLimits
 import org.appdevforall.sqlitedebugger.engine.QueryResult
+import org.appdevforall.sqlitedebugger.engine.RowValues
 import org.appdevforall.sqlitedebugger.engine.ServerConnection
 import org.json.JSONArray
 import org.json.JSONObject
@@ -86,6 +89,11 @@ class DatabaseToolsTest {
 				"explain_query_plan",
 				"get_stats",
 				"integrity_check",
+				"suggest_indexes",
+				"get_template_variables",
+				"lint_foreign_keys",
+				"dump",
+				"export",
 				"get_events",
 			),
 			list.map { it.name },
@@ -95,7 +103,16 @@ class DatabaseToolsTest {
 
 	@Test fun everyToolThatRunsAStatementSaysAStatementOnANonWalDatabaseStopsAfterOneAndAHalfSeconds() {
 		val list = tools.tools().associateBy { it.name }
-		listOf("get_schema", "query", "explain_query_plan", "get_stats", "integrity_check").forEach { name ->
+		listOf(
+			"get_schema",
+			"query",
+			"explain_query_plan",
+			"get_stats",
+			"integrity_check",
+			"lint_foreign_keys",
+			"dump",
+			"export",
+		).forEach { name ->
 			val d = list.getValue(name).describe().getString("description")
 			assertTrue("$name: $d", d.contains("not in WAL mode a statement is stopped after 1.5 s"))
 			assertTrue("$name: $d", d.contains("WAL mode has no such limit"))
@@ -359,6 +376,8 @@ class DatabaseToolsTest {
 		bad("sql" to "x", "max_rows" to 1.5)
 		bad("sql" to "x", "args" to "nope")
 		bad("sql" to "x", "args" to JSONArray().put(JSONObject()))
+		bad("sql" to "x", "args" to JSONObject().put("a", JSONArray()))
+		bad("sql" to "x", "args" to JSONObject().put("", 1))
 		assertTrue(engine.openedServerConnections.isEmpty())
 		assertEquals(0, engine.openAttempts)
 	}
@@ -383,6 +402,7 @@ class DatabaseToolsTest {
 			),
 		)
 		assertEquals(listOf(null, 3L, 2.5, "s", 1L), got)
+		assertEquals("an array binds by position", null, engine.lastArgNames)
 	}
 
 	@Test fun queryErrorsCarryTheSqliteCode() {
@@ -409,13 +429,20 @@ class DatabaseToolsTest {
 						override fun query(
 							sql: String,
 							args: List<Any?>,
+							argNames: List<String>?,
 							offset: Long,
 							limits: org.appdevforall.sqlitedebugger.engine.QueryLimits,
 							deadlineMillis: Long,
 						): QueryResult {
 							deadline = deadlineMillis
-							return c.query(sql, args, offset, limits, deadlineMillis)
+							return c.query(sql, args, argNames, offset, limits, deadlineMillis)
 						}
+
+						override fun suggestIndexes(
+							sql: String,
+							sample: Int,
+							deadlineMillis: Long,
+						) = c.suggestIndexes(sql, sample, deadlineMillis)
 					}
 				}
 			}
@@ -434,6 +461,7 @@ class DatabaseToolsTest {
 					override fun query(
 						sql: String,
 						args: List<Any?>,
+						argNames: List<String>?,
 						offset: Long,
 						limits: QueryLimits,
 						deadlineMillis: Long,
@@ -444,8 +472,14 @@ class DatabaseToolsTest {
 								"the time limit passed before the query started",
 							)
 						}
-						return c.query(sql, args, offset, limits, deadlineMillis)
+						return c.query(sql, args, argNames, offset, limits, deadlineMillis)
 					}
+
+					override fun suggestIndexes(
+						sql: String,
+						sample: Int,
+						deadlineMillis: Long,
+					) = c.suggestIndexes(sql, sample, deadlineMillis)
 				}
 			}
 		}
@@ -514,6 +548,7 @@ class DatabaseToolsTest {
 				override fun query(
 					sql: String,
 					args: List<Any?>,
+					argNames: List<String>?,
 					offset: Long,
 					limits: QueryLimits,
 					deadlineMillis: Long,
@@ -527,8 +562,14 @@ class DatabaseToolsTest {
 						throw DebugEngineException(DebugEngineException.SQLITE_INTERRUPT, "the query ran past its time limit")
 					}
 					now += runMs
-					return c.query(sql, args, offset, limits, deadlineMillis)
+					return c.query(sql, args, argNames, offset, limits, deadlineMillis)
 				}
+
+				override fun suggestIndexes(
+					sql: String,
+					sample: Int,
+					deadlineMillis: Long,
+				) = c.suggestIndexes(sql, sample, deadlineMillis)
 			}
 		}
 	}
@@ -672,7 +713,7 @@ class DatabaseToolsTest {
 		assertEquals("-9007199254740993", row.get(4))
 		assertEquals(9_007_199_254_740_992L, row.getLong(5))
 		val blob = row.getJSONObject(6)
-		assertEquals("AQID", blob.getString("base64"))
+		assertEquals("010203", blob.getString("hex"))
 		assertEquals(3, blob.getInt("bytes"))
 		assertFalse(blob.getBoolean("truncated"))
 		assertTrue(row.isNull(7))
@@ -887,7 +928,7 @@ class DatabaseToolsTest {
 		answerWith("SELECT name" to QueryResult(listOf("name"), listOf(listOf("sqlitecache")), 0, false))
 		val r = ok("get_stats", db())
 		// "_" is a wildcard in LIKE: without the escape, sqlitecache would be left out of the listing
-		val listing = seenSql.single { it.contains("FROM sqlite_master") }
+		val listing = seenSql.single { it.startsWith("SELECT name FROM sqlite_master") }
 		assertTrue(listing, listing.contains("NOT LIKE 'sqlite\\_%' ESCAPE '\\'"))
 		assertTrue(r.getJSONObject("row_counts").has("sqlitecache"))
 	}
@@ -1084,6 +1125,230 @@ class DatabaseToolsTest {
 		t.expireIdleClient() // what the timer calls when no tool call comes
 		assertFalse(engine.clientConnected)
 		t.onServerStopped()
+	}
+
+	@Test fun queryBindsAnObjectByName() {
+		engine.appConnections += conn(1, "/data/a.db")
+		var got: List<Any?> = emptyList()
+		engine.answer = { _, _, _, a ->
+			got = a
+			QueryResult(emptyList(), emptyList(), 0, false)
+		}
+		ok(
+			"query",
+			db().put("sql", "x").put(
+				"args",
+				JSONObject()
+					.put(":b", "s")
+					.put("a", 1)
+					.put("\$c", JSONObject.NULL)
+					.put("?2", 2.5),
+			),
+		)
+		val byName = engine.lastArgNames!!.zip(got).toMap()
+		assertEquals(mapOf("a" to 1L, ":b" to "s", "\$c" to null, "?2" to 2.5), byName)
+		ok("explain_query_plan", db().put("sql", "x").put("args", JSONObject().put("id", 7)))
+		assertEquals(listOf("id"), engine.lastArgNames)
+		assertEquals(listOf<Any?>(7L), got)
+		ok("query", db().put("sql", "x").put("args", JSONObject()))
+		assertEquals("an empty object still binds by name: a parameter left out is an error", emptyList<String>(), engine.lastArgNames)
+		ok("query", db().put("sql", "x"))
+		assertEquals("no args", null, engine.lastArgNames)
+	}
+
+	@Test fun queryDescribesBothArgForms() {
+		val query = tools.tools().single { it.name == "query" }
+		val args = query.inputSchema.getJSONObject("properties").getJSONObject("args")
+		assertEquals(listOf("array", "object"), args.getJSONArray("type").let { a -> (0 until a.length()).map { a.getString(it) } })
+		for (form in listOf(":name", "@name", "\$name", "?NNN")) assertTrue(form, args.getString("description").contains(form))
+	}
+
+	@Test fun queryReturnsDeclaredTypesAndStorageClasses() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.answer = { _, _, _, _ ->
+			QueryResult(
+				listOf("id", "r", "s", "b", "e"),
+				listOf(listOf(1L, 2.0, "x", byteArrayOf(0x0f, -1), null), listOf("t", null, 3L, 1.5, byteArrayOf())),
+				0,
+				false,
+				declaredTypes = listOf("INTEGER", "REAL", "TEXT", "BLOB", null),
+			)
+		}
+		val r = ok("query", db().put("sql", "x"))
+		val types = r.getJSONArray("column_types")
+		val declared = (0 until types.length()).map { if (types.isNull(it)) null else types.get(it) }
+		assertEquals(listOf<Any?>("INTEGER", "REAL", "TEXT", "BLOB", null), declared)
+		val classes = r.getJSONArray("storage_classes").let { a -> (0 until a.length()).map { a.getString(it) } }
+		assertEquals(listOf("irtbn", "tnirb"), classes)
+		assertTrue(
+			"a REAL 2.0 reads as 2 in JSON, so only the storage class tells it from an INTEGER",
+			r.toString().contains("[1,2,\"x\""),
+		)
+		assertEquals(
+			"0fff",
+			r
+				.getJSONArray("rows")
+				.getJSONArray(0)
+				.getJSONObject(3)
+				.getString("hex"),
+		)
+		assertTrue(r.getJSONArray("rows").getJSONArray(0).isNull(4))
+		val description = tools.tools().single { it.name == "query" }.description
+		assertTrue(description.contains("storage_classes") && description.contains("column_types") && description.contains("hex"))
+	}
+
+	@Test fun queryResultWithoutDeclaredTypesGivesNullForEachColumn() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.answer = { _, _, _, _ -> QueryResult(listOf("a", "b"), listOf(listOf(1L, 2L)), 0, false) }
+		val types = ok("query", db().put("sql", "x")).getJSONArray("column_types")
+		assertEquals(2, types.length())
+		assertTrue(types.isNull(0) && types.isNull(1))
+	}
+
+	private fun rowEvent(
+		seq: Long,
+		number: Long,
+		values: List<Any?>,
+		cut: Set<Int> = emptySet(),
+		columns: Int = values.size,
+	) = Event(seq, EventKind.ROW, 1, 1, seq, null, "", values.size < columns, true, rows = number, row = RowValues(columns, values, cut))
+
+	@Test fun getEventsReturnsRowsAndChangeCounts() {
+		engine.addEvent(EventKind.STATEMENT, "SELECT id, b FROM t")
+		engine.addEvent { rowEvent(it, 1, listOf(1L, byteArrayOf(1, 2)), cut = setOf(1)) }
+		engine.addEvent { rowEvent(it, 2, listOf("x"), columns = 2) }
+		engine.addEvent { Event(it, EventKind.PROFILE, 1, 1, it, 5, "SELECT id, b FROM t", false, true, rows = 12, rowsCut = true) }
+		engine.addEvent { Event(it, EventKind.PROFILE, 1, 1, it, 5, "DELETE FROM t", false, true, rows = 0, changes = 3) }
+		engine.addEvent { Event(it, EventKind.PROFILE, 1, 1, it, 5, "SELECT 1", false, true) }
+		val events = ok("get_events").getJSONArray("events")
+		assertEquals(6, events.length())
+		val row1 = events.getJSONObject(1)
+		assertEquals("row", row1.getString("kind"))
+		assertEquals(1, row1.getInt("row_number"))
+		assertEquals(2, row1.getInt("column_count"))
+		assertEquals(1L, row1.getJSONArray("values").getLong(0))
+		assertEquals("0102", row1.getJSONArray("values").getJSONObject(1).getString("hex"))
+		assertTrue(row1.getJSONArray("values").getJSONObject(1).getBoolean("truncated"))
+		assertEquals("ib", row1.getString("storage_classes"))
+		assertEquals(1, row1.getJSONArray("cut_values").getInt(0))
+		assertFalse(row1.getBoolean("truncated"))
+		val row2 = events.getJSONObject(2)
+		assertEquals("a row whose data reached its limit keeps fewer values", 1, row2.getJSONArray("values").length())
+		assertEquals(2, row2.getInt("column_count"))
+		assertTrue(row2.getBoolean("truncated"))
+		val select = events.getJSONObject(3)
+		assertEquals(12, select.getInt("rows"))
+		assertTrue("a read has no change count", select.isNull("changes"))
+		assertTrue(select.getBoolean("rows_cut"))
+		val delete = events.getJSONObject(4)
+		assertEquals(3, delete.getInt("changes"))
+		assertEquals(0, delete.getInt("rows"))
+		assertFalse(delete.getBoolean("rows_cut"))
+		val unseen = events.getJSONObject(5)
+		assertTrue("a statement whose start was not seen", unseen.isNull("rows") && unseen.isNull("changes"))
+		val statement = events.getJSONObject(0)
+		assertFalse("only a profile carries counts", statement.has("rows") || statement.has("changes") || statement.has("values"))
+	}
+
+	@Test fun getEventsTurnsRowRecordingOnUnlessToldNotTo() {
+		val t = tools
+		ok("get_events", t = t)
+		assertEquals(
+			listOf(Triple(DatabaseTools.EVENT_ROWS_PER_STATEMENT, DatabaseTools.EVENT_VALUE_BYTES, DatabaseTools.EVENT_ROW_BYTES)),
+			engine.rowCaptureCalls,
+		)
+		ok("get_events", t = t)
+		assertEquals("already on: no second call", 1, engine.rowCaptureCalls.size)
+		engine.addEvent(EventKind.STATEMENT, "SELECT 1")
+		engine.addEvent { rowEvent(it, 1, listOf(1L)) }
+		val r = ok("get_events", JSONObject().put("include_rows", false), t)
+		assertEquals(Triple(0, 0, 0), engine.rowCaptureCalls.last())
+		assertEquals("row events are left out", listOf("statement"), kinds(r))
+		assertEquals("the cursor still passes them", 2, r.getInt("next"))
+		ok("get_events", JSONObject().put("include_rows", true), t)
+		assertEquals(DatabaseTools.EVENT_ROWS_PER_STATEMENT, engine.rowCaptureCalls.last().first)
+		t.onServerStopped()
+		assertEquals("the server stopping turns it off", Triple(0, 0, 0), engine.rowCaptureCalls.last())
+		assertTrue(runTool(tools, "get_events", JSONObject().put("include_rows", "yes")).getBoolean("isError"))
+	}
+
+	@Test fun rowRecordingStopsWithTheIdleClient() {
+		val t = tools
+		ok("get_events", t = t)
+		now += DatabaseTools.EVENTS_IDLE_MS
+		t.expireIdleClient()
+		assertFalse(engine.clientConnected)
+		assertEquals(Triple(0, 0, 0), engine.rowCaptureCalls.last())
+		ok("get_events", t = t)
+		assertEquals("the next get_events turns it on again", DatabaseTools.EVENT_ROWS_PER_STATEMENT, engine.rowCaptureCalls.last().first)
+		t.onServerStopped()
+	}
+
+	@Test fun getEventsDescribesWhatIsCapped() {
+		val description = tools.tools().single { it.name == "get_events" }.description
+		for (text in listOf(
+			"first ${DatabaseTools.EVENT_ROWS_PER_STATEMENT} rows",
+			"${DatabaseTools.EVENT_VALUE_BYTES} bytes",
+			"${DatabaseTools.EVENT_ROW_BYTES / 1024} KiB",
+			"include_rows false",
+			"changes",
+		)) {
+			assertTrue(text, description.contains(text))
+		}
+	}
+
+	@Test fun getEventsEncodesTheEventsDecodedFromTheFixture() {
+		val bytes = checkNotNull(EventDecoder::class.java.getResourceAsStream("events.bin")).use { it.readBytes() }
+		val decoded = EventDecoder.decode(bytes, bytes.size)
+		assertTrue("the fixture has row events", decoded.any { it.kind == EventKind.ROW })
+		assertTrue("and a change count", decoded.any { it.changes != null })
+		decoded.forEach { e -> engine.addEvent { e.copy(seq = it) } }
+		val events = ok("get_events").getJSONArray("events")
+		assertEquals(decoded.size, events.length())
+		decoded.forEachIndexed { i, e ->
+			val json = events.getJSONObject(i)
+			assertEquals(e.kind.name.lowercase(), json.getString("kind"))
+			when (e.kind) {
+				EventKind.ROW -> {
+					val row = e.row!!
+					assertEquals(row.columnCount, json.getInt("column_count"))
+					assertEquals(DatabaseTools.storageClasses(row.values), json.getString("storage_classes"))
+					val values = json.getJSONArray("values")
+					assertEquals(row.values.size, values.length())
+					row.values.forEachIndexed { c, v ->
+						val got = values.get(c)
+						when (v) {
+							null -> assertTrue(values.isNull(c))
+							is ByteArray -> assertEquals(DatabaseTools.hex(v), values.getJSONObject(c).getString("hex"))
+							is Double -> assertEquals(DatabaseTools.encodeValue(v), (got as? Number)?.toDouble() ?: got)
+							else -> assertEquals(DatabaseTools.encodeValue(v), if (got is Int) got.toLong() else got)
+						}
+					}
+					val cut = json.getJSONArray("cut_values")
+					assertEquals(row.cutIndexes.sorted(), (0 until cut.length()).map { cut.getInt(it) })
+				}
+
+				EventKind.PROFILE -> {
+					assertEquals(e.rows, if (json.isNull("rows")) null else json.getLong("rows"))
+					assertEquals(e.changes, if (json.isNull("changes")) null else json.getLong("changes"))
+					assertEquals(e.rowsCut, json.getBoolean("rows_cut"))
+				}
+
+				else -> {
+					assertEquals(e.sql, json.getString("sql"))
+				}
+			}
+		}
+	}
+
+	@Test fun hexIsLowercaseAndCoversEveryByte() {
+		assertEquals("00017f80ff", DatabaseTools.hex(byteArrayOf(0, 1, 127, -128, -1)))
+		assertEquals("", DatabaseTools.hex(ByteArray(0)))
+	}
+
+	private fun kinds(r: JSONObject): List<String> {
+		val events = r.getJSONArray("events")
+		return (0 until events.length()).map { events.getJSONObject(it).getString("kind") }
 	}
 
 	private class FakeIdleScheduler : IdleScheduler {

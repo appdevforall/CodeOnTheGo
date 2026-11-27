@@ -70,6 +70,12 @@ class NativeDebugEngine : DebugEngine {
 
 	override fun setClientConnected(connected: Boolean) = NativeBridge.setClientConnected(connected)
 
+	override fun setRowCapture(
+		maxRowsPerStatement: Int,
+		maxValueBytes: Int,
+		maxRowBytes: Int,
+	) = NativeBridge.setRowCapture(maxRowsPerStatement, maxValueBytes, maxRowBytes)
+
 	override fun openServerConnection(
 		path: String,
 		writable: Boolean,
@@ -81,12 +87,14 @@ class NativeDebugEngine : DebugEngine {
 		override fun query(
 			sql: String,
 			args: List<Any?>,
+			argNames: List<String>?,
 			offset: Long,
 			limits: QueryLimits,
 			deadlineMillis: Long,
 		): QueryResult {
 			check(handle != 0L) { "the connection is closed" }
 			require(offset >= 0) { "offset $offset is negative" }
+			require(argNames == null || argNames.size == args.size) { "${argNames?.size} names for ${args.size} args" }
 			require(limits.maxRows > 0 && limits.maxTextBytes >= 0 && limits.maxBlobBytes >= 0 && limits.maxTotalBytes > 0) {
 				"bad limits $limits"
 			}
@@ -95,6 +103,7 @@ class NativeDebugEngine : DebugEngine {
 					handle,
 					sql,
 					Array(args.size) { bindable(args[it]) },
+					argNames?.map { it.toByteArray(Charsets.UTF_8) }?.toTypedArray(),
 					offset,
 					limits.maxRows,
 					limits.maxTextBytes,
@@ -111,7 +120,28 @@ class NativeDebugEngine : DebugEngine {
 			val counts = result[2] as LongArray
 			val cut = HashSet<Long>()
 			for (i in 2 until counts.size) cut += counts[i]
-			return QueryResult(columns, rows, truncatedCells = counts[0].toInt(), hasMore = counts[1] != 0L, truncatedCellIndexes = cut)
+			@Suppress("UNCHECKED_CAST")
+			val declaredTypes = (result[3] as Array<String?>).asList()
+			return QueryResult(
+				columns,
+				rows,
+				truncatedCells = counts[0].toInt(),
+				hasMore = counts[1] != 0L,
+				truncatedCellIndexes = cut,
+				declaredTypes = declaredTypes,
+			)
+		}
+
+		override fun suggestIndexes(
+			sql: String,
+			sample: Int,
+			deadlineMillis: Long,
+		): IndexSuggestions {
+			check(handle != 0L) { "the connection is closed" }
+			require(sample in 0..100) { "sample $sample outside 0..100" }
+			val r = NativeBridge.suggestIndexes(handle, sql.toByteArray(Charsets.UTF_8), sample, deadlineMillis)
+			val statements = (0 until (r.size - 1) / 3).map { i -> StatementSuggestion(r[1 + 3 * i] ?: "", r[2 + 3 * i], r[3 + 3 * i]) }
+			return IndexSuggestions(r[0], statements)
 		}
 
 		override fun close() {

@@ -8,7 +8,8 @@ set(SQLITE_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/../../../../sqlite-js/upstream/li
 
 add_library(sqlitedbg SHARED
 	sqlitedbg.c
-	sqlitedbg_jni.c)
+	sqlitedbg_jni.c
+	sqlitedbg_expert.c)
 
 target_include_directories(sqlitedbg PRIVATE ${SQLITE_HEADERS} ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(sqlitedbg PRIVATE -Wall -Wextra -fvisibility=hidden)
