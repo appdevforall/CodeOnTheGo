@@ -26,6 +26,7 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.Insets
+import androidx.core.view.isVisible
 import androidx.core.view.updatePaddingRelative
 import com.itsaky.androidide.BuildConfig
 import com.itsaky.androidide.FeedbackButtonManager
@@ -33,7 +34,6 @@ import com.itsaky.androidide.R
 import com.itsaky.androidide.adapters.SimpleIconTitleDescriptionAdapter
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
 import com.itsaky.androidide.app.configuration.IDEBuildConfigProvider
-import com.itsaky.androidide.buildinfo.BuildInfo
 import com.itsaky.androidide.databinding.ActivityAboutBinding
 import com.itsaky.androidide.models.IconTitleDescriptionItem
 import com.itsaky.androidide.models.SimpleIconTitleDescriptionItem
@@ -44,6 +44,26 @@ import com.itsaky.androidide.utils.copyToClipboard
 import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashSuccess
 import com.itsaky.androidide.utils.resolveAttr
+
+/** One row of About's socials list: [value] is both the text shown and the link it opens. */
+internal data class SocialRow(
+	val id: Int,
+	@param:DrawableRes val icon: Int,
+	@param:StringRes val title: Int,
+	val value: String,
+)
+
+/**
+ * The rows to show, values trimmed. A row whose value is blank is left out, so a copy made by the
+ * Custom IDE Builder hides it by emptying its string (ADFA-7313).
+ */
+internal fun visibleRows(rows: List<SocialRow>): List<SocialRow> =
+	rows.mapNotNull { row ->
+		row.value
+			.trim()
+			.takeIf { it.isNotEmpty() }
+			?.let { row.copy(value = it) }
+	}
 
 class AboutActivity : EdgeToEdgeIDEActivity() {
 	@Suppress("ktlint:standard:backing-property-naming")
@@ -92,8 +112,11 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 					flashSuccess(R.string.copied)
 				}
 
+				// An empty github_sponsors_url (a Custom IDE Builder copy, ADFA-7313) hides the button.
+				val sponsorUrl = getString(R.string.github_sponsors_url).trim()
+				supportButton.isVisible = sponsorUrl.isNotEmpty()
 				supportButton.setOnClickListener {
-					UrlManager.openUrl(getString(R.string.github_sponsors_url), null, this@AboutActivity)
+					UrlManager.openUrl(sponsorUrl, null, this@AboutActivity)
 				}
 			}
 
@@ -115,74 +138,58 @@ class AboutActivity : EdgeToEdgeIDEActivity() {
 		}
 	}
 
+	// The row's value is both the text it shows and where it leads, so a copy that changes the string
+	// changes both (ADFA-7313).
 	private fun handleActionClick(action: SimpleIconTitleDescriptionItem) {
+		val value = action.description.toString()
 		when (action.id) {
-			ACTION_WEBSITE -> UrlManager.openUrl(BuildInfo.PROJECT_SITE, null, this)
-			ACTION_EMAIL -> UrlManager.openUrl(getString(R.string.mail_to_adfa), null, this)
-			ACTION_GH_FORUM -> UrlManager.openUrl(getString(R.string.github_discussions_url), context = this)
-			ACTION_TG_CHANNEL -> UrlManager.openUrl(getString(R.string.telegram_channel_url), "org.telegram.messenger", this)
-			ACTION_YOUTUBE -> UrlManager.openUrl(getString(R.string.youtube_channel_url), context = this)
-			ACTION_BILIBILI -> UrlManager.openUrl(getString(R.string.bilibili_video_url), context = this)
+			ACTION_EMAIL -> UrlManager.openUrl("mailto:$value", null, this)
+			ACTION_TG_CHANNEL -> UrlManager.openUrl(value, "org.telegram.messenger", this)
+			else -> UrlManager.openUrl(value, context = this)
 		}
 	}
 
 	private fun createSocialItems(): List<IconTitleDescriptionItem> =
-		mutableListOf<IconTitleDescriptionItem>().apply {
-			add(
-				createSimpleIconTextItem(
-					this@AboutActivity,
+		visibleRows(
+			listOf(
+				SocialRow(
 					ACTION_WEBSITE,
 					R.drawable.ic_website,
 					R.string.about_option_website,
-					BuildInfo.PROJECT_SITE,
+					getString(R.string.about_website_url),
 				),
-			)
-			add(
-				createSimpleIconTextItem(
-					this@AboutActivity,
+				SocialRow(
 					ACTION_EMAIL,
 					R.drawable.ic_email,
 					R.string.about_option_email,
 					getString(R.string.adfa_email),
 				),
-			)
-			add(
-				createSimpleIconTextItem(
-					this@AboutActivity,
+				SocialRow(
 					ACTION_GH_FORUM,
 					R.drawable.ic_github,
 					R.string.discussions_on_telegram,
 					getString(R.string.github_discussions_url),
 				),
-			)
-			add(
-				createSimpleIconTextItem(
-					this@AboutActivity,
+				SocialRow(
 					ACTION_TG_CHANNEL,
 					R.drawable.ic_telegram,
 					R.string.official_tg_channel,
 					getString(R.string.telegram_channel_url),
 				),
-			)
-			add(
-				createSimpleIconTextItem(
-					this@AboutActivity,
+				SocialRow(
 					ACTION_YOUTUBE,
 					R.drawable.ic_youtube,
 					R.string.about_option_youtube,
 					getString(R.string.youtube_channel_url),
 				),
-			)
-			add(
-				createSimpleIconTextItem(
-					this@AboutActivity,
+				SocialRow(
 					ACTION_BILIBILI,
 					R.drawable.ic_bilibili,
 					R.string.about_option_bilibili,
 					getString(R.string.bilibili_video_url),
 				),
-			)
-		}
+			),
+		).map { createSimpleIconTextItem(this, it.id, it.icon, it.title, it.value) }
 
 	private fun createSimpleIconTextItem(
 		context: Context,

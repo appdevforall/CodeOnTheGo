@@ -953,7 +953,7 @@
 	<string name="file">File</string>
 	<string name="actions">Tindakan</string>
 	<string name="help">Bantuan</string>
-	<string name="email_feedback_warning_prompt">Untuk mengirim pesan pribadi ke feedback@appdevforall.org, ketuk <b>OK</b>. Jika Anda tidak terhubung ke internet, pesan tidak akan langsung dikirim. Apakah Anda ingin melanjutkan?</string>
+	<string name="email_feedback_warning_prompt">Untuk mengirim pesan pribadi ke %1$s, ketuk <b>OK</b>. Jika Anda tidak terhubung ke internet, pesan tidak akan langsung dikirim. Apakah Anda ingin melanjutkan?</string>
 	<string name="feedback_subject">Masukan untuk layar %1$s</string>
 	<string name="feedback_message">\n\nSilakan masukkan masukan Anda pada kolom di bawah. Jika Anda melaporkan masalah, sertakan informasi sebanyak mungkin tentang masalah tersebut.\n\nTerima kasih!\n\n-------------stack trace----------\n%1$s</string>
 	<string name="feedback_device_info">Versi aplikasi: %1$s\n\nVersi Android: %2$s\n\nPerangkat: %3$s</string>
@@ -980,7 +980,7 @@
 	<string name="no_email_apps">Tidak ada aplikasi email yang ditemukan</string>
 	<string name="msg_internet_access_required">Akses internet diperlukan.</string>
 	<string name="msg_contact_app_dev_title">Hubungi App Dev for All</string>
-	<string name="msg_contact_app_dev_description">Untuk melaporkan masalah, memberikan saran, dan mengajukan pertanyaan, kirim email ke feedback@appdevforall.org.
+	<string name="msg_contact_app_dev_description">Untuk melaporkan masalah, memberikan saran, dan mengajukan pertanyaan, kirim email ke %1$s.
 		Akses internet diperlukan.</string>
 	<string name="code_on_the_go">Code on the Go</string>
 	<string name="feedback_email_subject">Masukan untuk Code on the Go</string>

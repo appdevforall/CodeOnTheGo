@@ -826,7 +826,7 @@
 	<string name="file">文件</string>
 	<string name="actions">操作</string>
 	<string name="help">帮助</string>
-	<string name="email_feedback_warning_prompt">要发送私密消息到 feedback@appdevforall.org，请点击<b>确定</b> 如果你未连接到互联网，消息将不会立即发送 是否要继续？</string>
+	<string name="email_feedback_warning_prompt">要发送私密消息到 %1$s，请点击<b>确定</b> 如果你未连接到互联网，消息将不会立即发送 是否要继续？</string>
 	<string name="feedback_subject">对 %1$s 屏幕的反馈</string>
 	<string name="feedback_message">\n\n请在下方的空白处输入你的反馈 如果你在报告问题，请尽可能详细地描述该问题 \n\n谢谢！\n\n-------------堆栈追踪----------\n%1$s</string>
 	<string name="feedback_device_info">应用版本：%1$s\n\nAndroid 版本：%2$s\n\n设备：%3$s</string>
@@ -854,7 +854,7 @@
 	<string name="no_email_apps">未找到邮件应用</string>
 	<string name="msg_internet_access_required">需要互联网访问 </string>
 	<string name="msg_contact_app_dev_title">联系 App Dev for All</string>
-	<string name="msg_contact_app_dev_description">要报告问题、提出建议或提问，请发送邮件至 feedback@appdevforall.org \n需要互联网访问 </string>
+	<string name="msg_contact_app_dev_description">要报告问题、提出建议或提问，请发送邮件至 %1$s \n需要互联网访问 </string>
 	<string name="code_on_the_go">Code on the Go</string>
 	<string name="feedback_email_subject">Code on the Go 反馈</string>
 	<string name="msg_feedback_log_too_long">日志太大，无法直接发送 </string>
@@ -1184,7 +1184,6 @@
 	<string name="docs_url">http://localhost:6174/i/index.html</string>
 	<string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
 	<string name="adfa_email">info@appdevforall.org</string>
-	<string name="mail_to_adfa">mailto:info@appdevforall.org</string>
 
 	<!-- AI Agent -->
 	<string name="ai_setting_saved">💾 已保存：%1$s</string>

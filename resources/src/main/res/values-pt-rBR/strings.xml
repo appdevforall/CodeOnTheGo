@@ -894,7 +894,7 @@
   <string name="file">Arquivo</string>
   <string name="actions">Ações</string>
   <string name="help">Ajuda</string>
-  <string name="email_feedback_warning_prompt">Para enviar uma mensagem privada para feedback@appdevforall.org, toque em <b>OK</b>. Se você não estiver conectado à internet, a mensagem não será enviada imediatamente. Deseja continuar?</string>
+  <string name="email_feedback_warning_prompt">Para enviar uma mensagem privada para %1$s, toque em <b>OK</b>. Se você não estiver conectado à internet, a mensagem não será enviada imediatamente. Deseja continuar?</string>
   <string name="feedback_subject">Feedback para a tela %1$s</string>
   <string name="feedback_message">\n\nDigite seu feedback no espaço abaixo. Se estiver relatando um problema, inclua o máximo de informações possível sobre ele.\n\nObrigado!\n\n-------------stack trace----------\n%1$s</string>
   <string name="feedback_device_info">Versão do aplicativo: %1$s\n\nVersão do Android: %2$s\n\nDispositivo: %3$s</string>
@@ -922,7 +922,7 @@
   <string name="no_email_apps">Nenhum aplicativo de e-mail encontrado</string>
   <string name="msg_internet_access_required">É necessário acesso à internet.</string>
   <string name="msg_contact_app_dev_title">Entre em contato com a App Dev for All</string>
-  <string name="msg_contact_app_dev_description">Para relatar problemas, fazer sugestões e tirar dúvidas, envie um e-mail para feedback@appdevforall.org. É necessário acesso à internet.</string>
+  <string name="msg_contact_app_dev_description">Para relatar problemas, fazer sugestões e tirar dúvidas, envie um e-mail para %1$s. É necessário acesso à internet.</string>
   <string name="code_on_the_go">Code on the Go</string>
   <string name="feedback_email_subject">Feedback sobre o Code on the Go</string>
   <string name="msg_feedback_log_too_long">O log é grande demais para ser enviado diretamente.</string>
@@ -1315,7 +1315,6 @@
   <string name="docs_url">http://localhost:6174/i/index.html</string>
   <string name="quickstart_url">http://localhost:6174/i/cogo-quickstart.html</string>
   <string name="adfa_email">info@appdevforall.org</string>
-  <string name="mail_to_adfa">mailto:info@appdevforall.org</string>
   <string name="youtube_channel_url">https://youtube.com/@appdevforall</string>
   <string name="bilibili_video_url">https://www.bilibili.com/video/BV1AUgR6sE3G/</string>
   <!-- AI Agent -->

@@ -1,6 +1,7 @@
 package com.itsaky.androidide
 
 import android.annotation.SuppressLint
+import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -30,9 +31,16 @@ class FeedbackButtonManager
 		private val repository = FabPositionRepository(activity.applicationContext)
 		private val calculator = FabPositionCalculator()
 
+		// A copy built without a feedback address (ADFA-7313) shows no feedback button at all.
+		private val enabled = FeedbackManager.feedbackRecipient(activity) != null
+
 		// This function is called in the onCreate method of the activity that contains the FAB
 		fun setupDraggableFab() {
 			val fab = feedbackFab ?: return
+			if (!enabled) {
+				fab.visibility = View.GONE
+				return
+			}
 			loadFabPosition()
 			setupLayoutChangeListener(fab)
 			setupTouchAndClickListeners(fab)
@@ -41,6 +49,7 @@ class FeedbackButtonManager
 		// Called in onResume for returning activities to reload FAB position
 		fun loadFabPosition() {
 			val fab = feedbackFab ?: return
+			if (!enabled) return
 			activity.lifecycleScope.launch {
 				val (xRatio, yRatio) = repository.readPositionRatios()
 				if (xRatio == -1f || yRatio == -1f) return@launch

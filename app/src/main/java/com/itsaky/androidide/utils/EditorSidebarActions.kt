@@ -66,10 +66,6 @@ import java.lang.ref.WeakReference
  * @author Akash Yadav
  */
 
-object ContactDetails {
-	const val EMAIL_SUPPORT = "feedback@appdevforall.org"
-}
-
 internal object EditorSidebarActions {
 	private var previousDestinationListener: NavController.OnDestinationChangedListener? = null
 	private var previousNavController: WeakReference<NavController>? = null

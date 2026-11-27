@@ -36,134 +36,138 @@ import androidx.fragment.app.Fragment
 import com.itsaky.androidide.databinding.LayoutCrashReportBinding
 import com.itsaky.androidide.resources.R
 import com.itsaky.androidide.utils.BasicBuildInfo
+import com.itsaky.androidide.utils.FeedbackManager
 import com.itsaky.androidide.utils.resolveAttr
 
 class CrashReportFragment : Fragment() {
+	@Suppress("ktlint:standard:backing-property-naming")
+	private var _binding: LayoutCrashReportBinding? = null
+	private val binding get() = _binding!!
 
-    private var _binding: LayoutCrashReportBinding? = null
-    private val binding get() = _binding!!
+	private var closeAppOnClick = true
 
-    private var closeAppOnClick = true
+	companion object {
+		const val KEY_CLOSE_APP_ON_CLICK = "close_on_app_click"
 
-    companion object {
-        const val KEY_CLOSE_APP_ON_CLICK = "close_on_app_click"
+		@JvmStatic
+		fun newInstance(): CrashReportFragment = newInstance(true)
 
-        @JvmStatic
-        fun newInstance(): CrashReportFragment {
-            return newInstance(true)
-        }
+		@JvmStatic
+		fun newInstance(closeAppOnClick: Boolean): CrashReportFragment {
+			val frag = CrashReportFragment()
+			val args =
+				Bundle().apply {
+					putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
+				}
+			frag.arguments = args
+			return frag
+		}
+	}
 
-        @JvmStatic
-        fun newInstance(
-            closeAppOnClick: Boolean
-        ): CrashReportFragment {
-            val frag = CrashReportFragment()
-            val args = Bundle().apply {
-                putBoolean(KEY_CLOSE_APP_ON_CLICK, closeAppOnClick)
-            }
-            frag.arguments = args
-            return frag
-        }
-    }
+	override fun onCreateView(
+		inflater: LayoutInflater,
+		container: ViewGroup?,
+		savedInstanceState: Bundle?,
+	): View {
+		_binding = LayoutCrashReportBinding.inflate(inflater, container, false)
+		return binding.root
+	}
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = LayoutCrashReportBinding.inflate(inflater, container, false)
-        return binding.root
-    }
+	override fun onViewCreated(
+		view: View,
+		savedInstanceState: Bundle?,
+	) {
+		super.onViewCreated(view, savedInstanceState)
+		val args = requireArguments()
+		closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
+		val title = getString(R.string.msg_ide_crashed)
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        val args = requireArguments()
-        closeAppOnClick = args.getBoolean(KEY_CLOSE_APP_ON_CLICK)
-        val title = getString(R.string.msg_ide_crashed)
+		binding.apply {
+			crashTitle.text = title
+			crashSubtitle.apply {
+				setCrashInfoText()
+			}
 
-        binding.apply {
-            crashTitle.text = title
-            crashSubtitle.apply {
-                setCrashInfoText()
-            }
+			closeButton.setOnClickListener {
+				finishActivity()
+			}
 
-            closeButton.setOnClickListener {
-                finishActivity()
-            }
+			btnOkay.setOnClickListener { finishActivity() }
 
-            btnOkay.setOnClickListener { finishActivity() }
+			requireActivity().onBackPressedDispatcher.addCallback(
+				viewLifecycleOwner,
+				object : OnBackPressedCallback(true) {
+					override fun handleOnBackPressed() {
+						finishActivity()
+					}
+				},
+			)
+		}
+	}
 
-            requireActivity().onBackPressedDispatcher.addCallback(
-                viewLifecycleOwner,
-                object : OnBackPressedCallback(true) {
-                    override fun handleOnBackPressed() {
-                        finishActivity()
-                    }
-                }
-            )
+	fun TextView.setCrashInfoText() {
+		// Get crash message with placeholder
+		val supportText = context.getString(R.string.contact_support_team)
+		val fullText = context.getString(R.string.msg_crash_info, supportText)
+		val linkColor = requireContext().resolveAttr(com.itsaky.androidide.R.attr.colorOnSurface)
+		val spannable = SpannableString(fullText)
 
-        }
-    }
+		// Find clickable phrase in text. A copy built without a feedback address (ADFA-7313) offers no
+		// email: the report still shows, so it can be copied.
+		val recipient = FeedbackManager.feedbackRecipient(context)
+		val start = fullText.indexOf(supportText)
+		if (start != -1 && recipient != null) {
+			spannable.setSpan(
+				object : ClickableSpan() {
+					override fun onClick(widget: View) {
+						sendEmail(context = context, email = recipient)
+					}
 
-    fun TextView.setCrashInfoText() {
-        // Get crash message with placeholder
-        val supportText = context.getString(R.string.contact_support_team)
-        val fullText = context.getString(R.string.msg_crash_info, supportText)
-        val linkColor = requireContext().resolveAttr(com.itsaky.androidide.R.attr.colorOnSurface)
-        val spannable = SpannableString(fullText)
+					override fun updateDrawState(ds: TextPaint) {
+						super.updateDrawState(ds)
+						ds.color = linkColor
+						ds.isUnderlineText = true
+					}
+				},
+				start,
+				start + supportText.length,
+				Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+			)
+		}
 
-        // Find clickable phrase in text
-        val start = fullText.indexOf(supportText)
-        if (start != -1) {
-            spannable.setSpan(
-                object : ClickableSpan() {
-                    override fun onClick(widget: View) {
-                        sendEmail(context = context)
+		text = spannable
+		movementMethod = LinkMovementMethod.getInstance()
+	}
 
-                    }
+	private fun sendEmail(
+		context: Context,
+		email: String,
+	) {
+		val subject = Uri.encode(context.getString(R.string.crash_email_subject))
+		val body =
+			Uri.encode(
+				context.getString(
+					R.string.crash_email_body,
+					BasicBuildInfo.formatVersion(),
+				),
+			)
 
-                    override fun updateDrawState(ds: TextPaint) {
-                        super.updateDrawState(ds)
-                        ds.color = linkColor
-                        ds.isUnderlineText = true
-                    }
-                },
-                start,
-                start + supportText.length,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
+		val uri = "mailto:$email?subject=$subject&body=$body".toUri()
 
-        text = spannable
-        movementMethod = LinkMovementMethod.getInstance()
-    }
+		val intent = Intent(Intent.ACTION_SENDTO, uri)
+		context.startActivity(intent)
+	}
 
-    private fun sendEmail(context: Context) {
-        val email = "feedback@appdevforall.org"
-        val subject = Uri.encode(context.getString(R.string.crash_email_subject))
-        val body = Uri.encode(
-            context.getString(
-                R.string.crash_email_body,
-                BasicBuildInfo.formatVersion()
-            )
-        )
+	private fun finishActivity() {
+		if (closeAppOnClick) {
+			requireActivity().finishAffinity()
+		} else {
+			requireActivity().finish()
+		}
+	}
 
-        val uri = "mailto:$email?subject=$subject&body=$body".toUri()
-
-        val intent = Intent(Intent.ACTION_SENDTO, uri)
-        context.startActivity(intent)
-    }
-
-    private fun finishActivity() {
-        if (closeAppOnClick) {
-            requireActivity().finishAffinity()
-        } else {
-            requireActivity().finish()
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
+	override fun onDestroyView() {
+		super.onDestroyView()
+		_binding = null
+	}
 }
