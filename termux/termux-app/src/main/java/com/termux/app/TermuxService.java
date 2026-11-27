@@ -16,6 +16,7 @@ import android.os.IBinder;
 import android.os.PowerManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import com.itsaky.androidide.preferences.internal.SecurityPreferences;
 import com.termux.R;
 import com.termux.app.event.SystemEventReceiver;
 import com.termux.app.terminal.TermuxTerminalSessionActivityClient;
@@ -797,6 +798,18 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         // Set pending intent to be launched when notification is clicked
         Intent notificationIntent = TermuxActivity.newInstance(this);
         PendingIntent contentIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        // Instant Hide (ADFA-40): while disguised, name the disguise and nothing of the sessions. The
+        // content intent stays: opening the terminal then shows the disguise instead.
+        if (SecurityPreferences.INSTANCE.isHiddenStateActive()) {
+            return new Notification.Builder(this, TermuxConstants.TERMUX_APP_NOTIFICATION_CHANNEL_ID)
+                .setSmallIcon(com.itsaky.androidide.resources.R.drawable.ic_stealth_notification)
+                .setContentTitle(getString(com.itsaky.androidide.resources.R.string.stealth_app_name))
+                .setShowWhen(false)
+                .setOngoing(true)
+                .setContentIntent(contentIntent)
+                .build();
+        }
 
 
         // Set notification text

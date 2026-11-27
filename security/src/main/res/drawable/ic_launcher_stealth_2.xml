@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:width="108dp"
+	android:height="108dp"
+	android:viewportWidth="108"
+	android:viewportHeight="108">
+	<!-- Variation 2: Cyber Blue Keyhole / Lock -->
+	<path
+		android:fillColor="#1A1A2E"
+		android:pathData="M10,10h88v88h-88z" />
+	<path
+		android:fillColor="#16213E"
+		android:pathData="M16,16h76v76h-76z" />
+	<path
+		android:fillColor="#00D2FC"
+		android:pathData="M42,28a12,12 0 0,1 24,0v12h4v36h-32v-36h4z M48,28a6,6 0 0,1 12,0v12h-12z M51,54h6v12h-6z" />
+</vector>

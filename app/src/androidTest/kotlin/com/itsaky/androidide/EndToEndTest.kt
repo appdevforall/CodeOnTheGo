@@ -4,7 +4,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.itsaky.androidide.activities.SplashActivity
+import com.itsaky.androidide.activities.LauncherActivity
 import com.itsaky.androidide.helper.advancePastWelcomeScreen
 import com.itsaky.androidide.helper.clickFirstAccessibilityNodeByText
 import com.itsaky.androidide.helper.configureAutomationBuildPreferences
@@ -44,7 +44,7 @@ class EndToEndTest : TestCase() {
 			// ── Launch ──
 
 			step("Launch app") {
-				ActivityScenario.launch(SplashActivity::class.java)
+				ActivityScenario.launch(LauncherActivity::class.java)
 				Thread.sleep(1000)
 			}
 

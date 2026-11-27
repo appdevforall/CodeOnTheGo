@@ -48,6 +48,7 @@ object TooltipTag {
 	const val PREFS_BUILD_RUN = "prefs.buildrun"
 	const val PREFS_TERMUX = "prefs.termux"
 	const val PREFS_GIT = "prefs.git"
+	const val PREFS_SECURITY = "prefs.security"
 	const val PREFS_PLUGIN_MANAGER = "prefs.pluginmanager"
 	const val PREFS_ABOUT = "prefs.about"
 	const val PREFS_DEVOPTIONS = "prefs.devoptions"

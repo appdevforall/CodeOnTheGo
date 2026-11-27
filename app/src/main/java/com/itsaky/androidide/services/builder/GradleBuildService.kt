@@ -42,9 +42,11 @@ import com.itsaky.androidide.managers.ToolsManager
 import com.itsaky.androidide.plugins.manager.services.IdeBuildServiceImpl
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.preferences.internal.DevOpsPreferences
+import com.itsaky.androidide.preferences.internal.SecurityPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.projects.builder.BuildService
 import com.itsaky.androidide.resources.R
+import com.itsaky.androidide.security.NeutralNotifications
 import com.itsaky.androidide.services.ToolingServerNotStartedException
 import com.itsaky.androidide.services.builder.ToolingServerRunner.OnServerStartListener
 import com.itsaky.androidide.tasks.ifCancelledOrInterrupted
@@ -405,6 +407,10 @@ class GradleBuildService :
 		message: String,
 		isProgress: Boolean,
 	): Notification {
+		// Instant Hide (ADFA-40): a build's progress must not reappear in the shade while disguised.
+		if (SecurityPreferences.isHiddenStateActive) {
+			return NeutralNotifications.build(this, BaseApplication.NOTIFICATION_GRADLE_BUILD_SERVICE)
+		}
 		val ticker = getString(R.string.title_gradle_service_notification_ticker)
 		val title = getString(R.string.title_gradle_service_notification)
 		val launch = packageManager.getLaunchIntentForPackage(BuildConfig.APPLICATION_ID)

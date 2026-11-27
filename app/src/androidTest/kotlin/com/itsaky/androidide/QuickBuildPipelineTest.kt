@@ -5,7 +5,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
-import com.itsaky.androidide.activities.SplashActivity
+import com.itsaky.androidide.activities.LauncherActivity
 import com.itsaky.androidide.app.configuration.IJdkDistributionProvider
 import com.itsaky.androidide.helper.FakeInstalledPackages
 import com.itsaky.androidide.helper.ensureOnHomeScreenBeforeCreateProject
@@ -366,7 +366,7 @@ class QuickBuildPipelineTest : TestCase() {
 		packageSuffix: String,
 	) {
 		step("Launch app") {
-			ActivityScenario.launch(SplashActivity::class.java)
+			ActivityScenario.launch(LauncherActivity::class.java)
 			waitForMainHomeOrEditorUi(device.uiDevice)
 		}
 
