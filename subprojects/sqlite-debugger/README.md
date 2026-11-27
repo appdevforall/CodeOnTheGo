@@ -82,6 +82,22 @@ Capabilities of the sqlite3 shell, in the server so every client has them. All a
   - The header fields no PRAGMA reads come from page 1 through `sqlite_dbpage`, when SQLite has it; otherwise `header_unavailable` says why. The host SQLite in `test.sh` has no `sqlite_dbpage`; whether requery's has it is unchecked.
   - Never from the file itself: closing any descriptor to it would drop the app's POSIX locks.
 
+### SQL templates (ADFA-7302)
+
+`.read` with a Pebble template: AI-Agent-MCP fetches the variables here, Code on the Go renders the template (its `SqlTemplateService`), and the functions a template calls are tool calls back to this server.
+- **`get_template_variables`.** What a template can use without reading the app's rows, in one call:
+  - **App and device**, from `DebuggerStartup`: package, `version_name`, `version_code`; API level, ABI, ABIs and locale (read on each call).
+  - **Per database:** path, name, `user_version`, journal mode, page size and count, and `library` for a database a library owns, by file name (only `androidx.work.workdb` so far).
+  - **Per table:** type (`table`, `virtual`, `shadow`), WITHOUT ROWID, columns (declared type, NOT NULL, default, primary key position, generated), primary key, indexes and foreign keys.
+  - **Schema objects:** views, triggers, FTS tables and `sqlite_sequence`.
+  - **Room**, when `room_master_table` exists: `user_version` as the schema version, the identity hash (row id 42), Room's own tables (`room_master_table` and `room_table_modification_log`, when present; an app's other `room_*` tables are not listed) and its `room_fts_content_sync_` triggers.
+- **How it reads.** `pragma_table_list` (SQLite 3.37 and later), `pragma_table_xinfo`, `pragma_index_list`/`pragma_index_xinfo` and `pragma_foreign_key_list`, one query each, paged to 20,000 rows (`truncated` past that), and `sqlite_master` for views, triggers and virtual-table modules. `sqlite_` tables are left out, and a virtual table's hidden columns (FTS's own) too.
+- **Errors.** A database that fails, for any reason, is listed in `errors` and the others still come. When the call's time limit passes, each database not yet read is in `errors` too, with the error `not read: the call's time limit passed before this database`.
+- **Not here:**
+  - Row counts and other reads of the data: a template calls those as functions, only when it uses them.
+  - The build type: AGP 8 generates no `BuildConfig` by default, and nothing else tells the library the app's variant.
+  - Project name and path, and the Room schemas a project exports: Code on the Go adds those.
+
 ## Decisions that shape it
 
 - **Debug builds only.** `DebuggerStartup.onCreate` throws if the process is not debuggable, so a release build that includes the library by mistake crashes at once instead of opening a local server.
@@ -102,7 +118,7 @@ Capabilities of the sqlite3 shell, in the server so every client has them. All a
 - **Host C tests of the extension:** `subprojects/sqlite-debugger/test.sh [--update-fixture] [AMALGAMATION_TARBALL]`. It builds SQLite 3.49.1 from the amalgamation as requery builds it (`SQLITE_THREADSAFE=2`), checks its headers against `sqlite-js/upstream/libs`, and runs `src/test/c/sqlitedbg_test.c` under AddressSanitizer with UBSan, then under ThreadSanitizer. It needs gcc, curl, tar and sha256sum, and downloads the tarball unless you pass one. It runs on Linux only: the script uses GNU `sed -i` without a suffix, `sha256sum` and `readlink -f`, and the JNI build includes `include/linux` and builds `.so` files. CI runs it on `ubuntu-latest`.
 - **The fixture:** `src/test/resources/.../engine/events.bin` and `events.tsv` are written by the C test and read by `EventDecoderTest`. Without `--update-fixture`, `test.sh` checks the committed pair against the current record layout, so a layout change fails until you regenerate it and update `EventDecoder.kt`.
 - **JNI test:** when a JDK is on PATH, `test.sh` also builds `libsqlitedbg.so` as it ships (no `SQLITE_CORE`) against a requery-like `libsqlite3x.so` and runs `src/test/jni/JniQueryTest.java` through `NativeBridge`: paging, the total-bytes budget, per-cell truncation, bound types, binding by name, declared types, the row-recording switch, one statement per call, the deadline, refused writes and transactions, and the rollback of a transaction left open. It uses Java stubs of `NativeBridge` and `DebugEngineException` instead of the Kotlin, so a JDK is all it needs; `test.sh` checks the native names match `NativeBridge.kt`. Otherwise it is skipped with a message. CI runs `test.sh` in `.github/workflows/test-sqlite-debugger.yml` for changes under this module.
-- **JVM tests:** `flox activate -d flox/local -- ./gradlew :subprojects:sqlite-debugger:testDebugUnitTest`. They cover `EventDecoder`, `McpProtocol`, `McpHttp`, `DatabaseTools` (with `FakeDebugEngine`), the sqlite3 shell tools (`ShellToolsTest`) and `EndpointBroadcast`, its announce receiver included.
+- **JVM tests:** `flox activate -d flox/local -- ./gradlew :subprojects:sqlite-debugger:testDebugUnitTest`. They cover `EventDecoder`, `McpProtocol`, `McpHttp`, `DatabaseTools` (with `FakeDebugEngine`), the sqlite3 shell tools (`ShellToolsTest`), `get_template_variables` (`TemplateVariablesTest`) and `EndpointBroadcast`, its announce receiver included.
 - **Expert:** the C test runs `sqlitedbg_expert_run` on a read-only server connection. It checks that expert suggests the index, lists nothing, traces nothing, and leaves nothing on the server connection, and that no sampling query runs on it. The JNI test runs `suggestIndexes` and the SQL the other shell tools send, against the real SQLite.
 
 `.github/workflows/test-sqlite-debugger.yml` runs `test.sh` (the C and JNI tests) on pull requests that touch the module or the SQLite headers. The JVM tests run in `.github/workflows/debug.yml`, in the step "Run sqlite-debugger unit tests" beside the `:plugin-api` one.

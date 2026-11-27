@@ -15,6 +15,7 @@ import com.itsaky.androidide.plugins.manager.services.IdeEditorServiceImpl
 import com.itsaky.androidide.plugins.services.DebuggerEndpoint
 import com.itsaky.androidide.plugins.services.DebuggerEndpointService
 import com.itsaky.androidide.plugins.services.IdeTerminalService
+import com.itsaky.androidide.plugins.services.SqlTemplateService
 import com.itsaky.androidide.preferences.internal.GeneralPreferences
 import com.itsaky.androidide.projects.ProjectManagerImpl
 import com.itsaky.androidide.utils.Environment
@@ -125,6 +126,55 @@ class PluginManagerDebuggerEndpointTest {
 		assertThat(pluginManager().enablePlugin("reader")).isTrue()
 
 		assertThat(offMainThread { service.getEndpoints() }).containsExactly(endpoint)
+	}
+
+	@Test
+	fun `a plugin with the permission gets a SqlTemplateService for the project now open, and one without is refused`() {
+		File(project, "sqlite").mkdirs()
+		File(project, "sqlite/t.sql.peb").writeText("SELECT \${{ project.name }}")
+		load("reader", "debugger.endpoints")
+		load("other", "filesystem.read")
+		openInEditor(project)
+
+		val reader = sqlTemplateService("reader")
+		assertThat(offMainThread { reader.listTemplates() }).containsExactly("sqlite/t.sql.peb")
+		assertThat(offMainThread { reader.render("sqlite/t.sql.peb", emptyMap<String, Any>(), emptyMap(), 5_000) })
+			.isEqualTo("SELECT ${project.canonicalFile.name}")
+		assertThrows(SecurityException::class.java) { offMainThread { sqlTemplateService("other").listTemplates() } }
+	}
+
+	@Test
+	fun `a SqlTemplateService refuses while its plugin is disabled or unloaded, and works again once enabled`() {
+		File(project, "t.sql.peb").writeText("SELECT 1")
+		load("reader", "debugger.endpoints")
+		openInEditor(project)
+		val service = sqlTemplateService("reader")
+
+		assertThat(pluginManager().disablePlugin("reader")).isTrue()
+		assertThrows(CancellationException::class.java) { offMainThread { service.listTemplates() } }
+		assertThrows(CancellationException::class.java) { offMainThread { service.getRoomSchemas() } }
+		assertThrows(CancellationException::class.java) {
+			offMainThread { service.render("t.sql.peb", emptyMap<String, Any>(), emptyMap(), 5_000) }
+		}
+
+		assertThat(pluginManager().enablePlugin("reader")).isTrue()
+		assertThat(offMainThread { service.listTemplates() }).containsExactly("t.sql.peb")
+
+		assertThat(pluginManager().unloadPlugin("reader")).isTrue()
+		assertThrows(CancellationException::class.java) { offMainThread { service.listTemplates() } }
+	}
+
+	@Test
+	fun `a plugin loaded while disabled gets a SqlTemplateService that refuses`() {
+		load("reader", "debugger.endpoints")
+		assertThat(pluginManager().disablePlugin("reader")).isTrue()
+		assertThat(pluginManager().unloadPlugin("reader")).isTrue()
+		openInEditor(project)
+
+		load("reader", "debugger.endpoints")
+
+		assertThat(pluginManager().getLoadedPlugin("reader")).isNull()
+		assertThrows(CancellationException::class.java) { offMainThread { sqlTemplateService("reader").listTemplates() } }
 	}
 
 	@Test
@@ -361,6 +411,12 @@ class PluginManagerDebuggerEndpointTest {
 		assertWithMessage("plugin $id did not load: ${result.exceptionOrNull()}").that(result.isSuccess).isTrue()
 		val plugin = pluginManager().getPlugin(id) as ContextKeepingPlugin
 		return checkNotNull(plugin.context.services.get(DebuggerEndpointService::class.java)) { "no DebuggerEndpointService for $id" }
+	}
+
+	/** The [SqlTemplateService] of the plugin [id], which [load] has loaded. */
+	private fun sqlTemplateService(id: String): SqlTemplateService {
+		val plugin = pluginManager().getPlugin(id) as ContextKeepingPlugin
+		return checkNotNull(plugin.context.services.get(SqlTemplateService::class.java)) { "no SqlTemplateService for $id" }
 	}
 
 	/** Runs [block] on a worker thread: on the main thread, where Robolectric runs the test, getEndpoints throws. */

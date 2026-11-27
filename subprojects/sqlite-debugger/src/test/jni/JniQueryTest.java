@@ -481,6 +481,34 @@ public class JniQueryTest {
 		eq(r.rows.get(0)[3], "SEARCH notes USING COVERING INDEX notes_pcode (pcode=?)", "lint: a covered key, as the shell's glob expects");
 		r = query(srv, "SELECT name, hidden FROM pragma_table_xinfo(?)", new Object[] {"g"}, 0, 100, 4096, 1024, MAX, FAR);
 		eq(r.rows.get(1)[1], 2L, "dump: a virtual generated column is hidden 2");
+		// get_template_variables (ADFA-7302): its SQL, as DatabaseTools.TemplateReader sends it, through the authorizer
+		r = q(srv, "SELECT name, type, wr FROM pragma_table_list WHERE schema = 'main' AND type <> 'view' ORDER BY name");
+		List<Object> listed = new ArrayList<>();
+		for (Object[] tl : r.rows) listed.add(tl[0] + ":" + tl[1] + ":" + tl[2]);
+		check(listed.contains("w:table:1") && listed.contains("parent:table:0"), "template: table list with WITHOUT ROWID " + listed);
+		r = q(srv, "SELECT t.name, c.name, c.type, c.\"notnull\", c.dflt_value, c.pk, c.hidden FROM pragma_table_list AS t, "
+				+ "pragma_table_xinfo(t.name, t.schema) AS c WHERE t.schema = 'main' AND t.type <> 'view' ORDER BY t.name, c.cid");
+		boolean sawGenerated = false;
+		for (Object[] col : r.rows) sawGenerated |= "g".equals(col[0]) && "b".equals(col[1]) && Long.valueOf(2).equals(col[6]);
+		check(sawGenerated, "template: columns, a generated one hidden 2");
+		r = q(srv, "SELECT t.name, il.name, il.\"unique\", il.origin, il.partial, ii.name FROM pragma_table_list AS t, "
+				+ "pragma_index_list(t.name, t.schema) AS il, pragma_index_xinfo(il.name, t.schema) AS ii "
+				+ "WHERE t.schema = 'main' AND t.type = 'table' AND ii.key = 1 ORDER BY t.name, il.name, ii.seqno");
+		List<Object> indexed = new ArrayList<>();
+		for (Object[] ix : r.rows) indexed.add(ix[0] + "." + ix[1] + "." + ix[3] + "." + ix[5]);
+		check(indexed.contains("notes.notes_pcode.c.pcode") && indexed.contains("parent.sqlite_autoindex_parent_1.u.code"),
+				"template: index columns " + indexed);
+		r = q(srv, "SELECT t.name, f.id, f.\"table\", f.\"from\", f.\"to\", f.on_update, f.on_delete FROM pragma_table_list AS t, "
+				+ "pragma_foreign_key_list(t.name, t.schema) AS f WHERE t.schema = 'main' AND t.type = 'table' "
+				+ "ORDER BY t.name, f.id, f.seq");
+		eq(r.rows.size(), 2, "template: foreign keys");
+		eq(r.rows.get(0)[6], "NO ACTION", "template: on_delete");
+		for (String pragma : new String[] {"user_version", "journal_mode", "page_size", "page_count"}) {
+			check(q(srv, "PRAGMA " + pragma).rows.size() == 1, "template: PRAGMA " + pragma + " reads");
+		}
+		r = q(srv, "SELECT type, name, tbl_name, CASE WHEN type = 'table' THEN sql END FROM sqlite_master "
+				+ "WHERE type IN ('view', 'trigger') OR (type = 'table' AND sql LIKE 'CREATE VIRTUAL TABLE%') ORDER BY type, name");
+		check(r.rows.isEmpty() || r.rows.get(0).length == 4, "template: views, triggers and virtual tables");
 		// dump of a virtual table: its shadow tables are found by name and type 'shadow', and the server's authorizer allows it
 		eq(Helper.exec(app, "CREATE VIRTUAL TABLE docs USING fts5(body)"), 0, "fts5 table");
 		eq(Helper.exec(app, "CREATE TABLE docs_extra(a)"), 0, "a plain table that starts with the virtual table's name");

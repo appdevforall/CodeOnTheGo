@@ -30,6 +30,7 @@ dependencies {
 	implementation(projects.resources)
 	implementation(projects.idetooltips)
 	implementation(projects.shared)
+	implementation(projects.subprojects.pebble)
 	implementation(projects.subprojects.projects)
 
 	implementation(libs.androidx.appcompat)

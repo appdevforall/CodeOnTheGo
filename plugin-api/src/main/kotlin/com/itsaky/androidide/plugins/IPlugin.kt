@@ -57,7 +57,8 @@ enum class PluginPermission(
 	DEBUGGER_ENDPOINTS(
 		"debugger.endpoints",
 		"Read the port and token of the open project's SQLite debugger servers. The token lets the plugin query the " +
-			"databases of the project's apps: read-only for now, and later versions may allow writes. Plugins run in " +
+			"databases of the project's apps: read-only for now, and later versions may allow writes. Also render the " +
+			"project's SQL templates and read the Room schemas it exports (SqlTemplateService). Plugins run in " +
 			"Code on the Go's process, so this declares intent and cannot stop reflection",
 	),
 }
