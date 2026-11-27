@@ -493,14 +493,19 @@ class PluginManager private constructor(
 			// After loading all plugins, verify documentation for already loaded plugins
 			verifyDocumentationForLoadedPlugins()
 
-			val pluginFiles =
+			val allFiles =
 				pluginsDir.listFiles { file ->
 					file.isFile && file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true)
 				} ?: return@withContext
 
-			logger.info("Found ${pluginFiles.size} plugin files")
+			// Loading a file again would replace its entry without deactivating the old instance.
+			val loadedPaths = loadedPlugins.values.map { it.apkPath }.toSet()
+			val pluginFiles = allFiles.filter { it.absolutePath !in loadedPaths }
 
-			loadFailures.clear()
+			logger.info("Found ${allFiles.size} plugin files, ${pluginFiles.size} not loaded yet")
+
+			// Keep what a loaded plugin failed at (activation), which a skipped file cannot report again.
+			loadFailures.keys.removeAll { !loadedPlugins.containsKey(it) }
 
 			// Load plugins in parallel
 			val loadJobs =
@@ -852,8 +857,10 @@ class PluginManager private constructor(
 			buildActionManager.registerManifestActions(manifest.id, manifest.name, manifest)
 			lifecycleDispatcher.notifyActivated(manifest.id)
 			notifyLanguageContributionsChanged(plugin)
+			loadFailures.remove(manifest.id)
 		}.onFailure { e ->
 			logger.error("Failed to activate  plugin: ${manifest.id}", e)
+			loadFailures[manifest.id] = e.message ?: e.toString()
 			markDisabled(loadedPlugin)
 			savePluginState(manifest.id, false)
 			// activate() may have registered workspace listeners before it failed.

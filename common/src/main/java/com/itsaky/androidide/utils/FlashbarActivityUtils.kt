@@ -63,7 +63,7 @@ private fun Flashbar.Builder.applyIcon(iconType: IconType): Flashbar.Builder =
 /**
  * Builds and configures a Flashbar for [msg]/[iconType] (icon, and - for an indefinite error - the
  * dismiss button plus tap/swipe dismissal), without showing it yet. Shared by [showFlashBar] and
- * [showFlashBarAwaitShown]
+ * [showTrackedFlashBar]
  * so their setup can't silently diverge. Returns `null` for a `null` [msg] (nothing to show).
  */
 private fun Activity.configureFlashbar(
@@ -71,6 +71,7 @@ private fun Activity.configureFlashbar(
 	iconType: IconType,
 	gravity: Flashbar.Gravity,
 	duration: Long,
+	onDismissButton: () -> Unit = {},
 ): Flashbar.Builder? {
 	if (msg == null) return null
 	if (msg !is Int && msg !is String) {
@@ -82,7 +83,10 @@ private fun Activity.configureFlashbar(
 	// Add a close button if the flashbar is an indefinite error
 	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
 		builder.positiveActionText(getString(R.string.dismiss))
-		builder.positiveActionTapListener { it.dismiss() }
+		builder.positiveActionTapListener {
+			onDismissButton()
+			it.dismiss()
+		}
 
 		// An indefinite bar is drawn OVER the activity, and the error variant is tall enough
 		// (message + action row) to cover the editor toolbar. Until it goes away the Run and
@@ -161,21 +165,39 @@ fun Activity.flashInfo(msg: String?) = showFlashBar(msg, IconType.INFO)
 // is the difference between an explanation and a flicker.
 fun Activity.flashInfoLong(msg: String?) = showFlashBar(msg, IconType.INFO, duration = DURATION_LONG)
 
+/** A bar shown by [flashErrorTracked], for a caller that waits for it to appear or to be dismissed. */
+interface TrackedFlashbar {
+	/** Suspends until the bar has finished appearing; false if it has not within [FLASH_SHOWN_TIMEOUT_MS]. */
+	suspend fun awaitShown(): Boolean
+
+	/**
+	 * Suspends until the bar is dismissed; for an indefinite error bar, only the user does that.
+	 * Returns true only if the Dismiss button did it. With [Experiment.ERROR_BAR_TOUCH_DISMISS] on, a
+	 * tap anywhere on the bar or a swipe also dismisses it, often by accident, since the bar covers the
+	 * toolbar; those return false.
+	 * Destroying the activity fires no dismiss callback (the bar's view is only detached), so if the
+	 * activity goes away first this never returns: wait in a scope that ends with the activity, such
+	 * as its lifecycleScope.
+	 */
+	suspend fun awaitDismissed(): Boolean
+}
+
 /**
- * Like [showFlashBar], but suspends until the bar's entrance animation has actually finished (or
- * [FLASH_SHOWN_TIMEOUT_MS] elapses) instead of firing-and-forgetting - for callers (e.g. a
- * one-shot screen about to finish()) that need the message to be visible before proceeding,
- * rather than guessing a fixed delay that may or may not outlast the real animation.
+ * Like [showFlashBar], but returns a [TrackedFlashbar] to wait on: for its entrance animation to
+ * finish, or for its dismissal. Returns `null` for a `null` [msg].
  */
-private suspend fun Activity.showFlashBarAwaitShown(
+private fun Activity.showTrackedFlashBar(
 	msg: Any?,
 	iconType: IconType,
 	gravity: Flashbar.Gravity = TOP,
 	duration: Long = Flashbar.DURATION_SHORT,
-) {
-	val builder = configureFlashbar(msg, iconType, gravity, duration) ?: return
+): TrackedFlashbar? {
+	// Set on the UI thread before the button's dismiss(), which ends in onDismissed on that thread.
+	var byDismissButton = false
+	val builder = configureFlashbar(msg, iconType, gravity, duration) { byDismissButton = true } ?: return null
 
 	val shown = CompletableDeferred<Unit>()
+	val dismissed = CompletableDeferred<Boolean>()
 	builder.barShowListener(
 		object : Flashbar.OnBarShowListener {
 			override fun onShowing(bar: Flashbar) = Unit
@@ -190,14 +212,55 @@ private suspend fun Activity.showFlashBarAwaitShown(
 			}
 		},
 	)
+	builder.barDismissListener(
+		object : Flashbar.OnBarDismissListener {
+			override fun onDismissing(
+				bar: Flashbar,
+				isSwiped: Boolean,
+			) = Unit
+
+			override fun onDismissProgress(
+				bar: Flashbar,
+				progress: Float,
+			) = Unit
+
+			override fun onDismissed(
+				bar: Flashbar,
+				event: Flashbar.DismissEvent,
+			) {
+				dismissed.complete(byDismissButton)
+			}
+		},
+	)
 
 	runOnUiThread { builder.build().show() }
-	withTimeoutOrNull(FLASH_SHOWN_TIMEOUT_MS) { shown.await() }
+	return object : TrackedFlashbar {
+		override suspend fun awaitShown() = withTimeoutOrNull(FLASH_SHOWN_TIMEOUT_MS) { shown.await() } != null
+
+		override suspend fun awaitDismissed() = dismissed.await()
+	}
 }
+
+/**
+ * Like [showFlashBar], but suspends until the bar's entrance animation has actually finished (or
+ * [FLASH_SHOWN_TIMEOUT_MS] elapses) instead of firing-and-forgetting - for callers (e.g. a
+ * one-shot screen about to finish()) that need the message to be visible before proceeding,
+ * rather than guessing a fixed delay that may or may not outlast the real animation.
+ * Returns whether the bar finished appearing: false for a `null` [msg] or on timeout.
+ */
+private suspend fun Activity.showFlashBarAwaitShown(
+	msg: Any?,
+	iconType: IconType,
+	gravity: Flashbar.Gravity = TOP,
+	duration: Long = Flashbar.DURATION_SHORT,
+): Boolean = showTrackedFlashBar(msg, iconType, gravity, duration)?.awaitShown() ?: false
 
 suspend fun Activity.flashSuccessAwaitShown(msg: String?) = showFlashBarAwaitShown(msg, IconType.SUCCESS)
 
 suspend fun Activity.flashErrorAwaitShown(msg: String?) = showFlashBarAwaitShown(msg, IconType.ERROR, duration = DURATION_INDEFINITE)
+
+/** Shows an indefinite error bar, as [flashError] does, and returns it to wait on; `null` for a `null` [msg]. */
+fun Activity.flashErrorTracked(msg: String?): TrackedFlashbar? = showTrackedFlashBar(msg, IconType.ERROR, duration = DURATION_INDEFINITE)
 
 fun Activity.flashSuccess(
 	@StringRes msg: Int,

@@ -48,6 +48,8 @@ import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
+import com.itsaky.androidide.assets.addons.reportFailures
 import com.itsaky.androidide.databinding.ActivityMainBinding
 import com.itsaky.androidide.deeplink.ConsumedRequests
 import com.itsaky.androidide.fragments.MainFragment
@@ -81,6 +83,7 @@ import com.itsaky.androidide.utils.UrlManager
 import com.itsaky.androidide.utils.applyBottomWindowInsetsPadding
 import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
+import com.itsaky.androidide.utils.flashErrorTracked
 import com.itsaky.androidide.utils.flashInfo
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
@@ -112,6 +115,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	private val analyticsManager: IAnalyticsManager by inject()
 	private val recentProjectRepository: RecentProjectRepository by inject()
 	private var feedbackButtonManager: FeedbackButtonManager? = null
+	private var reportingBundledFailures = false
 
 	// Where the current touch on the toolbar began; null outside a touch (e.g. a TalkBack
 	// long-press), which counts as the app name.
@@ -361,6 +365,35 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		super.onResume()
 		MainScreenActions.register(this)
 		feedbackButtonManager?.loadFabPosition()
+		reportBundledPluginFailures()
+	}
+
+	/**
+	 * Tells the user once which plugins bundled with the build did not start. The failures are
+	 * marked reported only when the user taps the bar's Dismiss button ([reportFailures]); a screen that goes
+	 * away first, as a font scale change recreates it, shows them again next time. The report runs
+	 * until the dismissal, and [reportingBundledFailures] keeps a resume during the report from
+	 * starting a second one.
+	 */
+	private fun reportBundledPluginFailures() {
+		if (reportingBundledFailures) return
+		reportingBundledFailures = true
+		lifecycleScope.launch {
+			try {
+				// inFilesDir resolves a canonical path, a disk read that stays off the main thread.
+				val record = withContext(Dispatchers.IO) { BundledAddonsRecord.inFilesDir(filesDir) }
+				record.reportFailures { failures ->
+					flashErrorTracked(
+						getString(
+							string.msg_bundled_plugins_failed,
+							failures.joinToString("\n") { "${it.pluginId}: ${it.message}" },
+						),
+					)
+				}
+			} finally {
+				reportingBundledFailures = false
+			}
+		}
 	}
 
 	override fun onPause() {

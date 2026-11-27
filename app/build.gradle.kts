@@ -26,6 +26,8 @@ import java.net.URI
 import java.net.URL
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.DigestInputStream
+import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.Properties
 import java.util.zip.CRC32
@@ -691,9 +693,112 @@ val quickBuildDaemonZip =
 		}
 	}
 
+// A fat build bundles add-ons: the *.cgp files of assets/plugins and the *.cgt files of
+// assets/templates, put in the APK assets as plugins/<name> and templates/<name>. A folder that is
+// missing or empty bundles nothing, and the build is the thin one. Plugin files keep their names:
+// the installer names each after the plugin ID in its manifest, which Gradle does not read.
+// Beside them goes the bundle index, bundled-addons.tsv (BundledAddons.INDEX_FILE): one line per
+// add-on, "<dir>/<name>\t<size>\t<sha256>", empty in a thin build. The app lists and fingerprints
+// the bundle from it, so it opens no add-on at start-up and notices a rebuild of the same size.
+// The one copy of the add-on file rule and the index format, for the release staging task and the
+// debug zip alike. The app's side is BundledAddons (INDEX_FILE, isAddonFile, parseIndex): an index
+// it rejects silently loses every copy's SHA-256 check, so these must not drift.
+object BundledAddonFiles {
+	const val INDEX_FILE = "bundled-addons.tsv"
+
+	/** Each bundled folder with the extension of its add-ons, plugins first. */
+	val DIRS = listOf("plugins" to "cgp", "templates" to "cgt")
+
+	/** A file named [name] is a bundled add-on: not hidden, [extension] in any case, not core.cgt. */
+	fun isAddonName(
+		name: String,
+		extension: String,
+	): Boolean =
+		!name.startsWith(".") &&
+			name.endsWith(".$extension", ignoreCase = true) &&
+			// core.cgt has its own asset entry; same rule as BundledAddons.isAddonFile.
+			!name.equals("core.cgt", ignoreCase = true)
+
+	/** The index line of the add-on [name] in [dir]: "<dir>/<name>\t<size>\t<sha256 hex>\n". */
+	fun indexLine(
+		dir: String,
+		name: String,
+		size: Long,
+		sha256: ByteArray,
+	): String = "$dir/$name\t$size\t${sha256.joinToString("") { "%02x".format(it) }}\n"
+}
+
+abstract class StageBundledAddons : DefaultTask() {
+	@get:InputFiles
+	@get:PathSensitive(PathSensitivity.NAME_ONLY)
+	abstract val pluginFiles: ConfigurableFileCollection
+
+	@get:InputFiles
+	@get:PathSensitive(PathSensitivity.NAME_ONLY)
+	abstract val templateFiles: ConfigurableFileCollection
+
+	@get:OutputDirectory
+	abstract val outputDirectory: DirectoryProperty
+
+	@TaskAction
+	fun stage() {
+		val out = outputDirectory.get().asFile
+		out.deleteRecursively()
+		out.mkdirs()
+		val index = StringBuilder()
+		pluginFiles.files
+			.filter { !it.name.startsWith(".") }
+			.sortedBy { it.name }
+			.forEach { index.append(stage(it, "plugins", out)) }
+		templateFiles.files
+			.filter { !it.name.startsWith(".") }
+			.sortedBy { it.name }
+			.forEach { index.append(stage(it, "templates", out)) }
+		File(out, BundledAddonFiles.INDEX_FILE).writeText(index.toString())
+	}
+
+	/** Copies [file] into [dir] of [out], hashing it on the way, and returns its index line. */
+	private fun stage(
+		file: File,
+		dir: String,
+		out: File,
+	): String {
+		val dest = File(out, "$dir/${file.name}")
+		dest.parentFile.mkdirs()
+		val digest = MessageDigest.getInstance("SHA-256")
+		file.inputStream().use { input ->
+			DigestOutputStream(dest.outputStream(), digest).use { output -> input.copyTo(output) }
+		}
+		return BundledAddonFiles.indexLine(dir, file.name, dest.length(), digest.digest())
+	}
+}
+
+/** A bundled add-on file: directly in its folder, not hidden, with [extension] in any case. */
+fun isBundledAddon(
+	element: FileTreeElement,
+	extension: String,
+): Boolean =
+	!element.isDirectory &&
+		element.relativePath.segments.size == 1 &&
+		BundledAddonFiles.isAddonName(element.name, extension)
+
 androidComponents.onVariants { variant ->
 	val variantName = variant.name.replaceFirstChar(Char::uppercaseChar)
 	val flavorName = variant.flavorName!!
+
+	if (hasBundledAssets(variant)) {
+		val stageBundledAddons =
+			tasks.register<StageBundledAddons>("stage${variantName}BundledAddons") {
+				// Top-level files only, extension in any case, as the debug zip takes them.
+				pluginFiles.from(fileTree(rootProject.file("assets/plugins")) { include { isBundledAddon(it, "cgp") } })
+				templateFiles.from(fileTree(rootProject.file("assets/templates")) { include { isBundledAddon(it, "cgt") } })
+			}
+		// AGP sets the task's outputDirectory: build/generated/assets/<task name>.
+		variant.sources.assets?.addGeneratedSourceDirectory(
+			stageBundledAddons,
+			StageBundledAddons::outputDirectory,
+		)
+	}
 
 	val copyRuntimeAar =
 		tasks.register<AddFileToAssetsTask>("copy${variantName}QuickBuildRuntimeAar") {
@@ -1037,6 +1142,28 @@ fun createAssetsZip(arch: String) {
 			filePath.inputStream().use { input -> input.copyTo(zipOut) }
 			zipOut.closeEntry()
 		}
+
+		// Add-ons of a fat build, as plugins/<name> and templates/<name>; none in a thin one. Then the
+		// bundle index, as StageBundledAddons writes it for a release build.
+		val index = StringBuilder()
+		BundledAddonFiles.DIRS.forEach { (dirName, extension) ->
+			sourceDir
+				.resolve(dirName)
+				.listFiles { file -> file.isFile && BundledAddonFiles.isAddonName(file.name, extension) }
+				.orEmpty()
+				.sortedBy { it.name }
+				.forEach { file ->
+					project.logger.lifecycle("Zipping bundled add-on $dirName/${file.name} from ${file.absolutePath}")
+					val digest = MessageDigest.getInstance("SHA-256")
+					zipOut.putNextEntry(ZipEntry("$dirName/${file.name}"))
+					file.inputStream().use { input -> DigestInputStream(input, digest).copyTo(zipOut) }
+					zipOut.closeEntry()
+					index.append(BundledAddonFiles.indexLine(dirName, file.name, file.length(), digest.digest()))
+				}
+		}
+		zipOut.putNextEntry(ZipEntry(BundledAddonFiles.INDEX_FILE))
+		zipOut.write(index.toString().toByteArray(Charsets.UTF_8))
+		zipOut.closeEntry()
 	}
 	project.logger.lifecycle("Created ${zipFile.name} at ${zipFile.parentFile.absolutePath}")
 }

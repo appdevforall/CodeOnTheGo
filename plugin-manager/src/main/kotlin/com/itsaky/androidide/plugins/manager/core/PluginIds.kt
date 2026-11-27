@@ -10,7 +10,7 @@ import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
  * CoGo build. Uninstalling either would delete what it names.
  * Nullable because a `plugin.json` manifest without an ID parses to a null one.
  */
-internal fun checkPluginId(id: String?): Result<String> =
+fun checkPluginId(id: String?): Result<String> =
 	when {
 		id.isNullOrEmpty() || id == "." || id == ".." || id.any { it == '/' || it == '\\' || it == '\u0000' } -> {
 			Result.failure(IllegalArgumentException("Invalid plugin ID \"$id\": it must be a name, not a path"))
