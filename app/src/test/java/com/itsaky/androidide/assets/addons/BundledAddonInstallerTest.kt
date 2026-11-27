@@ -303,9 +303,15 @@ class BundledAddonInstallerTest {
 	fun `a build an earlier bundle installed is replaced whatever its signature`() {
 		val old = installedBuild("user build (theirs)")
 
-		val installed =
-			BundledAddonInstaller(pluginsDir, templatesDir, { "com.example.plugin" }, signedByContent, bundledBefore = setOf("com.example.plugin"))
-				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+		val installer =
+			BundledAddonInstaller(
+				pluginsDir,
+				templatesDir,
+				{ "com.example.plugin" },
+				signedByContent,
+				bundledBefore = setOf("com.example.plugin"),
+			)
+		val installed = installer.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
 
 		assertThat(installed.failure).isNull()
 		assertThat(old.exists()).isFalse()
