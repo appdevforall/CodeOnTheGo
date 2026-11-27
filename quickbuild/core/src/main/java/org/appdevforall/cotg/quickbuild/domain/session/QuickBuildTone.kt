@@ -37,9 +37,14 @@ enum class QuickBuildTone {
 fun QuickBuildStatus.toTone(): QuickBuildTone =
 	when (this) {
 		// A failed START is a failure the user has to deal with - only a tap retries it - so
-		// it must not settle back to the green bolt the moment the failure flash fades.
+		// it must not settle back to the green bolt the moment the failure flash fades. A
+		// refusal is Quick Build deliberately off, so it takes the neutral hollow bolt (SLOW).
 		is QuickBuildStatus.Hidden -> {
-			if (lastStartFailed) QuickBuildTone.ERROR else QuickBuildTone.READY
+			when {
+				lastStartFailed && startRefused -> QuickBuildTone.SLOW
+				lastStartFailed -> QuickBuildTone.ERROR
+				else -> QuickBuildTone.READY
+			}
 		}
 
 		is QuickBuildStatus.UpToDate -> {

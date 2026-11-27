@@ -55,15 +55,24 @@ private val disableCoreLibDesugaringForModules =
 		":subprojects:sqlite-js",
 		// Injected into debug builds of apps built with CoGo like :logsender (ADFA-7131).
 		":subprojects:sqlite-debugger",
+		// Injected into every variant of apps built with CoGo that opted into the rewrite, for the
+		// rewritten classes to call (ADFA-7138).
+		":subprojects:sqlite-rewrite-runtime",
 	)
 
 /**
  * Modules without the v7/v8 flavors: libraries for other projects, which need one artifact.
  * :subprojects:sqlite-js and :subprojects:sqlite-debugger are AARs for apps built with CoGo, with
- * all the ABIs they run on.
+ * all the ABIs they run on. :subprojects:sqlite-rewrite-runtime is Java-only, one AAR for apps
+ * built with CoGo.
  */
 private val modulesWithoutAbiFlavors =
-	setOf(":plugin-api", ":subprojects:sqlite-js", ":subprojects:sqlite-debugger")
+	setOf(
+		":plugin-api",
+		":subprojects:sqlite-js",
+		":subprojects:sqlite-debugger",
+		":subprojects:sqlite-rewrite-runtime",
+	)
 
 /**
  * The name of the build type used for automated testing.

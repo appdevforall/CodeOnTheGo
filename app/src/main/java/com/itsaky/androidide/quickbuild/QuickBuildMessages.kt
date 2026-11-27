@@ -82,6 +82,10 @@ fun QuickBuildMessage.resolve(context: Context): String =
 			context.getString(R.string.quick_build_scratch_dir_unavailable, path)
 		}
 
+		QuickBuildMessage.DisabledBySqliteDebugger -> {
+			context.getString(R.string.quick_build_disabled_sqlite_debugger)
+		}
+
 		QuickBuildMessage.DaemonRejectedConfiguration -> {
 			context.getString(R.string.quick_build_daemon_rejected_config)
 		}

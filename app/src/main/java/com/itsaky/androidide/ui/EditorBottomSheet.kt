@@ -124,6 +124,7 @@ class EditorBottomSheet
 		 * back to fit once the build ends.
 		 */
 		private var statusHeightRatchet = false
+		private val statusTap by lazy { StatusLineTapBinding(binding.buildStatus.statusText) }
 
 		/**
 		 * The part of the sheet above the header: its status-bar top padding and the divider row.
@@ -421,6 +422,7 @@ class EditorBottomSheet
 			binding.viewOptionsOutputAction.clearLongPressHelp()
 			binding.copyDiagnosticsFab.setOnClickListener(null)
 			binding.headerContainer.setOnClickListener(null)
+			setStatusTap(null, null)
 			removeOnLayoutChangeListener(fabLayoutChangeListener)
 			ViewCompat.setOnApplyWindowInsetsListener(this, null)
 
@@ -751,10 +753,26 @@ class EditorBottomSheet
 					it.statusText.gravity = gravity
 					it.statusText.text = text
 				}
+				// A tap belongs to the text it was bound for; other text, from any writer, is plain.
+				statusTap.onTextWritten(text)
 				// A longer line can take more rows than the last one did, so the header has to be
 				// re-measured against the new text rather than against the dimen.
 				post { refreshCollapsedHeight() }
 			}
+		}
+
+		/**
+		 * Makes the status line a button for a line that asks for a tap, or plain text again with a
+		 * null [onTap]. Main thread only, like the status writes it follows; see [bindStatusLineTap].
+		 *
+		 * @param actionLabel what the tap does, for TalkBack's "double-tap to" announcement.
+		 * @param onTap what the tap does, or null for plain text.
+		 */
+		fun setStatusTap(
+			actionLabel: CharSequence?,
+			onTap: (() -> Unit)?,
+		) {
+			statusTap.bind(actionLabel, onTap)
 		}
 
 		/**

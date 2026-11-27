@@ -148,6 +148,7 @@ internal class PluginQuickBuildCoordinator(
 			QuickBuildRunTracker(
 				start = sessionManager.status.value,
 				startedAtMillis = SystemClock.elapsedRealtime(),
+				refusalReason = { IDEApplication.instance.getString(R.string.quick_build_disabled_sqlite_debugger) },
 				buildOutput = ::buildOutput,
 			)
 		val run = Run(tracker, result, TapHandoff(sessionManager::onCancelRequested))

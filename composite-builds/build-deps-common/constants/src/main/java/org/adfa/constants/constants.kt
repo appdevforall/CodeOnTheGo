@@ -83,6 +83,13 @@ const val DOCUMENTATION_DB = "documentation.db"
 
 const val LOGSENDER_AAR_NAME = "logsender.aar"
 
+// The SQLite debugger AAR (ADFA-7131), injected into debug builds of apps built with CoGo
+const val SQLITE_DEBUGGER_AAR_NAME = "sqlite-debugger.aar"
+
+// The helpers the build-time android.database.sqlite -> requery rewrite redirects to (ADFA-7138),
+// injected into every variant of apps built with CoGo that opted in
+const val SQLITE_REWRITE_RUNTIME_AAR_NAME = "sqlite-rewrite-runtime.aar"
+
 // Generated Gradle Api Jar
 const val GRADLE_API_NAME_JAR = "gradle-api-$GRADLE_DISTRIBUTION_VERSION.jar"
 const val GRADLE_API_NAME_JAR_ZIP = "${GRADLE_API_NAME_JAR}.zip"

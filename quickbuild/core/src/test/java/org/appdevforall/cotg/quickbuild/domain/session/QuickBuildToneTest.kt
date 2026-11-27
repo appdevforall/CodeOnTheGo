@@ -50,6 +50,13 @@ class QuickBuildToneTest {
 	}
 
 	@Test
+	fun `a failed start is ERROR, but a refused start is SLOW because Quick Build is off on purpose`() {
+		assertThat(QuickBuildStatus.Hidden(lastStartFailed = true).toTone()).isEqualTo(QuickBuildTone.ERROR)
+		assertThat(QuickBuildStatus.Hidden(lastStartFailed = true, startRefused = true).toTone())
+			.isEqualTo(QuickBuildTone.SLOW)
+	}
+
+	@Test
 	fun `needing a full build is SLOW, not an error - it is ordinary work`() {
 		assertThat(
 			QuickBuildStatus.NeedsFullBuild(InvalidationReason.MANIFEST_CHANGED, 1).toTone(),

@@ -523,6 +523,9 @@ dependencies {
 // (QuickBuildArtifactStager).
 evaluationDependsOn(":quickbuild:runtime")
 evaluationDependsOn(":quickbuild:daemon")
+// The assets plugin bundles its release AAR (ADFA-7131).
+evaluationDependsOn(":subprojects:sqlite-debugger")
+evaluationDependsOn(":subprojects:sqlite-rewrite-runtime")
 
 // ADFA-4931: jars the daemon loads from the on-device Gradle distribution instead of shipping its
 // own copy, since `gradle-dists/` and `quickbuild/` both sit under <ANDROIDIDE_HOME>.

@@ -15,6 +15,7 @@ import com.itsaky.androidide.tooling.api.messages.BuildRunType
 import com.itsaky.androidide.tooling.api.messages.GradleBuildParams
 import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.TaskExecutionResult
+import com.itsaky.androidide.utils.Environment
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -111,6 +112,10 @@ class GradleQuickBuildProvisioner(
 					built
 				}
 
+				ProxyAppBuildResult.Refused -> {
+					return ProvisionOutcome.Failure(QuickBuildMessage.DisabledBySqliteDebugger)
+				}
+
 				is ProxyAppBuildResult.Failed -> {
 					return ProvisionOutcome.Failure(
 						built.message?.let(QuickBuildMessage::Literal)
@@ -164,6 +169,7 @@ class GradleQuickBuildProvisioner(
 					extraSourceRoots = proxyApp.sourceRoots,
 					stableIdsFile = proxyApp.stableIdsFile,
 					libraryResourceFlats = proxyApp.libraryResourceFlats,
+					gradleUserHome = Environment.GRADLE_USER_HOME,
 				),
 			variantName = buildResult.variantName,
 			baselineGeneration = buildResult.baselineGeneration,
@@ -199,6 +205,10 @@ class GradleQuickBuildProvisioner(
 				// retries later WITHOUT spending its bounded auto-retry budget.
 				ProxyAppBuildResult.SlotBusy -> {
 					return ProxyAppRebuildOutcome.BuildSlotBusy
+				}
+
+				ProxyAppBuildResult.Refused -> {
+					return ProxyAppRebuildOutcome.Failure(QuickBuildMessage.DisabledBySqliteDebugger)
 				}
 
 				is ProxyAppBuildResult.Failed -> {
@@ -246,6 +256,7 @@ class GradleQuickBuildProvisioner(
 							extraSourceRoots = buildResult.proxyApp.sourceRoots,
 							stableIdsFile = buildResult.proxyApp.stableIdsFile,
 							libraryResourceFlats = buildResult.proxyApp.libraryResourceFlats,
+							gradleUserHome = Environment.GRADLE_USER_HOME,
 						),
 				)
 			}
@@ -313,6 +324,13 @@ class GradleQuickBuildProvisioner(
 		data object SlotBusy : ProxyAppBuildResult
 
 		/**
+		 * Quick Build is deliberately off for this project (the SQLite debugger is on), so nothing
+		 * ran and nothing failed. Split from [Failed] so the session can say so rather than offer a
+		 * retry.
+		 */
+		data object Refused : ProxyAppBuildResult
+
+		/**
 		 * [message] replaces the caller's generic wording when the cause is one the user can
 		 * act on. Null keeps the generic "proxy app build failed" for genuine build failures.
 		 */
@@ -340,10 +358,18 @@ class GradleQuickBuildProvisioner(
 				log.info("A Gradle build is already in progress; not staging for the Quick Build proxy app build")
 				return ProxyAppBuildResult.SlotBusy
 			}
-			stage(context, paths)
-
 			val projectManager = lookupProjectManager()
 			val projectRoot = File(projectManager.projectDirPath)
+
+			// Before staging, which a refused build need not pay for: the Gradle plugin never applies Quick
+			// Build to an opted-in project, so building would only end in "variant setup missing". Only once
+			// the model has the app modules: during a sync this check would read the root's file without
+			// theirs, so a root opt-in would refuse a project whose module turns it off. The second check,
+			// after the wait for the model, decides then.
+			if (projectManager.workspace != null) {
+				sqliteDebuggerRefusal(projectManager, projectRoot)?.let { return it }
+			}
+			stage(context, paths)
 
 			// The project model only exists once CoGo's Gradle sync has populated it, and a tap
 			// during sync is common (the user opens a project and reaches straight for Quick
@@ -355,6 +381,9 @@ class GradleQuickBuildProvisioner(
 					context.getString(R.string.quick_build_waiting_for_sync),
 				)
 			}
+			// Again, whatever the first check saw: a sync during the staging or the wait can publish modules, and
+			// one of them can carry the opt-in in its own gradle.properties.
+			sqliteDebuggerRefusal(projectManager, projectRoot)?.let { return it }
 
 			val module =
 				quickBuildModule(projectManager)
@@ -526,6 +555,23 @@ class GradleQuickBuildProvisioner(
 		}
 	}
 
+	/**
+	 * The refusal for a module with `cogo.sqliteDebugger=true` in force, or null. The module and its
+	 * parent projects come from [projectManager], which knows none before the sync publishes the
+	 * model, so it decides only once the model is published.
+	 */
+	private fun sqliteDebuggerRefusal(
+		projectManager: IProjectManager,
+		projectRoot: File,
+	): ProxyAppBuildResult.Refused? {
+		if (!isSqliteDebuggerOn(projectManager, projectRoot)) return null
+		log.info(
+			"Quick Build is not provisioned: {} is true for the module it builds (Gradle user home, module, root or parent projects)",
+			GradlePluginConfig.PROPERTY_SQLITE_DEBUGGER_ENABLED,
+		)
+		return ProxyAppBuildResult.Refused
+	}
+
 	/** `:app` -> `<root>/app`; nested paths (`:feature:home`) map to nested dirs. */
 	private fun moduleDir(
 		projectRoot: File,
@@ -551,6 +597,48 @@ class GradleQuickBuildProvisioner(
 		internal fun quickBuildModule(manager: IProjectManager = IProjectManager.getInstance()): AndroidModule? =
 			manager.getAndroidAppModules().firstOrNull()
 				?: manager.getAndroidModules().firstOrNull()
+
+		/**
+		 * Whether a Quick Build tap now would be refused because the module Quick Build builds has the
+		 * SQLite debugger opt-in in force, read as [provision] reads it before staging: false while the
+		 * project model is not published, when the provisioner decides only after the sync. For a tap
+		 * to read before it asks to replace the installed app: the refusal comes before anything is
+		 * staged or installed, so there is no replacement to ask about.
+		 */
+		fun refusesForSqliteDebugger(projectManager: IProjectManager = IProjectManager.getInstance()): Boolean =
+			projectManager.workspace != null && isSqliteDebuggerOn(projectManager)
+
+		/**
+		 * Whether `cogo.sqliteDebugger=true` is in force for the module Quick Build builds
+		 * ([quickBuildModule]), as Gradle decides it for that module: the Gradle user home, then the
+		 * module's `gradle.properties`, then the root's, then each parent project's nearest first, the
+		 * first that defines the property winning. Another app module's file does not count, since Gradle skips
+		 * Quick Build per module. Parent projects come from the project model, which lists every Gradle
+		 * project; one it lacks is taken from the module's directory layout (see
+		 * [QuickBuildProjectSupport.propertyDirs]). With no Android module there is no module to ask,
+		 * so only the Gradle user home and the root are read.
+		 */
+		private fun isSqliteDebuggerOn(
+			projectManager: IProjectManager,
+			projectRoot: File = File(projectManager.projectDirPath),
+		): Boolean {
+			val module = quickBuildModule(projectManager)
+			val projectDirs =
+				if (module == null) {
+					listOf(projectRoot)
+				} else {
+					QuickBuildProjectSupport.propertyDirs(
+						projectRoot,
+						module.path,
+						File(module.projectDirPath),
+						projectManager.workspace
+							?.subProjects
+							.orEmpty()
+							.associate { it.path to File(it.projectDirPath) },
+					)
+				}
+			return QuickBuildProjectSupport.isSqliteDebuggerEnabled(Environment.GRADLE_USER_HOME, projectDirs)
+		}
 
 		/**
 		 * The Build Variants selection Quick Build would build right now, or null when the

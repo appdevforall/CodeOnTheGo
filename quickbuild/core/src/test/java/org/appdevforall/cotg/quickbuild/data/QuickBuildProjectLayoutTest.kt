@@ -1,6 +1,7 @@
 package org.appdevforall.cotg.quickbuild.data
 
 import com.google.common.truth.Truth.assertThat
+import org.appdevforall.cotg.quickbuild.domain.watch.WatchFilter
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -140,6 +141,27 @@ class QuickBuildProjectLayoutTest {
 			File(root, "app/build.gradle.kts"),
 			File(root, "feature-login/build.gradle"),
 		)
+	}
+
+	@Test
+	fun `watchedFiles includes every gradle properties file the sqlite debugger opt-in reads`() {
+		write("app/build.gradle.kts")
+		write("feature-login/build.gradle")
+		val home = File(root, "gradle-user-home")
+
+		val layout = QuickBuildProjectLayout(root, gradleUserHome = home)
+		val watched = layout.watchedFiles()
+
+		assertThat(watched).containsAtLeast(
+			File(root, "gradle.properties"),
+			File(root, "app/gradle.properties"),
+			File(root, "feature-login/gradle.properties"),
+			File(home, "gradle.properties"),
+		)
+		// The session's filter must pass a change to each of them, or the opt-in goes unseen.
+		val filter = WatchFilter(layout.watchedRoots(), watched)
+		assertThat(filter.isRelevant(File(home, "gradle.properties"))).isTrue()
+		assertThat(filter.isRelevant(File(root, "feature-login/gradle.properties"))).isTrue()
 	}
 
 	@Test

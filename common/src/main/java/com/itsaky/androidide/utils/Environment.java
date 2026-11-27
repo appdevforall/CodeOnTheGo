@@ -18,6 +18,8 @@ package com.itsaky.androidide.utils;
 
 import static org.adfa.constants.ConstantsKt.GRADLE_DISTRIBUTION_VERSION;
 import static org.adfa.constants.ConstantsKt.LOGSENDER_AAR_NAME;
+import static org.adfa.constants.ConstantsKt.SQLITE_DEBUGGER_AAR_NAME;
+import static org.adfa.constants.ConstantsKt.SQLITE_REWRITE_RUNTIME_AAR_NAME;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -66,6 +68,10 @@ public final class Environment {
 	public static File OPT_DIR;
 	public static File LOGSENDER_DIR;
 	public static File LOGSENDER_AAR;
+	public static File SQLITE_DEBUGGER_DIR;
+	public static File SQLITE_DEBUGGER_AAR;
+	public static File SQLITE_REWRITE_RUNTIME_DIR;
+	public static File SQLITE_REWRITE_RUNTIME_AAR;
 	public static File PROJECTS_DIR;
 
 	// split assets vars
@@ -154,6 +160,10 @@ public final class Environment {
 		OPT_DIR = mkdirIfNotExists(new File(PREFIX, "opt"));
 		LOGSENDER_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "logsender"));
 		LOGSENDER_AAR = mkdirIfNotExists(new File(LOGSENDER_DIR, LOGSENDER_AAR_NAME));
+		SQLITE_DEBUGGER_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "sqlite-debugger"));
+		SQLITE_DEBUGGER_AAR = new File(SQLITE_DEBUGGER_DIR, SQLITE_DEBUGGER_AAR_NAME);
+		SQLITE_REWRITE_RUNTIME_DIR = mkdirIfNotExists(new File(ANDROIDIDE_HOME, "sqlite-rewrite-runtime"));
+		SQLITE_REWRITE_RUNTIME_AAR = new File(SQLITE_REWRITE_RUNTIME_DIR, SQLITE_REWRITE_RUNTIME_AAR_NAME);
 		PROJECTS_DIR = mkdirIfNotExists(new File(FileUtil.getExternalStorageDir(), PROJECTS_FOLDER));
 		// NOTE: change location of android.jar from ANDROIDIDE_HOME to inside android-sdk
 		// and don't create the dir if it doesn't exist

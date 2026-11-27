@@ -129,6 +129,8 @@ public class ToolsManager {
 
 			ensureToolingJar(app);
 			extractLogSender(app);
+			extractSqliteDebugger();
+			extractSqliteRewriteRuntime();
 
 			writeNoMediaFile();
 			extractCogoPlugin();
@@ -171,6 +173,18 @@ public class ToolsManager {
 	}
 
 	/**
+	 * Replaces aar with the asset, and logs any failure instead of throwing it. {@link #init} runs the steps after this one (the cogo plugin, the init script, the keystore) only when it returns, so a RuntimeException is caught too, not only an IOException. A failed extraction leaves the previous AAR, or none, which {@link #init} replaces on the next start.
+	 */
+	@VisibleForTesting
+	static void extractSqliteAar(String asset, File aar, SqliteAarSource source) {
+		try (InputStream stream = source.open()) {
+			replaceAtomically(stream, aar);
+		} catch (Exception err) {
+			LOG.error("Failed to extract {} to {}", asset, aar, err);
+		}
+	}
+
+	/**
 	 * Copies the stream to a temp sibling of toolingJarFile, renames it into place, then writes the stamp. This runs asynchronously from app init while the tooling server launches `java -jar` against the same path on project open, and launching against a half-written jar kills project init ("An unexpected error occurred while trying to open file ..."), so a partial jar must never be visible at the final path. rename(2) within one directory atomically replaces the target on Linux. The stamp is written only after a successful rename, so a failure at any step leaves the stamp absent and the next launch retries. The stale-jar half of the same race - the server reaching the final path before this rename and running the previous install's jar - is closed by {@link #ensureToolingJar(Context)}, which the server calls before launching. Always closes the stream.
 	 */
 	@VisibleForTesting
@@ -206,6 +220,28 @@ public class ToolsManager {
 	@VisibleForTesting
 	static boolean isToolingJarCurrent(File toolingJarFile, File stampFile, String stamp) {
 		return toolingJarFile.isFile() && stamp != null && stamp.equals(readStampFile(stampFile));
+	}
+
+	/**
+	 * Copies the stream to a temp sibling of the target, syncs it, then renames it over the target. {@link #init} extracts the SQLite AARs in the background, and GradleBuildService passes their paths to a build without waiting, so a build that starts meanwhile must find the previous complete file or the new one, never a missing or partly written one. rename(2) within one directory atomically replaces the target on Linux; syncing first means a power loss after the rename cannot leave the target empty. The temp file is deleted when any step fails. Its name is fixed, not unique: init runs once per process, and the next run overwrites what a killed process left. Does not close the stream.
+	 */
+	@VisibleForTesting
+	static void replaceAtomically(InputStream source, File target) throws IOException {
+		final var dir = Objects.requireNonNull(target.getParentFile());
+		dir.mkdirs();
+		final var tempFile = new File(dir, target.getName() + ".part");
+		try {
+			try (final var fos = new FileOutputStream(tempFile)) {
+				IoUtilsKt.transferToStream(source, fos);
+				fos.getFD().sync();
+			}
+			if (!tempFile.renameTo(target)) {
+				throw new IOException("Could not move " + tempFile + " to " + target);
+			}
+		} finally {
+			// gone after a successful rename; a leftover of a failed copy is what this removes
+			tempFile.delete();
+		}
 	}
 
 	private static void deleteIdeenv() {
@@ -259,6 +295,22 @@ public class ToolsManager {
 		final var variant = Build.SUPPORTED_ABIS[0].contains(V8_KEY) ? V8_KEY : V7_KEY;
 		ResourceUtils.copyFileFromAssets(getCommonAsset("logsender-" + variant + "-release.aar"),
 				Environment.LOGSENDER_AAR.getAbsolutePath());
+	}
+
+	private static void extractSqliteAar(String asset, File aar) {
+		extractSqliteAar(asset, aar, () -> BaseApplication.getBaseInstance().getAssets().open(asset));
+	}
+
+	@WorkerThread
+	private static void extractSqliteDebugger() {
+		// One AAR with both ABIs, unlike logsender's per-flavor AARs
+		extractSqliteAar(getCommonAsset("sqlite-debugger-release.aar"), Environment.SQLITE_DEBUGGER_AAR);
+	}
+
+	@WorkerThread
+	private static void extractSqliteRewriteRuntime() {
+		// Java only, so one AAR for both ABIs
+		extractSqliteAar(getCommonAsset("sqlite-rewrite-runtime-release.aar"), Environment.SQLITE_REWRITE_RUNTIME_AAR);
 	}
 
 	private static void generateKeystore() {
@@ -434,6 +486,13 @@ public class ToolsManager {
 				LOG.error("Failed to create .nomedia file in projects directory");
 			}
 		}
+	}
+
+	/** Opens a bundled SQLite AAR asset. */
+	@VisibleForTesting
+	interface SqliteAarSource {
+
+		InputStream open() throws IOException;
 	}
 
 	/** Opens the bundled tooling jar asset. Called only when the jar on disk is not this install's. */

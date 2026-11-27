@@ -571,6 +571,10 @@ abstract class ProjectHandlerActivity :
 					// setStatus resets ownership (any caller takes the bar over); reclaim it.
 					setStatus(getString(update.text, *update.args.toTypedArray()))
 					ownsQuickBuildStatus = true
+					// After setStatus, which drops any tap the line had.
+					update.tapLabel?.let { label ->
+						contentOrNull?.bottomSheet?.setStatusTap(getString(label), ::onQuickBuildStatusLineTapped)
+					}
 				}
 			}
 
@@ -1497,8 +1501,17 @@ abstract class ProjectHandlerActivity :
 		gravity: Int,
 	) {
 		ownsQuickBuildStatus = false
+		// A tap belongs to the line that asked for it; the next writer's line is plain text.
+		contentOrNull?.bottomSheet?.setStatusTap(null, null)
 		super.doSetStatus(text, gravity)
 	}
+
+	/**
+	 * A tap on a Quick Build status line that asks for one: it does what a tap on the Quick Build
+	 * button does, through the same action - runs Quick Build, or, while the button is greyed out,
+	 * shows why - so the line cannot promise what the button would not.
+	 */
+	internal abstract fun onQuickBuildStatusLineTapped()
 
 	fun appendBuildOutput(str: String) {
 		if (_binding == null || isDestroyed || isFinishing) return
