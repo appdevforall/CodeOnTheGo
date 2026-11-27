@@ -94,9 +94,9 @@ plugins {
 }
 ```
 
-CoGo injects `LogSenderPlugin` (via its build init script) into every module; that
-plugin references AGP's `ApplicationVariant` and is loaded from the root buildscript
-classpath, so a root without AGP fails configuration with
+CoGo injects `LogSenderPlugin` (via its build init script) into every Android application
+module; that plugin references AGP's `ApplicationVariant` and is loaded from the root
+buildscript classpath, so a root without AGP fails configuration with
 `NoClassDefFoundError: com/android/build/api/variant/ApplicationVariant`.
 
 > The in-app plugin-project detector still recognizes a project by a

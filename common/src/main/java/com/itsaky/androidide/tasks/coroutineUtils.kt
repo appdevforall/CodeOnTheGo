@@ -21,6 +21,7 @@ import com.itsaky.androidide.flashbar.Flashbar
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.utils.flashProgress
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -38,16 +39,41 @@ import kotlin.coroutines.EmptyCoroutineContext
  * An [ICancelChecker] which when cancelled, cancels the corresponding [Job].
  */
 class JobCancelChecker @JvmOverloads constructor(
-	var job: Job? = null
+	job: Job? = null
 ) : ICancelChecker.Default() {
 
+	/**
+	 * The job this checker follows. Cancelling the job cancels the checker, so
+	 * [isCancelled] and [invokeOnCancel] listeners see cancellations that did not
+	 * originate from [cancel].
+	 */
+	var job: Job? = null
+		set(value) {
+			field = value
+			// onCancelling: the analysis to abort runs synchronously inside the job body,
+			// so waiting for completion would signal only after that work finished.
+			// Also fires on failure, which is intended: a failed job's work is over.
+			@OptIn(InternalCoroutinesApi::class)
+			value?.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { cause ->
+				if (cause != null) cancel()
+			}
+		}
+
+	init {
+		this.job = job
+	}
+
 	override fun cancel() {
-		job?.cancel("Cancelled by user")
-		job = null
+		val cancelled = job
+		// The flag goes up before the job is detached, so abortIfCancelled never sees neither.
 		super.cancel()
+		cancelled?.cancel("Cancelled by user")
+		job = null
 	}
 
 	override fun abortIfCancelled() {
+		// The flag first: cancellation is terminal even if an active job was assigned after it.
+		super.abortIfCancelled()
 		job?.ensureActive()
 	}
 }
