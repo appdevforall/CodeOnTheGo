@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -54,6 +54,7 @@ import static openjdk.tools.javac.code.Flags.BLOCK;
 import static openjdk.tools.javac.code.Scope.LookupKind.NON_RECURSIVE;
 import static openjdk.tools.javac.code.TypeTag.*;
 import static openjdk.tools.javac.code.Kinds.Kind.*;
+import openjdk.tools.javac.code.Source.Feature;
 import static openjdk.tools.javac.jvm.ByteCodes.*;
 import openjdk.tools.javac.tree.JCTree.JCBreak;
 import openjdk.tools.javac.tree.JCTree.JCCase;
@@ -96,10 +97,14 @@ public class Lower extends TreeTranslator {
     private final Name dollarAssertionsDisabled;
     private final Types types;
     private final Repair repair;
+    private final TransTypes transTypes;
     private final boolean debugLower;
     private final boolean disableProtectedAccessors; // experimental
     private final PkgInfo pkginfoOpt;
+    private final boolean optimizeOuterThis;
+    private final boolean useMatchException;
 
+    @SuppressWarnings("this-escape")
     protected Lower(Context context) {
         context.put(lowerKey, this);
         names = Names.instance(context);
@@ -118,10 +123,18 @@ public class Lower extends TreeTranslator {
 
         types = Types.instance(context);
         repair = Repair.instance(context);
+        transTypes = TransTypes.instance(context);
         Options options = Options.instance(context);
         debugLower = options.isSet("debuglower");
         pkginfoOpt = PkgInfo.get(options);
+        optimizeOuterThis =
+            target.optimizeOuterThis() ||
+            options.getBoolean("optimizeOuterThis", false);
         disableProtectedAccessors = options.isSet("disableProtectedAccessors");
+        Source source = Source.instance(context);
+        Preview preview = Preview.instance(context);
+        useMatchException = Feature.PATTERN_SWITCH.allowedInSource(source) &&
+                            (preview.isEnabled() || !preview.isPreview(Feature.PATTERN_SWITCH));
     }
 
     /** The currently enclosing class.
@@ -213,6 +226,34 @@ public class Lower extends TreeTranslator {
             def = classdefs.get(c);
         }
         return def;
+    }
+
+    /**
+     * Get the enum constants for the given enum class symbol, if known.
+     * They will only be found if they are defined within the same top-level
+     * class as the class being compiled, so it's safe to assume that they
+     * can't change at runtime due to a recompilation.
+     */
+    List<Name> enumNamesFor(ClassSymbol c) {
+
+        // Find the class definition and verify it is an enum class
+        final JCClassDecl classDef = classDef(c);
+        if (classDef == null ||
+            (classDef.mods.flags & ENUM) == 0 ||
+            (types.supertype(currentClass.type).tsym.flags() & ENUM) != 0) {
+            return null;
+        }
+
+        // Gather the enum identifiers
+        ListBuffer<Name> idents = new ListBuffer<>();
+        for (List<JCTree> defs = classDef.defs; defs.nonEmpty(); defs=defs.tail) {
+            if (defs.head.hasTag(VARDEF) &&
+                (((JCVariableDecl) defs.head).mods.flags & ENUM) != 0) {
+                JCVariableDecl var = (JCVariableDecl)defs.head;
+                idents.append(var.name);
+            }
+        }
+        return idents.toList();
     }
 
     /** A hash table mapping class symbols to lists of free variables.
@@ -360,13 +401,11 @@ public class Lower extends TreeTranslator {
         public void visitApply(JCMethodInvocation tree) {
             if (TreeInfo.name(tree.meth) == names._super) {
                 Symbol constructor = TreeInfo.symbol(tree.meth);
-                if (constructor.owner.kind == TYP) {
-                    ClassSymbol c = (ClassSymbol)constructor.owner;
-                    if (c.hasOuterInstance() &&
-                        !tree.meth.hasTag(SELECT) &&
-                        outerThisStack.head != null)
-                        visitSymbol(outerThisStack.head);
-                }
+                ClassSymbol c = (ClassSymbol)constructor.owner;
+                if (c.hasOuterInstance() &&
+                    !tree.meth.hasTag(SELECT) &&
+                    outerThisStack.head != null)
+                    visitSymbol(outerThisStack.head);
             }
             super.visitApply(tree);
         }
@@ -396,7 +435,7 @@ public class Lower extends TreeTranslator {
         if (fvs != null) {
             return fvs;
         }
-        if (c.owner.kind.matches(KindSelector.VAL_MTH)) {
+        if (c.owner.kind.matches(KindSelector.VAL_MTH) && !c.isStatic()) {
             FreeVarCollector collector = new FreeVarCollector(c);
             collector.scan(classDef(c));
             fvs = collector.fvs;
@@ -417,14 +456,62 @@ public class Lower extends TreeTranslator {
     Map<TypeSymbol,EnumMapping> enumSwitchMap = new LinkedHashMap<>();
 
     EnumMapping mapForEnum(DiagnosticPosition pos, TypeSymbol enumClass) {
-        EnumMapping map = enumSwitchMap.get(enumClass);
-        if (map == null)
-            enumSwitchMap.put(enumClass, map = new EnumMapping(pos, enumClass));
-        return map;
+
+        // If enum class is part of this compilation, just switch on ordinal value
+        if (enumClass.kind == TYP) {
+            final List<Name> idents = enumNamesFor((ClassSymbol)enumClass);
+            if (idents != null)
+                return new CompileTimeEnumMapping(idents);
+        }
+
+        // Map identifiers to ordinal values at runtime, and then switch on that
+        return enumSwitchMap.computeIfAbsent(enumClass, ec -> new RuntimeEnumMapping(pos, ec));
     }
 
-    /** This map gives a translation table to be used for enum
-     *  switches.
+    /** Generates a test value and corresponding cases for a switch on an enum type.
+     */
+    interface EnumMapping {
+
+        /** Given an expression for the enum value's ordinal, generate an expression for the switch statement.
+         */
+        JCExpression switchValue(JCExpression ordinalExpr);
+
+        /** Generate the switch statement case value corresponding to the given enum value.
+         */
+        JCLiteral caseValue(VarSymbol v);
+
+        default void translate() {
+        }
+    }
+
+    /** EnumMapping using compile-time constants. Only valid when compiling the enum class itself,
+     *  because otherwise the ordinals we use could become obsolete if/when the enum class is recompiled.
+     */
+    class CompileTimeEnumMapping implements EnumMapping {
+
+        final List<Name> enumNames;
+
+        CompileTimeEnumMapping(List<Name> enumNames) {
+            Assert.check(enumNames != null);
+            this.enumNames = enumNames;
+        }
+
+        @Override
+        public JCExpression switchValue(JCExpression ordinalExpr) {
+            return ordinalExpr;
+        }
+
+        @Override
+        public JCLiteral caseValue(VarSymbol v) {
+            final int ordinal = enumNames.indexOf(v.name);
+            Assert.check(ordinal != -1);
+            return make.Literal(ordinal);
+        }
+    }
+
+    /** EnumMapping using run-time ordinal lookup.
+     *
+     *  This builds a translation table to be used for enum switches.
      *
      *  <p>For each enum that appears as the type of a switch
      *  expression, we maintain an EnumMapping to assist in the
@@ -456,8 +543,8 @@ public class Lower extends TreeTranslator {
      *  </pre>
      *  class EnumMapping provides mapping data and support methods for this translation.
      */
-    class EnumMapping {
-        EnumMapping(DiagnosticPosition pos, TypeSymbol forEnum) {
+    class RuntimeEnumMapping implements EnumMapping {
+        RuntimeEnumMapping(DiagnosticPosition pos, TypeSymbol forEnum) {
             this.forEnum = forEnum;
             this.values = new LinkedHashMap<>();
             this.pos = pos;
@@ -465,7 +552,7 @@ public class Lower extends TreeTranslator {
                 .fromString(target.syntheticNameChar() +
                             "SwitchMap" +
                             target.syntheticNameChar() +
-                            names.fromUtf(ClassWriter.externalize(forEnum.type.tsym.flatName())).toString()
+                            ClassWriter.externalize(forEnum.type.tsym.flatName().toString())
                             .replace('/', '.')
                             .replace('.', target.syntheticNameChar()));
             ClassSymbol outerCacheClass = outerCacheClass();
@@ -490,7 +577,13 @@ public class Lower extends TreeTranslator {
         // the mapped values
         final Map<VarSymbol,Integer> values;
 
-        JCLiteral forConstant(VarSymbol v) {
+        @Override
+        public JCExpression switchValue(JCExpression ordinalExpr) {
+            return make.Indexed(mapVar, ordinalExpr);
+        }
+
+        @Override
+        public JCLiteral caseValue(VarSymbol v) {
             Integer result = values.get(v);
             if (result == null)
                 values.put(v, result = next++);
@@ -498,51 +591,58 @@ public class Lower extends TreeTranslator {
         }
 
         // generate the field initializer for the map
-        void translate() {
-            make.at(pos.getStartPosition());
-            JCClassDecl owner = classDef((ClassSymbol)mapVar.owner);
+        @Override
+        public void translate() {
+            boolean prevAllowProtectedAccess = attrEnv.info.allowProtectedAccess;
+            try {
+                make.at(pos.getStartPosition());
+                attrEnv.info.allowProtectedAccess = true;
+                JCClassDecl owner = classDef((ClassSymbol)mapVar.owner);
 
-            // synthetic static final int[] $SwitchMap$Color = new int[Color.values().length];
-            MethodSymbol valuesMethod = lookupMethod(pos,
-                                                     names.values,
-                                                     forEnum.type,
-                                                     List.nil());
-            JCExpression size = make // Color.values().length
-                .Select(make.App(make.QualIdent(valuesMethod)),
-                        syms.lengthVar);
-            JCExpression mapVarInit = make
-                .NewArray(make.Type(syms.intType), List.of(size), null)
-                .setType(new ArrayType(syms.intType, syms.arrayClass));
+                // synthetic static final int[] $SwitchMap$Color = new int[Color.values().length];
+                MethodSymbol valuesMethod = lookupMethod(pos,
+                                                         names.values,
+                                                         forEnum.type,
+                                                         List.nil());
+                JCExpression size = make // Color.values().length
+                    .Select(make.App(make.QualIdent(valuesMethod)),
+                            syms.lengthVar);
+                JCExpression mapVarInit = make
+                    .NewArray(make.Type(syms.intType), List.of(size), null)
+                    .setType(new ArrayType(syms.intType, syms.arrayClass));
 
-            // try { $SwitchMap$Color[red.ordinal()] = 1; } catch (java.lang.NoSuchFieldError ex) {}
-            ListBuffer<JCStatement> stmts = new ListBuffer<>();
-            Symbol ordinalMethod = lookupMethod(pos,
-                                                names.ordinal,
-                                                forEnum.type,
-                                                List.nil());
-            List<JCCatch> catcher = List.<JCCatch>nil()
-                .prepend(make.Catch(make.VarDef(new VarSymbol(PARAMETER, names.ex,
-                                                              syms.noSuchFieldErrorType,
-                                                              syms.noSymbol),
-                                                null),
-                                    make.Block(0, List.nil())));
-            for (Map.Entry<VarSymbol,Integer> e : values.entrySet()) {
-                VarSymbol enumerator = e.getKey();
-                Integer mappedValue = e.getValue();
-                JCExpression assign = make
-                    .Assign(make.Indexed(mapVar,
-                                         make.App(make.Select(make.QualIdent(enumerator),
-                                                              ordinalMethod))),
-                            make.Literal(mappedValue))
-                    .setType(syms.intType);
-                JCStatement exec = make.Exec(assign);
-                JCStatement _try = make.Try(make.Block(0, List.of(exec)), catcher, null);
-                stmts.append(_try);
+                // try { $SwitchMap$Color[red.ordinal()] = 1; } catch (java.lang.NoSuchFieldError ex) {}
+                ListBuffer<JCStatement> stmts = new ListBuffer<>();
+                Symbol ordinalMethod = lookupMethod(pos,
+                                                    names.ordinal,
+                                                    forEnum.type,
+                                                    List.nil());
+                List<JCCatch> catcher = List.<JCCatch>nil()
+                    .prepend(make.Catch(make.VarDef(new VarSymbol(PARAMETER, names.ex,
+                                                                  syms.noSuchFieldErrorType,
+                                                                  syms.noSymbol),
+                                                    null),
+                                        make.Block(0, List.nil())));
+                for (Map.Entry<VarSymbol,Integer> e : values.entrySet()) {
+                    VarSymbol enumerator = e.getKey();
+                    Integer mappedValue = e.getValue();
+                    JCExpression assign = make
+                        .Assign(make.Indexed(mapVar,
+                                             make.App(make.Select(make.QualIdent(enumerator),
+                                                                  ordinalMethod))),
+                                make.Literal(mappedValue))
+                        .setType(syms.intType);
+                    JCStatement exec = make.Exec(assign);
+                    JCStatement _try = make.Try(make.Block(0, List.of(exec)), catcher, null);
+                    stmts.append(_try);
+                }
+
+                owner.defs = owner.defs
+                    .prepend(make.Block(STATIC, stmts.toList()))
+                    .prepend(make.VarDef(mapVar, mapVarInit));
+            } finally {
+                attrEnv.info.allowProtectedAccess = prevAllowProtectedAccess;
             }
-
-            owner.defs = owner.defs
-                .prepend(make.Block(STATIC, stmts.toList()))
-                .prepend(make.VarDef(mapVar, mapVarInit));
         }
     }
 
@@ -668,8 +768,7 @@ public class Lower extends TreeTranslator {
         JCClassDecl odef = classDef(owner);
 
         // Enter class symbol in owner scope and compiled table.
-        if (odef != null)
-            enterSynthetic(odef.pos(), c, owner.members());
+        enterSynthetic(odef.pos(), c, owner.members());
         chk.putCompiled(c);
 
         // Create class definition tree.
@@ -681,8 +780,7 @@ public class Lower extends TreeTranslator {
         cdef.type = c.type;
 
         // Append class definition tree to owner's definitions.
-        if (addToDefs && odef != null)
-            odef.defs = odef.defs.prepend(cdef);
+        if (addToDefs) odef.defs = odef.defs.prepend(cdef);
         return cdef;
     }
 
@@ -809,11 +907,11 @@ public class Lower extends TreeTranslator {
             ClassSymbol c = l.head;
             if (isTranslatedClassAvailable(c))
                 continue;
-            JCClassDecl cdef = classdefs.get(c);
-
-            Assert.checkNonNull(cdef);
-
-            translate(cdef);
+            // Create class definition tree.
+            JCClassDecl cdec = makeEmptyClass(STATIC | SYNTHETIC,
+                    c.outermostClass(), c.flatname, false);
+            swapAccessConstructorTag(c, cdec.sym);
+            translated.append(cdec);
         }
     }
     // where
@@ -825,6 +923,19 @@ public class Lower extends TreeTranslator {
             }
         }
         return false;
+    }
+
+    void swapAccessConstructorTag(ClassSymbol oldCTag, ClassSymbol newCTag) {
+        for (MethodSymbol methodSymbol : accessConstrs.values()) {
+            Assert.check(methodSymbol.type.hasTag(METHOD));
+            MethodType oldMethodType =
+                    (MethodType)methodSymbol.type;
+            if (oldMethodType.argtypes.head.tsym == oldCTag)
+                methodSymbol.type =
+                    types.createMethodTypeWithParameters(oldMethodType,
+                        oldMethodType.getParameterTypes().tail
+                            .prepend(newCTag.erasure(types)));
+        }
     }
 
 /**************************************************************************
@@ -1272,9 +1383,6 @@ public class Lower extends TreeTranslator {
                                             target.syntheticNameChar() +
                                             i);
             ClassSymbol ctag = chk.getCompiled(topModle, flatname);
-            if (ctag != null && !isTranslatedClassAvailable(ctag)) {
-                ctag = null;
-            }
             if (ctag == null)
                 ctag = makeEmptyClass(STATIC | SYNTHETIC, topClass).sym;
             else if (!ctag.isAnonymous())
@@ -1290,8 +1398,7 @@ public class Lower extends TreeTranslator {
      */
     void makeAccessible(Symbol sym) {
         JCClassDecl cdef = classDef(sym.owner.enclClass());
-        if (cdef == null) Assert.error("class def not found: " + sym + " in " + sym.owner + "\nflags: " + sym.flags() +
-                "\noutermostMemberDef: " + outermostMemberDef + "\noutermostClassDef: " + outermostClassDef);
+        if (cdef == null) Assert.error("class def not found: " + sym + " in " + sym.owner);
         if (sym.name == names.init) {
             cdef.defs = cdef.defs.prepend(
                 accessConstructorDef(cdef.pos, sym, accessConstrs.get(sym)));
@@ -1481,8 +1588,12 @@ public class Lower extends TreeTranslator {
 
     private VarSymbol makeOuterThisVarSymbol(Symbol owner, long flags) {
         Type target = types.erasure(owner.enclClass().type.getEnclosingType());
+        // Set NOOUTERTHIS for all synthetic outer instance variables, and unset
+        // it when the variable is accessed. If the variable is never accessed,
+        // we skip creating an outer instance field and saving the constructor
+        // parameter to it.
         VarSymbol outerThis =
-            new VarSymbol(flags, outerThisName(target, owner), target, owner);
+            new VarSymbol(flags | NOOUTERTHIS, outerThisName(target, owner), target, owner);
         outerThisStack = outerThisStack.prepend(outerThis);
         return outerThis;
     }
@@ -1580,7 +1691,7 @@ public class Lower extends TreeTranslator {
      * }
      *
      * @param tree  The try statement to inspect.
-     * @return A a desugared try-with-resources tree, or the original
+     * @return a desugared try-with-resources tree, or the original
      * try block if there are no resources to manage.
      */
     JCTree makeTwrTry(JCTry tree) {
@@ -1604,11 +1715,10 @@ public class Lower extends TreeTranslator {
         JCTree resource = resources.head;
         JCExpression resourceUse;
         boolean resourceNonNull;
-        if (resource instanceof JCVariableDecl) {
-            JCVariableDecl var = (JCVariableDecl) resource;
-            resourceUse = make.Ident(var.sym).setType(resource.type);
-            resourceNonNull = var.init != null && TreeInfo.skipParens(var.init).hasTag(NEWCLASS);
-            stats.add(var);
+        if (resource instanceof JCVariableDecl variableDecl) {
+            resourceUse = make.Ident(variableDecl.sym).setType(resource.type);
+            resourceNonNull = variableDecl.init != null && TreeInfo.skipParens(variableDecl.init).hasTag(NEWCLASS);
+            stats.add(variableDecl);
         } else {
             Assert.check(resource instanceof JCExpression);
             VarSymbol syntheticTwrVar =
@@ -1725,25 +1835,30 @@ public class Lower extends TreeTranslator {
         List<VarSymbol> ots = outerThisStack;
         if (ots.isEmpty()) {
             log.error(pos, Errors.NoEnclInstanceOfTypeInScope(c));
+            Assert.error();
             return makeNull();
         }
         VarSymbol ot = ots.head;
         JCExpression tree = access(make.at(pos).Ident(ot));
+        ot.flags_field &= ~NOOUTERTHIS;
         TypeSymbol otc = ot.type.tsym;
         while (otc != c) {
             do {
                 ots = ots.tail;
                 if (ots.isEmpty()) {
                     log.error(pos, Errors.NoEnclInstanceOfTypeInScope(c));
+                    Assert.error(); // should have been caught in Attr
                     return tree;
                 }
                 ot = ots.head;
             } while (ot.owner != otc);
             if (otc.owner.kind != PCK && !otc.hasOuterInstance()) {
                 chk.earlyRefError(pos, c);
+                Assert.error(); // should have been caught in Attr
                 return makeNull();
             }
             tree = access(make.at(pos).Select(tree, ot));
+            ot.flags_field &= ~NOOUTERTHIS;
             otc = ot.type.tsym;
         }
         return tree;
@@ -1778,21 +1893,25 @@ public class Lower extends TreeTranslator {
         List<VarSymbol> ots = outerThisStack;
         if (ots.isEmpty()) {
             log.error(pos, Errors.NoEnclInstanceOfTypeInScope(c));
+            Assert.error();
             return makeNull();
         }
         VarSymbol ot = ots.head;
         JCExpression tree = access(make.at(pos).Ident(ot));
+        ot.flags_field &= ~NOOUTERTHIS;
         TypeSymbol otc = ot.type.tsym;
         while (!(preciseMatch ? sym.isMemberOf(otc, types) : otc.isSubClass(sym.owner, types))) {
             do {
                 ots = ots.tail;
                 if (ots.isEmpty()) {
                     log.error(pos, Errors.NoEnclInstanceOfTypeInScope(c));
+                    Assert.error();
                     return tree;
                 }
                 ot = ots.head;
             } while (ot.owner != otc);
             tree = access(make.at(pos).Select(tree, ot));
+            ot.flags_field &= ~NOOUTERTHIS;
             otc = ot.type.tsym;
         }
         return tree;
@@ -1814,10 +1933,9 @@ public class Lower extends TreeTranslator {
 
     /** Return tree simulating the assignment {@code this.this$n = this$n}.
      */
-    JCStatement initOuterThis(int pos) {
-        VarSymbol rhs = outerThisStack.head;
+    JCStatement initOuterThis(int pos, VarSymbol rhs) {
         Assert.check(rhs.owner.kind == MTH);
-        VarSymbol lhs = outerThisStack.tail.head;
+        VarSymbol lhs = outerThisStack.head;
         Assert.check(rhs.owner.owner == lhs.owner);
         make.at(pos);
         return
@@ -2169,9 +2287,8 @@ public class Lower extends TreeTranslator {
         List<VarSymbol> prevOuterThisStack = outerThisStack;
 
         // If this is an enum definition
-        Type sup;
         if ((tree.mods.flags & ENUM) != 0 &&
-            (sup = types.supertype(currentClass.type)).tsym != null && (sup.tsym.flags() & ENUM) == 0)
+            (types.supertype(currentClass.type).tsym.flags() & ENUM) == 0)
             visitEnumDef(tree);
 
         if ((tree.mods.flags & RECORD) != 0) {
@@ -2222,15 +2339,25 @@ public class Lower extends TreeTranslator {
         // Convert name to flat representation, replacing '.' by '$'.
         tree.name = Convert.shortName(currentClass.flatName());
 
-        // Add this$n and free variables proxy definitions to class.
+        // Add free variables proxy definitions to class.
 
         for (List<JCVariableDecl> l = fvdefs; l.nonEmpty(); l = l.tail) {
             tree.defs = tree.defs.prepend(l.head);
             enterSynthetic(tree.pos(), l.head.sym, currentClass.members());
         }
-        if (currentClass.hasOuterInstance()) {
+        // If this$n was accessed, add the field definition and
+        // update initial constructors to initialize it
+        if (currentClass.hasOuterInstance() && shouldEmitOuterThis(currentClass)) {
             tree.defs = tree.defs.prepend(otdef);
             enterSynthetic(tree.pos(), otdef.sym, currentClass.members());
+
+           for (JCTree def : tree.defs) {
+                if (TreeInfo.isInitialConstructor(def)) {
+                  JCMethodDecl mdef = (JCMethodDecl) def;
+                  mdef.body.stats = mdef.body.stats.prepend(
+                      initOuterThis(mdef.body.pos, mdef.params.head.sym));
+                }
+            }
         }
 
         proxies = prevProxies;
@@ -2245,6 +2372,22 @@ public class Lower extends TreeTranslator {
 
         // Return empty block {} as a placeholder for an inner class.
         result = make_at(tree.pos()).Block(SYNTHETIC, List.nil());
+    }
+
+    private boolean shouldEmitOuterThis(ClassSymbol sym) {
+      if (!optimizeOuterThis) {
+        // Optimization is disabled
+        return true;
+      }
+      if ((outerThisStack.head.flags_field & NOOUTERTHIS) == 0)  {
+        // Enclosing instance field is used
+        return true;
+      }
+      if (rs.isSerializable(sym.type)) {
+        // Class is serializable
+        return true;
+      }
+      return false;
     }
 
     List<JCTree> generateMandatedAccessors(JCClassDecl tree) {
@@ -2313,7 +2456,7 @@ public class Lower extends TreeTranslator {
         enumDefs.append(make.VarDef(valuesVar, make.App(make.QualIdent(valuesMethod))));
         tree.sym.members().enter(valuesVar);
 
-        Symbol valuesSym = lookupMethod(tree.pos(), names.values,
+        MethodSymbol valuesSym = lookupMethod(tree.pos(), names.values,
                                         tree.type, List.nil());
         List<JCStatement> valuesBody;
         if (useClone()) {
@@ -2364,7 +2507,7 @@ public class Lower extends TreeTranslator {
         }
 
         JCMethodDecl valuesDef =
-             make.MethodDef((MethodSymbol)valuesSym, make.Block(0, valuesBody));
+             make.MethodDef(valuesSym, make.Block(0, valuesBody));
 
         enumDefs.append(valuesDef);
 
@@ -2384,7 +2527,7 @@ public class Lower extends TreeTranslator {
                          tree.sym.type,
                          List.of(syms.stringType));
         Assert.check((valueOfSym.flags() & STATIC) != 0);
-        VarSymbol nameArgSym = valueOfSym.params().head;
+        VarSymbol nameArgSym = valueOfSym.params.head;
         JCIdent nameVal = make.Ident(nameArgSym);
         JCStatement enum_ValueOf =
             make.Return(make.TypeCast(tree.sym.type,
@@ -2421,12 +2564,10 @@ public class Lower extends TreeTranslator {
 
     /** Translate an enumeration constant and its initializer. */
     private void visitEnumConstantDef(JCVariableDecl var, int ordinal) {
-        if (var.init instanceof JCNewClass) {
-            JCNewClass varDef = (JCNewClass)var.init;
-            varDef.args = varDef.args.
-                prepend(makeLit(syms.intType, ordinal)).
-                prepend(makeLit(syms.stringType, var.name.toString()));
-        }
+        JCNewClass varDef = (JCNewClass)var.init;
+        varDef.args = varDef.args.
+            prepend(makeLit(syms.intType, ordinal)).
+            prepend(makeLit(syms.stringType, var.name.toString()));
     }
 
     private List<VarSymbol> recordVars(Type t) {
@@ -2581,7 +2722,7 @@ public class Lower extends TreeTranslator {
             Name bootstrapName,
             Name argName,
             boolean isStatic) {
-        Symbol bsm = rs.resolveInternalMethod(tree.pos(), attrEnv, site,
+        MethodSymbol bsm = rs.resolveInternalMethod(tree.pos(), attrEnv, site,
                 bootstrapName, staticArgTypes, List.nil());
 
         MethodType indyType = msym.type.asMethodType();
@@ -2593,7 +2734,7 @@ public class Lower extends TreeTranslator {
         );
         DynamicMethodSymbol dynSym = new DynamicMethodSymbol(argName,
                 syms.noSymbol,
-                ((MethodSymbol)bsm).asHandle(),
+                bsm.asHandle(),
                 indyType,
                 staticArgValues);
         JCFieldAccess qualifier = make.Select(make.QualIdent(site.tsym), argName);
@@ -2645,6 +2786,7 @@ public class Lower extends TreeTranslator {
 
     private void visitMethodDefInternal(JCMethodDecl tree) {
         if (tree.name == names.init &&
+            !currentClass.isStatic() &&
             (currentClass.isInner() || currentClass.isDirectlyOrIndirectlyLocal())) {
             // We are seeing a constructor of an inner class.
             MethodSymbol m = tree.sym;
@@ -2703,11 +2845,6 @@ public class Lower extends TreeTranslator {
                     olderasure.getThrownTypes(),
                     syms.methodClass);
             }
-            if (currentClass.hasOuterInstance() &&
-                TreeInfo.isInitialConstructor(tree))
-            {
-                added = added.prepend(initOuterThis(tree.body.pos));
-            }
 
             // pop local variables from proxy stack
             proxies = prevProxies;
@@ -2715,9 +2852,7 @@ public class Lower extends TreeTranslator {
             // recursively translate following local statements and
             // combine with this- or super-call
             List<JCStatement> stats = translate(tree.body.stats.tail);
-            if (stats != null) {
-                tree.body.stats = stats.prepend(selfCall).prependList(added);
-            }
+            tree.body.stats = stats.prepend(selfCall).prependList(added);
             outerThisStack = prevOuterThisStack;
         } else {
             Map<Symbol, Symbol> prevLambdaTranslationMap =
@@ -2731,7 +2866,8 @@ public class Lower extends TreeTranslator {
                 lambdaTranslationMap = prevLambdaTranslationMap;
             }
         }
-        if (tree.name == names.init && (tree.sym.flags_field & Flags.COMPACT_RECORD_CONSTRUCTOR) != 0) {
+        if (tree.name == names.init && ((tree.sym.flags_field & Flags.COMPACT_RECORD_CONSTRUCTOR) != 0 ||
+                (tree.sym.flags_field & (GENERATEDCONSTR | RECORD)) == (GENERATEDCONSTR | RECORD))) {
             // lets find out if there is any field waiting to be initialized
             ListBuffer<VarSymbol> fields = new ListBuffer<>();
             for (Symbol sym : currentClass.getEnclosedElements()) {
@@ -2787,7 +2923,7 @@ public class Lower extends TreeTranslator {
 
         // If created class is local, add free variables after
         // explicit constructor arguments.
-        if (c.isDirectlyOrIndirectlyLocal()) {
+        if (c.isDirectlyOrIndirectlyLocal() && !c.isStatic()) {
             tree.args = tree.args.appendList(loadFreevars(tree.pos(), freevars(c)));
         }
 
@@ -2989,7 +3125,7 @@ public class Lower extends TreeTranslator {
             // If we are calling a constructor of a local class, add
             // free variables after explicit constructor arguments.
             ClassSymbol c = (ClassSymbol)constructor.owner;
-            if (c.isDirectlyOrIndirectlyLocal()) {
+            if (c.isDirectlyOrIndirectlyLocal() && !c.isStatic()) {
                 tree.args = tree.args.appendList(loadFreevars(tree.pos(), freevars(c)));
             }
 
@@ -2999,13 +3135,9 @@ public class Lower extends TreeTranslator {
                 List<JCVariableDecl> params = currentMethodDef.params;
                 if (currentMethodSym.owner.hasOuterInstance())
                     params = params.tail; // drop this$n
-                if (params.isEmpty() || params.tail.isEmpty()) {
-                    tree.args = tree.args.prepend(makeNull()).prepend(makeNull());
-                } else {
-                    tree.args = tree.args
-                        .prepend(make_at(tree.pos()).Ident(params.tail.head.sym)) // ordinal
-                        .prepend(make.Ident(params.head.sym)); // name
-                }
+                tree.args = tree.args
+                    .prepend(make_at(tree.pos()).Ident(params.tail.head.sym)) // ordinal
+                    .prepend(make.Ident(params.head.sym)); // name
             }
 
             // If we are calling a constructor of a class with an outer
@@ -3013,7 +3145,8 @@ public class Lower extends TreeTranslator {
             // is qualified, pass qualifier as first argument in front of
             // the explicit constructor arguments. If the call
             // is not qualified, pass the correct outer instance as
-            // first argument.
+            // first argument. If we are a static class, there is no
+            // such outer instance, so generate an error.
             if (c.hasOuterInstance()) {
                 JCExpression thisArg;
                 if (tree.meth.hasTag(SELECT)) {
@@ -3024,6 +3157,11 @@ public class Lower extends TreeTranslator {
                 } else if (c.isDirectlyOrIndirectlyLocal() || methName == names._this){
                     // local class or this() call
                     thisArg = makeThis(tree.meth.pos(), c.type.getEnclosingType().tsym);
+                } else if (currentClass.isStatic()) {
+                    // super() call from static nested class - invalid
+                    log.error(tree.pos(),
+                        Errors.NoEnclInstanceOfTypeInScope(c.type.getEnclosingType().tsym));
+                    thisArg = make.Literal(BOT, null).setType(syms.botType);
                 } else {
                     // super() call of nested class - never pick 'this'
                     thisArg = makeOwnerThisN(tree.meth.pos(), c, false);
@@ -3052,7 +3190,7 @@ public class Lower extends TreeTranslator {
         if (parameters.isEmpty()) return args;
         boolean anyChanges = false;
         ListBuffer<JCExpression> result = new ListBuffer<>();
-        while (parameters.tail.nonEmpty() && args.nonEmpty()) {
+        while (parameters.tail.nonEmpty()) {
             JCExpression arg = translate(args.head, parameters.head);
             anyChanges |= (arg != args.head);
             result.append(arg);
@@ -3086,9 +3224,7 @@ public class Lower extends TreeTranslator {
     /** Expand a boxing or unboxing conversion if needed. */
     @SuppressWarnings("unchecked") // XXX unchecked
     <T extends JCExpression> T boxIfNeeded(T tree, Type type) {
-        if (type == null)
-            return tree;
-        boolean havePrimitive = tree.type != null ? tree.type.isPrimitive() : false;
+        boolean havePrimitive = tree.type.isPrimitive();
         if (havePrimitive == type.isPrimitive())
             return tree;
         if (havePrimitive) {
@@ -3124,8 +3260,6 @@ public class Lower extends TreeTranslator {
 
     /** Unbox an object to a primitive value. */
     JCExpression unbox(JCExpression tree, Type primitive) {
-        if (tree.type == null || tree.type.isErroneous())
-            return tree;
         Type unboxedType = types.unboxedType(tree.type);
         if (unboxedType.hasTag(NONE)) {
             unboxedType = primitive;
@@ -3138,10 +3272,6 @@ public class Lower extends TreeTranslator {
             if (!types.isSubtype(unboxedType, primitive))
                 throw new AssertionError(tree);
         }
-        // note: the "primitive" parameter is not used.  There muse be
-        // a conversion from unboxedType to primitive.
-        if (unboxedType.tsym == null)
-            return tree;
         make_at(tree.pos());
         Symbol valueSym = lookupMethod(tree.pos(),
                                        unboxedType.tsym.name.append(names.Value), // x.intValue()
@@ -3181,7 +3311,7 @@ public class Lower extends TreeTranslator {
     }
 
     public void visitAssignop(final JCAssignOp tree) {
-        final boolean boxingReq = !tree.lhs.type.isPrimitive() && !tree.lhs.type.isErroneous() &&
+        final boolean boxingReq = !tree.lhs.type.isPrimitive() &&
             tree.operator.type.getReturnType().isPrimitive();
 
         AssignopDependencyScanner depScanner = new AssignopDependencyScanner(tree);
@@ -3491,18 +3621,17 @@ public class Lower extends TreeTranslator {
             Type iteratorTarget = syms.objectType;
             Type iterableType = types.asSuper(types.cvarUpperBound(tree.expr.type),
                                               syms.iterableType.tsym);
-            if (iterableType != null && iterableType.getTypeArguments().nonEmpty())
+            if (iterableType.getTypeArguments().nonEmpty())
                 iteratorTarget = types.erasure(iterableType.getTypeArguments().head);
-            Type eType = types.skipTypeVars(tree.expr.type, false);
-            tree.expr.type = types.erasure(eType);
-            if (eType.isCompound())
-                tree.expr = make.TypeCast(types.erasure(iterableType), tree.expr);
+            tree.expr.type = types.erasure(types.skipTypeVars(tree.expr.type, false));
+            tree.expr = transTypes.coerce(attrEnv, tree.expr, types.erasure(iterableType));
             Symbol iterator = lookupMethod(tree.expr.pos(),
                                            names.iterator,
-                                           eType,
+                                           tree.expr.type,
                                            List.nil());
+            Assert.check(types.isSameType(types.erasure(types.asSuper(iterator.type.getReturnType(), syms.iteratorType.tsym)), types.erasure(syms.iteratorType)));
             VarSymbol itvar = new VarSymbol(SYNTHETIC, names.fromString("i" + target.syntheticNameChar()),
-                                            types.erasure(types.asSuper(iterator.type.getReturnType(), syms.iteratorType.tsym)),
+                                            types.erasure(syms.iteratorType),
                                             currentMethodSym);
 
              JCStatement init = make.
@@ -3597,21 +3726,30 @@ public class Lower extends TreeTranslator {
     }
 
     public void visitSwitch(JCSwitch tree) {
-        List<JCCase> cases = tree.patternSwitch ? addDefaultIfNeeded(tree.cases) : tree.cases;
+        List<JCCase> cases = tree.patternSwitch ? addDefaultIfNeeded(tree.patternSwitch,
+                                                                     tree.wasEnumSelector,
+                                                                     tree.cases)
+                                                : tree.cases;
         handleSwitch(tree, tree.selector, cases);
     }
 
     @Override
     public void visitSwitchExpression(JCSwitchExpression tree) {
-        List<JCCase> cases = addDefaultIfNeeded(tree.cases);
+        List<JCCase> cases = addDefaultIfNeeded(tree.patternSwitch, tree.wasEnumSelector, tree.cases);
         handleSwitch(tree, tree.selector, cases);
     }
 
-    private List<JCCase> addDefaultIfNeeded(List<JCCase> cases) {
+    private List<JCCase> addDefaultIfNeeded(boolean patternSwitch, boolean wasEnumSelector,
+                                            List<JCCase> cases) {
         if (cases.stream().flatMap(c -> c.labels.stream()).noneMatch(p -> p.hasTag(Tag.DEFAULTCASELABEL))) {
-            JCThrow thr = make.Throw(makeNewClass(syms.incompatibleClassChangeErrorType,
-                                                  List.nil()));
-            JCCase c = make.Case(JCCase.STATEMENT, List.of(make.DefaultCaseLabel()), List.of(thr), null);
+            boolean matchException = useMatchException;
+            matchException |= patternSwitch && !wasEnumSelector;
+            Type exception = matchException ? syms.matchExceptionType
+                                            : syms.incompatibleClassChangeErrorType;
+            List<JCExpression> params = matchException ? List.of(makeNull(), makeNull())
+                                                       : List.nil();
+            JCThrow thr = make.Throw(makeNewClass(exception, params));
+            JCCase c = make.Case(JCCase.STATEMENT, List.of(make.DefaultCaseLabel()), null, List.of(thr), null);
             cases = cases.prepend(c);
         }
 
@@ -3638,6 +3776,7 @@ public class Lower extends TreeTranslator {
                     while (patterns.tail.nonEmpty()) {
                         convertedCases.append(make_at(c.pos()).Case(JCCase.STATEMENT,
                                                            List.of(patterns.head),
+                                                           null,
                                                            List.nil(),
                                                            null));
                         patterns = patterns.tail;
@@ -3698,7 +3837,7 @@ public class Lower extends TreeTranslator {
                                             List.nil());
         JCExpression newSelector;
 
-        if (cases.stream().anyMatch(c -> TreeInfo.isNull(c.labels.head))) {
+        if (cases.stream().anyMatch(c -> TreeInfo.isNullCaseLabel(c.labels.head))) {
             //for enum switches with case null, do:
             //switch ($selector != null ? $mapVar[$selector.ordinal()] : -1) {...}
             //replacing case null with case -1:
@@ -3707,7 +3846,7 @@ public class Lower extends TreeTranslator {
                                                selector.type,
                                                currentMethodSym);
             JCStatement var = make.at(tree.pos()).VarDef(dollar_s, selector).setType(dollar_s.type);
-            newSelector = make.Indexed(map.mapVar,
+            newSelector = map.switchValue(
                     make.App(make.Select(make.Ident(dollar_s),
                             ordinalMethod)));
             newSelector =
@@ -3718,21 +3857,21 @@ public class Lower extends TreeTranslator {
                                      .setType(newSelector.type))
                         .setType(newSelector.type);
         } else {
-            newSelector = make.Indexed(map.mapVar,
+            newSelector = map.switchValue(
                     make.App(make.Select(selector,
                             ordinalMethod)));
         }
         ListBuffer<JCCase> newCases = new ListBuffer<>();
         for (JCCase c : cases) {
-            if (c.labels.head.isExpression()) {
+            if (c.labels.head.hasTag(CONSTANTCASELABEL)) {
                 JCExpression pat;
-                if (TreeInfo.isNull(c.labels.head)) {
+                if (TreeInfo.isNullCaseLabel(c.labels.head)) {
                     pat = makeLit(syms.intType, -1);
                 } else {
-                    VarSymbol label = (VarSymbol)TreeInfo.symbol((JCExpression) c.labels.head);
-                    pat = map.forConstant(label);
+                    VarSymbol label = (VarSymbol)TreeInfo.symbol(((JCConstantCaseLabel) c.labels.head).expr);
+                    pat = map.caseValue(label);
                 }
-                newCases.append(make.Case(JCCase.STATEMENT, List.of(pat), c.stats, null));
+                newCases.append(make.Case(JCCase.STATEMENT, List.of(make.ConstantCaseLabel(pat)), null, c.stats, null));
             } else {
                 newCases.append(c);
             }
@@ -3812,12 +3951,12 @@ public class Lower extends TreeTranslator {
             int nullCaseLabel = -1;
 
             for(JCCase oneCase : caseList) {
-                if (oneCase.labels.head.isExpression()) {
-                    if (TreeInfo.isNull(oneCase.labels.head)) {
+                if (oneCase.labels.head.hasTag(CONSTANTCASELABEL)) {
+                    if (TreeInfo.isNullCaseLabel(oneCase.labels.head)) {
                         nullCase = oneCase;
                         nullCaseLabel = casePosition;
                     } else {
-                        JCExpression expression = (JCExpression) oneCase.labels.head;
+                        JCExpression expression = ((JCConstantCaseLabel) oneCase.labels.head).expr;
                         String labelExpr = (String) expression.type.constValue();
                         Integer mapping = caseLabelToPosition.put(labelExpr, casePosition);
                         Assert.checkNull(mapping);
@@ -3902,7 +4041,11 @@ public class Lower extends TreeTranslator {
                 breakStmt.target = switch1;
                 lb.append(elsepart).append(breakStmt);
 
-                caseBuffer.append(make.Case(JCCase.STATEMENT, List.of(make.Literal(hashCode)), lb.toList(), null));
+                caseBuffer.append(make.Case(JCCase.STATEMENT,
+                                            List.of(make.ConstantCaseLabel(make.Literal(hashCode))),
+                                            null,
+                                            lb.toList(),
+                                            null));
             }
 
             switch1.cases = caseBuffer.toList();
@@ -3921,18 +4064,22 @@ public class Lower extends TreeTranslator {
 
             ListBuffer<JCCase> lb = new ListBuffer<>();
             for(JCCase oneCase : caseList ) {
-                boolean isDefault = !oneCase.labels.head.isExpression();
-                JCCaseLabel caseExpr;
+                boolean isDefault = !oneCase.labels.head.hasTag(CONSTANTCASELABEL);
+                JCExpression caseExpr;
                 if (isDefault)
                     caseExpr = null;
                 else if (oneCase == nullCase) {
                     caseExpr = make.Literal(nullCaseLabel);
                 } else {
-                    caseExpr = make.Literal(caseLabelToPosition.get((String)TreeInfo.skipParens((JCExpression) oneCase.labels.head).
-                                                                    type.constValue()));
+                    JCExpression expression = ((JCConstantCaseLabel) oneCase.labels.head).expr;
+                    String name = (String) TreeInfo.skipParens(expression)
+                                                   .type.constValue();
+                    caseExpr = make.Literal(caseLabelToPosition.get(name));
                 }
 
-                lb.append(make.Case(JCCase.STATEMENT, caseExpr == null ? List.of(make.DefaultCaseLabel()) : List.of(caseExpr),
+                lb.append(make.Case(JCCase.STATEMENT, caseExpr == null ? List.of(make.DefaultCaseLabel())
+                                                                       : List.of(make.ConstantCaseLabel(caseExpr)),
+                                    null,
                                     oneCase.stats, null));
             }
 
@@ -3969,7 +4116,7 @@ public class Lower extends TreeTranslator {
     private JCTree visitBoxedPrimitiveSwitch(JCTree tree, JCExpression selector, List<JCCase> cases) {
         JCExpression newSelector;
 
-        if (cases.stream().anyMatch(c -> TreeInfo.isNull(c.labels.head))) {
+        if (cases.stream().anyMatch(c -> TreeInfo.isNullCaseLabel(c.labels.head))) {
             //a switch over a boxed primitive, with a null case. Pick two constants that are
             //not used by any branch in the case (c1 and c2), close to other constants that are
             //used in the switch. Then do:
@@ -3979,10 +4126,10 @@ public class Lower extends TreeTranslator {
             JCCase nullCase = null;
 
             for (JCCase c : cases) {
-                if (TreeInfo.isNull(c.labels.head)) {
+                if (TreeInfo.isNullCaseLabel(c.labels.head)) {
                     nullCase = c;
                 } else if (!c.labels.head.hasTag(DEFAULTCASELABEL)) {
-                    constants.add((int) c.labels.head.type.constValue());
+                    constants.add((int) ((JCConstantCaseLabel) c.labels.head).expr.type.constValue());
                 }
             }
 
@@ -3993,7 +4140,7 @@ public class Lower extends TreeTranslator {
             while (constants.contains(nullValue)) nullValue++;
 
             constants.add(nullValue);
-            nullCase.labels.head = makeLit(syms.intType, nullValue);
+            nullCase.labels.head = make.ConstantCaseLabel(makeLit(syms.intType, nullValue));
 
             int replacementValue = nullValue;
 

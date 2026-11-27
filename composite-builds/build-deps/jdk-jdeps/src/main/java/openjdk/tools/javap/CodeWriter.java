@@ -128,7 +128,7 @@ public class CodeWriter extends BasicWriter {
     }
     // where
     Instruction.KindVisitor<Void,Integer> instructionPrinter =
-            new Instruction.KindVisitor<Void,Integer>() {
+            new Instruction.KindVisitor<>() {
 
         public Void visitNoOperands(Instruction instr, Integer indent) {
             return null;

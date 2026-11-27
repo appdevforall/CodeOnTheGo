@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,50 +22,28 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package javac.internal.javac;
 
-package javac.internal;
-
-import java.lang.annotation.Target;
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
- * Indicates the API declaration in question is associated with a
- * <em>preview feature</em>. See JEP 12: "Preview Language and VM
- * Features" (http://openjdk.java.net/jeps/12).
+ * The element annotated with this annotation should not be marked as a preview element.
  *
  * Note this internal annotation is handled specially by the javac compiler.
  * To work properly with {@code --release older-release}, it requires special
  * handling in {@code make/langtools/src/classes/build/tools/symbolgenerator/CreateSymbols.java}
- * and {@code src/jdk.compiler/share/classes/openjdk/tools/javac/jvm/ClassReader.java}.
+ * and {@code src/jdk.compiler/share/classes/com/sun/tools/javac/jvm/ClassReader.java}.
  *
- * @since 14
  */
-// Match the meaningful targets of java.lang.Deprecated, omit local
-// variables and parameter declarations
-@Target({java.lang.annotation.ElementType.METHOD,
-         java.lang.annotation.ElementType.CONSTRUCTOR,
-         java.lang.annotation.ElementType.FIELD,
-         java.lang.annotation.ElementType.PACKAGE,
-         java.lang.annotation.ElementType.TYPE})
- // CLASS retention will hopefully be sufficient for the purposes at hand
+@Target({ElementType.METHOD,
+         ElementType.CONSTRUCTOR,
+         ElementType.FIELD,
+         ElementType.PACKAGE,
+         ElementType.MODULE,
+         ElementType.TYPE})
 @Retention(RetentionPolicy.CLASS)
-// *Not* @Documented
-public @interface PreviewFeature {
-    /**
-     * Name of the preview feature the annotated API is associated
-     * with.
-     */
-    public Feature feature();
-
-    public boolean reflective() default false;
-
-    public enum Feature {
-        SWITCH_PATTERN_MATCHING,
-        /**
-         * A key for testing.
-         */
-        TEST,
-        ;
-    }
+public @interface NoPreview {
 }

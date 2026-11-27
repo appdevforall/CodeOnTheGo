@@ -466,7 +466,9 @@ public abstract class PathFileObject implements JavaFileObject {
         fileManager.updateLastUsedTime();
         fileManager.flushCache(this);
         ensureParentDirectoriesExist();
-        return Files.newOutputStream(path);
+        OutputStream output = Files.newOutputStream(path);
+        fileManager.newOutputToPath(path);
+        return output;
     }
 
     @Override @DefinedBy(Api.COMPILER)
@@ -501,7 +503,9 @@ public abstract class PathFileObject implements JavaFileObject {
         fileManager.updateLastUsedTime();
         fileManager.flushCache(this);
         ensureParentDirectoriesExist();
-        return new OutputStreamWriter(Files.newOutputStream(path), fileManager.getEncodingName());
+        Writer writer = new OutputStreamWriter(Files.newOutputStream(path), fileManager.getEncodingName());
+        fileManager.newOutputToPath(path);
+        return writer;
     }
 
     @Override @DefinedBy(Api.COMPILER)

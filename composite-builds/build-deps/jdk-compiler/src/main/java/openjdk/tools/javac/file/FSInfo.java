@@ -68,7 +68,8 @@ public class FSInfo {
 
     protected FSInfo() {
     }
-
+    
+    @SuppressWarnings("deprecation")
     protected FSInfo(Context context) {
         context.put(FSInfo.class, this);
     }
@@ -136,6 +137,7 @@ public class FSInfo {
      * @throws MalformedURLException
      */
     static URL tryResolveFile(URL base, String input) throws MalformedURLException {
+        @SuppressWarnings("deprecation")
         URL retVal = new URL(base, input);
         if (input.indexOf(':') >= 0 && !"file".equalsIgnoreCase(retVal.getProtocol())) {
             // 'input' contains a ':', which might be a scheme, or might be

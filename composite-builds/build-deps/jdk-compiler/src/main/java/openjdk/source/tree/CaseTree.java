@@ -27,8 +27,6 @@ package openjdk.source.tree;
 
 import java.util.List;
 
-import javac.internal.PreviewFeature;
-
 /**
  * A tree node for a {@code case} in a {@code switch} statement or expression.
  *
@@ -65,7 +63,6 @@ public interface CaseTree extends Tree {
      * @return labels for this case
      * @since 12
      */
-    @Deprecated()
     List<? extends ExpressionTree> getExpressions();
 
     /**
@@ -73,10 +70,17 @@ public interface CaseTree extends Tree {
      * For {@code default} case return a list with a single element, {@link DefaultCaseLabelTree}.
      *
      * @return labels for this case
-     * @since 17
+     * @since 21
      */
-    @PreviewFeature(feature=PreviewFeature.Feature.SWITCH_PATTERN_MATCHING, reflective=true)
     List<? extends CaseLabelTree> getLabels();
+
+    /**
+     * The guard for the case.
+     *
+     * @return the guard
+     * @since 21
+     */
+    ExpressionTree getGuard();
 
     /**
      * For case with kind {@linkplain CaseKind#STATEMENT},
@@ -96,7 +100,6 @@ public interface CaseTree extends Tree {
      * @return case value or null
      * @since 12
      */
-    @Deprecated()
     public default Tree getBody() {
         return null;
     }
@@ -107,7 +110,6 @@ public interface CaseTree extends Tree {
      * @return the kind of this case
      * @since 12
      */
-    @Deprecated()
     public default CaseKind getCaseKind() {
         return CaseKind.STATEMENT;
     }
@@ -121,7 +123,6 @@ public interface CaseTree extends Tree {
      *
      * @since 12
      */
-    @Deprecated()
     public enum CaseKind {
         /**
          * Case is in the form: {@code case <expression>: <statements>}.

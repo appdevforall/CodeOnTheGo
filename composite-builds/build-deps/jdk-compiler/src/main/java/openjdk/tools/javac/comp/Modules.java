@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -150,7 +150,7 @@ public class Modules extends JCTree.Visitor {
     private final boolean allowAccessIntoSystem;
 
     public final boolean multiModuleMode;
-
+    
     private final String legacyModuleOverride;
 
     private final Name java_se;
@@ -167,6 +167,7 @@ public class Modules extends JCTree.Visitor {
     private final String limitModsOpt;
     private final Set<String> extraLimitMods = new HashSet<>();
     private final String moduleVersionOpt;
+    private final boolean sourceLauncher;
 
     private final boolean lintOptions;
     private final boolean backgroundCompilation;
@@ -185,6 +186,7 @@ public class Modules extends JCTree.Visitor {
         return instance;
     }
 
+    @SuppressWarnings("this-escape")
     protected Modules(Context context) {
         context.put(Modules.class, this);
         log = Log.instance(context);
@@ -204,13 +206,13 @@ public class Modules extends JCTree.Visitor {
 
         allowAccessIntoSystem = options.isUnset(Option.RELEASE);
         lintOptions = options.isUnset(Option.XLINT_CUSTOM, "-" + LintCategory.OPTIONS.option);
-
+        
         Collection<String> xmodules = options.keySet()
                                              .stream()
                                              .filter(opt -> opt.startsWith(XMODULES_PREFIX))
                                              .map(opt -> opt.substring(XMODULES_PREFIX.length()))
                                              .collect(Collectors.toList());
-
+        
         legacyModuleOverride = xmodules.size() == 1 ? xmodules.iterator().next() : null;
 
         multiModuleMode = fileManager.hasLocation(StandardLocation.MODULE_SOURCE_PATH);
@@ -227,13 +229,14 @@ public class Modules extends JCTree.Visitor {
         addModsOpt = options.get(Option.ADD_MODULES);
         limitModsOpt = options.get(Option.LIMIT_MODULES);
         moduleVersionOpt = options.get(Option.MODULE_VERSION);
-
+        sourceLauncher = options.isSet("sourceLauncher");
+        
         fm = context.get(JavaFileManager.class);
         backgroundCompilation = options.get("backgroundCompilation") != null;
         ideMode = options.get("ide") != null;
     }
-    //where
-        private static final String XMODULES_PREFIX = "-Xmodule:";
+    //where 
+    private static final String XMODULES_PREFIX = "-Xmodule:";
 
     int depth = -1;
 
@@ -246,18 +249,15 @@ public class Modules extends JCTree.Visitor {
         Assert.check(!inInitModules);
         try {
             inInitModules = true;
-            if (rootModules == null) {
-                enter(trees, modules -> {
-                    Assert.checkNull(rootModules);
-                    Assert.checkNull(allModules);
-                    this.rootModules = modules;
-                    setupAllModules(); //initialize the module graph
-                    Assert.checkNonNull(allModules);
-                    inInitModules = false;
-                }, null);
-            } else {
-                enter(trees, null);
-            }
+            Assert.checkNull(rootModules);
+            enter(trees, modules -> {
+                Assert.checkNull(rootModules);
+                Assert.checkNull(allModules);
+                this.rootModules = modules;
+                setupAllModules(); //initialize the module graph
+                Assert.checkNonNull(allModules);
+                inInitModules = false;
+            }, null);
         } finally {
             inInitModules = false;
         }
@@ -345,13 +345,13 @@ public class Modules extends JCTree.Visitor {
                 }
             } else {
                 sym = syms.enterModule(name);
-                if ((sym.flags_field & Flags.FROMCLASS) == 0 && sym.module_info.sourcefile != null && sym.module_info.sourcefile != toplevel.sourcefile) {
+                if (sym.module_info.sourcefile != null && sym.module_info.sourcefile != toplevel.sourcefile) {
                     log.error(decl.pos(), Errors.DuplicateModule(sym));
                     return;
                 }
             }
             sym.completer = getSourceCompleter(toplevel);
-            sym.module_info.sourcefile = toplevel.sourcefile;
+            sym.module_info.classfile = sym.module_info.sourcefile = toplevel.sourcefile;
             decl.sym = sym;
 
             if (multiModuleMode || modules.isEmpty()) {
@@ -377,9 +377,6 @@ public class Modules extends JCTree.Visitor {
         if (multiModuleMode) {
             boolean patchesAutomaticModules = false;
             for (JCCompilationUnit tree: trees) {
-                if (tree.modle != null) {
-                    continue;
-                }
                 if (tree.defs.isEmpty()) {
                     tree.modle = syms.unnamedModule;
                     continue;
@@ -455,7 +452,6 @@ public class Modules extends JCTree.Visitor {
                             log.error(tree.pos(), Errors.NotInModuleOnModuleSourcePath);
                         }
                         tree.modle = syms.errModule;
-                        tree.modle.completer = sym -> completeModule((ModuleSymbol)sym);
                     }
                 } catch (IOException e) {
                     throw new Error(e); // FIXME
@@ -554,10 +550,6 @@ public class Modules extends JCTree.Visitor {
                 module = rootModules.iterator().next();
                 module.complete();
                 module.completer = sym -> completeModule((ModuleSymbol) sym);
-            } else if (c == null) {
-                Assert.checkNonNull(defaultModule);
-                module = defaultModule;
-                rootModules.add(module);
             } else {
                 Assert.check(rootModules.isEmpty());
                 Assert.checkNonNull(c);
@@ -574,15 +566,13 @@ public class Modules extends JCTree.Visitor {
                 module = defaultModule;
             }
 
-            for (JCCompilationUnit tree: trees) {
+            for (JCCompilationUnit tree : trees) {
                 if (defaultModule != syms.unnamedModule
                         && defaultModule.sourceLocation == StandardLocation.SOURCE_PATH
                         && fileManager.hasLocation(StandardLocation.SOURCE_PATH)) {
                     checkSourceLocation(tree, module);
                 }
-                if (tree.modle == null) {
-                    tree.modle = module;
-                }
+                tree.modle = module;
             }
         }
     }
@@ -592,7 +582,7 @@ public class Modules extends JCTree.Visitor {
         if (ideMode || legacyModuleOverride != null) {
             return;
         }
-
+        
         try {
             JavaFileObject fo = tree.sourcefile;
             if (fileManager.contains(msym.sourceLocation, fo)) {
@@ -672,9 +662,6 @@ public class Modules extends JCTree.Visitor {
                     StandardLocation.SOURCE_OUTPUT : StandardLocation.CLASS_OUTPUT;
             loc =
                 fileManager.getLocationForModule(sourceOutput, fo);
-            if (loc != null) {
-                loc = fileManager.getLocationForModule(StandardLocation.MODULE_SOURCE_PATH, fileManager.inferModuleName(loc));
-            }
         }
         return loc;
     }
@@ -853,23 +840,6 @@ public class Modules extends JCTree.Visitor {
         @Override
         public void visitRequires(JCRequires tree) {
             ModuleSymbol msym = lookupModule(tree.moduleName);
-            Set<RequiresFlag> flags = EnumSet.noneOf(RequiresFlag.class);
-            if (tree.isTransitive) {
-                if (msym == syms.java_base && source.compareTo(Source.JDK10) >= 0) {
-                    log.error(tree.pos(), Errors.ModifierNotAllowedHere(names.transitive));
-                } else {
-                    flags.add(RequiresFlag.TRANSITIVE);
-                }
-            }
-            if (tree.isStaticPhase) {
-                if (msym == syms.java_base && source.compareTo(Source.JDK10) >= 0) {
-                    log.error(tree.pos(), Errors.ModNotAllowedHere(EnumSet.of(Flag.STATIC)));
-                } else {
-                    flags.add(RequiresFlag.STATIC_PHASE);
-                }
-            }
-            RequiresDirective d = new RequiresDirective(msym, flags);
-            tree.directive = d;
             if (msym.kind != MDL) {
                 log.error(tree.moduleName.pos(), Errors.ModuleNotFound(msym));
                 warnedMissing.add(msym);
@@ -877,6 +847,23 @@ public class Modules extends JCTree.Visitor {
                 log.error(tree.moduleName.pos(), Errors.DuplicateRequires(msym));
             } else {
                 allRequires.add(msym);
+                Set<RequiresFlag> flags = EnumSet.noneOf(RequiresFlag.class);
+                if (tree.isTransitive) {
+                    if (msym == syms.java_base && source.compareTo(Source.JDK10) >= 0) {
+                        log.error(tree.pos(), Errors.ModifierNotAllowedHere(names.transitive));
+                    } else {
+                        flags.add(RequiresFlag.TRANSITIVE);
+                    }
+                }
+                if (tree.isStaticPhase) {
+                    if (msym == syms.java_base && source.compareTo(Source.JDK10) >= 0) {
+                        log.error(tree.pos(), Errors.ModNotAllowedHere(EnumSet.of(Flag.STATIC)));
+                    } else {
+                        flags.add(RequiresFlag.STATIC_PHASE);
+                    }
+                }
+                RequiresDirective d = new RequiresDirective(msym, flags);
+                tree.directive = d;
                 sym.requires = sym.requires.prepend(d);
             }
         }
@@ -1153,6 +1140,9 @@ public class Modules extends JCTree.Visitor {
                 } finally {
                     env.info.visitingServiceImplementation = prevVisitingServiceImplementation;
                 }
+                if (!it.hasTag(CLASS)) {
+                    continue;
+                }
                 ClassSymbol impl = (ClassSymbol) it.tsym;
                 if ((impl.flags_field & PUBLIC) == 0) {
                     log.error(implName.pos(), Errors.NotDefPublic(impl, impl.location()));
@@ -1283,6 +1273,10 @@ public class Modules extends JCTree.Visitor {
         Assert.checkNonNull(rootModules);
         Assert.checkNull(allModules);
 
+        //java.base may not be completed yet and computeTransitiveClosure
+        //may not complete it either, make sure it is completed:
+        syms.java_base.complete();
+
         Set<ModuleSymbol> observable;
 
         if (limitModsOpt == null && extraLimitMods.isEmpty()) {
@@ -1403,9 +1397,9 @@ public class Modules extends JCTree.Visitor {
                 .forEach(result::add);
         }
 
-        String incubatingModules = result.stream()
+        String incubatingModules = filterAlreadyWarnedIncubatorModules(result.stream()
                 .filter(msym -> msym.resolutionFlags.contains(ModuleResolutionFlags.WARN_INCUBATING))
-                .map(msym -> msym.name.toString())
+                .map(msym -> msym.name.toString()))
                 .collect(Collectors.joining(","));
 
         if (!incubatingModules.isEmpty()) {
@@ -1421,6 +1415,15 @@ public class Modules extends JCTree.Visitor {
         }
     }
     //where:
+        private Stream<String> filterAlreadyWarnedIncubatorModules(Stream<String> incubatingModules) {
+            if (!sourceLauncher) return incubatingModules;
+            Set<String> bootModules = ModuleLayer.boot()
+                                                 .modules()
+                                                 .stream()
+                                                 .map(Module::getName)
+                                                 .collect(Collectors.toSet());
+            return incubatingModules.filter(module -> !bootModules.contains(module));
+        }
         private static final Predicate<ModuleSymbol> IS_AUTOMATIC =
                 m -> (m.flags_field & Flags.AUTOMATIC_MODULE) != 0;
 
@@ -1830,8 +1833,6 @@ public class Modules extends JCTree.Visitor {
                     continue;
                 current.complete();
                 if ((current.flags() & Flags.AUTOMATIC_MODULE) != 0)
-                    continue;
-                if (current.kind != MDL)
                     continue;
                 Assert.checkNonNull(current.requires, current::toString);
                 for (RequiresDirective dep : current.requires) {

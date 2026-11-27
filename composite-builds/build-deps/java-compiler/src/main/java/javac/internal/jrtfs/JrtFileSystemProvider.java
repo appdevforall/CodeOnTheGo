@@ -255,7 +255,7 @@ public final class JrtFileSystemProvider extends FileSystemProvider {
     @Override
     @SuppressWarnings("unchecked")
     public <V extends FileAttributeView> V
-            getFileAttributeView(Path path, Class<V> type, LinkOption... options) {
+    getFileAttributeView(Path path, Class<V> type, LinkOption... options) {
         return JrtFileAttributeView.get(toJrtPath(path), type, options);
     }
 
@@ -282,17 +282,17 @@ public final class JrtFileSystemProvider extends FileSystemProvider {
 
     @Override
     public AsynchronousFileChannel newAsynchronousFileChannel(Path path,
-            Set<? extends OpenOption> options,
-            ExecutorService exec,
-            FileAttribute<?>... attrs)
+                                                              Set<? extends OpenOption> options,
+                                                              ExecutorService exec,
+                                                              FileAttribute<?>... attrs)
             throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public SeekableByteChannel newByteChannel(Path path,
-            Set<? extends OpenOption> options,
-            FileAttribute<?>... attrs)
+                                              Set<? extends OpenOption> options,
+                                              FileAttribute<?>... attrs)
             throws IOException {
         return toJrtPath(path).newByteChannel(options, attrs);
     }
@@ -305,8 +305,8 @@ public final class JrtFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileChannel newFileChannel(Path path,
-            Set<? extends OpenOption> options,
-            FileAttribute<?>... attrs)
+                                      Set<? extends OpenOption> options,
+                                      FileAttribute<?>... attrs)
             throws IOException {
         return toJrtPath(path).newFileChannel(options, attrs);
     }
@@ -326,7 +326,7 @@ public final class JrtFileSystemProvider extends FileSystemProvider {
     @Override
     @SuppressWarnings("unchecked") // Cast to A
     public <A extends BasicFileAttributes> A
-            readAttributes(Path path, Class<A> type, LinkOption... options)
+    readAttributes(Path path, Class<A> type, LinkOption... options)
             throws IOException {
         if (type == BasicFileAttributes.class || type == JrtFileAttributes.class) {
             return (A) toJrtPath(path).getAttributes(options);
@@ -336,14 +336,14 @@ public final class JrtFileSystemProvider extends FileSystemProvider {
 
     @Override
     public Map<String, Object>
-            readAttributes(Path path, String attribute, LinkOption... options)
+    readAttributes(Path path, String attribute, LinkOption... options)
             throws IOException {
         return toJrtPath(path).readAttributes(attribute, options);
     }
 
     @Override
     public void setAttribute(Path path, String attribute,
-            Object value, LinkOption... options)
+                             Object value, LinkOption... options)
             throws IOException {
         toJrtPath(path).setAttribute(attribute, value, options);
     }

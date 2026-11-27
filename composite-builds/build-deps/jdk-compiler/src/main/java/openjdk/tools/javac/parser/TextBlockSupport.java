@@ -25,8 +25,6 @@
 
 package openjdk.tools.javac.parser;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -39,33 +37,6 @@ import java.util.Set;
  *  deletion without notice.</b>
  */
 class TextBlockSupport {
-    private static final Method stripIndent;
-    
-    private static final Method translateEscapes;
-    
-    private static final Method isBlank;
-
-    /**
-     * Reflection method to remove leading white spaces.
-     */
-    private static final Method stripLeading;
-
-    private static Method getStringMethodOrNull(String name) {
-        try {
-            return JavaTokenizer.StringShim.class.getMethod(name, String.class);
-        } catch (Exception ex) {
-            // Method not available, return null.
-        }
-        return null;
-    }
-    static {
-        // Get text block string methods.
-        stripIndent = getStringMethodOrNull("stripIndent");
-        translateEscapes = getStringMethodOrNull("translateEscapes");
-        isBlank = getStringMethodOrNull("isBlank");
-        stripLeading = getStringMethodOrNull("stripLeading");
-    }
-    
      enum WhitespaceChecks {
         INCONSISTENT,
         TRAILING
@@ -95,7 +66,7 @@ class TextBlockSupport {
             outdent = indexOfNonWhitespace(lastLine);
             for (String line : lines) {
                 // Blanks lines have no influence (last line accounted for.)
-                if (!isBlank(line)) {
+                if (!line.isBlank()) {
                     outdent = Integer.min(outdent, indexOfNonWhitespace(line));
                     if (outdent == 0) {
                         break;
@@ -107,7 +78,7 @@ class TextBlockSupport {
         String start = lastLine.substring(0, outdent);
         for (String line : lines) {
             // Fail if a line does not have the same indentation.
-            if (!isBlank(line) && !line.startsWith(start)) {
+            if (!line.isBlank() && !line.startsWith(start)) {
                 // Mix of different white space
                 checks.add(WhitespaceChecks.INCONSISTENT);
             }
@@ -125,47 +96,6 @@ class TextBlockSupport {
     }
 
    private static int indexOfNonWhitespace(String string) {
-        return string.length() - stripLeading(string).length();
-    }
-   
-    static String stripIndent(String string) {
-        try {
-            string = (String) stripIndent.invoke(null, string);
-        } catch (InvocationTargetException | IllegalAccessException ex) {
-            throw new RuntimeException(ex);
-        }
-        return string;
-    }
-    
-    static String translateEscapes(String string) {
-        try {
-            string = (String) translateEscapes.invoke(null, string);
-        } catch (InvocationTargetException | IllegalAccessException ex) {
-            throw new RuntimeException(ex);
-        }
-        return string;
-    }
-  
-    static boolean isBlank(String string) {
-        boolean isBlankStr;
-        try {
-            isBlankStr = (Boolean) isBlank.invoke(null, string);
-        } catch (InvocationTargetException | IllegalAccessException ex) {
-            throw new RuntimeException(ex);
-        }
-        return isBlankStr;
-    }
-
-    /**
-     * Invoke String::stripLeading through reflection.
-     */
-    static String stripLeading(String string) {
-        boolean isBlankStr;
-        try {
-            string = (String) isBlank.invoke(null, string);
-        } catch (InvocationTargetException | IllegalAccessException ex) {
-            throw new RuntimeException(ex);
-        }
-        return string;
+        return string.length() - string.stripLeading().length();
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -69,13 +69,14 @@ public class Names {
     public final Name transitive;
     public final Name uses;
     public final Name open;
+    public final Name underscore;
+    public final Name when;
     public final Name with;
     public final Name yield;
 
     // field and method names
     public final Name _name;
     public final Name addSuppressed;
-    public final Name addSuppressedException;
     public final Name any;
     public final Name append;
     public final Name clinit;
@@ -92,9 +93,11 @@ public class Names {
     public final Name hasNext;
     public final Name hashCode;
     public final Name init;
+    public final Name invoke;
     public final Name iterator;
     public final Name length;
     public final Name next;
+    public final Name of;
     public final Name ordinal;
     public final Name provider;
     public final Name serialVersionUID;
@@ -120,9 +123,11 @@ public class Names {
     // package names
     public final Name java;
     public final Name java_lang;
+    public final Name jdk_internal_javac;
 
     // module names
     public final Name java_base;
+    public final Name jdk_unsupported;
 
     // attribute names
     public final Name Annotation;
@@ -188,6 +193,7 @@ public class Names {
     public final Name module_info;
     public final Name package_info;
     public final Name requireNonNull;
+    public final Name main;
 
     // lambda-related
     public final Name lambda;
@@ -219,11 +225,22 @@ public class Names {
     // pattern switches
     public final Name typeSwitch;
     public final Name enumSwitch;
+    public final Name enumConstant;
+
+    // templated string
+    public final Name process;
+    public final Name STR;
+    public final Name RAW;
+    public final Name newStringTemplate;
+    public final Name newLargeStringTemplate;
+    public final Name processStringTemplate;
 
     public final Name.Table table;
 
+    @SuppressWarnings("this-escape")
     public Names(Context context) {
-        table = createTable(context);
+        Options options = Options.instance(context);
+        table = createTable(options);
 
         // operators and punctuation
         asterisk = fromString("*");
@@ -247,13 +264,14 @@ public class Names {
         transitive = fromString("transitive");
         uses = fromString("uses");
         open = fromString("open");
+        underscore = fromString("_");
+        when = fromString("when");
         with = fromString("with");
         yield = fromString("yield");
 
         // field and method names
         _name = fromString("name");
         addSuppressed = fromString("addSuppressed");
-        addSuppressedException = fromString("addSuppressedException");
         any = fromString("<any>");
         append = fromString("append");
         clinit = fromString("<clinit>");
@@ -270,9 +288,11 @@ public class Names {
         hasNext = fromString("hasNext");
         hashCode = fromString("hashCode");
         init = fromString("<init>");
+        invoke = fromString("invoke");
         iterator = fromString("iterator");
         length = fromString("length");
         next = fromString("next");
+        of = fromString("of");
         ordinal = fromString("ordinal");
         provider = fromString("provider");
         serialVersionUID = fromString("serialVersionUID");
@@ -299,9 +319,11 @@ public class Names {
         // package names
         java = fromString("java");
         java_lang = fromString("java.lang");
+        jdk_internal_javac = fromString("javac.internal.javac");
 
         // module names
         java_base = fromString("java.base");
+        jdk_unsupported = fromString("jdk.unsupported");
 
         // attribute names
         Annotation = fromString("Annotation");
@@ -367,6 +389,7 @@ public class Names {
         module_info = fromString("module-info");
         package_info = fromString("package-info");
         requireNonNull = fromString("requireNonNull");
+        main = fromString("main");
 
         //lambda-related
         lambda = fromString("lambda$");
@@ -390,18 +413,26 @@ public class Names {
         permits = fromString("permits");
         sealed = fromString("sealed");
 
+        // templated string
+        process = fromString("process");
+        STR = fromString("STR");
+        RAW = fromString("RAW");
+        newStringTemplate = fromString("newStringTemplate");
+        newLargeStringTemplate = fromString("newLargeStringTemplate");
+        processStringTemplate = fromString("processStringTemplate");
+
         // pattern switches
         typeSwitch = fromString("typeSwitch");
         enumSwitch = fromString("enumSwitch");
+        enumConstant = fromString("enumConstant");
     }
 
-    protected Name.Table createTable(Context context) {
-        Options options = Options.instance(context);
+    protected Name.Table createTable(Options options) {
         boolean useUnsharedTable = options.isSet("useUnsharedTable");
         if (useUnsharedTable)
-            return UnsharedNameTable.create(this, context);
+            return UnsharedNameTable.create(this);
         else
-            return SharedNameTable.create(this, context);
+            return SharedNameTable.create(this);
     }
 
     public void dispose() {
@@ -416,11 +447,19 @@ public class Names {
         return table.fromString(s);
     }
 
-    public Name fromUtf(byte[] cs) {
+    public Name fromUtf(byte[] cs) throws InvalidUtfException {
         return table.fromUtf(cs);
     }
 
-    public Name fromUtf(byte[] cs, int start, int len) {
-        return table.fromUtf(cs, start, len);
+    public Name fromUtf(byte[] cs, int start, int len, Convert.Validation validation) throws InvalidUtfException {
+        return table.fromUtf(cs, start, len, validation);
+    }
+
+    public Name fromUtfLax(byte[] cs, int start, int len) {
+        try {
+            return table.fromUtf(cs, start, len, Convert.Validation.NONE);
+        } catch (InvalidUtfException e) {
+            throw new AssertionError(e);
+        }
     }
 }

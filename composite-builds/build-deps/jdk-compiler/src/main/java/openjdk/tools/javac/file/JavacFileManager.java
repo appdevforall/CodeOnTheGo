@@ -61,6 +61,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipException;
 
 import jdkx.lang.model.SourceVersion;
 import jdkx.tools.FileObject;
@@ -164,6 +165,7 @@ public class JavacFileManager extends BaseFileManager implements StandardJavaFil
      * Create a JavacFileManager using a given context, optionally registering
      * it as the JavaFileManager for that context.
      */
+    @SuppressWarnings("this-escape")
     public JavacFileManager(Context context, boolean register, Charset charset) {
         super(charset);
         if (register) {
@@ -618,7 +620,11 @@ public class JavacFileManager extends BaseFileManager implements StandardJavaFil
             Map<String, String> env = Collections.singletonMap("multi-release", multiReleaseValue);
             FileSystemProvider jarFSProvider = fsInfo.getJarFSProvider();
             Assert.checkNonNull(jarFSProvider, "should have been caught before!");
-            this.fileSystem = jarFSProvider.newFileSystem(archivePath, env);
+            try {
+                this.fileSystem = jarFSProvider.newFileSystem(archivePath, env);
+            } catch (ZipException ze) {
+                throw new IOException("ZipException opening \"" + archivePath.getFileName() + "\": " + ze.getMessage(), ze);
+            }
 
             if (jarPackageProvider == null) {
                 this.packages = new HashMap<>();
@@ -823,6 +829,7 @@ public class JavacFileManager extends BaseFileManager implements StandardJavaFil
         pathsAndContainersByLocationAndRelativeDirectory.clear();
         nonIndexingContainersByLocation.clear();
         contentCache.clear();
+        resetOutputFilesWritten();
     }
 
     @Override

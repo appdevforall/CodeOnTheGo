@@ -27,6 +27,7 @@ package openjdk.source.util;
 
 import java.io.IOException;
 
+import jdkx.annotation.processing.ProcessingEnvironment;
 import jdkx.lang.model.element.Element;
 import jdkx.lang.model.element.VariableElement;
 import jdkx.lang.model.type.TypeMirror;
@@ -37,6 +38,9 @@ import jdkx.tools.JavaFileObject;
 
 import openjdk.source.tree.CompilationUnitTree;
 import openjdk.source.tree.Tree;
+import openjdk.tools.javac.api.BasicJavacTask;
+import openjdk.tools.javac.processing.JavacProcessingEnvironment;
+import openjdk.tools.javac.util.Context;
 
 /**
  * Provides access to functionality specific to the JDK Java Compiler, javac.
@@ -49,7 +53,25 @@ public abstract class JavacTask implements CompilationTask {
     /**
      * Constructor for subclasses to call.
      */
-    public JavacTask() {}
+    protected JavacTask() {}
+
+    /**
+     * Returns the {@code JavacTask} for a {@code ProcessingEnvironment}.
+     * If the compiler is being invoked using a
+     * {@link jdkx.tools.JavaCompiler.CompilationTask CompilationTask},
+     * then that task will be returned.
+     * @param processingEnvironment the processing environment
+     * @return the {@code JavacTask} for a {@code ProcessingEnvironment}
+     * @since 1.8
+     */
+    public static JavacTask instance(ProcessingEnvironment processingEnvironment) {
+        if (!processingEnvironment.getClass().getName().equals(
+                "openjdk.tools.javac.processing.JavacProcessingEnvironment"))
+            throw new IllegalArgumentException();
+        Context c = ((JavacProcessingEnvironment) processingEnvironment).getContext();
+        JavacTask t = c.get(JavacTask.class);
+        return (t != null) ? t : new BasicJavacTask(c, true);
+    }
 
     /**
      * Parses the specified files returning a list of abstract syntax trees.

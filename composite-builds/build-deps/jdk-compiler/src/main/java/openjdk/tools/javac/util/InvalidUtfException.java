@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, 2014, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,27 +23,32 @@
  * questions.
  */
 
-package openjdk.source.tree;
-
-import javac.internal.PreviewFeature;
+package openjdk.tools.javac.util;
 
 /**
- * A tree node for a parenthesized pattern.
+ * Exception thrown when invalid Modified UTF-8 is encountered.
  *
- * For example:
- * <pre>
- *   ( <em>pattern</em> )
- * </pre>
+ *  <p><b>This is NOT part of any supported API.
+ *  If you write code that depends on this, you do so at your own risk.
+ *  This code and its internal interfaces are subject to change or
+ *  deletion without notice.</b>
  *
- * @jls 14.30.1 Kinds of Patterns
- *
- * @since 17
+ * @see Convert#utf2chars
+ * @see Convert#utfValidate
  */
-@PreviewFeature(feature=PreviewFeature.Feature.SWITCH_PATTERN_MATCHING, reflective=true)
-public interface ParenthesizedPatternTree extends PatternTree {
-    /**
-     * Returns the pattern within the parentheses.
-     * @return the pattern
+public class InvalidUtfException extends Exception {
+
+    private static final long serialVersionUID = 0;
+
+    private final int offset;
+
+    public InvalidUtfException(int offset) {
+        this.offset = offset;
+    }
+
+    /** Get the {@code byte[]} array offset at which the invalid data was found.
      */
-    PatternTree getPattern();
+    public int getOffset() {
+        return offset;
+    }
 }

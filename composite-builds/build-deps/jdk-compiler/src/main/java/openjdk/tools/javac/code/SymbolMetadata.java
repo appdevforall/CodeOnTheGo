@@ -275,9 +275,8 @@ public class SymbolMetadata {
             for (Attribute.Compound attrCompound : attributes) {
                 if (attrCompound.isSynthesized() && !attrCompound.values.isEmpty()) {
                     Pair<Symbol.MethodSymbol, Attribute> val = attrCompound.values.get(0);
-                   if (val.fst.getSimpleName().contentEquals("value") &&
-                            val.snd instanceof Attribute.Array) {
-                        Attribute.Array arr = (Attribute.Array) val.snd;
+                    if (val.fst.getSimpleName().contentEquals("value") &&
+                            val.snd instanceof Attribute.Array arr) {
                         if (arr.values.length != 0
                                 && arr.values[0] instanceof Attribute.Compound
                                 && arr.values[0].type == compound.type) {

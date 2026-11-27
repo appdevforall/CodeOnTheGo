@@ -32,7 +32,7 @@ package openjdk.source.tree;
  * <pre>
  *   import <em>qualifiedIdentifier</em> ;
  *
- *   static import <em>qualifiedIdentifier</em> ;
+ *   import static <em>qualifiedIdentifier</em> ;
  * </pre>
  *
  * @jls 7.5 Import Declarations

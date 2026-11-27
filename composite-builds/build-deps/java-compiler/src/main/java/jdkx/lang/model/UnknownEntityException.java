@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -32,7 +32,6 @@ package jdkx.lang.model;
  * this exception may be thrown by visitors to indicate that the
  * visitor was created for a prior version of the language.
  *
- * @author Joseph D. Darcy
  * @see jdkx.lang.model.element.UnknownElementException
  * @see jdkx.lang.model.element.UnknownAnnotationValueException
  * @see jdkx.lang.model.type.UnknownTypeException

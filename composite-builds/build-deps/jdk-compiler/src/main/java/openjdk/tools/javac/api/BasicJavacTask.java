@@ -62,7 +62,7 @@ import openjdk.tools.javac.util.DefinedBy;
 import openjdk.tools.javac.util.DefinedBy.Api;
 import openjdk.tools.javac.util.List;
 import openjdk.tools.javac.util.Log;
-//import openjdk.tools.javac.util.ModuleHelper;
+import openjdk.tools.javac.util.ModuleHelper;
 import openjdk.tools.javac.util.Options;
 import openjdk.tools.javac.util.PropagatedException;
 
@@ -86,6 +86,7 @@ public class BasicJavacTask extends JavacTask {
         return instance;
     }
 
+    @SuppressWarnings("this-escape")
     public BasicJavacTask(Context c, boolean register) {
         context = c;
         options = Options.instance(c);
@@ -204,7 +205,7 @@ public class BasicJavacTask extends JavacTask {
                 java.util.List<String> options =
                         pluginDesc.getOptions().entrySet().stream()
                                 .map(e -> e.getKey() + "=" + e.getValue())
-                                .collect(Collectors.toList());
+                                .toList();
                 try {
                     initPlugin(pluginDesc.getPlugin(), options.toArray(new String[options.size()]));
                 } catch (RuntimeException ex) {
@@ -248,10 +249,10 @@ public class BasicJavacTask extends JavacTask {
     }
 
     private void initPlugin(Plugin p, String... args) {
-//        Module m = p.getClass().getModule();
-//        if (m.isNamed() && options.isSet("accessInternalAPI")) {
-//            ModuleHelper.addExports(getClass().getModule(), m);
-//        }
+        Module m = p.getClass().getModule();
+        if (m.isNamed() && options.isSet("accessInternalAPI")) {
+            ModuleHelper.addExports(getClass().getModule(), m);
+        }
         p.init(this, args);
     }
 
@@ -260,7 +261,6 @@ public class BasicJavacTask extends JavacTask {
             return;
         try {
             DocLint.newDocLint().init(this, docLintOpts.toArray(new String[docLintOpts.size()]));
-            //new DocLint().init(this, docLintOpts.toArray(new String[docLintOpts.size()]));
             JavaCompiler.instance(context).keepComments = true;
         } catch (IllegalStateException e) {
             Log.instance(context).warning(Warnings.DoclintNotAvailable);

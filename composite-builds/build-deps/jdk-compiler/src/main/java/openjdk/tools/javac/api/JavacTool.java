@@ -25,6 +25,7 @@
 
 package openjdk.tools.javac.api;
 
+import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -40,7 +41,6 @@ import java.util.Set;
 import jdkx.lang.model.SourceVersion;
 import jdkx.tools.*;
 
-import com.itsaky.androidide.javac.config.JavacConfigProvider;
 import openjdk.source.util.JavacTask;
 import openjdk.tools.javac.file.JavacFileManager;
 import openjdk.tools.javac.main.Arguments;
@@ -171,17 +171,17 @@ public final class JavacTool implements JavaCompiler {
             if (out == null && context.get(Log.errKey) == null)
                 // Situation: out is null and the value is not set in the context.
                 context.put(Log.errKey, new PrintWriter(System.err, true));
-            else if (out instanceof PrintWriter)
+            else if (out instanceof PrintWriter pw)
                 // Situation: out is not null and out is a PrintWriter.
-                context.put(Log.errKey, (PrintWriter)out);
+                context.put(Log.errKey, pw);
             else if (out != null)
                 // Situation: out is not null and out is not a PrintWriter.
                 context.put(Log.errKey, new PrintWriter(out, true));
 
             if (fileManager == null) {
                 fileManager = getStandardFileManager(diagnosticListener, null, null);
-                if (fileManager instanceof BaseFileManager) {
-                    ((BaseFileManager) fileManager).autoClose = true;
+                if (fileManager instanceof BaseFileManager baseFileManager) {
+                    baseFileManager.autoClose = true;
                 }
             }
             fileManager = ccw.wrap(fileManager);
@@ -217,7 +217,6 @@ public final class JavacTool implements JavaCompiler {
 
     @Override @DefinedBy(Api.COMPILER)
     public Set<SourceVersion> getSourceVersions() {
-        // AndroidIDE changed: Allow overriding latest supported source version.
         return Collections.unmodifiableSet(EnumSet.range(SourceVersion.RELEASE_3,
                                                          JavacConfigProvider.getLatestSupportedSourceVersion()));
     }

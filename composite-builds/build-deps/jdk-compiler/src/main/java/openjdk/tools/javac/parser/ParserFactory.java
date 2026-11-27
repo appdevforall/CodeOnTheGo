@@ -32,6 +32,7 @@ import openjdk.tools.javac.code.Source;
 import openjdk.tools.javac.tree.DocTreeMaker;
 import openjdk.tools.javac.tree.TreeMaker;
 import openjdk.tools.javac.util.Context;
+import openjdk.tools.javac.util.JCDiagnostic;
 import openjdk.tools.javac.util.Log;
 import openjdk.tools.javac.util.Names;
 import openjdk.tools.javac.util.Options;
@@ -56,7 +57,7 @@ public class ParserFactory {
         }
         return instance;
     }
-    
+
     final TreeMaker F;
     final DocTreeMaker docTreeMaker;
     final Log log;
@@ -68,6 +69,7 @@ public class ParserFactory {
     final ScannerFactory scannerFactory;
     final Locale locale;
 
+    @SuppressWarnings("this-escape")
     protected ParserFactory(Context context) {
         super();
         context.put(parserFactoryKey, this);
@@ -89,7 +91,6 @@ public class ParserFactory {
 
     public JavacParser newParser(CharSequence input, boolean keepDocComments, boolean keepEndPos, boolean keepLineMap, boolean parseModuleInfo) {
         Lexer lexer = scannerFactory.newScanner(input, keepDocComments);
-        final JavacParser parser = new JavacParser(this, lexer, keepDocComments, keepLineMap, keepEndPos, parseModuleInfo);
-        return parser;
+        return new JavacParser(this, lexer, keepDocComments, keepLineMap, keepEndPos, parseModuleInfo);
     }
 }

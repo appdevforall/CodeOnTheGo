@@ -35,7 +35,6 @@ import openjdk.tools.javac.code.Types.TypeMapping;
 import openjdk.tools.javac.comp.ArgumentAttr.LocalCacheContext;
 import openjdk.tools.javac.comp.Infer.GraphSolver.InferenceGraph;
 import openjdk.tools.javac.comp.Resolve.ResolveError;
-import openjdk.tools.javac.main.JavaCompiler;
 import openjdk.tools.javac.resources.CompilerProperties.Fragments;
 import openjdk.tools.javac.tree.*;
 import openjdk.tools.javac.util.*;
@@ -101,8 +100,7 @@ public class DeferredAttr extends JCTree.Visitor {
     final Flow flow;
     final Names names;
     final TypeEnvs typeEnvs;
-    final JavaCompiler compiler;
-	final DeferredCompletionFailureHandler dcfh;
+    final DeferredCompletionFailureHandler dcfh;
 
     public static DeferredAttr instance(Context context) {
         DeferredAttr instance = context.get(deferredAttrKey);
@@ -111,6 +109,7 @@ public class DeferredAttr extends JCTree.Visitor {
         return instance;
     }
 
+    @SuppressWarnings("this-escape")
     protected DeferredAttr(Context context) {
         context.put(deferredAttrKey, this);
         annotate = Annotate.instance(context);
@@ -129,8 +128,7 @@ public class DeferredAttr extends JCTree.Visitor {
         names = Names.instance(context);
         stuckTree = make.Ident(names.empty).setType(Type.stuckType);
         typeEnvs = TypeEnvs.instance(context);
-        compiler = JavaCompiler.instance(context);
-        dcfh = DeferredCompletionFailureHandler.instance(context);		
+        dcfh = DeferredCompletionFailureHandler.instance(context);
         emptyDeferredAttrContext =
             new DeferredAttrContext(AttrMode.CHECK, null, MethodResolutionPhase.BOX, infer.emptyContext, null, null) {
                 @Override
@@ -160,7 +158,7 @@ public class DeferredAttr extends JCTree.Visitor {
                         JCExpression clazz = copy(t.clazz, p);
                         List<JCExpression> args = copy(t.args, p);
                         JCClassDecl def = null;
-                        return make.at(t.pos).SpeculativeNewClass(encl, typeargs, clazz, args, def, t.def != null);
+                        return make.at(t.pos).SpeculativeNewClass(encl, typeargs, clazz, args, def, t.def != null || t.classDeclRemoved());
                     } else {
                         return super.visitNewClass(node, p);
                     }
@@ -224,15 +222,10 @@ public class DeferredAttr extends JCTree.Visitor {
         SpeculativeCache speculativeCache;
 
         DeferredType(JCExpression tree, Env<AttrContext> env) {
-            super(null, TypeMetadata.EMPTY);
+            super(null, List.nil());
             this.tree = tree;
             this.env = attr.copyEnv(env);
             this.speculativeCache = new SpeculativeCache();
-        }
-
-        @Override
-        public DeferredType cloneWithMetadata(TypeMetadata md) {
-            throw new AssertionError("Cannot add metadata to a deferred type");
         }
 
         @Override
@@ -467,15 +460,34 @@ public class DeferredAttr extends JCTree.Visitor {
      * disabled during speculative type-checking.
      */
     JCTree attribSpeculative(JCTree tree, Env<AttrContext> env, ResultInfo resultInfo) {
+        /* When performing speculative attribution on an argument expression, we should make sure that argument type
+         * cache does not get polluted with local types, as that leads to spurious type errors (see JDK-8295019)
+         */
         return attribSpeculative(tree, env, resultInfo, treeCopier,
-                null, AttributionMode.SPECULATIVE, null);
+                null, AttributionMode.SPECULATIVE, !hasTypeDeclaration(tree) ? null : argumentAttr.withLocalCacheContext());
     }
+
+    // where
+        private boolean hasTypeDeclaration(JCTree tree) {
+            TypeDeclVisitor typeDeclVisitor = new TypeDeclVisitor();
+            typeDeclVisitor.scan(tree);
+            return typeDeclVisitor.result;
+        }
+
+        private static class TypeDeclVisitor extends TreeScanner {
+            boolean result = false;
+
+            @Override
+            public void visitClassDef(JCClassDecl that) {
+                result = true;
+            }
+        }
 
     JCTree attribSpeculative(JCTree tree, Env<AttrContext> env, ResultInfo resultInfo, LocalCacheContext localCache) {
         return attribSpeculative(tree, env, resultInfo, treeCopier,
                 null, AttributionMode.SPECULATIVE, localCache);
     }
-	
+
     <Z> JCTree attribSpeculative(JCTree tree, Env<AttrContext> env, ResultInfo resultInfo, TreeCopier<Z> deferredCopier,
                                  Supplier<DiagnosticHandler> diagHandlerCreator, AttributionMode attributionMode,
                                  LocalCacheContext localCache) {
@@ -490,18 +502,16 @@ public class DeferredAttr extends JCTree.Visitor {
      * outside of the speculatively attributed tree.
      */
     <Z> JCTree attribSpeculative(JCTree tree, Env<AttrContext> env, ResultInfo resultInfo,
-                                 Supplier<DiagnosticHandler> diagHandlerCreator, AttributionMode attributionMode,
-                                 LocalCacheContext localCache) {
+                              Supplier<DiagnosticHandler> diagHandlerCreator, AttributionMode attributionMode,
+                              LocalCacheContext localCache) {
         Env<AttrContext> speculativeEnv = env.dup(tree, env.info.dup(env.info.scope.dupUnshared(env.info.scope.owner)));
         speculativeEnv.info.attributionMode = attributionMode;
         Log.DiagnosticHandler deferredDiagnosticHandler = diagHandlerCreator != null ? diagHandlerCreator.get() : new DeferredAttrDiagHandler(log, tree);
         DeferredCompletionFailureHandler.Handler prevCFHandler = dcfh.setHandler(dcfh.speculativeCodeHandler);
         Queues prevQueues = annotate.setQueues(new Queues());
         int nwarnings = log.nwarnings;
-		log.nwarnings = 0;
-        boolean oldSkipAP = compiler.skipAnnotationProcessing;
+        log.nwarnings = 0;
         try {
-            compiler.skipAnnotationProcessing = true;
             attr.attribTree(tree, speculativeEnv, resultInfo);
             return tree;
         } finally {
@@ -509,7 +519,6 @@ public class DeferredAttr extends JCTree.Visitor {
             dcfh.setHandler(prevCFHandler);
             log.nwarnings += nwarnings;
             enter.unenter(env.toplevel, tree);
-            compiler.skipAnnotationProcessing = oldSkipAP;
             log.popDiagnosticHandler(deferredDiagnosticHandler);
             if (localCache != null) {
                 localCache.leave();
@@ -843,7 +852,7 @@ public class DeferredAttr extends JCTree.Visitor {
                     boolean returnTypeIsVoid = currentReturnType.hasTag(VOID);
                     if (tree.getBodyKind() == BodyKind.EXPRESSION) {
                         boolean isExpressionCompatible = !returnTypeIsVoid ||
-                            TreeInfo.isExpressionStatement((JCExpression)tree.getBody(), names);
+                            TreeInfo.isExpressionStatement((JCExpression)tree.getBody());
                         if (!isExpressionCompatible) {
                             resultInfo.checkContext.report(tree.pos(),
                                 diags.fragment(Fragments.IncompatibleRetTypeInLambda(Fragments.MissingRetVal(currentReturnType))));
@@ -1040,7 +1049,7 @@ public class DeferredAttr extends JCTree.Visitor {
      */
     public class RecoveryDeferredTypeMap extends DeferredTypeMap<Type> {
 
-         public RecoveryDeferredTypeMap(AttrMode mode, Symbol msym, MethodResolutionPhase phase) {
+        public RecoveryDeferredTypeMap(AttrMode mode, Symbol msym, MethodResolutionPhase phase) {
             super(mode, msym, phase != null ? phase : MethodResolutionPhase.BOX);
         }
 

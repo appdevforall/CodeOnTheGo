@@ -26,6 +26,9 @@
 package openjdk.tools.javac.main;
 
 import java.io.*;
+import java.nio.file.FileSystemNotFoundException;
+import java.nio.file.InvalidPathException;
+import java.nio.file.ReadOnlyFileSystemException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -73,6 +76,7 @@ import openjdk.tools.javac.tree.JCTree.JCMemberReference;
 import openjdk.tools.javac.tree.JCTree.JCMethodDecl;
 import openjdk.tools.javac.tree.JCTree.JCVariableDecl;
 import openjdk.tools.javac.util.*;
+import openjdk.tools.javac.util.Context.Key;
 import openjdk.tools.javac.util.DefinedBy.Api;
 import openjdk.tools.javac.util.JCDiagnostic.Factory;
 import openjdk.tools.javac.util.Log.DiagnosticHandler;
@@ -81,7 +85,10 @@ import openjdk.tools.javac.util.Log.WriterKind;
 
 import static openjdk.tools.javac.code.Kinds.Kind.*;
 
+import openjdk.tools.javac.code.Lint;
+import openjdk.tools.javac.code.Lint.LintCategory;
 import openjdk.tools.javac.code.Symbol.ModuleSymbol;
+
 import openjdk.tools.javac.resources.CompilerProperties.Errors;
 import openjdk.tools.javac.resources.CompilerProperties.Fragments;
 import openjdk.tools.javac.resources.CompilerProperties.Notes;
@@ -89,12 +96,17 @@ import openjdk.tools.javac.resources.CompilerProperties.Warnings;
 
 import static openjdk.tools.javac.code.TypeTag.CLASS;
 import static openjdk.tools.javac.main.Option.*;
+import openjdk.tools.javac.tree.JCTree.JCBindingPattern;
 import static openjdk.tools.javac.util.JCDiagnostic.DiagnosticFlag.*;
 import java.util.Iterator;
 
 import static jdkx.tools.StandardLocation.CLASS_OUTPUT;
+import static jdkx.tools.StandardLocation.ANNOTATION_PROCESSOR_PATH;
 
 import openjdk.tools.javac.tree.JCTree.JCModuleDecl;
+import openjdk.tools.javac.tree.JCTree.JCRecordPattern;
+import openjdk.tools.javac.tree.JCTree.JCSwitch;
+import openjdk.tools.javac.tree.JCTree.JCSwitchExpression;
 
 /** This class could be the main entry point for GJC when GJC is used as a
  *  component in a larger software system. It provides operations to
@@ -225,6 +237,10 @@ public class JavaCompiler {
     /** The log to be used for error reporting.
      */
     public Log log;
+    
+    /** Whether or not the options lint category was initially disabled
+     */
+    boolean optionsCheckingInitiallyDisabled;
 
     /** Factory for creating diagnostic objects
      */
@@ -303,7 +319,7 @@ public class JavaCompiler {
     protected JCDiagnostic.Factory diags;
 
     protected DeferredCompletionFailureHandler dcfh;
-
+    
     /** The error repairer.
      */
     public Repair repair;
@@ -376,6 +392,7 @@ public class JavaCompiler {
 
     /** Construct a new compiler using a shared context.
      */
+    @SuppressWarnings("this-escape")
     public JavaCompiler(Context context) {
         this.context = context;
         context.put(compilerKey, this);
@@ -430,6 +447,12 @@ public class JavaCompiler {
         moduleFinder.moduleNameFromSourceReader = this::readModuleName;
 
         options = Options.instance(context);
+        // See if lint options checking was explicitly disabled by the
+        // user; this is distinct from the options check being
+        // enabled/disabled.
+        optionsCheckingInitiallyDisabled =
+            options.isSet(Option.XLINT_CUSTOM, "-options") ||
+            options.isSet(Option.XLINT_CUSTOM, "none");
 
         verbose       = options.isSet(VERBOSE);
         sourceOutput  = options.isSet(PRINTSOURCE); // used to be -s
@@ -619,13 +642,22 @@ public class JavaCompiler {
      *  @param content      The characters to be parsed.
      */
     protected JCCompilationUnit parse(JavaFileObject filename, CharSequence content) {
+        return parse(filename, content, false);
+    }
+
+    /** Parse contents of input stream.
+     *  @param filename     The name of the file from which input stream comes.
+     *  @param content      The characters to be parsed.
+     *  @param silent       true if TaskListeners should not be notified
+     */
+    private JCCompilationUnit parse(JavaFileObject filename, CharSequence content, boolean silent) {
         long msec = now();
         JCCompilationUnit tree = make.TopLevel(List.nil());
         if (content != null) {
             if (verbose) {
                 log.printVerbose("parsing.started", filename);
             }
-            if (!taskListener.isEmpty()) {
+            if (!taskListener.isEmpty() && !silent) {
                 TaskEvent e = new TaskEvent(TaskEvent.Kind.PARSE, filename);
                 taskListener.started(e);
                 keepComments = true;
@@ -641,7 +673,7 @@ public class JavaCompiler {
 
         tree.sourcefile = filename;
 
-        if (content != null && !taskListener.isEmpty()) {
+        if (content != null && !taskListener.isEmpty() && !silent) {
             TaskEvent e = new TaskEvent(TaskEvent.Kind.PARSE, tree);
             taskListener.finished(e);
         }
@@ -1066,7 +1098,7 @@ public class JavaCompiler {
      * Parses a list of files.
      */
    public List<JCCompilationUnit> parseFiles(Iterable<JavaFileObject> fileObjects) {
-       return parseFiles(fileObjects, false);
+       return InitialFileParser.instance(context).parse(fileObjects);
    }
 
    public List<JCCompilationUnit> parseFiles(Iterable<JavaFileObject> fileObjects, boolean force) {
@@ -1194,6 +1226,11 @@ public class JavaCompiler {
             processAnnotations = procEnvImpl.atLeastOneProcessor();
 
             if (processAnnotations) {
+                if (!explicitAnnotationProcessingRequested() &&
+                    !optionsCheckingInitiallyDisabled) {
+                    log.note(Notes.ImplicitAnnotationProcessing);
+                }
+                
                 options.put("parameters", "parameters");
                 reader.saveParameterNames = true;
                 keepComments = true;
@@ -1353,16 +1390,20 @@ public class JavaCompiler {
     boolean explicitAnnotationProcessingRequested() {
         return
             explicitAnnotationProcessingRequested ||
-            explicitAnnotationProcessingRequested(options);
+            explicitAnnotationProcessingRequested(options, fileManager);
     }
 
-    static boolean explicitAnnotationProcessingRequested(Options options) {
+    static boolean explicitAnnotationProcessingRequested(Options options, JavaFileManager fileManager) {
         return
             options.isSet(PROCESSOR) ||
             options.isSet(PROCESSOR_PATH) ||
             options.isSet(PROCESSOR_MODULE_PATH) ||
             options.isSet(PROC, "only") ||
-            options.isSet(XPRINT);
+            options.isSet(PROC, "full") ||
+            options.isSet(A) ||
+            options.isSet(XPRINT) ||
+            fileManager.hasLocation(ANNOTATION_PROCESSOR_PATH);
+            // Skipping -XprintRounds and -XprintProcessorInfo
     }
 
     public void setDeferredDiagnosticHandler(Log.DeferredDiagnosticHandler deferredDiagnosticHandler) {
@@ -1397,7 +1438,7 @@ public class JavaCompiler {
             log.printVerbose("checking.attribution", env.enclClass.sym);
 
         if (!taskListener.isEmpty()) {
-            TaskEvent e = new TaskEvent(TaskEvent.Kind.ANALYZE, env.toplevel, env.enclClass.sym);
+            TaskEvent e = newAnalyzeTaskEvent(env);
             taskListener.started(e);
         }
 
@@ -1482,11 +1523,29 @@ public class JavaCompiler {
         }
         finally {
             if (!taskListener.isEmpty()) {
-                TaskEvent e = new TaskEvent(TaskEvent.Kind.ANALYZE, env.toplevel, env.enclClass.sym);
+                TaskEvent e = newAnalyzeTaskEvent(env);
                 taskListener.finished(e);
             }
         }
     }
+   
+   private TaskEvent newAnalyzeTaskEvent(Env<AttrContext> env) {
+        JCCompilationUnit toplevel = env.toplevel;
+        ClassSymbol sym;
+        if (env.enclClass.sym == syms.predefClass) {
+            if (TreeInfo.isModuleInfo(toplevel)) {
+                sym = toplevel.modle.module_info;
+            } else if (TreeInfo.isPackageInfo(toplevel)) {
+                sym = toplevel.packge.package_info;
+            } else {
+                throw new IllegalStateException("unknown env.toplevel");
+            }
+        } else {
+            sym = env.enclClass.sym;
+        }
+
+        return new TaskEvent(TaskEvent.Kind.ANALYZE, toplevel, sym);
+    } 
 
     public boolean doRepair = true; // Allows for switching off repair. For test purposes only.
 
@@ -1547,11 +1606,13 @@ public class JavaCompiler {
         class ScanNested extends TreeScanner {
             Set<Env<AttrContext>> dependencies = new LinkedHashSet<>();
             protected boolean hasLambdas;
+            protected boolean hasPatterns;
             @Override
             public void visitClassDef(JCClassDecl node) {
                 if (node.sym != null) {
                     Type st = types.supertype(node.sym.type);
                     boolean envForSuperTypeFound = false;
+                    boolean prevHasPatterns = hasPatterns;
                     while (!envForSuperTypeFound && st != null && st.hasTag(CLASS)) {
                         ClassSymbol c = st.tsym.outermostClass();
                         Env<AttrContext> stEnv = enter.getEnv(c);
@@ -1562,12 +1623,14 @@ public class JavaCompiler {
                                     scan(stEnv.tree);
                                 } finally {
                                     /*
-                                     * ignore any updates to hasLambdas made during
-                                     * the nested scan, this ensures an initalized
-                                     * LambdaToMethod is available only to those
-                                     * classes that contain lambdas
+                                     * ignore any updates to hasLambdas and hasPatterns
+                                     * made during the nested scan, this ensures an
+                                     * initialized LambdaToMethod or TransPatterns is
+                                     * available only to those classes that contain
+                                     * lambdas or patterns, respectivelly
                                      */
                                     hasLambdas = prevHasLambdas;
+                                    hasPatterns = prevHasPatterns;
                                 }
                             }
                             envForSuperTypeFound = true;
@@ -1586,6 +1649,26 @@ public class JavaCompiler {
             public void visitReference(JCMemberReference tree) {
                 hasLambdas = true;
                 super.visitReference(tree);
+            }
+            @Override
+            public void visitBindingPattern(JCBindingPattern tree) {
+                hasPatterns = true;
+                super.visitBindingPattern(tree);
+            }
+            @Override
+            public void visitRecordPattern(JCRecordPattern that) {
+                hasPatterns = true;
+                super.visitRecordPattern(that);
+            }
+            @Override
+            public void visitSwitch(JCSwitch tree) {
+                hasPatterns |= tree.patternSwitch;
+                super.visitSwitch(tree);
+            }
+            @Override
+            public void visitSwitchExpression(JCSwitchExpression tree) {
+                hasPatterns |= tree.patternSwitch;
+                super.visitSwitchExpression(tree);
             }
         }
         ScanNested scanner = new ScanNested();
@@ -1625,7 +1708,7 @@ public class JavaCompiler {
                 }
                 return;
             }
-
+            
             if (doRepair)
                 env.tree = repair.translateTopLevelClass(env, env.tree, localMake);
 
@@ -1634,14 +1717,22 @@ public class JavaCompiler {
 
             env.tree = transTypes.translateTopLevelClass(env.tree, localMake);
             compileStates.put(env, CompileState.TRANSTYPES);
+            
+            if (shouldStop(CompileState.TRANSLITERALS))
+                return;
+
+            env.tree = TransLiterals.instance(context).translateTopLevelClass(env, env.tree, localMake);
+            compileStates.put(env, CompileState.TRANSLITERALS);
 
             if (shouldStop(CompileState.TRANSPATTERNS))
                 return;
 
-            env.tree = TransPatterns.instance(context).translateTopLevelClass(env, env.tree, localMake);
+            if (scanner.hasPatterns) {
+                env.tree = TransPatterns.instance(context).translateTopLevelClass(env, env.tree, localMake);
+            }
             compileStates.put(env, CompileState.TRANSPATTERNS);
 
-            if (Feature.LAMBDA.allowedInSource(source) && scanner.hasLambdas) {
+            if (scanner.hasLambdas) {
                 if (shouldStop(CompileState.UNLAMBDA))
                     return;
 
@@ -1726,7 +1817,11 @@ public class JavaCompiler {
                 }
                 if (results != null && file != null)
                     results.add(file);
-            } catch (IOException ex) {
+            } catch (IOException
+                    | UncheckedIOException
+                    | FileSystemNotFoundException
+                    | InvalidPathException
+                    | ReadOnlyFileSystemException ex) {
                 log.error(cdef.pos(),
                           Errors.ClassCantWrite(cdef.sym, ex.getMessage()));
                 return;
@@ -1860,7 +1955,7 @@ public class JavaCompiler {
         DiagnosticHandler dh = new DiscardDiagnosticHandler(log);
         JavaFileObject prevSource = log.useSource(fo);
         try {
-            JCTree.JCCompilationUnit t = parse(fo, fo.getCharContent(false));
+            JCTree.JCCompilationUnit t = parse(fo, fo.getCharContent(false), true);
             return tree2Name.apply(t);
         } catch (IOException e) {
             return null;
@@ -1984,4 +2079,33 @@ public class JavaCompiler {
             }
         }
     }
+    
+    public interface InitialFileParserIntf {
+        public List<JCCompilationUnit> parse(Iterable<JavaFileObject> files);
+    }
+
+    public static class InitialFileParser implements InitialFileParserIntf {
+
+        public static final Key<InitialFileParserIntf> initialParserKey = new Key<>();
+
+        public static InitialFileParserIntf instance(Context context) {
+            InitialFileParserIntf instance = context.get(initialParserKey);
+            if (instance == null)
+                instance = new InitialFileParser(context);
+            return instance;
+        }
+
+        private final JavaCompiler compiler;
+
+        private InitialFileParser(Context context) {
+            context.put(initialParserKey, this);
+            this.compiler = JavaCompiler.instance(context);
+        }
+
+        @Override
+        public List<JCCompilationUnit> parse(Iterable<JavaFileObject> fileObjects) {
+           return compiler.parseFiles(fileObjects, false);
+        }
+    }
+    
 }

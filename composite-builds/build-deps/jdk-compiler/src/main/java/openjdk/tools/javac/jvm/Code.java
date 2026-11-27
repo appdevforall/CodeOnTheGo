@@ -250,7 +250,6 @@ public class Code {
         case DOUBLE: return DOUBLEcode;
         case BOOLEAN: return BYTEcode;
         case VOID: return VOIDcode;
-        case ERROR:
         case CLASS:
         case ARRAY:
         case METHOD:
@@ -290,10 +289,8 @@ public class Code {
      */
     public static int width(List<Type> types) {
         int w = 0;
-        if (types != null) {
-            for (List<Type> l = types; l.nonEmpty(); l = l.tail)
-                w = w + width(l.head);
-        }
+        for (List<Type> l = types; l.nonEmpty(); l = l.tail)
+            w = w + width(l.head);
         return w;
     }
 
@@ -624,7 +621,7 @@ public class Code {
             markDead();
             break;
         case athrow:
-            state.pop(1);
+            state.pop(state.stacksize);
             markDead();
             break;
         case lstore_0:
@@ -2018,7 +2015,7 @@ public class Code {
             if (localVar != null) {
                 for (LocalVar.Range range: localVar.aliveRanges) {
                     if (range.closed() && range.start_pc + range.length >= oldCP) {
-                        range.length += delta;
+                        range.length += (char)delta;
                     }
                 }
             }
@@ -2208,7 +2205,7 @@ public class Code {
     private int newLocal(int typecode) {
         int reg = nextreg;
         int w = width(typecode);
-        nextreg = w > 0 ? reg + w : reg + 1;
+        nextreg = reg + w;
         if (nextreg > max_locals) max_locals = nextreg;
         return reg;
     }

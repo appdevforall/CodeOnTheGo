@@ -28,7 +28,6 @@ package openjdk.tools.javac.util;
 import java.io.*;
 import java.util.Arrays;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -50,7 +49,6 @@ import openjdk.tools.javac.util.JCDiagnostic.DiagnosticPosition;
 import openjdk.tools.javac.util.JCDiagnostic.DiagnosticType;
 
 import static openjdk.tools.javac.main.Option.*;
-import java.util.Map;
 
 /** A class for error logs. Reports errors and warnings, and
  *  keeps track of error numbers and positions.
@@ -93,7 +91,7 @@ public class Log extends AbstractLog {
      * Note that jdkx.tools.DiagnosticListener (if set) is called later in the
      * diagnostic pipeline.
      */
-    public static abstract class DiagnosticHandler {
+    public abstract static class DiagnosticHandler {
         /**
          * The previously installed diagnostic handler.
          */
@@ -118,6 +116,7 @@ public class Log extends AbstractLog {
      * A DiagnosticHandler that discards all diagnostics.
      */
     public static class DiscardDiagnosticHandler extends DiagnosticHandler {
+        @SuppressWarnings("this-escape")
         public DiscardDiagnosticHandler(Log log) {
             install(log);
         }
@@ -135,13 +134,13 @@ public class Log extends AbstractLog {
      */
     public static class DeferredDiagnosticHandler extends DiagnosticHandler {
         private Queue<JCDiagnostic> deferred = new ListBuffer<>();
-        private Throwable t;
         private final Predicate<JCDiagnostic> filter;
 
         public DeferredDiagnosticHandler(Log log) {
             this(log, null);
         }
 
+        @SuppressWarnings("this-escape")
         public DeferredDiagnosticHandler(Log log, Predicate<JCDiagnostic> filter) {
             this.filter = filter;
             install(log);
@@ -169,14 +168,10 @@ public class Log extends AbstractLog {
         /** Report selected deferred diagnostics. */
         public void reportDeferredDiagnostics(Predicate<JCDiagnostic> accepter) {
             JCDiagnostic d;
-            if (deferred == null) {
-                throw new IllegalStateException(t);
-            }
             while ((d = deferred.poll()) != null) {
                 if (accepter.test(d))
                     prev.report(d);
             }
-            t = new Exception();
             deferred = null; // prevent accidental ongoing use
         }
     }
@@ -236,10 +231,7 @@ public class Log extends AbstractLog {
      * Handler for initial dispatch of diagnostics.
      */
     private DiagnosticHandler diagnosticHandler;
-
-    private boolean partialReparse;
-
-    private final Set<Pair<JavaFileObject, Integer>> partialReparseRecorded = new HashSet<Pair<JavaFileObject,Integer>>();
+    
     private final HashMap<JCTree, JCDiagnostic> errTrees = new HashMap<JCTree, JCDiagnostic>();
 
     /** Get the Log instance for this context. */
@@ -265,6 +257,7 @@ public class Log extends AbstractLog {
      * it will be used for all output.
      * Otherwise, the log will be initialized to use both streams found in the context.
      */
+    @SuppressWarnings("this-escape")
     protected Log(Context context) {
         this(context, initWriters(context));
     }
@@ -292,6 +285,7 @@ public class Log extends AbstractLog {
     /**
      * Construct a log with all output sent to a single output stream.
      */
+    @SuppressWarnings("this-escape")
     protected Log(Context context, PrintWriter writer) {
         this(context, initWriters(writer, writer));
     }
@@ -301,6 +295,7 @@ public class Log extends AbstractLog {
      * The log will be initialized to use stdOut for normal output, and stdErr
      * for all diagnostic output.
      */
+    @SuppressWarnings("this-escape")
     protected Log(Context context, PrintWriter out, PrintWriter err) {
         this(context, initWriters(out, err));
     }
@@ -426,30 +421,10 @@ public class Log extends AbstractLog {
         getSource(name).setEndPosTable(endPosTable);
     }
 
-    public void startPartialReparse () {
-        assert partialReparseRecorded.isEmpty();
-        this.nerrors = 0;
-        this.nwarnings = 0;
-        this.partialReparse = true;
-    }
-
-    public void endPartialReparse () {
-        this.partialReparseRecorded.clear();
-        this.partialReparse = false;
-    }
-
     /** Return current sourcefile.
      */
     public JavaFileObject currentSourceFile() {
         return source == null ? null : source.getFile();
-    }
-
-    public DiagnosticListener<? super JavaFileObject> getDiagnosticListener() {
-        return diagListener;
-    }
-
-    public void setDiagnosticListener(DiagnosticListener<? super JavaFileObject> diagListener) {
-        this.diagListener = diagListener;
     }
 
     /** Get the current diagnostic formatter.
@@ -486,21 +461,7 @@ public class Log extends AbstractLog {
      * it must be specified explicitly for clarity and consistency checking.
      */
     public void popDiagnosticHandler(DiagnosticHandler h) {
-        if (diagnosticHandler != h) {
-            final Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
-            final StringBuilder message = new StringBuilder("Wrong diagnostic handler: ").  //NOI18N
-                append(diagnosticHandler).
-                append("\nThread dump:\n"); //NOI18N
-            for (Map.Entry<Thread,StackTraceElement[]> e : allStackTraces.entrySet()) {
-                message.append(e.getKey().getName()).append('\n');  //NOI18N
-                for (StackTraceElement ste : e.getValue()) {
-                    message.append('\t').   //NOI18N
-                        append(ste.toString()).
-                        append('\n');   //NOI18N
-                }
-            }
-            Assert.check(diagnosticHandler == h, message);
-        }
+        Assert.check(diagnosticHandler == h);
         diagnosticHandler = h.prev;
     }
 
@@ -524,19 +485,10 @@ public class Log extends AbstractLog {
             return true;
 
         Pair<JavaFileObject,Integer> coords = new Pair<>(file, pos);
-        if (partialReparse) {
-            boolean shouldReport = !partialReparseRecorded.contains(coords);
-            if (shouldReport) {
-                partialReparseRecorded.add(coords);
-            }
-            return shouldReport;
-        }
-        else {
-            boolean shouldReport = !recorded.contains(coords);
-            if (shouldReport)
-                recorded.add(coords);
-            return shouldReport;
-        }
+        boolean shouldReport = !recorded.contains(coords);
+        if (shouldReport)
+            recorded.add(coords);
+        return shouldReport;
     }
 
     /** Returns true if a diagnostics needs to be reported.
@@ -570,8 +522,8 @@ public class Log extends AbstractLog {
         private void getCodeRecursive(ListBuffer<String> buf, JCDiagnostic d) {
             buf.add(d.getCode());
             for (Object o : d.getArgs()) {
-                 if (o instanceof JCDiagnostic) {
-                    getCodeRecursive(buf, (JCDiagnostic)o);
+                if (o instanceof JCDiagnostic diagnostic) {
+                    getCodeRecursive(buf, diagnostic);
                 }
             }
         }
@@ -726,6 +678,11 @@ public class Log extends AbstractLog {
         public void report(JCDiagnostic diagnostic) {
             if (expectDiagKeys != null)
                 expectDiagKeys.remove(diagnostic.getCode());
+
+            if (diagnostic.hasRewriter()) {
+                JCDiagnostic rewrittenDiag = diagnostic.rewrite();
+                diagnostic = rewrittenDiag != null ? rewrittenDiag : diagnostic;
+            }
 
             switch (diagnostic.getType()) {
             case FRAGMENT:
@@ -910,8 +867,9 @@ public class Log extends AbstractLog {
     public static String format(String fmt, Object... args) {
         return String.format((java.util.Locale)null, fmt, args);
     }
-
+    
     public JCDiagnostic getErrDiag(JCTree tree) {
         return errTrees.get(tree);
     }
+
 }

@@ -28,8 +28,6 @@ package openjdk.tools.jdeps;
 import static openjdk.tools.jdeps.Module.trace;
 import static java.util.stream.Collectors.*;
 
-import com.itsaky.androidide.javac.config.JavacConfigProvider;
-
 import openjdk.tools.classfile.Dependency;
 
 import java.io.BufferedInputStream;
@@ -306,8 +304,7 @@ public class JdepsConfiguration implements AutoCloseable {
     }
 
     static class SystemModuleFinder implements ModuleFinder {
-        // AndroidIDE changed: Allow overriding java home.
-        private static final String JAVA_HOME = JavacConfigProvider.getJavaHome();
+        private static final String JAVA_HOME = com.itsaky.androidide.javac.config.JavacConfigProvider.getJavaHome();
 
         private final FileSystem fileSystem;
         private final Path root;
@@ -400,8 +397,8 @@ public class JdepsConfiguration implements AutoCloseable {
             md.requires().forEach(builder::requires);
             md.exports().forEach(builder::exports);
             md.opens().forEach(builder::opens);
-            md.provides().stream().forEach(builder::provides);
-            md.uses().stream().forEach(builder::uses);
+            md.provides().forEach(builder::provides);
+            md.uses().forEach(builder::uses);
             builder.packages(md.packages());
             return builder.build();
         }

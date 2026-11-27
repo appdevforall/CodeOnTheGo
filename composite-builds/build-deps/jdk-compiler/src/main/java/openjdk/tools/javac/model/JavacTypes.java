@@ -38,7 +38,6 @@ import jdkx.lang.model.type.*;
 
 import openjdk.tools.javac.code.*;
 import openjdk.tools.javac.code.Symbol.*;
-import openjdk.tools.javac.jvm.ClassReader;
 import openjdk.tools.javac.util.*;
 import openjdk.tools.javac.util.DefinedBy.Api;
 
@@ -64,10 +63,9 @@ public class JavacTypes implements jdkx.lang.model.util.Types {
         return instance;
     }
 
+    @SuppressWarnings("this-escape")
     protected JavacTypes(Context context) {
         context.put(JavacTypes.class, this);
-        //Need ensure ClassReader is initialized before Symtab:
-        ClassReader.instance(context);
         syms = Symtab.instance(context);
         types = Types.instance(context);
     }
@@ -79,6 +77,8 @@ public class JavacTypes implements jdkx.lang.model.util.Types {
             case INTERSECTION:
             case ERROR:
             case TYPEVAR:
+            case PACKAGE:
+            case MODULE:
                 Type type = cast(Type.class, t);
                 return type.asElement();
             default:
@@ -126,7 +126,7 @@ public class JavacTypes implements jdkx.lang.model.util.Types {
         Type ty = (Type)t;
         return types.directSupertypes(ty).stream()
                 .map(Type::stripMetadataIfNeeded)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @DefinedBy(Api.LANGUAGE_MODEL)
@@ -225,7 +225,6 @@ public class JavacTypes implements jdkx.lang.model.util.Types {
         case DECLARED:
         case ERROR:
         case TYPEVAR:
-        case OTHER:
             return new Type.WildcardType(bound, bkind, syms.boundClass);
         default:
             throw new IllegalArgumentException(bound.toString());
@@ -333,18 +332,17 @@ public class JavacTypes implements jdkx.lang.model.util.Types {
                 || elem.getModifiers().contains(Modifier.PRIVATE))
             return Collections.emptySet();
 
-        if (!(elem instanceof MethodSymbol))
+        if (!(elem instanceof MethodSymbol methodSymbol))
             throw new IllegalArgumentException();
 
-        MethodSymbol m = (MethodSymbol) elem;
-        ClassSymbol origin = (ClassSymbol) m.owner;
+        ClassSymbol origin = (ClassSymbol) methodSymbol.owner;
 
         Set<MethodSymbol> results = new LinkedHashSet<>();
         for (Type t : types.closure(origin.type)) {
             if (t != origin.type) {
                 ClassSymbol c = (ClassSymbol) t.tsym;
-                for (Symbol sym : c.members().getSymbolsByName(m.name)) {
-                    if (sym.kind == MTH && m.overrides(sym, origin, types, true)) {
+                for (Symbol sym : c.members().getSymbolsByName(methodSymbol.name)) {
+                    if (sym.kind == MTH && methodSymbol.overrides(sym, origin, types, true)) {
                         results.add((MethodSymbol) sym);
                     }
                 }

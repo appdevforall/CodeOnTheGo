@@ -25,12 +25,9 @@
 
 package openjdk.source.tree;
 
-import javac.internal.PreviewFeature;
-
 /**
  * A marker interface for {@code Tree}s that may be used as {@link CaseTree} labels.
  *
- * @since 17
+ * @since 21
  */
-@PreviewFeature(feature=PreviewFeature.Feature.SWITCH_PATTERN_MATCHING, reflective=true)
 public interface CaseLabelTree extends Tree {}

@@ -38,7 +38,7 @@ public class LazyTreeLoader {
 
     /** The context key for the parameter name resolver. */
     public static final Context.Key<LazyTreeLoader> lazyTreeLoaderKey =
-        new Context.Key<LazyTreeLoader>();
+            new Context.Key<LazyTreeLoader>();
 
     public static LazyTreeLoader instance(Context context) {
         LazyTreeLoader instance = context.get(lazyTreeLoaderKey);

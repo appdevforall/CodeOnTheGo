@@ -60,7 +60,7 @@ public class ConstantWriter extends BasicWriter {
     }
 
     protected void writeConstantPool(ConstantPool constant_pool) {
-        ConstantPool.Visitor<Integer, Void> v = new ConstantPool.Visitor<Integer, Void>() {
+        ConstantPool.Visitor<Integer, Void> v = new ConstantPool.Visitor<>() {
             public Integer visitClass(CONSTANT_Class_info info, Void p) {
                 print("#" + info.name_index);
                 tab();
@@ -294,7 +294,7 @@ public class ConstantWriter extends BasicWriter {
         }
     }
 
-    public String stringValue(int constant_pool_index) {
+    String stringValue(int constant_pool_index) {
         ClassFile classFile = classWriter.getClassFile();
         try {
             return stringValue(classFile.constant_pool.get(constant_pool_index));

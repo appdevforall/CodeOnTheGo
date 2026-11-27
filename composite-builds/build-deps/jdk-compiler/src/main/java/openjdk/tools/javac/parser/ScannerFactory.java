@@ -63,6 +63,7 @@ public class ScannerFactory {
     final Lint lint;
 
     /** Create a new scanner factory. */
+    @SuppressWarnings("this-escape")
     protected ScannerFactory(Context context) {
         context.put(scannerFactoryKey, this);
         this.log = Log.instance(context);
@@ -74,12 +75,11 @@ public class ScannerFactory {
     }
 
     public Scanner newScanner(CharSequence input, boolean keepDocComments) {
-        if (input instanceof CharBuffer) {
-            CharBuffer buf = (CharBuffer) input;
+        if (input instanceof CharBuffer charBuffer) {
             if (keepDocComments)
-                return new Scanner(this, new JavadocTokenizer(this, buf));
+                return new Scanner(this, new JavadocTokenizer(this, charBuffer));
             else
-                return new Scanner(this, buf);
+                return new Scanner(this, charBuffer);
         } else {
             char[] array = input.toString().toCharArray();
             return newScanner(array, array.length, keepDocComments);

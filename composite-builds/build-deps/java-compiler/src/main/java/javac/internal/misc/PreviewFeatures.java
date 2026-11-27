@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,18 +22,34 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-
-package openjdk.tools.javac.util;
+package javac.internal.misc;
 
 /**
- * Simple filter acting as a boolean predicate. Method accepts return true if
- * the supplied element matches against the filter.
+ * Defines static methods to test if preview features are enabled at run-time.
  */
-public interface Filter<T> {
+public class PreviewFeatures {
+    private static final boolean ENABLED = isPreviewEnabled();
+
+    private PreviewFeatures() {
+    }
+
     /**
-     * Does this element match against the filter?
-     * @param t element to be checked
-     * @return true if the element satisfy constraints imposed by filter
+     * {@return true if preview features are enabled, otherwise false}
      */
-    boolean accepts(T t);
+    public static boolean isEnabled() {
+        return ENABLED;
+    }
+
+    /**
+     * Ensures that preview features are enabled.
+     * @throws UnsupportedOperationException if preview features are not enabled
+     */
+    public static void ensureEnabled() {
+        if (!isEnabled()) {
+            throw new UnsupportedOperationException(
+                "Preview Features not enabled, need to run with --enable-preview");
+        }
+    }
+
+    private static native boolean isPreviewEnabled();
 }

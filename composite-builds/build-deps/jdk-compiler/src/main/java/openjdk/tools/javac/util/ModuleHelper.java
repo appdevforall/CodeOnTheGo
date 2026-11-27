@@ -44,10 +44,10 @@ public class ModuleHelper {
             "openjdk.tools.doclint",
     };
 
-//    public static void addExports(Module from, Module to) {
-//        for (String pack: javacInternalPackages) {
-//            from.addExports(pack, to);
-//        }
-//    }
+    public static void addExports(Module from, Module to) {
+        for (String pack: javacInternalPackages) {
+            from.addExports(pack, to);
+        }
+    }
 }
 

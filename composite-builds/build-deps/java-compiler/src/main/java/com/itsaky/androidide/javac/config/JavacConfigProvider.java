@@ -28,10 +28,12 @@ public class JavacConfigProvider {
      */
     public static String PROP_ANDROIDIDE_JAVA_HOME = "androidide.java.home";
 
+    public static int MAX_SOURCE_VERSION = 21;
+
     /**
      * The latest source version that can be modeled.
      */
-    private static SourceVersion latestSourceVersion = SourceVersion.RELEASE_17;
+    private static SourceVersion latestSourceVersion = SourceVersion.RELEASE_21;
 
     /**
      * The latest source version supported by the compiler.
@@ -50,10 +52,9 @@ public class JavacConfigProvider {
     public static String getJavaHome() {
         String javaHome = System.getProperty(PROP_ANDROIDIDE_JAVA_HOME);
         if (javaHome == null || javaHome.trim().isEmpty()) {
-			System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!");
-			System.err.println(PROP_ANDROIDIDE_JAVA_HOME + " is not set. Falling back to java.home!");
-			System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!");
-
+            System.err.println("!!!!!!!!!!!!!!!!!!!!!");
+            System.err.println(PROP_ANDROIDIDE_JAVA_HOME+" is not set. falling back to java.home");
+            System.err.println("!!!!!!!!!!!!!!!!!!!!!");
             javaHome = System.getProperty("java.home");
         }
         return javaHome;
