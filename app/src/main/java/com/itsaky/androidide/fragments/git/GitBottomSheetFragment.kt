@@ -854,10 +854,6 @@ class GitBottomSheetFragment : Fragment(R.layout.fragment_git_bottom_sheet) {
 						if (succeeded && !handler.hasUnsavedWritableFiles()) {
 							action()
 						} else {
-							// The String overload, not flashError(Int): the Int one shows a ~1s
-							// auto-dismissing bar, and a user who looked away would never learn the git
-							// action was abandoned and their edits are still unwritten. Matches the
-							// reasoning EditorHandlerActivity spells out on its own save-failure path.
 							flashError(getString(R.string.save_failed))
 						}
 					}

@@ -2807,10 +2807,6 @@ open class EditorHandlerActivity :
 							)
 							return@runOnUiThread
 						}
-						// Routed through the String overload (indefinite duration, must-dismiss) rather
-						// than flashError(Int) (a ~1s auto-dismissing toast) -- a user who looks away
-						// right after tapping "Save and close" must not miss that the close was aborted
-						// and the activity is still open with unsaved changes.
 						flashError(getString(string.save_failed))
 						// A later, superseding request (e.g. a third deep link arriving while this save
 						// was in flight) must not be silently dropped just because THIS attempt's save
