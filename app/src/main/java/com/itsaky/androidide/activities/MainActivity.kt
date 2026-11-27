@@ -370,7 +370,7 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 
 	/**
 	 * Tells the user once which plugins bundled with the build did not start. The failures are
-	 * marked reported only when the user dismisses the bar ([reportFailures]); a screen that goes
+	 * marked reported only when the user taps the bar's Dismiss button ([reportFailures]); a screen that goes
 	 * away first, as a font scale change recreates it, shows them again next time. The report runs
 	 * until the dismissal, and [reportingBundledFailures] keeps a resume during the report from
 	 * starting a second one.

@@ -71,6 +71,7 @@ private fun Activity.configureFlashbar(
 	iconType: IconType,
 	gravity: Flashbar.Gravity,
 	duration: Long,
+	onDismissButton: () -> Unit = {},
 ): Flashbar.Builder? {
 	if (msg == null) return null
 	if (msg !is Int && msg !is String) {
@@ -82,7 +83,10 @@ private fun Activity.configureFlashbar(
 	// Add a close button if the flashbar is an indefinite error
 	if (duration == DURATION_INDEFINITE && iconType == IconType.ERROR) {
 		builder.positiveActionText(getString(R.string.dismiss))
-		builder.positiveActionTapListener { it.dismiss() }
+		builder.positiveActionTapListener {
+			onDismissButton()
+			it.dismiss()
+		}
 
 		// An indefinite bar is drawn OVER the activity, and the error variant is tall enough
 		// (message + action row) to cover the editor toolbar. Until it goes away the Run and
@@ -168,11 +172,14 @@ interface TrackedFlashbar {
 
 	/**
 	 * Suspends until the bar is dismissed; for an indefinite error bar, only the user does that.
+	 * Returns true only if the Dismiss button did it. With [Experiment.ERROR_BAR_TOUCH_DISMISS] on, a
+	 * tap anywhere on the bar or a swipe also dismisses it, often by accident, since the bar covers the
+	 * toolbar; those return false.
 	 * Destroying the activity fires no dismiss callback (the bar's view is only detached), so if the
 	 * activity goes away first this never returns: wait in a scope that ends with the activity, such
 	 * as its lifecycleScope.
 	 */
-	suspend fun awaitDismissed()
+	suspend fun awaitDismissed(): Boolean
 }
 
 /**
@@ -185,10 +192,12 @@ private fun Activity.showTrackedFlashBar(
 	gravity: Flashbar.Gravity = TOP,
 	duration: Long = Flashbar.DURATION_SHORT,
 ): TrackedFlashbar? {
-	val builder = configureFlashbar(msg, iconType, gravity, duration) ?: return null
+	// Set on the UI thread before the button's dismiss(), which ends in onDismissed on that thread.
+	var byDismissButton = false
+	val builder = configureFlashbar(msg, iconType, gravity, duration) { byDismissButton = true } ?: return null
 
 	val shown = CompletableDeferred<Unit>()
-	val dismissed = CompletableDeferred<Unit>()
+	val dismissed = CompletableDeferred<Boolean>()
 	builder.barShowListener(
 		object : Flashbar.OnBarShowListener {
 			override fun onShowing(bar: Flashbar) = Unit
@@ -219,7 +228,7 @@ private fun Activity.showTrackedFlashBar(
 				bar: Flashbar,
 				event: Flashbar.DismissEvent,
 			) {
-				dismissed.complete(Unit)
+				dismissed.complete(byDismissButton)
 			}
 		},
 	)
