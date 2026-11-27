@@ -2,13 +2,13 @@ package com.itsaky.androidide.lsp.kotlin.utils.refactor
 
 import com.itsaky.androidide.lsp.kotlin.compiler.AbstractCompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.retryingOnPreemption
 import com.itsaky.androidide.lsp.refactor.TextSpan
+import com.itsaky.androidide.progress.ICancelChecker
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.resolution.KaCallableMemberCall
 import org.jetbrains.kotlin.analysis.api.resolution.KaImplicitReceiverValue
 import org.jetbrains.kotlin.analysis.api.resolution.successfulCallOrNull
-import org.jetbrains.kotlin.analysis.api.symbols.KaAnonymousFunctionSymbol
 import org.jetbrains.kotlin.analysis.api.types.KaFunctionType
 import org.jetbrains.kotlin.com.intellij.psi.PsiComment
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
@@ -65,17 +65,28 @@ internal fun buildInlineVariablePlan(
 	nioPath: Path,
 	offset: Int,
 	documentVersion: Int,
-	cancelChecker: ScheduledCancelChecker,
+	cancelChecker: ICancelChecker,
 ): InlineVariablePlan =
 	runCatching {
-		env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
-			live.read { ktFile ->
-				val fileText = ktFile.text
-				live.analyzing(AnalysisPriority.INTERACTIVE, cancelChecker) {
-					planFor(ktFile, fileText, offset, documentVersion)
+		/*
+		 * Another path's edit raises the analysis barrier for every priority, which preempts this
+		 * user-invoked plan; it is retried once, re-pinning the file, rather than failing the action.
+		 */
+		retryingOnPreemption(cancelChecker, "Inline-variable plan for $nioPath") { checker ->
+			env.ktSymbolIndex.withLiveKtFile(nioPath) { live ->
+				// A joined pin can hold text older than the buffer the caller stamped documentVersion from.
+				if (live.isStale) {
+					logger.debug("refusing inline-variable plan for {}: pinned text is behind the buffer", nioPath)
+					return@withLiveKtFile InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
 				}
-			}
-		} ?: InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
+				live.read { ktFile ->
+					val fileText = ktFile.text
+					live.analyzing(AnalysisPriority.INTERACTIVE, checker) {
+						planFor(ktFile, fileText, offset, documentVersion)
+					}
+				}
+			} ?: InlineVariablePlan.refused(InlineRefusal.CouldNotAnalyse)
+		}
 	}.getOrElse { error ->
 		if (error is CancellationException) throw error
 		logger.warn("Failed to build inline-variable plan for {}", nioPath, error)
@@ -297,8 +308,8 @@ private fun KaSession.resolveTargetAt(
 	val referenced =
 		runCatching {
 			reference.mainReference
-				?.resolveToSymbols()
-				?.firstNotNullOfOrNull { symbol -> runCatching { symbol.psi }.getOrNull() }
+				.resolveToSymbols()
+				.firstNotNullOfOrNull { symbol -> runCatching { symbol.psi }.getOrNull() }
 		}.getOrNull() ?: return TargetResolution.Refused(InlineRefusal.NotAVariable)
 
 	if (referenced is KtProperty) {
@@ -317,9 +328,9 @@ private fun KaSession.resolvesToTarget(
 	target: KtProperty,
 ): Boolean =
 	runCatching {
-		reference.mainReference?.resolveToSymbols()?.any { symbol ->
+		reference.mainReference.resolveToSymbols().any { symbol ->
 			runCatching { symbol.psi }.getOrNull() === target
-		} == true
+		}
 	}.getOrDefault(false)
 
 /**
@@ -544,8 +555,7 @@ private fun KaSession.changesImplicitReceiverBetween(
  */
 private fun KaSession.introducesReceiver(lambda: KtFunctionLiteral): Boolean =
 	runCatching {
-		val symbol = lambda.symbol as? KaAnonymousFunctionSymbol
-		if (symbol?.receiverParameter != null) return true
+		if (lambda.symbol.receiverParameter != null) return true
 		((lambda.parent as? KtLambdaExpression)?.expressionType as? KaFunctionType)?.hasReceiver == true
 	}.getOrDefault(false)
 

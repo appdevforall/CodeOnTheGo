@@ -36,8 +36,8 @@ import com.itsaky.androidide.utils.dpToPx
 
 open class UiWidget(
 	val name: String,
-	@StringRes val label: Int,
-	@DrawableRes val icon: Int,
+	@param:StringRes val label: Int,
+	@param:DrawableRes val icon: Int,
 ) {
 	constructor(
 		klass: Class<out View>,

@@ -1,0 +1,751 @@
+package org.appdevforall.sqlitedebugger.mcp
+
+import org.json.JSONArray
+import org.json.JSONObject
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.net.Socket
+
+/**
+ * MCP control without Android: the protocol (sessions, methods, tool results and errors) and the
+ * HTTP side (token, Host and Origin checks, methods and paths), on a real loopback socket.
+ */
+class McpProtocolTest {
+	private var sessionNumber = 0
+	private val echo = McpTool("echo", "Echo", "Returns its arguments.") { args, _ -> JSONObject().put("got", args) }
+	private val needsPerson =
+		McpTool("needs_person", "Needs a person", "Always says a person is needed.", readOnly = false) { _, _ ->
+			throw McpToolError("A person is needed: tap Allow on the sharing phone.", JSONObject().put("person_needed", true))
+		}
+	private val crashes = McpTool("crashes", "Crashes", "Throws an unexpected exception.") { _, _ -> throw IllegalStateException("boom") }
+	private val linkFails = McpTool("link_fails", "Link fails", "Throws an Error.") { _, _ -> throw UnsatisfiedLinkError("no library") }
+
+	private fun protocol(maxSessions: Int = 16) =
+		McpProtocol(listOf(echo, needsPerson, crashes, linkFails), "test", { "s${++sessionNumber}" }, maxSessions)
+
+	private fun initBody(version: String = "2025-06-18") =
+		JSONObject()
+			.put("jsonrpc", "2.0")
+			.put("id", 1)
+			.put("method", "initialize")
+			.put(
+				"params",
+				JSONObject()
+					.put("protocolVersion", version)
+					.put("capabilities", JSONObject())
+					.put("clientInfo", JSONObject().put("name", "test").put("version", "1")),
+			).toString()
+
+	private fun request(
+		id: Any,
+		method: String,
+		params: JSONObject? = null,
+	) = JSONObject()
+		.put("jsonrpc", "2.0")
+		.put("id", id)
+		.put("method", method)
+		.also { if (params != null) it.put("params", params) }
+
+	private fun session(p: McpProtocol): String {
+		val r = p.post(initBody(), null, null)
+		assertEquals(200, r.status)
+		return r.headers[McpProtocol.SESSION_HEADER]!!
+	}
+
+	private fun call(
+		p: McpProtocol,
+		s: String,
+		tool: String,
+		args: JSONObject? = null,
+	): JSONObject {
+		val params = JSONObject().put("name", tool).also { if (args != null) it.put("arguments", args) }
+		val r = p.post(request(7, "tools/call", params).toString(), s, null)
+		assertEquals(200, r.status)
+		return JSONObject(r.body!!)
+	}
+
+	@Test fun initializeAgreesVersionAndStartsSession() {
+		val p = protocol()
+		val r = p.post(initBody("2025-03-26"), null, null)
+		assertEquals(200, r.status)
+		assertEquals("s1", r.headers[McpProtocol.SESSION_HEADER])
+		val result = JSONObject(r.body!!).getJSONObject("result")
+		assertEquals("2025-03-26", result.getString("protocolVersion"))
+		assertEquals(McpProtocol.SERVER_NAME, result.getJSONObject("serverInfo").getString("name"))
+		assertTrue(result.getJSONObject("capabilities").has("tools"))
+		// no read-write mode exists, so the agent must not be told one may be on
+		assertFalse(result.getString("instructions").contains("read-write", ignoreCase = true))
+		assertEquals(1, p.sessionCount())
+	}
+
+	@Test fun unknownVersionGetsTheNewest() {
+		val r = protocol().post(initBody("1999-01-01"), null, null)
+		assertEquals(McpProtocol.VERSIONS[0], JSONObject(r.body!!).getJSONObject("result").getString("protocolVersion"))
+	}
+
+	@Test fun requestsNeedALiveSession() {
+		val p = protocol()
+		assertEquals(400, p.post(request(1, "ping").toString(), null, null).status)
+		assertEquals(404, p.post(request(1, "ping").toString(), "nope", null).status)
+		val s = session(p)
+		assertEquals(200, p.post(request(1, "ping").toString(), s, null).status)
+	}
+
+	@Test fun unsupportedVersionHeaderIsRefused() {
+		val p = protocol()
+		val s = session(p)
+		assertEquals(400, p.post(request(1, "ping").toString(), s, "1999-01-01").status)
+		assertEquals(200, p.post(request(1, "ping").toString(), s, "2025-06-18").status)
+	}
+
+	@Test fun notificationsGetNoAnswer() {
+		val p = protocol()
+		val s = session(p)
+		val r = p.post(JSONObject().put("jsonrpc", "2.0").put("method", "notifications/initialized").toString(), s, null)
+		assertEquals(202, r.status)
+		assertNull(r.body)
+	}
+
+	@Test fun pingAnswersEmptyResult() {
+		val p = protocol()
+		val s = session(p)
+		val r = JSONObject(p.post(request("a", "ping").toString(), s, null).body!!)
+		assertEquals("a", r.get("id"))
+		assertEquals(0, r.getJSONObject("result").length())
+	}
+
+	@Test fun toolsListDescribesEveryTool() {
+		val p = protocol()
+		val s = session(p)
+		val tools = JSONObject(p.post(request(2, "tools/list").toString(), s, null).body!!).getJSONObject("result").getJSONArray("tools")
+		val names = (0 until tools.length()).map { tools.getJSONObject(it).getString("name") }
+		assertEquals(listOf("echo", "needs_person", "crashes", "link_fails"), names)
+		val first = tools.getJSONObject(0)
+		assertEquals("object", first.getJSONObject("inputSchema").getString("type"))
+		assertTrue(first.getJSONObject("annotations").getBoolean("readOnlyHint"))
+		assertFalse(tools.getJSONObject(1).getJSONObject("annotations").getBoolean("readOnlyHint"))
+	}
+
+	@Test fun toolCallReturnsStructuredContent() {
+		val p = protocol()
+		val s = session(p)
+		val result = call(p, s, "echo", JSONObject().put("x", 3)).getJSONObject("result")
+		assertFalse(result.getBoolean("isError"))
+		assertEquals(3, result.getJSONObject("structuredContent").getJSONObject("got").getInt("x"))
+		assertEquals("text", result.getJSONArray("content").getJSONObject(0).getString("type"))
+	}
+
+	@Test fun toolResultTextIsCompactSoTheResultIsNotSentTwiceInFull() {
+		val p = protocol()
+		val s = session(p)
+		val result = call(p, s, "echo", JSONObject().put("x", 3)).getJSONObject("result")
+		val text = result.getJSONArray("content").getJSONObject(0).getString("text")
+		assertFalse(text, text.contains("\n"))
+		assertEquals(result.getJSONObject("structuredContent").toString(), text)
+	}
+
+	@Test fun toolCallWithoutArgumentsGetsEmptyObject() {
+		val p = protocol()
+		val s = session(p)
+		val got = call(p, s, "echo").getJSONObject("result").getJSONObject("structuredContent").getJSONObject("got")
+		assertEquals(0, got.length())
+	}
+
+	@Test fun toolErrorIsAResultWithIsError() {
+		val p = protocol()
+		val s = session(p)
+		val result = call(p, s, "needs_person").getJSONObject("result")
+		assertTrue(result.getBoolean("isError"))
+		assertTrue(
+			result
+				.getJSONArray("content")
+				.getJSONObject(0)
+				.getString("text")
+				.contains("person is needed"),
+		)
+		assertTrue(result.getJSONObject("structuredContent").getBoolean("person_needed"))
+	}
+
+	@Test fun unexpectedExceptionIsAResultWithIsError() {
+		val p = protocol()
+		val s = session(p)
+		val result = call(p, s, "crashes").getJSONObject("result")
+		assertTrue(result.getBoolean("isError"))
+		assertTrue(
+			result
+				.getJSONArray("content")
+				.getJSONObject(0)
+				.getString("text")
+				.contains("boom"),
+		)
+	}
+
+	@Test fun unknownToolAndBadArgumentsAreInvalidParams() {
+		val p = protocol()
+		val s = session(p)
+		assertEquals(McpProtocol.INVALID_PARAMS, call(p, s, "nope").getJSONObject("error").getInt("code"))
+		val bad = request(3, "tools/call", JSONObject().put("name", "echo").put("arguments", JSONArray())).toString()
+		assertEquals(McpProtocol.INVALID_PARAMS, JSONObject(p.post(bad, s, null).body!!).getJSONObject("error").getInt("code"))
+	}
+
+	@Test fun unknownMethodIsMethodNotFound() {
+		val p = protocol()
+		val s = session(p)
+		val r = JSONObject(p.post(request(4, "resources/list").toString(), s, null).body!!)
+		assertEquals(McpProtocol.METHOD_NOT_FOUND, r.getJSONObject("error").getInt("code"))
+	}
+
+	@Test fun badJsonIsAParseError() {
+		val r = protocol().post("{not json", null, null)
+		assertEquals(400, r.status)
+		assertEquals(McpProtocol.PARSE_ERROR, JSONObject(r.body!!).getJSONObject("error").getInt("code"))
+	}
+
+	@Test fun batchGetsAnArrayOfReplies() {
+		val p = protocol()
+		val s = session(p)
+		val batch =
+			JSONArray()
+				.put(request(1, "ping"))
+				.put(JSONObject().put("jsonrpc", "2.0").put("method", "notifications/x"))
+				.put(request(2, "tools/list"))
+		val r = p.post(batch.toString(), s, null)
+		assertEquals(200, r.status)
+		val replies = JSONArray(r.body!!)
+		assertEquals(2, replies.length())
+		assertEquals(1, replies.getJSONObject(0).getInt("id"))
+		assertEquals(2, replies.getJSONObject(1).getInt("id"))
+	}
+
+	@Test fun everyToolCallOfABatchGetsTheDeadlineOfItsPostAndANewPostGetsANewOne() {
+		var now = 5_000L
+		val seen = mutableListOf<Long?>()
+		val slow =
+			McpTool("slow", "Slow", "Takes 400 ms.") { _, deadline ->
+				seen += deadline
+				now += 400
+				JSONObject()
+			}
+		val p = McpProtocol(listOf(slow), "test", { "s" }, postTimeLimitMs = 1_000, clock = { now })
+		val s = p.post(initBody(), null, null).headers[McpProtocol.SESSION_HEADER]!!
+		val callSlow = JSONObject().put("name", "slow")
+		val batch = JSONArray()
+		repeat(3) { batch.put(request(it, "tools/call", callSlow)) }
+		p.post(batch.toString(), s, null)
+		assertEquals(listOf<Long?>(6_000, 6_000, 6_000), seen)
+		seen.clear()
+		p.post(request(9, "tools/call", callSlow).toString(), s, null)
+		assertEquals("a later POST starts its own", listOf<Long?>(now - 400 + 1_000), seen)
+	}
+
+	@Test fun withoutAPostTimeLimitToolsGetNoDeadline() {
+		val seen = mutableListOf<Long?>()
+		val probe =
+			McpTool("probe", "Probe", "Records its deadline.") { _, deadline ->
+				seen += deadline
+				JSONObject()
+			}
+		val p = McpProtocol(listOf(probe), "test", { "s" })
+		val s = p.post(initBody(), null, null).headers[McpProtocol.SESSION_HEADER]!!
+		p.post(request(1, "tools/call", JSONObject().put("name", "probe")).toString(), s, null)
+		assertEquals(listOf<Long?>(null), seen)
+	}
+
+	@Test fun batchOverTheMessageLimitIsRefusedWholeAndRunsNothing() {
+		val p = protocol()
+		val s = session(p)
+		val batch = JSONArray()
+		repeat(McpProtocol.MAX_BATCH_MESSAGES + 1) { batch.put(request(it, "ping")) }
+		val r = p.post(batch.toString(), s, null)
+		assertEquals(400, r.status)
+		assertEquals(McpProtocol.INVALID_REQUEST, JSONObject(r.body!!).getJSONObject("error").getInt("code"))
+		val atLimit = JSONArray()
+		repeat(McpProtocol.MAX_BATCH_MESSAGES) { atLimit.put(request(it, "ping")) }
+		assertEquals(McpProtocol.MAX_BATCH_MESSAGES, JSONArray(p.post(atLimit.toString(), s, null).body!!).length())
+	}
+
+	@Test fun batchPastTheReplyBudgetAnswersTheRestWithAnErrorWithoutRunningThem() {
+		val p = protocol()
+		val s = session(p)
+		val big = "x".repeat(McpProtocol.MAX_BATCH_REPLY_CHARS / 2)
+
+		fun echoCall(id: Int) = request(id, "tools/call", JSONObject().put("name", "echo").put("arguments", JSONObject().put("v", big)))
+		// each reply is over twice big (the arguments come back as text and as structured content)
+		val batch =
+			JSONArray()
+				.put(echoCall(1))
+				.put(echoCall(2))
+				.put(echoCall(3))
+				.put(request(4, "ping"))
+		batch.put(JSONObject().put("jsonrpc", "2.0").put("method", "notifications/x"))
+		val replies = JSONArray(p.post(batch.toString(), s, null).body!!)
+		assertEquals(4, replies.length())
+		assertTrue(replies.getJSONObject(0).has("result"))
+		for (i in 1..3) {
+			val e = replies.getJSONObject(i)
+			assertEquals(i + 1, e.getInt("id"))
+			assertEquals(McpProtocol.BATCH_BUDGET_EXCEEDED, e.getJSONObject("error").getInt("code"))
+		}
+	}
+
+	@Test fun initializeMustBeAlone() {
+		val batch = JSONArray().put(JSONObject(initBody())).put(request(2, "ping"))
+		assertEquals(400, protocol().post(batch.toString(), null, null).status)
+	}
+
+	@Test fun deleteEndsTheSession() {
+		val p = protocol()
+		val s = session(p)
+		assertEquals(204, p.delete(s).status)
+		assertEquals(404, p.delete(s).status)
+		assertEquals(404, p.post(request(1, "ping").toString(), s, null).status)
+	}
+
+	@Test fun oldestSessionIsDroppedBeyondTheLimit() {
+		val p = protocol(maxSessions = 2)
+		val a = session(p)
+		val b = session(p)
+		p.post(request(1, "ping").toString(), a, null) // a is now the most recently used
+		val c = session(p) // drops b
+		assertEquals(2, p.sessionCount())
+		assertEquals(200, p.post(request(1, "ping").toString(), a, null).status)
+		assertEquals(404, p.post(request(1, "ping").toString(), b, null).status)
+		assertEquals(200, p.post(request(1, "ping").toString(), c, null).status)
+	}
+
+	@Test fun endAllEndsEverySession() {
+		val p = protocol()
+		val s = session(p)
+		p.endAll()
+		assertEquals(0, p.sessionCount())
+		assertEquals(404, p.post(request(1, "ping").toString(), s, null).status)
+	}
+
+	private val token = "secret-token"
+	private var server: McpHttp? = null
+
+	@After fun stopServer() {
+		server?.stop()
+		server = null
+	}
+
+	private fun startServer(): Int {
+		val s = McpHttp(protocol(), { token }, port = 0)
+		s.start()
+		server = s
+		return s.boundPort
+	}
+
+	private class Answer(
+		val status: Int,
+		val headers: Map<String, String>,
+		val body: String,
+	)
+
+	/** One request on its own connection; [headers] may replace Host. */
+	private fun http(
+		port: Int,
+		method: String,
+		path: String = McpHttp.PATH,
+		headers: Map<String, String> = emptyMap(),
+		body: String? = null,
+	): Answer {
+		Socket("127.0.0.1", port).use { s ->
+			s.soTimeout = 5000
+			val bytes = body?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
+			val all = linkedMapOf("Host" to "127.0.0.1:$port", "Connection" to "close")
+			all.putAll(headers)
+			if (body != null) {
+				all["Content-Type"] = "application/json"
+				all["Content-Length"] = bytes.size.toString()
+			}
+			val head = StringBuilder("$method $path HTTP/1.1\r\n")
+			for ((k, v) in all) {
+				head
+					.append(k)
+					.append(": ")
+					.append(v)
+					.append("\r\n")
+			}
+			head.append("\r\n")
+			s.getOutputStream().apply {
+				write(head.toString().toByteArray(Charsets.ISO_8859_1))
+				write(bytes)
+				flush()
+			}
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			val lines = text.substringBefore("\r\n\r\n").split("\r\n")
+			val status = lines[0].split(' ')[1].toInt()
+			val h = lines.drop(1).associate { it.substringBefore(':').trim().lowercase() to it.substringAfter(':').trim() }
+			return Answer(status, h, text.substringAfter("\r\n\r\n", ""))
+		}
+	}
+
+	private val auth get() = mapOf("Authorization" to "Bearer $token")
+
+	@Test fun tokenIs32BytesUrlSafeAndNew() {
+		val a = McpHttp.newToken()
+		assertEquals(43, a.length)
+		assertTrue(a.matches(Regex("[A-Za-z0-9_-]{43}")))
+		assertTrue(a != McpHttp.newToken())
+	}
+
+	@Test fun base64MatchesTheJdkEncoder() {
+		for (n in 0..40) {
+			val bytes = ByteArray(n) { (it * 37 + 250).toByte() }
+			assertEquals(
+				java.util.Base64
+					.getEncoder()
+					.encodeToString(bytes),
+				McpHttp.base64(bytes, urlSafe = false, pad = true),
+			)
+			assertEquals(
+				java.util.Base64
+					.getUrlEncoder()
+					.withoutPadding()
+					.encodeToString(bytes),
+				McpHttp.base64(bytes, urlSafe = true, pad = false),
+			)
+		}
+	}
+
+	@Test fun httpPortZeroBindsAFreePortOnLoopback() {
+		val port = startServer()
+		assertTrue(port in 1..65535)
+		assertEquals("127.0.0.1", java.net.Socket("127.0.0.1", port).use { it.inetAddress.hostAddress })
+	}
+
+	@Test fun httpNinthConnectionIsRefused() {
+		val port = startServer()
+		val held = (1..McpHttp.MAX_CONNECTIONS).map { Socket("127.0.0.1", port) }
+		try {
+			Thread.sleep(300)
+			Socket("127.0.0.1", port).use { s ->
+				s.soTimeout = 5000
+				val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+				assertTrue(text.startsWith("HTTP/1.1 503"))
+			}
+		} finally {
+			held.forEach { it.close() }
+		}
+	}
+
+	@Test fun httpNeedsTheToken() {
+		val port = startServer()
+		val none = http(port, "POST", body = initBody())
+		assertEquals(401, none.status)
+		assertNotNull(none.headers["www-authenticate"])
+		assertEquals(401, http(port, "POST", headers = mapOf("Authorization" to "Bearer wrong"), body = initBody()).status)
+		assertFalse("the token never appears in a refusal", none.body.contains(token))
+	}
+
+	@Test fun httpInitializeWithTheToken() {
+		val port = startServer()
+		val r = http(port, "POST", headers = auth, body = initBody())
+		assertEquals(200, r.status)
+		assertNotNull(r.headers["mcp-session-id"])
+		assertEquals("2025-06-18", JSONObject(r.body).getJSONObject("result").getString("protocolVersion"))
+	}
+
+	@Test fun httpLocalhostHostIsAccepted() {
+		val port = startServer()
+		assertEquals(200, http(port, "POST", headers = auth + ("Host" to "localhost:$port"), body = initBody()).status)
+	}
+
+	@Test fun httpOtherHostIsRefused() {
+		val port = startServer()
+		assertEquals(403, http(port, "POST", headers = auth + ("Host" to "evil.example"), body = initBody()).status)
+		assertEquals(403, http(port, "POST", headers = auth + ("Host" to "127.0.0.1:x"), body = initBody()).status)
+	}
+
+	@Test fun httpWebPageOriginIsRefused() {
+		val port = startServer()
+		assertEquals(403, http(port, "POST", headers = auth + ("Origin" to "https://evil.example"), body = initBody()).status)
+		assertEquals(200, http(port, "POST", headers = auth + ("Origin" to "http://localhost:3000"), body = initBody()).status)
+	}
+
+	@Test fun httpGetIsNotAllowed() {
+		val port = startServer()
+		val r = http(port, "GET", headers = auth)
+		assertEquals(405, r.status)
+		assertEquals("POST, DELETE", r.headers["allow"])
+	}
+
+	@Test fun httpOtherPathIsNotFound() {
+		assertEquals(404, http(startServer(), "POST", path = "/other", headers = auth, body = initBody()).status)
+	}
+
+	@Test fun httpWrongContentTypeIsRefused() {
+		val port = startServer()
+		Socket("127.0.0.1", port).use { s ->
+			val body = initBody().toByteArray()
+			s.getOutputStream().write(
+				(
+					"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer $token\r\nConnection: close\r\n" +
+						"Content-Type: text/plain\r\nContent-Length: ${body.size}\r\n\r\n"
+				).toByteArray() + body,
+			)
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text.startsWith("HTTP/1.1 415"))
+		}
+	}
+
+	@Test fun httpAnErrorInAToolIsA500AndTheServerKeepsServing() {
+		val port = startServer()
+		val s = http(port, "POST", headers = auth, body = initBody()).headers["mcp-session-id"]!!
+		val params = JSONObject().put("name", "link_fails")
+		val r = http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = request(3, "tools/call", params).toString())
+		assertEquals(500, r.status)
+		assertTrue(r.body, r.body.contains("no library"))
+		assertEquals(200, http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = request(4, "ping").toString()).status)
+	}
+
+	@Test fun httpAcceptBacksOffAfterFailuresAndKeepsServing() {
+		val attempts = java.util.Collections.synchronizedList(mutableListOf<Long>())
+		val failures = 4
+		val flaky =
+			object : java.net.ServerSocket() {
+				override fun accept(): Socket {
+					attempts += System.nanoTime()
+					if (attempts.size <= failures) throw java.io.IOException("Too many open files")
+					return super.accept()
+				}
+			}
+		val s = McpHttp(protocol(), { token }, port = 0, socketFactory = { flaky })
+		s.start()
+		server = s
+		// 100 + 200 + 400 ms of sleeps, then the fourth failure sleeps 800 ms, then the fifth accept succeeds and waits
+		val giveUp =
+			System.nanoTime() +
+				java.util.concurrent.TimeUnit.SECONDS
+					.toNanos(10)
+		while (attempts.size < failures + 1) {
+			assertTrue("attempts so far: ${attempts.size}", System.nanoTime() < giveUp)
+			Thread.sleep(10)
+		}
+		val seen = synchronized(attempts) { attempts.toList() }
+		// a spinning loop would have made thousands of attempts by now
+		assertTrue("attempts so far: ${seen.size}", seen.size in (failures + 1)..(failures + 2))
+		val gaps = seen.zipWithNext { a, b -> (b - a) / 1_000_000 }
+		assertTrue("gaps $gaps", gaps[0] >= 90 && gaps[1] >= 190 && gaps[2] >= 390 && gaps[3] >= 790)
+		assertEquals(200, http(s.boundPort, "POST", headers = auth, body = initBody()).status)
+	}
+
+	/** Opens a connection, writes [head] and flushes it, and passes the socket on; the body is the test's to send. */
+	private fun <T> rawPost(
+		port: Int,
+		extra: String,
+		bodyBytes: Int,
+		use: (Socket) -> T,
+	): T =
+		Socket("127.0.0.1", port).use { s ->
+			s.soTimeout = 5000
+			val head =
+				"POST ${McpHttp.PATH} HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nConnection: close\r\n" +
+					"Content-Type: application/json\r\nContent-Length: $bodyBytes\r\n$extra\r\n"
+			s.getOutputStream().apply {
+				write(head.toByteArray(Charsets.ISO_8859_1))
+				flush()
+			}
+			use(s)
+		}
+
+	@Test fun httpAnswers100ContinueBeforeTheBodyWhenAsked() {
+		val port = startServer()
+		val body = initBody().toByteArray(Charsets.UTF_8)
+		rawPost(port, "Authorization: Bearer $token\r\nExpect: 100-Continue\r\n", body.size) { s ->
+			val interim = "HTTP/1.1 100 Continue\r\n\r\n"
+			s.soTimeout = 2000
+			assertEquals(interim, s.getInputStream().readNBytes(interim.length).toString(Charsets.ISO_8859_1))
+			s.soTimeout = 5000
+			s.getOutputStream().apply {
+				write(body)
+				flush()
+			}
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 200"))
+		}
+	}
+
+	@Test fun httpSendsNoInterimReplyWithoutExpect() {
+		val port = startServer()
+		val body = initBody().toByteArray(Charsets.UTF_8)
+		rawPost(port, "Authorization: Bearer $token\r\n", body.size) { s ->
+			s.getOutputStream().apply {
+				write(body)
+				flush()
+			}
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 200"))
+			assertFalse(text, text.contains("100 Continue"))
+		}
+	}
+
+	@Test fun httpRefusalBeforeTheBodySendsOnlyItsFinalReply() {
+		val port = startServer()
+		// a wrong token, and a body over the limit: each is refused before the body, with no interim reply
+		for ((extra, size, status) in listOf(
+			Triple("Authorization: Bearer wrong\r\nExpect: 100-continue\r\n", 10, 401),
+			Triple("Authorization: Bearer $token\r\nExpect: 100-continue\r\n", McpHttp.MAX_BODY_BYTES + 1, 413),
+		)) {
+			rawPost(port, extra, size) { s ->
+				val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+				assertTrue(text, text.startsWith("HTTP/1.1 $status"))
+				assertFalse(text, text.contains("100 Continue"))
+			}
+		}
+	}
+
+	@Test fun httpChunkedBodyThatEndsInTheTrailerSectionIsA400() {
+		val port = startServer()
+		val body = initBody()
+		Socket("127.0.0.1", port).use { s ->
+			s.soTimeout = 5000
+			val request =
+				"POST ${McpHttp.PATH} HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nConnection: close\r\n" +
+					"Authorization: Bearer $token\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n" +
+					"${body.toByteArray().size.toString(16)}\r\n$body\r\n0\r\n"
+			s.getOutputStream().apply {
+				write(request.toByteArray(Charsets.UTF_8))
+				flush()
+			}
+			s.shutdownOutput()
+			val text = s.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text, text.startsWith("HTTP/1.1 400"))
+		}
+	}
+
+	@Test fun httpSessionThenDelete() {
+		val port = startServer()
+		val s = http(port, "POST", headers = auth, body = initBody()).headers["mcp-session-id"]!!
+		val ping = request(1, "ping").toString()
+		assertEquals(200, http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = ping).status)
+		assertEquals(204, http(port, "DELETE", headers = auth + ("Mcp-Session-Id" to s)).status)
+		assertEquals(404, http(port, "POST", headers = auth + ("Mcp-Session-Id" to s), body = ping).status)
+	}
+
+	@Test fun clientsThatTrickleOrNeverAuthenticateAreDroppedAndDoNotBlockTheRealOne() {
+		val s = McpHttp(protocol(), { token }, port = 0, headDeadlineMs = 600)
+		s.start()
+		server = s
+		val port = s.boundPort
+		val started = System.nanoTime()
+		val held = mutableListOf<Socket>()
+		try {
+			repeat(McpHttp.MAX_CONNECTIONS) { i ->
+				val c = Socket("127.0.0.1", port)
+				c.soTimeout = 5000
+				held += c
+				// half of them send a byte now and then, which resets a per-read timeout but not the deadline
+				if (i % 2 == 0) {
+					c.getOutputStream().apply {
+						write("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\n".toByteArray())
+						flush()
+					}
+				}
+			}
+			// the slots are full: a real client is refused with 503
+			assertEquals(503, http(port, "POST", headers = auth, body = initBody()).status)
+			val trickler =
+				Thread {
+					try {
+						repeat(20) {
+							Thread.sleep(200)
+							held[0].getOutputStream().apply {
+								write("X-Slow: 1\r\n".toByteArray())
+								flush()
+							}
+						}
+					} catch (ignored: Exception) {
+					}
+				}
+			trickler.isDaemon = true
+			trickler.start()
+			// every held connection is closed by the server within the deadline plus slack
+			for (c in held) assertEquals(-1, c.getInputStream().read())
+			val elapsedMs = (System.nanoTime() - started) / 1_000_000
+			assertTrue("took $elapsedMs ms", elapsedMs < 3_000)
+			assertEquals(200, http(port, "POST", headers = auth, body = initBody()).status)
+		} finally {
+			held.forEach { it.close() }
+		}
+	}
+
+	@Test fun anUnauthenticatedRequestIsRefusedBeforeItsBodyIsRead() {
+		val port = startServer()
+		Socket("127.0.0.1", port).use { c ->
+			c.soTimeout = 3000
+			c.getOutputStream().apply {
+				write("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1000\r\n\r\n".toByteArray())
+				flush()
+			}
+			// the body never comes, yet the answer does
+			val line = c.getInputStream().bufferedReader().readLine()
+			assertTrue(line, line.startsWith("HTTP/1.1 401"))
+		}
+	}
+
+	/** Sends [head] then [bodyBytes] of body in one burst and reads the whole reply, as a client that writes before it reads. */
+	private fun burst(
+		port: Int,
+		head: String,
+		bodyBytes: Int,
+	): String =
+		Socket("127.0.0.1", port).use { c ->
+			c.soTimeout = 5000
+			c.getOutputStream().apply {
+				write(head.toByteArray(Charsets.ISO_8859_1))
+				write(ByteArray(bodyBytes) { 'x'.code.toByte() })
+				flush()
+			}
+			c.getInputStream().readBytes().toString(Charsets.UTF_8)
+		}
+
+	@Test fun aRefusalReachesAClientThatAlreadySentPartOfTheBody() {
+		val port = startServer()
+		repeat(20) {
+			// 401: refused before the body is read, with 48 KiB of it still on the way or in the socket
+			val noToken = "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\nContent-Length: 49152\r\n\r\n"
+			assertTrue(burst(port, noToken, 49152).startsWith("HTTP/1.1 401"))
+			// 413: the declared length is over the limit, so the body is never read
+			val tooBig =
+				"POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer $token\r\n" +
+					"Content-Type: application/json\r\nContent-Length: ${McpHttp.MAX_BODY_BYTES + 1}\r\n\r\n"
+			assertTrue(burst(port, tooBig, 49152).startsWith("HTTP/1.1 413"))
+		}
+	}
+
+	@Test fun aRefusalDoesNotHoldTheServerThreadForAClientThatKeepsSending() {
+		val port = startServer()
+		Socket("127.0.0.1", port).use { c ->
+			c.soTimeout = 5000
+			val out = c.getOutputStream()
+			out.write("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1000000\r\n\r\n".toByteArray())
+			out.flush()
+			// the reply comes and then the server closes within its bound, although this client never stops
+			val sender =
+				Thread {
+					try {
+						while (true) {
+							out.write(ByteArray(1024))
+							out.flush()
+							Thread.sleep(20)
+						}
+					} catch (ignored: Exception) {
+					}
+				}
+			sender.isDaemon = true
+			sender.start()
+			val started = System.nanoTime()
+			val text = c.getInputStream().readBytes().toString(Charsets.UTF_8)
+			assertTrue(text.startsWith("HTTP/1.1 401"))
+			val ms = (System.nanoTime() - started) / 1_000_000
+			assertTrue("the connection took $ms ms to end", ms < 2_000)
+		}
+	}
+}

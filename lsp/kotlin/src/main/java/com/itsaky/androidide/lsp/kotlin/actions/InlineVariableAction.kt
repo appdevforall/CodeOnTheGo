@@ -8,7 +8,6 @@ import com.itsaky.androidide.actions.requireEditor
 import com.itsaky.androidide.actions.requireFile
 import com.itsaky.androidide.idetooltips.TooltipTag
 import com.itsaky.androidide.lsp.kotlin.KotlinLanguageServer
-import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.refactor.ui.InlineVariableSheet
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.InlineMode
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.InlineRefusal
@@ -77,7 +76,7 @@ class InlineVariableAction : BaseKotlinCodeAction() {
 			offset = minOf(cursor.left, cursor.right),
 			documentVersion = documentVersionOf(nioPath),
 			// Ties the analysis to this action's coroutine: cancelling the action aborts the analysis.
-			cancelChecker = ScheduledCancelChecker(createJobCancelChecker()),
+			cancelChecker = createJobCancelChecker(),
 		)
 	}
 
