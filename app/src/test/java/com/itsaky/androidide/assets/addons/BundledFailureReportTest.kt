@@ -33,7 +33,8 @@ class BundledFailureReportTest {
 	private class FakeBar(
 		val failures: List<BundledPluginFailure>,
 	) : TrackedFlashbar {
-		val dismissed = CompletableDeferred<Unit>()
+		/** Completed with true for the Dismiss button, false for a tap on the bar or a swipe. */
+		val dismissed = CompletableDeferred<Boolean>()
 
 		override suspend fun awaitShown() = true
 
@@ -80,7 +81,7 @@ class BundledFailureReportTest {
 			val report = startReport()
 			assertWithMessage("report ended before the user dismissed the bar").that(report.isActive).isTrue()
 
-			bars.single().dismissed.complete(Unit)
+			bars.single().dismissed.complete(true)
 			runCurrent()
 
 			assertThat(report.isCompleted).isTrue()
@@ -90,12 +91,30 @@ class BundledFailureReportTest {
 		}
 
 	@Test
+	fun `closing the bar by a tap on it or a swipe leaves the failures unreported`() =
+		runTest {
+			val report = startReport()
+
+			bars.single().dismissed.complete(false)
+			runCurrent()
+
+			assertThat(report.isCompleted).isTrue()
+			assertWithMessage("failures marked reported although the Dismiss button was not used")
+				.that(record.unreportedFailures())
+				.containsExactly(BundledPluginFailure("com.example.one", "boom"))
+			val next = startReport()
+			assertThat(bars).hasSize(2)
+			assertThat(bars[1].failures).containsExactly(BundledPluginFailure("com.example.one", "boom"))
+			next.cancel()
+		}
+
+	@Test
 	fun `a failure recorded while the bar is up stays unreported`() =
 		runTest {
 			startReport()
 			record.recordFailures(mapOf("com.example.two" to "bang"))
 
-			bars.single().dismissed.complete(Unit)
+			bars.single().dismissed.complete(true)
 			runCurrent()
 
 			assertThat(record.unreportedFailures()).containsExactly(BundledPluginFailure("com.example.two", "bang"))

@@ -52,6 +52,7 @@ abstract class BaseAssetsInstaller : AssetsInstaller {
 				pluginsDir = File(context.filesDir, "plugins"),
 				templatesDir = Environment.TEMPLATES_DIR,
 				readPluginId = { PluginLoader(context, it).getPluginMetadata()?.id },
+				signatureOf = { PluginLoader(context, it).getSignatureHash() },
 			)
 		installedByEntry[entryName] = installer.install(kind, fileName, input, sha256ByEntry[entryName])
 	}

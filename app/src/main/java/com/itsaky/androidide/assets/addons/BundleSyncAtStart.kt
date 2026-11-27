@@ -101,6 +101,7 @@ object BundleSyncAtStart {
 				pluginsDir = File(context.filesDir, "plugins"),
 				templatesDir = Environment.TEMPLATES_DIR,
 				readPluginId = { PluginLoader(context, it).getPluginMetadata()?.id },
+				signatureOf = { PluginLoader(context, it).getSignatureHash() },
 				uninstallPlugin = { manager.uninstallPlugin(it) },
 			)
 		val entries = BundledAddons.list(source)

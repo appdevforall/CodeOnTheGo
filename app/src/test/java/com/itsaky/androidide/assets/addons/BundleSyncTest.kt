@@ -51,8 +51,12 @@ class BundleSyncTest {
 			pluginsDir = pluginsDir,
 			templatesDir = templatesDir,
 			readPluginId = ::idOf,
+			signatureOf = ::signatureOf,
 			uninstallPlugin = ::uninstall,
 		)
+
+	/** A build whose marker contains "theirs" is signed with another key than the bundle's. */
+	private fun signatureOf(file: File): ByteArray = (if ("theirs" in file.readText()) "their key" else "our key").toByteArray()
 
 	private class FakeSource(
 		val plugins: Map<String, String> = emptyMap(),
@@ -171,6 +175,23 @@ class BundleSyncTest {
 
 		val p2 = pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!
 		assertThat(p2.map { it.readText() }).containsExactly(plugin("com.p2", "2"))
+	}
+
+	@Test
+	fun `a user plugin with a bundled ID signed with another key stays, and the bundled one is reported`() {
+		run(bundleA)
+		pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!.forEach { it.delete() }
+		val mine = userPlugin("com.p2", "theirs")
+		uninstalled.clear()
+
+		val state = run(bundleB)
+
+		val p2 = pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!
+		assertThat(p2.map { it.readText() }).containsExactly(plugin("com.p2", "theirs"))
+		assertThat(mine.exists()).isTrue()
+		assertThat(uninstalled).doesNotContain("com.p2")
+		assertThat(state.pluginIds).doesNotContain("com.p2")
+		assertThat(state.failures).containsExactly(BundledPluginFailure("p2.cgp", BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY))
 	}
 
 	@Test

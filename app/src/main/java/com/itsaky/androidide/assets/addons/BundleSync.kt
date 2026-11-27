@@ -1,8 +1,6 @@
 package com.itsaky.androidide.assets.addons
 
-import org.adfa.constants.PLUGIN_ARCHIVE_EXTENSION
 import java.io.File
-import java.io.IOException
 
 /**
  * Applies the build's bundle to an installation that already has one (ADFA-7239): after an update
@@ -10,8 +8,9 @@ import java.io.IOException
  * written.
  *
  * The new bundle replaces the recorded one. Every bundled add-on is installed, overwriting a user's
- * plugin with the same ID and a user's template with the same name, and bringing back one the user
- * removed. A recorded add-on the new bundle lacks is removed, so a thin APK removes them all. Other
+ * plugin with the same ID if it is signed with the same key (one signed with another key stays, and
+ * the bundled plugin is reported instead) and a user's template with the same name, and bringing back
+ * one the user removed. A recorded add-on the new bundle lacks is removed, so a thin APK removes them all. Other
  * user add-ons are left alone.
  *
  * A bundled plugin whose build is already the only one installed for its ID is copied over in
@@ -21,6 +20,7 @@ import java.io.IOException
  * The record is written last, so a sync cut short runs again at the next start.
  *
  * @param readPluginId the plugin ID in a plugin file's manifest, or null.
+ * @param signatureOf the signing certificate hash of a plugin file, or null if it can't be read.
  * @param uninstallPlugin removes every installed file of a plugin ID, with its state.
  */
 class BundleSync(
@@ -28,9 +28,13 @@ class BundleSync(
 	private val pluginsDir: File,
 	private val templatesDir: File,
 	private val readPluginId: (File) -> String?,
+	private val signatureOf: (File) -> ByteArray?,
 	private val uninstallPlugin: (pluginId: String) -> Unit,
 ) {
-	private val installer = BundledAddonInstaller(pluginsDir, templatesDir, readPluginId, ::replaceOtherBuilds)
+	// The installer removes another build of a bundled ID only once its signature matches; uninstalling
+	// clears that plugin's state too. An unchanged build lands in place and is not uninstalled.
+	private val installer =
+		BundledAddonInstaller(pluginsDir, templatesDir, readPluginId, signatureOf) { pluginId, _ -> uninstallPlugin(pluginId) }
 
 	/** True when [entries] are not the recorded bundle, or no bundle is recorded. */
 	fun isNeeded(entries: List<BundledEntry>): Boolean = record.read()?.fingerprint != BundledAddons.fingerprint(entries)
@@ -82,34 +86,4 @@ class BundleSync(
 		record.write(state)
 		return state
 	}
-
-	/**
-	 * Before the bundled build [fileName] of [pluginId] lands: removes the other builds of that ID,
-	 * a user's or an older bundled one. When none is left, the move overwrites the same build in
-	 * place and nothing is uninstalled. Throws when a build stays, so the two never load together.
-	 */
-	private fun replaceOtherBuilds(
-		pluginId: String,
-		fileName: String,
-	) {
-		if (otherBuilds(pluginId, fileName).isEmpty()) return
-		uninstallPlugin(pluginId)
-		val left = otherBuilds(pluginId, fileName)
-		if (left.isNotEmpty()) {
-			throw IOException("Could not remove the installed build of $pluginId: ${left.joinToString { it.name }}")
-		}
-	}
-
-	private fun otherBuilds(
-		pluginId: String,
-		fileName: String,
-	): List<File> =
-		pluginsDir
-			.listFiles { file ->
-				file.isFile &&
-					file.name != fileName &&
-					file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) &&
-					runCatching { readPluginId(file) }.getOrNull() == pluginId
-			}.orEmpty()
-			.toList()
 }
