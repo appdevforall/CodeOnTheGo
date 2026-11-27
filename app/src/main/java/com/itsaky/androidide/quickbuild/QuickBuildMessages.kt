@@ -19,7 +19,7 @@ fun QuickBuildMessage.resolve(context: Context): String =
 		}
 
 		QuickBuildMessage.ReinstallReturnToCoGo -> {
-			context.getString(R.string.quick_build_reinstall_return_to_cogo)
+			context.getString(R.string.quick_build_reinstall_return_to_cogo, context.getString(R.string.app_name))
 		}
 
 		QuickBuildMessage.ReinstallDeclined -> {

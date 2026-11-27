@@ -108,16 +108,14 @@ fun Context.dpToPx(dp: Float): Int = (dp * resources.displayMetrics.density + 0.
 fun Context.spToPx(sp: Float): Int = (sp * resources.displayMetrics.scaledDensity + 0.5f).toInt()
 
 /**
- * Returns the string [id], formatted with [appName] only if it takes the app name (`%1$s`). Any other
- * string is returned as is, so a literal `%` in it cannot crash the formatter.
+ * Returns the string [id], formatted with [appName] if it is one of [APP_NAME_STRINGS]. Any other
+ * string is returned as is, so neither a literal `%` nor a `%1$s` that means something else gets the
+ * app name or crashes the formatter.
  */
 fun Context.getStringWithAppName(
 	@StringRes id: Int,
 	appName: String,
-): String {
-	val raw = getString(id)
-	return if (raw.contains("%1\$s")) getString(id, appName) else raw
-}
+): String = if (id in APP_NAME_STRINGS) getString(id, appName) else getString(id)
 
 /**
  * Copies [text] to the system clipboard, under the given [label].

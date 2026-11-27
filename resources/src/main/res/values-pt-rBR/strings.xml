@@ -1083,7 +1083,7 @@
   <string name="quick_build_slot_busy">Outra compilação está em execução. Aguarde o término e inicie a Compilação rápida novamente.</string>
   <string name="quick_build_rebuild_failed">A Compilação rápida não conseguiu recompilar seu aplicativo. Verifique a Saída da compilação para ver o que deu errado.</string>
   <string name="quick_build_provisioning_failed_unexpectedly">A configuração da Compilação rápida falhou inesperadamente. Verifique a Saída da compilação para ver o que deu errado.</string>
-  <string name="quick_build_reinstall_return_to_cogo">Seu aplicativo precisa ser reinstalado; volte ao CoGo para confirmar.</string>
+  <string name="quick_build_reinstall_return_to_cogo">Seu aplicativo precisa ser reinstalado; volte ao %1$s para confirmar.</string>
   <string name="quick_build_reinstall_declined">Seu aplicativo precisa ser reinstalado; a solicitação de instalação foi cancelada. Toque em Compilação rápida para tentar novamente.</string>
   <string name="quick_build_reinstall_timed_out">Seu aplicativo precisa ser reinstalado; a solicitação de instalação ficou sem resposta por %1$d segundos. Toque em Compilação rápida para tentar novamente.</string>
   <string name="quick_build_reinstall_waiting_for_gradle">Aguardando o término da compilação atual do Gradle; seu aplicativo ainda precisa ser reinstalado. Toque em Compilação rápida para tentar novamente.</string>
@@ -1097,7 +1097,7 @@
   <string name="quick_build_not_enough_storage">A Compilação rápida precisa de cerca de %1$d MB livres no armazenamento do aplicativo, mas apenas %2$d MB estão disponíveis. Libere espaço e tente novamente.</string>
   <string name="quick_build_scratch_dir_unavailable">A Compilação rápida não conseguiu criar sua pasta de compilação em %1$s.</string>
   <string name="quick_build_daemon_rejected_config">O compilador da Compilação rápida se recusou a iniciar neste projeto. Reiniciar a sessão pelo menu de pressionar e segurar o configura novamente.</string>
-  <string name="quick_build_reinstall_tap_again">Seu aplicativo precisa ser reinstalado; volte ao CoGo e toque em Compilação rápida para tentar novamente.</string>
+  <string name="quick_build_reinstall_tap_again">Seu aplicativo precisa ser reinstalado; volte ao %1$s e toque em Compilação rápida para tentar novamente.</string>
   <string name="cd_undo">Desfazer</string>
   <string name="cd_redo">Refazer</string>
   <string name="cd_delete">Excluir</string>

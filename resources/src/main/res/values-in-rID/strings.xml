@@ -1122,7 +1122,7 @@
 	<string name="quick_build_slot_busy">Build lain sedang berjalan. Tunggu hingga selesai, lalu mulai Quick Build lagi.</string>
 	<string name="quick_build_rebuild_failed">Quick Build tidak dapat mem-build ulang aplikasi Anda. Periksa Output Build untuk mengetahui apa yang salah.</string>
 	<string name="quick_build_provisioning_failed_unexpectedly">Penyiapan Quick Build gagal secara tak terduga. Periksa Output Build untuk mengetahui apa yang salah.</string>
-	<string name="quick_build_reinstall_return_to_cogo">Aplikasi Anda perlu diinstal ulang - kembali ke CoGo untuk mengonfirmasi.</string>
+	<string name="quick_build_reinstall_return_to_cogo">Aplikasi Anda perlu diinstal ulang - kembali ke %1$s untuk mengonfirmasi.</string>
 	<string name="quick_build_reinstall_declined">Aplikasi Anda perlu diinstal ulang - prompt penginstalan dibatalkan. Ketuk Quick Build untuk mencoba lagi.</string>
 	<string name="quick_build_reinstall_timed_out">Aplikasi Anda perlu diinstal ulang - prompt penginstalan tidak dijawab selama %1$d detik. Ketuk Quick Build untuk mencoba lagi.</string>
 	<string name="quick_build_reinstall_waiting_for_gradle">Menunggu build Gradle saat ini selesai - aplikasi Anda masih perlu diinstal ulang. Ketuk Quick Build untuk mencoba lagi.</string>
@@ -1136,7 +1136,7 @@
 	<string name="quick_build_not_enough_storage">Quick Build memerlukan sekitar %1$d MB ruang kosong di penyimpanan aplikasi, tetapi hanya tersedia %2$d MB. Kosongkan ruang dan coba lagi.</string>
 	<string name="quick_build_scratch_dir_unavailable">Quick Build tidak dapat membuat folder build-nya di %1$s.</string>
 	<string name="quick_build_daemon_rejected_config">Kompiler Quick Build menolak untuk memulai pada proyek ini. Memulai ulang sesi dari menu tekan lama akan menyiapkannya kembali.</string>
-	<string name="quick_build_reinstall_tap_again">Aplikasi Anda perlu diinstal ulang - kembali ke CoGo dan ketuk Quick Build untuk mencoba lagi.</string>
+	<string name="quick_build_reinstall_tap_again">Aplikasi Anda perlu diinstal ulang - kembali ke %1$s dan ketuk Quick Build untuk mencoba lagi.</string>
 	<string name="cd_undo">Urung</string>
 	<string name="cd_redo">Ulangi</string>
 	<string name="cd_delete">Hapus</string>

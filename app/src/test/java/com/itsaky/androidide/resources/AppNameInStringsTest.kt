@@ -29,6 +29,9 @@ class AppNameInStringsTest {
 
 	private val defaultFile: File get() = File(resDir, "values/strings.xml")
 
+	/** The repository root: `resources/src/main/res` is four levels down. */
+	private val repoRoot: File by lazy { resDir.parentFile.parentFile.parentFile.parentFile }
+
 	private class Entry(
 		val key: String,
 		val text: String,
@@ -60,12 +63,42 @@ class AppNameInStringsTest {
 		for (file in stringFiles) {
 			for (entry in entries(file)) {
 				if (entry.key == "app_name" || entry.key in KEEP_LITERAL) continue
-				if (entry.text.contains(APP_NAME, ignoreCase = true)) {
+				if (entry.text.contains(APP_NAME, ignoreCase = true) || SHORT_NAME.containsMatchIn(entry.text)) {
 					offenders += "${file.parentFile.name}/${entry.key}"
 				}
 			}
 		}
 		assertThat(offenders).isEmpty()
+	}
+
+	@Test
+	fun `only the resources module defines our app_name`() {
+		// A copy in another module overrides this one in that module's R and manifest. The compiled
+		// table holds a single entry, so a build that edits it still renames the app, but the source
+		// would no longer say where the name lives. Other apps in the repository (plugins, samples,
+		// test projects) have names of their own and are not caught.
+		val ours = File(resDir, "values/strings.xml").canonicalFile
+		val copies =
+			repoRoot
+				.walkTopDown()
+				.onEnter { it.name !in SKIPPED_DIRS }
+				.filter { it.name == "strings.xml" && it.parentFile.name.startsWith("values") && it.canonicalFile != ours }
+				// Parse only a file that defines app_name: template files elsewhere need not be valid XML.
+				.filter { it.readText().contains("name=\"app_name\"") }
+				.filter { file -> entries(file).any { it.key == "app_name" && it.text.contains(APP_NAME, ignoreCase = true) } }
+				.map { it.relativeTo(repoRoot).path }
+				.toList()
+		assertThat(copies).isEmpty()
+	}
+
+	@Test
+	fun `getStringWithAppName fills in the name for exactly the strings that take it first`() {
+		// APP_NAME_STRINGS is a set of R ids, which a JVM test cannot resolve, so read its source.
+		val source =
+			File(repoRoot, "common/src/main/java/com/itsaky/androidide/utils/AppNameStrings.kt").readText()
+		val listed = Regex("R\\.string\\.(\\w+)").findAll(source).map { it.groupValues[1] }.toSet()
+		val takeItFirst = NAME_POSITION.filterValues { it == 1 }.keys
+		assertThat(listed).containsExactlyElementsIn(takeItFirst)
 	}
 
 	@Test
@@ -118,6 +151,11 @@ class AppNameInStringsTest {
 
 	private companion object {
 		const val APP_NAME = "code on the go"
+
+		/** The short form, as a whole word and case-sensitive, so a package name like `cogo` passes. */
+		val SHORT_NAME = Regex("\\bCoGo\\b")
+
+		val SKIPPED_DIRS = setOf(".git", ".gradle", "build", "node_modules")
 
 		val NUMBERED_ARGUMENT = Regex("%(\\d+)\\$([a-zA-Z])")
 		val BARE_ARGUMENT = Regex("%[sd]")
@@ -197,6 +235,8 @@ class AppNameInStringsTest {
 				"debugger_setup_description_footer" to 1,
 				"back_to_cogo" to 1,
 				"url_consent_message" to 2,
+				"quick_build_reinstall_return_to_cogo" to 1,
+				"quick_build_reinstall_tap_again" to 1,
 			)
 	}
 }
