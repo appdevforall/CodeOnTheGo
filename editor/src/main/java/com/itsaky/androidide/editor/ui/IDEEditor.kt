@@ -771,6 +771,9 @@ open class IDEEditor
 					} else {
 						"Line ${line + 1}: $lineContent"
 					}
+				// Deprecated in API 36 for live regions and pane titles, which describe a view's state, not
+				// a one-off readout of the line under the finger.
+				@Suppress("DEPRECATION")
 				announceForAccessibility(announcement)
 			}
 		}
@@ -1073,6 +1076,9 @@ open class IDEEditor
 				} else {
 					"Line ${line + 1}, column ${column + 1}: $lineContent"
 				}
+			// Deprecated in API 36 for live regions and pane titles, which describe a view's state, not a
+			// one-off readout of the caret's line.
+			@Suppress("DEPRECATION")
 			announceForAccessibility(announcement)
 		}
 		// endregion Accessibility

@@ -11,8 +11,10 @@ import com.itsaky.androidide.lsp.kotlin.actions.NullSafetyAction
 import com.itsaky.androidide.lsp.kotlin.actions.OrganizeImportsAction
 import com.itsaky.androidide.lsp.kotlin.fixtures.KtLspTest
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.ExtractionRefusal
+import com.itsaky.androidide.lsp.kotlin.utils.refactor.InlineRefusal
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractMethodPlan
 import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildExtractionPlan
+import com.itsaky.androidide.lsp.kotlin.utils.refactor.buildInlineVariablePlan
 import com.itsaky.androidide.models.Range
 import com.itsaky.androidide.progress.ICancelChecker
 import com.itsaky.androidide.projects.FileManager
@@ -121,6 +123,26 @@ internal class StalePinEditRefusalTest : KtLspTest() {
 		val empty = whileHoldingAStalePin(path, content, plan)
 
 		assertTrue(empty.candidates.isEmpty())
+	}
+
+	@Test
+	fun `inline-variable refuses a plan built on a joined stale pin`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int, b: Int): Int {
+				val total = a + b
+				return total * 2
+			}
+			""".trimIndent()
+		val path = openDocument("Inline.kt", content)
+		val offset = content.indexOf("total")
+		val plan = { buildInlineVariablePlan(env, path, offset, 2, noopCancelChecker()) }
+
+		assertEquals(null, plan().refusal)
+		val refused = whileHoldingAStalePin(path, content, plan)
+
+		assertEquals(InlineRefusal.CouldNotAnalyse, refused.refusal)
 	}
 
 	@Test

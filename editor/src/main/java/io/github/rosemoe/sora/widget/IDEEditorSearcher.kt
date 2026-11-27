@@ -65,9 +65,9 @@ open class IDEEditorSearcher(
 		super.replaceAll(replacement, whenFinished)
 	}
 
-	override fun replaceThis(replacement: String) {
+	override fun replaceCurrentMatch(replacement: String) {
 		markSearching()
-		super.replaceThis(replacement)
+		super.replaceCurrentMatch(replacement)
 	}
 
 	override fun gotoNext(): Boolean {

@@ -6,6 +6,7 @@ import com.itsaky.androidide.lsp.refactor.RewriteSpan
 import com.itsaky.androidide.lsp.refactor.TextSpan
 import com.itsaky.androidide.lsp.ui.NameProblem
 import com.itsaky.androidide.lsp.ui.validateVariableName
+import com.itsaky.androidide.progress.ICancelChecker
 import org.jetbrains.kotlin.com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtIfExpression
@@ -15,8 +16,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CancellationException
 
 /**
  * The parts of the plan that need real symbol resolution: candidate filtering, the legal scope chain
@@ -1084,5 +1087,41 @@ class ExtractVariablePlanEndToEndTest : KtLspTest() {
 		val result = plan(content, gap, gap + 1)
 
 		assertEquals(listOf("b", "b * c", "a + b * c"), result.candidates.map { it.label })
+	}
+
+	@Test
+	fun `a plan preempted once by another edit is retried rather than reported empty`() {
+		val content =
+			"""
+			package p
+			fun demo(n: Int): Int {
+				return n * 2
+			}
+			""".trimIndent()
+		createSourceFile("Main.kt", content)
+		val path = env.sourceRoots.first().resolve("Main.kt")
+		val start = content.indexOf("n * 2")
+
+		val result = buildExtractionPlan(env, path, start, start + "n * 2".length, 1, preemptedOnceCancelChecker())
+
+		assertEquals(listOf("n * 2"), result.candidates.map { it.label })
+	}
+
+	@Test
+	fun `cancellation propagates instead of being reported as an empty plan`() {
+		val content =
+			"""
+			package p
+			fun demo(n: Int): Int {
+				return n * 2
+			}
+			""".trimIndent()
+		createSourceFile("Main.kt", content)
+		val path = env.sourceRoots.first().resolve("Main.kt")
+		val start = content.indexOf("n * 2")
+
+		assertThrows(CancellationException::class.java) {
+			buildExtractionPlan(env, path, start, start + "n * 2".length, 1, ICancelChecker.CANCELLED)
+		}
 	}
 }

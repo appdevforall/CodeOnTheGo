@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.index
 
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.lsp.kotlin.compiler.CompilationEnvironment
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPreemptedException
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.backingFilePath
@@ -285,7 +286,13 @@ internal class IndexWorker(
 
 	private fun beginIndexPhase() = Memprof.beginPhase("Index Kotlin sources", "source_index_complete")
 
+	/** Sees every command [submitCommand] receives, before it is queued; set only by tests. */
+	@VisibleForTesting
+	@Volatile
+	internal var commandIntakeObserver: ((IndexCommand) -> Unit)? = null
+
 	suspend fun submitCommand(cmd: IndexCommand) {
+		commandIntakeObserver?.invoke(cmd)
 		when (cmd) {
 			is IndexCommand.ScanSourceFile,
 			is IndexCommand.SourceScanningStarted,

@@ -67,6 +67,8 @@ class TsAnalyzeWorker(
 	@OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
 	private val analyzerContext = newSingleThreadContext("TsAnalyzeWorkerContext")
 
+	// analyzerContext's type, CloseableCoroutineDispatcher, is itself experimental.
+	@OptIn(ExperimentalCoroutinesApi::class)
 	private val analyzerScope = CoroutineScope(analyzerContext)
 	private val messageChannel = LinkedBlockingQueue<Message<*>>()
 	private var analyzerJob: Job? = null
@@ -141,6 +143,7 @@ class TsAnalyzeWorker(
 				}
 	}
 
+	@OptIn(ExperimentalCoroutinesApi::class)
 	private fun releaseResources() {
 		document.close()
 		analyzerContext.close()

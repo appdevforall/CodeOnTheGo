@@ -47,6 +47,8 @@ tasks.create("generateBuildInfo") {
 	val buildInfoPath = "com/itsaky/androidide/buildinfo/BuildInfo.java"
 	val buildInfo = buildInfoGenDir.get().file(buildInfoPath)
 	val buildInfoIn = project.file("src/main/java/$buildInfoPath.in")
+	// Task.project is deprecated at execution time, so take it while configuring.
+	val gitProject = project
 
 	doLast {
 		buildInfoIn.replaceContents(
@@ -66,8 +68,8 @@ tasks.create("generateBuildInfo") {
 					"FDROID_BUILD_VERSION_NAME" to (FDroidConfig.fDroidVersionName ?: "null"),
 					"FDROID_BUILD_VERSION_CODE" to (FDroidConfig.fDroidVersionCode ?: -1).toString(),
 					"CI_BUILD" to CI.isCiBuild.toString(),
-					"CI_GIT_BRANCH" to CI.branchName(project),
-					"CI_COMMIT_HASH" to CI.commitHash(project),
+					"CI_GIT_BRANCH" to CI.branchName(gitProject),
+					"CI_COMMIT_HASH" to CI.commitHash(gitProject),
 					"REPO_HOST" to ProjectConfig.REPO_HOST,
 					"REPO_OWNER" to ProjectConfig.REPO_OWNER,
 					"REPO_NAME" to ProjectConfig.REPO_NAME,

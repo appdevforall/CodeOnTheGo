@@ -13,6 +13,9 @@ import java.nio.file.Path
  * An unpinned instance can be superseded while it is in use, which is what makes FIR report a file as
  * conflicting with itself (ADFA-4165, ADFA-5231). Opting in is only defensible for PSI-only work that
  * opens no analysis session; anything that analyses must use [KtSymbolIndex.withLiveKtFile].
+ *
+ * An open document's instance is also edited in place by every refresh, under `project.write`, so
+ * PSI-only work must still read it inside `project.read`, or it can see a half-applied edit.
  */
 @RequiresOptIn(
 	level = RequiresOptIn.Level.ERROR,

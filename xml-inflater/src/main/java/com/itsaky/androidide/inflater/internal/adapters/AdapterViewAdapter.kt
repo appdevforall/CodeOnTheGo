@@ -30,28 +30,29 @@ import com.itsaky.androidide.inflater.internal.ViewGroupImpl
  * @author Akash Yadav
  */
 abstract class AdapterViewAdapter<T : AdapterView<*>> : ViewGroupAdapter<T>() {
+	companion object {
+		const val ADAPTER_DEFAULT_ITEM_COUNT = 3
+	}
 
-  companion object {
-    const val ADAPTER_DEFAULT_ITEM_COUNT = 3
-  }
+	override fun applyBasic(view: IView) {
+		super.applyBasic(view)
+		// The adapter type argument is erased, so no cast can check it. The ArrayAdapter below is both a
+		// ListAdapter and a SpinnerAdapter, which every platform AdapterView accepts.
+		@Suppress("UNCHECKED_CAST")
+		val adapterView = view.view as AdapterView<Adapter>
+		adapterView.adapter = newSimpleAdapter(view.view.context)
+		if (view is ViewGroupImpl) {
+			view.childrenModifiable = false
+		}
+	}
 
-  override fun applyBasic(view: IView) {
-    super.applyBasic(view)
-    (view.view as AdapterView<Adapter>).adapter = newSimpleAdapter(view.view.context)
-    if (view is ViewGroupImpl) {
-      view.childrenModifiable = false
-    }
-  }
+	protected open fun newSimpleAdapter(ctx: Context): ArrayAdapter<String> =
+		newSimpleAdapter(ctx, newAdapterItems(ADAPTER_DEFAULT_ITEM_COUNT))
 
-  protected open fun newSimpleAdapter(ctx: Context): ArrayAdapter<String> {
-    return newSimpleAdapter(ctx, newAdapterItems(ADAPTER_DEFAULT_ITEM_COUNT))
-  }
+	protected open fun newSimpleAdapter(
+		ctx: Context,
+		items: Array<String>,
+	): ArrayAdapter<String> = ArrayAdapter<String>(ctx, layout.simple_list_item_1, items)
 
-  protected open fun newSimpleAdapter(ctx: Context, items: Array<String>): ArrayAdapter<String> {
-    return ArrayAdapter<String>(ctx, layout.simple_list_item_1, items)
-  }
-
-  protected open fun newAdapterItems(size: Int): Array<String> {
-    return Array(size) { "Item $it" }
-  }
+	protected open fun newAdapterItems(size: Int): Array<String> = Array(size) { "Item $it" }
 }
