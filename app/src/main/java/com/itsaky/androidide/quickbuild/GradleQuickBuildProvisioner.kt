@@ -143,7 +143,7 @@ class GradleQuickBuildProvisioner(
 				is InstallOutcome.ConfirmationNotGiven -> {
 					return ProvisionOutcome.Failure(
 						initialProvisionMessageOverride(installed)
-							?.let { QuickBuildMessage.Literal(context.getString(it)) }
+							?.let { QuickBuildMessage.Literal(context.getString(it, context.getString(R.string.app_name))) }
 							?: installed.message,
 					)
 				}

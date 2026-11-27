@@ -23,6 +23,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.text.SpannableStringBuilder
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -121,7 +122,7 @@ class PermissionsFragment :
 						)
 						putCharSequence(
 							KEY_ONBOARDING_SUBTITLE,
-							context.getString(R.string.onboarding_subtitle_permissions),
+							context.getString(R.string.onboarding_subtitle_permissions, context.getString(R.string.app_name)),
 						)
 					}
 			}
@@ -216,7 +217,7 @@ class PermissionsFragment :
 
 			is InstallationState.InstallationComplete -> {
 				finishButton?.text = getString(R.string.finish_installation)
-				activity?.flashSuccess(getString(R.string.ide_setup_complete))
+				activity?.flashSuccess(getString(R.string.ide_setup_complete, getString(R.string.app_name)))
 			}
 
 			is InstallationState.InstallationError -> {
@@ -436,6 +437,18 @@ class PermissionsFragment :
 		// Inflate from the builder's themed context so the dialog-scoped attributes the
 		// layout refers to (body text style, preferred padding) resolve.
 		val binding = LayoutDialogPrivacyConsentBinding.inflate(LayoutInflater.from(builder.context))
+
+		// getText keeps the <i> spans that getString would strip, so fill the app name in by hand.
+		val appName = getString(com.itsaky.androidide.resources.R.string.app_name)
+		val privacyMessage =
+			SpannableStringBuilder(getText(com.itsaky.androidide.resources.R.string.privacy_disclosure_message))
+		val appNameToken = "%1\$s"
+		var tokenAt = privacyMessage.indexOf(appNameToken)
+		while (tokenAt >= 0) {
+			privacyMessage.replace(tokenAt, tokenAt + appNameToken.length, appName)
+			tokenAt = privacyMessage.indexOf(appNameToken, tokenAt + appName.length)
+		}
+		binding.privacyMessage.text = privacyMessage
 
 		val dialog =
 			builder

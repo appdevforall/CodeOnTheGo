@@ -7,18 +7,24 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.text.SpannableStringBuilder
+import android.text.TextUtils
 import com.itsaky.androidide.resources.R
 import org.slf4j.LoggerFactory
 
 object OverlayPermissionGuide {
-
 	private val log = LoggerFactory.getLogger(OverlayPermissionGuide::class.java)
 
 	fun showRestrictedSettingsDialog(context: Context) {
 		val message = SpannableStringBuilder()
-		message.append(context.getString(R.string.permission_overlay_restricted_dialog_message))
+		val appName = context.getString(R.string.app_name)
+		message.append(context.getString(R.string.permission_overlay_restricted_dialog_message, appName))
 		message.append("\n\n")
-		message.appendOrderedList(*context.resources.getStringArray(R.array.overlay_restricted_settings_steps))
+		message.appendOrderedList(
+			*context.resources
+				.getStringArray(R.array.overlay_restricted_settings_steps)
+				.map { it.format(TextUtils.htmlEncode(appName)) }
+				.toTypedArray(),
+		)
 
 		DialogUtils
 			.newMaterialDialogBuilder(context)
@@ -27,16 +33,16 @@ object OverlayPermissionGuide {
 			.setPositiveButton(R.string.permission_overlay_open_app_info) { dialog, _ ->
 				dialog.dismiss()
 				openAppInfo(context)
-			}
-			.setNegativeButton(android.R.string.cancel, null)
+			}.setNegativeButton(android.R.string.cancel, null)
 			.show()
 	}
 
 	private fun openAppInfo(context: Context) {
-		val intent = Intent(
-			Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-			Uri.fromParts("package", context.packageName, null),
-		)
+		val intent =
+			Intent(
+				Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+				Uri.fromParts("package", context.packageName, null),
+			)
 		if (context !is Activity) {
 			intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 		}

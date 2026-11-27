@@ -105,7 +105,10 @@ class AdbPairingService : Service() {
 	): Int {
 		val notification =
 			when (intent?.action) {
-				START_ACTION -> onStart()
+				START_ACTION -> {
+					onStart()
+				}
+
 				REPLY_ACTION -> {
 					val code =
 						RemoteInput
@@ -125,7 +128,9 @@ class AdbPairingService : Service() {
 					null
 				}
 
-				else -> null
+				else -> {
+					null
+				}
 			}
 
 		if (notification == null) {
@@ -217,7 +222,7 @@ class AdbPairingService : Service() {
 			logger.info("Pair succeed")
 
 			title = getString(R.string.notification_adb_pairing_succeed_title)
-			text = getString(R.string.notification_adb_pairing_succeed_text)
+			text = getString(R.string.notification_adb_pairing_succeed_text, getString(R.string.app_name))
 
 			stopSearch()
 			sendBroadcast(Intent(ACTION_PAIR_SUCCEEDED), PERMISSION_RECEIVE_WADB_PAIR_RESULT)

@@ -111,7 +111,7 @@ class InstallFileAction(
 						}.onFailure { e ->
 							flashError(
 								if (e is PluginStillLoadedException) {
-									getString(R.string.msg_plugin_install_still_loaded, e.pluginId)
+									getString(R.string.msg_plugin_install_still_loaded, e.pluginId, getString(R.string.app_name))
 								} else {
 									getString(R.string.msg_plugin_install_failed, e.message)
 								},

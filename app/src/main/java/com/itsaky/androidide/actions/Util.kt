@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.SpannableStringBuilder
+import android.text.TextUtils
 import android.text.method.LinkMovementMethod
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
@@ -51,6 +52,7 @@ fun showNotificationPermissionDialog(
 			context.getString(
 				R.string.adb_pairing_tutorial_content_notification,
 				context.getString(R.string.notification_channel_adb_pairing),
+				context.getString(R.string.app_name),
 			),
 		).setPositiveButton(R.string.title_grant) { dialog, _ ->
 			val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -73,7 +75,11 @@ fun showDebuggerNotReadyMessage(context: Context): AlertDialog? =
 			context.getString(R.string.debugger_not_ready) +
 				System
 					.lineSeparator()
-					.repeat(2) + context.getString(R.string.debugger_error_suggestion_network_restriction),
+					.repeat(2) +
+				context.getString(
+					R.string.debugger_error_suggestion_network_restriction,
+					context.getString(R.string.app_name),
+				),
 		).setPositiveButton(android.R.string.ok, null)
 		.show()
 
@@ -87,6 +93,7 @@ suspend fun handleMissingOverlayPermission(
 			PermissionsHelper.OverlayPermissionState.UNSUPPORTED -> {
 				activity.flashError(activity.getString(R.string.permission_overlay_unsupported_hint))
 			}
+
 			PermissionsHelper.OverlayPermissionState.REQUESTABLE -> {
 				val intent =
 					Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
@@ -102,6 +109,7 @@ suspend fun handleMissingOverlayPermission(
 					)
 				}
 			}
+
 			else -> {}
 		}
 	}
@@ -130,11 +138,18 @@ fun showPairingDialog(
 	ssb.append(System.lineSeparator())
 	ssb.append(System.lineSeparator())
 
-	ssb.appendOrderedList(*context.resources.getStringArray(R.array.debugger_setup_pairing_steps))
+	val appName = context.getString(R.string.app_name)
+	val htmlAppName = TextUtils.htmlEncode(appName)
+	ssb.appendOrderedList(
+		*context.resources
+			.getStringArray(R.array.debugger_setup_pairing_steps)
+			.map { it.format(htmlAppName) }
+			.toTypedArray(),
+	)
 	ssb.append(System.lineSeparator())
 
 	ssb.appendHtmlWithLinks(
-		context.getString(R.string.debugger_setup_description_footer),
+		context.getString(R.string.debugger_setup_description_footer, htmlAppName),
 		launchHelp,
 	)
 
@@ -192,7 +207,7 @@ fun startPairingService(
 						null,
 					)
 			if (mode == AppOpsManager.MODE_ERRORED) {
-				flashError(context.getString(R.string.err_foreground_service_denial))
+				flashError(context.getString(R.string.err_foreground_service_denial, context.getString(R.string.app_name)))
 			}
 
 			context.startService(intent)

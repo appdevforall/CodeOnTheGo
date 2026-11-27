@@ -42,7 +42,11 @@ class QuickBuildMessagesTest {
 
 	@Test
 	fun `each valueless case resolves to its own string`() {
-		assertResolvesTo(QuickBuildMessage.ReinstallReturnToCoGo, R.string.quick_build_reinstall_return_to_cogo)
+		assertResolvesTo(
+			QuickBuildMessage.ReinstallReturnToCoGo,
+			R.string.quick_build_reinstall_return_to_cogo,
+			context.getString(R.string.app_name),
+		)
 		assertResolvesTo(QuickBuildMessage.ReinstallDeclined, R.string.quick_build_reinstall_declined)
 		assertResolvesTo(QuickBuildMessage.ReinstallWaitingForGradle, R.string.quick_build_reinstall_waiting_for_gradle)
 		assertResolvesTo(QuickBuildMessage.InstallCouldNotStart, R.string.quick_build_install_could_not_start)

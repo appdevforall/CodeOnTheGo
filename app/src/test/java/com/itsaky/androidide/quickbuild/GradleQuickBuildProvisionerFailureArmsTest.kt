@@ -248,7 +248,8 @@ class GradleQuickBuildProvisionerFailureArmsTest {
 			// A provision failure lands the session in Idle, where returning to CoGo does
 			// nothing - so the installer's own "return to CoGo to confirm" is a dead end here,
 			// and only a fresh tap makes progress.
-			assertThat(failureText(outcome)).isEqualTo(context.getString(R.string.quick_build_reinstall_tap_again))
+			assertThat(failureText(outcome))
+				.isEqualTo(context.getString(R.string.quick_build_reinstall_tap_again, context.getString(R.string.app_name)))
 		}
 
 	@Test

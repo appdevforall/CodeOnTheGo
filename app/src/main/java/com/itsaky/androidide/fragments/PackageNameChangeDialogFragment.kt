@@ -34,7 +34,7 @@ class PackageNameChangeDialogFragment : DialogFragment() {
 			.newMaterialDialogBuilder(requireContext())
 			.setIcon(icon)
 			.setTitle(R.string.package_name_change_title)
-			.setMessage(R.string.package_name_change_message)
+			.setMessage(getString(R.string.package_name_change_message, getString(R.string.app_name)))
 			.setPositiveButton(R.string.learn_more, null)
 			.setNegativeButton(R.string.msg_got_it) { _, _ ->
 				GeneralPreferences.packageNameChangeNoticeDismissedAt = System.currentTimeMillis()

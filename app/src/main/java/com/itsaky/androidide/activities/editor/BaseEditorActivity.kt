@@ -144,6 +144,7 @@ import com.itsaky.androidide.utils.dpToPx
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashMessage
 import com.itsaky.androidide.utils.getOrStoreInitialPadding
+import com.itsaky.androidide.utils.getStringWithAppName
 import com.itsaky.androidide.utils.isAtLeastR
 import com.itsaky.androidide.utils.isDeepLinkTargetOfOpenProject
 import com.itsaky.androidide.viewmodel.ApkInstallationViewModel
@@ -1482,7 +1483,7 @@ abstract class BaseEditorActivity :
 		newMaterialDialogBuilder(this)
 			.setPositiveButton(android.R.string.ok, null)
 			.setTitle(string.title_first_build)
-			.setMessage(string.msg_first_build)
+			.setMessage(getString(string.msg_first_build, getString(string.app_name)))
 			.setCancelable(false)
 			.create()
 			.show()
@@ -1879,7 +1880,7 @@ abstract class BaseEditorActivity :
 		val indentChild = 140
 
 		fun appendHierarchicalText(textRes: Int) {
-			val text = getString(textRes)
+			val text = getStringWithAppName(textRes, getString(string.app_name))
 			text.split("\n").forEach { line ->
 				val trimmed = line.trimStart()
 

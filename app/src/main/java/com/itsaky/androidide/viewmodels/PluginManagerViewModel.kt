@@ -423,7 +423,11 @@ class PluginManagerViewModel(
 						Log.e(TAG, "Failed to install plugin", exception)
 						_uiEffect.send(
 							if (exception is PluginStillLoadedException) {
-								PluginManagerUiEffect.ShowError(R.string.msg_plugin_install_still_loaded, listOf(exception.pluginId))
+								PluginManagerUiEffect.ShowError(
+									R.string.msg_plugin_install_still_loaded,
+									listOf(exception.pluginId),
+									withAppName = true,
+								)
 							} else {
 								PluginManagerUiEffect.ShowError(
 									R.string.msg_plugin_install_failed,

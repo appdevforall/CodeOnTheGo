@@ -65,7 +65,7 @@ class DeepLinkActivity : Activity() {
 			// URI is looked at, and reordering it just to enrich a metric would put parsing ahead of
 			// the check that exists to stop this activity acting on anything at all.
 			analyticsManager.trackDeepLink(DeepLinkMetric(DeepLinkDepth.UNKNOWN, DeepLinkOutcome.SETUP_INCOMPLETE))
-			Toast.makeText(this, getString(string.msg_deeplink_setup_incomplete), Toast.LENGTH_LONG).show()
+			Toast.makeText(this, getString(string.msg_deeplink_setup_incomplete, getString(string.app_name)), Toast.LENGTH_LONG).show()
 			// FLAG_ACTIVITY_NEW_TASK, matching the success branch below. A sender that starts this
 			// trampoline without it -- an in-app WebView host, another app's explicit intent, `am start`
 			// -- puts this activity in the *caller's* task, and an unflagged start here would run the

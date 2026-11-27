@@ -6,10 +6,10 @@
   <string name="text_to_search">Текст для поиска</string>
   <string name="about_option_email">Электронная почта</string>
   <string name="about_option_website">Вебсайт</string>
-  <string name="about_footer">Code on the Go %1$s для %2$s</string>
+  <string name="about_footer">%3$s %1$s для %2$s</string>
   <string name="about_subtitle">Просто IDE для Android</string>
   <string name="msg_get_package_failed">Ошибка распаковки имени пакета!</string>
-  <string name="msg_need_help">Если вы столкнулись с какими-либо проблемами при использовании Code on the Go или при сборке Android приложений, вы можете присоединиться к нашей группе в Telegram и попросить о помощи там.\n\nВы также можете присылать нам свои пожелания и предложения на наш электронный адрес.</string>
+  <string name="msg_need_help">Если вы столкнулись с какими-либо проблемами при использовании %1$s или при сборке Android приложений, вы можете присоединиться к нашей группе в Telegram и попросить о помощи там.\n\nВы также можете присылать нам свои пожелания и предложения на наш электронный адрес.</string>
   <string name="need_help">Нужна помощь?</string>
   <string name="ide_preferences">Настройки IDE</string>
   <string name="discussions_on_telegram">Обсуждение в Telegram</string>
@@ -37,7 +37,7 @@
   <string name="please_wait">Пожалуйста, подождите немного&#8230;</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">Устройство не поддерживается</string>
-  <string name="msg_unsupported_device">Вы используете сборку Code on the Go для архитектуры %1$s на устройстве, поддерживающем только приложения для %2$s. Code on the Go не будет работать в такой конфигурации. Пожалуйста, установите сборку Code on the Go для архитектуры %2$s.</string>
+  <string name="msg_unsupported_device">Вы используете сборку %3$s для архитектуры %1$s на устройстве, поддерживающем только приложения для %2$s. %3$s не будет работать в такой конфигурации. Пожалуйста, установите сборку %3$s для архитектуры %2$s.</string>
   <string name="title_clear_output">Очистить выходные файлы</string>
   <string name="build_output">Результат сборки</string>
   <string name="quick_run_debug">Быстрая сборка</string>
@@ -48,7 +48,7 @@
   <string name="run">Запустить</string>
   <!-- Project -->
   <string name="title_first_build">Настройка вашего нового проекта</string>
-  <string name="msg_first_build">Code on the Go настраивает файлы и каталоги вашего нового проекта. Пожалуйста, наберитесь терпения!\n\nКогда настройка завершится, в нижней части экрана будет отображено \"Проект инициализирован\".</string>
+  <string name="msg_first_build">%1$s настраивает файлы и каталоги вашего нового проекта. Пожалуйста, наберитесь терпения!\n\nКогда настройка завершится, в нижней части экрана будет отображено \"Проект инициализирован\".</string>
   <string name="create_project">Создать проект</string>
   <string name="minimum_sdk">Минимальный SDK</string>
   <string name="new_project">Новый проект</string>
@@ -138,7 +138,7 @@
   <string name="redo">Повтор действия</string>
   <!-- Preferences -->
   <string name="title_change_text_size">Размер шрифта редактора</string>
-  <string name="idepref_about_title">Об Code on the Go</string>
+  <string name="idepref_about_title">Об %1$s</string>
   <string name="idepref_build_clearCache_title">Очистить кэш Gradle</string>
   <string name="idepref_build_clearCache_summary">Очистить директорию кэша Gradle. Это удалит все зависимости, скачанные Gradle. Необходимые файлы будут вновь скачаны при следующей сборке.</string>
   <string name="idepref_build_customgradlecommands_title">Дополнительные флаги Gradle</string>
@@ -174,7 +174,7 @@
   <string name="msg_generate_xml_failed">Не удалось сгенерировать код XML</string>
   <string name="title_generating_xml">Генерация кода XML</string>
   <string name="msg_swipe_up">Провведите вверх, для просмотра сообщений сборки, логов и прочего.</string>
-  <string name="msg_ide_crashed">Code on the Go приостановила работу из-за непридвиденной ошибки</string>
+  <string name="msg_ide_crashed">%1$s приостановила работу из-за непридвиденной ошибки</string>
   <string name="msg_crash_info">Пожалуйста, создайте issue на нашем GitHub, прикрепив сообщение ниже:</string>
   <string name="msg_close_crash_page">Нажмите на кнопку ниже, чтобы скопировать лог и открыть страницу создания issue.</string>
   <string name="title_translations">Переводчики</string>
@@ -242,7 +242,7 @@
   <string name="idepref_channel_summary">Узнавайте о новых обновлениях!</string>
   <string name="idepref_group_summary">Сообщайте об ошибках, предлагайте новые функции и обсуждайте нововведения здесь.</string>
   <string name="idepref_changelog_summary">Что нового в этой версии?</string>
-  <string name="idepref_about_summary">Узнайте больше об Code on the Go.</string>
+  <string name="idepref_about_summary">Узнайте больше об %1$s.</string>
   <string name="idepref_general_summary">Общие параметры IDE.</string>
   <string name="idepref_editor_summary">Настройте редактор.</string>
   <string name="idepref_xml_trimFinalNewLine_title">Стирать последний перенос строки</string>
@@ -281,7 +281,7 @@
   <string name="idepref_customFont_summary">Если активно, файл \"/data/data/com.itsaky.androidide/files/home/.cg/ui/font.ttf\" будет использован в качестве шрифта редактора.</string>
   <string name="msg_installing_apk">Установка APK...</string>
   <string name="msg_action_open_application">Хотите открыть установленное приложение?</string>
-  <string name="title_gradle_service_notification_channel">Служба сборки Code on the Go Gradle</string>
+  <string name="title_gradle_service_notification_channel">Служба сборки %1$s Gradle</string>
   <string name="msg_hex_color_code">HEX-код</string>
   <string name="msg_color_picker_pick">Выбрать</string>
   <string name="msg_chmod_exec">Настройка разрешений для исполняемого файла&#8230;</string>
@@ -349,7 +349,7 @@
   <string name="uiMode_dark">Тёмная</string>
   <string name="uiMode_system">Как в системе</string>
   <string name="idepref_general_themeSelector_title">Тема</string>
-  <string name="idepref_general_themeSelector_summary">Выберите тему оформления для Code on the Go (требуется перезапуск).</string>
+  <string name="idepref_general_themeSelector_summary">Выберите тему оформления для %1$s (требуется перезапуск).</string>
   <string name="idepref_general_projectConfig">Настройки проекта</string>
   <string name="msg_app_launch_failed">Вы должны собрать и установить приложение, прежде чем запустить его.</string>
   <string name="idepref_java_diagnosticEnabled_title">Активировать анализ</string>
@@ -389,10 +389,10 @@
   <string name="title_android_version">Версия Android</string>
   <string name="btn_opt_in">Присоединиться</string>
   <string name="title_developer_options">Настройки разработчика</string>
-  <string name="idepref_devOptions_summary">Экспериментальные/отладочные опции для Code on the Go</string>
+  <string name="idepref_devOptions_summary">Экспериментальные/отладочные опции для %1$s</string>
   <string name="idepref_group_debugging">Отладка</string>
   <string name="idepref_devOptions_dumpLogs_title">Дамп логов</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Дамп логов Code on the Go в $HOME/.cg/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Дамп логов %1$s в $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Запустите отладочный вариант вашего приложения, чтобы увидеть его логи здесь.</string>
   <string name="msg_logsender_disabled">LogSender отключен. Вы можете включить его в настройках.</string>
   <string name="msg_emptyview_idelogs">Логи IDE отображаются здесь.</string>
@@ -400,7 +400,7 @@
   <string name="msg_emptyview_buildoutput">"Соберите приложение или запустите задачу, чтобы увидеть результаты сборки здесь. "</string>
   <string name="msg_codeaction_failed">Не удалось выполнить действие с кодом</string>
   <string name="idepref_devOptions_enableLogsender_title">Включить LogSender</string>
-  <string name="idepref_devOptions_enableLogsender_summary">Если отключено, журналы из приложений не будут отображаться в Code on the Go</string>
+  <string name="idepref_devOptions_enableLogsender_summary">Если отключено, журналы из приложений не будут отображаться в %1$s</string>
   <string name="title_build_variants">Варианты сборки</string>
   <string name="build_variants_apply">Применить</string>
   <string name="build_variants_cancel">Отменить</string>
@@ -418,14 +418,14 @@
   <string name="msg_launch_failure_no_app_module">Невозможно запустить приложение. В проекте не найдены модули приложения.</string>
   <string name="title_launch_app">Запустить приложение</string>
   <string name="title_experiment_flavor">Экспериментальная функция</string>
-  <string name="msg_experimental_flavor">Вы используете сборку Code on the Go для архитектуры %1$s на устройстве с %2$s. Code on the Go скорее всего сможет функционировать в такой конфигурации, но это приведет к ухудшению производительности и сделает ваше устройство потенциально уязвимым. Пожалуйста, не используйте Code on the Go в такой конфигурации, если это возможно.</string>
+  <string name="msg_experimental_flavor">Вы используете сборку %3$s для архитектуры %1$s на устройстве с %2$s. %3$s скорее всего сможет функционировать в такой конфигурации, но это приведет к ухудшению производительности и сделает ваше устройство потенциально уязвимым. Пожалуйста, не используйте %3$s в такой конфигурации, если это возможно.</string>
   <string name="idepref_editor_pinLineNumbers_title">Закрепить номера строк</string>
   <string name="idepref_editor_pinLineNumbers_summary">Оставлять панель с номерами строк видимой при горизонтальной прокрутке редактора.</string>
   <string name="theme_blue_wave">Синяя волна</string>
   <string name="theme_sunny_glow">Солнечный свет</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">Язык</string>
-  <string name="idepref_general_localeSelector_summary">Выберите язык Code on the Go.</string>
+  <string name="idepref_general_localeSelector_summary">Выберите язык %1$s.</string>
   <string name="locale_system_default">Как в системе</string>
   <string name="msg_project_dir_inaccessible">Директория проекта недоступна</string>
   <string name="msg_file_is_not_dir">Выбранный файл не является директорией</string>
@@ -439,10 +439,10 @@
   <string name="title_grant">Предоставить</string>
   <string name="permission_title_storage">Внутреннее хранилище</string>
   <string name="permission_desc_storage">Это разрешение необходимо для доступа к файлам проектов.</string>
-  <string name="permission_desc_install_packages">Разрешите устанавливать APK-файлы, собранные Code on the Go.</string>
+  <string name="permission_desc_install_packages">Разрешите устанавливать APK-файлы, собранные %1$s.</string>
   <string name="permission_title_install_packages">Установка пакетов</string>
   <string name="onboarding_title_permissions">Разрешения</string>
-  <string name="onboarding_subtitle_permissions">Code on the Go требуются следующие разрешения</string>
+  <string name="onboarding_subtitle_permissions">%1$s требуются следующие разрешения</string>
   <string name="msg_grant_permissions">Пожалуйста, предоставьте разрешения, чтобы продолжить.</string>
   <string name="msg_no_internet">Похоже, вы не в сети. Проверьте подключение к интернету.</string>
   <string name="msg_connected_to_cellular">Внимание! Вы используете мобильные данные.</string>

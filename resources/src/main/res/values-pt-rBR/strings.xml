@@ -9,10 +9,10 @@
   <string name="about_option_website">Site</string>
   <string name="about_option_youtube">YouTube</string>
   <string name="about_option_bilibili">Bilibili</string>
-  <string name="about_footer">Code on the Go %1$s para %2$s</string>
+  <string name="about_footer">%3$s %1$s para %2$s</string>
   <string name="about_subtitle">Sem computador? Sem internet? Sem problema. Programe aplicativos em qualquer lugar.</string>
   <string name="msg_get_package_failed">Falha ao extrair o nome do pacote.</string>
-  <string name="msg_need_help">Se você estiver enfrentando problemas ao usar o Code on the Go ou ao criar aplicativos Android, participe do nosso fórum de Discussões e peça ajuda por lá.\n\nVocê também pode enviar sugestões por e-mail.</string>
+  <string name="msg_need_help">Se você estiver enfrentando problemas ao usar o %1$s ou ao criar aplicativos Android, participe do nosso fórum de Discussões e peça ajuda por lá.\n\nVocê também pode enviar sugestões por e-mail.</string>
   <string name="download_codeonthego_message">Baixe o Code on the Go no site oficial para obter os recursos e as atualizações mais recentes.</string>
   <string name="download_codeonthego_url">https://appdevforall.org/codeonthego</string>
   <string name="msg_invalid_url">URL fornecida inválida.</string>
@@ -112,7 +112,7 @@
   <string name="terminal_installation_failed_secondary_user">A instalação do Terminal só é compatível com o usuário principal.</string>
   <!-- Project Builder -->
   <string name="title_unsupported_device">Este dispositivo não é compatível</string>
-  <string name="msg_unsupported_device">Você está usando a variante %1$s do Code on the Go em um dispositivo que oferece suporte apenas a %2$s. Essa configuração não é compatível. Instale a variante %2$s do Code on the Go.</string>
+  <string name="msg_unsupported_device">Você está usando a variante %1$s do %3$s em um dispositivo que oferece suporte apenas a %2$s. Essa configuração não é compatível. Instale a variante %2$s do %3$s.</string>
   <string name="title_clear_output">Limpar saída</string>
   <string name="build_output">Saída da compilação</string>
   <string name="quick_run_debug">Execução rápida</string>
@@ -124,7 +124,7 @@
   <string name="action_start_debugger">Depurar</string>
   <!-- Project -->
   <string name="title_first_build">Configurando seu projeto</string>
-  <string name="msg_first_build">O Code on the Go está inicializando seu projeto. Seja paciente!\n\nQuando a configuração terminar, “Projeto inicializado” será exibido na parte inferior da tela.</string>
+  <string name="msg_first_build">O %1$s está inicializando seu projeto. Seja paciente!\n\nQuando a configuração terminar, “Projeto inicializado” será exibido na parte inferior da tela.</string>
   <string name="create_project">Criar um novo projeto</string>
   <string name="minimum_sdk">SDK mínimo</string>
   <string name="new_project">Novo projeto</string>
@@ -136,7 +136,7 @@
   <string name="title_close_project">Fechar este projeto</string>
   <string name="msg_opened_project_does_not_exist">O último projeto aberto não existe.</string>
   <string name="msg_deeplink_invalid_link">Não foi possível abrir este link.</string>
-  <string name="msg_deeplink_setup_incomplete">Conclua a configuração do Code on the Go e abra este link novamente.</string>
+  <string name="msg_deeplink_setup_incomplete">Conclua a configuração do %1$s e abra este link novamente.</string>
   <string name="msg_deeplink_project_not_found">Nenhum projeto chamado “%s” foi encontrado.</string>
   <string name="msg_deeplink_file_not_found">O arquivo “%s” não foi encontrado no projeto.</string>
   <string name="msg_deeplink_invalid_line">“%s” não é um número de linha válido.</string>
@@ -340,7 +340,7 @@
   <string name="redo">Refazer</string>
   <!-- Preferences -->
   <string name="title_change_text_size">Tamanho da fonte do editor</string>
-  <string name="idepref_about_title">Sobre o Code on the Go</string>
+  <string name="idepref_about_title">Sobre o %1$s</string>
   <string name="idepref_build_clearCache_title">Limpar caches do Gradle</string>
   <string name="idepref_build_clearCache_summary">Limpar o diretório de caches do Gradle. Isso excluirá todas as dependências baixadas pelo Gradle. Os arquivos necessários serão baixados novamente na próxima compilação.</string>
   <string name="idepref_build_customgradlecommands_title">Flags adicionais do Gradle</string>
@@ -356,9 +356,9 @@
   <string name="idepref_editor_title">Editor</string>
   <string name="idepref_build_title">Compilação e execução</string>
   <string name="title_open_projects">Abrir último projeto</string>
-  <string name="msg_open_projects">Quando ativado, ao reiniciar o Code on the Go, o último projeto aberto será aberto automaticamente.</string>
+  <string name="msg_open_projects">Quando ativado, ao reiniciar o %1$s, o último projeto aberto será aberto automaticamente.</string>
   <string name="title_confirm_project_open">Confirmar abertura do projeto</string>
-  <string name="msg_confirm_project_open">Quando ativado, o Code on the Go pede confirmação antes de abrir o último projeto.</string>
+  <string name="msg_confirm_project_open">Quando ativado, o %1$s pede confirmação antes de abrir o último projeto.</string>
   <string name="msg_error_opening_project">Erro ao abrir o projeto.</string>
   <string name="title_general">Geral</string>
   <string name="title_tab_size">Tamanho da tabulação</string>
@@ -389,7 +389,7 @@
   <string name="preview_render_error_title">Pré-visualização indisponível</string>
   <string name="preview_render_error_message">Não foi possível criar uma visualização raiz. O XML está vazio ou não tem um elemento de nível superior válido.</string>
   <!-- Crash Screen -->
-  <string name="msg_ide_crashed">O Code on the Go parou de funcionar</string>
+  <string name="msg_ide_crashed">O %1$s parou de funcionar</string>
   <string name="msg_crash_info">Ocorreu um erro interno.\n\nOs detalhes para nos ajudar a corrigir o problema foram salvos e serão enviados com segurança na próxima vez que seu dispositivo estiver online.\n\nAo pressionar OK, o aplicativo será fechado e quaisquer alterações não salvas poderão ser perdidas. Reinicie o aplicativo para continuar.\n\nSe o erro ocorrer novamente, tente reiniciar o dispositivo. Se o problema persistir, %1$s</string>
   <string name="contact_support_team">entre em contato com nossa equipe de suporte.</string>
   <string name="crash_email_subject">Relatório de falha do aplicativo</string>
@@ -463,8 +463,8 @@
   <string name="idepref_useIcu_summary">Quando ativado, o editor considera o espaço em branco como o limite entre as palavras.</string>
   <string name="msg_drawer_for_files">Para ver a árvore de arquivos e as opções do projeto, deslize da esquerda para a direita ou toque no ícone de menu no canto superior esquerdo.</string>
   <string name="msg_swipe_for_output">Para ver logs, diagnósticos e mais, deslize para cima ou toque na parte inferior da página.</string>
-  <string name="msg_help_hint">Para ver a ajuda do aplicativo Code on the Go, mantenha qualquer item pressionado para ver uma dica. No editor, selecione um texto e mantenha-o pressionado para mostrar a barra de edição e o botão de ajuda.</string>
-  <string name="msg_long_press_help">Para ver a ajuda no Code on the Go, mantenha qualquer item pressionado para ver uma dica. No editor, selecione um texto e mantenha-o pressionado para mostrar a barra de edição e o botão de ajuda.</string>
+  <string name="msg_help_hint">Para ver a ajuda do aplicativo %1$s, mantenha qualquer item pressionado para ver uma dica. No editor, selecione um texto e mantenha-o pressionado para mostrar a barra de edição e o botão de ajuda.</string>
+  <string name="msg_long_press_help">Para ver a ajuda no %1$s, mantenha qualquer item pressionado para ver uma dica. No editor, selecione um texto e mantenha-o pressionado para mostrar a barra de edição e o botão de ajuda.</string>
   <string name="idepref_editor_useSoftTabs_title">Usar tabulação com espaços</string>
   <string name="idepref_editor_useSoftTabs_summary">Escolha se a tecla Tab insere espaços em vez do caractere de tabulação.</string>
   <string name="btn_donate">Doar</string>
@@ -478,7 +478,7 @@
   <string name="idepref_channel_summary">Inscreva-se para receber as últimas atualizações.</string>
   <string name="idepref_group_summary">Discuta aqui recursos, bugs e melhorias.</string>
   <string name="idepref_changelog_summary">O que há de novo nesta versão?</string>
-  <string name="idepref_about_summary">Mais sobre o Code on the Go</string>
+  <string name="idepref_about_summary">Mais sobre o %1$s</string>
   <string name="idepref_general_summary">Configuração geral da IDE</string>
   <string name="idepref_editor_summary">Configurar o editor</string>
   <string name="idepref_xml_trimFinalNewLine_title">Remover nova linha final</string>
@@ -518,7 +518,7 @@
   <string name="msg_installing_apk">Instalando APK…</string>
   <string name="msg_action_open_application">Seu aplicativo foi instalado. Deseja iniciá-lo?</string>
   <string name="msg_action_open_title_application">Aplicativo instalado</string>
-  <string name="title_gradle_service_notification_channel">Serviço de compilação Gradle do Code on the Go</string>
+  <string name="title_gradle_service_notification_channel">Serviço de compilação Gradle do %1$s</string>
   <string name="msg_hex_color_code">Código de cor hexadecimal</string>
   <string name="msg_unsupported_color_format">Formato de cor não compatível: %s</string>
   <string name="msg_color_picker_pick">Escolher</string>
@@ -677,7 +677,7 @@
   <string name="uiMode_dark">Escuro</string>
   <string name="uiMode_system">Seguir o sistema</string>
   <string name="idepref_general_themeSelector_title">Tema</string>
-  <string name="idepref_general_themeSelector_summary">Selecione um tema para o Code on the Go (requer reinicialização).</string>
+  <string name="idepref_general_themeSelector_summary">Selecione um tema para o %1$s (requer reinicialização).</string>
   <string name="idepref_general_projectConfig">Configuração do projeto</string>
   <string name="msg_app_launch_failed">Você deve compilar e instalar o aplicativo antes de poder iniciá-lo.</string>
   <string name="idepref_java_diagnosticEnabled_title">Diagnósticos ativados</string>
@@ -721,7 +721,7 @@
   <string name="msg_use_kts">Use o Kotlin Script (.kts) para arquivos de compilação do Gradle</string>
   <string name="title_privacy">Privacidade</string>
   <string name="privacy_disclosure_title">Privacidade e análises</string>
-  <string name="privacy_disclosure_message">O Code on the Go coleta informações anônimas de uso e de falhas para nos ajudar a corrigir bugs e melhorar o aplicativo. Nenhuma informação pessoal é coletada ou compartilhada.\n\n<i>Compartilhar dados anônimos</i> envia essas informações. <i>Ficar offline</i> não envia absolutamente nada.</string>
+  <string name="privacy_disclosure_message">O %1$s coleta informações anônimas de uso e de falhas para nos ajudar a corrigir bugs e melhorar o aplicativo. Nenhuma informação pessoal é coletada ou compartilhada.\n\n<i>Compartilhar dados anônimos</i> envia essas informações. <i>Ficar offline</i> não envia absolutamente nada.</string>
   <string name="privacy_disclosure_accept">Compartilhar dados anônimos</string>
   <string name="privacy_disclosure_decline">Ficar offline</string>
   <string name="title_unique_id">ID único</string>
@@ -733,10 +733,10 @@
   <string name="title_android_version">Versão do Android</string>
   <string name="btn_opt_in">Aceitar</string>
   <string name="title_developer_options">Opções do desenvolvedor</string>
-  <string name="idepref_devOptions_summary">Opções experimentais/de depuração para Code on the Go</string>
+  <string name="idepref_devOptions_summary">Opções experimentais/de depuração para %1$s</string>
   <string name="idepref_group_debugging">Depuração</string>
   <string name="idepref_devOptions_dumpLogs_title">Despejar logs</string>
-  <string name="idepref_devOptions_dumpLogs_summary">Despejar os logs do Code on the Go em $HOME/.cg/logs</string>
+  <string name="idepref_devOptions_dumpLogs_summary">Despejar os logs do %1$s em $HOME/.cg/logs</string>
   <string name="msg_emptyview_applogs">Execute a variante de depuração do seu aplicativo para ver os logs aqui.</string>
   <string name="msg_logsender_disabled">O LogSender está desativado. Você pode ativá-lo nas preferências.</string>
   <string name="msg_emptyview_idelogs">Os logs da IDE são exibidos aqui.</string>
@@ -764,7 +764,7 @@
   <string name="msg_emptyview_buildoutput">"Compile o aplicativo ou execute uma tarefa para ver aqui a saída da compilação. "</string>
   <string name="msg_codeaction_failed">Falha ao executar a ação de código</string>
   <string name="idepref_devOptions_enableLogsender_title">Ativar LogSender</string>
-  <string name="idepref_devOptions_enableLogsender_summary">Quando desativado, os logs do aplicativo não serão exibidos no Code on the Go</string>
+  <string name="idepref_devOptions_enableLogsender_summary">Quando desativado, os logs do aplicativo não serão exibidos no %1$s</string>
   <string name="title_build_variants">Variantes de compilação</string>
   <string name="title_agent">Agente</string>
   <string name="build_variants_apply">Aplicar</string>
@@ -785,14 +785,14 @@
   <string name="title_launch_app">Iniciar aplicativo</string>
   <string name="title_experiment_flavor">Experimental</string>
   <string name="title_experiments_on">Experimentos ativados</string>
-  <string name="msg_experimental_flavor">Você está usando a variante %1$s do Code on the Go em um dispositivo %2$s. Esta configuração pode funcionar, mas resultará em desempenho reduzido e possíveis vulnerabilidades de segurança. Por favor, evite usar essa configuração sempre que possível.</string>
+  <string name="msg_experimental_flavor">Você está usando a variante %1$s do %3$s em um dispositivo %2$s. Esta configuração pode funcionar, mas resultará em desempenho reduzido e possíveis vulnerabilidades de segurança. Por favor, evite usar essa configuração sempre que possível.</string>
   <string name="idepref_editor_pinLineNumbers_title">Fixar números de linha</string>
   <string name="idepref_editor_pinLineNumbers_summary">Mantém os números de linha fixos na visualização para que permaneçam visíveis ao rolar horizontalmente.</string>
   <string name="theme_blue_wave">Onda Azul</string>
   <string name="theme_sunny_glow">Brilho Ensolarado</string>
   <string name="theme_material_you">Material You</string>
   <string name="idepref_general_localeSelector_title">Idioma</string>
-  <string name="idepref_general_localeSelector_summary">Selecione um idioma para o Code on the Go.</string>
+  <string name="idepref_general_localeSelector_summary">Selecione um idioma para o %1$s.</string>
   <string name="locale_system_default">Padrão do sistema</string>
   <string name="msg_project_dir_inaccessible">O diretório do projeto não está acessível</string>
   <string name="msg_file_is_not_dir">O arquivo selecionado não é um diretório</string>
@@ -809,23 +809,23 @@
   <string name="greeting_subtitle">Sem computador? Sem internet? Sem problema.</string>
   <string name="title_grant">Conceder</string>
   <string name="permission_title_storage">Armazenamento</string>
-  <string name="permission_desc_storage">Permita que o Code on the Go abra e salve arquivos neste dispositivo.</string>
+  <string name="permission_desc_storage">Permita que o %1$s abra e salve arquivos neste dispositivo.</string>
   <string name="permission_title_install_packages">Instalar pacotes</string>
-  <string name="permission_desc_install_packages">Permita que o Code on the Go instale os aplicativos que você compila neste dispositivo.</string>
+  <string name="permission_desc_install_packages">Permita que o %1$s instale os aplicativos que você compila neste dispositivo.</string>
   <string name="permission_title_overlay_window">Depurador flutuante</string>
-  <string name="permission_desc_overlay_window">Permita que o Code on the Go exiba controles flutuantes do depurador para inspecionar seu código enquanto ele é executado.</string>
+  <string name="permission_desc_overlay_window">Permita que o %1$s exiba controles flutuantes do depurador para inspecionar seu código enquanto ele é executado.</string>
   <string name="permission_overlay_unsupported_hint">O depurador flutuante não está disponível neste dispositivo.</string>
-  <string name="permission_overlay_restricted_settings_hint">Se você não conseguir ativar esta permissão, abra as Informações do app do Code on the Go, toque no menu de três pontos e ative as configurações restritas.</string>
+  <string name="permission_overlay_restricted_settings_hint">Se você não conseguir ativar esta permissão, abra as Informações do app do %1$s, toque no menu de três pontos e ative as configurações restritas.</string>
   <string name="permission_overlay_restricted_dialog_title">Ativar configurações restritas</string>
-  <string name="permission_overlay_restricted_dialog_message">O Android desativou a chave “Exibir sobre outros apps” porque o Code on the Go foi instalado de fora de uma loja de aplicativos. Para ativá-la:</string>
+  <string name="permission_overlay_restricted_dialog_message">O Android desativou a chave “Exibir sobre outros apps” porque o %1$s foi instalado de fora de uma loja de aplicativos. Para ativá-la:</string>
   <string name="permission_overlay_open_app_info">Abrir Informações do app</string>
   <string name="permission_title_notifications">Notificações</string>
-  <string name="permission_desc_notifications">Permita que o Code on the Go exiba notificações.</string>
+  <string name="permission_desc_notifications">Permita que o %1$s exiba notificações.</string>
   <string name="permission_title_accessibility">Acessibilidade</string>
-  <string name="permission_desc_accessibility">Permita que o Code on the Go acesse os serviços de acessibilidade para depuração.</string>
+  <string name="permission_desc_accessibility">Permita que o %1$s acesse os serviços de acessibilidade para depuração.</string>
   <string name="finish_installation">Concluir instalação</string>
   <string name="onboarding_title_permissions">Permissões</string>
-  <string name="onboarding_subtitle_permissions">O Code on the Go requer as seguintes permissões:</string>
+  <string name="onboarding_subtitle_permissions">O %1$s requer as seguintes permissões:</string>
   <string name="msg_grant_permissions">Por favor, conceda as permissões para continuar.</string>
   <string name="msg_no_internet">Parece que você está offline. Verifique sua conexão com a internet.</string>
   <string name="msg_connected_to_cellular">Atenção! Você está usando dados móveis.</string>
@@ -850,7 +850,7 @@
   <string name="idepref_jdkVersion_title">Versão do JDK</string>
   <string name="idepref_jdkVersion_summary">Selecionada atualmente: %1$s (requer reinicialização se for alterada)</string>
   <string name="ide_setup_in_progress">A configuração está em andamento</string>
-  <string name="ide_setup_complete">Configuração do Code on the Go concluída.</string>
+  <string name="ide_setup_complete">Configuração do %1$s concluída.</string>
   <string name="msg_complete_ide_setup">Conclua a configuração da IDE para continuar.</string>
   <string name="debugger_title">Depurador</string>
   <string name="debugger_starting">Iniciando o depurador…</string>
@@ -885,11 +885,11 @@
   <string name="debugger_error_immutable_variable">O valor da variável \'%1$s\' não pode ser atualizado.</string>
   <string name="debugger_error_network_access_error">Erro de acesso à rede</string>
   <string name="debugger_error_errno">Não foi possível escutar conexões JDWP. A operação falhou com o erro %1$d.</string>
-  <string name="debugger_error_errno_eperm">O Code on the Go não tem permissão para abrir ou vincular um soquete de rede na rede local.</string>
-  <string name="debugger_error_errno_econnrefused">O acesso à rede do Code on the Go está bloqueado pelo sistema. O aplicativo não tem permissão para usar a rede ou o serviço está indisponível.</string>
-  <string name="debugger_error_debugger_startup_failure">Não foi possível iniciar o depurador do Code on the Go.</string>
+  <string name="debugger_error_errno_eperm">O %1$s não tem permissão para abrir ou vincular um soquete de rede na rede local.</string>
+  <string name="debugger_error_errno_econnrefused">O acesso à rede do %1$s está bloqueado pelo sistema. O aplicativo não tem permissão para usar a rede ou o serviço está indisponível.</string>
+  <string name="debugger_error_debugger_startup_failure">Não foi possível iniciar o depurador do %1$s.</string>
   <string name="debugger_not_ready">O depurador não está pronto para uma sessão de depuração.</string>
-  <string name="debugger_error_suggestion_network_restriction">Verifique se o Code on the Go tem permissão para acessar a rede local. Isso pode ser conferido na tela “Informações do app” do Code on the Go, nas configurações do dispositivo, verificando se o acesso à rede é permitido em “Uso de dados” (o nome exato pode variar entre dispositivos).\n\nSe o acesso à rede for permitido e o problema persistir, envie um relatório de bug com os logs anexados.</string>
+  <string name="debugger_error_suggestion_network_restriction">Verifique se o %1$s tem permissão para acessar a rede local. Isso pode ser conferido na tela “Informações do app” do %1$s, nas configurações do dispositivo, verificando se o acesso à rede é permitido em “Uso de dados” (o nome exato pode variar entre dispositivos).\n\nSe o acesso à rede for permitido e o problema persistir, envie um relatório de bug com os logs anexados.</string>
   <string name="err_no_activity_to_handle_action">Nenhuma atividade para tratar a ação %1$s</string>
   <string name="file">Arquivo</string>
   <string name="actions">Ações</string>
@@ -923,8 +923,8 @@
   <string name="msg_internet_access_required">É necessário acesso à internet.</string>
   <string name="msg_contact_app_dev_title">Entre em contato com a App Dev for All</string>
   <string name="msg_contact_app_dev_description">Para relatar problemas, fazer sugestões e tirar dúvidas, envie um e-mail para feedback@appdevforall.org. É necessário acesso à internet.</string>
-  <string name="code_on_the_go">Code on the Go</string>
-  <string name="feedback_email_subject">Feedback sobre o Code on the Go</string>
+  <string name="code_on_the_go">@string/app_name</string>
+  <string name="feedback_email_subject">Feedback sobre o %1$s</string>
   <string name="msg_feedback_log_too_long">O log é grande demais para ser enviado diretamente.</string>
   <string name="msg_no_internet_no_problem">Sem computador? Sem internet?\nSem problema.</string>
   <string name="offline_message">Offline</string>
@@ -1045,9 +1045,9 @@
   <string name="quick_build_switch_to_standard_title">Substituir o aplicativo proxy da Compilação rápida?</string>
   <string name="quick_build_switch_to_standard_message">%1$s é atualmente o aplicativo proxy da Compilação rápida, que recarrega suas edições sem reinstalar. Esta execução o substitui por um APK normal.</string>
   <string name="quick_build_switch_unknown_app_title">Substituir o aplicativo instalado para este projeto?</string>
-  <string name="quick_build_switch_unknown_app_message">O Code on the Go não consegue identificar qual aplicativo está instalado para este projeto; o projeto ainda pode estar sincronizando. Continuar substitui o que estiver instalado com o ID de aplicativo deste projeto.</string>
+  <string name="quick_build_switch_unknown_app_message">O %1$s não consegue identificar qual aplicativo está instalado para este projeto; o projeto ainda pode estar sincronizando. Continuar substitui o que estiver instalado com o ID de aplicativo deste projeto.</string>
   <string name="quick_build_switch_confirm">Substituir</string>
-  <string name="quick_build_reload_crashed">O recarregamento em tempo real falhou. O aplicativo está na última versão funcional. Para mais informações, veja a Saída da compilação no Code on the Go.</string>
+  <string name="quick_build_reload_crashed">O recarregamento em tempo real falhou. O aplicativo está na última versão funcional. Para mais informações, veja a Saída da compilação no %1$s.</string>
   <string name="quick_build_relink_stuck">Este erro de recurso agora está bloqueando todos os salvamentos, até mesmo os que alteram apenas código; a Compilação rápida recompila todos os seus recursos a cada recarregamento. Corrija-o e salve. Se o erro mencionar algo que você não pode alterar, mantenha a Compilação rápida pressionada e escolha Reiniciar sessão.</string>
   <string name="quick_build_test_source_ignored">Salvo. A Compilação rápida não implanta código de teste; nada em src/test, src/androidTest ou testFixtures faz parte do aplicativo que ela compila. Execute seus testes a partir de uma tarefa de compilação.</string>
   <string name="quick_build_stale_component_helpers">Recarregado. Um serviço, provedor de conteúdo ou objeto Application em execução ainda pode estar chamando a versão anterior do código que você alterou até ser reiniciado; feche e reabra o aplicativo para ter certeza.</string>
@@ -1083,7 +1083,7 @@
   <string name="quick_build_slot_busy">Outra compilação está em execução. Aguarde o término e inicie a Compilação rápida novamente.</string>
   <string name="quick_build_rebuild_failed">A Compilação rápida não conseguiu recompilar seu aplicativo. Verifique a Saída da compilação para ver o que deu errado.</string>
   <string name="quick_build_provisioning_failed_unexpectedly">A configuração da Compilação rápida falhou inesperadamente. Verifique a Saída da compilação para ver o que deu errado.</string>
-  <string name="quick_build_reinstall_return_to_cogo">Seu aplicativo precisa ser reinstalado; volte ao CoGo para confirmar.</string>
+  <string name="quick_build_reinstall_return_to_cogo">Seu aplicativo precisa ser reinstalado; volte ao %1$s para confirmar.</string>
   <string name="quick_build_reinstall_declined">Seu aplicativo precisa ser reinstalado; a solicitação de instalação foi cancelada. Toque em Compilação rápida para tentar novamente.</string>
   <string name="quick_build_reinstall_timed_out">Seu aplicativo precisa ser reinstalado; a solicitação de instalação ficou sem resposta por %1$d segundos. Toque em Compilação rápida para tentar novamente.</string>
   <string name="quick_build_reinstall_waiting_for_gradle">Aguardando o término da compilação atual do Gradle; seu aplicativo ainda precisa ser reinstalado. Toque em Compilação rápida para tentar novamente.</string>
@@ -1097,7 +1097,7 @@
   <string name="quick_build_not_enough_storage">A Compilação rápida precisa de cerca de %1$d MB livres no armazenamento do aplicativo, mas apenas %2$d MB estão disponíveis. Libere espaço e tente novamente.</string>
   <string name="quick_build_scratch_dir_unavailable">A Compilação rápida não conseguiu criar sua pasta de compilação em %1$s.</string>
   <string name="quick_build_daemon_rejected_config">O compilador da Compilação rápida se recusou a iniciar neste projeto. Reiniciar a sessão pelo menu de pressionar e segurar o configura novamente.</string>
-  <string name="quick_build_reinstall_tap_again">Seu aplicativo precisa ser reinstalado; volte ao CoGo e toque em Compilação rápida para tentar novamente.</string>
+  <string name="quick_build_reinstall_tap_again">Seu aplicativo precisa ser reinstalado; volte ao %1$s e toque em Compilação rápida para tentar novamente.</string>
   <string name="cd_undo">Desfazer</string>
   <string name="cd_redo">Refazer</string>
   <string name="cd_delete">Excluir</string>
@@ -1235,7 +1235,7 @@
   <!-- Title for the notification when wireless debugging pairing has succeeded. -->
   <string name="notification_adb_pairing_succeed_title">Pareamento concluído com sucesso</string>
   <!-- Text for the notification when wireless debugging pairing has succeeded, instructing the user on the next step. -->
-  <string name="notification_adb_pairing_succeed_text">Toque no botão Voltar para retornar ao Code on the Go.</string>
+  <string name="notification_adb_pairing_succeed_text">Toque no botão Voltar para retornar ao %1$s.</string>
   <!-- Title for the notification when wireless debugging pairing has failed. -->
   <string name="notification_adb_pairing_failed_title">Falha no pareamento</string>
   <!-- Text for the button in the notification to retry wireless debugging pairing after it has failed. -->
@@ -1254,7 +1254,7 @@
   <!-- Text for an action button that prompts the user to grant notification permission for wireless debugging pairing. -->
   <string name="adb_pairing_action_enable_notifications">Conceder permissão de notificação</string>
   <!-- Instructional text explaining that a notification will guide the user through wireless debugging pairing. -->
-  <string name="adb_pairing_tutorial_content_notification">Uma notificação do Code on the Go ajudará você a concluir o pareamento. Permita que o Code on the Go mostre notificações com o canal de notificação \'%1$s\'.</string>
+  <string name="adb_pairing_tutorial_content_notification">Uma notificação do %2$s ajudará você a concluir o pareamento. Permita que o %2$s mostre notificações com o canal de notificação \'%1$s\'.</string>
   <!-- Message displayed when the user attempts an action that requires wireless debugging pairing, but pairing has not
 		been completed. -->
   <string name="adb_pair_required">Ative a depuração sem fio e siga as instruções para parear o depurador.</string>
@@ -1275,7 +1275,7 @@
   <string name="adb_connection_done">Serviço iniciado</string>
   <!-- Error message displayed when the application is denied permission to start foreground services, which is necessary
 		for some features. -->
-  <string name="err_foreground_service_denial">O Code on the Go não tem permissão para iniciar serviços em primeiro plano (negação de OP_START_FOREGROUND)</string>
+  <string name="err_foreground_service_denial">O %1$s não tem permissão para iniciar serviços em primeiro plano (negação de OP_START_FOREGROUND)</string>
   <!-- Error message displayed when the debugger feature is accessed on a device running an Android version older than
 		11, as it's a requirement. -->
   <string name="err_debugger_requires_a11">O depurador requer Android 11 ou superior para funcionar.</string>
@@ -1291,17 +1291,17 @@
   <string-array name="overlay_restricted_settings_steps">
     <item><![CDATA[Na tela <b>Informações do app</b>, toque no menu de três pontos (⋮) no canto superior.]]></item>
     <item><![CDATA[Toque em <b>Permitir configurações restritas</b>.]]></item>
-    <item><![CDATA[Abra <b>Exibir sobre outros apps</b> e ative a opção para o Code on the Go.]]></item>
+    <item><![CDATA[Abra <b>Exibir sobre outros apps</b> e ative a opção para o %1$s.]]></item>
   </string-array>
   <string-array name="debugger_setup_pairing_steps">
     <item><![CDATA[Toque em <b>Iniciar pareamento</b>. As opções do desenvolvedor serão exibidas.]]></item>
     <item><![CDATA[Ative a <b>Depuração sem fio</b>.]]></item>
     <item><![CDATA[Toque nas palavras <b>Depuração sem fio</b> para exibir mais opções.]]></item>
     <item><![CDATA[Toque em <b>Parear dispositivo com código de pareamento</b>.]]></item>
-    <item><![CDATA[Quando solicitado, digite o código de pareamento. Uma mensagem de sucesso será exibida. Ao voltar ao Code on the Go, o depurador estará conectado.]]></item>
+    <item><![CDATA[Quando solicitado, digite o código de pareamento. Uma mensagem de sucesso será exibida. Ao voltar ao %1$s, o depurador estará conectado.]]></item>
   </string-array>
   <!-- Text shown at the bottom of the ADB pairing dialog -->
-  <string name="debugger_setup_description_footer"><![CDATA[Alguns dispositivos (incluindo dispositivos Xiaomi mais antigos) também exigem que se conceda ao Code on the Go a “permissão de uso irrestrito da bateria”. <a href="http://localhost:6174/i/debug-enable.html">Veja mais informações, incluindo dicas de solução de problemas</a>.]]></string>
+  <string name="debugger_setup_description_footer"><![CDATA[Alguns dispositivos (incluindo dispositivos Xiaomi mais antigos) também exigem que se conceda ao %1$s a “permissão de uso irrestrito da bateria”. <a href="http://localhost:6174/i/debug-enable.html">Veja mais informações, incluindo dicas de solução de problemas</a>.]]></string>
   <!-- Tooltip Links HTML Template -->
   <string name="tooltip_links_html_template"><![CDATA[<a href="%1$s" style="color:%2$s;text-decoration:underline;">%3$s</a>]]></string>
   <string name="tooltip_missing_fallback_html"><![CDATA[Desculpe, não temos uma dica para isso. <a href="%1$s">Explore a documentação</a>.]]></string>
@@ -1375,10 +1375,10 @@
   <string name="failed_to_save_bitmap_to_file">Falha ao salvar o bitmap em arquivo</string>
   <string name="pixel_copy_failed">Falha no PixelCopy</string>
   <string name="failed_to_capture_or_save_screenshot">Falha ao capturar ou salvar a captura de tela</string>
-  <string name="back_to_cogo">Voltar ao Code on the Go</string>
+  <string name="back_to_cogo">Voltar ao %1$s</string>
   <!-- URL Consent Dialog -->
   <string name="url_consent_title">Abrir link externo?</string>
-  <string name="url_consent_message">Você está prestes a sair do Code on the Go para abrir um link externo:\n\n%s\n\nDeseja continuar?</string>
+  <string name="url_consent_message">Você está prestes a sair do %2$s para abrir um link externo:\n\n%1$s\n\nDeseja continuar?</string>
   <string name="url_consent_cancel">Cancelar</string>
   <string name="url_consent_proceed">Continuar</string>
   <string name="url_consent_dont_ask">Não perguntar novamente</string>

@@ -31,7 +31,7 @@ object UrlManager {
 	private fun showConsentDialog(url: String, pkg: String?, context: Activity) {
 		DialogUtils.newMaterialDialogBuilder(context)
 			.setTitle(R.string.url_consent_title)
-			.setMessage(context.getString(R.string.url_consent_message, url))
+			.setMessage(context.getString(R.string.url_consent_message, url, context.getString(R.string.app_name)))
 			.setPositiveButton(R.string.url_consent_proceed) { dialog, _ ->
 				dialog.dismiss()
 				openUrlInternal(url, pkg, context)

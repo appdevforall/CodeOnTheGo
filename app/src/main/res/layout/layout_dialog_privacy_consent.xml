@@ -22,8 +22,7 @@
 			android:layout_height="wrap_content"
 			android:paddingStart="?attr/dialogPreferredPadding"
 			android:paddingEnd="?attr/dialogPreferredPadding"
-			android:paddingBottom="24dp"
-			android:text="@string/privacy_disclosure_message" />
+			android:paddingBottom="24dp" />
 
 		<LinearLayout
 			android:layout_width="match_parent"
