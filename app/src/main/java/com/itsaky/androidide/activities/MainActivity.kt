@@ -380,7 +380,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 		reportingBundledFailures = true
 		lifecycleScope.launch {
 			try {
-				val record = BundledAddonsRecord.inFilesDir(filesDir)
+				// inFilesDir resolves a canonical path, a disk read that stays off the main thread.
+				val record = withContext(Dispatchers.IO) { BundledAddonsRecord.inFilesDir(filesDir) }
 				record.reportFailures { failures ->
 					flashErrorTracked(
 						getString(
