@@ -1478,4 +1478,22 @@ class ExtractMethodPlanEndToEndTest : KtLspTest() {
 		val text = apply(content, buildExtractMethodRewrites(content, candidate, "emit")!!)
 		assertTrue("the literal must not gain an indent level", text.contains("\nline one\n"))
 	}
+
+	@Test
+	fun `a plan preempted once by another edit is retried rather than dropped`() {
+		val content =
+			"""
+			package p
+			fun demo(a: Int, b: Int): Int {
+				return b * a + a
+			}
+			""".trimIndent()
+		createSourceFile("Main.kt", content)
+		val path = env.sourceRoots.first().resolve("Main.kt")
+		val offset = content.indexOf("b * a") + 1
+
+		val result = buildExtractMethodPlan(env, path, offset, offset, 1, preemptedOnceCancelChecker())
+
+		assertTrue(result.candidates.any { it.label == "b * a" })
+	}
 }

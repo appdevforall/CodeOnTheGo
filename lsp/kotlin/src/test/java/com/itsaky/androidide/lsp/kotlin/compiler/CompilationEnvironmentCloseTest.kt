@@ -2,6 +2,7 @@ package com.itsaky.androidide.lsp.kotlin.compiler
 
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisPriority
+import com.itsaky.androidide.lsp.kotlin.compiler.modules.AnalysisScheduler
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.ScheduledCancelChecker
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.UnpinnedAnalysis
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.analyzeMaybeDangling
@@ -82,6 +83,33 @@ class CompilationEnvironmentCloseTest : KtLspTest() {
 
 		env.ktSymbolIndex.evictDiskCopy(path)
 
+		assertThat(env.project.isDisposed).isTrue()
+	}
+
+	@Test(timeout = 30_000)
+	fun `close disposes the project when an edit's barrier is up as it starts`() {
+		val raised = CountDownLatch(1)
+		val closeDone = CountDownLatch(1)
+		// With the fix, close cannot finish while the barrier is up, so the barrier stays up for the
+		// whole of close's first attempt and is lowered only by the bounded wait.
+		val barrier =
+			thread {
+				AnalysisScheduler.preemptingAnalysis {
+					raised.countDown()
+					closeDone.await(1, TimeUnit.SECONDS)
+				}
+			}
+		var closeError: Throwable? = null
+		try {
+			assertThat(raised.await(5, TimeUnit.SECONDS)).isTrue()
+
+			closeError = runCatching { env.closeInWriteAction() }.exceptionOrNull()
+		} finally {
+			closeDone.countDown()
+			barrier.join()
+		}
+
+		assertThat(closeError).isNull()
 		assertThat(env.project.isDisposed).isTrue()
 	}
 

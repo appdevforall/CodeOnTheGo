@@ -1,5 +1,6 @@
 package com.itsaky.androidide.lsp.kotlin.compiler.services
 
+import androidx.annotation.VisibleForTesting
 import com.itsaky.androidide.lsp.kotlin.compiler.index.KtSymbolIndex
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.KtModule
 import com.itsaky.androidide.lsp.kotlin.compiler.modules.NotUnderContentRootModule
@@ -51,7 +52,18 @@ internal class ProjectStructureProvider :
 		pathToInMemoryVf.remove(sourcePath)?.let { inMemoryVfToModule.remove(it) }
 	}
 
+	/** Unregisters [vf] for [sourcePath] only while it is still the registered file, so a newer registration survives. */
+	fun unregisterInMemoryFileIfCurrent(
+		sourcePath: String,
+		vf: VirtualFile,
+	) {
+		if (pathToInMemoryVf.remove(sourcePath, vf)) inMemoryVfToModule.remove(vf)
+	}
+
 	fun hasInMemoryFile(sourcePath: String): Boolean = pathToInMemoryVf.containsKey(sourcePath)
+
+	@VisibleForTesting
+	internal fun inMemoryFile(sourcePath: String): VirtualFile? = pathToInMemoryVf[sourcePath]
 
 	private val notUnderContentRootModuleWithoutPsiFile by lazy {
 		NotUnderContentRootModule(
