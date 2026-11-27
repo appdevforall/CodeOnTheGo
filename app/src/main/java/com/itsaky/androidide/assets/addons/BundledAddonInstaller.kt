@@ -31,11 +31,21 @@ data class InstalledAddon(
  * The plugin ID is only in the plugin's manifest, so the name is chosen on the device, from the
  * copied file ([readPluginId]), and not at build time. The bundle then needs no manifest reader in
  * Gradle, and the naming rule stays in [PluginBuildFiles.fileStem].
+ *
+ * A plugin whose ID already has another build in [pluginsDir] replaces it only when every such build
+ * is signed with the same key, the rule the Add-ons Manager applies to an install over a plugin.
+ * Otherwise the bundled plugin is rejected and reported, and the installed build stays.
+ *
+ * @param signatureOf the signing certificate hash of a plugin file, or null if it can't be read.
+ * @param removeOtherBuilds removes the installed builds of a plugin ID, called once their signatures
+ *   match. A sync passes an uninstall that also clears the plugin's state.
  */
 class BundledAddonInstaller(
 	private val pluginsDir: File,
 	private val templatesDir: File,
 	private val readPluginId: (File) -> String?,
+	private val signatureOf: (File) -> ByteArray?,
+	private val removeOtherBuilds: (pluginId: String, builds: List<File>) -> Unit = { _, builds -> builds.forEach(File::delete) },
 ) {
 	/**
 	 * Copies [input] into place. With [sha256] (hex, from the bundle index), a copy whose content
@@ -99,6 +109,7 @@ class BundledAddonInstaller(
 						if (name.toByteArray(Charsets.UTF_8).size > MAX_FILE_NAME_BYTES) {
 							throw RejectedAddonException("its plugin ID is too long")
 						}
+						replaceOtherBuilds(id, name, copy)
 						pluginId = id
 						name
 					},
@@ -110,8 +121,47 @@ class BundledAddonInstaller(
 		return InstalledAddon(BundledAddonKind.PLUGIN, file, pluginId)
 	}
 
+	/**
+	 * Before [copy] of [pluginId] lands as [fileName]: removes the other installed builds of that ID if
+	 * all are signed like [copy], and rejects [copy] otherwise. A build of the same name is the same
+	 * bytes and is overwritten in place. Throws an I/O error when a build stays after removal, so the
+	 * two never load together.
+	 */
+	private fun replaceOtherBuilds(
+		pluginId: String,
+		fileName: String,
+		copy: File,
+	) {
+		val others = otherBuilds(pluginId, fileName)
+		if (others.isEmpty()) return
+		val incoming = signatureOf(copy)
+		if (incoming == null || others.any { signatureOf(it)?.contentEquals(incoming) != true }) {
+			throw RejectedAddonException(SIGNED_BY_ANOTHER_KEY)
+		}
+		removeOtherBuilds(pluginId, others)
+		val left = otherBuilds(pluginId, fileName)
+		if (left.isNotEmpty()) {
+			throw IOException("Could not remove the installed build of $pluginId: ${left.joinToString { it.name }}")
+		}
+	}
+
+	private fun otherBuilds(
+		pluginId: String,
+		fileName: String,
+	): List<File> =
+		pluginsDir
+			.listFiles { file ->
+				file.isFile &&
+					file.name != fileName &&
+					file.name.endsWith(".$PLUGIN_ARCHIVE_EXTENSION", ignoreCase = true) &&
+					runCatching { readPluginId(file) }.getOrNull() == pluginId
+			}.orEmpty()
+			.toList()
+
 	internal companion object {
 		private const val MAX_FILE_NAME_BYTES = 255
+
+		const val SIGNED_BY_ANOTHER_KEY = "a plugin with its ID is already installed, signed with a different key"
 
 		// The platform parser also refuses a plugin whose minSdkVersion is above the device's
 		// (AI-Core, 33, on Android 9), and the two cases look alike from here.

@@ -8,8 +8,10 @@ import kotlin.coroutines.CoroutineContext
 
 /**
  * Shows the failures the user has not been told about with [show], and marks them reported only once
- * the user dismisses the bar. Until then this suspends, so a caller that runs one report at a time
- * shows no second bar while one is up.
+ * the user dismisses the bar with its Dismiss button. Until then this suspends, so a caller that runs
+ * one report at a time shows no second bar while one is up. A tap on the bar or a swipe, which the
+ * touch-dismiss experiment allows and which can happen by accident, closes it but leaves the
+ * failures unreported, so the next report shows them again.
  *
  * If the caller's scope ends first - the screen went away, say recreated by a font scale change - the
  * failures stay unreported and the next report shows them again. Destroying an activity fires no
@@ -23,7 +25,7 @@ suspend fun BundledAddonsRecord.reportFailures(
 	val failures = withContext(io) { runCatching { unreportedFailures() }.getOrDefault(emptyList()) }
 	if (failures.isEmpty()) return
 	val bar = show(failures) ?: return
-	bar.awaitDismissed()
+	if (!bar.awaitDismissed()) return
 	// The user dismissed the bar: record that even if the screen goes away now.
 	withContext(NonCancellable + io) { runCatching { markReported(failures) } }
 }

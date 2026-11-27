@@ -30,7 +30,24 @@ class BundledAddonInstallerTest {
 		readPluginId: (File) -> String? = {
 			"com.example.plugin"
 		},
-	) = BundledAddonInstaller(pluginsDir, templatesDir, readPluginId)
+		signatureOf: (File) -> ByteArray? = { OUR_KEY },
+	) = BundledAddonInstaller(pluginsDir, templatesDir, readPluginId, signatureOf)
+
+	/** An installed build of `com.example.plugin` under another name, as a user's install leaves it. */
+	private fun installedBuild(text: String = "user build"): File {
+		pluginsDir.mkdirs()
+		return File(pluginsDir, "com.example.plugin-user.cgp").apply { writeText(text) }
+	}
+
+	/** Signs a file by its content: the bytes "theirs" or "user build (theirs)" carry another key. */
+	private val signedByContent: (File) -> ByteArray? = { file ->
+		if (file.readText().contains("theirs")) THEIR_KEY else OUR_KEY
+	}
+
+	private companion object {
+		val OUR_KEY = "our key".toByteArray()
+		val THEIR_KEY = "their key".toByteArray()
+	}
 
 	private fun bytes(text: String): InputStream = ByteArrayInputStream(text.toByteArray())
 
@@ -200,5 +217,73 @@ class BundledAddonInstallerTest {
 		assertThat(result.file).isNull()
 		assertThat(result.failure).contains("too long")
 		assertThat(pluginsDir.list()!!.toList()).isEmpty()
+	}
+
+	@Test
+	fun `a plugin replaces an installed build of its ID signed with the same key`() {
+		val old = installedBuild()
+
+		val installed = installer(signatureOf = signedByContent).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+
+		assertThat(installed.failure).isNull()
+		assertThat(old.exists()).isFalse()
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(installed.file!!.name)
+	}
+
+	@Test
+	fun `a plugin whose ID is installed signed with another key is reported, and the installed build stays`() {
+		val old = installedBuild("user build (theirs)")
+
+		val installed = installer(signatureOf = signedByContent).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+
+		assertThat(installed.file).isNull()
+		assertThat(installed.pluginId).isNull()
+		assertThat(installed.failure).isEqualTo(BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY)
+		assertThat(installed.sourceName).isEqualTo("a.cgp")
+		assertThat(old.readText()).isEqualTo("user build (theirs)")
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(old.name)
+	}
+
+	@Test
+	fun `a plugin whose signature, or the installed build's, can't be read is reported, and the installed build stays`() {
+		val old = installedBuild()
+
+		val noIncoming =
+			installer(signatureOf = { if (it == old) OUR_KEY else null })
+				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+		val noInstalled =
+			installer(signatureOf = { if (it == old) null else OUR_KEY })
+				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+
+		assertThat(noIncoming.failure).isEqualTo(BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY)
+		assertThat(noInstalled.failure).isEqualTo(BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY)
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(old.name)
+	}
+
+	@Test
+	fun `another plugin ID's build is left alone and not signature-checked`() {
+		val other = installedBuild("theirs")
+
+		val installed =
+			installer(
+				readPluginId = { if (it == other) "com.example.other" else "com.example.plugin" },
+				signatureOf = signedByContent,
+			).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+
+		assertThat(installed.failure).isNull()
+		assertThat(other.exists()).isTrue()
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(other.name, installed.file!!.name)
+	}
+
+	@Test
+	fun `a build that stays after removal fails the install with an IO error`() {
+		val old = installedBuild()
+
+		assertThrows(IOException::class.java) {
+			BundledAddonInstaller(pluginsDir, templatesDir, { "com.example.plugin" }, { OUR_KEY }, { _, _ -> })
+				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+		}
+		assertThat(old.exists()).isTrue()
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(old.name)
 	}
 }
