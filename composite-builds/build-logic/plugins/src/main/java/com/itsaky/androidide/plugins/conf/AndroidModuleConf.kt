@@ -271,6 +271,9 @@ fun Project.configureAndroidModule(coreLibDesugDep: Provider<MinimalExternalModu
 
 				create("v8") {
 					dimension = "abi"
+					// Without this, Android Studio selects v7 on first sync; most dev
+					// devices are arm64 (ADFA-4017).
+					isDefault = true
 
 					ndk.abiFilters.clear()
 					ndk.abiFilters += "arm64-v8a"
