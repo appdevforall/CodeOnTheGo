@@ -1231,10 +1231,14 @@ fun recompressApk(
 			.asFile
 	project.logger.lifecycle("Recompressing APK Dir: ${apkDir.path}")
 
-	// advzip runs for release APKs and on CI (including CI debug); a dev
-	// invoking recompressApk locally against a debug APK skips it. Local debug
-	// assembles never run this task at all (ADFA-1167).
-	val useAdvzip = buildName == "release" || isCiCd
+	// advzip runs for release APKs, and for debug APKs only with -Padvzip, which
+	// debug.yml passes for stage builds, the debug builds most testers install.
+	// On a debug APK it takes 200-300 s and saves only about 3.7% (2.9 MB of
+	// 77 MB, ADFA-6957). Local debug assembles never run this task (ADFA-1167).
+	val useAdvzip = buildName == "release" || project.hasProperty("advzip")
+	if (!useAdvzip) {
+		project.logger.lifecycle("Skipping advzip: only release APKs and builds with -Padvzip use it (ADFA-6957)")
+	}
 
 	// 7z-level deflate (-3) by default; -Pzopfli (-4) buys only ~50 KB more per
 	// release APK at ~4x the CPU time (ADFA-1167).
