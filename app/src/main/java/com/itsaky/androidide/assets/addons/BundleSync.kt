@@ -31,10 +31,13 @@ class BundleSync(
 	private val signatureOf: (File) -> ByteArray?,
 	private val uninstallPlugin: (pluginId: String) -> Unit,
 ) {
-	// The installer removes another build of a bundled ID only once its signature matches; uninstalling
-	// clears that plugin's state too. An unchanged build lands in place and is not uninstalled.
-	private val installer =
-		BundledAddonInstaller(pluginsDir, templatesDir, readPluginId, signatureOf) { pluginId, _ -> uninstallPlugin(pluginId) }
+	/**
+	 * The installer removes another build of a bundled ID when the old bundle installed that ID, or when the
+	 * signature rule allows it; uninstalling clears that plugin's state too. An unchanged build lands in place
+	 * and is not uninstalled.
+	 */
+	private fun installer(bundledBefore: Set<String>) =
+		BundledAddonInstaller(pluginsDir, templatesDir, readPluginId, signatureOf, bundledBefore) { pluginId, _ -> uninstallPlugin(pluginId) }
 
 	/** True when [entries] are not the recorded bundle, or no bundle is recorded. */
 	fun isNeeded(entries: List<BundledEntry>): Boolean = record.read()?.fingerprint != BundledAddons.fingerprint(entries)
@@ -48,6 +51,7 @@ class BundleSync(
 		entries: List<BundledEntry>,
 	): BundledAddonsState {
 		val old = record.read()
+		val installer = installer(old?.pluginIds.orEmpty().toSet())
 
 		val installed =
 			entries.map { entry ->

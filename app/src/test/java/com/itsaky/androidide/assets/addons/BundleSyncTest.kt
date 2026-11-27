@@ -178,20 +178,35 @@ class BundleSyncTest {
 	}
 
 	@Test
-	fun `a user plugin with a bundled ID signed with another key stays, and the bundled one is reported`() {
+	fun `a user plugin signed with another key stays when the old bundle did not have its ID, and the bundled one is reported`() {
 		run(bundleA)
-		pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!.forEach { it.delete() }
-		val mine = userPlugin("com.p2", "theirs")
+		// bundleB adds com.p3, which bundleA did not have.
+		val mine = userPlugin("com.p3", "theirs")
 		uninstalled.clear()
 
 		val state = run(bundleB)
 
-		val p2 = pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!
-		assertThat(p2.map { it.readText() }).containsExactly(plugin("com.p2", "theirs"))
+		val p3 = pluginsDir.listFiles { f -> idOf(f) == "com.p3" }!!
+		assertThat(p3.map { it.readText() }).containsExactly(plugin("com.p3", "theirs"))
 		assertThat(mine.exists()).isTrue()
-		assertThat(uninstalled).doesNotContain("com.p2")
-		assertThat(state.pluginIds).doesNotContain("com.p2")
-		assertThat(state.failures).containsExactly(BundledPluginFailure("p2.cgp", BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY))
+		assertThat(uninstalled).doesNotContain("com.p3")
+		assertThat(state.pluginIds).doesNotContain("com.p3")
+		assertThat(state.failures).containsExactly(BundledPluginFailure("p3.cgp", BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY))
+	}
+
+	@Test
+	fun `a plugin the old bundle had is replaced whatever its build's signature`() {
+		// The record keeps IDs, not files: a user's own build of a bundled ID is replaced too (#2300's decision).
+		run(bundleA)
+		pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!.forEach { it.delete() }
+		userPlugin("com.p2", "theirs")
+
+		val state = run(bundleB)
+
+		val p2 = pluginsDir.listFiles { f -> idOf(f) == "com.p2" }!!
+		assertThat(p2.map { it.readText() }).containsExactly(plugin("com.p2", "2"))
+		assertThat(state.pluginIds).contains("com.p2")
+		assertThat(state.failures).isEmpty()
 	}
 
 	@Test

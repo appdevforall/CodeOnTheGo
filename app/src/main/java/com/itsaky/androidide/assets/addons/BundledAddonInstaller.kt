@@ -33,18 +33,24 @@ data class InstalledAddon(
  * Gradle, and the naming rule stays in [PluginBuildFiles.fileStem].
  *
  * A plugin whose ID already has another build in [pluginsDir] replaces it only when every such build
- * is signed with the same key, the rule the Add-ons Manager applies to an install over a plugin.
- * Otherwise the bundled plugin is rejected and reported, and the installed build stays.
+ * is signed with the same key, the rule the Add-ons Manager applies to an install over a plugin, or
+ * when both are unsigned, as the plugins the addons repository builds are: there is no key to
+ * protect, and refusing would stop every update of them (ADFA-7345 brings the Add-ons Manager in
+ * line). Otherwise the bundled plugin is rejected and reported, and the installed build stays.
  *
- * @param signatureOf the signing certificate hash of a plugin file, or null if it can't be read.
- * @param removeOtherBuilds removes the installed builds of a plugin ID, called once their signatures
- *   match. A sync passes an uninstall that also clears the plugin's state.
+ * @param signatureOf the signing certificate hash of a plugin file, or null if it has none (or it
+ *   can't be read).
+ * @param bundledBefore the plugin IDs an earlier bundle installed. Their builds came from an earlier
+ *   APK of this same app, as trusted as this one, so they are replaced without a signature check.
+ * @param removeOtherBuilds removes the installed builds of a plugin ID, called once replacing them is
+ *   allowed. A sync passes an uninstall that also clears the plugin's state.
  */
 class BundledAddonInstaller(
 	private val pluginsDir: File,
 	private val templatesDir: File,
 	private val readPluginId: (File) -> String?,
 	private val signatureOf: (File) -> ByteArray?,
+	private val bundledBefore: Set<String> = emptySet(),
 	private val removeOtherBuilds: (pluginId: String, builds: List<File>) -> Unit = { _, builds -> builds.forEach(File::delete) },
 ) {
 	/**
@@ -123,9 +129,9 @@ class BundledAddonInstaller(
 
 	/**
 	 * Before [copy] of [pluginId] lands as [fileName]: removes the other installed builds of that ID if
-	 * all are signed like [copy], and rejects [copy] otherwise. A build of the same name is the same
-	 * bytes and is overwritten in place. Throws an I/O error when a build stays after removal, so the
-	 * two never load together.
+	 * replacing them is allowed (see the class), and rejects [copy] otherwise. A build of the same name
+	 * is the same bytes and is overwritten in place. Throws an I/O error when a build stays after
+	 * removal, so the two never load together.
 	 */
 	private fun replaceOtherBuilds(
 		pluginId: String,
@@ -134,9 +140,9 @@ class BundledAddonInstaller(
 	) {
 		val others = otherBuilds(pluginId, fileName)
 		if (others.isEmpty()) return
-		val incoming = signatureOf(copy)
-		if (incoming == null || others.any { signatureOf(it)?.contentEquals(incoming) != true }) {
-			throw RejectedAddonException(SIGNED_BY_ANOTHER_KEY)
+		if (pluginId !in bundledBefore) {
+			val incoming = signatureOf(copy)
+			others.forEach { installed -> signatureVerdict(incoming, signatureOf(installed))?.let { throw RejectedAddonException(it) } }
 		}
 		removeOtherBuilds(pluginId, others)
 		val left = otherBuilds(pluginId, fileName)
@@ -144,6 +150,18 @@ class BundledAddonInstaller(
 			throw IOException("Could not remove the installed build of $pluginId: ${left.joinToString { it.name }}")
 		}
 	}
+
+	/** Null when a build signed [installed] may be replaced by one signed [incoming]; else why not. */
+	private fun signatureVerdict(
+		incoming: ByteArray?,
+		installed: ByteArray?,
+	): String? =
+		when {
+			incoming == null && installed == null -> null
+			incoming == null || installed == null -> ONE_UNSIGNED
+			incoming.contentEquals(installed) -> null
+			else -> SIGNED_BY_ANOTHER_KEY
+		}
 
 	private fun otherBuilds(
 		pluginId: String,
@@ -162,6 +180,8 @@ class BundledAddonInstaller(
 		private const val MAX_FILE_NAME_BYTES = 255
 
 		const val SIGNED_BY_ANOTHER_KEY = "a plugin with its ID is already installed, signed with a different key"
+
+		const val ONE_UNSIGNED = "a plugin with its ID is already installed, and one of the two has no signature, so they can't be matched"
 
 		// The platform parser also refuses a plugin whose minSdkVersion is above the device's
 		// (AI-Core, 33, on Android 9), and the two cases look alike from here.

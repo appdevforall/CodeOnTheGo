@@ -245,7 +245,7 @@ class BundledAddonInstallerTest {
 	}
 
 	@Test
-	fun `a plugin whose signature, or the installed build's, can't be read is reported, and the installed build stays`() {
+	fun `a plugin is refused when only one of it and the installed build is signed, and the installed build stays`() {
 		val old = installedBuild()
 
 		val noIncoming =
@@ -255,8 +255,8 @@ class BundledAddonInstallerTest {
 			installer(signatureOf = { if (it == old) null else OUR_KEY })
 				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
 
-		assertThat(noIncoming.failure).isEqualTo(BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY)
-		assertThat(noInstalled.failure).isEqualTo(BundledAddonInstaller.SIGNED_BY_ANOTHER_KEY)
+		assertThat(noIncoming.failure).isEqualTo(BundledAddonInstaller.ONE_UNSIGNED)
+		assertThat(noInstalled.failure).isEqualTo(BundledAddonInstaller.ONE_UNSIGNED)
 		assertThat(pluginsDir.list()!!.toList()).containsExactly(old.name)
 	}
 
@@ -280,10 +280,35 @@ class BundledAddonInstallerTest {
 		val old = installedBuild()
 
 		assertThrows(IOException::class.java) {
-			BundledAddonInstaller(pluginsDir, templatesDir, { "com.example.plugin" }, { OUR_KEY }, { _, _ -> })
+			BundledAddonInstaller(pluginsDir, templatesDir, { "com.example.plugin" }, { OUR_KEY }, removeOtherBuilds = { _, _ -> })
 				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
 		}
 		assertThat(old.exists()).isTrue()
 		assertThat(pluginsDir.list()!!.toList()).containsExactly(old.name)
+	}
+
+	@Test
+	fun `an unsigned plugin replaces an unsigned installed build of its ID`() {
+		// The plugins the addons repository builds carry no signature at all.
+		val old = installedBuild()
+
+		val installed = installer(signatureOf = { null }).install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+
+		assertThat(installed.failure).isNull()
+		assertThat(old.exists()).isFalse()
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(installed.file!!.name)
+	}
+
+	@Test
+	fun `a build an earlier bundle installed is replaced whatever its signature`() {
+		val old = installedBuild("user build (theirs)")
+
+		val installed =
+			BundledAddonInstaller(pluginsDir, templatesDir, { "com.example.plugin" }, signedByContent, bundledBefore = setOf("com.example.plugin"))
+				.install(BundledAddonKind.PLUGIN, "a.cgp", bytes("bundled build"))
+
+		assertThat(installed.failure).isNull()
+		assertThat(old.exists()).isFalse()
+		assertThat(pluginsDir.list()!!.toList()).containsExactly(installed.file!!.name)
 	}
 }
