@@ -24,6 +24,17 @@ internal object NativeBridge {
 	@JvmStatic
 	external fun setClientConnected(connected: Boolean)
 
+	/**
+	 * Turns row recording on (`maxRowsPerStatement` > 0) or off (0): `sqlitedbg_set_row_capture`. A value
+	 * or row limit of 0 takes the extension's default.
+	 */
+	@JvmStatic
+	external fun setRowCapture(
+		maxRowsPerStatement: Int,
+		maxValueBytes: Int,
+		maxRowBytes: Int,
+	)
+
 	/** A handle for [query] and [close]. Throws [DebugEngineException]. */
 	@JvmStatic
 	external fun openServer(
@@ -32,15 +43,17 @@ internal object NativeBridge {
 	): Long
 
 	/**
-	 * `[Array<String>, ArrayList<Array<Any?>>, LongArray]`: the column names, the rows, and
-	 * `{truncatedCells, hasMore, then the index of each cut cell}` (row * columns + column).
-	 * Throws [DebugEngineException].
+	 * `[Array<String>, ArrayList<Array<Any?>>, LongArray, Array<String?>]`: the column names, the rows,
+	 * `{truncatedCells, hasMore, then the index of each cut cell}` (row * columns + column), and each
+	 * column's declared type. [names] null binds [args] by position; otherwise `names[i]` (UTF-8) names
+	 * the parameter `args[i]` goes to. Throws [DebugEngineException].
 	 */
 	@JvmStatic
 	external fun query(
 		handle: Long,
 		sql: String,
 		args: Array<Any?>,
+		names: Array<ByteArray>?,
 		offset: Long,
 		maxRows: Int,
 		maxTextBytes: Int,

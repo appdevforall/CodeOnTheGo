@@ -29,6 +29,13 @@ class FakeDebugEngine(
 	var clientConnected = false
 		private set
 
+	/** Each setRowCapture call, in order: rows per statement, value bytes, row bytes. */
+	val rowCaptureCalls = mutableListOf<Triple<Int, Int, Int>>()
+
+	/** The argNames of the last query: null when its args were bound by position. */
+	var lastArgNames: List<String>? = null
+		private set
+
 	val openedServerConnections = mutableListOf<Pair<String, Boolean>>()
 
 	/** How many times the server asked to open one, counted before any refusal: [openedServerConnections] holds only successes. */
@@ -47,6 +54,12 @@ class FakeDebugEngine(
 	) {
 		lastSeq++
 		buffered.addLast(Event(lastSeq, kind, connectionId, 1, lastSeq, durationNanos, sql, false, clientConnected))
+	}
+
+	/** Adds the event [make] builds for the next number, for the kinds and fields [addEvent] does not set. */
+	fun addEvent(make: (seq: Long) -> Event) {
+		lastSeq++
+		buffered.addLast(make(lastSeq))
 	}
 
 	/** Adds [event] as the next one, numbered after the events before it whatever its own [Event.seq]. */
@@ -99,6 +112,14 @@ class FakeDebugEngine(
 		clientConnected = connected
 	}
 
+	override fun setRowCapture(
+		maxRowsPerStatement: Int,
+		maxValueBytes: Int,
+		maxRowBytes: Int,
+	) {
+		rowCaptureCalls += Triple(maxRowsPerStatement, maxValueBytes, maxRowBytes)
+	}
+
 	override fun openServerConnection(
 		path: String,
 		writable: Boolean,
@@ -117,11 +138,13 @@ class FakeDebugEngine(
 			override fun query(
 				sql: String,
 				args: List<Any?>,
+				argNames: List<String>?,
 				offset: Long,
 				limits: QueryLimits,
 				deadlineMillis: Long,
 			): QueryResult {
 				check(!closed) { "closed" }
+				lastArgNames = argNames
 				val all = answer(path, writable, sql, args)
 				val skip = offset.toInt().coerceAtMost(all.rows.size)
 				val rest = all.rows.drop(skip)

@@ -44,12 +44,25 @@ public class JniQueryTest {
 		long truncated;
 		boolean hasMore;
 		Set<Long> cut = new HashSet<>();
+		String[] declaredTypes;
 	}
 
 	@SuppressWarnings("unchecked")
 	static Result query(long h, String sql, Object[] args, long offset, int maxRows, int maxText, int maxBlob, int maxTotal,
 			long deadline) throws DebugEngineException {
-		Object[] r = NativeBridge.query(h, sql, args, offset, maxRows, maxText, maxBlob, maxTotal, deadline);
+		return named(h, sql, args, null, offset, maxRows, maxText, maxBlob, maxTotal, deadline);
+	}
+
+	/** As query, with args bound by name when names is not null. */
+	@SuppressWarnings("unchecked")
+	static Result named(long h, String sql, Object[] args, String[] names, long offset, int maxRows, int maxText, int maxBlob,
+			int maxTotal, long deadline) throws DebugEngineException {
+		byte[][] nameBytes = null;
+		if (names != null) {
+			nameBytes = new byte[names.length][];
+			for (int i = 0; i < names.length; i++) nameBytes[i] = names[i].getBytes(StandardCharsets.UTF_8);
+		}
+		Object[] r = NativeBridge.query(h, sql, args, nameBytes, offset, maxRows, maxText, maxBlob, maxTotal, deadline);
 		Result out = new Result();
 		out.columns = (String[]) r[0];
 		out.rows = (List<Object[]>) r[1];
@@ -58,6 +71,8 @@ public class JniQueryTest {
 		out.hasMore = counts[1] != 0;
 		eq(counts.length, 2 + (int) counts[0], "one index per cut cell");
 		for (int i = 2; i < counts.length; i++) out.cut.add(counts[i]);
+		out.declaredTypes = (String[]) r[3];
+		eq(out.declaredTypes.length, out.columns.length, "one declared type per column");
 		return out;
 	}
 
@@ -71,6 +86,29 @@ public class JniQueryTest {
 			return 0;
 		} catch (DebugEngineException e) {
 			return e.sqliteCode;
+		}
+	}
+
+	/** The row events (kind 4) in the buffer, read from the start; the records' layout is in sqlitedbg.h. */
+	static long rowEvents() {
+		byte[] buf = new byte[1 << 20];
+		long[] out = new long[4];
+		NativeBridge.readEvents(0, buf, out);
+		java.nio.ByteBuffer b = java.nio.ByteBuffer.wrap(buf).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+		long rows = 0;
+		for (int at = 0; at < out[2]; at += b.getInt(at)) {
+			if (b.getInt(at + 4) == 4) rows++;
+		}
+		return rows;
+	}
+
+	/** "code message" of a refused query with args bound by name, or null when it ran. */
+	static String namedRefusal(long h, String sql, Object[] args, String[] names) {
+		try {
+			named(h, sql, args, names, 0, 100, 4096, 1024, MAX, FAR);
+			return null;
+		} catch (DebugEngineException e) {
+			return e.sqliteCode + " " + e.getMessage();
 		}
 	}
 
@@ -195,6 +233,19 @@ public class JniQueryTest {
 		eq(((String[]) conns[1]).length, 1, "one app connection");
 		eq(((String[]) conns[1])[0], path, "its path");
 
+		// setRowCapture reaches the extension: rows are recorded only while it is on (and a client is connected)
+		NativeBridge.setClientConnected(true);
+		long rowsBefore = rowEvents();
+		eq(Helper.exec(app, "SELECT id FROM t WHERE id < 3"), 0, "read with row recording off");
+		eq(rowEvents(), rowsBefore, "no row events while row recording is off");
+		NativeBridge.setRowCapture(1, 0, 0);
+		eq(Helper.exec(app, "SELECT id FROM t WHERE id < 3"), 0, "read with row recording on");
+		eq(rowEvents(), rowsBefore + 1, "one row event: one row per statement");
+		NativeBridge.setRowCapture(0, 0, 0);
+		eq(Helper.exec(app, "SELECT id FROM t WHERE id < 3"), 0, "read with row recording off again");
+		eq(rowEvents(), rowsBefore + 1, "off again");
+		NativeBridge.setClientConnected(false);
+
 		byte[] bytes = path.getBytes(StandardCharsets.UTF_8);
 		long srv = NativeBridge.openServer(bytes, false);
 		check(srv != 0, "server handle");
@@ -297,6 +348,39 @@ public class JniQueryTest {
 		}
 		eq(codeOf(srv, "SELECT ?", new Object[] {1L, 2L}, FAR), 25, "too many args: SQLITE_RANGE");
 		eq(codeOf(srv, "SELECT ?", new Object[] {new Object()}, FAR), 21, "unsupported arg type: SQLITE_MISUSE");
+		r = query(srv, "SELECT ?2, ?1", new Object[] {"one", "two"}, 0, 10, 4096, 1024, MAX, FAR);
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList("two", "one"), "?NNN in an array binds by number");
+
+		// by name: each prefix, written with it or bare
+		r = named(srv, "SELECT :a, @b, $c, :a", new Object[] {1L, "x", null}, new String[] {":a", "b", "$c"}, 0, 10, 4096, 1024, MAX,
+				FAR);
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList(1L, "x", null, 1L), "named: :a, @b, $c, and :a again");
+		r = named(srv, "SELECT ?2, ?1", new Object[] {"one", "two"}, new String[] {"?1", "?2"}, 0, 10, 4096, 1024, MAX, FAR);
+		eq(Arrays.asList(r.rows.get(0)), Arrays.asList("two", "one"), "named: ?NNN by its own name");
+		r = named(srv, "SELECT :€", new Object[] {9L}, new String[] {"€"}, 0, 10, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], 9L, "named: a non-ASCII name");
+		r = named(srv, "SELECT 1", new Object[0], new String[0], 0, 10, 4096, 1024, MAX, FAR);
+		eq(r.rows.get(0)[0], 1L, "named: no parameters, no names");
+		eq(namedRefusal(srv, "SELECT :a, :b", new Object[] {1L}, new String[] {"a"}), "25 no value was given for parameter :b",
+				"named: a parameter left out");
+		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L, 2L}, new String[] {"a", "zz"}),
+				"25 the statement has no parameter named zz", "named: a misspelt name");
+		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L, 2L}, new String[] {"a", ":a"}), "25 parameter :a is given more than once",
+				"named: bare and prefixed");
+		eq(namedRefusal(srv, "SELECT :a, ?", new Object[] {1L}, new String[] {"a"}),
+				"25 parameter 2 has no name (a ? or a gap in the ?NNN numbers): pass args as an array instead", "named: an anonymous ?");
+		eq(namedRefusal(srv, "SELECT ?2", new Object[] {1L}, new String[] {"?2"}),
+				"25 parameter 1 has no name (a ? or a gap in the ?NNN numbers): pass args as an array instead", "named: a gap in ?NNN");
+		eq(namedRefusal(srv, "SELECT :a", new Object[] {1L}, new String[] {":b"}),
+				"25 the statement has no parameter named :b, and no value was given for parameter :a",
+				"named: a prefixed key matches only that prefix");
+		eq(namedRefusal(srv, "SELECT id FROM t WHERE id = :id", new Object[] {1L}, new String[] {"idx"}),
+				"25 the statement has no parameter named idx, and no value was given for parameter :id",
+				"named: a misspelt key is named although a parameter also has no value");
+
+		// declared types: the column's, or null for an expression
+		r = q(srv, "SELECT id, r, s, b, id + 1, NULL FROM t LIMIT 1");
+		eq(Arrays.asList(r.declaredTypes), Arrays.asList("INTEGER", "REAL", "TEXT", "BLOB", null, null), "declared types");
 		eq(codeOf(srv, "SELEKT 1", new Object[0], FAR), 1, "syntax error: SQLITE_ERROR");
 
 		// one statement per call: SQLite compiles only the first, so a second is refused, not dropped

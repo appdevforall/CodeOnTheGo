@@ -3,6 +3,8 @@ package org.appdevforall.sqlitedebugger.mcp
 import org.appdevforall.sqlitedebugger.engine.AppConnection
 import org.appdevforall.sqlitedebugger.engine.DebugEngine
 import org.appdevforall.sqlitedebugger.engine.DebugEngineException
+import org.appdevforall.sqlitedebugger.engine.Event
+import org.appdevforall.sqlitedebugger.engine.EventKind
 import org.appdevforall.sqlitedebugger.engine.QueryLimits
 import org.appdevforall.sqlitedebugger.engine.QueryResult
 import org.appdevforall.sqlitedebugger.engine.ServerConnection
@@ -70,10 +72,22 @@ class DatabaseTools internal constructor(
 		/** Bound values stop being recorded this long after the last get_events call. */
 		const val EVENTS_IDLE_MS = 60_000L
 
+		/** get_events' row recording: rows per statement, bytes per TEXT or BLOB value, and bytes per row. */
+		const val EVENT_ROWS_PER_STATEMENT = 10
+		const val EVENT_VALUE_BYTES = 256
+		const val EVENT_ROW_BYTES = 4096
+
 		private const val MAX_SAFE_INTEGER = 9007199254740992L // 2^53
 		private val SIDE_FILE_SUFFIXES = listOf("-wal", "-shm", "-journal")
 
 		const val PAGING_NOTE = "Paging re-runs the query for each page, so a later page can differ if the data changed."
+
+		/** How a cell is written, said by every tool that returns cells. */
+		const val VALUES_NOTE =
+			"A NULL is JSON null; a BLOB is {hex, bytes, truncated}; an integer beyond 2^53 is a decimal string, and a " +
+				"NaN or infinite REAL is the string \"NaN\", \"Infinity\" or \"-Infinity\". storage_classes gives each row's " +
+				"SQLite storage classes, one letter per column: i INTEGER, r REAL, t TEXT, b BLOB, n NULL (JSON writes a REAL " +
+				"such as 2.0 as 2)."
 
 		/** Said by the tools that return cells whose TEXT and BLOB values the server can cut. */
 		private const val CUT_CELLS_NOTE =
@@ -128,13 +142,36 @@ class DatabaseTools internal constructor(
 
 				is ByteArray -> {
 					JSONObject()
-						.put("base64", McpHttp.base64(value, urlSafe = false, pad = true))
+						.put("hex", hex(value))
 						.put("bytes", value.size)
 						.put("truncated", truncated)
 				}
 
 				else -> {
 					value.toString()
+				}
+			}
+
+		private val HEX_DIGITS = "0123456789abcdef".toCharArray()
+
+		fun hex(bytes: ByteArray): String {
+			val out = CharArray(bytes.size * 2)
+			bytes.forEachIndexed { i, b ->
+				out[i * 2] = HEX_DIGITS[(b.toInt() shr 4) and 0xf]
+				out[i * 2 + 1] = HEX_DIGITS[b.toInt() and 0xf]
+			}
+			return String(out)
+		}
+
+		/** One letter per value: i INTEGER, r REAL, t TEXT, b BLOB, n NULL (see [VALUES_NOTE]). */
+		fun storageClasses(values: List<Any?>): String =
+			values.joinToString("") {
+				when (it) {
+					null -> "n"
+					is Long, is Int -> "i"
+					is Double -> "r"
+					is ByteArray -> "b"
+					else -> "t"
 				}
 			}
 
@@ -146,6 +183,7 @@ class DatabaseTools internal constructor(
 	private val lock = Any()
 	private val serverConnections = HashMap<String, CachedConnection>()
 	private var clientConnected = false
+	private var rowCapture = false
 	private var lastEventsCallMs = 0L
 	private var cancelIdleCheck: (() -> Unit)? = null
 	private var idleCheckGeneration = 0
@@ -182,7 +220,15 @@ class DatabaseTools internal constructor(
 				clientConnected = false
 				engine.setClientConnected(false)
 			}
+			setRowCaptureLocked(false)
 		}
+	}
+
+	/** Row recording costs the app time on every row it reads, so it is on only while a get_events client asks for rows. [lock] held. */
+	private fun setRowCaptureLocked(on: Boolean) {
+		if (on == rowCapture) return
+		rowCapture = on
+		if (on) engine.setRowCapture(EVENT_ROWS_PER_STATEMENT, EVENT_VALUE_BYTES, EVENT_ROW_BYTES) else engine.setRowCapture(0, 0, 0)
 	}
 
 	/**
@@ -196,6 +242,7 @@ class DatabaseTools internal constructor(
 		if (clientConnected && clock() - lastEventsCallMs >= EVENTS_IDLE_MS) {
 			clientConnected = false
 			engine.setClientConnected(false)
+			setRowCaptureLocked(false)
 		}
 	}
 
@@ -249,7 +296,8 @@ class DatabaseTools internal constructor(
 			tool(
 				"query",
 				"Run a query",
-				"Runs one read-only SQL statement. Returns at most max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS); " +
+				"Runs one read-only SQL statement. Returns at most max_rows rows (default $DEFAULT_MAX_ROWS, at most $MAX_ROWS), " +
+					"with each column's declared_type in column_types (null for an expression). $VALUES_NOTE " +
 					"TEXT cells are cut at $MAX_TEXT_BYTES bytes and BLOBs at $MAX_BLOB_BYTES: $CUT_CELLS_NOTE " +
 					"A result also stops at about " +
 					"${MAX_TOTAL_BYTES / (1024 * 1024)} MiB of cell bytes (has_more is then true), though the first row always " +
@@ -257,7 +305,7 @@ class DatabaseTools internal constructor(
 					"$PAGING_NOTE Writes are refused. $APP_FUNCTIONS_NOTE: read the rows or compute in plain SQL instead. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
-					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters: null, numbers or strings."),
+					"args" to argsSchema(),
 					"offset" to prop("integer", "Rows to skip. Default 0."),
 					"max_rows" to prop("integer", "Rows to return. Default $DEFAULT_MAX_ROWS, at most $MAX_ROWS."),
 					required = listOf("sql"),
@@ -270,7 +318,7 @@ class DatabaseTools internal constructor(
 					"A cell cut at $MAX_TEXT_BYTES bytes is listed as in query: $CUT_CELLS_NOTE $APP_FUNCTIONS_NOTE. $NON_WAL_NOTE",
 				databaseSchema(
 					"sql" to prop("string", "The SQL statement."),
-					"args" to JSONObject().put("type", "array").put("description", "Values for ? parameters."),
+					"args" to argsSchema(),
 					required = listOf("sql"),
 				),
 			) { call, args -> explain(call, args) },
@@ -302,7 +350,17 @@ class DatabaseTools internal constructor(
 					"as run to continue; dropped counts events that left the buffer unread. reset true means the app restarted " +
 					"(run differs, or after is past the newest event), and events are read from the start. " +
 					"The first call starts recording bound values into the SQL; " +
-					"that stops ${EVENTS_IDLE_MS / 1000} s after the last get_events call, so call it at least that often while watching.",
+					"that stops ${EVENTS_IDLE_MS / 1000} s after the last get_events call, so call it at least that often while " +
+					"watching. " +
+					"kind is statement (one starts; a trigger's SQL starts with --), profile (one finished: duration_nanos; rows, the " +
+					"rows it returned; changes, the rows it changed itself, not through triggers, null for a read; null when the " +
+					"statement's start was not seen), close, or row. With include_rows true (the default), the app's statements " +
+					"after the call also record their first $EVENT_ROWS_PER_STATEMENT rows as row events: row_number (from 1), " +
+					"column_count, values, storage_classes and cut_values (indexes of TEXT and BLOB values cut at " +
+					"$EVENT_VALUE_BYTES bytes); a row's data stops at ${EVENT_ROW_BYTES / 1024} KiB, and then values holds fewer " +
+					"than column_count and truncated is true. A profile's rows_cut says rows went unrecorded past the limit. " +
+					"$VALUES_NOTE Recording rows costs the app a few microseconds a row, so pass include_rows false when you need " +
+					"only the SQL; it then stops, and row events are left out.",
 				JSONObject()
 					.put("type", "object")
 					.put("additionalProperties", false)
@@ -313,7 +371,7 @@ class DatabaseTools internal constructor(
 							.put(
 								"run",
 								prop("string", "The run from the last call. If it differs from the current, the read starts from 0."),
-							),
+							).put("include_rows", prop("boolean", "Record and return rows the app's statements return. Default true.")),
 					).put("required", JSONArray()),
 			) { _, args -> getEvents(args) },
 		)
@@ -334,6 +392,16 @@ class DatabaseTools internal constructor(
 		type: String,
 		description: String,
 	) = JSONObject().put("type", type).put("description", description)
+
+	private fun argsSchema() =
+		JSONObject()
+			.put("type", JSONArray(listOf("array", "object")))
+			.put(
+				"description",
+				"Values to bind: null, numbers or strings. An array binds by position (? and ?NNN, by number); an object binds " +
+					"by name (:name, @name, \$name, ?NNN), with keys written as in the SQL. A key without a prefix, such as id, " +
+					"matches :id, @id and \$id; a ?NNN key keeps its ?. Every parameter needs a value, and every key a parameter.",
+			)
 
 	private fun databaseSchema(
 		vararg extra: Pair<String, JSONObject>,
@@ -394,7 +462,7 @@ class DatabaseTools internal constructor(
 				call,
 				args,
 				"SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name",
-				emptyList(),
+				Bind.NONE,
 				0,
 				QueryLimits(MAX_ROWS, MAX_SCHEMA_SQL_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES),
 			)
@@ -456,7 +524,7 @@ class DatabaseTools internal constructor(
 		val limits = QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES)
 		val path = checkedPath(call, args)
 
-		fun pragma(name: String) = runChecked(call, path, "PRAGMA $name", emptyList(), 0, limits).rows.firstOrNull()?.firstOrNull()
+		fun pragma(name: String) = runChecked(call, path, "PRAGMA $name", Bind.NONE, 0, limits).rows.firstOrNull()?.firstOrNull()
 		val pageCount = pragma("page_count") as? Long
 		val pageSize = pragma("page_size") as? Long
 		val out =
@@ -470,7 +538,7 @@ class DatabaseTools internal constructor(
 				call,
 				path,
 				"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name",
-				emptyList(),
+				Bind.NONE,
 				0,
 				limits,
 			).rows
@@ -484,7 +552,7 @@ class DatabaseTools internal constructor(
 							call,
 							path,
 							"SELECT COUNT(*) FROM ${quoteIdentifier(t)}",
-							emptyList(),
+							Bind.NONE,
 							0,
 							limits,
 						).rows.firstOrNull()?.firstOrNull()
@@ -513,7 +581,7 @@ class DatabaseTools internal constructor(
 				else -> throw McpToolError("full must be true or false.")
 			}
 		val pragma = if (full) "PRAGMA integrity_check" else "PRAGMA quick_check"
-		val result = run(call, args, pragma, emptyList(), 0, QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
+		val result = run(call, args, pragma, Bind.NONE, 0, QueryLimits(MAX_ROWS, MAX_TEXT_BYTES, MAX_BLOB_BYTES, MAX_TOTAL_BYTES))
 		val messages = result.rows.map { it.firstOrNull()?.toString() ?: "" }
 		return JSONObject()
 			.put("check", if (full) "integrity_check" else "quick_check")
@@ -531,9 +599,16 @@ class DatabaseTools internal constructor(
 				is String -> v
 				else -> throw McpToolError("run must be a string.")
 			}
+		val includeRows =
+			when (val v = args.opt("include_rows")) {
+				null, JSONObject.NULL -> true
+				is Boolean -> v
+				else -> throw McpToolError("include_rows must be true or false.")
+			}
 		val otherRun = run != null && run != engine.runId
 		synchronized(lock) {
 			lastEventsCallMs = clock()
+			setRowCaptureLocked(includeRows)
 			if (!clientConnected) {
 				engine.setClientConnected(true)
 				clientConnected = true
@@ -548,18 +623,8 @@ class DatabaseTools internal constructor(
 			}
 		val events = JSONArray()
 		for (e in batch.events) {
-			events.put(
-				JSONObject()
-					.put("seq", encodeLong(e.seq))
-					.put("kind", e.kind.name.lowercase())
-					.put("connection_id", encodeLong(e.connectionId))
-					.put("thread_id", encodeLong(e.threadId))
-					.put("time_epoch_nanos", encodeLong(e.timeEpochNanos))
-					.put("duration_nanos", e.durationNanos?.let { encodeLong(it) } ?: JSONObject.NULL)
-					.put("sql", e.sql)
-					.put("truncated", e.truncated)
-					.put("expanded", e.expanded),
-			)
+			if (e.kind == EventKind.ROW && !includeRows) continue
+			events.put(encodeEvent(e))
 		}
 		return JSONObject()
 			.put("run", engine.runId)
@@ -567,6 +632,43 @@ class DatabaseTools internal constructor(
 			.put("next", encodeLong(batch.next))
 			.put("dropped", encodeLong(batch.dropped))
 			.put("events", events)
+	}
+
+	private fun encodeEvent(e: Event): JSONObject {
+		val out =
+			JSONObject()
+				.put("seq", encodeLong(e.seq))
+				.put("kind", e.kind.name.lowercase())
+				.put("connection_id", encodeLong(e.connectionId))
+				.put("thread_id", encodeLong(e.threadId))
+				.put("time_epoch_nanos", encodeLong(e.timeEpochNanos))
+				.put("duration_nanos", e.durationNanos?.let { encodeLong(it) } ?: JSONObject.NULL)
+				.put("sql", e.sql)
+				.put("truncated", e.truncated)
+				.put("expanded", e.expanded)
+		when (e.kind) {
+			EventKind.PROFILE -> {
+				out
+					.put("rows", e.rows?.let { encodeLong(it) } ?: JSONObject.NULL)
+					.put("changes", e.changes?.let { encodeLong(it) } ?: JSONObject.NULL)
+					.put("rows_cut", e.rowsCut)
+			}
+
+			EventKind.ROW -> {
+				val row = e.row
+				out.put("row_number", e.rows?.let { encodeLong(it) } ?: JSONObject.NULL)
+				if (row != null) {
+					out
+						.put("column_count", row.columnCount)
+						.put("values", JSONArray(row.values.mapIndexed { i, v -> encodeValue(v, i in row.cutIndexes) }))
+						.put("storage_classes", storageClasses(row.values))
+						.put("cut_values", JSONArray(row.cutIndexes.sorted()))
+				}
+			}
+
+			else -> {}
+		}
+		return out
 	}
 
 	private fun encodeResult(
@@ -580,7 +682,9 @@ class DatabaseTools internal constructor(
 		val out =
 			JSONObject()
 				.put("columns", JSONArray(result.columns))
+				.put("column_types", JSONArray().also { a -> result.declaredTypes.forEach { a.put(it ?: JSONObject.NULL) } })
 				.put("rows", rows)
+				.put("storage_classes", JSONArray(result.rows.map { storageClasses(it) }))
 				.put("row_count", result.rows.size)
 				.put("offset", encodeLong(offset))
 				.put("has_more", result.hasMore)
@@ -639,7 +743,7 @@ class DatabaseTools internal constructor(
 		call: Call,
 		args: JSONObject,
 		sql: String,
-		bind: List<Any?>,
+		bind: Bind,
 		offset: Long,
 		limits: QueryLimits,
 	): QueryResult = runChecked(call, checkedPath(call, args), sql, bind, offset, limits)
@@ -648,7 +752,7 @@ class DatabaseTools internal constructor(
 		call: Call,
 		path: String,
 		sql: String,
-		bind: List<Any?>,
+		bind: Bind,
 		offset: Long,
 		limits: QueryLimits,
 	): QueryResult =
@@ -666,7 +770,7 @@ class DatabaseTools internal constructor(
 							if (ids.isEmpty()) throw unknownDatabase(path, knownPaths(live))
 							CachedConnection(engine.openServerConnection(path, writable = false), ids)
 						}.connection
-				conn.query(sql, bind, offset, limits, call.deadline)
+				conn.query(sql, bind.values, bind.names, offset, limits, call.deadline)
 			} catch (e: DebugEngineException) {
 				val error = engineError(e)
 				// The time limit counts the call's waits for the lock, so a quick query can run out of time
@@ -734,18 +838,51 @@ class DatabaseTools internal constructor(
 		return l
 	}
 
-	private fun bindArgs(args: JSONObject): List<Any?> {
-		val raw = args.opt("args")
-		if (raw == null || raw == JSONObject.NULL) return emptyList()
-		val arr = raw as? JSONArray ?: throw McpToolError("args must be an array.")
-		return (0 until arr.length()).map { i ->
-			when (val v = arr.opt(i)) {
+	/** Values to bind: by position when [names] is null, else `names[i]` names the parameter of `values[i]`. */
+	private class Bind(
+		val values: List<Any?>,
+		val names: List<String>?,
+	) {
+		companion object {
+			val NONE = Bind(emptyList(), null)
+		}
+	}
+
+	private fun bindArgs(args: JSONObject): Bind {
+		fun value(
+			v: Any?,
+			what: String,
+		): Any? =
+			when (v) {
 				null, JSONObject.NULL -> null
 				is Int, is Long, is Short -> (v as Number).toLong()
 				is Number -> v.toDouble()
 				is String -> v
 				is Boolean -> if (v) 1L else 0L
-				else -> throw McpToolError("args[$i] must be null, a number or a string.")
+				else -> throw McpToolError("$what must be null, a number or a string.")
+			}
+		return when (val raw = args.opt("args")) {
+			null, JSONObject.NULL -> {
+				Bind.NONE
+			}
+
+			is JSONArray -> {
+				Bind((0 until raw.length()).map { i -> value(raw.opt(i), "args[$i]") }, null)
+			}
+
+			is JSONObject -> {
+				val names =
+					raw
+						.keys()
+						.asSequence()
+						.sorted()
+						.toList()
+				names.forEach { if (it.isEmpty()) throw McpToolError("args has an empty name.") }
+				Bind(names.map { value(raw.opt(it), "args.$it") }, names)
+			}
+
+			else -> {
+				throw McpToolError("args must be an array or an object.")
 			}
 		}
 	}

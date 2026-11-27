@@ -16,9 +16,11 @@ public final class NativeBridge {
 
 	public static native void setClientConnected(boolean connected);
 
+	public static native void setRowCapture(int maxRowsPerStatement, int maxValueBytes, int maxRowBytes);
+
 	public static native long openServer(byte[] path, boolean writable) throws DebugEngineException;
 
-	public static native Object[] query(long handle, String sql, Object[] args, long offset, int maxRows, int maxTextBytes,
+	public static native Object[] query(long handle, String sql, Object[] args, byte[][] names, long offset, int maxRows, int maxTextBytes,
 			int maxBlobBytes, int maxTotalBytes, long deadlineMillis)
 			throws DebugEngineException;
 
