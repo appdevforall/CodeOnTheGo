@@ -62,6 +62,19 @@ internal object NativeBridge {
 		deadlineMillis: Long,
 	): Array<Any?>
 
+	/**
+	 * Index suggestions from SQLite's ext/expert for [sqlUtf8] (one or more statements, UTF-8), which is
+	 * prepared but never run, reading [sample] percent of the rows for its estimates:
+	 * `[candidates, then sql, indexes and plan for each statement]`. Throws [DebugEngineException].
+	 */
+	@JvmStatic
+	external fun suggestIndexes(
+		handle: Long,
+		sqlUtf8: ByteArray,
+		sample: Int,
+		deadlineMillis: Long,
+	): Array<String?>
+
 	@JvmStatic
 	external fun close(handle: Long)
 }

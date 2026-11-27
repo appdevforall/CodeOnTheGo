@@ -89,6 +89,10 @@ class DatabaseToolsTest {
 				"explain_query_plan",
 				"get_stats",
 				"integrity_check",
+				"suggest_indexes",
+				"lint_foreign_keys",
+				"dump",
+				"export",
 				"get_events",
 			),
 			list.map { it.name },
@@ -98,7 +102,16 @@ class DatabaseToolsTest {
 
 	@Test fun everyToolThatRunsAStatementSaysAStatementOnANonWalDatabaseStopsAfterOneAndAHalfSeconds() {
 		val list = tools.tools().associateBy { it.name }
-		listOf("get_schema", "query", "explain_query_plan", "get_stats", "integrity_check").forEach { name ->
+		listOf(
+			"get_schema",
+			"query",
+			"explain_query_plan",
+			"get_stats",
+			"integrity_check",
+			"lint_foreign_keys",
+			"dump",
+			"export",
+		).forEach { name ->
 			val d = list.getValue(name).describe().getString("description")
 			assertTrue("$name: $d", d.contains("not in WAL mode a statement is stopped after 1.5 s"))
 			assertTrue("$name: $d", d.contains("WAL mode has no such limit"))
@@ -423,6 +436,12 @@ class DatabaseToolsTest {
 							deadline = deadlineMillis
 							return c.query(sql, args, argNames, offset, limits, deadlineMillis)
 						}
+
+						override fun suggestIndexes(
+							sql: String,
+							sample: Int,
+							deadlineMillis: Long,
+						) = c.suggestIndexes(sql, sample, deadlineMillis)
 					}
 				}
 			}
@@ -454,6 +473,12 @@ class DatabaseToolsTest {
 						}
 						return c.query(sql, args, argNames, offset, limits, deadlineMillis)
 					}
+
+					override fun suggestIndexes(
+						sql: String,
+						sample: Int,
+						deadlineMillis: Long,
+					) = c.suggestIndexes(sql, sample, deadlineMillis)
 				}
 			}
 		}
@@ -538,6 +563,12 @@ class DatabaseToolsTest {
 					now += runMs
 					return c.query(sql, args, argNames, offset, limits, deadlineMillis)
 				}
+
+				override fun suggestIndexes(
+					sql: String,
+					sample: Int,
+					deadlineMillis: Long,
+				) = c.suggestIndexes(sql, sample, deadlineMillis)
 			}
 		}
 	}
@@ -896,7 +927,7 @@ class DatabaseToolsTest {
 		answerWith("SELECT name" to QueryResult(listOf("name"), listOf(listOf("sqlitecache")), 0, false))
 		val r = ok("get_stats", db())
 		// "_" is a wildcard in LIKE: without the escape, sqlitecache would be left out of the listing
-		val listing = seenSql.single { it.contains("FROM sqlite_master") }
+		val listing = seenSql.single { it.startsWith("SELECT name FROM sqlite_master") }
 		assertTrue(listing, listing.contains("NOT LIKE 'sqlite\\_%' ESCAPE '\\'"))
 		assertTrue(r.getJSONObject("row_counts").has("sqlitecache"))
 	}

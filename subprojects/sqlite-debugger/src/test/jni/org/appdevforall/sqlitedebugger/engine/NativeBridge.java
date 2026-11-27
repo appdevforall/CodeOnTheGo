@@ -24,5 +24,7 @@ public final class NativeBridge {
 			int maxBlobBytes, int maxTotalBytes, long deadlineMillis)
 			throws DebugEngineException;
 
+	public static native String[] suggestIndexes(long handle, byte[] sqlUtf8, int sample, long deadlineMillis) throws DebugEngineException;
+
 	public static native void close(long handle);
 }
