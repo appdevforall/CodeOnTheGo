@@ -60,4 +60,7 @@ dependencies {
 
 	compileOnly(projects.common)
 	compileOnly(libs.common.antlr4)
+	// URIResolverExtensionManager's supertypes live here. xml-dom already ships it at runtime but keeps
+	// it off our compile classpath.
+	compileOnly(libs.composite.jaxp)
 }

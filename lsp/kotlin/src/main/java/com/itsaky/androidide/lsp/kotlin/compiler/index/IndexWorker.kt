@@ -29,6 +29,8 @@ internal class IndexWorker(
 	private val fileIndex: KtFileMetadataIndex,
 	private val sourceIndex: JvmSymbolIndex,
 	private val scope: CoroutineScope,
+	/** [KtSymbolIndex.resolvesTo]. */
+	private val resolvesTo: (Path, KtFile) -> Boolean,
 ) {
 	companion object {
 		private val logger = LoggerFactory.getLogger(IndexWorker::class.java)
@@ -60,7 +62,7 @@ internal class IndexWorker(
 					logger.debug("Indexing modified file: {}", path)
 					try {
 						// Not counted in sourceIndexCount: this runs on another coroutine, and an edit is not part of a pass.
-						indexSourceFile(project, ktFile, fileIndex, sourceIndex, cancelChecker)
+						indexSourceFile(project, ktFile, fileIndex, sourceIndex, cancelChecker, resolvesTo)
 					} catch (e: AnalysisPreemptedException) {
 						// Preempted by higher-priority analysis; re-queue so the edit still gets indexed.
 						logger.debug("Indexing of modified file {} preempted; re-queueing", path)
@@ -271,6 +273,7 @@ internal class IndexWorker(
 						// A real (cancellable) checker so the scheduler can preempt this pass
 						// in favour of completion/diagnostics.
 						cancelChecker = ICancelChecker.Default(),
+						resolvesTo = resolvesTo,
 					)
 				}
 			if (wrote) IndexOutcome.INDEXED else IndexOutcome.SKIPPED

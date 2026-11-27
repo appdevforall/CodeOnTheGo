@@ -120,6 +120,7 @@ internal class KtSymbolIndex(
 			fileIndex = fileIndex,
 			sourceIndex = sourceIndex,
 			scope = scope,
+			resolvesTo = ::resolvesTo,
 		)
 
 	private val scanningWorker =
@@ -814,6 +815,16 @@ internal class KtSymbolIndex(
 			.getFilePathsForPackage(packageFqName)
 			.mapNotNull { Paths.get(it).toVirtualFileOrNull() }
 			.toList()
+
+	/**
+	 * Whether FIR resolves [path] to [ktFile]. Non-blocking and never refreshes, so the indexer can ask
+	 * under `project.read` without queueing more indexing.
+	 */
+	@OptIn(ResolutionSideKtFileAccess::class)
+	internal fun resolvesTo(
+		path: Path,
+		ktFile: KtFile,
+	): Boolean = getKtFile(path) === ktFile
 
 	/** [getKtFile] for [vf], keyed by the path it maps to. */
 	@ResolutionSideKtFileAccess

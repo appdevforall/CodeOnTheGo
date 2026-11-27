@@ -26,23 +26,28 @@ import java.io.File
  * Adds the provided file to assets in brotli compressed form.
  */
 abstract class AddBrotliFileToAssetsTask : AddFileToAssetsTask() {
-    override fun doCopy(inFile: File, outFile: File) {
-        val brotliOut = File(outFile.path + ".br")
-        Brotli4jLoader.ensureAvailability()
+	override fun doCopy(
+		inFile: File,
+		outFile: File,
+	) {
+		val brotliOut = File(outFile.path + ".br")
+		Brotli4jLoader.ensureAvailability()
 
-        val start = System.nanoTime()
-        val params = Encoder.Parameters()
-            .setQuality(11)
-            .setWindow(24)
+		val start = System.nanoTime()
+		val params =
+			Encoder
+				.Parameters()
+				.setQuality(11)
+				.setWindow(24)
 
-        BrotliOutputStream(brotliOut.outputStream(), params).use { out ->
-            inFile.inputStream().use { input ->
-                input.copyTo(out)
-            }
-        }
+		BrotliOutputStream(brotliOut.outputStream(), params).use { out ->
+			inFile.inputStream().use { input ->
+				input.copyTo(out)
+			}
+		}
 
-        val end = System.nanoTime()
-        val durationMs = (end - start) / (1_000_000)
-        project.logger.lifecycle("brotli time: ${durationMs}ms")
-    }
+		val end = System.nanoTime()
+		val durationMs = (end - start) / (1_000_000)
+		logger.lifecycle("brotli time: ${durationMs}ms")
+	}
 }

@@ -77,8 +77,8 @@ private fun KaSession.resolvesToSameDeclaration(
 	b: KtSimpleNameExpression,
 ): Boolean =
 	runCatching {
-		val symbolA = a.mainReference?.resolveToSymbols()?.firstOrNull() ?: return false
-		val symbolB = b.mainReference?.resolveToSymbols()?.firstOrNull() ?: return false
+		val symbolA = a.mainReference.resolveToSymbols().firstOrNull() ?: return false
+		val symbolB = b.mainReference.resolveToSymbols().firstOrNull() ?: return false
 		val psiA = symbolA.declarationPsi()
 		val psiB = symbolB.declarationPsi()
 		if (psiA != null || psiB != null) psiA === psiB else symbolA == symbolB
@@ -131,7 +131,7 @@ internal fun KaSession.referencedDeclarationCeiling(candidate: KtExpression): Ps
 	var deepest: PsiElement? = null
 	var deepestDepth = -1
 	for (reference in candidate.collectDescendantsOfType<KtSimpleNameExpression>()) {
-		val symbol = runCatching { reference.mainReference?.resolveToSymbols()?.firstOrNull() }.getOrNull() ?: continue
+		val symbol = runCatching { reference.mainReference.resolveToSymbols().firstOrNull() }.getOrNull() ?: continue
 		val body = constrainingBodyFor(reference, symbol) ?: continue
 		val depth = depthOf(body)
 		if (depth > deepestDepth) {
@@ -193,7 +193,7 @@ internal fun KaSession.writeOffsetsFor(
 			.collectDescendantsOfType<KtSimpleNameExpression>()
 			.mapNotNull { reference ->
 				runCatching {
-					(reference.mainReference?.resolveToSymbols()?.firstOrNull() as? KaVariableSymbol)
+					(reference.mainReference.resolveToSymbols().firstOrNull() as? KaVariableSymbol)
 						?.takeIf { !it.isVal }
 						?.psi
 				}.getOrNull()
@@ -206,8 +206,8 @@ internal fun KaSession.writeOffsetsFor(
 		.filter { reference ->
 			runCatching {
 				reference.mainReference
-					?.resolveToSymbols()
-					?.firstOrNull()
+					.resolveToSymbols()
+					.firstOrNull()
 					?.psi
 			}.getOrNull() in mutableDeclarations
 		}.map { it.textRange.startOffset }

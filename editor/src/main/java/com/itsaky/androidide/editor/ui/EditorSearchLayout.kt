@@ -246,6 +246,9 @@ class EditorSearchLayout(
 
 		findInFileBinding.searchInput.requestFocus()
 		findInFileBinding.searchInput.post {
+			// The replacement, WindowCompat.getInsetsController, needs a Window, and this layout can sit in a
+			// floating overlay, which has none. This call works from the view.
+			@Suppress("DEPRECATION")
 			ViewCompat.getWindowInsetsController(findInFileBinding.searchInput)?.show(WindowInsetsCompat.Type.ime())
 		}
 	}
