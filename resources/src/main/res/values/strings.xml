@@ -111,6 +111,7 @@
 	<string name="err_missing_split_assets_zip">Assets file \'%1$s\' not found. Copy it to %2$s, then restart %3$s.</string>
 	<!-- %1$s is a list with one line per plugin that came with the app and did not start: its ID, a colon and the reason. -->
 	<string name="msg_bundled_plugins_failed">Some plugins or templates that came with the app could not be installed or started:\n%1$s</string>
+	<string name="msg_updating_bundled_addons">Updating the plugins and templates that came with the app…</string>
 	<string name="msg_picked_isnt_dir">The picked file is not a directory.</string>
 	<string name="please_wait">Please wait for a moment.</string>
 	<string name="not_enough_storage">Not enough storage available for installation. An additional %1$.1fGB is required on the internal storage partition. You currently have %2$.1fGB available.</string>

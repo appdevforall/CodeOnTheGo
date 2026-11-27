@@ -48,6 +48,7 @@ import com.itsaky.androidide.analytics.IAnalyticsManager
 import com.itsaky.androidide.analytics.depth
 import com.itsaky.androidide.analytics.selector
 import com.itsaky.androidide.app.EdgeToEdgeIDEActivity
+import com.itsaky.androidide.assets.addons.BundleSyncAtStart
 import com.itsaky.androidide.assets.addons.BundledAddonsRecord
 import com.itsaky.androidide.assets.addons.reportFailures
 import com.itsaky.androidide.databinding.ActivityMainBinding
@@ -85,6 +86,7 @@ import com.itsaky.androidide.utils.findValidProjects
 import com.itsaky.androidide.utils.flashError
 import com.itsaky.androidide.utils.flashErrorTracked
 import com.itsaky.androidide.utils.flashInfo
+import com.itsaky.androidide.utils.flashProgress
 import com.itsaky.androidide.utils.hasVisibleDialog
 import com.itsaky.androidide.utils.recordProjectOpenedBookkeeping
 import com.itsaky.androidide.utils.resolveDeepLinkProject
@@ -97,8 +99,11 @@ import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_D
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.SCREEN_TEMPLATE_LIST
 import com.itsaky.androidide.viewmodel.MainViewModel.Companion.TOOLTIPS_WEB_VIEW
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.slf4j.LoggerFactory
@@ -374,12 +379,16 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	 * away first, as a font scale change recreates it, shows them again next time. The report runs
 	 * until the dismissal, and [reportingBundledFailures] keeps a resume during the report from
 	 * starting a second one.
+	 *
+	 * Waits for the start-up bundle check first, showing a progress bar while it installs a new
+	 * bundle (ADFA-7239), so the failures of that bundle are recorded before they are read.
 	 */
 	private fun reportBundledPluginFailures() {
 		if (reportingBundledFailures) return
 		reportingBundledFailures = true
 		lifecycleScope.launch {
 			try {
+				awaitBundleSync()
 				// inFilesDir resolves a canonical path, a disk read that stays off the main thread.
 				val record = withContext(Dispatchers.IO) { BundledAddonsRecord.inFilesDir(filesDir) }
 				record.reportFailures { failures ->
@@ -393,6 +402,22 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 			} finally {
 				reportingBundledFailures = false
 			}
+		}
+	}
+
+	private suspend fun awaitBundleSync() {
+		val syncState = BundleSyncAtStart.state
+		// The screen can resume before the plugin system starts. If it never does (a failed
+		// start-up that is retried later), stop waiting and report what is recorded.
+		withTimeoutOrNull(BUNDLE_SYNC_START_TIMEOUT_MS) {
+			syncState.first { it != BundleSyncAtStart.State.NOT_STARTED && it != BundleSyncAtStart.State.CHECKING }
+		} ?: return
+		if (syncState.value != BundleSyncAtStart.State.SYNCING) return
+		val bar = this@MainActivity.flashProgress { message(getString(string.msg_updating_bundled_addons)) }
+		try {
+			syncState.first { it == BundleSyncAtStart.State.IDLE }
+		} finally {
+			withContext(NonCancellable + Dispatchers.Main) { bar.dismiss() }
 		}
 	}
 
@@ -868,5 +893,8 @@ class MainActivity : EdgeToEdgeIDEActivity() {
 	companion object {
 		private const val KEY_CONSUMED_DEEP_LINK_REQUESTS = "consumedDeepLinkRequests"
 		private const val KEY_UNRESOLVED_DEEP_LINK_REQUESTS = "unresolvedDeepLinkRequests"
+
+		/** How long the main screen waits for the plugin system to begin its bundle check. */
+		private const val BUNDLE_SYNC_START_TIMEOUT_MS = 30_000L
 	}
 }

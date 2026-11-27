@@ -14,6 +14,9 @@ import com.itsaky.androidide.activities.CrashHandlerActivity
 import com.itsaky.androidide.activities.editor.IDELogcatReader
 import com.itsaky.androidide.api.BuildOutputProvider
 import com.itsaky.androidide.api.LogsProvider
+import com.itsaky.androidide.assets.addons.BundleSyncAtStart
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
+import com.itsaky.androidide.assets.addons.BundledPluginStartup
 import com.itsaky.androidide.editor.schemes.IDEColorSchemeProvider
 import com.itsaky.androidide.eventbus.events.plugin.PluginCrashedEvent
 import com.itsaky.androidide.eventbus.events.preferences.PreferenceChangeEvent
@@ -391,19 +394,39 @@ internal object CredentialProtectedApplicationLoader :
 			setupPluginServices(endpointSource)
 			setupPluginInflationErrorHandler()
 
-			// Load plugins asynchronously
+			// Load plugins asynchronously. The build's bundled add-ons are applied first, so the
+			// synced set loads once (ADFA-7239).
+			BundleSyncAtStart.begin()
 			GlobalScope.launch {
 				try {
-					pluginManager?.loadPlugins()
+					val manager = pluginManager
+					if (manager != null) {
+						// Under the load lock, as Add-ons Manager installs are: the sync replaces plugin files.
+						val synced =
+							manager.whileNotLoading { withContext(Dispatchers.IO) { BundleSyncAtStart.run(context, manager) } }
+						manager.loadPlugins()
+						if (synced) {
+							// Plugins are loaded already; this only records the bundled ones that failed.
+							BundledPluginStartup(
+								record = BundledAddonsRecord.inFilesDir(context.filesDir),
+								reloadPlugins = {},
+								loadError = manager::getLoadError,
+							).start()
+						}
+					}
 					EditorDecorationBridge.init()
 					logger.info("Plugin system initialized successfully")
 				} catch (e: Exception) {
 					logger.error("Failed to load plugins", e)
+				} finally {
+					BundleSyncAtStart.end()
 				}
 			}
 		} catch (e: Exception) {
 			Sentry.captureException(e)
 			logger.error("Failed to initialize plugin system", e)
+			// No start-up coroutine will end the bundle check, so the main screen must not wait for it.
+			BundleSyncAtStart.end()
 		}
 	}
 

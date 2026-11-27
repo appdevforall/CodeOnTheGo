@@ -72,10 +72,17 @@ internal fun Context.isIdeSetupComplete(): Boolean =
  * the provider's job once it runs, and a directory that exists but holds nothing usable is a broken
  * install, not an unfinished setup.
  */
-private fun isJdkInstalled(): Boolean {
+internal fun isJdkInstalled(): Boolean {
 	val jvmDir = File(jdkInstallPrefix(), "lib/jvm")
 	return jvmDir.isDirectory && (jvmDir.list()?.isNotEmpty() == true)
 }
+
+/**
+ * Whether first-time setup has put a JDK and the Android SDK on disk: [isIdeSetupComplete] without
+ * the permissions. The bundle sync at start-up (ADFA-7239) asks it, from the loader coroutine, before
+ * the JDK provider has loaded.
+ */
+internal fun areIdeToolsInstalled(): Boolean = isJdkInstalled() && androidSdkHome().exists()
 
 /**
  * [Environment.PREFIX], or the same path it will hold once `Environment.init()` has run.
