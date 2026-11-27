@@ -37,7 +37,9 @@ class BundleSync(
 	 * and is not uninstalled.
 	 */
 	private fun installer(bundledBefore: Set<String>) =
-		BundledAddonInstaller(pluginsDir, templatesDir, readPluginId, signatureOf, bundledBefore) { pluginId, _ -> uninstallPlugin(pluginId) }
+		BundledAddonInstaller(pluginsDir, templatesDir, readPluginId, signatureOf, bundledBefore) { pluginId, _ ->
+			uninstallPlugin(pluginId)
+		}
 
 	/** True when [entries] are not the recorded bundle, or no bundle is recorded. */
 	fun isNeeded(entries: List<BundledEntry>): Boolean = record.read()?.fingerprint != BundledAddons.fingerprint(entries)
