@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 // The interface version. Raise it when anything below changes shape.
-#define SQLITEDBG_INTERFACE_VERSION 2
+#define SQLITEDBG_INTERFACE_VERSION 3
 
 // sqlite3_auto_extension's type. On a device the JNI layer looks it up in libsqlite3x.so with
 // dlsym (requery exports every sqlite3_ function); host tests pass SQLite's own.
@@ -85,31 +85,70 @@ enum {
     SQLITEDBG_EVENT_PROFILE = 2,
     // The app asked SQLite to close the connection (SQLITE_TRACE_CLOSE); sql is empty.
     SQLITEDBG_EVENT_CLOSE = 3,
+    // A statement returned a row (SQLITE_TRACE_ROW). Recorded only while a client is connected and
+    // row recording is on (sqlitedbg_set_row_capture); the data is the row's values, in the row
+    // layout below, not SQL. rows is the row's number in its statement, from 1.
+    SQLITEDBG_EVENT_ROW = 4,
 };
 
 enum {
-    // sql was cut at max_sql_bytes.
+    // The data was cut: SQL at max_sql_bytes, or a row's values at the row limits.
     SQLITEDBG_EVENT_TRUNCATED = 1u << 0,
     // sql has its bound values written in (sqlite3_expanded_sql). Only while a client is
     // connected (sqlitedbg_set_client_connected): expanding a 1 MB value costs 2 MB on every run.
     SQLITEDBG_EVENT_EXPANDED = 1u << 1,
+    // SQLITEDBG_EVENT_PROFILE only: rows were left unrecorded because the statement returned more than
+    // the per-statement limit while row recording was on.
+    SQLITEDBG_EVENT_ROWS_CUT = 1u << 2,
 };
 
-// One event as sqlitedbg_read_events copies it out: this header, then sql_bytes of UTF-8 (no
-// terminating NUL), then zero padding to a multiple of 8 bytes. Fields are in the CPU's byte order
+// One event as sqlitedbg_read_events copies it out: this header, then data_bytes of data, then zero
+// padding to a multiple of 8 bytes. The data is UTF-8 SQL (no terminating NUL) for every kind but
+// SQLITEDBG_EVENT_ROW, whose data is its values (below). Fields are in the CPU's byte order
 // (little-endian on every ABI we build). The JNI layer hands the bytes to Kotlin unchanged, so
 // EventDecoder.kt mirrors this layout; change both together.
 typedef struct sqlitedbg_event_record {
     uint32_t record_bytes;      // the whole record, padding included
-    uint32_t kind;              // SQLITEDBG_EVENT_STATEMENT, _PROFILE or _CLOSE
+    uint32_t kind;              // SQLITEDBG_EVENT_STATEMENT, _PROFILE, _CLOSE or _ROW
     uint64_t seq;               // 1, 2, 3...: every event made, dropped or not, gets the next one
     uint64_t connection_id;     // sqlitedbg_connection.id
     int64_t thread_id;          // gettid() of the thread running the statement
     int64_t time_ns;            // CLOCK_REALTIME when the event happened
     int64_t duration_ns;        // SQLITEDBG_EVENT_PROFILE only; -1 for the others
-    uint32_t flags;             // SQLITEDBG_EVENT_TRUNCATED, SQLITEDBG_EVENT_EXPANDED
-    uint32_t sql_bytes;
-} sqlitedbg_event_record;       // 56 bytes; the SQL text follows
+    uint32_t flags;             // SQLITEDBG_EVENT_TRUNCATED, _EXPANDED, _ROWS_CUT
+    uint32_t data_bytes;
+    // SQLITEDBG_EVENT_PROFILE: the rows the statement returned, whether or not they were recorded.
+    // SQLITEDBG_EVENT_ROW: this row's number, from 1. -1 otherwise, and -1 for a statement the
+    // extension did not see start (SQLite's own nested statements, or more than
+    // SQLITEDBG_STATEMENT_SLOTS statements stepped in turn on one connection).
+    int64_t rows;
+    // SQLITEDBG_EVENT_PROFILE of a statement that may write (sqlite3_stmt_readonly false): the rows
+    // it changed itself, as sqlite3_changes64 counts them (not those changed by triggers or foreign
+    // key actions); 0 when it changed none, as a CREATE TABLE. -1 for a read-only statement, for the
+    // other kinds, and when rows is -1.
+    int64_t changes;
+} sqlitedbg_event_record;       // 72 bytes; the data follows
+
+// How many statements per connection the extension follows at once, to number their rows and count
+// their changes. A connection that steps more statements in turn than this loses the oldest:
+// its rows are not recorded and its PROFILE event has rows and changes -1.
+#define SQLITEDBG_STATEMENT_SLOTS 16
+
+// The data of an SQLITEDBG_EVENT_ROW: this header, then `kept` values, each a sqlitedbg_row_value
+// followed by stored_bytes of value. Nothing is aligned: read each field with memcpy.
+typedef struct sqlitedbg_row_header {
+    uint32_t columns;           // sqlite3_column_count of the statement
+    uint32_t kept;              // values that follow; fewer than columns when the row limit was reached
+} sqlitedbg_row_header;         // 8 bytes
+
+typedef struct sqlitedbg_row_value {
+    uint8_t type;               // SQLITE_INTEGER, SQLITE_FLOAT, SQLITE_TEXT, SQLITE_BLOB or SQLITE_NULL
+    uint8_t cut;                // 1 if fewer than full_bytes were stored
+    uint16_t reserved;          // 0
+    uint32_t stored_bytes;      // bytes that follow: 8 for INTEGER (int64) and FLOAT (IEEE double),
+                                // 0 for NULL, UTF-8 for TEXT (cut at a character boundary), BLOB bytes
+    uint32_t full_bytes;        // the value's whole size (sqlite3_column_bytes for TEXT and BLOB)
+} sqlitedbg_row_value;          // 12 bytes
 
 typedef struct sqlitedbg_read_result {
     // The seq of the last event copied out, or if none was, `after` moved past any dropped events
@@ -137,8 +176,26 @@ typedef struct sqlitedbg_read_result {
 void sqlitedbg_read_events(uint64_t after, void *out, size_t out_bytes, sqlitedbg_read_result *result);
 
 // Whether a client is connected. While it is, statements are recorded with their bound values
-// written in. Off at install.
+// written in, and rows if row recording is on. Off at install.
 void sqlitedbg_set_client_connected(int connected);
+
+// Turns row recording on (max_rows_per_statement > 0) or off (0, as at install). While it is on and
+// a client is connected, the first max_rows_per_statement rows of each statement become
+// SQLITEDBG_EVENT_ROW events. TEXT and BLOB values longer than max_value_bytes are cut (0: 256), and
+// a row's data stops at max_row_bytes (0: 4 KiB; at most SQLITEDBG_MAX_ROW_BYTES; never more than
+// half the buffer less one header).
+// Each value is read with the accessor of its own type (sqlite3_column_type first), so the app sees
+// the same values and types afterwards: sqlite3_column_text converts a value in place, and on a BLOB
+// it makes the app's own sqlite3_column_type return SQLITE_TEXT (SQLite 3.49.1, sqlitedbg_test.c). Rows of statements the extension did
+// not see start are never recorded: that drops the rows of SQLite's own nested statements, such as
+// the schema read a CREATE TABLE runs. PROFILE events count rows whether or not this is on.
+void sqlitedbg_set_row_capture(uint32_t max_rows_per_statement, uint32_t max_value_bytes,
+                               uint32_t max_row_bytes);
+
+// The largest max_row_bytes that sqlitedbg_set_row_capture keeps; a larger one is lowered to it.
+// sqlitedbg_read_events stops at the first record that does not fit its buffer, so a row record must
+// stay well below the 256 KiB the server reads at a time (DatabaseTools.EVENT_BATCH_BYTES).
+#define SQLITEDBG_MAX_ROW_BYTES (64u * 1024u)
 
 // Server connections
 
