@@ -46,15 +46,21 @@ import java.io.StringReader
  * resolution rather than captured, because the source swaps the handle when a newer database
  * appears; callers resolve under the read lock that a swap excludes, so the handle cannot change
  * mid-render.
- * @param decode Turns a row's stored bytes, read from the given database, into the template's
- * UTF-8 text.
+ * @param state The database's state, taken before a template's row is read and again after it is
+ * decoded. A template whose state moved in between fails rather than reaching the engine, which
+ * caches it by name: its row and its decode may belong to different files. The content source
+ * passes the file's length and modification time, which an installer's rewrite in place moves.
+ * @param decode Turns a row's stored bytes, read from the given database in the given state, into
+ * the template's UTF-8 text.
  */
-internal class DatabaseTemplateLoader(
+internal class DatabaseTemplateLoader<S : Any>(
 	private val database: () -> SQLiteDatabase?,
-	private val decode: (SQLiteDatabase, ByteArray) -> ByteArray,
+	private val state: () -> S,
+	private val decode: (SQLiteDatabase, ByteArray, S) -> ByteArray,
 ) : Loader<String> {
 	override fun getReader(name: String): Reader {
 		val database = database() ?: throw LoaderException(null, "No documentation database is open, for template '$name'")
+		val before = state()
 
 		// Every failure leaves here as a LoaderException, including the ones SQLite raises. Pebble
 		// does not wrap what a loader throws -- getTemplate has no catch around its cache's
@@ -96,11 +102,14 @@ internal class DatabaseTemplateLoader(
 		// with the database, which the exception's message leaves out: it reaches HTTP responses.
 		val text =
 			try {
-				decode(database, body)
+				decode(database, body, before)
 			} catch (e: Exception) {
 				log.error("Template '{}' in '{}' does not decode; the page using it fails", name, database.path, e)
 				throw LoaderException(e, "Cannot decode template '$name'")
 			}
+		if (state() != before) {
+			throw LoaderException(null, "The documentation database changed while template '$name' was read")
+		}
 
 		return StringReader(text.toString(Charsets.UTF_8))
 	}

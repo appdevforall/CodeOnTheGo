@@ -5,8 +5,10 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.utils.BrotliDictionaryCodec
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
@@ -18,6 +20,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 
 /**
  * Covers the pipeline both documentation transports read through (ADFA-5176): what a lookup reports,
@@ -77,6 +80,8 @@ class DocumentationContentSourceTest {
 		every { getString(1) } returns mimeType
 		every { getString(2) } returns compression
 		every { getInt(3) } returns templateId
+		// No ContentBlockItems row, for the query that joins it; the other query has no column 4.
+		every { isNull(4) } returns true
 	}
 
 	private fun database(contentCursor: Cursor): SQLiteDatabase =
@@ -158,6 +163,97 @@ class DocumentationContentSourceTest {
 			database.rawQuery(match { it.contains("FROM   sqlite_master") && it.contains("DocumentationDatabaseVersion") }, any())
 		}
 	}
+
+	// ADFA-6683: from documentation version 4 some rows are stored in content blocks, which only the
+	// query joining ContentBlockItems finds. The declared version picks the query, never the tables:
+	// these mocks would answer either. Blocked rows themselves are served in :app, by
+	// ContentBlockSourceTest, since a block is Brotli.
+	@Test
+	fun `a database declaring version 4 reads its rows with their block items`() {
+		assertContentQuery(declaredMajorVersion = 4, blocked = true)
+	}
+
+	// The gate is a floor, not a match: a later major is read as 4.
+	@Test
+	fun `a database declaring a version above 4 reads its rows with their block items`() {
+		assertContentQuery(declaredMajorVersion = 5, blocked = true)
+	}
+
+	@Test
+	fun `a database declaring version 3 reads its rows as they are`() {
+		assertContentQuery(declaredMajorVersion = 3, blocked = false)
+	}
+
+	@Test
+	fun `a database declaring no version reads its rows as they are`() {
+		assertContentQuery(declaredMajorVersion = null, blocked = false)
+	}
+
+	@Test
+	fun `the version that picks the query is read once per database`() {
+		val database = database(contentCursor(bytes = "page".toByteArray()), declaredMajorVersion = 4)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source()
+		source.lookup("a/page.html")
+		clearMocks(database, answers = false, recordedCalls = true)
+
+		repeat(3) { assertThat(text(source.lookup("a/page.html"))).isEqualTo("page") }
+
+		verify(exactly = 0) { database.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) }
+		verify(exactly = 3) { database.rawQuery(match { it.contains("LEFT JOIN ContentBlockItems") }, any()) }
+	}
+
+	// Never read as "no blocks", which would serve every blocked row's empty content, and not cached:
+	// the next read asks again.
+	@Test
+	fun `a failure to read the version fails the read, and the next read asks again`() {
+		val database = database(contentCursor(bytes = "page".toByteArray()), declaredMajorVersion = 4)
+		var versionReadable = false
+		every { database.rawQuery(match { it.contains("FROM   DocumentationDatabaseVersion") }, any()) } answers {
+			if (!versionReadable) throw SQLiteException("disk I/O error (code 10)")
+			mockk<Cursor>(relaxed = true) {
+				every { moveToFirst() } returns true
+				every { isNull(0) } returns false
+				every { getInt(0) } returns 4
+			}
+		}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source()
+
+		val failed = source.lookup("a/page.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause).isInstanceOf(SQLiteException::class.java)
+		verify(exactly = 0) { database.rawQuery(match { it.contains("FROM   Content") }, any()) }
+
+		versionReadable = true
+
+		assertThat(text(source.lookup("a/page.html"))).isEqualTo("page")
+		verify(exactly = 1) { database.rawQuery(match { it.contains("LEFT JOIN ContentBlockItems") }, any()) }
+	}
+
+	private fun assertContentQuery(
+		declaredMajorVersion: Int?,
+		blocked: Boolean,
+	) {
+		val database = database(contentCursor(bytes = "page".toByteArray()), declaredMajorVersion)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+
+		val lookup = source().use { it.lookup("a/page.html") }
+
+		assertThat(text(lookup)).isEqualTo("page")
+		verify(exactly = if (blocked) 1 else 0) {
+			database.rawQuery(match { it.contains("LEFT JOIN ContentBlockItems") }, any())
+		}
+		verify(exactly = if (blocked) 0 else 1) {
+			database.rawQuery(match { it.contains("FROM   Content") && !it.contains("ContentBlockItems") }, any())
+		}
+	}
+
+	private fun text(lookup: DocumentationLookup): String =
+		((lookup as? DocumentationLookup.Found) ?: throw AssertionError("expected Found, got $lookup"))
+			.content.bytes
+			.toString(Charsets.UTF_8)
 
 	@Test
 	fun `lookup returns the row for a path`() {
@@ -898,6 +994,143 @@ class DocumentationContentSourceTest {
 		verify(exactly = 2) { SQLiteDatabase.openDatabase(installedFile.absolutePath, isNull(), any()) }
 		assertThat((source.lookup("p") as DocumentationLookup.Found).content.bytes.toString(Charsets.UTF_8))
 			.isEqualTo("before")
+	}
+
+	// The rewrite lands after the read took the file's state and primed the old file's dictionary,
+	// and before the row's query: the row is the new file's. Decoded with the old dictionary, it can
+	// come out as other bytes without failing (see BrotliDictionaryCodec.decompress), so it must not
+	// be served. The rewrite check is a minute off, so the handle is not reopened in between.
+	@Test
+	fun `a brotli row read across a rewrite in place fails rather than decoding with the old file's dictionary`() {
+		assertBrotliRowReadAcrossRewrite(declaredMajorVersion = 3)
+	}
+
+	// The same row in a version 4 file, which has no block item and so is decoded as its own content.
+	@Test
+	fun `a version 4 brotli row with no block item read across a rewrite in place fails the same way`() {
+		assertBrotliRowReadAcrossRewrite(declaredMajorVersion = 4)
+	}
+
+	private fun assertBrotliRowReadAcrossRewrite(declaredMajorVersion: Int) {
+		decodesBrotliAsStored()
+		val old =
+			database(
+				contentCursor(bytes = "old page".toByteArray(), compression = "brotli"),
+				declaredMajorVersion,
+				dictionary = "old-file-dictionary".toByteArray(),
+			)
+		val new =
+			database(
+				contentCursor(bytes = "new page".toByteArray(), compression = "brotli"),
+				declaredMajorVersion,
+				dictionary = "new-file-dictionary".toByteArray(),
+			)
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			rewrittenInPlace(old, new) { it.contains("FROM   Content") }
+		val source = source(debugCheckIntervalMs = 60_000)
+
+		val failed = source.lookup("a/page.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause)
+			.hasMessageThat()
+			.isEqualTo("The documentation database changed while 'a/page.html' was read")
+		// The next read takes the new state, so it loads the new file's dictionary for the new row.
+		assertThat(text(source.lookup("a/page.html"))).isEqualTo("new page")
+		verify(exactly = 1) { old.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null) }
+		verify(exactly = 1) { new.rawQuery(match { it.contains("SELECT data FROM CompressionDictionary") }, null) }
+		verify(exactly = 1) { SQLiteDatabase.openDatabase(any(), isNull(), any()) }
+	}
+
+	// The template's row is read before the rewrite and decoded after it. By the file's state at the
+	// decode, the old file's template would be decoded with the new file's dictionary, then compiled
+	// and cached for every page after it.
+	@Test
+	fun `a template read across a rewrite in place fails its page, and is not cached for the next`() {
+		val stored = "Hello {{ who }}!".reversed()
+		val database = templatedDatabase("page.peb" to stored)
+		var rewritten = false
+		every { database.rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("page.peb")) } answers {
+			mockk(relaxed = true) {
+				every { count } returns 1
+				every { moveToFirst() } returns true
+				every { getBlob(0) } returns stored.toByteArray()
+				// Closed once its row is read, and before the loader decodes it.
+				every { close() } answers {
+					if (!rewritten) rewriteInstalledFile()
+					rewritten = true
+				}
+			}
+		}
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns database
+		val source = source(debugCheckIntervalMs = 60_000, decode = reversing)
+
+		val failed = source.lookup("k/html/basic-syntax.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause).isInstanceOf(TemplateRenderException::class.java)
+		assertThat(failed.cause)
+			.hasMessageThat()
+			.isEqualTo("The documentation database changed while template 'page.peb' was read")
+		assertThat(text(source.lookup("k/html/basic-syntax.html"))).isEqualTo("Hello Kotlin!")
+		verify(exactly = 2) { database.rawQuery(match { it.contains("WHERE name = ?") }, arrayOf("page.peb")) }
+	}
+
+	// The rewrite lands after the page's row is read and decoded, as its template's name is looked
+	// up, so before the loader takes the file's state. The loader then sees no change during its own
+	// read and hands the engine the new file's template, which would render the old file's context
+	// without an error.
+	@Test
+	fun `a page whose template is first loaded after a rewrite in place fails rather than mixing the two files`() {
+		val old = templatedDatabase("page.peb" to "Hello {{ who }}!")
+		val new = templatedDatabase("page.peb" to "Goodbye {{ who }}!")
+		every { SQLiteDatabase.openDatabase(any(), isNull(), any()) } returns
+			rewrittenInPlace(old, new) { it.contains("WHERE id = ?") }
+		val source = source(debugCheckIntervalMs = 60_000)
+
+		val failed = source.lookup("k/html/basic-syntax.html")
+
+		assertThat(failed).isInstanceOf(DocumentationLookup.Failed::class.java)
+		assertThat((failed as DocumentationLookup.Failed).cause)
+			.hasMessageThat()
+			.isEqualTo("The documentation database changed while 'k/html/basic-syntax.html' was read")
+		// The next read starts from the new state, and the template compiled is the new file's.
+		assertThat(text(source.lookup("k/html/basic-syntax.html"))).isEqualTo("Goodbye Kotlin!")
+	}
+
+	/** An installer's rewrite of the installed file in place, which moves its length and modification time. */
+	private fun rewriteInstalledFile() {
+		installedFile.writeText("rewritten in place")
+		installedFile.setLastModified(installedFile.lastModified() + 60_000)
+	}
+
+	/**
+	 * The installed file's one handle, reading [before] until the first query [rewritesOn] matches,
+	 * and [after] from that query on: the file is rewritten in place just before that query runs.
+	 */
+	private fun rewrittenInPlace(
+		before: SQLiteDatabase,
+		after: SQLiteDatabase,
+		rewritesOn: (String) -> Boolean,
+	): SQLiteDatabase {
+		var current = before
+		return mockk(relaxed = true) {
+			every { rawQuery(any(), any()) } answers {
+				val sql = firstArg<String>()
+				if (current !== after && rewritesOn(sql)) {
+					rewriteInstalledFile()
+					current = after
+				}
+				current.rawQuery(sql, secondArg<Array<String>?>())
+			}
+		}
+	}
+
+	/** Brotli rows decode to their stored bytes, whatever the dictionary: :common's tests have no brotli4j native. */
+	private fun decodesBrotliAsStored() {
+		mockkConstructor(BrotliDictionaryCodec::class)
+		every { anyConstructed<BrotliDictionaryCodec>().decompress(any()) } answers
+			{ firstArg<InputStream>().use { it.readBytes() } }
 	}
 
 	@Test
