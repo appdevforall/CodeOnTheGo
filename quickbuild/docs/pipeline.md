@@ -172,7 +172,7 @@ flowchart TB
     classDef ext stroke-dasharray: 6 4,stroke-width:1.5px
 ```
 
-- Applied by `AndroidIDEGradlePlugin` when the `PROPERTY_QUICK_BUILD_ENABLED` property is set, and only to **debuggable application variants** (`variant.debuggable`, read in `onVariants`).
+- Applied by `AndroidIDEGradlePlugin` when the `PROPERTY_QUICK_BUILD_ENABLED` property is set and the module applies `com.android.application`, and only to **debuggable application variants** (`variant.debuggable`, read in `onVariants`).
 - Fails the build immediately if `-Pcotg.quickbuild.runtimeAar` is missing or does not point at a file. The runtime AAR is added to the variant's **runtime** configuration only, never the compile classpath.
 - Compose is detected in `finalizeDsl`, from either `buildFeatures.compose` or the `org.jetbrains.kotlin.plugin.compose` plugin, and reported to the daemon through `setup.json`.
 
