@@ -169,4 +169,23 @@ class EventDecoderTest {
 		val e = assertThrows(IllegalArgumentException::class.java) { EventDecoder.decode(narrow, narrow.size) }
 		assertThat(e.message).contains("number 0 is 4 bytes")
 	}
+
+	@Test
+	fun `a row with more values than its bytes hold is refused before they are read`() {
+		val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+		var offset = 0
+		while (buffer.getInt(offset + 4) != EventKind.ROW.nativeValue) offset += buffer.getInt(offset)
+		val data = offset + EventDecoder.HEADER_BYTES
+		val huge = bytes.copyOf()
+		ByteBuffer
+			.wrap(huge)
+			.order(ByteOrder.LITTLE_ENDIAN)
+			.putInt(data, Int.MAX_VALUE)
+			.putInt(data + 4, Int.MAX_VALUE)
+
+		// columns = kept = Int.MAX_VALUE passes the kept <= columns check; sizing the value list from it threw
+		// OutOfMemoryError before the first value's check could refuse the row
+		val e = assertThrows(IllegalArgumentException::class.java) { EventDecoder.decode(huge, huge.size) }
+		assertThat(e.message).contains("kept=${Int.MAX_VALUE}")
+	}
 }
