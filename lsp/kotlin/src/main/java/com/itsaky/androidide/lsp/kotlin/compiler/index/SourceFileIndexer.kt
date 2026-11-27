@@ -58,6 +58,7 @@ import org.slf4j.LoggerFactory
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.Instant
 import kotlin.io.path.pathString
 
@@ -154,7 +155,7 @@ internal suspend fun indexSourceFile(
 			 * on a full pass, or an edit's superseded parse) finds no FIR for its declarations (ADFA-5763).
 			 * Skip it: the refresh that produced the newer instance queued that instance's own pass.
 			 */
-			if (resolvesTo.orNull(Path.of(metadata.filePath), ktFile) != true) {
+			if (resolvesTo.orNull(Paths.get(metadata.filePath), ktFile) != true) {
 				logger.debug("Skipping {}: FIR resolves its path to another instance", metadata.filePath)
 				return@read null
 			}
@@ -249,7 +250,7 @@ private fun KaSession.analyzeDeclaration(
 			scope.apply {
 				setExtra("fpth", filePath)
 				// False means the instance was superseded mid-pass; true means the failure has another cause.
-				setTag("instanceMatches", resolvesTo.orNull(Path.of(filePath), dcl.containingKtFile)?.toString() ?: "unknown")
+				setTag("instanceMatches", resolvesTo.orNull(Paths.get(filePath), dcl.containingKtFile)?.toString() ?: "unknown")
 				setExtra("dcl", dcl.name)
 				setExtra("dcl.dbg", dcl.getDebugText())
 				setExtra(

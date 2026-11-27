@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 
 private val logger = LoggerFactory.getLogger(ListingJarFileSystem::class.java)
@@ -41,7 +42,7 @@ class ListingJarFileSystem(
 	override fun findFileByPath(path: String): VirtualFile? {
 		val separator = path.indexOf(JAR_SEPARATOR)
 		require(separator >= 0) { "Path in JarFileSystem must contain a separator: $path" }
-		val jar = Path.of(path.substring(0, separator)).toAbsolutePath().normalize()
+		val jar = Paths.get(path.substring(0, separator)).toAbsolutePath().normalize()
 		return handlerFor(jar)?.findFile(path.substring(separator + JAR_SEPARATOR.length))
 	}
 
@@ -67,7 +68,7 @@ class ListingJarFileSystem(
 		val handler = install(key, snapshot)
 		if (isCurrent(handler)) return handler
 		retire(key, handler)
-		val retried = install(key, snapshotOf(Path.of(key)) ?: return null)
+		val retried = install(key, snapshotOf(Paths.get(key)) ?: return null)
 		if (isCurrent(retried)) return retried
 		retire(key, retried)
 		logger.warn("JAR {} changed again while it was being looked up", key)
@@ -98,7 +99,7 @@ class ListingJarFileSystem(
 
 	/** Reads only the cache's map: no stat and no path lock, so it is safe after any lookup. */
 	private fun isCurrent(handler: ListingJarHandler): Boolean {
-		val current = cache.peek(Path.of(handler.jarPath)) ?: return false
+		val current = cache.peek(Paths.get(handler.jarPath)) ?: return false
 		return current.generation() <= handler.snapshot.generation()
 	}
 
