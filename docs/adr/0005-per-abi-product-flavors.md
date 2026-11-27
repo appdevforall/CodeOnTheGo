@@ -14,6 +14,7 @@ Define two **product flavors** on an `abi` dimension — `v7` (`armeabi-v7a`) an
 
 Consequences for the build:
 - Build tasks are flavor-qualified: `assembleV8Debug`, `assembleV7Release`, etc. **There is no flavorless `assembleDebug`.**
+- `v8` is marked `isDefault`, so Android Studio selects `v8Debug` on first sync (ADFA-4017); an existing checkout keeps its saved variant.
 - Native assets (e.g. the llama AAR) are bundled per flavor via the root `build.gradle.kts`; prebuilt assets live under `assets/release/v7/` and `assets/release/v8/`.
 
 ## Consequences
