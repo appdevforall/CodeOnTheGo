@@ -100,6 +100,11 @@ internal object EventDecoder {
 		val columns = buffer.getInt(start)
 		val kept = buffer.getInt(start + 4)
 		require(columns >= 0 && kept in 0..columns) { "row at $start has columns=$columns kept=$kept" }
+		// Each value takes at least ROW_VALUE_BYTES. Checked before ArrayList(kept) allocates: a count near
+		// Int.MAX_VALUE throws OutOfMemoryError there, before any value's own check runs.
+		require(kept <= (length - ROW_HEADER_BYTES) / ROW_VALUE_BYTES) {
+			"row at $start has kept=$kept, more values than its $length bytes hold"
+		}
 		val values = ArrayList<Any?>(kept)
 		val cut = HashSet<Int>()
 		var pos = start + ROW_HEADER_BYTES
