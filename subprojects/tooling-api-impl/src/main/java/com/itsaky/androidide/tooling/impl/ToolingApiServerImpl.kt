@@ -64,8 +64,10 @@ import org.gradle.tooling.internal.consumer.DefaultGradleConnector
 import org.jetbrains.annotations.VisibleForTesting
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.Properties
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -79,9 +81,24 @@ internal class ToolingApiServerImpl(
 		{ onStarted, onExited -> GradleDaemonWatcher(onStarted = onStarted, onExited = onExited) },
 ) : IToolingApiServer {
 	private var client: IToolingApiClient? = null
+
+	// Volatile because the reuse decision crosses threads: each initialize() runs on whichever
+	// commonPool worker CompletableFuture.supplyAsync hands it, and nothing else in this class
+	// establishes a happens-before edge between one call's writes and the next call's reads. A
+	// stale null read here reintroduces ADFA-5589 intermittently.
+	@Volatile
 	private var connector: GradleConnector? = null
+
+	@Volatile
 	private var connection: ProjectConnection? = null
-	private var lastInitParams: InitializeProjectParams? = null
+
+	@Volatile
+	@VisibleForTesting
+	internal var lastInitParams: InitializeProjectParams? = null
+
+	/** The `distributionUrl` the wrapper named when [connection] was opened; null if not a wrapper. */
+	@Volatile
+	private var lastWrapperDistribution: String? = null
 
 	@Suppress("ktlint:standard:backing-property-naming")
 	private var _buildCancellationToken: CancellationTokenSource? = null
@@ -92,19 +109,109 @@ internal class ToolingApiServerImpl(
 		set(value) = cancellationTokenAccessLock.withLock { _buildCancellationToken = value }
 
 	/** Whether the project has been initialized or not. */
+	@Volatile
 	var isInitialized: Boolean = false
 		private set
 
-	/** Whether a build or project synchronization is in progress. */
-	private var isBuildInProgress: Boolean = false
+	/**
+	 * Whether a build or project synchronization is in progress, as a CAS rather than a
+	 * read-then-write.
+	 *
+	 * Same reason the fields above are @Volatile: every call runs on whichever commonPool worker
+	 * CompletableFuture.supplyAsync hands it. As a plain Boolean, two concurrent executeTasks calls
+	 * could both read false and both proceed -- two builds against one connection and one
+	 * cancellation token -- and a worker could go on seeing a stale true and refuse every build for
+	 * the life of the server. ([buildCancellationToken] needs nothing here; it already reads and
+	 * writes under its own lock.)
+	 */
+	private val buildInProgress = AtomicBoolean(false)
 
 	/** Whether the server has a live connection to Gradle. */
 	val isConnected: Boolean
 		get() = connector != null || connection != null
 
 	companion object {
+		private const val WRAPPER_PROPERTIES = "gradle/wrapper/gradle-wrapper.properties"
+
 		private val log = LoggerFactory.getLogger(ToolingApiServerImpl::class.java)
+
+		/**
+		 * Whether [a] and [b] name the same connection: the same project directory, served by the
+		 * same Gradle distribution. A connector is bound to those two and nothing else; every other
+		 * field of [InitializeProjectParams] is per-call.
+		 *
+		 * `a == b` cannot stand in for this. [InitializeProjectParams] declares no `equals`, so that
+		 * is reference equality between objects that arrive freshly deserialized on every call, and
+		 * it answered false every time (ADFA-5589).
+		 */
+		@VisibleForTesting
+		internal fun describesSameConnection(
+			a: InitializeProjectParams?,
+			b: InitializeProjectParams,
+		): Boolean =
+			a != null &&
+				sameDirectory(a.directory, b.directory) &&
+				a.gradleDistribution == b.gradleDistribution
+
+		/**
+		 * Whether [a] and [b] name the same directory.
+		 *
+		 * As paths, not as strings: `GradleConnector.forProjectDirectory` takes a [File], so a
+		 * trailing separator -- or `/sdcard` against `/storage/emulated/0`, both live on Android --
+		 * is one connector but two strings. Guessing wrong here only costs a needless reconnect.
+		 */
+		private fun sameDirectory(
+			a: String,
+			b: String,
+		): Boolean {
+			val first = File(a)
+			val second = File(b)
+			return first == second ||
+				runCatching { first.canonicalFile == second.canonicalFile }.getOrDefault(false)
+		}
+
+		/**
+		 * Whether a wrapper connection is still bound to the distribution the wrapper names.
+		 *
+		 * [GradleDistributionParams.WRAPPER] carries no version, so two wrapper params compare equal
+		 * across a wrapper upgrade. The distribution is resolved from `gradle-wrapper.properties`
+		 * inside `connect()` and frozen into the connection, and [Main.checkGradleWrapper] can
+		 * rewrite that file earlier in this same initialize -- so without this the initialize that
+		 * installs a new wrapper is exactly the one that reuses the connection bound to the old one.
+		 */
+		@VisibleForTesting
+		internal fun wrapperStillMatches(
+			params: InitializeProjectParams,
+			recorded: String?,
+			current: String? = wrapperDistributionUrl(params.directory),
+		): Boolean =
+			params.gradleDistribution.type != GradleDistributionType.GRADLE_WRAPPER ||
+				recorded == current
+
+		/** The `distributionUrl` named by [directory]'s Gradle wrapper, or null if unreadable. */
+		@VisibleForTesting
+		internal fun wrapperDistributionUrl(directory: String): String? =
+			runCatching {
+				File(directory, WRAPPER_PROPERTIES)
+					.takeIf(File::isFile)
+					?.inputStream()
+					?.use { stream -> Properties().apply { load(stream) } }
+					?.getProperty("distributionUrl")
+			}.getOrNull()
 	}
+
+	/**
+	 * Whether the connector already open can serve [params] without reconnecting.
+	 *
+	 * Not merely a slow path when false: reconnecting disconnects the open connector, and
+	 * `GradleConnector.disconnect()` sends the running daemon `StopWhenIdle` (ADFA-5589).
+	 */
+	@VisibleForTesting
+	internal fun canReuseConnector(params: InitializeProjectParams): Boolean =
+		connector != null &&
+			connection != null &&
+			describesSameConnection(lastInitParams, params) &&
+			wrapperStillMatches(params, lastWrapperDistribution)
 
 	@VisibleForTesting
 	internal fun getOrConnectProject(
@@ -116,13 +223,30 @@ internal class ToolingApiServerImpl(
 				?: GradleDistributionParams.WRAPPER,
 	): Pair<GradleConnector, ProjectConnection> =
 		withStopWatch("getOrConnectProject") {
-			if (!forceConnect && connector != null && connection != null) {
-				return@withStopWatch connector!! to connection!!
+			// Each field read once into a local. Four separate reads of two fields could pass the
+			// null checks and then throw on the !!: the reconnect below nulls both before it
+			// connects, so unlike before this fix they are null mid-flight on every reconnect, not
+			// only at shutdown.
+			val openConnector = connector
+			val openConnection = connection
+			if (!forceConnect && openConnector != null && openConnection != null) {
+				return@withStopWatch openConnector to openConnection
 			}
 
 			if (forceConnect) {
-				connector?.disconnect()
+				// The local, not the field. Re-reading it here is what the locals above exist to
+				// avoid: a concurrent reconnect can install a new connector between the two reads,
+				// and this would then disconnect that one and drop the one it meant to close.
+				openConnector?.disconnect()
 			}
+
+			// Dropped before the connect, not after it. A connect that throws -- a bad installation
+			// directory, an unreachable distribution -- would otherwise leave the disconnected pair in
+			// place, and the next initialize whose params match would reuse a dead connection and fail
+			// every build with CONNECTION_CLOSED until the server process restarts.
+			this.connector = null
+			this.connection = null
+			this.lastWrapperDistribution = null
 
 			val connector = GradleConnector.newConnector().forProjectDirectory(projectDir)
 			setupConnectorForGradleInstallation(connector, gradleDist)
@@ -131,6 +255,12 @@ internal class ToolingApiServerImpl(
 
 			this.connector = connector
 			this.connection = connection
+			this.lastWrapperDistribution =
+				if (gradleDist.type == GradleDistributionType.GRADLE_WRAPPER) {
+					wrapperDistributionUrl(projectDir.path)
+				} else {
+					null
+				}
 
 			connector to connection
 		}
@@ -141,16 +271,16 @@ internal class ToolingApiServerImpl(
 		}
 
 	override fun initialize(params: InitializeProjectParams): CompletableFuture<InitializeResult> {
-		return runBuild {
-			val start = System.currentTimeMillis()
-			try {
-				return@runBuild doInitialize(params, start)
-			} catch (err: Throwable) {
+		val start = System.currentTimeMillis()
+		return runBuild(
+			onFailure = { err ->
 				log.error("Failed to initialize project", err)
-				return@runBuild InitializeResult.Failure(
+				InitializeResult.Failure(
 					notifyBuildFailure(params.buildId, emptyList(), start, err),
 				)
-			}
+			},
+		) {
+			doInitialize(params, start)
 		}
 	}
 
@@ -178,8 +308,7 @@ internal class ToolingApiServerImpl(
 		}
 
 		val stopWatch = StopWatch("Connection to project")
-		val isReinitializing =
-			connector != null && connection != null && params == lastInitParams
+		val isReinitializing = canReuseConnector(params)
 
 		if (isReinitializing) {
 			log.info("Project is being reinitialized")
@@ -272,8 +401,13 @@ internal class ToolingApiServerImpl(
 	override fun isServerInitialized(): CompletableFuture<Boolean> = CompletableFuture.supplyAsync { isInitialized }
 
 	override fun executeTasks(message: TaskExecutionMessage): CompletableFuture<TaskExecutionResult> {
-		return runBuild {
-			val start = System.currentTimeMillis()
+		val start = System.currentTimeMillis()
+		return runBuild(
+			onFailure = { error ->
+				log.error("Failed to run tasks: {}", message.tasks, error)
+				TaskExecutionResult(false, notifyBuildFailure(message.buildId, message.tasks, start, error))
+			},
+		) {
 			if (!isServerInitialized().get()) {
 				log.error("Cannot execute tasks: {}", PROJECT_NOT_INITIALIZED)
 				return@runBuild TaskExecutionResult(false, PROJECT_NOT_INITIALIZED)
@@ -317,12 +451,6 @@ internal class ToolingApiServerImpl(
 
 			try {
 				builder.run()
-			} catch (error: Throwable) {
-				log.error("Failed to run tasks: {}", message.tasks, error)
-				return@runBuild TaskExecutionResult(
-					false,
-					notifyBuildFailure(message.buildId, message.tasks, start, error),
-				)
 			} finally {
 				// On both paths. Only the success path cleared it, so every failed build left a
 				// token behind for a source that was already finished. The next Stop then
@@ -340,7 +468,7 @@ internal class ToolingApiServerImpl(
 						durationMs = System.currentTimeMillis() - start,
 					),
 			)
-			return@runBuild TaskExecutionResult.SUCCESS
+			TaskExecutionResult.SUCCESS
 		}
 	}
 
@@ -537,6 +665,7 @@ internal class ToolingApiServerImpl(
 			this.client = null
 			this.buildCancellationToken = null
 			this.lastInitParams = null
+			this.lastWrapperDistribution = null
 
 			// wait for connections to close
 			connectionCloseFuture.get()
@@ -545,7 +674,9 @@ internal class ToolingApiServerImpl(
 			null
 		}
 
-	private fun getTaskFailureType(error: Throwable): Failure =
+	/** Classifies [error]. Pure: it reads nothing and changes nothing. */
+	@VisibleForTesting
+	internal fun getTaskFailureType(error: Throwable): Failure =
 		when (error) {
 			is BuildException -> BUILD_FAILED
 			is BuildCancelledException -> BUILD_CANCELLED
@@ -562,19 +693,37 @@ internal class ToolingApiServerImpl(
 			action()
 		}
 
-	private inline fun <T : Any?> runBuild(crossinline action: () -> T): CompletableFuture<T> =
+	/**
+	 * Runs [action] as the one build in progress, turning anything it throws into [onFailure]'s
+	 * result rather than an exceptionally-completed future.
+	 *
+	 * The catch spans the whole action deliberately. Each caller used to guard only the part that
+	 * talks to Gradle, so everything before it -- resolving a connection, checking the wrapper,
+	 * preparing the build -- escaped as a raw exception, and the client got an ExecutionException
+	 * where it expected a classified failure. That is one bug this file has now had twice, in two
+	 * different statements on the same line, because the fix each time moved the throw instead of
+	 * covering it.
+	 *
+	 * "Build already in progress" is left to throw: it is a caller error rather than a build
+	 * outcome, and it is raised before this takes ownership of the flag.
+	 */
+	private inline fun <T : Any?> runBuild(
+		crossinline onFailure: (Throwable) -> T,
+		crossinline action: () -> T,
+	): CompletableFuture<T> =
 		supplyAsync {
-			if (isBuildInProgress) {
+			if (!buildInProgress.compareAndSet(false, true)) {
 				log.error("Cannot run build, build is already in progress!")
 				throw IllegalStateException("Build is already in progress")
 			}
 
-			isBuildInProgress = true
 			startDaemonWatch()
 			try {
 				action()
+			} catch (error: Throwable) {
+				onFailure(error)
 			} finally {
-				isBuildInProgress = false
+				buildInProgress.set(false)
 			}
 		}
 

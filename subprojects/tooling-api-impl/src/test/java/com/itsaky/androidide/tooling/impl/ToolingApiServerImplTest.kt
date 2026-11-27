@@ -3,7 +3,9 @@ package com.itsaky.androidide.tooling.impl
 import com.google.common.truth.Truth.assertThat
 import com.itsaky.androidide.tooling.api.IToolingApiClient
 import com.itsaky.androidide.tooling.api.messages.BuildId
+import com.itsaky.androidide.tooling.api.messages.GradleDistributionParams
 import com.itsaky.androidide.tooling.api.messages.InitializeProjectParams
+import com.itsaky.androidide.tooling.api.messages.TaskExecutionMessage
 import com.itsaky.androidide.tooling.api.messages.result.BuildCancellationRequestResult
 import com.itsaky.androidide.tooling.api.messages.result.BuildResult
 import com.itsaky.androidide.tooling.api.messages.result.InitializeResult
@@ -14,19 +16,28 @@ import com.itsaky.androidide.tooling.impl.sync.RootModelBuilder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.gradle.tooling.BuildCancelledException
+import org.gradle.tooling.BuildLauncher
+import org.gradle.tooling.GradleConnectionException
 import org.gradle.tooling.GradleConnector
 import org.gradle.tooling.ProjectConnection
+import org.gradle.tooling.events.OperationType
+import org.gradle.tooling.events.ProgressListener
 import org.junit.After
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
+import java.nio.file.Files
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -39,11 +50,13 @@ class ToolingApiServerImplTest {
 	private fun testInitParams(
 		directory: String = "/does/not/exist",
 		forceSync: Boolean = false,
+		gradleDistribution: GradleDistributionParams = GradleDistributionParams.WRAPPER,
 	) = InitializeProjectParams(
 		// Required since ADFA-2784 added it, and never supplied here: this file has not compiled
 		// on stage since, and no workflow runs :subprojects: tests, so nothing said so.
 		buildId = BuildId.Unknown,
 		directory = directory,
+		gradleDistribution = gradleDistribution,
 		needsGradleSync = forceSync,
 	)
 
@@ -68,13 +81,185 @@ class ToolingApiServerImplTest {
 		every {
 			server.getOrConnectProject(
 				projectDir = any(),
-				forceConnect = true,
+				forceConnect = any(),
 				initParams = any(),
 				gradleDist = any(),
 			)
 		} returns (connector to connection)
 
 		return MockServer(server, connector, connection)
+	}
+
+	@Test
+	fun `GIVEN the same project twice THEN the connector can be reused`() {
+		// Two separately built objects describing the same connection, which is what the client
+		// sends: every initialize request arrives freshly deserialized from JSON-RPC. The guard used
+		// to be `params == lastInitParams`, which is reference equality on this type and so answered
+		// false for exactly this case (ADFA-5589).
+		val first = testInitParams()
+		val second = testInitParams()
+
+		assertThat(first).isNotSameInstanceAs(second)
+		assertThat(ToolingApiServerImpl.describesSameConnection(first, second)).isTrue()
+	}
+
+	@Test
+	fun `GIVEN the same directory spelled differently THEN the connector can be reused`() {
+		// forProjectDirectory takes a File, so a trailing separator is the same connector.
+		assertThat(
+			ToolingApiServerImpl.describesSameConnection(
+				testInitParams(directory = "/does/not/exist"),
+				testInitParams(directory = "/does/not/exist/"),
+			),
+		).isTrue()
+	}
+
+	@Test
+	fun `GIVEN a different project directory THEN the connector cannot be reused`() {
+		// A connector is bound to its project directory, so reusing one across projects would run
+		// the next build against the previous project's connection.
+		assertThat(
+			ToolingApiServerImpl.describesSameConnection(
+				testInitParams(directory = "/does/not/exist"),
+				testInitParams(directory = "/somewhere/else"),
+			),
+		).isFalse()
+	}
+
+	@Test
+	fun `GIVEN a different Gradle distribution THEN the connector cannot be reused`() {
+		// The other thing a connector is bound to. forInstallationDir is what the app actually sends
+		// for the gradleInstallationDir preference, so that is the case worth pinning: reusing a
+		// connector here would silently build with the distribution the user just changed away from.
+		val wrapper = testInitParams()
+		val installation =
+			testInitParams(gradleDistribution = GradleDistributionParams.forInstallationDir("/opt/gradle"))
+
+		assertThat(ToolingApiServerImpl.describesSameConnection(wrapper, installation)).isFalse()
+	}
+
+	@Test
+	fun `GIVEN nothing initialized yet THEN the connector cannot be reused`() {
+		assertThat(ToolingApiServerImpl.describesSameConnection(null, testInitParams())).isFalse()
+	}
+
+	@Test
+	fun `GIVEN the wrapper names a new distribution THEN the connector cannot be reused`() {
+		// Two WRAPPER params compare equal across a wrapper upgrade: the distribution is resolved
+		// from gradle-wrapper.properties inside connect() and frozen into the connection, so reusing
+		// it would keep building with the Gradle the user just upgraded away from.
+		assertThat(
+			ToolingApiServerImpl.wrapperStillMatches(
+				testInitParams(),
+				recorded = "https://example.invalid/gradle-8.14.3-bin.zip",
+				current = "https://example.invalid/gradle-9.0-bin.zip",
+			),
+		).isFalse()
+	}
+
+	@Test
+	fun `GIVEN the wrapper is unchanged THEN the connector can be reused`() {
+		val url = "https://example.invalid/gradle-8.14.3-bin.zip"
+		assertThat(
+			ToolingApiServerImpl.wrapperStillMatches(testInitParams(), recorded = url, current = url),
+		).isTrue()
+	}
+
+	@Test
+	fun `GIVEN a non-wrapper distribution THEN the wrapper properties do not matter`() {
+		// An installation-dir connection does not read gradle-wrapper.properties at all.
+		assertThat(
+			ToolingApiServerImpl.wrapperStillMatches(
+				testInitParams(gradleDistribution = GradleDistributionParams.forInstallationDir("/opt/gradle")),
+				recorded = null,
+				current = "https://example.invalid/gradle-9.0-bin.zip",
+			),
+		).isTrue()
+	}
+
+	@Test
+	fun `GIVEN a wrapper properties file THEN its distribution URL is read`() {
+		val project = Files.createTempDirectory("adfa5589").toFile()
+		val properties = File(project, "gradle/wrapper/gradle-wrapper.properties")
+		properties.parentFile.mkdirs()
+		properties.writeText("distributionUrl=https\\://example.invalid/gradle-8.14.3-bin.zip\n")
+
+		assertThat(ToolingApiServerImpl.wrapperDistributionUrl(project.path))
+			.isEqualTo("https://example.invalid/gradle-8.14.3-bin.zip")
+		assertThat(ToolingApiServerImpl.wrapperDistributionUrl("/does/not/exist")).isNull()
+
+		project.deleteRecursively()
+	}
+
+	@Test
+	fun `GIVEN the connector can be reused WHEN initializing THEN do not force a reconnect`() {
+		val (server) = mockkReusableServer(canReuse = true)
+
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+
+		// forceConnect is the whole point of the reuse check: it is what reaches
+		// connector.disconnect(), and that is what sends the running daemon StopWhenIdle. Asserting
+		// describesSameConnection alone would leave this wiring free to invert unnoticed.
+		verify(exactly = 1) {
+			server.getOrConnectProject(
+				projectDir = any(),
+				forceConnect = false,
+				initParams = any(),
+				gradleDist = any(),
+			)
+		}
+	}
+
+	@Test
+	fun `GIVEN the connector cannot be reused WHEN initializing THEN force a reconnect`() {
+		val (server) = mockkReusableServer(canReuse = false)
+
+		server.initialize(testInitParams()).get(5, TimeUnit.SECONDS)
+
+		verify(exactly = 1) {
+			server.getOrConnectProject(
+				projectDir = any(),
+				forceConnect = true,
+				initParams = any(),
+				gradleDist = any(),
+			)
+		}
+	}
+
+	@Test
+	fun `GIVEN a connect that fails THEN the dead connection is not left behind for reuse`() {
+		val server = ToolingApiServerImpl()
+		val connector = mockk<GradleConnector>(relaxed = true)
+		every { connector.forProjectDirectory(any()) } returns connector
+		every { connector.connect() } returns
+			mockk(relaxed = true) andThenThrows RuntimeException("connect failed")
+
+		mockkStatic(GradleConnector::class)
+		every { GradleConnector.newConnector() } returns connector
+
+		server.getOrConnectProject(File("/does/not/exist"), forceConnect = true)
+		assertThat(server.isConnected).isTrue()
+
+		// The reconnect disconnects the open connector before it opens the new one, so a connect
+		// that throws must not leave that dead pair in place: the next initialize whose params match
+		// would reuse it and fail every build with CONNECTION_CLOSED until the server restarts.
+		val reconnect = runCatching { server.getOrConnectProject(File("/does/not/exist"), forceConnect = true) }
+
+		assertThat(reconnect.isFailure).isTrue()
+		assertThat(server.isConnected).isFalse()
+	}
+
+	/** A server whose connect, project directory check and Gradle sync are all stubbed out. */
+	private fun mockkReusableServer(canReuse: Boolean): MockServer {
+		mockkObject(RootModelBuilder)
+		every {
+			RootModelBuilder.build(any(), any())
+		} returns ProjectSyncHelper.cacheFileForProject(File("/does/not/exist"))
+
+		val mocks = mockkToolingServer()
+		every { mocks.server.validateProjectDirectory(any()) } returns null
+		every { mocks.server.canReuseConnector(any()) } returns canReuse
+		return mocks
 	}
 
 	@Test
@@ -215,6 +400,104 @@ class ToolingApiServerImplTest {
 			// ensure gradle sync was requested
 			RootModelBuilder.build(initParams, any())
 		}
+	}
+
+	@Test
+	fun `GIVEN the build throws a GradleConnectionException THEN the connection is kept and not disconnected`() {
+		// A ProjectConnection is stopped only by our own close() or disconnect(). It does not die
+		// with the daemon, so the next run() on it starts a fresh one. Reconnecting after a failed
+		// build would disconnect() -- which sends the running daemon StopWhenIdle -- and cost the
+		// cold start ADFA-5589 exists to prevent.
+		val server = spyk(ToolingApiServerImpl())
+		val connector = mockk<GradleConnector>(relaxed = true)
+		val connection = mockk<ProjectConnection>(relaxed = true)
+		val builder = mockk<BuildLauncher>(relaxed = true)
+		every { connector.forProjectDirectory(any()) } returns connector
+		every { connector.connect() } returns connection
+		every { connection.newBuild() } returns builder
+		// A relaxed mock cannot return itself from these generic, self-typed setters.
+		every { builder.setStandardInput(any<InputStream>()) } returns builder
+		every { builder.setStandardOutput(any<OutputStream>()) } returns builder
+		every { builder.setStandardError(any<OutputStream>()) } returns builder
+		every { builder.addProgressListener(any<ProgressListener>(), any<Set<OperationType>>()) } returns builder
+		every { builder.addArguments(any<List<String>>()) } returns builder
+		every { builder.addJvmArguments(any<List<String>>()) } returns builder
+		every { builder.withCancellationToken(any()) } returns builder
+		every { builder.run() } throws GradleConnectionException("daemon disappeared", RuntimeException())
+
+		mockkStatic(GradleConnector::class)
+		every { GradleConnector.newConnector() } returns connector
+
+		mockkObject(Main)
+		every { Main.checkGradleWrapper() } returns Unit
+		every { server.isServerInitialized() } returns CompletableFuture.completedFuture(true)
+
+		server.getOrConnectProject(File("/does/not/exist"), forceConnect = true)
+
+		val message = TaskExecutionMessage(tasks = listOf("assembleDebug"), buildId = BuildId.Unknown)
+		repeat(2) {
+			val result = server.executeTasks(message).get(5, TimeUnit.SECONDS)
+			assertThat(result.isSuccessful).isFalse()
+			assertThat(result.failure).isEqualTo(TaskExecutionResult.Failure.CONNECTION_ERROR)
+		}
+
+		assertThat(server.isConnected).isTrue()
+		// Both builds ran on the one connection, which was opened once.
+		verify(exactly = 1) { connector.connect() }
+		verify(exactly = 2) { connection.newBuild() }
+		verify(exactly = 0) { connector.disconnect() }
+		verify(exactly = 0) { connection.close() }
+	}
+
+	@Test
+	fun `GIVEN no open connection THEN the build reports a failure rather than completing exceptionally`() {
+		// mockkToolingServer stubs getOrConnectProject, so nothing was connected.
+		val (server) = mockkToolingServer()
+		every { server.isServerInitialized() } returns CompletableFuture.completedFuture(true)
+
+		mockkObject(Main)
+		every { Main.checkGradleWrapper() } returns Unit
+
+		// Everything before the Gradle call used to sit outside the try, so a throw here escaped as
+		// an ExecutionException where the client expected a classified failure.
+		val result =
+			server
+				.executeTasks(TaskExecutionMessage(tasks = listOf("assembleDebug"), buildId = BuildId.Unknown))
+				.get(5, TimeUnit.SECONDS)
+
+		assertThat(result.isSuccessful).isFalse()
+		assertThat(result.failure).isEqualTo(TaskExecutionResult.Failure.CONNECTION_CLOSED)
+	}
+
+	@Test
+	fun `GIVEN a build already running THEN a second is refused rather than sharing its connection`() {
+		// The refusal, not the atomicity. This passes against a read-then-write too -- the first
+		// build has set the flag long before the second reads it -- so it pins the behaviour and
+		// not the CAS. A genuine interleaving is not reproducible on demand, so the compareAndSet
+		// in runBuild is argued from the threading model rather than pinned here.
+		val (server) = mockkToolingServer()
+		every { server.isServerInitialized() } returns CompletableFuture.completedFuture(true)
+
+		val started = java.util.concurrent.CountDownLatch(1)
+		val release = java.util.concurrent.CountDownLatch(1)
+		mockkObject(Main)
+		every { Main.checkGradleWrapper() } answers {
+			started.countDown()
+			release.await(5, TimeUnit.SECONDS)
+			throw IllegalStateException("done")
+		}
+
+		val first = server.executeTasks(TaskExecutionMessage(tasks = listOf("a"), buildId = BuildId.Unknown))
+		assertThat(started.await(5, TimeUnit.SECONDS)).isTrue()
+
+		val second = server.executeTasks(TaskExecutionMessage(tasks = listOf("b"), buildId = BuildId.Unknown))
+		val refused = runCatching { second.get(5, TimeUnit.SECONDS) }.exceptionOrNull()
+
+		release.countDown()
+		first.get(5, TimeUnit.SECONDS)
+
+		assertThat(refused).isNotNull()
+		assertThat(refused).hasCauseThat().hasMessageThat().contains("already in progress")
 	}
 
 	@Test
