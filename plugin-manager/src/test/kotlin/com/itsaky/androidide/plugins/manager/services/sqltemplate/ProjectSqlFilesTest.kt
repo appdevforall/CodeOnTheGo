@@ -6,6 +6,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.jar.JarFile
 
 class ProjectSqlFilesTest {
 	private val root = Files.createTempDirectory("project").toFile()
@@ -152,5 +153,37 @@ class ProjectSqlFilesTest {
 		assertThat(ProjectSqlFiles.readBounded(exact)).hasLength(ProjectSqlFiles.MAX_FILE_BYTES.toInt())
 		val over = write("over.txt", "a".repeat(ProjectSqlFiles.MAX_FILE_BYTES.toInt() + 1))
 		assertThrows(ProjectSqlFiles.TooLarge::class.java) { ProjectSqlFiles.readBounded(over) }
+	}
+
+	// minSdk is 28, and these InputStream methods are API 33: desugaring backports neither for this package
+	// (app/build.gradle.kts gives JavaIOReplacements org.eclipse.jgit only), lint does not flag them here, and these
+	// tests run on a JDK that has them. readAllBytes and transferTo are left out: Files and FileChannel have
+	// older methods of those names.
+	@Test
+	fun `the template classes call no InputStream method that needs API 33`() {
+		val type = ProjectSqlFiles::class.java
+		val pkg = type.name.substringBeforeLast('.').replace('.', '/') + "/"
+		val source = type.protectionDomain.codeSource
+		val location = File(source.location.toURI())
+		// The module's classes are a jar on the unit test classpath, or a folder.
+		val classes: Map<String, ByteArray> =
+			if (location.isDirectory) {
+				File(location, pkg).listFiles { f -> f.name.endsWith(".class") }!!.associate { it.name to it.readBytes() }
+			} else {
+				JarFile(location).use { jar ->
+					jar
+						.entries()
+						.toList()
+						.filter { it.name.startsWith(pkg) && it.name.endsWith(".class") && '/' !in it.name.substring(pkg.length) }
+						.associate { it.name.substring(pkg.length) to jar.getInputStream(it).use { s -> s.readBytes() } }
+				}
+			}
+		assertThat(classes.keys).contains("ProjectSqlFiles.class")
+		val calls =
+			classes.flatMap { (name, bytes) ->
+				val text = String(bytes, Charsets.ISO_8859_1)
+				listOf("readNBytes", "skipNBytes").filter { it in text }.map { "$name: $it" }
+			}
+		assertThat(calls).isEmpty()
 	}
 }

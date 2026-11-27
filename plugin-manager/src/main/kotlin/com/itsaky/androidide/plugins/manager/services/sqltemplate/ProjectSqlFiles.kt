@@ -6,6 +6,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import com.itsaky.androidide.plugins.services.RoomSchema
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -81,9 +82,18 @@ internal object ProjectSqlFiles {
 		val attributes = Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
 		if (!attributes.isRegularFile) throw IOException("not a regular file")
 		Files.newInputStream(path, LinkOption.NOFOLLOW_LINKS).use { input ->
-			val bytes = input.readNBytes((MAX_FILE_BYTES + 1).toInt())
-			if (bytes.size > MAX_FILE_BYTES) throw TooLarge()
-			return String(bytes, Charsets.UTF_8)
+			// Not readNBytes: it needs API 33 (minSdk is 28), and desugaring does not backport it for this package.
+			val out = ByteArrayOutputStream()
+			val buffer = ByteArray(64 * 1024)
+			while (true) {
+				// At least 1, as a longer file has already thrown: at most MAX_FILE_BYTES + 1 bytes are read.
+				val room = minOf(buffer.size.toLong(), MAX_FILE_BYTES + 1 - out.size()).toInt()
+				val n = input.read(buffer, 0, room)
+				if (n < 0) break
+				out.write(buffer, 0, n)
+				if (out.size() > MAX_FILE_BYTES) throw TooLarge()
+			}
+			return String(out.toByteArray(), Charsets.UTF_8)
 		}
 	}
 
