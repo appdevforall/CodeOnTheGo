@@ -760,8 +760,8 @@ internal fun interface IdleScheduler {
 	): () -> Unit
 }
 
-/** One daemon timer thread per pending check, ended by its cancel. */
-private class TimerIdleScheduler : IdleScheduler {
+/** One daemon timer thread per pending check, ended by its cancel or once its task has run. */
+internal class TimerIdleScheduler : IdleScheduler {
 	override fun schedule(
 		delayMs: Long,
 		task: Runnable,
@@ -769,7 +769,14 @@ private class TimerIdleScheduler : IdleScheduler {
 		val timer = Timer("sqlite-debugger-idle", true)
 		timer.schedule(
 			object : TimerTask() {
-				override fun run() = task.run()
+				override fun run() {
+					try {
+						task.run()
+					} finally {
+						// The thread would otherwise stay parked until the next schedule cancels it.
+						timer.cancel()
+					}
+				}
 			},
 			delayMs,
 		)

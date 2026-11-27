@@ -243,7 +243,8 @@ class McpHttp(
 		c.tcpNoDelay = true
 		val input = BufferedInputStream(c.getInputStream())
 		val out = c.getOutputStream()
-		var headStart = System.currentTimeMillis()
+		// nanoTime, not the wall clock: a clock set back would extend the head's deadline (as in finishReply)
+		var headStart = System.nanoTime()
 		var first = true
 		while (running) {
 			val req =
@@ -254,10 +255,10 @@ class McpHttp(
 						input.mark(1)
 						if (input.read() < 0) return false
 						input.reset()
-						headStart = System.currentTimeMillis()
+						headStart = System.nanoTime()
 					}
 					first = false
-					val head = readHead(input, c, headStart + headDeadlineMs) ?: return false
+					val head = readHead(input, c, headStart + headDeadlineMs * 1_000_000L) ?: return false
 					// Refuse before reading a body, so an unauthenticated client never gets that far.
 					if (!allowed(head, out)) return true
 					c.soTimeout = IDLE_TIMEOUT_MS
@@ -382,7 +383,7 @@ class McpHttp(
 		return MessageDigest.isEqual(h.substring(7).trim().toByteArray(Charsets.UTF_8), expected.toByteArray(Charsets.UTF_8))
 	}
 
-	/** The head of one request (no body yet), or null if the connection closed before one began. */
+	/** The head of one request (no body yet), or null if the connection closed before one began. [deadlineAt] is in nanoTime. */
 	private fun readHead(
 		input: InputStream,
 		c: Socket,
@@ -393,7 +394,7 @@ class McpHttp(
 		fun read(): Int {
 			// Each blocking read may wait only as long as the head has left, however slowly bytes come.
 			if (input.available() == 0) {
-				val left = deadlineAt - System.currentTimeMillis()
+				val left = (deadlineAt - System.nanoTime()) / 1_000_000L
 				if (left <= 0) throw SocketTimeoutException("the request's head took too long")
 				c.soTimeout = minOf(left, IDLE_TIMEOUT_MS.toLong()).toInt()
 			}

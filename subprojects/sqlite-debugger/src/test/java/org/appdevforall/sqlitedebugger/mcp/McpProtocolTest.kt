@@ -206,6 +206,23 @@ class McpProtocolTest {
 		assertEquals(McpProtocol.PARSE_ERROR, JSONObject(r.body!!).getJSONObject("error").getInt("code"))
 	}
 
+	@Test fun textAfterTheJsonIsAParseErrorAndRunsNothing() {
+		var calls = 0
+		val counts = McpTool("counts", "Counts", "Counts its calls.") { _, _ -> JSONObject().put("n", ++calls) }
+		val p = McpProtocol(listOf(counts), "test", { "s${++sessionNumber}" }, 16)
+		val s = session(p)
+		val call = request(7, "tools/call", JSONObject().put("name", "counts")).toString()
+		val batch = JSONArray().put(JSONObject(call)).toString()
+		for (body in listOf("$call garbage", "$call}", "$call {}", "$call // a comment", "$batch ]", "$batch $call")) {
+			val r = p.post(body, s, null)
+			assertEquals(body, 400, r.status)
+			assertEquals(body, McpProtocol.PARSE_ERROR, JSONObject(r.body!!).getJSONObject("error").getInt("code"))
+		}
+		assertEquals("nothing ran", 0, calls)
+		assertEquals(200, p.post("$call \n\t\r ", s, null).status)
+		assertEquals("trailing whitespace is fine", 1, calls)
+	}
+
 	@Test fun batchGetsAnArrayOfReplies() {
 		val p = protocol()
 		val s = session(p)

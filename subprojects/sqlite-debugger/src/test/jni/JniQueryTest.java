@@ -383,6 +383,23 @@ public class JniQueryTest {
 		eq(Helper.denyTransactions(w, false), 0, "the authorizer cleared, again");
 		eq(refusal(w, "SELECT 1"), null, "the next query rolls it back, again");
 		eq(Helper.autocommit(w), 1, "closed");
+		// a commit that fails as the statement is finished is the call's error: with RETURNING the insert
+		// runs at the first step, a page cut short ends the statement at sqlite3_finalize, and the commit
+		// waits for another connection's read lock (rollback-journal mode) until the busy timeout
+		long reader = Helper.open(path);
+		eq(Helper.exec(reader, "BEGIN; SELECT count(*) FROM t;"), 0, "another connection holds a read transaction");
+		String finished = null;
+		try {
+			query(w, "INSERT INTO t(id) VALUES(4247),(4248) RETURNING id", new Object[0], 0, 1, 4096, 1024, MAX, FAR);
+		} catch (DebugEngineException e) {
+			finished = e.sqliteCode + " " + e.getMessage();
+		}
+		eq(finished, "5 the statement failed as it was finished, and nothing it changed was kept: database is locked",
+				"the failed commit at finalize is reported, not the first page of rows");
+		eq(Helper.exec(reader, "COMMIT"), 0, "the reader ends its transaction");
+		eq(q(w, "SELECT count(*) FROM t WHERE id IN (4247, 4248)").rows.get(0)[0], 0L, "the insert was rolled back");
+		eq(Helper.autocommit(w), 1, "no transaction left open after the failed commit");
+		eq(Helper.close(reader), 0, "close the reader");
 		NativeBridge.close(w);
 		Helper.exec(app, "DELETE FROM t WHERE id = 4245");
 

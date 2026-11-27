@@ -15,6 +15,8 @@ target_compile_options(sqlitedbg PRIVATE -Wall -Wextra -fvisibility=hidden)
 # dlopen/dlsym to find sqlite3_auto_extension in requery's libsqlite3x.so
 target_link_libraries(sqlitedbg dl)
 # Only JNI_OnLoad is exported, so sqlite3_api and our other symbols cannot bind to another library's.
+# A change to the version script alone must relink.
+set_target_properties(sqlitedbg PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sqlitedbg.map)
 target_link_options(sqlitedbg PRIVATE
 	-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/sqlitedbg.map
 	-Wl,-z,max-page-size=16384)

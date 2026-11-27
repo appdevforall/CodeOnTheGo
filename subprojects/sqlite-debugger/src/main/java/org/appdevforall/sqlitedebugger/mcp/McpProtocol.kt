@@ -113,7 +113,8 @@ class McpProtocol(
 		val deadline = postTimeLimitMs?.let { clock() + it }
 		val parsed =
 			try {
-				JSONTokener(body).nextValue()
+				val tokener = JSONTokener(body)
+				tokener.nextValue().takeIf { onlyWhitespaceLeft(tokener) }
 			} catch (e: Exception) {
 				null
 			}
@@ -267,6 +268,18 @@ class McpProtocol(
 					.put("isError", true)
 			}
 		return ok(id, result)
+	}
+
+	/**
+	 * Whether only JSON whitespace is left after the value: `nextValue` reads one value and stops, so
+	 * `{"method":"ping"} garbage` would otherwise run the ping. Read with `next()`, as Android's
+	 * `nextClean()` also skips comments and the JVM's org.json does not.
+	 */
+	private fun onlyWhitespaceLeft(tokener: JSONTokener): Boolean {
+		while (tokener.more()) {
+			if (tokener.next() !in " \t\n\r") return false
+		}
+		return true
 	}
 
 	private fun validId(id: Any?) = id is String || id is Number
