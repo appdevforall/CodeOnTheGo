@@ -2,9 +2,13 @@ package com.itsaky.androidide.plugins.manager.services.sqltemplate
 
 import io.pebbletemplates.pebble.error.ParserException
 import io.pebbletemplates.pebble.error.PebbleException
+import io.pebbletemplates.pebble.extension.AbstractNodeVisitor
 import io.pebbletemplates.pebble.extension.Function
 import io.pebbletemplates.pebble.extension.NodeVisitor
+import io.pebbletemplates.pebble.extension.NodeVisitorFactory
 import io.pebbletemplates.pebble.lexer.Token
+import io.pebbletemplates.pebble.node.AbstractRenderableNode
+import io.pebbletemplates.pebble.node.BodyNode
 import io.pebbletemplates.pebble.node.ForNode
 import io.pebbletemplates.pebble.node.RenderableNode
 import io.pebbletemplates.pebble.node.expression.Expression
@@ -14,10 +18,45 @@ import io.pebbletemplates.pebble.template.EvaluationContextImpl
 import io.pebbletemplates.pebble.template.PebbleTemplate
 import io.pebbletemplates.pebble.template.PebbleTemplateImpl
 import io.pebbletemplates.pebble.tokenParser.TokenParser
+import java.io.Writer
 import java.math.BigInteger
 
 /** Thrown inside a render whose thread was interrupted (the time limit passed, or the caller was). */
 internal class RenderStopped : RuntimeException("the render was stopped")
+
+/**
+ * Puts an interrupt check at the start of every body of every template the engine compiles, included ones too. Besides
+ * `for`, a template repeats work only by rendering a body again: a macro that calls itself, a template that includes
+ * itself (a template is its own text, so it can) or `block()`. A recursive macro can make 2^40 calls that write nothing,
+ * so neither the output cap nor the stack ends it, and Pebble never looks at the interrupt flag.
+ */
+internal object InterruptCheckVisitorFactory : NodeVisitorFactory {
+	override fun createVisitor(template: PebbleTemplate): NodeVisitor = Visitor(template as PebbleTemplateImpl)
+
+	private class Visitor(
+		template: PebbleTemplateImpl,
+	) : AbstractNodeVisitor(template) {
+		override fun visit(node: BodyNode) {
+			// The parser's bodies hold an ArrayList; the only fixed-size one, embed's, is made while rendering and never visited.
+			node.children.add(0, InterruptCheck)
+			super.visit(node)
+		}
+	}
+
+	private object InterruptCheck : AbstractRenderableNode() {
+		override fun render(
+			self: PebbleTemplateImpl?,
+			writer: Writer?,
+			context: EvaluationContextImpl?,
+		) {
+			if (Thread.currentThread().isInterrupted) throw RenderStopped()
+		}
+
+		override fun accept(visitor: NodeVisitor) {
+			visitor.visit(this)
+		}
+	}
+}
 
 /**
  * Pebble's `for` tag, except that the loop checks for an interrupt on every element, so a render past its time limit ends

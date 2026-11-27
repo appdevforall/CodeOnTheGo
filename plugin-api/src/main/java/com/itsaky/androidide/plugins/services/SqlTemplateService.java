@@ -65,10 +65,10 @@ public interface SqlTemplateService {
 	 * A variable's value is null, a {@link String}, a {@link Number}, a {@link Boolean}, a {@link Map} with {@link String} keys, a {@link List} or other {@link Iterable}, a {@link RoomSchema}, or a {@link java.util.function.Supplier} of one of these. A supplier is lazy: it is called the first time the template reads the value, at most once, and not at all when the template does not; maps and lists may hold suppliers too. A function, such as {@code row_count(db, table)}, is called each time the template calls it, with its arguments, which are passed by position: a named argument such as {@code f(a=1)} fails the render. A supplier that a function returns is read once, as a variable's is.
 	 *
 	 * <p>
-	 * Pebble's {@code range} is limited here to 100,000 values: a larger one fails the render, as building it could exhaust the app's memory. A {@code for} loop checks for a stopped render on every pass.
+	 * Pebble's {@code range} is limited here to 100,000 values: a larger one fails the render, as building it could exhaust the app's memory. A {@code for} loop's every pass, a macro call and an include check for a stopped render.
 	 *
 	 * <p>
-	 * The render runs on a thread of its own, with one time limit for the whole render, functions included. When it passes, that thread is interrupted (a function in progress should stop) and this throws. The template's own loops stop at once, but a function that ignores the interrupt keeps running on that thread after this throws, and whatever it does goes on; a function should check for the interrupt, or be short.
+	 * The render runs on a thread of its own, with one time limit for the whole render, functions included. When it passes, that thread is interrupted (a function in progress should stop) and this throws. The template's own loops, macros and includes stop at once, but a function that ignores the interrupt keeps running on that thread after this throws, and whatever it does goes on; a function should check for the interrupt, or be short.
 	 *
 	 * @param templatePath
 	 *            the template, relative to the project root (as {@link #listTemplates} gives it); its name must end in {@code .peb}, it must have no NUL character, and it must be inside the project once links are resolved; the file must be a regular file of at most 8 MiB

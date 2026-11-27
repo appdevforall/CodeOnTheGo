@@ -9,6 +9,7 @@ import io.pebbletemplates.pebble.error.PebbleException
 import io.pebbletemplates.pebble.extension.AbstractExtension
 import io.pebbletemplates.pebble.extension.Filter
 import io.pebbletemplates.pebble.extension.Function
+import io.pebbletemplates.pebble.extension.NodeVisitorFactory
 import io.pebbletemplates.pebble.template.EvaluationContext
 import io.pebbletemplates.pebble.template.PebbleTemplate
 import io.pebbletemplates.pebble.tokenParser.TokenParser
@@ -25,8 +26,9 @@ import java.util.function.Supplier
  * Renders a SQL template (ADFA-7302) with the project templates' Pebble settings ([ProjectTemplatePebble]), autoescaping
  * off, the two quoting filters, lazy variables and the caller's functions. Plain JVM, so it is unit-tested without Android.
  *
- * Pebble never looks at the interrupt flag, so two of its pieces are replaced in this engine only:
- * `for` checks for an interrupt on every pass, and `range` refuses more than [CappedRangeFunction.MAX_ELEMENTS] values.
+ * Pebble never looks at the interrupt flag, so in this engine only every body of a template checks for an interrupt
+ * when it starts ([InterruptCheckVisitorFactory]: a loop's pass, a macro call, an include), `for` checks on every pass,
+ * and `range` refuses more than [CappedRangeFunction.MAX_ELEMENTS] values.
  */
 internal object SqlTemplateRenderer {
 	/** The most characters a render writes, as the documentation pages' renderer allows. */
@@ -46,9 +48,9 @@ internal object SqlTemplateRenderer {
 	/**
 	 * Renders [text] (the template [name], for messages). [variables] must already include the reserved ones.
 	 *
-	 * The render runs on a daemon thread, and the time limit interrupts it. `for` and `range` honour that, but a caller's function
-	 * that ignores the interrupt keeps running on that thread after this throws (the approved behaviour: nothing can force a
-	 * thread to stop), so the function's effects go on until it returns.
+	 * The render runs on a daemon thread, and the time limit interrupts it. The template's loops, macros and includes
+	 * honour that, but a caller's function that ignores the interrupt keeps running on that thread after this throws (the
+	 * approved behaviour: nothing can force a thread to stop), so the function's effects go on until it returns.
 	 *
 	 * @throws SqlTemplateException for anything the template or a function did wrong, or the time limit
 	 * @throws IllegalArgumentException for a bad name, value type or time limit
@@ -249,6 +251,8 @@ internal object SqlTemplateRenderer {
 
 		// An extension's tag and function replace Pebble's core ones of the same name (ExtensionRegistry.put).
 		override fun getTokenParsers(): List<TokenParser> = listOf(InterruptibleForTokenParser())
+
+		override fun getNodeVisitors(): List<NodeVisitorFactory> = listOf(InterruptCheckVisitorFactory)
 
 		override fun getFunctions(): Map<String, Function> =
 			callerFunctions.mapValues { (name, fn) -> CallerFunction(name, fn) as Function } + ("range" to CappedRangeFunction)

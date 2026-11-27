@@ -49,12 +49,12 @@ milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]
   own under one time limit (at most `MAX_TIMEOUT_MILLIS`, 120 s); when it passes, the thread is interrupted (a function
   that ignores that keeps running). A function that fails, or a template error, throws the checked
   `SqlTemplateException` with a message to show as it is. Pebble's `range` is limited to 100,000 values here (more fails
-  the render), and a `for` loop ends when the render is stopped. `listTemplates()` lists the project's `*.sql.peb`
-  files, and `getRoomSchemas()` the schemas Room exported (`RoomSchema`: class name from the folder, version, identity
-  hash, path, entities and views with Room's JSON keys, `indices`, `foreignKeys` and `views` present even where Room
-  left them out). Both skip build output and hidden folders. Every call needs `debugger.endpoints` and throws
-  `SecurityException` without it, and `IllegalStateException` on the main thread. Both lists stop at 2,000 entries (the
-  first in their order). Floor `plugin.min_ide_version` at `26.48`.
+  the render), and a `for` loop, a macro and an include end when the render is stopped. `listTemplates()` lists the
+  project's `*.sql.peb` files, and `getRoomSchemas()` the schemas Room exported (`RoomSchema`: class name from the
+  folder, version, identity hash, path, entities and views with Room's JSON keys, `indices`, `foreignKeys` and `views`
+  present even where Room left them out). Both skip build output and hidden folders. Every call needs
+  `debugger.endpoints` and throws `SecurityException` without it, and `IllegalStateException` on the main thread. Both
+  lists stop at 2,000 entries (the first in their order). Floor `plugin.min_ide_version` at `26.48`.
 - **added — Show the IDE's own documentation from a plugin** _(ADFA-7134)_
   `IdeTooltipService.showTooltip(anchorView, category, tag)` now reads the IDE's documentation
   when `category` is `ide`, `java`, `kotlin` or `xml`, for example

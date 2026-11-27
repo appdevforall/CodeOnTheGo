@@ -208,6 +208,30 @@ class SqlTemplateRendererTest {
 		assertThat(awaitNoRenderThread()).isTrue()
 	}
 
+	// About 2^40 calls that write nothing, so neither the output cap nor the stack ends it.
+	@Test
+	fun `a recursive macro is stopped by the time limit and its thread ends`() {
+		val text =
+			"\${% macro f(n) %}\${% if n > 0 %}\${{ f(n - 1) }}\${{ f(n - 1) }}\${% endif %}\${% endmacro %}\${{ f(40) }}"
+		assertThat(failure(text, timeoutMillis = 200)).contains("did not finish within 200 ms")
+		assertThat(awaitNoRenderThread()).isTrue()
+	}
+
+	// A template is its own text (StringLoader), so a template can include itself; the same 2^40 shape as the macro.
+	@Test
+	fun `a template that includes itself is stopped by the time limit and its thread ends`() {
+		val self = "\${% if n > 0 %}\${% include s with {\"n\": n - 1} %}\${% include s with {\"n\": n - 1} %}\${% endif %}"
+		val text = "\${% include s with {\"n\": 40} %}"
+		assertThat(failure(text, mapOf("s" to self), timeoutMillis = 200)).contains("did not finish within 200 ms")
+		assertThat(awaitNoRenderThread()).isTrue()
+	}
+
+	@Test
+	fun `a macro and an include still render`() {
+		val text = "\${% macro twice(x) %}\${{ x }}\${{ x }}\${% endmacro %}\${{ twice(\"ab\") }}-\${% include s with {\"v\": 3} %}"
+		assertThat(render(text, mapOf("s" to "[\${{ v }}]"))).isEqualTo("abab-[3]")
+	}
+
 	@Test
 	fun `a loop over a map or list still works, with its loop variables`() {
 		val text = "\${% for k in m %}\${{ k.key }}=\${{ k.value }}:\${{ loop.index }}/\${{ loop.length }},\${% endfor %}"
