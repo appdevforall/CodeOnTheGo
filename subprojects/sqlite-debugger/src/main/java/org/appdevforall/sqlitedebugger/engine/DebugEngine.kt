@@ -33,9 +33,11 @@ interface DebugEngine {
 	fun setClientConnected(connected: Boolean)
 
 	/**
-	 * Opens [path] for the server: read-only (with an authorizer refusing writes) unless
-	 * [writable]. Only a path one of [connections] has open may be passed: opening a database that
-	 * Android's own SQLite has open, with requery's, can corrupt it (ADFA-7131, Design 3).
+	 * Opens [path] for the server: read-only (an authorizer refuses writes) unless [writable]. Either
+	 * way the authorizer refuses transactions, the PRAGMAs that would reach the app's own
+	 * connections and every PRAGMA that sets a value, user_version on a writable one excepted (sqlitedbg.h).
+	 * Only a path one of [connections] has open may be passed: opening a
+	 * database that Android's own SQLite has open, with requery's, can corrupt it (ADFA-7131, Design 3).
 	 *
 	 * @throws DebugEngineException if SQLite cannot open it, or no app connection has opened yet.
 	 */
@@ -65,7 +67,38 @@ interface ServerConnection : Closeable {
 		limits: QueryLimits,
 		deadlineMillis: Long,
 	): QueryResult
+
+	/**
+	 * Runs [sql], one statement that writes, to its end in autocommit, with [args] bound as in [query]; rows it
+	 * returns (RETURNING) are dropped. Needs a connection opened with `writable = true`. The statement is
+	 * stopped and rolled back once [deadlineMillis] has passed, or once it has held the write lock for
+	 * SQLITEDBG_SERVER_NON_WAL_MS (1.5 s), waiting to commit included, whichever is first: the app's own writes
+	 * wait for that lock. A deadline that passes while the statement is prepared stops it before it starts.
+	 *
+	 * @throws DebugEngineException as [query] does, and for a statement that does not write
+	 *   (`sqlite3_stmt_readonly`), a transaction statement, or a refused PRAGMA.
+	 */
+	fun execute(
+		sql: String,
+		args: List<Any?>,
+		deadlineMillis: Long,
+	): ExecuteResult
 }
+
+data class ExecuteResult(
+	/**
+	 * The rows the statement itself inserted, updated or deleted, as `sqlite3_changes64` (not those of
+	 * triggers or foreign key actions); 0 for a statement that changed no row, such as CREATE TABLE.
+	 */
+	val changes: Long,
+	/**
+	 * The rowid of the last row the statement inserted into a rowid table, or null when it inserted none
+	 * (an UPDATE, a WITHOUT ROWID table, `INSERT OR IGNORE` that ignored the row). Inserts made by
+	 * triggers do not count. A row inserted explicitly with rowid [Long.MIN_VALUE], which SQLite never
+	 * assigns itself, reads as null; 0 and other negative rowids are reported.
+	 */
+	val lastInsertRowid: Long?,
+)
 
 data class AppConnection(
 	/** Unique within the process, never reused. */

@@ -56,8 +56,8 @@ enum class PluginPermission(
 	IDE_ENVIRONMENT_WRITE("ide.environment.write", "Write to IDE-managed directories such as the Android SDK, NDK, and cache"),
 	DEBUGGER_ENDPOINTS(
 		"debugger.endpoints",
-		"Read the port and token of the open project's SQLite debugger servers. The token lets the plugin query the " +
-			"databases of the project's apps: read-only for now, and later versions may allow writes. Plugins run in " +
+		"Read the port and token of the open project's SQLite debugger servers. The token lets the plugin query and " +
+			"change the databases of the project's apps. Plugins run in " +
 			"Code on the Go's process, so this declares intent and cannot stop reflection",
 	),
 }

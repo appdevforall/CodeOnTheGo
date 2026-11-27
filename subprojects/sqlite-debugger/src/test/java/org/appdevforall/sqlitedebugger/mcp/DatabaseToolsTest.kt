@@ -4,6 +4,7 @@ import org.appdevforall.sqlitedebugger.engine.AppConnection
 import org.appdevforall.sqlitedebugger.engine.DebugEngine
 import org.appdevforall.sqlitedebugger.engine.DebugEngineException
 import org.appdevforall.sqlitedebugger.engine.EventKind
+import org.appdevforall.sqlitedebugger.engine.ExecuteResult
 import org.appdevforall.sqlitedebugger.engine.FakeDebugEngine
 import org.appdevforall.sqlitedebugger.engine.QueryLimits
 import org.appdevforall.sqlitedebugger.engine.QueryResult
@@ -75,7 +76,7 @@ class DatabaseToolsTest {
 		}
 	}
 
-	@Test fun everyToolIsReadOnly() {
+	@Test fun everyToolButExecuteIsReadOnly() {
 		val list = tools.tools()
 		assertEquals(
 			listOf(
@@ -83,6 +84,7 @@ class DatabaseToolsTest {
 				"list_connections",
 				"get_schema",
 				"query",
+				"execute",
 				"explain_query_plan",
 				"get_stats",
 				"integrity_check",
@@ -90,7 +92,11 @@ class DatabaseToolsTest {
 			),
 			list.map { it.name },
 		)
-		list.forEach { assertTrue(it.name, it.describe().getJSONObject("annotations").getBoolean("readOnlyHint")) }
+		for (tool in list) {
+			val annotations = tool.describe().getJSONObject("annotations")
+			assertEquals(tool.name, tool.name != "execute", annotations.getBoolean("readOnlyHint"))
+			assertEquals(tool.name, tool.name == "execute", annotations.getBoolean("destructiveHint"))
+		}
 	}
 
 	@Test fun everyToolThatRunsAStatementSaysAStatementOnANonWalDatabaseStopsAfterOneAndAHalfSeconds() {
@@ -222,6 +228,7 @@ class DatabaseToolsTest {
 				"explain_query_plan" to JSONObject().put("sql", "select 1"),
 				"get_stats" to JSONObject(),
 				"integrity_check" to JSONObject(),
+				"execute" to JSONObject().put("sql", "delete from t"),
 			)
 		for ((name, extra) in cases) {
 			for (bad in listOf("/data/other.db", "", "/data/a.db-wal")) {
@@ -1149,6 +1156,95 @@ class DatabaseToolsTest {
 		t.onServerStopped()
 		running.task.run()
 		assertEquals(0, scheduler.pending.size)
+	}
+
+	@Test fun executeRunsOnAWritableConnectionApartFromTheReadOnlyOne() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val ran = mutableListOf<Pair<String, List<Any?>>>()
+		engine.executeAnswer = { _, sql, args ->
+			ran += sql to args
+			ExecuteResult(changes = 3, lastInsertRowid = null)
+		}
+		val t = tools
+		ok("query", db().put("sql", "select 1"), t)
+		val r = ok("execute", db().put("sql", "update t set a = ? where b = ?").put("args", JSONArray().put("x").put(2)), t)
+		assertEquals(3, r.getInt("changes"))
+		assertEquals(listOf("update t set a = ? where b = ?" to listOf<Any?>("x", 2L)), ran)
+		ok("execute", db().put("sql", "delete from t"), t)
+		ok("query", db().put("sql", "select 1"), t)
+		// one of each, each kept: a read never runs on the writable connection
+		assertEquals(listOf("/data/a.db" to false, "/data/a.db" to true), engine.openedServerConnections)
+	}
+
+	@Test fun executeReportsChangesPastTwoToTheFiftyThirdAsAString() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1L shl 60, lastInsertRowid = null) }
+		assertEquals((1L shl 60).toString(), ok("execute", db().put("sql", "delete from t")).getString("changes"))
+	}
+
+	@Test fun executeReportsLastInsertRowidAsANumberOrNull() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1, lastInsertRowid = 42) }
+		val inserted = ok("execute", db().put("sql", "insert into t values (1)"))
+		assertEquals(42, inserted.getInt("last_insert_rowid"))
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1, lastInsertRowid = 1L shl 60) }
+		assertEquals((1L shl 60).toString(), ok("execute", db().put("sql", "insert into t values (1)")).getString("last_insert_rowid"))
+		engine.executeAnswer = { _, _, _ -> ExecuteResult(changes = 1, lastInsertRowid = null) }
+		val updated = ok("execute", db().put("sql", "update t set a = 1"))
+		assertTrue(updated.has("last_insert_rowid"))
+		assertTrue(updated.isNull("last_insert_rowid"))
+	}
+
+	@Test fun executeErrorsCarryTheSqliteCode() {
+		engine.appConnections += conn(1, "/data/a.db")
+		engine.executeAnswer = { _, _, _ -> throw DebugEngineException(DebugEngineException.SQLITE_AUTH, "not authorized") }
+		val r = runTool(tools, "execute", db().put("sql", "begin"))
+		assertTrue(r.getBoolean("isError"))
+		assertEquals(23, r.getJSONObject("structuredContent").getInt("sqlite_code"))
+	}
+
+	@Test fun executeChecksItsArgumentsBeforeTheEngine() {
+		engine.appConnections += conn(1, "/data/a.db")
+		assertTrue(runTool(tools, "execute", db()).getBoolean("isError"))
+		assertTrue(runTool(tools, "execute", db().put("sql", "x").put("args", "nope")).getBoolean("isError"))
+		assertTrue(runTool(tools, "execute", db().put("sql", "x").put("args", JSONArray().put(JSONObject()))).getBoolean("isError"))
+		assertEquals(0, engine.openAttempts)
+	}
+
+	@Test fun theWritableConnectionIsDroppedWhenTheAppRecreatesTheDatabaseAndClosedWhenTheServerStops() {
+		engine.appConnections += conn(1, "/data/a.db")
+		val t = tools
+		ok("execute", db().put("sql", "delete from t"), t)
+		engine.appConnections.clear()
+		engine.appConnections += conn(2, "/data/a.db")
+		ok("execute", db().put("sql", "delete from t"), t)
+		assertEquals(2, engine.openedServerConnections.size)
+		assertEquals(1, engine.closedServerConnections)
+		t.onServerStopped()
+		assertEquals(2, engine.closedServerConnections)
+	}
+
+	@Test fun executeDescribesWhatItRefusesItsTimeLimitAndThatTheAppIsNotTold() {
+		val d = tools.tools().first { it.name == "execute" }.description
+		for (text in listOf(
+			"committed at once and cannot be undone",
+			"BEGIN, COMMIT, ROLLBACK and SAVEPOINT are refused",
+			"does not write is refused: use query",
+			"RETURNING are not returned",
+			"stopped and rolled back after 1.5 s",
+			"in every journal mode",
+			"may stay stale",
+			"Functions the app adds to its own connections",
+		)) {
+			assertTrue("$text: $d", d.contains(text))
+		}
+		assertTrue(
+			tools
+				.tools()
+				.first { it.name == "query" }
+				.description
+				.contains("Writes are refused: use execute."),
+		)
 	}
 
 	@Test fun stoppingTheServerClosesServerConnections() {
