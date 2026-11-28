@@ -89,6 +89,13 @@ private sealed interface PluginManagerDialogState : Parcelable {
 	@Parcelize
 	data class UninstallConfirm(
 		val pluginId: String,
+		val bundled: Boolean,
+	) : PluginManagerDialogState
+
+	@Parcelize
+	data class DisableConfirm(
+		val pluginId: String,
+		val pluginName: String,
 	) : PluginManagerDialogState
 
 	@Parcelize
@@ -167,7 +174,11 @@ fun PluginManagerContent(
 					}
 
 					is PluginManagerUiEffect.ShowUninstallConfirmation -> {
-						dialogState = PluginManagerDialogState.UninstallConfirm(effect.plugin.metadata.id)
+						dialogState = PluginManagerDialogState.UninstallConfirm(effect.plugin.metadata.id, effect.bundled)
+					}
+
+					is PluginManagerUiEffect.ShowDisableConfirmation -> {
+						dialogState = PluginManagerDialogState.DisableConfirm(effect.pluginId, effect.pluginName)
 					}
 
 					is PluginManagerUiEffect.ShowRestartPrompt -> {
@@ -254,6 +265,7 @@ fun PluginManagerContent(
 			if (plugin != null) {
 				UninstallConfirmationDialog(
 					plugin = plugin,
+					bundled = dialog.bundled,
 					onConfirm = {
 						viewModel.confirmUninstallPlugin(plugin.metadata.id)
 						dialogState = PluginManagerDialogState.None
@@ -261,6 +273,18 @@ fun PluginManagerContent(
 					onDismiss = { dialogState = PluginManagerDialogState.None },
 				)
 			}
+		}
+
+		is PluginManagerDialogState.DisableConfirm -> {
+			// Carries its own name, so it shows even while the plugin list reloads.
+			DisableBundledPluginDialog(
+				pluginName = dialog.pluginName,
+				onConfirm = {
+					viewModel.confirmDisablePlugin(dialog.pluginId)
+					dialogState = PluginManagerDialogState.None
+				},
+				onDismiss = { dialogState = PluginManagerDialogState.None },
+			)
 		}
 
 		is PluginManagerDialogState.Details -> {

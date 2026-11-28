@@ -1,6 +1,7 @@
 package com.itsaky.androidide.di
 
 import com.itsaky.androidide.app.IDEApplication
+import com.itsaky.androidide.assets.addons.BundledAddonsRecord
 import com.itsaky.androidide.preferences.internal.BuildPreferences
 import com.itsaky.androidide.repositories.DownloadFilesRepository
 import com.itsaky.androidide.repositories.DownloadFilesRepositoryImpl
@@ -53,6 +54,13 @@ val pluginModule =
 				filesDir = IDEApplication.cachedFilesDir,
 				connectivityObserver = get(),
 				isOfflineModeEnabled = { BuildPreferences.isOfflineEnabled },
+				isBundledPlugin = { id ->
+					BundledAddonsRecord
+						.inFilesDir(IDEApplication.cachedFilesDir)
+						.read()
+						?.pluginIds
+						?.contains(id) == true
+				},
 			)
 		}
 

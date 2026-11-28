@@ -66,6 +66,7 @@ class PluginManagerViewModelSourceDeleteTest {
 					override fun observe() = flowOf(true)
 				},
 			isOfflineModeEnabled = { false },
+			isBundledPlugin = { false },
 		)
 
 	private fun downloadedPlugin(): File = File(tempFolder.newFolder("Download"), "my-plugin.cgp").apply { writeText("cgp") }

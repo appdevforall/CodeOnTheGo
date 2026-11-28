@@ -81,13 +81,53 @@ fun UninstallConfirmationDialog(
 	plugin: PluginInfo,
 	onConfirm: () -> Unit,
 	onDismiss: () -> Unit,
+	bundled: Boolean = false,
 ) {
 	AlertDialog(
 		onDismissRequest = onDismiss,
-		title = { Text(stringResource(R.string.title_uninstall_plugin)) },
-		text = { Text(stringResource(R.string.msg_uninstall_plugin_confirm, plugin.metadata.name)) },
+		title = {
+			Text(stringResource(if (bundled) R.string.title_uninstall_bundled_plugin else R.string.title_uninstall_plugin))
+		},
+		// AlertDialog's text slot does not scroll; at 2x font scale the text would clip.
+		text = {
+			Text(
+				if (bundled) {
+					stringResource(R.string.msg_uninstall_bundled_plugin_confirm, plugin.metadata.name)
+				} else {
+					stringResource(R.string.msg_uninstall_plugin_confirm, plugin.metadata.name)
+				},
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+			)
+		},
 		confirmButton = {
-			TextButton(onClick = onConfirm) { Text(stringResource(R.string.uninstall_plugin)) }
+			TextButton(onClick = onConfirm) {
+				Text(stringResource(if (bundled) R.string.action_continue else R.string.uninstall_plugin))
+			}
+		},
+		dismissButton = {
+			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+		},
+	)
+}
+
+/** Disabling a plugin that came with the app can break the installation (ADFA-7240). */
+@Composable
+fun DisableBundledPluginDialog(
+	pluginName: String,
+	onConfirm: () -> Unit,
+	onDismiss: () -> Unit,
+) {
+	AlertDialog(
+		onDismissRequest = onDismiss,
+		title = { Text(stringResource(R.string.title_disable_bundled_plugin)) },
+		text = {
+			Text(
+				stringResource(R.string.msg_disable_bundled_plugin_confirm, pluginName),
+				modifier = Modifier.verticalScroll(rememberScrollState()),
+			)
+		},
+		confirmButton = {
+			TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_continue)) }
 		},
 		dismissButton = {
 			TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }

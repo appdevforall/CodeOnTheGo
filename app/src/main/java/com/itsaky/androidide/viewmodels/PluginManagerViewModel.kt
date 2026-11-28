@@ -47,6 +47,8 @@ class PluginManagerViewModel(
 	private val connectivityObserver: ConnectivityObserver,
 	// Gradle's offline mode (Build & Run preferences). A function so tests need no preferences.
 	private val isOfflineModeEnabled: () -> Boolean,
+	// Whether the plugin came with the app (ADFA-7240). Reads a file, so it is called from IO only.
+	private val isBundledPlugin: (String) -> Boolean,
 ) : ViewModel() {
 	private companion object {
 		private const val TAG = "PluginManagerViewModel"
@@ -145,7 +147,7 @@ class PluginManagerViewModel(
 			}
 
 			is PluginManagerUiEvent.DisablePlugin -> {
-				disablePlugin(event.pluginId)
+				showDisableConfirmationIfBundled(event.pluginId)
 			}
 
 			is PluginManagerUiEvent.UninstallPlugin -> {
@@ -267,9 +269,29 @@ class PluginManagerViewModel(
 	}
 
 	/**
-	 * Disable a plugin
+	 * A plugin that came with the app asks for confirmation first; any other disables at once.
+	 * Decided by ID, not by the loaded list, so a list being reloaded cannot skip the warning; the
+	 * list only supplies the name, and the ID stands in when it lacks the plugin.
 	 */
-	private fun disablePlugin(pluginId: String) {
+	private fun showDisableConfirmationIfBundled(pluginId: String) {
+		viewModelScope.launch {
+			if (withContext(Dispatchers.IO) { isBundledPlugin(pluginId) }) {
+				val name =
+					_uiState.value.plugins
+						.find { it.metadata.id == pluginId }
+						?.metadata
+						?.name ?: pluginId
+				_uiEffect.send(PluginManagerUiEffect.ShowDisableConfirmation(pluginId, name))
+			} else {
+				confirmDisablePlugin(pluginId)
+			}
+		}
+	}
+
+	/**
+	 * Disable a plugin (called after confirmation, or directly for a plugin the user added)
+	 */
+	fun confirmDisablePlugin(pluginId: String) {
 		viewModelScope.launch {
 			_currentOperation.value = PluginOperation.Disabling(pluginId)
 
@@ -305,7 +327,8 @@ class PluginManagerViewModel(
 		val plugin = _uiState.value.plugins.find { it.metadata.id == pluginId }
 		if (plugin != null) {
 			viewModelScope.launch {
-				_uiEffect.send(PluginManagerUiEffect.ShowUninstallConfirmation(plugin))
+				val bundled = withContext(Dispatchers.IO) { isBundledPlugin(pluginId) }
+				_uiEffect.send(PluginManagerUiEffect.ShowUninstallConfirmation(plugin, bundled))
 			}
 		}
 	}
