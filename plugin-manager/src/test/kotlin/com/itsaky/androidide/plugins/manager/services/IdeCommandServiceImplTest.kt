@@ -527,104 +527,173 @@ class IdeCommandServiceImplTest {
 		assertThat(looks.get()).isEqualTo(1)
 	}
 
+	// Hal's review of a63b453e6: on a slow device the check took up to 10 s on every command, under the
+	// command's own timeout, so a 3 s command could time out without having run.
 	@Test
-	fun `finding no setsid is checked again once the Terminal's setsid can run`() {
-		val terminalSetsid = File(tmp.newFolder("terminal-bin"), "setsid")
-		var found: String? = null
-		val looks = AtomicInteger()
-		val find = {
-			looks.incrementAndGet()
-			SetsidCheck(found, definite = true)
+	fun `a shell command neither waits for the setsid check nor counts it against its timeout`() {
+		assumeHostTools()
+		val terminalSetsid = executableSetsid()
+		val checking = CountDownLatch(1)
+		val release = CountDownLatch(1)
+		val check = { _: String ->
+			checking.countDown()
+			release.await()
+			true
 		}
+		val service = serviceFinding { ProcessGroups.android(terminalSetsid, check) { thread(isDaemon = true) { it.run() } } }
+		try {
+			val started = System.nanoTime()
+			val result = service.executeCommand(shell("echo ran"), 1_000).awaitWithin(5_000)
+			val tookMs = (System.nanoTime() - started) / 1_000_000
 
-		assertThat(ProcessGroups.android(terminalSetsid, find).isolate(listOf(SH), null).grouped).isFalse()
-		ProcessGroups.android(terminalSetsid, find)
-		assertThat(looks.get()).isEqualTo(2)
+			assertThat(checking.await(5, TimeUnit.SECONDS)).isTrue()
+			assertThat((result as CommandResult.Success).stdout).isEqualTo("ran\n")
+			assertThat(tookMs).isLessThan(1_000)
+		} finally {
+			release.countDown()
+		}
+	}
+
+	@Test
+	fun `the setsid check runs off the command's path, one at a time`() {
+		val terminalSetsid = executableSetsid()
+		val checks = AtomicInteger()
+		val queued = mutableListOf<Runnable>()
+		val finder =
+			SetsidFinder(listOf(terminalSetsid.path), {
+				checks.incrementAndGet()
+				true
+			}, { queued += it })
+
+		repeat(3) { assertThat(finder.current()).isNull() }
+
+		assertThat(checks.get()).isEqualTo(0)
+		assertThat(queued).hasSize(1)
+		queued.single().run()
+		assertThat(finder.current()).isEqualTo(terminalSetsid.path)
+		assertThat(checks.get()).isEqualTo(1)
+	}
+
+	@Test
+	fun `a setsid known to run in place, or to fork, is checked once`() {
+		val forking = forkingSetsid()
+		val terminalSetsid = executableSetsid()
+		val checks = mutableListOf<String>()
+		val finder =
+			SetsidFinder(listOf(forking.path, terminalSetsid.path), {
+				checks += it
+				it == terminalSetsid.path
+			}, { it.run() })
+
+		repeat(3) { assertThat(finder.current()).isEqualTo(terminalSetsid.path) }
+
+		assertThat(checks).containsExactly(forking.path, terminalSetsid.path).inOrder()
+	}
+
+	@Test
+	fun `finding no setsid that runs in place is kept`() {
+		val forking = forkingSetsid()
+		val checks = AtomicInteger()
+		val finder =
+			SetsidFinder(listOf(forking.path), {
+				checks.incrementAndGet()
+				false
+			}, { it.run() })
+
+		repeat(3) { assertThat(finder.current()).isNull() }
+
+		assertThat(checks.get()).isEqualTo(1)
+	}
+
+	// For example, the check timed out on a busy device: it must not leave every later command without
+	// a group of its own until the app restarts, nor be run again for ever.
+	@Test
+	fun `a check that could not tell is tried again, a few times at most`() {
+		val terminalSetsid = executableSetsid()
+		val checks = AtomicInteger()
+		val finder =
+			SetsidFinder(listOf(terminalSetsid.path), {
+				checks.incrementAndGet()
+				null
+			}, { it.run() })
+
+		repeat(SetsidFinder.MAX_UNSURE_CHECKS + 3) { assertThat(finder.current()).isNull() }
+
+		assertThat(checks.get()).isEqualTo(SetsidFinder.MAX_UNSURE_CHECKS)
+	}
+
+	@Test
+	fun `a check that could not tell, then could, finds the setsid`() {
+		val terminalSetsid = executableSetsid()
+		val answers = ArrayDeque(listOf(null, true))
+		val finder = SetsidFinder(listOf(terminalSetsid.path), { answers.removeFirst() }, { it.run() })
+
+		assertThat(finder.current()).isNull()
+		assertThat(finder.current()).isEqualTo(terminalSetsid.path)
+		assertThat(answers).isEmpty()
+	}
+
+	// Through ProcessGroups.android: the Terminal installs its setsid at first-run setup, possibly
+	// after plugins have run commands.
+	@Test
+	fun `the Terminal's setsid is checked once it can run`() {
+		val terminalSetsid = File(tmp.newFolder("terminal-bin"), "setsid")
+		val checks = AtomicInteger()
+		val check = { _: String ->
+			checks.incrementAndGet()
+			true
+		}
+		val direct = { it: Runnable -> it.run() }
+
+		assertThat(ProcessGroups.android(terminalSetsid, check, direct).isolate(listOf(SH), null).grouped).isFalse()
+		assertThat(checks.get()).isEqualTo(0)
 
 		terminalSetsid.writeText("#!/bin/sh\nexec \"\$@\"\n")
 		terminalSetsid.setExecutable(true)
-		found = terminalSetsid.path
-		val groups = ProcessGroups.android(terminalSetsid, find)
 
-		assertThat(groups.isolate(listOf(SH), null).grouped).isTrue()
-		assertThat(ProcessGroups.android(terminalSetsid, find)).isSameInstanceAs(groups)
-		assertThat(looks.get()).isEqualTo(3)
-	}
-
-	@Test
-	fun `finding no setsid while the Terminal's can run is kept`() {
-		val terminalSetsid =
-			File(tmp.newFolder("terminal-bin"), "setsid").apply {
-				writeText("#!/bin/sh\n\"\$@\" &\nexit 0\n")
-				setExecutable(true)
-			}
-		val looks = AtomicInteger()
-
-		val find = {
-			looks.incrementAndGet()
-			SetsidCheck(null, definite = true)
-		}
-
-		val groups = ProcessGroups.android(terminalSetsid, find)
-
-		assertThat(ProcessGroups.android(terminalSetsid, find)).isSameInstanceAs(groups)
-		assertThat(looks.get()).isEqualTo(1)
-	}
-
-	// For example, the check timed out on a busy device: one such check must not leave every later
-	// command without a group of its own until the app restarts.
-	@Test
-	fun `a setsid check that could not tell is not kept, so the next command checks again`() {
-		val terminalSetsid =
-			File(tmp.newFolder("terminal-bin"), "setsid").apply {
-				writeText("#!/bin/sh\nexec \"\$@\"\n")
-				setExecutable(true)
-			}
-		var found = SetsidCheck(null, definite = false)
-		val looks = AtomicInteger()
-		val find = {
-			looks.incrementAndGet()
-			found
-		}
-
-		assertThat(ProcessGroups.android(terminalSetsid, find).isolate(listOf(SH), null).grouped).isFalse()
-		found = SetsidCheck(terminalSetsid.path, definite = true)
-		val groups = ProcessGroups.android(terminalSetsid, find)
-
-		assertThat(groups.isolate(listOf(SH), null).grouped).isTrue()
-		assertThat(ProcessGroups.android(terminalSetsid, find)).isSameInstanceAs(groups)
-		assertThat(looks.get()).isEqualTo(2)
+		assertThat(ProcessGroups.android(terminalSetsid, check, direct).isolate(listOf(SH), null).grouped).isTrue()
+		assertThat(ProcessGroups.android(terminalSetsid, check, direct).isolate(listOf(SH), null).grouped).isTrue()
+		assertThat(checks.get()).isEqualTo(1)
 	}
 
 	@Test
 	fun `setsid is used when it runs the command in place`() {
 		assumeHostTools()
 
-		assertThat(ProcessGroups.usableSetsid(listOf(SETSID), SH)).isEqualTo(SetsidCheck(SETSID, definite = true))
+		assertThat(ProcessGroups.runsInPlace(SETSID, SH)).isTrue()
 	}
 
 	@Test
-	fun `a missing setsid is not used`() {
-		assertThat(ProcessGroups.usableSetsid(listOf(File(tmp.root, "none").path), SH)).isEqualTo(SetsidCheck(null, definite = true))
+	fun `a missing setsid is not checked`() {
+		val checks = AtomicInteger()
+		val finder =
+			SetsidFinder(listOf(File(tmp.root, "none").path), {
+				checks.incrementAndGet()
+				true
+			}, { it.run() })
+
+		assertThat(finder.current()).isNull()
+		assertThat(checks.get()).isEqualTo(0)
 	}
 
 	// A directory passes canExecute(), and starting it fails: a check that could not run says nothing.
 	@Test
 	fun `a setsid that cannot be started gives no definite answer`() {
-		assertThat(ProcessGroups.usableSetsid(listOf(tmp.newFolder("not-a-program").path), SH))
-			.isEqualTo(SetsidCheck(null, definite = false))
+		assertThat(ProcessGroups.runsInPlace(tmp.newFolder("not-a-program").path, SH)).isNull()
 	}
 
 	// As Android 11's toybox setsid does: it forks, and its parent exits 0 at once.
 	@Test
 	fun `a setsid that forks is not used, so a command still runs to its end`() {
 		assumeHostTools()
-		val check = ProcessGroups.usableSetsid(listOf(forkingSetsid().path), SH)
-		val groups = ProcessGroups(check.path, ::hostSignal)
+		val forking = forkingSetsid()
+		val setsid = SetsidFinder(listOf(forking.path), { ProcessGroups.runsInPlace(it, SH) }, { it.run() }).current()
+		val groups = ProcessGroups(setsid, ::hostSignal)
 
 		val result = service(groups).executeCommand(shell("sleep 1; echo late"), 10_000).awaitWithin(10_000)
 
-		assertThat(check).isEqualTo(SetsidCheck(null, definite = true))
+		assertThat(ProcessGroups.runsInPlace(forking.path, SH)).isFalse()
+		assertThat(setsid).isNull()
 		assertThat((result as CommandResult.Success).stdout).isEqualTo("late\n")
 	}
 
@@ -632,7 +701,8 @@ class IdeCommandServiceImplTest {
 	@Test
 	fun `where the first setsid forks, the next one that runs commands in place is used`() {
 		assumeHostTools()
-		val setsid = ProcessGroups.usableSetsid(listOf(forkingSetsid().path, File(tmp.root, "none").path, SETSID), SH).path
+		val candidates = listOf(forkingSetsid().path, File(tmp.root, "none").path, SETSID)
+		val setsid = SetsidFinder(candidates, { ProcessGroups.runsInPlace(it, SH) }, { it.run() }).current()
 		val groups = ProcessGroups(setsid, ::hostSignal)
 
 		val execution = service(groups).executeCommand(shell(CHILDREN_SCRIPT), 300)
@@ -642,6 +712,13 @@ class IdeCommandServiceImplTest {
 		assertThat((result as CommandResult.Failure).error).isEqualTo("Command timed out after 300ms")
 		assertThat(goneWithin(pids(CHILDREN_SCRIPT_PIDS), 1_000)).isTrue()
 	}
+
+	/** A `setsid` that runs its command in place, as util-linux's does. */
+	private fun executableSetsid() =
+		File(tmp.newFolder(), "setsid").apply {
+			writeText("#!/bin/sh\nexec \"\$@\"\n")
+			setExecutable(true)
+		}
 
 	/** A `setsid` that forks and exits 0 at once, as Android 11's toybox one does. */
 	private fun forkingSetsid() =

@@ -39,8 +39,8 @@ class IdeCommandServiceImpl internal constructor(
 	private val projectRootProvider: () -> File?,
 	private val appFilesDir: File,
 	private val gradleTaskRunner: GradleTaskRunner = GradleTaskRunner(IdeBuildServiceImpl.getInstance()::startTasks),
-	// Called as each shell command starts, never here: finding a usable setsid runs it, which a
-	// plugin that runs no shell command should not pay for as it loads.
+	// Called as each shell command starts, never here: the first call starts the check for a usable
+	// setsid, which a plugin that runs no shell command should not pay for as it loads.
 	private val processGroups: () -> ProcessGroups = { ProcessGroups.android(File(appFilesDir, "usr/bin/setsid")) },
 ) : IdeCommandService {
 	private val runningCommands = ConcurrentHashMap<String, RunningCommand>()
@@ -84,7 +84,10 @@ class IdeCommandServiceImpl internal constructor(
 		return execution
 	}
 
-	/** Run by the command's coroutine, so that finding a usable setsid never holds up the caller. */
+	/**
+	 * Run by the command's coroutine. [processGroups] never waits for the setsid check (see [SetsidFinder]),
+	 * so the check holds up neither the caller nor the command, and never counts against its timeout.
+	 */
 	private fun startInGroup(
 		processBuilder: ProcessBuilder,
 		workDir: File?,

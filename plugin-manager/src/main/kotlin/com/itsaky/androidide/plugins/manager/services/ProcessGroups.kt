@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
 
 /** A signal [ProcessGroups] sends. [PROBE] delivers nothing; it only asks whether the group exists. */
 internal enum class GroupSignal { PROBE, TERM, KILL }
@@ -19,21 +21,88 @@ internal data class GroupedCommand(
 )
 
 /**
- * What checking the `setsid` candidates found: [path], the first that runs commands in place, or null
- * if none does. Not [definite] when a check could not tell (it timed out or failed to run), so the
- * answer is not kept and the next command checks again.
+ * Finds the first of [candidates] that runs commands in place, without making a command wait for it.
+ * [current] answers from the checks done so far and starts one through [launch] when one could help, so
+ * a check never runs on the path that starts a command, nor under its timeout. Meanwhile commands run
+ * without a group of their own, as before the Terminal is installed.
+ *
+ * Each candidate's definite answer (in place, or forks) is kept, so it is checked once. A check that
+ * could not tell, such as one that timed out on a busy device, is tried again, at most [maxUnsure]
+ * times per candidate. One check runs at a time. A candidate that cannot run yet, as the Terminal's
+ * before first-run setup, is checked once it can.
+ *
+ * @param check whether a candidate runs commands in place, or null if the check could not tell.
  */
-internal data class SetsidCheck(
-	val path: String?,
-	val definite: Boolean,
-)
+internal class SetsidFinder(
+	private val candidates: List<String>,
+	private val check: (String) -> Boolean?,
+	private val launch: (Runnable) -> Unit,
+	private val maxUnsure: Int = MAX_UNSURE_CHECKS,
+) {
+	private val verdicts = ConcurrentHashMap<String, Boolean>()
+	private val unsure = ConcurrentHashMap<String, Int>()
+	private val checking = AtomicBoolean()
+
+	/** The `setsid` to use now, or null while none is known to run commands in place. Never checks. */
+	fun current(): String? {
+		found()?.let { return it }
+		val open = candidates.filter(::isOpen)
+		if (open.isNotEmpty() && checking.compareAndSet(false, true)) {
+			try {
+				launch {
+					try {
+						checkAll(open)
+					} finally {
+						checking.set(false)
+					}
+				}
+			} catch (e: Throwable) {
+				// No thread for the check (out of memory): this command runs without a group, the next one tries again.
+				checking.set(false)
+				log.warn("Could not start the setsid check", e)
+			}
+		}
+		// A launch that ran the check at once, as the unit tests' does, already has an answer.
+		return found()
+	}
+
+	private fun found(): String? = candidates.firstOrNull { verdicts[it] == true && File(it).canExecute() }
+
+	private fun isOpen(candidate: String): Boolean =
+		!verdicts.containsKey(candidate) && (unsure[candidate] ?: 0) < maxUnsure && File(candidate).canExecute()
+
+	private fun checkAll(open: List<String>) {
+		for (candidate in open) {
+			when (val inPlace = check(candidate)) {
+				null -> {
+					val tries = unsure.merge(candidate, 1, Int::plus)
+					if (tries == maxUnsure) log.warn("{} could not be checked {} times; not checking it again", candidate, tries)
+				}
+
+				else -> {
+					verdicts[candidate] = inPlace
+					if (inPlace) return
+				}
+			}
+		}
+		if (candidates.none(::isOpen)) {
+			log.warn("No setsid runs commands in place: a stop reaches only a command's own process ({})", candidates)
+		}
+	}
+
+	companion object {
+		private val log = LoggerFactory.getLogger(SetsidFinder::class.java)
+
+		const val MAX_UNSURE_CHECKS = 3
+	}
+}
 
 /**
  * Runs each shell command as the leader of a process group of its own, so that stopping it stops
  * every process it started, not only the one the IDE holds. Without a group, a command's children
  * (`a | b`, `cmd &`, pip's build steps) outlive it.
  *
- * @param setsidPath the `setsid` program, one that runs its command in place (see [usableSetsid]), so
+ * @param setsidPath the `setsid` program, one that runs its command in place (see [runsInPlace]), so
  *   the process the IDE holds becomes the group's leader and its process id the group's. Null where
  *   there is none: commands then share the IDE's group, and only their own process can be stopped.
  * @param signal sends a [GroupSignal] to every process in group `pgid`, as `kill(-pgid, sig)` does.
@@ -94,33 +163,31 @@ internal class ProcessGroups(
 		private const val ANDROID_SH = "/system/bin/sh"
 		private const val CHECK_TIMEOUT_S = 5L
 
-		private val android = ConcurrentHashMap<String, ProcessGroups>()
+		private val finders = ConcurrentHashMap<String, SetsidFinder>()
 
 		/**
 		 * Android's toybox `setsid`, or else [terminalSetsid], the util-linux one the Terminal installs,
-		 * whichever first runs commands in place (see [usableSetsid]); and `kill(2)` through [Os].
-		 * Checked once per [terminalSetsid], unless neither works while [terminalSetsid] cannot run
-		 * yet: the Terminal installs it at first-run setup, possibly after plugins have run commands,
-		 * and where toybox's forks (Android 11) it is the only one that works. Also checked again
-		 * after a check that could not tell, such as one that timed out on a busy device.
+		 * whichever first runs commands in place (see [runsInPlace]); and `kill(2)` through [Os]. The
+		 * check runs on a thread of its own (see [SetsidFinder]): the Terminal installs its `setsid` at
+		 * first-run setup, possibly after plugins have run commands, and where toybox's forks
+		 * (Android 11) it is the only one that works.
 		 */
-		fun android(terminalSetsid: File): ProcessGroups =
-			android(terminalSetsid) { usableSetsid(listOf(ANDROID_SETSID, terminalSetsid.path), ANDROID_SH) }
+		fun android(terminalSetsid: File): ProcessGroups = android(terminalSetsid, { runsInPlace(it, ANDROID_SH) }, ::checkOnOwnThread)
 
-		/** [android], with [findSetsid] in place of checking the candidates. */
+		/** [android], with [check] in place of running each candidate and [launch] in place of a thread. */
 		internal fun android(
 			terminalSetsid: File,
-			findSetsid: () -> SetsidCheck,
-		): ProcessGroups =
-			android[terminalSetsid.path] ?: synchronized(android) {
-				android[terminalSetsid.path] ?: run {
-					val found = findSetsid()
-					val groups = ProcessGroups(found.path, ::osSignal)
-					val kept = found.path != null || (found.definite && terminalSetsid.canExecute())
-					if (kept) android[terminalSetsid.path] = groups
-					groups
-				}
-			}
+			check: (String) -> Boolean?,
+			launch: (Runnable) -> Unit,
+		): ProcessGroups {
+			val finder =
+				finders.getOrPut(terminalSetsid.path) { SetsidFinder(listOf(ANDROID_SETSID, terminalSetsid.path), check, launch) }
+			return ProcessGroups(finder.current(), ::osSignal)
+		}
+
+		private fun checkOnOwnThread(check: Runnable) {
+			thread(isDaemon = true, name = "setsid-check") { check.run() }
+		}
 
 		private fun osSignal(
 			pgid: Int,
@@ -142,29 +209,13 @@ internal class ProcessGroups(
 		}
 
 		/**
-		 * The first of [candidates] that runs its command in place, which is checked by running [shell]
-		 * under it once; null, with a warning, if none does. Toybox's `setsid`, like util-linux's, forks
-		 * only when its caller leads a group, which a [ProcessBuilder] child never does, except in
-		 * Android 11: there it makes itself a group leader first, so it always forks and exits 0 at
-		 * once. Every command would then seem to end as it started, and its group would not be the one
-		 * the IDE holds.
+		 * Whether [setsid] runs [shell] in place, checked by running it once; null if the check could not
+		 * tell (it timed out or failed to run). Toybox's `setsid`, like util-linux's, forks only when its
+		 * caller leads a group, which a [ProcessBuilder] child never does, except in Android 11: there it
+		 * makes itself a group leader first, so it always forks and exits 0 at once. Every command would
+		 * then seem to end as it started, and its group would not be the one the IDE holds.
 		 */
-		fun usableSetsid(
-			candidates: List<String>,
-			shell: String,
-		): SetsidCheck {
-			var definite = true
-			for (candidate in candidates.filter { File(it).canExecute() }) {
-				val inPlace = runsInPlace(candidate, shell)
-				if (inPlace == true) return SetsidCheck(candidate, definite = true)
-				if (inPlace == null) definite = false
-			}
-			log.warn("No setsid runs commands in place: a stop reaches only a command's own process ({})", candidates)
-			return SetsidCheck(null, definite)
-		}
-
-		/** Whether [setsid] runs [shell] in place, or null if the check could not tell. */
-		private fun runsInPlace(
+		internal fun runsInPlace(
 			setsid: String,
 			shell: String,
 		): Boolean? {
@@ -173,14 +224,14 @@ internal class ProcessGroups(
 					val process = ProcessBuilder(setsid, shell, "-c", "echo \$\$").redirectErrorStream(true).start()
 					if (!process.waitFor(CHECK_TIMEOUT_S, TimeUnit.SECONDS)) {
 						process.destroyForcibly()
-						log.warn("{} took over {} s to check; checking it again on the next command", setsid, CHECK_TIMEOUT_S)
+						log.warn("{} took over {} s to check", setsid, CHECK_TIMEOUT_S)
 						return@runCatching null
 					}
 					val printed = process.inputStream.bufferedReader().use { it.readLine() }
 					val pid = process.pidOrNull() ?: error("no process id for the check's process")
 					printed != null && printed.trim() == pid.toString()
 				}.getOrElse {
-					log.warn("{} could not be checked ({}); checking it again on the next command", setsid, it.toString())
+					log.warn("{} could not be checked ({})", setsid, it.toString())
 					null
 				}
 			if (inPlace == false) log.warn("{} forks, so it is not used", setsid)
