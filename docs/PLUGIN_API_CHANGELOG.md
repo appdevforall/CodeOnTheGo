@@ -35,6 +35,28 @@ need a source change, a recompile, or both · `tooling` = API-stability
 milestone. **[verified]** = read from the checked-in ABI dump. **[reconstructed]**
 = diffed from `plugin-api/src` history (predates the dump; symbol-accurate).
 
+### 26.49 — unreleased
+- **breaking — A `ShellCommand` stops at its timeout or `cancel()`, with every process it started** _(ADFA-7178)_
+  A timeout used to wait for the command to exit, and a stop killed only the command's own
+  process, never its children. Each command now runs in a process group of its own, and a
+  timeout, `cancel()` or `cancelAllCommands()` stops the whole group: SIGTERM, then SIGKILL
+  250 ms later. `await()` returns within a second of the timeout. A stopped command frees its slot,
+  and `await()` returns, once the group has stopped, so after a `cancel()` too it can take up to
+  about 750 ms.
+  On Android 11, whose `setsid` always forks, the IDE uses the Terminal's `setsid` instead, if that
+  one runs commands in place. The IDE checks which `setsid` to use on a thread of its own, starting
+  with the first shell command, so a command never waits for the check and the check never counts
+  against its timeout. Until the check has an answer, commands get no group of their own: a stop
+  leaves their children running, as before. The Terminal's `setsid` is checked once it is
+  installed, and a check that timed out or failed to run, as on a busy device, is tried again, up to
+  three times.
+  A command that exits on its own is never reported as timed out. If a background child still
+  holds its output 500 ms after the command exits, the child is stopped, and `await()` returns
+  within about 1.5 s of the exit. A command that exits before the IDE starts reading its output
+  is the exception: Java drains and closes the output as it exits, so such a child is not seen.
+  A child whose output goes elsewhere (`server >log 2>&1 &`) is left running, as is a process
+  that calls `setsid` itself.
+
 ### 26.48 — unreleased
 - **added — Show the IDE's own documentation from a plugin** _(ADFA-7134)_
   `IdeTooltipService.showTooltip(anchorView, category, tag)` now reads the IDE's documentation

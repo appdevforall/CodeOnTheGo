@@ -33,6 +33,7 @@ class AgentRunner(
 		directory.mkdirs()
 		installScript()
 		File(directory, "$id.cmd").writeText(command)
+		File(directory, "$id.show").writeText(displayed(command))
 		File(directory, "$id.dir").writeText(workingDirectory.orEmpty())
 		return id
 	}
@@ -57,7 +58,7 @@ class AgentRunner(
 	 *
 	 * @return true if taken back; false if the runner took it first, or it was never prepared.
 	 */
-	fun withdraw(id: String): Boolean = File(directory, "$id.cmd").delete().also { if (it) File(directory, "$id.dir").delete() }
+	fun withdraw(id: String): Boolean = File(directory, "$id.cmd").delete().also { if (it) deleteCompanions(id) }
 
 	/**
 	 * Deletes the files of command [id], which will never run; the runner deletes them once it
@@ -65,6 +66,11 @@ class AgentRunner(
 	 */
 	fun discard(id: String) {
 		File(directory, "$id.cmd").delete()
+		deleteCompanions(id)
+	}
+
+	private fun deleteCompanions(id: String) {
+		File(directory, "$id.show").delete()
 		File(directory, "$id.dir").delete()
 	}
 
@@ -94,6 +100,23 @@ class AgentRunner(
 
 		/** Runs commands from Termux's tmp directory, which Termux clears when its service stops. */
 		val termux = AgentRunner(File(TermuxConstants.TERMUX_TMP_PREFIX_DIR_PATH))
+
+		/**
+		 * [command] as the session shows it before running it: each control character but tab and
+		 * newline written as `<U+001B>`. Printed raw, a value in a plugin's command line would drive
+		 * the terminal: OSC 52 sets the clipboard, and a CR or a cursor move rewrites the echo.
+		 */
+		internal fun displayed(command: String): String =
+			buildString {
+				for (c in command) {
+					val control = c < ' ' || c in '\u007f'..'\u009f' // C0, DEL and C1
+					if (control && c != '\t' && c != '\n') {
+						append("<U+").append(c.code.toString(16).uppercase().padStart(4, '0')).append('>')
+					} else {
+						append(c)
+					}
+				}
+			}
 	}
 }
 
