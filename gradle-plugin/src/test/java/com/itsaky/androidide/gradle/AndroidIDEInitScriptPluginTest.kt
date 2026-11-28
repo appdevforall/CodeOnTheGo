@@ -136,6 +136,59 @@ class AndroidIDEInitScriptPluginTest {
 		assertThat(result.output).contains("Build directory of project ':' relocated to $expected")
 	}
 
+	/** ADFA-6110: a sub-plugin must not reach a project without AGP, here a build-logic java-library. */
+	@ParameterizedTest
+	@ValueSource(
+		strings = [
+			GradlePluginConfig.PROPERTY_LOG_SENDER_ENABLED,
+			GradlePluginConfig.PROPERTY_JDWP_ENABLED,
+			GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED,
+			GradlePluginConfig.PROPERTY_QUICK_BUILD_ENABLED,
+		],
+	)
+	fun `test sub-plugin leaves a non-Android project in an included build alone`(
+		enabledProperty: String,
+		@TempDir dir: File,
+	) {
+		val project = File(dir, "composite").apply { mkdirs() }
+		File(project, "settings.gradle.kts").writeText("rootProject.name = \"composite\"\nincludeBuild(\"lib\")\n")
+		File(project, "build.gradle.kts").writeText("")
+		val lib = File(project, "lib").apply { mkdirs() }
+		File(lib, "settings.gradle.kts").writeText("rootProject.name = \"lib\"\ninclude(\"common\")\n")
+		File(lib, "build.gradle.kts").writeText("")
+		val common = File(lib, "common").apply { mkdirs() }
+		File(common, "build.gradle.kts").writeText("plugins { `java-library` }\n")
+		val aar = File(dir, "dummy.aar").apply { writeText("aar") }
+
+		val result =
+			buildProject(
+				task = ":lib:common:help",
+				projectDir = project.toPath(),
+				configureArgs = {
+					it += "-P$enabledProperty=true"
+					// Read only by the sub-plugin they belong to; set both so any one can apply.
+					it += "-P${GradlePluginConfig.PROPERTY_LOG_SENDER_AAR}=${aar.absolutePath}"
+					it += "-P${GradlePluginConfig.PROPERTY_QUICK_BUILD_RUNTIME_AAR}=${aar.absolutePath}"
+				},
+			)
+
+		// Proves the IDE plugin reached the non-Android project, so the build passing means
+		// the sub-plugin was declined rather than never offered.
+		assertThat(result.output).contains("Applying AndroidIDEGradlePlugin to project ':common'")
+	}
+
+	/** The ADFA-6110 gate must still let sub-plugins through on an Android application module. */
+	@Test
+	fun `test sub-plugin still applies to an Android application module`() {
+		val result =
+			buildProject(configureArgs = {
+				it += "-P${GradlePluginConfig.PROPERTY_PROFILEABLE_ENABLED}=true"
+				it += "--info"
+			})
+
+		assertThat(result.output).contains("Applying ProfilerPlugin to project ':app'")
+	}
+
 	@Test
 	fun `test build output stays put by default`() {
 		val result = buildProject(configureArgs = { it += "--info" })
